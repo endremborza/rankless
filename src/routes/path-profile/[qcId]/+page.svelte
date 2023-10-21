@@ -4,7 +4,13 @@
 
 	import PathLevelInfoBox from '$lib/components/PathLevelInfoBox.svelte';
 	import { pathStrToPath } from '$lib/tree-functions';
-	import type { AttributeLabels, QcSpec, SpecBaseOptions, WeightedNode } from '$lib/tree-types';
+	import type {
+		AttributeLabels,
+		PathInTree,
+		QcSpec,
+		SpecBaseOptions,
+		WeightedNode
+	} from '$lib/tree-types';
 	import { handleStore, mainPreload } from '$lib/tree-loading';
 
 	let attributeLabels: AttributeLabels;
@@ -12,8 +18,8 @@
 	let specBaselineOptions: SpecBaseOptions;
 	let weightedRoot: WeightedNode;
 
-	let selectedPath = pathStrToPath($page.params.pathDesc);
-	let rootId = $page.params.rootId;
+	let selectedPath: PathInTree;
+	let rootId: string | null;
 
 	onMount(() => {
 		mainPreload().then(([aLabels, allQcSpecs, baseOptions]) => {
@@ -21,13 +27,18 @@
 			specBaselineOptions = baseOptions;
 			qcSpec = allQcSpecs[$page.params.qcId];
 		});
-		handleStore(`qc-builds/${$page.params.qcId}/${rootId}`, (obj: WeightedNode) => {
-			weightedRoot = obj;
-		});
+		rootId = $page.url.searchParams.get('r');
+
+		if (rootId != null) {
+			handleStore(`qc-builds/${$page.params.qcId}/${rootId}`, (obj: WeightedNode) => {
+				weightedRoot = obj;
+			});
+		}
+		selectedPath = pathStrToPath($page.url.searchParams.get('p') || '');
 	});
 </script>
 
-{#if qcSpec != undefined && weightedRoot != undefined && specBaselineOptions != undefined && attributeLabels != undefined}
+{#if selectedPath != undefined && rootId != undefined && qcSpec != undefined && weightedRoot != undefined && specBaselineOptions != undefined && attributeLabels != undefined}
 	<PathLevelInfoBox
 		path={selectedPath}
 		{weightedRoot}

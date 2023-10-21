@@ -260,9 +260,9 @@
 							/>
 						</foreignObject>
 						<a
-							href={`${base}/path-profile/${selectedQcSpecOption.id}/${
+							href={`${base}/path-profile/${selectedQcSpecOption.id}?r=${
 								selectedQcRootOption.id
-							}/${treePathToStr(selectedPath)}`}
+							}&p=${treePathToStr(selectedPath)}`}
 							target="_blank"
 						>
 							<text y={1.8} font-size="1.2px" href="/">Open</text>
