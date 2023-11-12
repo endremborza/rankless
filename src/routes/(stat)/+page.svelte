@@ -7,7 +7,6 @@
 	import { onMount } from 'svelte';
 	import { handleStore } from '$lib/tree-loading';
 	import HexagonLogo from '$lib/components/HexagonLogo.svelte';
-	import Checkbox from '$lib/components/Checkbox.svelte';
 
 	let instOptions: SelectionOption[] = [];
 
@@ -24,23 +23,25 @@
 		}
 	}
 
-	let rotScaler = 0.3;
+	let rotScaler = 1.2;
 
 	function onFocus() {
-		rotScaler += 0.9;
+		rotScaler -= 0.9;
 	}
 
 	function onBlur() {
-		rotScaler -= 0.9;
+		rotScaler += 0.9;
 	}
 </script>
 
 <div class="bstrip t1">
-	<svg width="100%" height="800px" viewBox="-3 -3 12 6" xmlns="http://www.w3.org/2000/svg">
-		<HexagonLogo {rotScaler} />
-	</svg>
+	<div id="logo-bar">
+		<svg width="100%" height="100%" viewBox="-3 -3 6 6" xmlns="http://www.w3.org/2000/svg">
+			<HexagonLogo {rotScaler} />
+		</svg>
+	</div>
 
-	<div class="bar">
+	<div id="search-bar">
 		<h1>Explore the impact of an academic institution!</h1>
 		<AutoComplete
 			className={'inst-selector'}
@@ -61,7 +62,6 @@
 <style>
 	h1 {
 		text-align: center;
-		margin-bottom: 20px;
 	}
 
 	.bstrip {
@@ -73,16 +73,27 @@
 		background-color: rgba(var(--color-range-65), 0.25);
 	}
 
-	.bar {
-		position: absolute;
-		top: 35%;
-		width: 40%;
-		padding: 150px;
-		flex: 0 1 700px;
+	#logo-bar {
+		flex: 1;
+		flex-basis: 200px;
+		height: 600px;
+		min-width: 200px;
+		max-width: 600px;
+	}
+
+	#search-bar {
+		width: 70%;
+		padding-top: 150px;
+		padding-bottom: 100px;
+		padding-right: 40px;
+		padding-left: 40px;
+		flex: 3;
+		min-width: 200px;
+		max-width: 800px;
 		display: flex;
 		flex-wrap: wrap;
 		align-items: end;
-		justify-content: end;
+		justify-content: start;
 	}
 
 	:global(.inst-selector) {
@@ -96,7 +107,7 @@
 		width: 100%;
 	}
 	:global(.inst-dropdown) {
-		background-color: rgba(var(--color-range-80), 0.7) !important;
+		background-color: rgba(var(--color-range-95), 0.98) !important;
 		border: 2px solid rgba(var(--color-range-45), 0.45);
 		border-radius: 4px;
 	}
