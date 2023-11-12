@@ -155,17 +155,21 @@
 			{/if}
 		</div>
 		<div class="detail-cols">
-			<div>
+			<div id="volume-col">
 				<h3>
 					{volumeInfo.desc} Volume
 				</h3>
 				<p>
 					{formatNumber(volumeInfo.num)} citation{#if volumeInfo.num > 1}s{/if}
 				</p>
-				<p>around {formatNumber(volumeInfo.comparison)} expected</p>
+				<p>
+					{(volumeInfo.num / volumeInfo.comparison).toFixed(2)} times the average of {formatNumber(
+						volumeInfo.comparison
+					)} among siblings
+				</p>
 			</div>
 
-			<div>
+			<div id="spec-col">
 				<h3>{getDesc(specInfo.specMetric)} Specialization</h3>
 				<p>{(specInfo.nodeRate * 100).toFixed(2)}% of impact</p>
 				<p>
@@ -225,5 +229,9 @@
 	.detail-cols > div {
 		padding: 20px;
 		text-align: center;
+	}
+
+	#volume-col {
+		border-right: 5px solid black;
 	}
 </style>
