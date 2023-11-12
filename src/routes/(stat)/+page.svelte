@@ -6,6 +6,8 @@
 	import AutoComplete from 'simple-svelte-autocomplete';
 	import { onMount } from 'svelte';
 	import { handleStore } from '$lib/tree-loading';
+	import HexagonLogo from '$lib/components/HexagonLogo.svelte';
+	import Checkbox from '$lib/components/Checkbox.svelte';
 
 	let instOptions: SelectionOption[] = [];
 
@@ -21,9 +23,23 @@
 			goto(`${base}/view/${INSTITUTION_TYPE}/${e.id}`); //TODO this is capitalized!!
 		}
 	}
+
+	let rotScaler = 0.3;
+
+	function onFocus() {
+		rotScaler += 0.9;
+	}
+
+	function onBlur() {
+		rotScaler -= 0.9;
+	}
 </script>
 
 <div class="bstrip t1">
+	<svg width="100%" height="800px" viewBox="-3 -3 12 6" xmlns="http://www.w3.org/2000/svg">
+		<HexagonLogo {rotScaler} />
+	</svg>
+
 	<div class="bar">
 		<h1>Explore the impact of an academic institution!</h1>
 		<AutoComplete
@@ -33,6 +49,8 @@
 			selectId={'inst-selected'}
 			items={instOptions}
 			{onChange}
+			{onFocus}
+			{onBlur}
 			labelFieldName="name"
 			valueFieldName="id"
 			hideArrow={true}
@@ -46,18 +64,25 @@
 		margin-bottom: 20px;
 	}
 
+	.bstrip {
+		position: relative;
+	}
+
 	.t1 {
-		margin-top: 20px;
-		background-color: rgba(var(--color-range-30), 0.15);
+		margin-top: 80px;
+		background-color: rgba(var(--color-range-65), 0.25);
 	}
 
 	.bar {
+		position: absolute;
+		top: 35%;
+		width: 40%;
 		padding: 150px;
 		flex: 0 1 700px;
 		display: flex;
 		flex-wrap: wrap;
-		align-items: center;
-		justify-content: center;
+		align-items: end;
+		justify-content: end;
 	}
 
 	:global(.inst-selector) {
@@ -65,14 +90,14 @@
 		width: 100%;
 	}
 	:global(.inst-input) {
-		background-color: rgba(var(--color-range-20), 0.1);
-		border: 2px solid rgba(var(--color-range-55), 0.45);
+		background-color: rgba(var(--color-range-20), 0.7);
+		border: 2px solid rgba(var(--color-range-55), 0.85);
 		border-radius: 4px;
 		width: 100%;
 	}
 	:global(.inst-dropdown) {
-		background-color: rgba(var(--color-range-10), 0.6) !important;
-		border: 2px solid rgba(var(--color-range-55), 0.45);
+		background-color: rgba(var(--color-range-80), 0.7) !important;
+		border: 2px solid rgba(var(--color-range-45), 0.45);
 		border-radius: 4px;
 	}
 
