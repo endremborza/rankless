@@ -6,29 +6,35 @@
 	export let height: number;
 	export let anchor: string = 'left';
 
-	$: brokenText = formatTextToLines(text, width, height);
+	$: brokenText = formatTextToLines(text || '', width, height);
+
+	function getStyle(
+		brokenText: { rotate: boolean; lines: string[]; fontSize: number },
+		ind: number
+	) {
+		let extStyle;
+		if (brokenText.rotate) {
+			extStyle = `--x: ${
+				(ind - brokenText.lines.length + 1) * brokenText.fontSize * 1.2 + width
+			}px; --y: 0px; --rot: -90deg; --rcx: ${(ind + 1) * brokenText.fontSize * 1.2}px; --rcy: 0px`;
+		} else {
+			extStyle = `--x: 0px; --y: ${
+				(ind - brokenText.lines.length + 1) * brokenText.fontSize * 1.2
+			}px; --rot: 0deg; --rcx: 0px; --rcy: 0px`;
+		}
+		return `font-size: ${brokenText.fontSize}px; ` + extStyle;
+	}
 </script>
 
 {#each brokenText.lines as text, textInd}
-	{#if brokenText.rotate}
-		<text
-			x={(textInd + 1) * brokenText.fontSize * 1.2}
-			style="font-size: {brokenText.fontSize}px;"
-			text-anchor={anchor}
-			transform="rotate(270, {(textInd + 1) * brokenText.fontSize * 1.2}, 0)">{text}</text
-		>
-	{:else}
-		<text
-			y={(textInd - brokenText.lines.length + 1) * brokenText.fontSize * 1.2}
-			style="font-size: {brokenText.fontSize}px;"
-			text-anchor={anchor}>{text}</text
-		>
-	{/if}
+	<text style="{getStyle(brokenText, textInd)};" text-anchor={anchor}>{text}</text>
 {/each}
 
 <style>
 	text {
-		transition: font-size 1s;
-		font-family: 'Courier New', Courier, monospace;
+		transition: font-size 1s, transform 1s;
+		transform: translate(var(--x), var(--y)) rotate(var(--rot));
+		/* transform-origin: var(--rcx) var(--rcy); */
+		transform-origin: top left;
 	}
 </style>
