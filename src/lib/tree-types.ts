@@ -38,8 +38,8 @@ export type NamedNode = TreeGen<{ weight: number; name: string }>;
 export type EmbeddedNode = TreeGen<{
     weight: number,
     name: string,
-    childrenSumWeight: number;
     totalOffsetOnLevel: OffsetInfo
+    childrenSumWeight: number;
     totalOffsetAmongSiblings: OffsetInfo;
     isSelected: boolean;
     scaleEnds: { min: number; max: number; mid: number };
@@ -67,5 +67,3 @@ export type LevelVisual = LevelVisElem[];
 export type SpecializationBasis = { basis: EntityType | typeof GLOBAL_BASE_TYPE; hierarchy: EntityType | typeof GLOBAL_BASE_TYPE };
 export type SomeSpecBaselineMap = OMap<OMap<OMap<number> | number> | number>;
 export type SpecBaseOptions = OMap<SomeSpecBaselineMap>;
-
-export type RootMeta = OMap<string | number>;
