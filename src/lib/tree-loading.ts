@@ -6,6 +6,8 @@ export function handleStore<T, R>(endPoint: string, fun: (o: T) => R) {
     return fetch(`${STORE_URL}/${endPoint}.json.gz`).then((res) => {
         return res.json().then((jsv) => {
             return fun(jsv);
+        }).catch(() => {
+            console.error(endPoint)
         });
     });
 }
@@ -37,10 +39,10 @@ export function mainPreload() {
         return qcSpecs
     });
 
-    const specResp = handleStore('available-rca-baselines', (jsv: { baselines: [EntityType, string, string][] }) => {
+    const specResp = handleStore('available-rca-baselines', (jsv: { baselines: [string, EntityType, string, string][] }) => {
         const specEntriyResps = []
-        for (const [target, basis, hierarchy] of jsv.baselines) {
-            const basisName = specBaseKindToStr(target, basis, hierarchy);
+        for (const [rootTypeId, target, basis, hierarchy] of jsv.baselines) {
+            const basisName = specBaseKindToStr(rootTypeId, target, basis, hierarchy);
             if (IGNORED_BASES.includes(basisName)) continue;
             specEntriyResps.push(handleStore(`rca-baselines/${basisName}`, (o: SomeSpecBaselineMap) => {
                 return [basisName, o];
