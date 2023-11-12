@@ -1,7 +1,7 @@
 export const APP_NAME = 'Academic Impact Explorer';
 export const API_URL = 'http://localhost:3030/v1';
-//export const STORE_URL = 'https://tmp-borza-public-cyx.s3.amazonaws.com/quercus-base/v3.1'
-export const STORE_URL = 'http://0.0.0.0:8000';
+export const STORE_URL = 'https://tmp-borza-public-cyx.s3.amazonaws.com/quercus-base/v3.1'
+//export const STORE_URL = 'http://0.0.0.0:8000';
 
 export const INSTITUTION_TYPE = 'Institution';
 export const CONCEPT_TYPE = 'Concept';
