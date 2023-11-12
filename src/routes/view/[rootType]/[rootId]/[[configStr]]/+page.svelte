@@ -97,7 +97,7 @@
 
 	let showHoverInfo = true;
 
-	let hoverHeight = 10;
+	let hoverHeight = 12.5;
 	let hoverWidth = sideBarWidth * 0.85;
 
 	let foreignScales = 0.035;
@@ -114,6 +114,7 @@
 	let fullQcSpecs: QcSpecMap = {};
 	let specOptions: SelectionOption[] = [];
 	let selectedQcSpecId: string;
+	let currentQcSpec: QcSpec;
 
 	let specBaselineOptions: SpecBaseOptions = {};
 
@@ -122,7 +123,6 @@
 
 	let attributeLabels: AttributeLabels = {};
 
-	$: currentQcSpec = fullQcSpecs[selectedQcSpecId || ''];
 	$: loadNewQc(selectedQcSpecId, selectedQcRootOption?.id);
 
 	const toSelOpt = (entry: [string, QcSpec]) => ({ id: entry[0], name: entry[1].title });
@@ -151,10 +151,16 @@
 		if (specId == null || rootId == null) {
 			return;
 		}
+		console.log(`qc${specId}`);
 		goto(`${base}/view/${$page.params.rootType}/${rootId}${$page.url.search}`);
 		handleStore(`qc-builds/${specId}/${rootId}`, (obj: WeightedNode) => {
-			refillLevelSpecs();
-			[completeTree, controlSpecs, selectionState] = [obj, controlSpecs, { children: {} }];
+			[completeTree, controlSpecs, selectionState, currentQcSpec, controlSpecs] = [
+				obj,
+				controlSpecs,
+				{ children: {} },
+				fullQcSpecs[selectedQcSpecId],
+				getEmptyLevelSpecs(specId, rootId)
+			];
 		});
 	}
 
@@ -172,20 +178,15 @@
 		let regexp = new RegExp('\\{pc_id\\}', 'gi');
 		return s.replace(regexp, pcRootId);
 	}
-	function refillLevelSpecs() {
-		const pcRootId = selectedQcRootOption?.id;
-		while (controlSpecs.length > 0) {
-			controlSpecs.pop();
+	function getEmptyLevelSpecs(specId: string, pcRootId: string) {
+		const out = [];
+		for (var bf of fullQcSpecs[specId].bifurcations) {
+			out.push({
+				...DEFAULT_CONTROL_SPEC,
+				...JSON.parse(formatFilter(bf.control_format_str, pcRootId))
+			});
 		}
-
-		if (currentQcSpec != undefined && pcRootId != undefined) {
-			for (var bf of currentQcSpec.bifurcations) {
-				controlSpecs.push({
-					...DEFAULT_CONTROL_SPEC,
-					...JSON.parse(formatFilter(bf.control_format_str, pcRootId))
-				});
-			}
-		}
+		return out;
 	}
 
 	let controlSpecs: ControlSpec[] = [DEFAULT_CONTROL_SPEC];
@@ -313,7 +314,7 @@
 			>
 				<div style="padding: 20px">
 					<div id="qc-type-selector">
-						<select bind:value={selectedQcSpecId} on:change={() => console.log('changed')}>
+						<select bind:value={selectedQcSpecId}>
 							{#each Object.entries(fullQcSpecs) as [qcK, qcE]}
 								<option value={qcK}>
 									{qcE.title}
