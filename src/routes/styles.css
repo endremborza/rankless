@@ -1,9 +1,8 @@
 /* @import '@fontsource/fira-mono'; */
 
 :root {
-	--font-body: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
-		Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-	--font-mono: 'Fira Mono', monospace;
+	--font-body: 'Roboto', sans-serif;
+	--font-mono: 'Roboto Mono', monospace;;
 
 	--color-range-5: 13, 198, 243;
 	--color-range-10: 25, 176, 230;
@@ -26,8 +25,20 @@
 	--color-range-95: 238, 198, 17;
 	--color-range-100: 250, 220, 5;
 
-	--color-text: rgba(0, 0, 0, 0.7);
-	--color-metric-base: #9400FF;
+	--color-text: #21272A;
+	--color-text-light: #697077;
+
+	--color-theme-yellow: #FBF4E5;
+	--color-theme-lightblue: #DCE3EC;
+	--color-theme-darkblue: #0F62FE;
+	--color-theme-blue: #6BA8DA;
+	--color-theme-purple: #C5C5E0;
+	--color-theme-pink: #CEBAD3;
+	--color-theme-darkgrey: #4F4F4F;
+	--color-theme-lightgrey: #D8D8D8;
+	--color-theme-red: #FE7D95;
+	--color-theme-white: #F2F2F2;
+
 	font-family: var(--font-body);
 	color: var(--color-text);
 }
@@ -65,4 +76,9 @@ h1 {
 	display: flex;
 	flex-flow: row wrap;
 	justify-content: center;
+}
+
+g {
+	transition: transform 0.8s;
+	transform: translate(var(--x-off, 0px), var(--y-off, 0px));
 }

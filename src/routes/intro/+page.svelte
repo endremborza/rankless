@@ -144,9 +144,4 @@
 	.right {
 		flex: 2 2 1400px;
 	}
-
-	g {
-		transition: transform 0.8s;
-		transform: translate(var(--x-off), var(--y-off));
-	}
 </style>
