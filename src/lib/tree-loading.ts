@@ -3,7 +3,7 @@ import { IGNORED_BASES, specBaseKindToStr } from "./metric-calculation";
 import type { AttributeLabelsRaw, QcSpecMap, SomeSpecBaselineMap } from "./tree-types";
 
 export function handleStore<T, R>(endPoint: string, fun: (o: T) => R) {
-    return fetch(`${STORE_URL}/${endPoint}.json.gz`).then((res) => {
+    return fetch(`${STORE_URL}/${endPoint.replace('+', '%2B')}.json.gz`).then((res) => {
         return res.json().then((jsv) => {
             return fun(jsv);
         }).catch(() => {
