@@ -3,6 +3,10 @@ export function formatNumber(n: number) {
         return `${(n / 1e6).toFixed(1)}M`;
     } else if (n > 1e3) {
         return `${(n / 1e3).toFixed(1)}k`;
+    } else if (n < 1) {
+        return n.toFixed(2);
+    } else if (n < 10) {
+        return n.toFixed(1);
     } else {
         return n.toFixed(0);
     }
