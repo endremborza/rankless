@@ -8,7 +8,7 @@ export function formatNumber(n: number) {
     }
 }
 
-export function formatTextToLines(s: string, width: number, height: number, heightMultiplier = 1.2, widthMultiplier = 0.7) {
+export function formatTextToLines(s: string, width: number, height: number, heightMultiplier = 1.2, widthMultiplier = 0.59) {
 
     const horizontal = formatTextToLinesOneWay(s, width, height, heightMultiplier, widthMultiplier);
     //const vertical = { fontSize: 0 }
