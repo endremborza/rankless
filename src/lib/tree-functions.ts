@@ -255,7 +255,7 @@ export function getChildName(path: PathInTree, attributeLabels: AttributeLabels,
     }
     const childId = lastE(path);
     const attKind = getEntityKind(path, qcSpec);
-    return attributeLabels[attKind][childId]?.name;
+    return attributeLabels[attKind][childId]?.name || 'Unknown';
 }
 
 export function getEntityKind(path: PathInTree, qcSpec: QcSpec) {
