@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type {
 		AttributeLabels,
+		NamedNode,
 		PathInTree,
 		QcSpec,
 		SpecBaseOptions,
@@ -39,14 +40,18 @@
 
 	$: leafEntityKind = getEntityKind(path, qcSpec);
 
-	function getNodes(path: PathInTree, weightedRoot: WeightedNode) {
+	function getNodes(path: PathInTree, weightedRoot: WeightedNode): NamedNode[] {
 		if (qcSpec?.root_entity_type === undefined) {
 			return [];
 		}
-		const nodes = [weightedRoot];
+		const nodes = [
+			{ ...weightedRoot, name: attributeLabels[qcSpec.root_entity_type][rootId].name }
+		];
 		for (let i = 0; i < path.length; i++) {
 			const parentPath = path.slice(0, i + 1);
-			nodes.push(getNodeByPath(parentPath, weightedRoot) || { weight: 0 });
+			const pNode = getNodeByPath(parentPath, weightedRoot);
+			const name = getChildName(parentPath, attributeLabels, qcSpec);
+			nodes.push({ ...(pNode || { weight: 0 }), name });
 		}
 		return nodes;
 	}
@@ -138,13 +143,14 @@
 	);
 
 	$: trueFilters = getTrueFilters(qcSpec);
+	$: levelEntityType = qcSpec.bifurcations[path.length - 1]?.attribute_kind;
 </script>
 
 {#if path != undefined}
 	<div class="box-container">
-		<div class="title-row">
+		<div id="title-row">
 			{#if levelOfDetail == 0}
-				<h2>{getChildName(path, attributeLabels, qcSpec)}</h2>
+				<h2>{leaf.name}</h2>
 			{:else}
 				<h2>Papers published by {attributeLabels[qcSpec.root_entity_type][rootId].name}</h2>
 				{#each trueFilters as trueFilter}
@@ -157,25 +163,22 @@
 		<div class="detail-cols">
 			<div id="volume-col">
 				<h3>
-					{volumeInfo.desc} Volume
+					{formatNumber(volumeInfo.num)} citation{#if volumeInfo.num > 1}s{/if}
 				</h3>
 				<p>
-					{formatNumber(volumeInfo.num)} citation{#if volumeInfo.num > 1}s{/if}
-				</p>
-				<p>
-					{(volumeInfo.num / volumeInfo.comparison).toFixed(2)} times the average of {formatNumber(
-						volumeInfo.comparison
-					)} among siblings
+					<b>{(volumeInfo.num / volumeInfo.comparison).toFixed(2)}</b> times the average {levelEntityType}
+					({formatNumber(volumeInfo.comparison)}) under {parent.name}
 				</p>
 			</div>
-
 			<div id="spec-col">
 				<h3>{getDesc(specInfo.specMetric)} Specialization</h3>
-				<p>{(specInfo.nodeRate * 100).toFixed(2)}% of impact</p>
 				<p>
-					around {(specInfo.baselineRate * 100).toFixed(2)}%, {formatNumber(
+					<b>{(specInfo.nodeRate * 100).toFixed(2)}%</b> of total impact
+				</p>
+				<p>
+					{(specInfo.baselineRate * 100).toFixed(2)}% ({formatNumber(
 						specInfo.nodeDivisor * specInfo.baselineRate
-					)} citations expected
+					)} citations) expected based on {leaf.name} impact rate of all {qcSpec.root_entity_type}s
 				</p>
 			</div>
 
@@ -203,6 +206,10 @@
 {/if}
 
 <style>
+	h2 {
+		text-align: center;
+	}
+
 	.box-container {
 		display: flex;
 		flex-direction: column;
@@ -210,7 +217,7 @@
 		justify-content: space-around;
 	}
 
-	.title-row {
+	#title-row {
 		width: 100%;
 		display: flex;
 		justify-content: space-around;
@@ -232,6 +239,11 @@
 	}
 
 	#volume-col {
+		width: 50%;
 		border-right: 5px solid black;
+	}
+
+	#spec-col {
+		width: 50%;
 	}
 </style>
