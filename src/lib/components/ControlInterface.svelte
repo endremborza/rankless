@@ -51,6 +51,8 @@
 
 	$: showTopN = heightInElements > 3.2;
 	$: topNClass = showTopN ? '' : 'control-hidden';
+	$: showMinOrMaxControl = heightInElements > 4.8;
+	$: minOrMaxClass = showMinOrMaxControl ? '' : 'control-hidden';
 	$: expandedClass = isExpanded ? '' : 'control-hidden';
 
 	function getTopFzf(term: string) {
@@ -156,8 +158,8 @@
 					{/if}
 				</div>
 
-				<div class="control-elem {expandedClass}">
-					{#if isExpanded}
+				<div class="control-elem {minOrMaxClass}">
+					{#if showMinOrMaxControl}
 						<Checkbox bind:value={showSide} values={sideOptions} width={sliderWidth} />
 					{/if}
 				</div>
