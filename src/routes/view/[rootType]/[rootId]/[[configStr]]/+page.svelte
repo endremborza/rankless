@@ -62,7 +62,7 @@
 		for (const evDesc of evSeqString.split(';')) {
 			const evKey = evDesc.slice(0, 2);
 			const evParams = evDesc.slice(2);
-			console.log('parsed comm', evKey, evParams);
+			// console.log('parsed comm', evKey, evParams);
 			if (evKey == 'sl') {
 				await new Promise((r) => setTimeout(r, parseFloat(evParams) * 1000));
 			} else {
@@ -86,7 +86,7 @@
 	let svgWidth = 100;
 	let rootWidth = 25;
 	let sideBarWidth = 17;
-	let childRate = defaultChildRate;
+	let childHeightRate = defaultChildRate;
 	let overHangRate = 0.05;
 
 	let topPadRate = 0.03;
@@ -151,7 +151,6 @@
 		if (specId == null || rootId == null) {
 			return;
 		}
-		console.log(`qc${specId}`);
 		goto(`${base}/view/${$page.params.rootType}/${rootId}${$page.url.search}`);
 		handleStore(`qc-builds/${specId}/${rootId}`, (obj: WeightedNode) => {
 			[completeTree, controlSpecs, selectionState, currentQcSpec, controlSpecs] = [
@@ -211,16 +210,16 @@
 	function expandControlLevel(ind: number) {
 		if (ind == expandControlInd) {
 			expandControlInd = undefined;
-			childRate = defaultChildRate;
+			childHeightRate = defaultChildRate;
 		} else {
 			expandControlInd = ind;
-			childRate = 0.5;
+			childHeightRate = 0.5;
 		}
 	}
 
 	function selectNode(path: PathInTree) {
 		commLog.push(`se${path.join('-')}`);
-		console.log(commLog.join(';'));
+		//console.log(commLog.join(';'));
 		const leafId = path[path.length - 1];
 		let parentToChange = getNodeByPath(path.slice(0, path.length - 1), selectionState);
 		if (parentToChange?.children === undefined) {
@@ -333,7 +332,7 @@
 				<ControlInterface
 					{lVis}
 					{index}
-					{childRate}
+					{childHeightRate}
 					{overHangRate}
 					{sideBarWidth}
 					{svgWidth}
@@ -356,20 +355,20 @@
 				{levelVisuals}
 				{treeWidth}
 				{treeXOffset}
-				{childRate}
+				{childHeightRate}
 				{overHangRate}
-				childBaseSize={minimumChildWidth}
+				childBaseWidth={minimumChildWidth}
 				on:ti={handleInteraction}
 			/>
 
-			<g style="--x-off:{xOffset + rootWidth / 2}px; --y-off:-1px">
-				<BrokenFittedText
-					height={headerHeight - 2}
-					width={rootWidth}
-					text={selectedQcRootOption?.name || ''}
-					anchor={'middle'}
-				/>
-			</g>
+			<BrokenFittedText
+				height={headerHeight - 2}
+				width={rootWidth * 0.8}
+				text={selectedQcRootOption?.name || ''}
+				anchor={'middle'}
+				x={xOffset + rootWidth / 2}
+				y={-1}
+			/>
 			{#if highlightedBoxBase != undefined}
 				<g
 					transition:fade={{ duration: 100 }}
