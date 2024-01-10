@@ -3,15 +3,17 @@
 
 	import type { QcSpec, LevelVisElem, ControlSpec, AttributeLabels } from '$lib/tree-types';
 	import BrokenFittedText from './BrokenFittedText.svelte';
-	import AutoComplete from 'simple-svelte-autocomplete';
-	import { expandThis, getDispatch } from '$lib/tree-events';
+	import { getDispatch, expandThis } from '$lib/tree-events';
 	import Checkbox from './Checkbox.svelte';
 	import CollapseButton from './CollapseButton.svelte';
+
+	type FilterKey = 'exclude' | 'include';
+	const filterKeys: [FilterKey, FilterKey] = ['exclude', 'include'];
 
 	export let lVis: LevelVisElem;
 	export let index: number;
 	export let expandedIndex: number | undefined;
-	export let childRate: number;
+	export let childHeightRate: number;
 	export let overHangRate: number;
 	export let sideBarWidth: number;
 	export let svgWidth: number;
@@ -25,21 +27,19 @@
 
 	export let controlHtmlWidth = 320;
 
-	let duration = 200;
+	const dispatch = getDispatch();
+	let duration = 400;
 	let labelWidth = 30;
 	let sliderHeight = 30;
 	let thumbWidth = 80;
 	let thumbHeight = sliderHeight - 4;
 	$: sliderWidth = controlHtmlWidth - labelWidth * 2;
 
-	const dispatch = getDispatch();
-
 	$: isExpanded = index == expandedIndex;
 	$: bif = currentQcSpec?.bifurcations[index];
-	$: topOffset = lVis.topOffset + lVis.totalSize - lVis.totalSize * (childRate + overHangRate);
-	$: fullHeight = lVis.totalSize * childRate;
-	$: leftPad = sideBarWidth * 0.02;
-	$: topPad = fullHeight * 0.03;
+	$: topOffset =
+		lVis.topOffset + lVis.totalSize - lVis.totalSize * (childHeightRate + overHangRate);
+	$: fullHeight = lVis.totalSize * childHeightRate;
 
 	$: mainScale = (sideBarWidth * 0.85) / controlHtmlWidth;
 
@@ -47,11 +47,34 @@
 
 	$: heightInElements = fullHeight / svgScaleHeight;
 
-	// let items = [];
-
 	$: levelAttributes = attributeLabels[bif?.attribute_kind] || {};
 
-	$: items = Object.keys(levelAttributes);
+	$: showTopN = heightInElements > 3.2;
+	$: topNClass = showTopN ? '' : 'control-hidden';
+	$: expandedClass = isExpanded ? '' : 'control-hidden';
+
+	function getTopFzf(term: string) {
+		const out: { name: string; id: string }[] = [];
+		if (term.length == 0) {
+			return out;
+		}
+		const lowTerm = term.toLowerCase();
+		for (const [elemId, e] of Object.entries(levelAttributes)) {
+			if (e.name.toLowerCase().includes(lowTerm)) {
+				out.push({ name: e.name, id: elemId });
+				if (out.length > 4) {
+					return out;
+				}
+			}
+		}
+		return out;
+	}
+	let incExcFzfTerm = '';
+	$: topFzf = getTopFzf(incExcFzfTerm);
+
+	let editIncludeExclude = false;
+	const makeIncludeExcludeEditable = () => (editIncludeExclude = true);
+	const disableIncludeExcludeEditable = () => (editIncludeExclude = false);
 
 	let possScaleTypes: [string, string] = ['volume', 'specialization'];
 	let sideOptions: [string, string] = ['highest', 'lowest'];
@@ -60,7 +83,13 @@
 		controlSpecs[index].show_top = ss == 'highest';
 	})(showSide);
 
-	function dropId(id: string, key: 'include' | 'exclude') {
+	function addFilterId(id: string, key: FilterKey) {
+		return () => {
+			controlSpecs[index][key] = [id, ...controlSpecs[index][key].filter((x) => x != id)];
+		};
+	}
+
+	function dropFilterId(id: string, key: FilterKey) {
 		return () => {
 			controlSpecs[index][key] = controlSpecs[index][key].filter((x) => x != id);
 		};
@@ -72,60 +101,45 @@
 </script>
 
 {#if bif != undefined}
-	<g transition:fade={{ duration: 1000 }} style="--y-off: {topOffset}px; --x-off: {leftPad}px">
+	<g transition:fade={{ duration }} style="--y-off: {topOffset}px;">
 		<rect
 			fill="grey"
-			fill-opacity={isExpanded ? 0.5 : 0.3}
-			x={-leftPad}
-			height={fullHeight}
+			height="1"
 			width={svgWidth}
+			style="transform: matrix(1, 0, 0, {fullHeight}, 0, 0); opacity: {isExpanded ? 0.5 : 0.3}"
 		/>
-		<g style="--x-off: {sideBarWidth * 0.1}px; --y-off: {-0.5}px">
-			<BrokenFittedText
-				text={currentQcSpec?.bifurcations[index]?.description || ''}
-				width={sideBarWidth * 0.9}
-				height={svgScaleHeight * 2}
-			/>
-		</g>
+		<BrokenFittedText
+			text={currentQcSpec?.bifurcations[index]?.description || ''}
+			width={sideBarWidth * 0.9}
+			height={svgScaleHeight * 2}
+			x={sideBarWidth * 0.1}
+			y={-0.5}
+		/>
 
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<g
-			style="--x-off: {sideBarWidth * 0.85}px; --y-off: {topPad}px"
-			on:click={expandThis(dispatch, index)}
+		<foreignObject
+			width={controlHtmlWidth}
+			height={fullHeight / mainScale}
+			style="transform: matrix({mainScale}, 0, 0, {mainScale}, 0, 0)"
 		>
-			<CollapseButton
-				size={svgScaleHeight}
-				text={isExpanded ? 'collapse' : 'expand'}
-				rotated={isExpanded ? 180 : 0}
-			/>
-		</g>
-
-		<g style="--y-off: {topPad}px;">
-			<foreignObject
-				width={controlHtmlWidth}
-				height={(fullHeight / mainScale) * 1.5}
-				transform="scale({mainScale},{mainScale})"
+			<div
+				class="main-controls"
+				style="--full-width: {controlHtmlWidth}px; --slider-width: {sliderWidth}px; --label-width: {labelWidth}px; --thumb-width: {thumbWidth}px; --slider-height: {sliderHeight}px; --thumb-height: {thumbHeight}px"
 			>
+				<div class="control-elem">
+					<Checkbox
+						bind:value={controlSpecs[index].size_base}
+						values={possScaleTypes}
+						width={sliderWidth}
+					/>
+				</div>
 				<div
-					class="main-controls"
-					style="--full-width: {controlHtmlWidth}px; --slider-width: {sliderWidth}px; --label-width: {labelWidth}px; --thumb-width: {thumbWidth}px; --slider-height: {sliderHeight}px; --thumb-height: {thumbHeight}px"
+					class="control-elem {topNClass}"
+					style="--r: {labelWidth +
+						((sliderWidth - thumbWidth) * (controlSpecs[index].limit_n - minShow)) /
+							(maxOnOneLevel - minShow)}px"
 				>
-					<div id="spec-checkbox">
-						<Checkbox
-							bind:value={controlSpecs[index].size_base}
-							values={possScaleTypes}
-							width={sliderWidth}
-						/>
-					</div>
-					{#if heightInElements > 2.8}
-						<div
-							id="topn-control"
-							style="--r: {labelWidth +
-								((sliderWidth - thumbWidth) * (controlSpecs[index].limit_n - minShow)) /
-									(maxOnOneLevel - minShow)}px"
-							transition:fade={{ duration }}
-						>
+					{#if showTopN}
+						<div id="topn-control" transition:fade={{ duration }}>
 							<div id="topn-slider">
 								<span>{minShow}</span>
 								<input
@@ -140,51 +154,83 @@
 							<label for="topn-input">show {controlSpecs[index].limit_n}</label>
 						</div>
 					{/if}
+				</div>
 
+				<div class="control-elem {expandedClass}">
 					{#if isExpanded}
-						<div id="side-checkbox" transition:fade={{ duration }}>
-							<Checkbox bind:value={showSide} values={sideOptions} width={sliderWidth} />
-						</div>
+						<Checkbox bind:value={showSide} values={sideOptions} width={sliderWidth} />
+					{/if}
+				</div>
 
-						<div class="sub-controls" transition:fade={{ duration }}>
-							{#each ['include', 'exclude'] as lKey}
-								<div class="sub-input">
-									<AutoComplete
-										{items}
-										className={'sub-input-selector'}
-										inputClassName={'sub-input-box'}
-										bind:value={controlSpecs[index][lKey]}
-										multiple={true}
-										hideArrow={true}
-										{labelFunction}
-										maxItemsToShowInList={5}
-										placeholder={lKey}
-									>
-										<span slot="tag" />
-									</AutoComplete>
-								</div>
-								<div class="card-set">
+				<div class="control-elem {expandedClass}">
+					{#if isExpanded}
+						<input
+							type="text"
+							bind:value={incExcFzfTerm}
+							placeholder="include/exclude"
+							class="fzf-input"
+						/>
+						{#if editIncludeExclude}
+							<div class="blurred-overlay">
+								<button class="close-button" on:click={disableIncludeExcludeEditable}
+									>&#10006;</button
+								>
+								{#each filterKeys as lKey}
 									{#each controlSpecs[index][lKey] as valInd}
 										<span class="selected-card"
 											>{labelFunction(valInd)}
 											<!-- svelte-ignore a11y-no-static-element-interactions -->
 											<!-- svelte-ignore a11y-click-events-have-key-events -->
-											<span on:click={dropId(valInd, lKey)} class="clear-button">&#10006;</span
+											<span on:click={dropFilterId(valInd, lKey)} class="clear-button"
+												>&#10006;</span
 											></span
 										>
 									{/each}
-								</div>
-							{/each}
-						</div>
+								{/each}
+							</div>
+						{:else if topFzf.length > 0}
+							<div transition:fade={{ duration: 100 }} class="blurred-overlay">
+								<button class="close-button" on:click={() => (incExcFzfTerm = '')}>&#10006;</button>
+								<ul>
+									{#each topFzf as fzfResult}
+										<li>
+											{fzfResult.name}
+											<button on:click={addFilterId(fzfResult.id, 'include')}>include</button>
+											<button on:click={addFilterId(fzfResult.id, 'exclude')}>exclude</button>
+										</li>
+									{/each}
+								</ul>
+							</div>
+						{/if}
+						<span class="include-exclude-desc">
+							<span>
+								{controlSpecs[index].include.length} included,
+								{controlSpecs[index].exclude.length} excluded
+							</span>
+							<button on:click={makeIncludeExcludeEditable}>edit</button>
+						</span>
 					{/if}
 				</div>
-			</foreignObject>
+			</div>
+		</foreignObject>
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<g
+			style="transform: matrix(1,0,0,1,{sideBarWidth * 0.85}, {fullHeight * 0.03})"
+			on:click={expandThis(dispatch, index)}
+		>
+			<CollapseButton
+				size={svgScaleHeight}
+				text={isExpanded ? 'collapse' : 'expand'}
+				rotated={isExpanded ? 180 : 0}
+			/>
 		</g>
 	</g>
 {/if}
 
 <style>
-	rect {
+	rect,
+	foreignObject {
 		transition: 0.8s;
 	}
 
@@ -207,18 +253,12 @@
 		justify-content: center;
 		z-index: 1;
 		pointer-events: none;
-		-webkit-user-select: none; /* Safari */
-		-ms-user-select: none; /* IE 10 and IE 11 */
-		user-select: none; /* Standard syntax */
-	}
-
-	#spec-checkbox {
-		margin-bottom: 10px;
-	}
-
-	#side-checkbox {
-		margin-top: 10px;
-		margin-bottom: 10px;
+		-webkit-user-select: none;
+		/* Safari */
+		-ms-user-select: none;
+		/* IE 10 and IE 11 */
+		user-select: none;
+		/* Standard syntax */
 	}
 
 	#topn-slider {
@@ -241,7 +281,8 @@
 		z-index: 0;
 		outline: none;
 		appearance: none;
-		-webkit-appearance: none; /* Remove default styles on webkit browsers */
+		-webkit-appearance: none;
+		/* Remove default styles on webkit browsers */
 	}
 
 	input[type='range']::-webkit-slider-thumb {
@@ -271,16 +312,65 @@
 	}
 
 	.main-controls {
+		height: 100%;
 		width: var(--full-width);
 		display: flex;
 		flex-direction: column;
-		justify-content: center;
+		justify-content: space-around;
 		align-items: center;
+	}
+
+	.control-elem {
+		flex: 1 0 0px;
+		transition: flex 1s;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+	}
+
+	.control-hidden {
+		flex: 0 1 0px;
+	}
+
+	.blurred-overlay {
+		backdrop-filter: blur(28px);
+		border: 2px solid black;
+		border-radius: 10px;
+		position: absolute;
+		top: 3px;
+		left: 10px;
+		width: 95%;
+		height: 73%;
+		z-index: 4;
+	}
+
+	.fzf-input {
+		background-color: rgba(var(--color-range-15), 0.25) !important;
+		border: 2px solid rgba(var(--color-range-55), 0.5) !important;
+		border-radius: 4px !important;
+		width: 100%;
+		font-size: var(--thumb-height) px;
+		padding-top: 5px;
+		padding-bottom: 5px;
 	}
 
 	.clear-button {
 		font-weight: 900;
 		cursor: pointer;
+	}
+
+	.close-button {
+		position: absolute;
+		top: 3px;
+		right: 3px;
+	}
+
+	.include-exclude-desc {
+		width: 100%;
+		padding-top: 9px;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
 	}
 
 	.sub-input {
@@ -290,29 +380,11 @@
 		width: var(--slider-width);
 	}
 
-	.card-set {
-		width: var(--slider-width);
-		margin-top: 3px;
-		margin-bottom: 7px;
-		display: flex;
-		flex-wrap: wrap;
-	}
-
 	.selected-card {
 		border: 2px solid rgba(var(--color-range-15), 0.25);
 		border-radius: 3px;
 		background-color: rgba(var(--color-range-65), 0.45);
 		padding: 5px;
 		margin: 4px;
-	}
-
-	:global(.sub-input-selector) {
-		width: 100%;
-	}
-
-	:global(.input-container) {
-		background-color: rgba(var(--color-range-15), 0.25) !important;
-		border: 2px solid rgba(var(--color-range-55), 0.5) !important;
-		border-radius: 4px !important;
 	}
 </style>
