@@ -1,40 +1,33 @@
 <script lang="ts">
-	import { formatTextToLines } from '$lib/text-format-util';
+	import { getStylesForWords } from '$lib/text-format-util';
+	import { fade } from 'svelte/transition';
 
 	export let text: string;
 	export let width: number;
 	export let height: number;
 	export let anchor: string = 'left';
+	export let x = 0;
+	export let y = 0;
+	export let fadeMs = 600;
+	const baseFontSize = 10;
 
-	$: brokenText = formatTextToLines(text || '', width, height);
-
-	function getStyle(
-		brokenText: { rotate: boolean; lines: string[]; fontSize: number },
-		ind: number
-	) {
-		let extStyle;
-		if (brokenText.rotate) {
-			extStyle = `--x: ${
-				(ind - brokenText.lines.length + 1) * brokenText.fontSize * 1.2 + width
-			}px; --y: 0px; --rot: -90deg; --rcx: ${(ind + 1) * brokenText.fontSize * 1.2}px; --rcy: 0px`;
-		} else {
-			extStyle = `--x: 0px; --y: ${
-				(ind - brokenText.lines.length + 1) * brokenText.fontSize * 1.2
-			}px; --rot: 0deg; --rcx: 0px; --rcy: 0px`;
-		}
-		return `font-size: ${brokenText.fontSize}px; ` + extStyle;
-	}
+	$: words = (text || '').split(' ');
+	$: styles = getStylesForWords(words, width, height, 1.2, 0.6, baseFontSize, anchor == 'left');
+	$: rotMatrix = `0,${-styles.scale},${styles.scale},0,${x + width}`;
+	$: simpleMatrix = `${styles.scale},0,0,${styles.scale},${x}`;
+	$: gstyle = `transform:  matrix(${styles.rotate ? rotMatrix : simpleMatrix}, ${y})`;
 </script>
 
-{#each brokenText.lines as text, textInd}
-	<text style="{getStyle(brokenText, textInd)};" text-anchor={anchor}>{text}</text>
-{/each}
+<g style={gstyle} transition:fade={{ duration: fadeMs }}>
+	{#each words as word, wordInd}
+		<text style=" transform: {styles.translates[wordInd]}" text-anchor="left">{word}</text>
+	{/each}
+</g>
 
 <style>
 	text {
-		transition: font-size 1s, transform 1s;
-		transform: translate(var(--x), var(--y)) rotate(var(--rot));
-		/* transform-origin: var(--rcx) var(--rcy); */
-		transform-origin: top left;
+		transition: transform 1s;
+		font-family: monospace;
+		font-size: 10px;
 	}
 </style>
