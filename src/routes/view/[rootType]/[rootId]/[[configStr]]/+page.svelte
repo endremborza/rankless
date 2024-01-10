@@ -368,6 +368,7 @@
 				anchor={'middle'}
 				x={xOffset + rootWidth / 2}
 				y={-1}
+				allowRotation={false}
 			/>
 			{#if highlightedBoxBase != undefined}
 				<g

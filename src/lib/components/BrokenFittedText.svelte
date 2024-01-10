@@ -8,11 +8,21 @@
 	export let anchor: string = 'left';
 	export let x = 0;
 	export let y = 0;
+	export let allowRotation = true;
 	export let fadeMs = 600;
 	const baseFontSize = 10;
 
 	$: words = (text || '').split(' ');
-	$: styles = getStylesForWords(words, width, height, 1.2, 0.6, baseFontSize, anchor == 'left');
+	$: styles = getStylesForWords(
+		words,
+		width,
+		height,
+		1.2,
+		0.6,
+		baseFontSize,
+		anchor == 'left',
+		allowRotation
+	);
 	$: rotMatrix = `0,${-styles.scale},${styles.scale},0,${x + width}`;
 	$: simpleMatrix = `${styles.scale},0,0,${styles.scale},${x}`;
 	$: gstyle = `transform:  matrix(${styles.rotate ? rotMatrix : simpleMatrix}, ${y})`;

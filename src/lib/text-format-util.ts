@@ -12,17 +12,25 @@ export function formatNumber(n: number) {
     }
 }
 
-export function getStylesForWords(words: string[], width: number, height: number, heightMultiplier: number, widthMultiplier: number, baseFontSize: number, leftAligned: boolean) {
+export function getStylesForWords(words: string[], width: number, height: number, heightMultiplier: number, widthMultiplier: number, baseFontSize: number, leftAligned: boolean, allowRotation: boolean) {
     const horizontal = formatTextToLinesOneWay(words, width, height, heightMultiplier, widthMultiplier);
-    const vertical = formatTextToLinesOneWay(words, height, width, heightMultiplier, widthMultiplier);
-    const rotate = horizontal.fontSize < vertical.fontSize
-    const { lines, fontSize } = rotate ? vertical : horizontal
+    let rotate = false;
+    let { lines, fontSize } = horizontal
+    if (allowRotation) {
+        const vertical = formatTextToLinesOneWay(words, height, width, heightMultiplier, widthMultiplier);
+        if (horizontal.fontSize < vertical.fontSize) {
+            rotate = true
+            lines = vertical.lines
+            fontSize = vertical.fontSize
+        }
+    }
+
 
     const translates = [];
     const scale = fontSize / baseFontSize;
     for (const [lineInd, line] of lines.entries()) {
         const lineDispInd = lineInd - lines.length + 1;
-        const lineBaseX = leftAligned ? 0 :  - lineLen(line.words) * widthMultiplier * baseFontSize / 2
+        const lineBaseX = leftAligned ? 0 : - lineLen(line.words) * widthMultiplier * baseFontSize / 2
         let wordStartInd = 0
         for (const word of line.words) {
             const y = lineDispInd * heightMultiplier * baseFontSize;
@@ -47,10 +55,8 @@ function formatTextToLinesOneWay(words: string[], width: number, height: number,
     for (const _ of Array(7)) {
         maxLineLen = lines.reduce((a, b) => Math.max(a, b.length), -Infinity);
         widthBasedFontSize = width / (maxLineLen * widthMultiplier)
-        console.log("w wMul", width, widthMultiplier)
         heightBasedFontSize = getDimBasedSize(height, heightMultiplier, numOfLines)
         fontSize = Math.min(widthBasedFontSize, heightBasedFontSize)
-        console.log("Lines, MaxLineLen, H, W", numOfLines, maxLineLen, heightBasedFontSize, widthBasedFontSize)
         if ((lines.length == words.length) || (fontSize >= getDimBasedSize(height, heightMultiplier, numOfLines + 1))) {
             return { lines, fontSize }
         }
@@ -60,7 +66,6 @@ function formatTextToLinesOneWay(words: string[], width: number, height: number,
         }
         numOfLines = lines.length
     }
-    console.log("final", fontSize)
     return { lines, fontSize }
 
 }
@@ -85,7 +90,6 @@ function splitToLines(words: string[], stringLength: number, numOfLines: number)
     if (line.length > 0) {
         lines.push({ words: line, length: lineLen - 1 })
     }
-    console.log("tried", numOfLines, "got", lines.length, "from", words, "to", lines)
     return lines
 }
 
