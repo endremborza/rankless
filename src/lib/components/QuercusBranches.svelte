@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { linkVertical } from 'd3-shape';
 	import { fade } from 'svelte/transition';
 	import type {
 		EmbeddedNode,
@@ -14,6 +13,7 @@
 	import BrokenFittedText from './BrokenFittedText.svelte';
 	import { getColor } from '$lib/style-util';
 	import { getDispatch, treeInteract } from '$lib/tree-events';
+	import { rectangleLinkPath } from '$lib/visual-util';
 
 	export let qcSpec: QcSpec;
 	export let attributeLabels: AttributeLabels;
@@ -27,12 +27,12 @@
 	export let branchReachBack = 0;
 	export let rootWidth = 30;
 	export let treeWidth = 70;
-	export let childRate = 0.2;
+	export let childHeightRate = 0.2;
 	export let overHangRate = 0.05;
 	export let preStraightRate = 0.05;
 	export let treeXOffset = 0;
 
-	export let childBaseSize = 2.9;
+	export let childBaseWidth = 2.9;
 
 	export let linkSurfaceRate = 0.8;
 	export let childrenInternalMargin = 0.9;
@@ -41,18 +41,10 @@
 	//export let childSideMargin = 3.8; TODO
 
 	//only internally passed
-
 	export let width = rootWidth;
 	export let xOffset = (treeWidth - rootWidth) / 2 + treeXOffset;
 
 	const dispatch = getDispatch();
-
-	const rectangleLinkPath = linkVertical()
-		// @ts-ignore
-		.source((d) => d.start)
-		// @ts-ignore
-		.target((d) => d.end);
-
 	const defO = (n: number | undefined) => (n === undefined ? 0 : n);
 
 	$: onLevel = pathInCompleteTree.length;
@@ -62,16 +54,19 @@
 	$: nChildren = Object.keys(visibleNode?.children || {}).length;
 
 	$: currentLevelViz = levelVisuals[onLevel];
-	$: nSiblings = visibleTreeInfo.meta[onLevel].totalNodes;
 	$: nChildLevelNodes = visibleTreeInfo.meta[childLevel]?.totalNodes || 0;
 
-	$: [yOffset, childSize, topExtend, overHangSize] = [
-		currentLevelViz?.topOffset,
-		...[childRate, preStraightRate, overHangRate].map((x) => currentLevelViz?.totalSize * x)
-	].map(defO);
-	$: branchYEnd = yOffset + defO(currentLevelViz?.totalSize * (1 - childRate - preStraightRate));
-	$: childrenYOffset = branchYEnd + childSize;
-	$: pYStart = yOffset + topExtend;
+	$: yOffset = defO(currentLevelViz?.topOffset);
+	$: [pathLength, childHeight, preStraightSize, overHangSize] = [
+		1 - childHeightRate - preStraightRate - overHangRate,
+		childHeightRate,
+		preStraightRate,
+		overHangRate
+	].map((x) => defO(currentLevelViz?.totalSize * x));
+	$: pYStart = yOffset + preStraightSize;
+	$: branchYEnd = pYStart + pathLength;
+	$: childrenYOffset = branchYEnd + childHeight;
+	$: downWardStart = branchReachBack + preStraightSize;
 
 	$: centralLinkSourceWidth = width - 2 * parentSideMargin;
 	$: linkInternalMargin =
@@ -80,7 +75,7 @@
 	$: minimumLinkSurface = (centralLinkSourceWidth * linkSurfaceRate) / (nChildren * 1.8);
 
 	$: divisibleChildSpace =
-		treeWidth - childBaseSize * nChildLevelNodes - childrenInternalMargin * (nChildLevelNodes - 1);
+		treeWidth - childBaseWidth * nChildLevelNodes - childrenInternalMargin * (nChildLevelNodes - 1);
 
 	function parseChild(childId: string, childNode: EmbeddedNode) {
 		const cachedProps = {
@@ -89,7 +84,7 @@
 				treeXOffset,
 				childNode.weight,
 				childNode?.totalOffsetOnLevel,
-				childBaseSize,
+				childBaseWidth,
 				divisibleChildSpace,
 				visibleTreeInfo.meta[childLevel]?.totalWeight || 1,
 				childrenInternalMargin
@@ -121,14 +116,16 @@
 			end: [pDown.start[0] + lSize.parent, pYStart]
 		};
 
-		const ySize = childSize + (childNode.isSelected ? overHangSize : 0);
+		const ySize = childHeight + (childNode.isSelected ? overHangSize : 0);
+
+		// deleting before C removes the M part of path, so it is closed later
+		// that is the split(C) magic
+
 		// @ts-ignore
-		const downWardP = `${rectangleLinkPath(pDown)} v ${ySize} h ${lSize.child}`;
+		const downWardP = `${rectangleLinkPath(pDown)} v ${ySize}`;
 		// @ts-ignore
-		const upWardP = `v ${-ySize} ${rectangleLinkPath(pUp)} v ${
-			-topExtend - branchReachBack
-		} h ${-lSize.parent}`;
-		const linkPath = downWardP + upWardP + ` v ${topExtend + branchReachBack}`;
+		const upWardP = `v ${-ySize} C${rectangleLinkPath(pUp).split('C').pop()} v ${-downWardStart}`;
+		const linkPath = `${downWardP} h ${lSize.child} ${upWardP} h ${-lSize.parent}z`;
 
 		return {
 			id: childId,
@@ -171,21 +168,13 @@
 {#each parsedChildren as { id, cachedProps, vizInfo, childNode } (id)}
 	<defs>
 		<linearGradient id="path-grad-{vizInfo.strId}" gradientTransform="rotate(90)">
-			<stop
-				offset="0%"
-				stop-opacity={childNode.isSelected ? '80%' : '5%'}
-				stop-color={vizInfo.colorStr}
-			/>
-			<stop
-				offset="20%"
-				stop-opacity={childNode.isSelected ? '80%' : '15%'}
-				stop-color={vizInfo.colorStr}
-			/>
-			<stop
-				offset="50%"
-				stop-opacity={childNode.isSelected ? '80%' : '25%'}
-				stop-color={vizInfo.colorStr}
-			/>
+			{#each [[0, 5], [20, 15], [50, 25]] as [offsetPct, opaPct]}
+				<stop
+					offset="{offsetPct}%"
+					stop-opacity={childNode.isSelected ? '80%' : `${opaPct}%`}
+					stop-color={vizInfo.colorStr}
+				/>
+			{/each}
 		</linearGradient>
 	</defs>
 
@@ -194,21 +183,14 @@
 		d={vizInfo.linkPath}
 		fill="url('#path-grad-{vizInfo.strId}')"
 	/>
-	<rect
-		fill-opacity={0.25 + Math.abs(childNode.specMetric.normalizedMetric) / 1.5}
-		x={cachedProps.xOffset}
-		y={branchYEnd +
-			childSize / 2 -
-			(childNode.specMetric.normalizedMetric < 0
-				? 0
-				: (childNode.specMetric.normalizedMetric * childSize) / 2)}
-		height={(Math.abs(childNode.specMetric.normalizedMetric) * childSize) / 2}
-		width={treeWidth / 20}
-	/>
 
-	<g style="--y-off: {childrenYOffset}px; --x-off: {cachedProps.xOffset + vizInfo.width * 0.1}px">
-		<BrokenFittedText text={childNode.name} width={vizInfo.width * 0.8} height={childSize} />
-	</g>
+	<BrokenFittedText
+		text={childNode.name}
+		width={vizInfo.width * 0.64}
+		height={childHeight * 0.9}
+		y={childrenYOffset - childHeight * 0.05}
+		x={cachedProps.xOffset + vizInfo.width * 0.18}
+	/>
 
 	<!-- svelte-ignore a11y-mouse-events-have-key-events -->
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -217,7 +199,7 @@
 		x={cachedProps.xOffset}
 		y={branchYEnd}
 		fill-opacity="0"
-		height={childSize}
+		height={childHeight}
 		width={vizInfo.width}
 		on:mouseover={treeInteract(
 			dispatch,
@@ -240,10 +222,10 @@
 			{levelVisuals}
 			{treeWidth}
 			{treeXOffset}
-			{childRate}
+			{childHeightRate}
 			{overHangRate}
 			{preStraightRate}
-			{childBaseSize}
+			{childBaseWidth}
 			{linkSurfaceRate}
 			{childrenInternalMargin}
 			parentSideMargin={0}
