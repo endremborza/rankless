@@ -12,59 +12,87 @@ export function formatNumber(n: number) {
     }
 }
 
-export function formatTextToLines(s: string, width: number, height: number, heightMultiplier = 1.2, widthMultiplier = 0.59) {
+export function getStylesForWords(words: string[], width: number, height: number, heightMultiplier: number, widthMultiplier: number, baseFontSize: number, leftAligned: boolean) {
+    const horizontal = formatTextToLinesOneWay(words, width, height, heightMultiplier, widthMultiplier);
+    const vertical = formatTextToLinesOneWay(words, height, width, heightMultiplier, widthMultiplier);
+    const rotate = horizontal.fontSize < vertical.fontSize
+    const { lines, fontSize } = rotate ? vertical : horizontal
 
-    const horizontal = formatTextToLinesOneWay(s, width, height, heightMultiplier, widthMultiplier);
-    //const vertical = { fontSize: 0 }
-    const vertical = formatTextToLinesOneWay(s, height, width, heightMultiplier, widthMultiplier);
-    if (horizontal.fontSize >= vertical.fontSize) {
-        return { rotate: false, ...horizontal }
-    } else {
-        return { rotate: true, ...vertical }
+    const translates = [];
+    const scale = fontSize / baseFontSize;
+    for (const [lineInd, line] of lines.entries()) {
+        const lineDispInd = lineInd - lines.length + 1;
+        const lineBaseX = leftAligned ? 0 :  - lineLen(line.words) * widthMultiplier * baseFontSize / 2
+        let wordStartInd = 0
+        for (const word of line.words) {
+            const y = lineDispInd * heightMultiplier * baseFontSize;
+            const x = lineBaseX + wordStartInd * widthMultiplier * baseFontSize;
+
+
+            translates.push(`translate(${x}px, ${y}px)`);
+            wordStartInd += word.length + 1;
+        }
     }
+
+    return { translates, scale, rotate }
 }
 
 
-function formatTextToLinesOneWay(s: string, width: number, height: number, heightMultiplier: number, widthMultiplier: number) {
+function formatTextToLinesOneWay(words: string[], width: number, height: number, heightMultiplier: number, widthMultiplier: number) {
 
     let numOfLines = 1;
-    let lines = [s]
-    const words = s.split(" ")
+    const totalLength = lineLen(words)
+    let lines = [{ words, length: totalLength }]
     let maxLineLen, widthBasedFontSize, heightBasedFontSize, fontSize: number = 0;
     for (const _ of Array(7)) {
         maxLineLen = lines.reduce((a, b) => Math.max(a, b.length), -Infinity);
         widthBasedFontSize = width / (maxLineLen * widthMultiplier)
-        heightBasedFontSize = height / (numOfLines * heightMultiplier)
+        console.log("w wMul", width, widthMultiplier)
+        heightBasedFontSize = getDimBasedSize(height, heightMultiplier, numOfLines)
         fontSize = Math.min(widthBasedFontSize, heightBasedFontSize)
-        if (fontSize >= (height / ((numOfLines + 1) * heightMultiplier))) {
+        console.log("Lines, MaxLineLen, H, W", numOfLines, maxLineLen, heightBasedFontSize, widthBasedFontSize)
+        if ((lines.length == words.length) || (fontSize >= getDimBasedSize(height, heightMultiplier, numOfLines + 1))) {
             return { lines, fontSize }
         }
-        lines = splitToLines(words, s.length, numOfLines + 1);
+        lines = splitToLines(words, totalLength, numOfLines + 1);
         if (numOfLines == lines.length) {
             break;
         }
         numOfLines = lines.length
     }
+    console.log("final", fontSize)
     return { lines, fontSize }
 
 }
 
-function splitToLines(words: string[], sLen: number, numOfLines: number) {
+function splitToLines(words: string[], stringLength: number, numOfLines: number) {
     const lines = [];
     let line = []
     let lineLen = 0
-    const maxPossLineLen = (sLen / numOfLines) * 1.15;
+    const maxPossLineLen = (stringLength / numOfLines) * 1.25;
     for (const word of words) {
+        // console.log("increasing at", word, lineLen, word.length)
         lineLen += word.length + 1
+
         if ((lineLen > maxPossLineLen) && (line.length > 0)) {
-            lines.push(line.join(" "))
+            // console.log("pushing", line, lineLen)
+            lines.push({ words: line, length: lineLen - word.length - 2 })
             line = []
             lineLen = word.length + 1
         }
         line.push(word)
     }
     if (line.length > 0) {
-        lines.push(line.join(" "))
+        lines.push({ words: line, length: lineLen - 1 })
     }
+    console.log("tried", numOfLines, "got", lines.length, "from", words, "to", lines)
     return lines
+}
+
+function getDimBasedSize(dimSize: number, dimMultiplier: number, numOfLines: number) {
+    return dimSize / (1 + (numOfLines - 1) * dimMultiplier)
+}
+
+function lineLen(words: string[]) {
+    return words.reduce((x, y) => x + y.length + 1, 0) - 1
 }
