@@ -34,6 +34,7 @@
 	--color-theme-blue: #6BA8DA;
 	--color-theme-purple: #C5C5E0;
 	--color-theme-pink: #CEBAD3;
+	--color-theme-red: #FD8A9F;
 	--color-theme-darkgrey: #4F4F4F;
 	--color-theme-lightgrey: #D8D8D8;
 	--color-theme-red: #FE7D95;
@@ -52,8 +53,8 @@ body {
 body {
 	/* min-height: 100vh; */
 	/* margin: 22; */
-	/* background-color: var(--color-bg-1); */
-	background-attachment: fixed;
+	background-color: var(--color-theme-lightblue);
+	/* background-attachment: fixed;
 	background-size: 100vw 100vh;
 	background-image: radial-gradient(
 			50% 50% at 50% 50%,
@@ -65,7 +66,7 @@ body {
 			rgba(var(--color-range-5), 0.1) 0%, 
 			rgba(var(--color-range-35), 0.15) 15%, 
 			rgba(var(--color-range-75), 0.3) 50%
-		);
+		); */
 }
 
 h1 {
