@@ -45,7 +45,8 @@
 		flex: 0 0 60px;
 		display: flex;
 		justify-content: space-between;
-		background-color: rgba(var(--color-range-15), 0.55);
+		/* background-color: rgba(var(--color-range-15), 0.55); */
+		background-color: var(--color-theme-yellow);
 	}
 
 	.main-fix .main-content {
@@ -57,7 +58,8 @@
 		align-items: center;
 		justify-content: center;
 		flex: 0 0 40px;
-		background-color: rgba(var(--color-range-65), 0.6);
+		/* background-color: rgba(var(--color-range-65), 0.6); */
+		background-color: var(--color-theme-yellow);
 	}
 
 	.hl {
