@@ -86,10 +86,14 @@
 		{ scale: 170, x: 290, y: 320, path: { d: shapeD4, fill: '--color-theme-purple' } },
 		{ scale: 170, x: 340, y: 310, path: { d: shapeD1, fill: '--color-theme-lightgrey' } }
 	];
+	function bgToMatrix(bgPath: { scale: number; y: number; x: number }) {
+		const s = 1 / bgPath.scale;
+		return `matrix(${s}, 0, 0, ${s}, ${-bgPath.x * s}, ${-bgPath.y * s})`;
+	}
 </script>
 
 {#each bgPaths as bgPath, i}
-	<g transform="scale({1 / bgPath.scale}) translate({-bgPath.x}, {-bgPath.y})" fill-opacity="0.8">
+	<g style="transform: {bgToMatrix(bgPath)}" fill-opacity="0.8">
 		<path id="bg-path-{i}" d={bgPath.path.d} fill="var({bgPath.path.fill})" />
 	</g>
 {/each}
@@ -115,7 +119,8 @@
 	}
 
 	#xagon-side {
-		filter: drop-shadow(0px 0.029px 0.039px rgba(15, 98, 254, 0.53)); /* rgba(15, 98, 254, 0.53) */
+		filter: drop-shadow(0px 0.029px 0.039px rgba(15, 98, 254, 0.53));
+		/* rgba(15, 98, 254, 0.53) */
 	}
 
 	#bg-path-0 {

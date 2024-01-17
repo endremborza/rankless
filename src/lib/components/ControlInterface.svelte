@@ -4,6 +4,7 @@
 	import type { QcSpec, LevelVisElem, ControlSpec, AttributeLabels } from '$lib/tree-types';
 	import BrokenFittedText from './BrokenFittedText.svelte';
 	import { getDispatch, expandThis } from '$lib/tree-events';
+	import { getTopFzf } from '$lib/search-util';
 	import Checkbox from './Checkbox.svelte';
 	import CollapseButton from './CollapseButton.svelte';
 
@@ -55,24 +56,8 @@
 	$: minOrMaxClass = showMinOrMaxControl ? '' : 'control-hidden';
 	$: expandedClass = isExpanded ? '' : 'control-hidden';
 
-	function getTopFzf(term: string) {
-		const out: { name: string; id: string }[] = [];
-		if (term.length == 0) {
-			return out;
-		}
-		const lowTerm = term.toLowerCase();
-		for (const [elemId, e] of Object.entries(levelAttributes)) {
-			if (e.name.toLowerCase().includes(lowTerm)) {
-				out.push({ name: e.name, id: elemId });
-				if (out.length > 4) {
-					return out;
-				}
-			}
-		}
-		return out;
-	}
 	let incExcFzfTerm = '';
-	$: topFzf = getTopFzf(incExcFzfTerm);
+	$: topFzf = getTopFzf(incExcFzfTerm, levelAttributes, 4);
 
 	let editIncludeExclude = false;
 	const makeIncludeExcludeEditable = () => (editIncludeExclude = true);

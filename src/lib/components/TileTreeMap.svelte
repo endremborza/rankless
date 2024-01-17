@@ -12,6 +12,7 @@
 	export let colorStart = 0;
 	export let colorEnd = 1;
 	export let transitionMs = 400;
+	export let edgePad = 0.08;
 
 	$: childVals = Object.values(data.children || {});
 	$: sumW = childVals?.reduce((l, r) => l + r.weight, 0);
@@ -94,9 +95,13 @@
 {#if !combined}
 	<g transition:fade={{ duration: transitionMs }}>
 		{#each flats as node}
-			<g transform="translate({node.offsets[0]}, {node.offsets[1] + node.sizes[1]})">
-				<BrokenFittedText text={node.name} width={node.sizes[0]} height={node.sizes[1]} />
-			</g>
+			<BrokenFittedText
+				text={node.name}
+				width={node.sizes[0] * (1 - 2 * edgePad)}
+				height={node.sizes[1] * (1 - 2 * edgePad)}
+				x={node.offsets[0] + node.sizes[0] * edgePad}
+				y={node.offsets[1] + node.sizes[1] * (1 - edgePad)}
+			/>
 		{/each}
 	</g>
 {:else}
