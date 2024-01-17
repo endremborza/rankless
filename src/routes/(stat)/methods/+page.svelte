@@ -133,10 +133,10 @@
 		font-weight: bold;
 		padding: 30px;
 		margin: 20px;
-		border-radius: 3px;
+		/* border-radius: 30px; */
 		background-color: rgba(var(--cur), 0.15);
 		flex: 0 0 200px;
-		border: 1px solid var(--cool-gray-20, #dde1e6);
+		/* border: 3px solid var(--cool-gray-20, #dde1e6); */
 		box-shadow: 0px 4px 13px 0px rgba(0, 0, 0, 0.25);
 	}
 
