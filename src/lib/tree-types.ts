@@ -7,6 +7,7 @@ export type TreeGen<T> = T & { children?: OMap<TreeGen<T>> };
 export type SelectionOption = {
     name: string;
     id: string;
+    meta?: string;
 };
 
 export type QcSpec = {

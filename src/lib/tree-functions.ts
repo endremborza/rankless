@@ -200,7 +200,7 @@ export function getLevelVisuals(visInfo: TreeInfo, svgHeight: number, expandedCo
     return out;
 }
 
-function insertKeepingOrder<T>(elem: T, arr: T[], f: (l: T, r: T) => number) {
+export function insertKeepingOrder<T>(elem: T, arr: T[], f: (l: T, r: T) => number) {
     //0 if equal, -x if l is 'less desirable' 
     let left = 0;
     let right = arr.length - 1;
