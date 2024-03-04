@@ -1,8 +1,23 @@
-import { linkVertical } from "d3-shape";
+export type Point = { x: number, y: number }
 
-export const rectangleLinkPath = linkVertical()
-    .source((d) => d.start)
-    .target((d) => d.end);
+export const pinRange = (sY: number | undefined, b: number, e: number, offset: number): number =>
+    Math.max(b, Math.min((sY || 0) + offset, e));
+
+
+export function getSankeyPath(cTop: Point, cBot: Point, widths: { parent: number, child: number }, bottomStretch: number = 0, topStretch: number = 0) {
+
+    const yMid = (cTop.y + cBot.y) / 2
+    const downC = [cTop.x, yMid, cBot.x, yMid, cBot.x, cBot.y].join(",");
+    const ceBot = cBot.x + widths.child
+    const ceTop = cTop.x + widths.parent
+    const upC = [ceBot, yMid, ceTop, yMid, ceTop, cTop.y].join(",");
+
+    const downWardP = `M${cTop.x} ${cTop.y} C${downC} v ${bottomStretch}`;
+    const upWardP = `v ${-bottomStretch} C${upC} v ${-topStretch}`;
+    return `${downWardP} h ${widths.child} ${upWardP} h ${-widths.parent}z`;
+
+}
+
 
 // -600 -300 1600 1700
 export const thinFlowerPaths = [

@@ -1,4 +1,5 @@
 import { insertKeepingOrder } from "./tree-functions";
+	import unidecode from 'unidecode';
 import type { OMap, SelectionOption } from "./tree-types";
 
 export function getTopFzf(term: string, entities: OMap<{ name: string }>, limit: number, emptyShow = false) {
@@ -23,9 +24,9 @@ export function getTopFzf(term: string, entities: OMap<{ name: string }>, limit:
 export function getTopFzfInsts(term: string, entities: SelectionOption[], limit: number) {
     //
     const out: { name: string, id: string, papers: number, citations: number }[] = [];
-    const lowTerms = term.split(' ').map((e) => e.toLowerCase());
+    const lowTerms = unidecode(term).split(' ').map((e) => e.toLowerCase());
     for (const { id, name, meta } of entities) {
-        const eLow = name.toLowerCase()
+        const eLow = unidecode(name).toLowerCase()
         if (lowTerms.map((t) => eLow.includes(t)).reduce((l, r) => l && r)) {
             const parsedMeta = JSON.parse(meta || '{}');
             const newEntry = { name, id, papers: parsedMeta.papers || 0, citations: parsedMeta.citations || 0 }

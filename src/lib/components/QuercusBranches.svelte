@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { fade } from 'svelte/transition';
+	import {fade} from 'svelte/transition';
 	import type {
 		EmbeddedNode,
 		TreeInfo,
@@ -9,11 +9,11 @@
 		QcSpec,
 		BareNode
 	} from '$lib/tree-types';
-	import { getNodeByPath } from '$lib/tree-functions';
+	import {getNodeByPath} from '$lib/tree-functions';
 	import BrokenFittedText from './BrokenFittedText.svelte';
-	import { getColor } from '$lib/style-util';
-	import { getDispatch, treeInteract } from '$lib/tree-events';
-	import { rectangleLinkPath } from '$lib/visual-util';
+	import {getColor} from '$lib/style-util';
+	import {getDispatch, treeInteract} from '$lib/tree-events';
+	import {getSankeyPath} from '$lib/visual-util';
 
 	export let qcSpec: QcSpec;
 	export let attributeLabels: AttributeLabels;
@@ -97,7 +97,7 @@
 			childNode?.totalOffsetAmongSiblings,
 			minimumLinkSurface,
 			centralLinkSourceWidth * (nChildren > 1 ? linkSurfaceRate : 1) -
-				minimumLinkSurface * nChildren,
+			minimumLinkSurface * nChildren,
 			visibleNode?.childrenSumWeight || 1,
 			linkInternalMargin
 		);
@@ -107,26 +107,18 @@
 			child: cachedProps.width
 		};
 
-		const pDown = {
-			start: [linkSourceSetup.xOffset, pYStart],
-			end: [cachedProps.xOffset, branchYEnd]
+		const cTop = {
+			x: linkSourceSetup.xOffset,
+			y: pYStart
 		};
-		const pUp = {
-			start: [pDown.end[0] + lSize.child, branchYEnd],
-			end: [pDown.start[0] + lSize.parent, pYStart]
+		const cBot = {
+			x: cachedProps.xOffset,
+			y: branchYEnd
 		};
 
 		const ySize = childHeight + (childNode.isSelected ? overHangSize : 0);
 
-		// deleting before C removes the M part of path, so it is closed later
-		// that is the split(C) magic
-
-		// @ts-ignore
-		const downWardP = `${rectangleLinkPath(pDown)} v ${ySize}`;
-		// @ts-ignore
-		const upWardP = `v ${-ySize} C${rectangleLinkPath(pUp).split('C').pop()} v ${-downWardStart}`;
-		const linkPath = `${downWardP} h ${lSize.child} ${upWardP} h ${-lSize.parent}z`;
-
+		const linkPath = getSankeyPath(cTop, cBot, lSize, ySize, downWardStart);
 		return {
 			id: childId,
 			cachedProps,
@@ -155,7 +147,7 @@
 			baseOffset +
 			(totalOffset?.rank || 0) * (baseSize + internalMargin) +
 			fDiv(totalOffset?.weight);
-		return { width, xOffset };
+		return {width, xOffset};
 	}
 
 	function getParsedChildren(visibleNode: EmbeddedNode | undefined, _: object) {
@@ -166,72 +158,34 @@
 </script>
 
 {#each parsedChildren as { id, cachedProps, vizInfo, childNode } (id)}
-	<defs>
-		<linearGradient id="path-grad-{vizInfo.strId}" gradientTransform="rotate(90)">
-			{#each [[0, 5], [20, 15], [50, 25]] as [offsetPct, opaPct]}
-				<stop
-					offset="{offsetPct}%"
-					stop-opacity={childNode.isSelected ? '80%' : `${opaPct}%`}
-					stop-color={vizInfo.colorStr}
-				/>
-			{/each}
-		</linearGradient>
-	</defs>
+<defs>
+	<linearGradient id="path-grad-{vizInfo.strId}" gradientTransform="rotate(90)">
+		{#each [[0, 5], [20, 15], [50, 25]] as [offsetPct, opaPct]}
+		<stop offset="{offsetPct}%" stop-opacity={childNode.isSelected ? '80%' : `${opaPct}%`}
+			stop-color={vizInfo.colorStr} />
+		{/each}
+	</linearGradient>
+</defs>
 
-	<path
-		transition:fade={{ duration: 300 }}
-		d={vizInfo.linkPath}
-		fill="url('#path-grad-{vizInfo.strId}')"
-	/>
+<path transition:fade={{ duration: 300 }} d={vizInfo.linkPath} fill="url('#path-grad-{vizInfo.strId}')" />
 
-	<BrokenFittedText
-		text={childNode.name}
-		width={vizInfo.width * 0.64}
-		height={childHeight * 0.9}
-		y={childrenYOffset - childHeight * 0.05}
-		x={cachedProps.xOffset + vizInfo.width * 0.18}
-	/>
+<BrokenFittedText text={childNode.name} width={vizInfo.width * 0.64} height={childHeight * 0.9} y={childrenYOffset -
+	childHeight * 0.05} x={cachedProps.xOffset + vizInfo.width * 0.18} />
 
-	<!-- svelte-ignore a11y-mouse-events-have-key-events -->
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<!-- svelte-ignore a11y-no-static-element-interactions -->
-	<rect
-		x={cachedProps.xOffset}
-		y={branchYEnd}
-		fill-opacity="0"
-		height={childHeight}
-		width={vizInfo.width}
-		on:mouseover={treeInteract(
-			dispatch,
-			'highlight',
-			cachedProps.pathInCompleteTree,
-			cachedProps.xOffset + cachedProps.width / 2,
-			branchYEnd
-		)}
-		on:mouseleave={treeInteract(dispatch, 'de-highlight', cachedProps.pathInCompleteTree, 0, 0)}
-		on:click={treeInteract(dispatch, 'toggle-select', cachedProps.pathInCompleteTree, 0, 0)}
-	/>
+<!-- svelte-ignore a11y-mouse-events-have-key-events -->
+<!-- svelte-ignore a11y-click-events-have-key-events -->
+<!-- svelte-ignore a11y-no-static-element-interactions -->
+<rect x={cachedProps.xOffset} y={branchYEnd} fill-opacity="0" height={childHeight} width={vizInfo.width}
+	on:mouseover={treeInteract( dispatch, 'highlight' , cachedProps.pathInCompleteTree, cachedProps.xOffset +
+	cachedProps.width / 2, branchYEnd )} on:mouseleave={treeInteract(dispatch, 'de-highlight' ,
+	cachedProps.pathInCompleteTree, 0, 0)} on:click={treeInteract(dispatch, 'toggle-select' ,
+	cachedProps.pathInCompleteTree, 0, 0)} />
 
-	{#if childNode.children}
-		<svelte:self
-			{...cachedProps}
-			{qcSpec}
-			{attributeLabels}
-			{visibleTreeInfo}
-			{selectionState}
-			{levelVisuals}
-			{treeWidth}
-			{treeXOffset}
-			{childHeightRate}
-			{overHangRate}
-			{preStraightRate}
-			{childBaseWidth}
-			{linkSurfaceRate}
-			{childrenInternalMargin}
-			parentSideMargin={0}
-			on:ti
-		/>
-	{/if}
+{#if childNode.children}
+<svelte:self {...cachedProps} {qcSpec} {attributeLabels} {visibleTreeInfo} {selectionState} {levelVisuals} {treeWidth}
+	{treeXOffset} {childHeightRate} {overHangRate} {preStraightRate} {childBaseWidth} {linkSurfaceRate}
+	{childrenInternalMargin} parentSideMargin={0} on:ti />
+{/if}
 {/each}
 
 <style>

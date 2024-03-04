@@ -1,36 +1,16 @@
 <script lang="ts">
-	import { base } from '$app/paths';
-	import { goto } from '$app/navigation';
-	import { INSTITUTION_TYPE } from '$lib/constants';
-	import type { SelectionOption } from '$lib/tree-types';
-	import { onMount } from 'svelte';
-	import { handleStore } from '$lib/tree-loading';
-	import { getTopFzfInsts } from '$lib/search-util';
-	import { flowerPaths, thinFlowerPaths } from '$lib/visual-util';
+	import {flowerPaths, thinFlowerPaths, pinRange} from '$lib/visual-util';
 	import HexagonLogo from '$lib/components/HexagonLogo.svelte';
 	import Flower from '$lib/components/Flower.svelte';
 	import CircleBurst from '$lib/components/CircleBurst.svelte';
-	import { formatNumber } from '$lib/text-format-util';
-
-	let instOptions: SelectionOption[] = [];
-
-	onMount(() => {
-		handleStore('root-descriptions', (jsv) => {
-			// @ts-ignore
-			instOptions = jsv[INSTITUTION_TYPE];
-		});
-	});
-
-	function onChange(e: SelectionOption | undefined) {
-		if (e != undefined) {
-			goto(`${base}/view/${INSTITUTION_TYPE}/${e.id}`); //TODO this is capitalized!!
-		}
-	}
+	import SearchLogo from '$lib/components/SearchLogo.svelte';
+	import ScrollyCGraph from '$lib/components/ScrollyCGraph.svelte';
+	import ScrollySank from '$lib/components/ScrollySank.svelte';
+	import SearchResults from '$lib/components/SearchResults.svelte';
 
 	let rotScaler = 1.2;
 	let resultsHidden = true;
 	let searchTerm = '';
-	$: searchResults = getTopFzfInsts(searchTerm, instOptions, 6);
 
 	function onFocus() {
 		rotScaler -= 0.9;
@@ -40,100 +20,96 @@
 	function onBlur() {
 		rotScaler += 0.9;
 		if (searchTerm.length == 0) {
-			resultsHidden = true;
+			// resultsHidden = true;
 		}
 	}
 
-	function paginator(rate: number, min: number, max: number) {
-		if (min < rate) {
-			if (rate < max) {
-				return 'current page';
-			}
-			return 'last page';
+	function getInputSpecs(scrollRate: number): [number, number, number] {
+		if (scrollRate == 0) {
+			return [45, 5, 20];
 		}
-		return 'next page';
+		if (scrollRate < 9) {
+			return [100, 0, 0];
+		}
+		return [60, 80, 10];
 	}
 
 	let scrollY: number;
 	let innerHeight: number;
 	let outerHeight: number;
-	let clientHeight: number;
-	$: scrollRate = scrollY / (clientHeight - innerHeight);
-	$: inputWidth = scrollRate > 0 ? 100 : 80;
-	$: inputTop = scrollRate > 0 ? 0 : 120;
+	let innerWidth: number;
 
-	// <span style="position: sticky; top: 150px; left: 100px; z-index: 100;">{scrollRate}</span>
+	$: sHeight = innerHeight || 2000;
+	$: sWidth = innerWidth || 2000;
+	$: isWideScreen = sWidth / sHeight > 1.2;
+	$: [inputWidth, inputTop, inLeft] = getInputSpecs(scrollY / sHeight);
+
+	const inHeight = 58;
+
+	$: ratePin = (srate: number, erate: number, osrate: number) =>
+		pinRange(scrollY, sHeight * srate, sHeight * erate, sHeight * osrate);
+	$: rateScale = (srate: number, frate: number) =>
+		Math.max(0, Math.min((scrollY / sHeight - srate) / frate, 1));
+	$: p2Top = ratePin(1.2, 2.5, 0.3);
 </script>
 
-<svelte:window bind:scrollY bind:innerHeight bind:outerHeight />
+<svelte:window bind:scrollY bind:innerHeight bind:outerHeight bind:innerWidth />
 
-<div bind:clientHeight id="main-container">
+<div id="main-container" style="--pwidth: {isWideScreen ? '38%' : '90%'}">
 	<!-- text -->
-	<div class={paginator(scrollRate, -1, 0.1)}>
-		<p id="p-1">
-			In a world where every country dreams of becoming a knowledge powerhouse, we need more than
-			university rankings.
-		</p>
-	</div>
-	<div class={paginator(scrollRate, 0.1, 0.25)}>
-		<p id="p-2">
-			Universities are a source of <b>cultural and economic growth</b>. They attract talent, educate
-			the population, and help produce important innovations.
-		</p>
-	</div>
-	<div class={paginator(scrollRate, 0.25, 0.4)}>
-		<p id="p-3">
-			But the impact of universities cannot be reduced to a single number. <b
-				>Knowledge is highly specific</b
-			>, and so is the impact of universities.
-		</p>
-	</div>
-	<div class={paginator(scrollRate, 0.4, 0.55)}>
-		<p id="p-4">
-			Universities specialize in <b>fields</b> and local <b>networks of collaboration</b>.
-		</p>
-	</div>
-	<div class={paginator(scrollRate, 0.55, 0.7)}>
-		<p id="p-5">Isn’t it time we understand them in their right context?</p>
-	</div>
-	<div class={paginator(scrollRate, 0.7, 2)}>
-		<p id="p-6">
-			Academic impact is not a single thing, but a rich kaleidoscope of topics and geographies that
-			can be exciting to explore.
-		</p>
-		<p id="p-7">Go ahead and explore impact beyond rankings, at the academic impact explorer.</p>
-	</div>
+	<p id="p-1" style="top: {ratePin(0, 0.7, 0.15)}px;">
+		In a world, where every country dreams of becoming a knowledge powerhouse, we need more than
+		university rankings.
+	</p>
+	<p id="p-2" style="top: {p2Top}px;">
+		Universities are a source of <b>cultural and economic growth</b>. They attract talent, educate
+		the population, and help produce important innovations.
+	</p>
+	<p id="p-3" style="top: {ratePin(4, 4.7, 0.2)}px;">
+		But the impact of universities cannot be reduced to a single number. <b>Knowledge is highly
+			specific</b>, and so is the impact of universities.
+	</p>
+	<p id="p-4" style="top: {ratePin(5.3, 5.9, 0.4)}px;">
+		Universities specialize in <b>fields</b> and local <b>networks of collaboration</b>.
+		<span id="inner-4" style="opacity: {rateScale(5.3, 0.4) * 100}%">
+			Isn’t it time we understand them in their right context?
+		</span>
+	</p>
+	<p id="p-5" style="top: {ratePin(6.4, 8.5, 0.4)}px; width: 36%">
+		Take the work done by Oregon State University. Instead of looking at them as one element of a
+		list of Universities of varied focuses, sizes and locations, you can visualize how papers
+		relating to <b id="geol">geology</b> or <b id="geog">geography</b>, published by authors
+		affiliated with Oregon State are exactly cited around the globe.
+	</p>
+
+	<p id="p-6" style="top: {ratePin(9.1, 9.8, 0.2)}px;">
+		Academic impact is not a single thing, but a rich kaleidoscope of topics and geographies that
+		can be exciting to explore.
+	</p>
+	<p id="p-7" style="top: {ratePin(9.7, 10.5, 0.4)}px;">
+		Go ahead and explore impact beyond rankings!
+	</p>
+	<!-- graphs -->
+	<ScrollyCGraph {scrollY} {sHeight} {ratePin} {isWideScreen} />
+	<ScrollySank {sWidth} {sHeight} {ratePin} {rateScale} {isWideScreen} />
 	<!-- search -->
 
-	<div class="search-results" style="display: {resultsHidden ? 'none' : 'flex'};">
-		<span id="result-closer" on:click={() => (resultsHidden = true)}>&#10006;</span>
-		{#each searchResults as searchResult}
-			<div on:click={() => onChange(searchResult)} class="result-card">
-				<h3>
-					{searchResult.name}
-				</h3>
-				<span>{formatNumber(searchResult.papers)} papers</span>
-				<span>{formatNumber(searchResult.citations)} citations</span>
-			</div>
-		{/each}
-	</div>
+	<SearchResults bind:resultsHidden {searchTerm} />
 
-	<input
-		bind:value={searchTerm}
-		id="top-input"
-		on:blur={onBlur}
-		on:focus={onFocus}
-		placeholder="Search for an Institution!"
-		type="text"
-		class="search-input"
-		style="width: {inputWidth}%; top: {inputTop}px; left: {(100 - inputWidth) / 2}%"
-	/>
+	<input bind:value={searchTerm} on:blur={onBlur} on:focus={onFocus} placeholder="Explore an Institution!"
+		type="text" class="search-input"
+		style="width: {inputWidth}%; top: {inputTop}svh; left: {inLeft}%; height: {inHeight}px" />
+
+	<svg width={inHeight} height={inHeight} viewBox="-10 -10 50 50" fill="none" xmlns="http://www.w3.org/2000/svg"
+		style="z-index: 11; top: {inputTop}svh; left: {inLeft}%; transition: all 0.6s; position: fixed">
+		<SearchLogo />
+	</svg>
 	<!-- decoration -->
 
 	<div class="bg-bar" id="top-blue">
-		<div class="white-line" id="line-1" />
-		<div class="white-line" id="line-2" />
-		<div class="white-line" id="line-3" />
+		{#each [...Array(8).keys()].map((x) => 155 + x * 50) as topOff}
+		<div class="white-line" style="top: {topOff}px" />
+		{/each}
 	</div>
 
 	<div class="bg-bar" id="mid-pink" />
@@ -142,11 +118,12 @@
 
 	<div class="bg-bar" id="grey-bar" />
 
-	<svg id="logo-img" viewBox="-3 -3 6 6" xmlns="http://www.w3.org/2000/svg">
+	<svg id="logo-img" viewBox="-2.5 -2 4.9 5.3" xmlns="http://www.w3.org/2000/svg"
+		style="opacity: {innerWidth > innerHeight ? 70 : 0}%;">
 		<HexagonLogo {rotScaler} />
 	</svg>
 
-	<svg id="thin-flower-img" viewBox="0 -300 1200 1700" xmlns="http://www.w3.org/2000/svg">
+	<svg id="thin-flower-img" viewBox="0 -150 1000 1700" xmlns="http://www.w3.org/2000/svg">
 		<Flower paths={thinFlowerPaths} width={6} color="var(--color-theme-lightblue)" />
 	</svg>
 
@@ -165,60 +142,81 @@
 
 <style>
 	#main-container {
-		height: 800vh;
-	}
-
-	.page {
-		position: fixed;
-		height: 100svh;
-		width: 100%;
-		transition: 650ms;
-	}
-
-	.current {
-		top: 0px;
-	}
-
-	.next {
-		top: 110dvh;
-	}
-
-	.last {
-		top: -110dvh;
+		height: 1100svh;
 	}
 
 	p {
-		margin: auto;
-		margin-top: 18svh;
-		max-width: 1200px;
-		font-size: min(80px, 7vw);
+		font-size: min(5svh, 7vw);
 		font-weight: 400;
-		padding: 20px;
-		text-align: justify;
 		line-height: 1.5;
+		position: absolute;
+		z-index: 6;
+		width: var(--pwidth);
 	}
 
 	#p-1 {
-		color: var(--color-theme-darkgrey);
-		padding-right: 33vw;
+		color: var(--color-theme-darkblue);
+		font-weight: 600;
+		left: 40px;
 	}
 
 	#p-2 {
 		color: var(--color-theme-darkblue);
+		text-align: right;
+		right: 40px;
 	}
 
-	#p-2 > b {
+	#p-2>b {
 		color: var(--color-theme-red);
+	}
+
+	#p-3 {
+		left: 5%;
+	}
+
+	#p-4 {
+		right: 5%;
+		text-align: right;
+	}
+
+	#p-5 {
+		right: 7%;
+		padding: 2vw;
+		font-size: min(3svh, 5vw);
+		background: var(--color-theme-pink);
+		border: solid var(--color-theme-blue) 8px;
+	}
+
+	#p-6 {
+		left: 8%;
+	}
+
+	#p-7 {
+		right: 9%;
+		text-align: right;
+	}
+
+	#geol {
+		color: rgb(var(--color-range-25));
+	}
+
+	#geog {
+		color: rgb(var(--color-range-75));
+	}
+
+	#inner-4 {
+		color: var(--color-theme-darkblue);
 	}
 
 	.search-input {
 		transition: all 0.6s;
-		position: absolute;
+		padding-left: 80px;
+		position: fixed;
 		border-top: solid var(--color-theme-darkblue) 5px;
+		border-radius: 6px;
 		background-color: var(--color-theme-lightgrey);
-		box-shadow: 7px 7px 22px var(--color-theme-darkgrey);
-		height: 40px;
-		font-size: 30px;
+		box-shadow: 7px 7px 17px var(--color-theme-darkgrey);
+		font-size: 40px;
 		z-index: 10;
 	}
 
@@ -226,72 +224,15 @@
 		outline: none;
 	}
 
-	.search-results {
-		width: 100%;
-		height: 100dvh;
-		backdrop-filter: blur(6px);
-		position: fixed;
-		top: 0px;
-		z-index: 3;
-		flex-direction: columns;
-		flex-wrap: wrap;
-		justify-content: space-around;
-		align-items: start;
-		padding-top: 180px;
-	}
-
-	.result-card {
-		cursor: pointer;
-		height: 200px;
-		width: 320px;
-		min-width: 320px;
-		background-color: var(--color-theme-lightblue);
-		border: solid var(--color-theme-blue) 4px;
-		box-shadow: 10px 10px 40px var(--color-theme-darkgrey);
-		border-radius: 10px;
-		margin: 40px;
-		font-size: xx-large;
-		text-align: center;
-		flex: 0 0 26%;
-		padding: 16px;
-	}
-
-	#result-closer {
-		position: absolute;
-		top: 70px;
-		left: 95%;
-		font-size: 37px;
-		padding: 12px;
-		text-align: center;
-		border-radius: 35px;
-		cursor: pointer;
-	}
-
-	#top-input {
-		position: fixed;
-		text-align: center;
-	}
-
 	/* decorations */
 
 	.white-line {
 		width: 100%;
-		height: 20px;
+		height: 7px;
 		position: absolute;
 		z-index: -8;
 		background-color: var(--color-theme-white);
-	}
-
-	#line-1 {
-		top: 160px;
-	}
-
-	#line-2 {
-		top: 300px;
-	}
-
-	#line-3 {
-		top: 440px;
+		opacity: 80%;
 	}
 
 	.bg-bar {
@@ -304,18 +245,16 @@
 		height: 80svh;
 		top: 0px;
 		opacity: 60%;
-		background-image: linear-gradient(
-			var(--color-theme-lightblue),
-			var(--color-theme-blue) 20%,
-			var(--color-theme-lightgrey)
-		);
+		background-image: linear-gradient(var(--color-theme-lightblue),
+				var(--color-theme-blue) 20%,
+				var(--color-theme-lightgrey));
 	}
 
 	#mid-pink {
 		position: absolute;
 		height: 70svh;
 		opacity: 80%;
-		top: 15%;
+		top: 120svh;
 		background-image: linear-gradient(var(--color-theme-pink), var(--color-theme-lightblue));
 	}
 
@@ -324,29 +263,25 @@
 		height: 90svh;
 		width: 75%;
 		margin-left: 25%;
-		top: 28%;
-		background-image: linear-gradient(
-			180deg,
-			var(--color-theme-pink) 12.5%,
-			var(--color-theme-purple) 46%,
-			var(--color-theme-purple) 70%,
-			rgba(255, 255, 255, 0) 100%
-		);
+		top: 350svh;
+		background-image: linear-gradient(180deg,
+				var(--color-theme-pink) 12.5%,
+				var(--color-theme-purple) 46%,
+				var(--color-theme-purple) 70%,
+				rgba(255, 255, 255, 0) 100%);
 	}
 
 	#grey-bar {
 		position: absolute;
 		height: 340svh;
-		top: 55%;
-		background-image: linear-gradient(
-			7deg,
-			rgba(255, 255, 255, 0),
-			rgba(255, 255, 255, 0) 20%,
-			var(--color-theme-lightgrey) 30%,
-			var(--color-theme-pink) 70%,
-			rgba(255, 255, 255, 0) 80%,
-			rgba(255, 255, 255, 0) 100%
-		);
+		top: 460svh;
+		background-image: linear-gradient(7deg,
+				rgba(255, 255, 255, 0),
+				rgba(255, 255, 255, 0) 20%,
+				var(--color-theme-lightgrey) 30%,
+				var(--color-theme-pink) 70%,
+				rgba(255, 255, 255, 0) 80%,
+				rgba(255, 255, 255, 0) 100%);
 	}
 
 	svg {
@@ -355,31 +290,35 @@
 	}
 
 	#logo-img {
-		width: 40%;
-		top: 40px;
-		right: 5%;
+		height: 70svh;
+		top: 10%;
+		transition: opacity 200ms linear;
+		right: 0px;
 	}
 
 	#thin-flower-img {
-		width: 90%;
-		top: 300px;
+		width: min(1333px, 100%);
+		top: 550px;
 		left: 0px;
+		z-index: -6;
 	}
 
 	#burst-1 {
 		width: 66%;
-		top: 28%;
+		top: 3000px;
 	}
 
 	#flower-img {
 		width: 80%;
-		top: 50%;
+		top: 870svh;
 		left: 4%;
 	}
 
 	#final-thin-flower {
+		height: 105.5svh;
+		/* WHY? the height should match main-container height*/
 		width: 100%;
-		bottom: 0px;
+		top: 1000svh;
 		left: 0px;
 		opacity: 40%;
 	}
