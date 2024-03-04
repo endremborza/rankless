@@ -11,4 +11,5 @@ vite.config.ts.timestamp-*
 *.bak
 misc.py
 raw
-*/images/raw/*
+*/images/raw/
+**ipynb*
