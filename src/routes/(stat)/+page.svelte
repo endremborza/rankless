@@ -78,8 +78,8 @@
 	<p id="p-5" style="top: {ratePin(6.4, 8.5, 0.4)}px; width: 36%">
 		Take the work done by Oregon State University. Instead of looking at them as one element of a
 		list of Universities of varied focuses, sizes and locations, you can visualize how papers
-		relating to <b id="geol">geology</b> or <b id="geog">geography</b>, published by authors
-		affiliated with Oregon State are exactly cited around the globe.
+		relating to <b id="geol">geology</b> or <b id="geog">geography</b>, are citing articles
+		published by authors affiliated with Oregon State around the globe.
 	</p>
 
 	<p id="p-6" style="top: {ratePin(9.1, 9.8, 0.2)}px;">
