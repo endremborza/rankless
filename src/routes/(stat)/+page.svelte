@@ -180,7 +180,7 @@
 	}
 
 	#p-5 {
-		right: 7%;
+		right: 8%;
 		padding: 2vw;
 		font-size: min(3svh, 5vw);
 		background: var(--color-theme-pink);
