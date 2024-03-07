@@ -210,7 +210,7 @@
 
 	.search-input {
 		transition: all 0.6s;
-		padding-left: 80px;
+		padding-left: 100px;
 		position: fixed;
 		border-top: solid var(--color-theme-darkblue) 5px;
 		border-radius: 6px;
