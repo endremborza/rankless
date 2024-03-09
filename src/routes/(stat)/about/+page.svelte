@@ -11,16 +11,19 @@
 	import matePortrait from '$lib/assets/images/portraits/mate.png';
 
 	import corvPicture from '$lib/assets/images/minified/corvinus-e-saltway.jpg';
+	import SankeyVideo from '$lib/components/SankeyVideo.svelte';
 
 	const uLogos = [cclLogo, corvLogo, udtLogo];
 
 	const protraits = [
-		{ src: cesarPortrait, name: 'César A. Hidalgo', role: 'CCL Director' },
-		{ src: endrePortrait, name: 'Endre Borza', role: 'Research Data Engineer' },
-		{ src: veraPortrait, name: 'Veronika Hamar', role: 'CCL Budapest Executive Director' },
-		{ src: matePortrait, name: 'Máté Barkóczi', role: 'Design Intern' }
+		{src: cesarPortrait, name: 'César A. Hidalgo', role: 'CCL Director'},
+		{src: endrePortrait, name: 'Endre Borza', role: 'Research Data Engineer'},
+		{src: veraPortrait, name: 'Veronika Hamar', role: 'CCL Budapest Executive Director'},
+		{src: matePortrait, name: 'Máté Barkóczi', role: 'Design Intern'}
 	];
 </script>
+
+<SankeyVideo />
 
 <div class="bstrip">
 	<h1>We are a small, multidisciplinary, multi-institution team.</h1>
@@ -31,11 +34,11 @@
 <div class="bstrip t5">
 	<div class="bar">
 		{#each protraits as port}
-			<div class="person">
-				<img class="portrait" src={port.src} alt={port.name} />
-				<p>{port.name}</p>
-				<p>{port.role}</p>
-			</div>
+		<div class="person">
+			<img class="portrait" src={port.src} alt={port.name} />
+			<p>{port.name}</p>
+			<p>{port.role}</p>
+		</div>
 		{/each}
 	</div>
 	<div class="bar">
@@ -45,7 +48,7 @@
 
 <div class="bstrip">
 	{#each uLogos as src}
-		<img class="logo" {src} alt="inst-logo" />
+	<img class="logo" {src} alt="inst-logo" />
 	{/each}
 	<img class="logo" src={euLogo} alt="European Commission Logo" />
 </div>
@@ -78,7 +81,7 @@
 		flex-wrap: wrap;
 	}
 
-	.person > p {
+	.person>p {
 		text-align: center;
 	}
 
