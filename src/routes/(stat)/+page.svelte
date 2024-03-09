@@ -96,12 +96,12 @@
 
 	<SearchResults bind:resultsHidden {searchTerm} />
 
-	<input bind:value={searchTerm} on:blur={onBlur} on:focus={onFocus} placeholder="Explore an Institution!"
+	<input bind:value={searchTerm} on:blur={onBlur} on:focus={onFocus} placeholder="Explore an Institution"
 		type="text" class="search-input"
 		style="width: {inputWidth}%; top: {inputTop}svh; left: {inLeft}%; height: {inHeight}px" />
 
-	<svg width={inHeight} height={inHeight} viewBox="-10 -10 50 50" fill="none" xmlns="http://www.w3.org/2000/svg"
-		style="z-index: 11; top: {inputTop}svh; left: {inLeft}%; transition: all 0.6s; position: fixed">
+	<svg width={inHeight} height={inHeight} viewBox="-10 -10 60 50" fill="none" xmlns="http://www.w3.org/2000/svg"
+		style="z-index: 10; top: {inputTop}svh; left: {inLeft}%; transition: all 0.6s; position: fixed">
 		<SearchLogo />
 	</svg>
 	<!-- decoration -->
@@ -180,7 +180,7 @@
 	}
 
 	#p-5 {
-		right: 8%;
+		right: 7%;
 		padding: 2vw;
 		font-size: min(3svh, 5vw);
 		background: var(--color-theme-pink);
@@ -210,14 +210,45 @@
 
 	.search-input {
 		transition: all 0.6s;
-		padding-left: 100px;
+		padding-left: 150px;
 		position: fixed;
-		border-top: solid var(--color-theme-darkblue) 5px;
+		border-top: solid var(--color-theme-darkblue) 7px;
+		border-right: solid var(--color-theme-darkblue) 2px;
+		border-left: solid var(--color-theme-darkblue) 2px;
+		border-bottom: solid var(--color-theme-darkblue) 2px;
 		border-radius: 6px;
-		background-color: var(--color-theme-lightgrey);
-		box-shadow: 7px 7px 17px var(--color-theme-darkgrey);
-		font-size: 40px;
+		background-color: var(--color-theme-white);
+		box-shadow: 7px 7px 17px var(--color-theme-darkgrey3);
+		font-size: 24px;
+		font-style: italic;
+		color: black;
 		z-index: 10;
+	}
+
+	.search-input::before {
+    content: '';
+    position: absolute;
+    top: 200px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--color-theme-lightergrey); /* Lighter grey border as background */
+    z-index: -1;
+    border-radius: 6px;
+    transition: opacity 0.6s;
+    opacity: 0; /* Initially hidden */
+	}
+
+	.search-input:hover {
+	border-radius: 6px;
+    border-top-color: var(--color-theme-white);
+	border-right: solid var(--color-theme-white) 2px;
+	border-left: solid var(--color-theme-white) 2px;
+	border-bottom: solid var(--color-theme-white) 2px;
+	background-color: var(--color-theme-darkgrey2);
+	color: white;
+	
+	/* Change border color on hover */
 	}
 
 	input.search-input:focus {

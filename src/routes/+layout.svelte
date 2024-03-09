@@ -73,10 +73,10 @@
 	}
 
 	.hl>a>b {
-		font-size: 1.4rem;
-		padding-left: 10px;
+		font-size: 1.3rem;
+		padding-left: 15px;
+		color: #4F4F4F;
 	}
-
 	.hr {
 		padding: 8px;
 		padding-right: 40px;
