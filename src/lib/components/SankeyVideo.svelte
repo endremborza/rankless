@@ -88,8 +88,9 @@
 	svg {
 		opacity: 30%;
 		position: fixed;
+		top: -20lvh;
 		width: 100%;
-		height: 100svh;
+		height: 120lvh;
 		z-index: -2;
 	}
 </style>
