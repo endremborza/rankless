@@ -77,6 +77,13 @@
 		padding-left: 15px;
 		color: #4F4F4F;
 	}
+	
+	.hl > a > b:hover {
+    /* Add styles for hover state here */
+    /* For example, change text color */
+    	color: #0F62FE;
+	}
+
 	.hr {
 		padding: 8px;
 		padding-right: 40px;
@@ -90,6 +97,12 @@
 
 	a {
 		text-decoration: none;
-		color: rgba(10, 10, 10, 0.85);
+		color: #4F4F4F;
+	}
+	.hr a:hover {
+    /* Add styles for hover state here */
+    /* For example, change text color */
+    	color: #0F62FE;
+		font-weight: bold;
 	}
 </style>

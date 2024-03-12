@@ -7,10 +7,14 @@
 	import ScrollyCGraph from '$lib/components/ScrollyCGraph.svelte';
 	import ScrollySank from '$lib/components/ScrollySank.svelte';
 	import SearchResults from '$lib/components/SearchResults.svelte';
+	import { onMount, onDestroy } from 'svelte';
 
 	let rotScaler = 1.2;
 	let resultsHidden = true;
 	let searchTerm = '';
+
+	const intervalDuration = 100; // Duration between each character display in milliseconds
+	let intervalId; // Interval ID for stopping the typewriter effect
 
 	function onFocus() {
 		rotScaler -= 0.9;
@@ -26,12 +30,23 @@
 
 	function getInputSpecs(scrollRate: number): [number, number, number] {
 		if (scrollRate == 0) {
-			return [45, 5, 20];
+			return [35, 24, 10];
 		}
 		if (scrollRate < 9) {
 			return [100, 0, 0];
 		}
 		return [60, 80, 10];
+	}
+
+	function startTypewriterEffect() {
+    intervalId = setInterval(() => {
+        if (index < placeholderText.length) {
+            displayText += placeholderText.charAt(index);
+            index++;
+        } else {
+            clearInterval(intervalId);
+        }
+    }, intervalDuration);
 	}
 
 	let scrollY: number;
@@ -57,7 +72,7 @@
 
 <div id="main-container" style="--pwidth: {isWideScreen ? '38%' : '90%'}">
 	<!-- text -->
-	<p id="p-1" style="top: {ratePin(0, 0.7, 0.15)}px;">
+	<p id="p-1" style="padding: top: {ratePin(0, 0.7, 0.15)}px;">
 		In a world, where every country dreams of becoming a knowledge powerhouse, we need more than
 		university rankings.
 	</p>
@@ -107,7 +122,7 @@
 	<!-- decoration -->
 
 	<div class="bg-bar" id="top-blue">
-		{#each [...Array(8).keys()].map((x) => 155 + x * 50) as topOff}
+		{#each [...Array(8).keys()].map((x) => 270 + x * 40) as topOff}
 		<div class="white-line" style="top: {topOff}px" />
 		{/each}
 	</div>
@@ -157,7 +172,9 @@
 	#p-1 {
 		color: var(--color-theme-darkblue);
 		font-weight: 600;
-		left: 40px;
+		left: 250px;
+		top: 150px;
+		padding: 100px;
 	}
 
 	#p-2 {
@@ -217,7 +234,7 @@
 		border-left: solid var(--color-theme-darkblue) 2px;
 		border-bottom: solid var(--color-theme-darkblue) 2px;
 		border-radius: 6px;
-		background-color: var(--color-theme-white);
+		background-color: rgba(255, 255, 255, 0.9);
 		box-shadow: 7px 7px 17px var(--color-theme-darkgrey3);
 		font-size: 24px;
 		font-style: italic;
@@ -245,7 +262,7 @@
 	border-right: solid var(--color-theme-white) 2px;
 	border-left: solid var(--color-theme-white) 2px;
 	border-bottom: solid var(--color-theme-white) 2px;
-	background-color: var(--color-theme-darkgrey2);
+	background-color:  rgba(171, 171, 171, 0.8);
 	color: white;
 	
 	/* Change border color on hover */
@@ -259,7 +276,7 @@
 
 	.white-line {
 		width: 100%;
-		height: 7px;
+		height: 5px;
 		position: absolute;
 		z-index: -8;
 		background-color: var(--color-theme-white);
