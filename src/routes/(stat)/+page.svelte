@@ -140,7 +140,7 @@
 	</svg>
 
 	<svg id="thin-flower-img" viewBox="0 -150 1000 1700" xmlns="http://www.w3.org/2000/svg">
-		<g style="transform: rotate({scrollY / 0}deg) scaleX({scrollY / sHeight / 2 + 1})"> /* scrolly let to rotate the svg */
+		<g style="transform: rotate({scrollY / 88}deg) scaleX({scrollY / sHeight / 2 + 1})"> /* scrolly let to rotate the svg */
 			<Flower paths={thinFlowerPaths} width={6} color="var(--color-theme-lightblue)" />
 		</g>
 		
@@ -240,12 +240,12 @@
 		padding-left: 150px;
 		position: fixed;
 		border-top: solid var(--color-theme-darkblue) 7px;
-		border-right: solid var(--color-theme-darkblue) 2px;
-		border-left: solid var(--color-theme-darkblue) 2px;
-		border-bottom: solid var(--color-theme-darkblue) 2px;
-		border-radius: 6px;
+		border-right: solid var(--color-theme-darkblue) 0px;
+		border-left: solid var(--color-theme-darkblue) 0px;
+		border-bottom: solid var(--color-theme-darkblue) 0px;
+		border-radius: 1px;
 		background-color: rgba(255, 255, 255, 0.9);
-		box-shadow: 7px 7px 17px var(--color-theme-darkgrey3);
+		box-shadow: 0px 7px 17px 3px var(--color-theme-darkgrey3);
 		font-size: 24px;
 		font-style: italic;
 		color: black;
@@ -267,11 +267,11 @@
 	}
 
 	.search-input:hover {
-	border-radius: 6px;
+	border-radius: 1px;
     border-top-color: var(--color-theme-white);
-	border-right: solid var(--color-theme-white) 2px;
-	border-left: solid var(--color-theme-white) 2px;
-	border-bottom: solid var(--color-theme-white) 2px;
+	border-right: solid var(--color-theme-white) 0px;
+	border-left: solid var(--color-theme-white) 0px;
+	border-bottom: solid var(--color-theme-white) 0px;
 	background-color:  rgba(171, 171, 171, 0.8);
 	color: white;
 	
@@ -317,7 +317,7 @@
 
 	#bonus-bar {
 		height: 70svh;
-		opacity: 80%;
+		opacity: 10%;
 		top: 190svh;
 		background-color: black;
 	}
