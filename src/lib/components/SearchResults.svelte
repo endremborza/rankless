@@ -66,7 +66,7 @@
 		cursor: pointer;
 		height: 210px;
 		min-width: 240px;
-		background-color: var(--color-theme-lightblue);
+		background-color: var(--color-theme-lightgrey);
 		border: solid var(--color-theme-blue) 4px;
 		box-shadow: 15px 15px 80px var(--color-theme-darkgrey);
 		border-radius: 10px;

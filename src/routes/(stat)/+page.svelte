@@ -7,8 +7,7 @@
 	import ScrollyCGraph from '$lib/components/ScrollyCGraph.svelte';
 	import ScrollySank from '$lib/components/ScrollySank.svelte';
 	import SearchResults from '$lib/components/SearchResults.svelte';
-	import { onMount, onDestroy } from 'svelte';
-
+	
 	let rotScaler = 1.2;
 	let resultsHidden = true;
 	let searchTerm = '';
@@ -33,7 +32,7 @@
 			return [35, 24, 10];
 		}
 		if (scrollRate < 9) {
-			return [100, 0, 0];
+			return [91.2, 0, 0];
 		}
 		return [60, 80, 10];
 	}
@@ -111,9 +110,9 @@
 
 	<SearchResults bind:resultsHidden {searchTerm} />
 
-	<input bind:value={searchTerm} on:blur={onBlur} on:focus={onFocus} placeholder="Explore an Institution"
+	<input bind:value={searchTerm} on:blur={onBlur} on:focus={onFocus} placeholder="Explore an Institution {scrollY} {(scrollY / sHeight).toFixed(2)}"
 		type="text" class="search-input"
-		style="width: {inputWidth}%; top: {inputTop}svh; left: {inLeft}%; height: {inHeight}px" />
+		style="width: {inputWidth}svw; top: {inputTop}svh; left: {inLeft}%; height: {inHeight}px" />
 
 	<svg width={inHeight} height={inHeight} viewBox="-10 -10 60 50" fill="none" xmlns="http://www.w3.org/2000/svg"
 		style="z-index: 10; top: {inputTop}svh; left: {inLeft}%; transition: all 0.6s; position: fixed">
@@ -122,12 +121,14 @@
 	<!-- decoration -->
 
 	<div class="bg-bar" id="top-blue">
-		{#each [...Array(8).keys()].map((x) => 270 + x * 40) as topOff}
-		<div class="white-line" style="top: {topOff}px" />
-		{/each}
 	</div>
+	{#each [...Array(8).keys()].map((x) => 270 + x * 40 * (2 - scrollY / sHeight * 4)) as topOff}
+	<div class="white-line" style="top: {topOff}px" />
+	{/each}
 
 	<div class="bg-bar" id="mid-pink" />
+
+	<div class="bg-bar" id="bonus-bar" />
 
 	<div class="bg-bar" id="purp-bar" />
 
@@ -139,7 +140,10 @@
 	</svg>
 
 	<svg id="thin-flower-img" viewBox="0 -150 1000 1700" xmlns="http://www.w3.org/2000/svg">
-		<Flower paths={thinFlowerPaths} width={6} color="var(--color-theme-lightblue)" />
+		<g style="transform: rotate({scrollY / 0}deg) scaleX({scrollY / sHeight / 2 + 1})"> /* scrolly let to rotate the svg */
+			<Flower paths={thinFlowerPaths} width={6} color="var(--color-theme-lightblue)" />
+		</g>
+		
 	</svg>
 
 	<svg id="flower-img" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
@@ -161,10 +165,12 @@
 	}
 
 	p {
-		font-size: min(5svh, 7vw);
+		font-size: min(5svh, 10vw);
 		font-weight: 400;
 		line-height: 1.5;
 		position: absolute;
+		top: 50%;
+		transform: translateY(70%);
 		z-index: 6;
 		width: var(--pwidth);
 	}
@@ -172,15 +178,16 @@
 	#p-1 {
 		color: var(--color-theme-darkblue);
 		font-weight: 600;
-		left: 250px;
+		left: 5%;
 		top: 150px;
-		padding: 100px;
+		transition: opacity 0.5s ease;
 	}
 
 	#p-2 {
 		color: var(--color-theme-darkblue);
 		text-align: right;
 		right: 40px;
+		transition: opacity 0.5s ease;
 	}
 
 	#p-2>b {
@@ -206,6 +213,9 @@
 
 	#p-6 {
 		left: 8%;
+		font-size: 0.9em; /* Decrease the font size */
+    	line-height: 0.8; /* Decrease the line height */
+		background-color: rgb(255, 255, 255);
 	}
 
 	#p-7 {
@@ -276,11 +286,11 @@
 
 	.white-line {
 		width: 100%;
-		height: 5px;
+		height: 20%;
 		position: absolute;
 		z-index: -8;
 		background-color: var(--color-theme-white);
-		opacity: 80%;
+		opacity: 20%;
 	}
 
 	.bg-bar {
@@ -290,8 +300,8 @@
 	}
 
 	#top-blue {
-		height: 80svh;
-		top: 0px;
+		height: 120svh;
+		top: 0svh;
 		opacity: 60%;
 		background-image: linear-gradient(var(--color-theme-lightblue),
 				var(--color-theme-blue) 20%,
@@ -299,16 +309,23 @@
 	}
 
 	#mid-pink {
-		position: absolute;
 		height: 70svh;
 		opacity: 80%;
-		top: 120svh;
+		top: 100svh;
 		background-image: linear-gradient(var(--color-theme-pink), var(--color-theme-lightblue));
 	}
 
+	#bonus-bar {
+		height: 70svh;
+		opacity: 80%;
+		top: 190svh;
+		background-color: black;
+	}
+
 	#purp-bar {
-		position: absolute;
 		height: 90svh;
+		/* width: min(75%, 600px); 
+		min-width: 600px*/
 		width: 75%;
 		margin-left: 25%;
 		top: 350svh;
@@ -369,5 +386,13 @@
 		top: 1000svh;
 		left: 0px;
 		opacity: 40%;
+	}
+	@keyframes fadeIn {
+		from {
+			opacity: 1;
+		}
+		to {
+			opacity: 2;
+		}
 	}
 </style>

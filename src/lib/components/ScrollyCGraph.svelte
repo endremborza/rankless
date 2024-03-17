@@ -15,16 +15,21 @@
 		return 'M ' + o.join(' L ');
 	}
 	const norm = (x: number) => Math.max(0, Math.min(1, x));
-
-	$: mainScaler = norm(((scrollY - sHeight * 1) / sHeight) * 1.8);
+	// második szám: sebesség
+	//első szám: hol kezdi
+	$: mainScaler = norm(((scrollY - sHeight * 0.5) / sHeight) * 1.2);
 	$: subScaler = norm(((scrollY - sHeight * 1.6) / sHeight) * 2);
 
 	$: line1 = citeGraph.citations.map((x) => x * mainScaler);
 
-	$: topOffset = ratePin(1.3, 3, 0.08);
+	// első szám hol kezd
+	//második: meddig
+	//harmadik: top margin
+	$: topOffset = ratePin(1, 3, 0.08);
 
 	let mainColor = 'rgb(var(--color-range-30))';
-	let subColor = 'rgb(var(--color-range-65))';
+	let subColor = 'rgb(var(--color-range-75))';
+	//let subColor = 'var(--color-theme-darkblue)';
 
 	$: [mainLop, subLop] = [
 		`${Math.pow(mainScaler, 0.5) * 100}%`,
@@ -51,8 +56,8 @@
 	<path d="M0,1v-1.2" style="stroke: var(--color-theme-darkgrey);" stroke-width="0.01" />
 	<path d="M0,1h1" style="stroke: var(--color-theme-darkgrey);" stroke-width="0.01" />
 	<g opacity={mainScaler}>
-		<path d="M-0.02,0h0.04" style="stroke: {mainColor};" stroke-width="0.01" />
-		<text x="-0.03" y="0.01" font-size="0.04" text-anchor="end">{formatNumber(citeGraph.maxval)}</text>
+		<path d="M-0.02,{1 - mainScaler}h0.04" style="stroke: {mainColor};" stroke-width="0.01" />
+		<text x="-0.03" y="{1.01 - mainScaler}" font-size="0.04" text-anchor="end">{formatNumber(citeGraph.maxval)}</text>
 		<path d="M-0.02,{minTick}h0.04" style="stroke: {mainColor};" stroke-width="0.01" />
 		<text x="-0.03" y={minTick} font-size="0.04" text-anchor="end">{formatNumber(minVal *
 			citeGraph.maxval)}</text>
