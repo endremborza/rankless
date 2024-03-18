@@ -7,14 +7,10 @@
 	import ScrollyCGraph from '$lib/components/ScrollyCGraph.svelte';
 	import ScrollySank from '$lib/components/ScrollySank.svelte';
 	import SearchResults from '$lib/components/SearchResults.svelte';
-	import { onMount, onDestroy } from 'svelte';
 
 	let rotScaler = 1.2;
 	let resultsHidden = true;
 	let searchTerm = '';
-
-	const intervalDuration = 100; // Duration between each character display in milliseconds
-	let intervalId; // Interval ID for stopping the typewriter effect
 
 	function onFocus() {
 		rotScaler -= 0.9;
@@ -36,17 +32,6 @@
 			return [100, 0, 0];
 		}
 		return [60, 80, 10];
-	}
-
-	function startTypewriterEffect() {
-    intervalId = setInterval(() => {
-        if (index < placeholderText.length) {
-            displayText += placeholderText.charAt(index);
-            index++;
-        } else {
-            clearInterval(intervalId);
-        }
-    }, intervalDuration);
 	}
 
 	let scrollY: number;
@@ -243,29 +228,31 @@
 	}
 
 	.search-input::before {
-    content: '';
-    position: absolute;
-    top: 200px;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: var(--color-theme-lightergrey); /* Lighter grey border as background */
-    z-index: -1;
-    border-radius: 6px;
-    transition: opacity 0.6s;
-    opacity: 0; /* Initially hidden */
+		content: '';
+		position: absolute;
+		top: 200px;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background-color: var(--color-theme-lightergrey);
+		/* Lighter grey border as background */
+		z-index: -1;
+		border-radius: 6px;
+		transition: opacity 0.6s;
+		opacity: 0;
+		/* Initially hidden */
 	}
 
 	.search-input:hover {
-	border-radius: 6px;
-    border-top-color: var(--color-theme-white);
-	border-right: solid var(--color-theme-white) 2px;
-	border-left: solid var(--color-theme-white) 2px;
-	border-bottom: solid var(--color-theme-white) 2px;
-	background-color:  rgba(171, 171, 171, 0.8);
-	color: white;
-	
-	/* Change border color on hover */
+		border-radius: 6px;
+		border-top-color: var(--color-theme-white);
+		border-right: solid var(--color-theme-white) 2px;
+		border-left: solid var(--color-theme-white) 2px;
+		border-bottom: solid var(--color-theme-white) 2px;
+		background-color: rgba(171, 171, 171, 0.8);
+		color: white;
+
+		/* Change border color on hover */
 	}
 
 	input.search-input:focus {
