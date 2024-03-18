@@ -1,7 +1,6 @@
 <script lang="ts">
 	import {APP_NAME} from '$lib/constants';
 	import {base} from '$app/paths';
-	import logoImg from '$lib/assets/images/icons/logo.png';
 	import './styles.css';
 	import PathLogo from '$lib/components/PathLogo.svelte';
 
@@ -75,13 +74,11 @@
 	.hl>a>b {
 		font-size: 1.3rem;
 		padding-left: 15px;
-		color: #4F4F4F;
+		color: var(--color-theme-darkgrey);
 	}
-	
-	.hl > a > b:hover {
-    /* Add styles for hover state here */
-    /* For example, change text color */
-    	color: #0F62FE;
+
+	.hl>a>b:hover {
+		color: #0f62fe;
 	}
 
 	.hr {
@@ -97,12 +94,11 @@
 
 	a {
 		text-decoration: none;
-		color: #4F4F4F;
+		color: var(--color-theme-darkgrey);
 	}
+
 	.hr a:hover {
-    /* Add styles for hover state here */
-    /* For example, change text color */
-    	color: #0F62FE;
+		color: var(--color-theme-darkblue);
 		font-weight: bold;
 	}
 </style>
