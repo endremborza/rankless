@@ -207,16 +207,20 @@
 		right: 7%;
 		padding: 2vw;
 		font-size: min(3svh, 5vw);
-		background: var(--color-theme-pink);
-		border: solid var(--color-theme-blue) 8px;
+		background: rgba(var(--color-theme-lightblue), 1);
+		border: solid var(--color-theme-darkblue) 2px;
+		border-radius: 10px;
 	}
 
-	#p-6 {
-		left: 8%;
-		font-size: 0.9em; /* Decrease the font size */
-    	line-height: 0.8; /* Decrease the line height */
-		background-color: rgb(255, 255, 255);
-	}
+    #p-6 {
+        left: 8%;
+        font-size: 3.9em; /* Decrease the font size */
+        line-height: 1.1; /* Decrease the line height */
+        position: relative; /* Position relative to allow positioning of the pseudo-element */
+		background: rgb(255,255,255);
+    	background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 50%, rgba(255,255,0,1) 50%, rgba(255,255,0,1) 100%);
+        color: black; /* Set the text color */
+    }
 
 	#p-7 {
 		right: 9%;

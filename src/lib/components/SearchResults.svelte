@@ -66,23 +66,31 @@
 		cursor: pointer;
 		height: 210px;
 		min-width: 240px;
-		background-color: var(--color-theme-lightgrey);
-		border: solid var(--color-theme-blue) 4px;
-		box-shadow: 15px 15px 80px var(--color-theme-darkgrey);
+		background-color: var(--color-theme-white);
+		border: solid var(--color-theme-darkblue) 1px;
+		box-shadow: 15px 15px 80px var(--color-theme-darkgrey3);
 		border-radius: 10px;
 		margin: 40px;
 		margin-bottom: 20px;
 		margin-top: 0px;
-		text-align: center;
-		flex: 0 0 26%;
-		padding: 20px;
+		text-align: left;
+		flex: 0 0 13%;
+		padding: 30px;
 		display: flex;
 		flex-direction: column;
 		justify-content: space-around;
+		left: 8%;
+		transition: transform 0.2s ease;
+	}
+
+	/* Hover effect */
+	.result-card:hover {
+    	transform: translateY(-10px); /* Move the card up slightly on hover */
+		color: var(--color-theme-darkblue);
 	}
 
 	.subtitle {
-		font-size: 1em;
+		font-size: 1.2em;
 	}
 
 	#result-closer {
