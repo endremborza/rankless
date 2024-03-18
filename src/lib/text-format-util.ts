@@ -1,10 +1,10 @@
-export function formatNumber(n: number) {
+export function formatNumber(n: number, maxFix: number = 2) {
     if (n > 1e6) {
-        return `${(n / 1e6).toFixed(1)}M`;
+        return `${(n / 1e6).toFixed(Math.min(1, maxFix))}M`;
     } else if (n > 1e3) {
-        return `${(n / 1e3).toFixed(1)}k`;
+        return `${(n / 1e3).toFixed(Math.min(1, maxFix))}k`;
     } else if (n < 1) {
-        return n.toFixed(2);
+        return n.toFixed(Math.min(2, maxFix));
     } else if (n < 10) {
         return n.toFixed(1);
     } else {
