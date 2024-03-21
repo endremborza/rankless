@@ -86,7 +86,9 @@
 	/* Hover effect */
 	.result-card:hover {
     	transform: translateY(-10px); /* Move the card up slightly on hover */
+		background-color: var(--color-theme-lightgrey);
 		color: var(--color-theme-darkblue);
+		box-shadow: 15px 15px 80px var(--color-theme-darkblue);
 	}
 
 	.subtitle {
@@ -102,5 +104,17 @@
 		text-align: center;
 		border-radius: 35px;
 		cursor: pointer;
+	}
+	/* Hover effect */
+	#result-closer:hover {
+		position: absolute;
+		top: 70px;
+		left: 95%;
+		font-size: 45px;
+		padding: 12px;
+		text-align: center;
+		border-radius: 35px;
+		cursor: pointer;
+		color: var(--color-theme-darkblue);
 	}
 </style>

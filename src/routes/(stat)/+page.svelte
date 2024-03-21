@@ -12,9 +12,6 @@
 	let resultsHidden = true;
 	let searchTerm = '';
 
-	const intervalDuration = 100; // Duration between each character display in milliseconds
-	let intervalId; // Interval ID for stopping the typewriter effect
-
 	function onFocus() {
 		rotScaler -= 0.9;
 		resultsHidden = false;
@@ -35,17 +32,6 @@
 			return [91.2, 0, 0];
 		}
 		return [60, 80, 10];
-	}
-
-	function startTypewriterEffect() {
-    intervalId = setInterval(() => {
-        if (index < placeholderText.length) {
-            displayText += placeholderText.charAt(index);
-            index++;
-        } else {
-            clearInterval(intervalId);
-        }
-    }, intervalDuration);
 	}
 
 	let scrollY: number;
@@ -75,32 +61,32 @@
 		In a world, where every country dreams of becoming a knowledge powerhouse, we need more than
 		university rankings.
 	</p>
-	<p id="p-2" style="top: {p2Top}px;">
+	<p id="p-2" style="top: {ratePin(1, 2.3, 0.2)}px;">
 		Universities are a source of <b>cultural and economic growth</b>. They attract talent, educate
 		the population, and help produce important innovations.
 	</p>
-	<p id="p-3" style="top: {ratePin(4, 4.7, 0.2)}px;">
+	<p id="p-3" style="top: {ratePin(4, 4.3, 0.2)}px;">
 		But the impact of universities cannot be reduced to a single number. <b>Knowledge is highly
 			specific</b>, and so is the impact of universities.
 	</p>
-	<p id="p-4" style="top: {ratePin(5.3, 5.9, 0.4)}px;">
+	<p id="p-4" style="top: {ratePin(5.3, 5.5, 0.4)}px;">
 		Universities specialize in <b>fields</b> and local <b>networks of collaboration</b>.
 		<span id="inner-4" style="opacity: {rateScale(5.3, 0.4) * 100}%">
 			Isn’t it time we understand them in their right context?
 		</span>
 	</p>
-	<p id="p-5" style="top: {ratePin(6.4, 8.5, 0.4)}px; width: 36%">
+	<p id="p-5" style="top: {ratePin(6.6, 8, 0.2)}px; width: 36%">
 		Take the work done by Oregon State University. Instead of looking at them as one element of a
 		list of Universities of varied focuses, sizes and locations, you can visualize how papers
 		relating to <b id="geol">geology</b> or <b id="geog">geography</b>, are citing articles
 		published by authors affiliated with Oregon State around the globe.
 	</p>
 
-	<p id="p-6" style="top: {ratePin(9.1, 9.8, 0.2)}px;">
+	<p id="p-6" style="top: {ratePin(8.5, 9.5, 0.0005)}px;">
 		Academic impact is not a single thing, but a rich kaleidoscope of topics and geographies that
 		can be exciting to explore.
 	</p>
-	<p id="p-7" style="top: {ratePin(9.7, 10.5, 0.4)}px;">
+	<p id="p-7" style="top: {ratePin(9.5, 10.5, 0.4)}px;">
 		Go ahead and explore impact beyond rankings!
 	</p>
 	<!-- graphs -->
@@ -150,7 +136,7 @@
 		<Flower paths={flowerPaths} color="var(--color-theme-purple)" />
 	</svg>
 
-	<svg id="burst-1" viewBox="-110 -110 900 900" xmlns="http://www.w3.org/2000/svg">
+	<svg id="burst-1" viewBox="-150 -110 900 900" xmlns="http://www.w3.org/2000/svg">
 		<CircleBurst />
 	</svg>
 
@@ -187,7 +173,7 @@
 		color: var(--color-theme-darkblue);
 		text-align: right;
 		right: 40px;
-		transition: opacity 0.5s ease;
+		/* padding-bottom: 20px; */
 	}
 
 	#p-2>b {
@@ -204,6 +190,7 @@
 	}
 
 	#p-5 {
+		color: var(--color-theme-darkgrey3);
 		right: 7%;
 		padding: 2vw;
 		font-size: min(3svh, 5vw);
@@ -257,17 +244,19 @@
 	}
 
 	.search-input::before {
-    content: '';
-    position: absolute;
-    top: 200px;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: var(--color-theme-lightergrey); /* Lighter grey border as background */
-    z-index: -1;
-    border-radius: 6px;
-    transition: opacity 0.6s;
-    opacity: 0; /* Initially hidden */
+		content: '';
+		position: absolute;
+		top: 200px;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background-color: var(--color-theme-lightergrey);
+		/* Lighter grey border as background */
+		z-index: -1;
+		border-radius: 6px;
+		transition: opacity 0.6s;
+		opacity: 0;
+		/* Initially hidden */
 	}
 
 	.search-input:hover {
@@ -331,8 +320,8 @@
 		/* width: min(75%, 600px); 
 		min-width: 600px*/
 		width: 75%;
-		margin-left: 25%;
-		top: 350svh;
+		margin-left: 28%;
+		top: 370svh;
 		background-image: linear-gradient(180deg,
 				var(--color-theme-pink) 12.5%,
 				var(--color-theme-purple) 46%,
@@ -344,7 +333,7 @@
 		position: absolute;
 		height: 340svh;
 		top: 460svh;
-		background-image: linear-gradient(7deg,
+		background-image: linear-gradient(0deg,
 				rgba(255, 255, 255, 0),
 				rgba(255, 255, 255, 0) 20%,
 				var(--color-theme-lightgrey) 30%,
@@ -374,7 +363,7 @@
 
 	#burst-1 {
 		width: 66%;
-		top: 3000px;
+		top: 3600px;
 	}
 
 	#flower-img {

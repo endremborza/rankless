@@ -80,15 +80,6 @@ h1 {
 	margin: 0;
 }
 
-.text-below {
-    display: block;
-    position: absolute;
-    top: 100%; /* Position it below the .h1 element */
-    left: 0; /* Align it with the left edge of the container */
-    margin-top: 10px; /* Add some space between the h1 and the text below */
-    /* Other styles for the text */
-}
-
 .bstrip {
 	display: flex;
 	flex-flow: row wrap;

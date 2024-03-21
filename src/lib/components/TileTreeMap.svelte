@@ -1,29 +1,29 @@
 <script lang="ts">
-	import { getColorArr } from '$lib/style-util';
-	import type { NamedNode } from '$lib/tree-types';
+	import {getColorArr} from '$lib/style-util';
+	import type {NamedNode} from '$lib/tree-types';
 	import BrokenFittedText from './BrokenFittedText.svelte';
-	import { fade } from 'svelte/transition';
 
 	export let data: NamedNode;
 	export let maxPad = 10;
 	export let width = 1000;
 	export let height = 1000;
-	export let combined = false;
+	export let xOffset = 0;
+	export let yOffset = 0;
 	export let colorStart = 0;
 	export let colorEnd = 1;
 	export let transitionMs = 400;
 	export let edgePad = 0.08;
+	export let expandedChild: string | undefined = undefined;
+	export let openChildren: string[] = [];
+	export let open = true;
+	export let showText = false;
 
 	$: childVals = Object.values(data.children || {});
 	$: sumW = childVals?.reduce((l, r) => l + r.weight, 0);
-	$: pad = combined ? 0 : maxPad;
-
-	function getColorRate(i: number, combined: boolean) {
-		if (combined) {
-			return (colorStart + colorEnd) / 2;
-		}
-		return colorStart + (colorEnd - colorStart) * (i / childVals.length);
-	}
+	$: pad = open ? maxPad : 0;
+	$: colorStep = (colorEnd - colorStart) / childVals.length;
+	$: theOne = (n: {name: string}, baseVal: number, expVal: number, disposedVal: number) =>
+		expandedChild === undefined ? baseVal : expandedChild == n.name ? expVal : disposedVal;
 
 	function bsp(
 		subc: NamedNode[],
@@ -31,16 +31,20 @@
 		sizes: number[],
 		sumWeight: number,
 		offsetIndex: number,
-		flats: { name: string; offsets: number[]; sizes: number[] }[],
+		flats: {name: string; data: NamedNode; offsets: number[]; sizes: number[]}[],
 		pad: number
 	) {
+		if (subc.length == 0) {
+			return [];
+		}
 		if (subc.length == 1) {
-			const tureSizes = sizes.map((x) => x - pad);
-			if (Math.min(...tureSizes) > 0) {
+			const trueSizes = [sizes[0] - pad, sizes[1] - pad];
+			if (Math.min(...trueSizes) > 0) {
 				flats.push({
 					name: subc[0].name,
-					offsets: offsets.map((x) => x + pad),
-					sizes: tureSizes
+					data: subc[0],
+					offsets: [offsets[0] + pad, offsets[1] + pad],
+					sizes: trueSizes
 				});
 			}
 			return flats;
@@ -66,7 +70,7 @@
 		const postSizes = valAdder(sizes, -preSideSumSize);
 		const preSizes = valAdder(sizes, preSideSumSize - sizes[offsetIndex]);
 		const newOffsetIndex = (offsetIndex + 1) % offsets.length;
-		const bcall = (slice, osets, sizes, w) =>
+		const bcall = (slice: NamedNode[], osets: number[], sizes: number[], w: number) =>
 			bsp(slice, osets, sizes, w, newOffsetIndex, flats, pad);
 		if (i > 0) {
 			bcall(subc.slice(0, i), offsets, preSizes, preSideSumWeight);
@@ -77,43 +81,31 @@
 		return flats;
 	}
 
-	$: flats = bsp(childVals || [], [0, 0], [width, height], sumW, 0, [], pad);
+	$: flats = bsp(childVals || [], [xOffset, yOffset], [width, height], sumW, 0, [], pad);
 </script>
 
-<g style="--transition-ms: {transitionMs}ms;">
-	{#each flats as node, i}
-		<rect
-			x={node.offsets[0]}
-			y={node.offsets[1]}
-			width={node.sizes[0]}
-			height={node.sizes[1]}
-			style="--crgb: {getColorArr(getColorRate(i, combined))}"
-		/>
-	{/each}
-</g>
-
-{#if !combined}
-	<g transition:fade={{ duration: transitionMs }}>
-		{#each flats as node}
-			<BrokenFittedText
-				text={node.name}
-				width={node.sizes[0] * (1 - 2 * edgePad)}
-				height={node.sizes[1] * (1 - 2 * edgePad)}
-				x={node.offsets[0] + node.sizes[0] * edgePad}
-				y={node.offsets[1] + node.sizes[1] * (1 - edgePad)}
-			/>
-		{/each}
-	</g>
+{#if childVals.length == 0}
+<rect x={xOffset} y={yOffset} {width} {height}
+	style="--crgb: {getColorArr((colorStart + colorEnd) / 2)}; --transition-ms: {transitionMs}ms" />
 {:else}
-	<g transform="translate(0, {height})" transition:fade={{ duration: transitionMs }}>
-		<BrokenFittedText text={data.name} {width} {height} />
-	</g>
+{#each flats as node, i}
+<svelte:self data={node.data} width={theOne(node, node.sizes[0], width, 1)} height={theOne(node, node.sizes[1], height,
+	1)} xOffset={theOne(node, node.offsets[0], xOffset, xOffset)} yOffset={theOne(node, node.offsets[1], yOffset,
+	yOffset)} open={openChildren.includes(node.name)} colorStart={open ? colorStart + colorStep * i : colorStart}
+	showText={open} colorEnd={open ? colorStart + colorStep * (i + 1) : colorEnd} {transitionMs}
+	maxPad={theOne(node, maxPad * (node.sizes[0] / width), maxPad, 0)} />
+{/each}
+{/if}
+
+{#if !open && showText}
+<BrokenFittedText text={data.name} width={width * (1 - 2 * edgePad)} height={height * (1 - 2 * edgePad)}
+	fadeMs={transitionMs} transMs={transitionMs} x={xOffset + width * edgePad} y={yOffset + height - height *
+	edgePad} />
 {/if}
 
 <style>
 	rect {
-		border: 30px solid black;
 		fill: rgba(var(--crgb), 0.6);
-		transition: var(--transition-ms);
+		transition: all var(--transition-ms);
 	}
 </style>
