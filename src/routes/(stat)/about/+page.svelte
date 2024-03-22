@@ -10,7 +10,6 @@
 	import veraPortrait from '$lib/assets/images/portraits/vera.jpg';
 	import matePortrait from '$lib/assets/images/portraits/mate.jpg';
 
-	import corvPicture from '$lib/assets/images/minified/corvinus-e-saltway.jpg';
 	import SankeyVideo from '$lib/components/SankeyVideo.svelte';
 
 	const uLogos = [cclLogo, corvLogo, udtLogo];
@@ -26,24 +25,26 @@
 		{src: veraPortrait, name: 'Veronika Hamar', role: 'CCL Budapest Executive Director'},
 		{src: matePortrait, name: 'Máté Barkóczi', role: 'Design Intern'}
 	];
+
+	let w = 40;
+	let h = w / 2;
 </script>
 
-<SankeyVideo />
-
-<div class="bstrip">
-	<h1>The People Behind The Project</h1>
-</div>
-
+<h1>Meet the People Behind The Project</h1>
 <p class="btxt">
-	Meet our multidisciplinary team from the <a href="https://centerforcollectivelearning.org/">Center for
-		Collective Learning</a> research group. Founded in 2010 by Professor Cesar Hidalgo, the group actively
-	contributes to the
-	development of various areas, including economic complexity, the use of crowdsourcing and computer
-	vision methods to understand the physical qualities of cities, and the creation of digital democracy
-	platforms.
+	The idea to develop a platform that grasps the complex nature of the impact of universities came
+	from professor Cesar Hidalgo. To bring it to life, he recruited a group of motivated colleagues,
+	based in Budapest, Hungary. Endre Borza (Data engineer), Máté Barkóczi (Designer), and Cesar
+	Hidalgo have been working together since March 2023 on conceptualization, and on the development
+	of Rankless. In September 2023 Veronika Hamar joined the team, as a project manager.
 </p>
 
-<div class="bstrip t5">
+<svg viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg">
+	<SankeyVideo {w} {h} />
+</svg>
+<h1>Our Team</h1>
+
+<div class="bstrip" id="person-bar">
 	<div class="bar">
 		{#each protraits as port}
 		<div class="person">
@@ -55,20 +56,34 @@
 	</div>
 </div>
 
-<span id="uni-block">
-	<p class="btxt">
-		The Center for Collective Learning is now based at the Artificial and Natural Intelligence
-		Institute (ANITI) at the University of Toulouse and the Corvinus Institute for Advanced Studies
-		(CIAS) at Corvinus University in Budapest.
-	</p>
-	<img class="uni-pic" src={corvPicture} alt="University" />
-</span>
+<p class="btxt">
+	The group is part of the <a href="https://centerforcollectivelearning.org/">Center for Collective Learning</a>
+	research group. Founded in 2010 by Professor Cesar Hidalgo, the group actively contributes to the development
+	of various areas, including economic complexity, the use of crowdsourcing and computer vision methods
+	to understand the physical qualities of cities, and the creation of digital democracy platforms.
+</p>
+<p class="btxt">
+	The Center for Collective Learning is now based at the Artificial and Natural Intelligence
+	Institute (ANITI) at the University of Toulouse and the Corvinus Institute for Advanced Studies
+	(CIAS) at Corvinus University in Budapest. It is supported by several European projects, including
+	an ERA Chair, the European Lighthouse on Artificial Intelligence for Sustainability (ELIAS), and
+	the ObsSea4Clim (Horizon) Ocean Observatory
+</p>
+
+<p class="btxt">
+	You can reach us by contacting Veronika directly @ veronika.hamar@uni-corvinus.hu
+</p>
 <div class="bstrip">
+	<iframe src="https://www.youtube.com/embed/le75gN3pxPk" />
+</div>
+<div class="bstrip logo-strip">
 	{#each uLogos as src}
 	<img class="logo" {src} alt="inst-logo" />
 	{/each}
 	<img class="logo" src={euLogo} alt="European Commission Logo" />
 </div>
+
+<!-- TODO: add contact veronika.hamar@uni-corvinus.hu -->
 
 <style>
 	h1 {
@@ -84,39 +99,32 @@
 		margin-right: auto;
 	}
 
+	svg {
+		opacity: 70%;
+		height: 45svh;
+		width: 100%;
+		z-index: -2;
+	}
+
+	iframe {
+		width: 800px;
+		max-width: 90%;
+		height: 400px;
+		margin-top: 70px;
+		margin-bottom: 40px;
+	}
+
+	#person-bar {
+		background-color: var(--color-theme-lightblue);
+	}
+
 	.btxt {
+		font-weight: 400;
+		text-align: justify;
 		padding-left: 35px;
 		padding-right: 35px;
-		/* color: var(--color-theme-darkblue); */
-		text-shadow: 2px 2px 14px var(--color-theme-pink);
-	}
-
-	#uni-block {
-		display: block;
-		margin-right: auto;
-		margin-left: auto;
-	}
-
-	.uni-pic {
-		/* position: absolute; */
-		z-index: -1;
-		/* left: 20%; */
-		/* top: 20svh; */
-		position: relative;
-		display: block;
-		margin-right: auto;
-		margin-left: auto;
-		width: 700px;
-		max-width: 90%;
-		opacity: 85%;
-		border-radius: 20px;
-		filter: grayscale(50%);
-		box-shadow: 7px 7px 17px var(--color-theme-darkgrey);
-	}
-
-	.logo {
-		width: 180px;
-		margin: 50px;
+		color: var(--color-theme-darkgrey);
+		/* text-shadow: 2px 2px 4px var(--color-theme-pink); */
 	}
 
 	.bar {

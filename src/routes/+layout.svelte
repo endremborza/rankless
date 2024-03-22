@@ -2,9 +2,74 @@
 	import {APP_NAME} from '$lib/constants';
 	import {base} from '$app/paths';
 	import './styles.css';
-	import PathLogo from '$lib/components/PathLogo.svelte';
+	import TextedLogo from '$lib/components/TextedLogo.svelte';
+	import SearchLogo from '$lib/components/SearchLogo.svelte';
+	import SearchResults from '$lib/components/SearchResults.svelte';
+	import {afterNavigate} from '$app/navigation';
+
+	function onFocus() {
+		resultsHidden = false;
+	}
+
+	function setSizes(hidden: boolean, w: number, slim: boolean) {
+		if (slim) {
+			headPad = 12;
+			headRightWidth = inHeight + 2;
+			placeholder = '';
+			inLeftPad = inHeight + 2;
+			if (hidden) {
+				inRight = headRightWidth + headPad + 4;
+				inputWidth = 0;
+			} else {
+				inputWidth = w - 4 - inLeftPad;
+				inRight = 2;
+			}
+		} else {
+			inRight = headRightWidth + headPad;
+			inLeftPad = baseInLeftPad;
+			headPad = basePad;
+			headRightWidth = baseRightWidth;
+			placeholder = basePlaceholder;
+			if (hidden) {
+				inputWidth = baseInW;
+			} else {
+				inputWidth = w - inRight * 2;
+			}
+		}
+	}
+
+	function toggleOpen() {
+		slimOpened = !slimOpened;
+	}
+
+	afterNavigate(() => {
+		slimOpened = false;
+	});
+
+	const baseInW = 420;
+	const basePlaceholder = 'Explore an Institution';
+	const basePad = 42;
+	const baseRightWidth = 220;
+	const baseInLeftPad = 60;
 
 	const year = new Date().getFullYear();
+
+	let innerWidth: number;
+
+	let inHeight = 52;
+	let headPad = basePad;
+	let inputWidth = baseInW;
+	let headRightWidth = baseRightWidth;
+	let placeholder = basePlaceholder;
+	let inLeftPad = baseInLeftPad;
+	let inRight = headRightWidth + headPad;
+	let slimOpened = false;
+
+	let resultsHidden = true;
+	let searchTerm = '';
+
+	$: isSlim = innerWidth < baseInW * 2;
+	$: setSizes(resultsHidden, innerWidth, isSlim);
 </script>
 
 <svelte:head>
@@ -15,34 +80,70 @@
 	<title>{APP_NAME}</title>
 </svelte:head>
 
-<div class="main-fix">
-	<div class="main-head">
-		<div class="hl">
-			<a href={`${base}/`}><svg height="40px" width="40px" viewBox="0 0 20 20">
-					<PathLogo />
-				</svg></a>
-			<a href={`${base}/`}> <b>{APP_NAME}</b></a>
-		</div>
-		<div class="hr">
+<svelte:window bind:innerWidth />
+<div id="main-fix">
+	<div id="main-head">
+		<TextedLogo pad={headPad} />
+
+		<SearchResults bind:resultsHidden {searchTerm} />
+
+		<input bind:value={searchTerm} on:focus={onFocus} {placeholder} type="text" class="search-block"
+			id="search-input"
+			style="padding-left: {inLeftPad}px;height: {inHeight}px; right: {inRight}px; width: {inputWidth}px" />
+
+		<svg class="search-block" id="search-logo" width={inHeight} height={inHeight} viewBox="-10 -10 60 50"
+			fill="none" xmlns="http://www.w3.org/2000/svg"
+			style="right: {inRight + inputWidth + inLeftPad - inHeight}px;">
+			<SearchLogo />
+		</svg>
+		<div id="head-r" style="width: {headRightWidth}px; padding-right: {headPad}px">
+			{#if isSlim}
+			<svg id="slim-stripes" viewBox="-2 -2 22 22" width={inHeight} height={inHeight - 8}
+				on:click={toggleOpen}>
+				{#each [3, 9, 15] as sp}
+				<path d="M1,{sp}h16" stroke="var(--color-theme-darkgrey)" stroke-width="1.5px" />
+				{/each}
+			</svg>
+			{#if slimOpened}
+			<div id="slim-drop">
+				<a href={`${base}/about`}>About</a>
+				<a href={`${base}/methods`}>Methods</a>
+			</div>
+			{/if}
+			{:else}
 			<a href={`${base}/about`}>About</a>
 			<a href={`${base}/methods`}>Methods</a>
+			{/if}
 		</div>
 	</div>
-	<div class="main-content">
+	<div id="main-content" on:click={()=> {
+		slimOpened = false;
+		}}
+		>
 		<slot />
 	</div>
-	<div class="main-foot">{APP_NAME} {year}</div>
+	<div id="main-foot">
+		<div id="foot-r">{APP_NAME} by CCL @ {year}</div>
+	</div>
 </div>
 
 <style>
-	.main-fix {
+	a {
+		text-decoration: none;
+		color: var(--color-theme-darkgrey);
+	}
+
+	#main-fix {
+		margin-top: 60px;
 		display: flex;
 		flex-flow: column;
 		height: 100%;
 	}
 
-	.main-fix .main-head {
-		flex: 0 0 60px;
+	#main-head {
+		position: fixed;
+		top: 0px;
+		width: 100%;
 		display: flex;
 		justify-content: space-between;
 		/* background-color: rgba(var(--color-range-15), 0.55); */
@@ -50,55 +151,95 @@
 		z-index: 10;
 	}
 
-	.main-fix .main-content {
+	#main-content {
 		flex: 1 1 auto;
 	}
 
-	.main-fix .main-foot {
+	#main-foot {
 		display: flex;
 		align-items: center;
-		justify-content: center;
+		justify-content: end;
+		padding-left: 3vw;
+		padding-right: 3vw;
+		padding-top: 15px;
+		padding-bottom: 15px;
 		flex: 0 0 70px;
-		/* background-color: rgba(var(--color-range-65), 0.6); */
 		background-color: var(--color-theme-yellow);
 		z-index: 10;
 	}
 
-	.hl {
-		display: flex;
-		align-items: center;
-		padding: 8px;
-		padding-left: 40px;
-	}
-
-	.hl>a>b {
-		font-size: 1.3rem;
-		padding-left: 15px;
+	#foot-r {
 		color: var(--color-theme-darkgrey);
 	}
 
-	.hl>a>b:hover {
-		color: #0f62fe;
-	}
-
-	.hr {
+	#head-r {
 		padding: 8px;
 		padding-right: 40px;
 		display: flex;
 		align-items: center;
+		justify-content: end;
 	}
 
-	.hr>a {
+	#head-r>a {
 		margin-left: 10px;
 	}
 
-	a {
-		text-decoration: none;
-		color: var(--color-theme-darkgrey);
-	}
-
-	.hr a:hover {
+	#head-r a:hover {
 		color: var(--color-theme-darkblue);
 		font-weight: bold;
+	}
+
+	#slim-stripes {
+		cursor: pointer;
+	}
+
+	#slim-drop {
+		position: fixed;
+		right: 0px;
+		top: 60px;
+		width: 94px;
+		height: 120px;
+		display: flex;
+		flex-direction: column;
+		justify-content: space-around;
+		padding: 12px;
+		padding-left: 20px;
+		background-color: var(--color-theme-yellow);
+	}
+
+	.search-block {
+		position: fixed;
+		top: 0px;
+		transition: all 0.6s;
+	}
+
+	#search-logo {
+		pointer-events: none;
+		z-index: 13;
+	}
+
+	#search-input {
+		border-top: solid var(--color-theme-darkblue) 7px;
+		border-right: 0px;
+		border-left: 0px;
+		border-bottom: 0px;
+		border-radius: 0px;
+		background-color: rgba(255, 255, 255, 0.7);
+		font-size: 24px;
+		font-style: italic;
+		z-index: 11;
+	}
+
+	#search-input:hover {
+		border-top-color: var(--color-theme-white);
+		border-right: solid var(--color-theme-white) 2px;
+		border-left: solid var(--color-theme-white) 2px;
+		border-bottom: solid var(--color-theme-white) 2px;
+		background-color: rgba(171, 171, 171, 0.8);
+		color: white;
+	}
+
+	input#search-input:focus {
+		outline: none;
 	}
 </style>

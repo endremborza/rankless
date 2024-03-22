@@ -1,11 +1,11 @@
 <script lang="ts">
-	import {getSankeyPath} from '$lib/visual-util';
+	import { getSankeyPath } from '$lib/visual-util';
 
 	// 7
 	// 4 block changes
 	// 2 opened changes
-	const w = 20;
-	const h = w / 2;
+	export let w = 20;
+	export let h = w / 2;
 
 	let blurFrames = [
 		[0, 0, 0, 0, 0, 0, 0],
@@ -33,9 +33,9 @@
 			let parent = child / topDivider;
 			ds.push(
 				getSankeyPath(
-					{x: topOffset + topShift, y: reach},
-					{x: bottomOffset, y: reach + h / 2},
-					{parent, child},
+					{ x: topOffset + topShift, y: reach },
+					{ x: bottomOffset, y: reach + h / 2 },
+					{ parent, child },
 					h * 2,
 					h * 2 + reach
 				)
@@ -59,30 +59,34 @@
 	let paths: string[][] = setups.map((e) => getPaths(...e));
 </script>
 
-<svg viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg">
-	<defs>
-		{#each paths as _, i}
+<defs>
+	{#each paths as _, i}
 		<filter id="f{i}" x="0" y="0" xmlns="http://www.w3.org/2000/svg">
 			<feGaussianBlur id="blur{i}" in="SourceGraphic" stdDeviation="0" />
 		</filter>
-		{/each}
-	</defs>
-	{#each paths[0] as ds, i}
+	{/each}
+</defs>
+{#each paths[0] as ds, i}
 	<path id="p{i}" d={ds[0]} style="fill: rgb(var(--color-range-{i * 10 + 5}))" filter="url(#f{i}" />
 
-	<animate xlink:href="#blur{i}" attributeName="stdDeviation" values={blurFrames.map((l)=> l[i]).join(';')}
+	<animate
+		xlink:href="#blur{i}"
+		attributeName="stdDeviation"
+		values={blurFrames.map((l) => l[i]).join(';')}
 		dur="3s"
 		begin="0s"
 		repeatCount="indefinite"
-		/>
+	/>
 
-		<animate xlink:href="#p{i}" attributeName="d" values={paths.map((l)=> l[i]).join(';')}
-			dur="18s"
-			begin="0s"
-			repeatCount="indefinite"
-			/>
-			{/each}
-</svg>
+	<animate
+		xlink:href="#p{i}"
+		attributeName="d"
+		values={paths.map((l) => l[i]).join(';')}
+		dur="18s"
+		begin="0s"
+		repeatCount="indefinite"
+	/>
+{/each}
 
 <style>
 	svg {

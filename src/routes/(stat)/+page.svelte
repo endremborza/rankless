@@ -1,5 +1,5 @@
 <script lang="ts">
-	import {flowerPaths, thinFlowerPaths, pinRange} from '$lib/visual-util';
+	import { flowerPaths, thinFlowerPaths, pinRange } from '$lib/visual-util';
 	import HexagonLogo from '$lib/components/HexagonLogo.svelte';
 	import Flower from '$lib/components/Flower.svelte';
 	import CircleBurst from '$lib/components/CircleBurst.svelte';
@@ -9,20 +9,6 @@
 	import SearchResults from '$lib/components/SearchResults.svelte';
 
 	let rotScaler = 1.2;
-	let resultsHidden = true;
-	let searchTerm = '';
-
-	function onFocus() {
-		rotScaler -= 0.9;
-		resultsHidden = false;
-	}
-
-	function onBlur() {
-		rotScaler += 0.9;
-		if (searchTerm.length == 0) {
-			// resultsHidden = true;
-		}
-	}
 
 	function getInputSpecs(scrollRate: number): [number, number, number] {
 		if (scrollRate == 0) {
@@ -66,8 +52,9 @@
 		the population, and help produce important innovations.
 	</p>
 	<p id="p-3" style="top: {ratePin(4, 4.7, 0.2)}px;">
-		But the impact of universities cannot be reduced to a single number. <b>Knowledge is highly
-			specific</b>, and so is the impact of universities.
+		But the impact of universities cannot be reduced to a single number. <b
+			>Knowledge is highly specific</b
+		>, and so is the impact of universities.
 	</p>
 	<p id="p-4" style="top: {ratePin(5.3, 5.9, 0.4)}px;">
 		Universities specialize in <b>fields</b> and local <b>networks of collaboration</b>.
@@ -86,6 +73,8 @@
 		Academic impact is not a single thing, but a rich kaleidoscope of topics and geographies that
 		can be exciting to explore.
 	</p>
+	<!-- TODO: cut off and make the end somewhat shorter -->
+	<!-- TODO: pull to be a bit more compact -->
 	<p id="p-7" style="top: {ratePin(9.7, 10.5, 0.4)}px;">
 		Go ahead and explore impact beyond rankings!
 	</p>
@@ -94,21 +83,11 @@
 	<ScrollySank {sWidth} {sHeight} {ratePin} {rateScale} {isWideScreen} />
 	<!-- search -->
 
-	<SearchResults bind:resultsHidden {searchTerm} />
-
-	<input bind:value={searchTerm} on:blur={onBlur} on:focus={onFocus} placeholder="Explore an Institution"
-		type="text" class="search-input"
-		style="width: {inputWidth}%; top: {inputTop}svh; left: {inLeft}%; height: {inHeight}px" />
-
-	<svg width={inHeight} height={inHeight} viewBox="-10 -10 60 50" fill="none" xmlns="http://www.w3.org/2000/svg"
-		style="z-index: 10; top: {inputTop}svh; left: {inLeft}%; transition: all 0.6s; position: fixed">
-		<SearchLogo />
-	</svg>
 	<!-- decoration -->
 
 	<div class="bg-bar" id="top-blue">
 		{#each [...Array(8).keys()].map((x) => 270 + x * 40) as topOff}
-		<div class="white-line" style="top: {topOff}px" />
+			<div class="white-line" style="top: {topOff}px" />
 		{/each}
 	</div>
 
@@ -118,8 +97,12 @@
 
 	<div class="bg-bar" id="grey-bar" />
 
-	<svg id="logo-img" viewBox="-2.5 -2 4.9 5.3" xmlns="http://www.w3.org/2000/svg"
-		style="opacity: {innerWidth > innerHeight ? 70 : 0}%;">
+	<svg
+		id="logo-img"
+		viewBox="-2.5 -2 4.9 5.3"
+		xmlns="http://www.w3.org/2000/svg"
+		style="opacity: {innerWidth > innerHeight ? 70 : 0}%;"
+	>
 		<HexagonLogo {rotScaler} />
 	</svg>
 
@@ -157,9 +140,7 @@
 	#p-1 {
 		color: var(--color-theme-darkblue);
 		font-weight: 600;
-		left: 250px;
-		top: 150px;
-		padding: 100px;
+		left: 40px;
 	}
 
 	#p-2 {
@@ -168,7 +149,7 @@
 		right: 40px;
 	}
 
-	#p-2>b {
+	#p-2 > b {
 		color: var(--color-theme-red);
 	}
 
@@ -210,55 +191,6 @@
 		color: var(--color-theme-darkblue);
 	}
 
-	.search-input {
-		transition: all 0.6s;
-		padding-left: 150px;
-		position: fixed;
-		border-top: solid var(--color-theme-darkblue) 7px;
-		border-right: solid var(--color-theme-darkblue) 2px;
-		border-left: solid var(--color-theme-darkblue) 2px;
-		border-bottom: solid var(--color-theme-darkblue) 2px;
-		border-radius: 6px;
-		background-color: rgba(255, 255, 255, 0.9);
-		box-shadow: 7px 7px 17px var(--color-theme-darkgrey3);
-		font-size: 24px;
-		font-style: italic;
-		color: black;
-		z-index: 10;
-	}
-
-	.search-input::before {
-		content: '';
-		position: absolute;
-		top: 200px;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background-color: var(--color-theme-lightergrey);
-		/* Lighter grey border as background */
-		z-index: -1;
-		border-radius: 6px;
-		transition: opacity 0.6s;
-		opacity: 0;
-		/* Initially hidden */
-	}
-
-	.search-input:hover {
-		border-radius: 6px;
-		border-top-color: var(--color-theme-white);
-		border-right: solid var(--color-theme-white) 2px;
-		border-left: solid var(--color-theme-white) 2px;
-		border-bottom: solid var(--color-theme-white) 2px;
-		background-color: rgba(171, 171, 171, 0.8);
-		color: white;
-
-		/* Change border color on hover */
-	}
-
-	input.search-input:focus {
-		outline: none;
-	}
-
 	/* decorations */
 
 	.white-line {
@@ -280,9 +212,11 @@
 		height: 80svh;
 		top: 0px;
 		opacity: 60%;
-		background-image: linear-gradient(var(--color-theme-lightblue),
-				var(--color-theme-blue) 20%,
-				var(--color-theme-lightgrey));
+		background-image: linear-gradient(
+			var(--color-theme-lightblue),
+			var(--color-theme-blue) 20%,
+			var(--color-theme-lightgrey)
+		);
 	}
 
 	#mid-pink {
@@ -299,24 +233,28 @@
 		width: 75%;
 		margin-left: 25%;
 		top: 350svh;
-		background-image: linear-gradient(180deg,
-				var(--color-theme-pink) 12.5%,
-				var(--color-theme-purple) 46%,
-				var(--color-theme-purple) 70%,
-				rgba(255, 255, 255, 0) 100%);
+		background-image: linear-gradient(
+			180deg,
+			var(--color-theme-pink) 12.5%,
+			var(--color-theme-purple) 46%,
+			var(--color-theme-purple) 70%,
+			rgba(255, 255, 255, 0) 100%
+		);
 	}
 
 	#grey-bar {
 		position: absolute;
 		height: 340svh;
 		top: 460svh;
-		background-image: linear-gradient(7deg,
-				rgba(255, 255, 255, 0),
-				rgba(255, 255, 255, 0) 20%,
-				var(--color-theme-lightgrey) 30%,
-				var(--color-theme-pink) 70%,
-				rgba(255, 255, 255, 0) 80%,
-				rgba(255, 255, 255, 0) 100%);
+		background-image: linear-gradient(
+			7deg,
+			rgba(255, 255, 255, 0),
+			rgba(255, 255, 255, 0) 20%,
+			var(--color-theme-lightgrey) 30%,
+			var(--color-theme-pink) 70%,
+			rgba(255, 255, 255, 0) 80%,
+			rgba(255, 255, 255, 0) 100%
+		);
 	}
 
 	svg {
