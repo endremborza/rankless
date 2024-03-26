@@ -206,11 +206,7 @@
 			style="transform: matrix(1,0,0,1,{sideBarWidth * 0.85}, {fullHeight * 0.03})"
 			on:click={expandThis(dispatch, index)}
 		>
-			<CollapseButton
-				size={svgScaleHeight}
-				text={isExpanded ? 'collapse' : 'expand'}
-				rotated={isExpanded ? 180 : 0}
-			/>
+			<CollapseButton size={svgScaleHeight} rotated={isExpanded ? 180 : 0} />
 		</g>
 	</g>
 {/if}
