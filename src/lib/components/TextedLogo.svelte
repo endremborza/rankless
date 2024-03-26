@@ -13,12 +13,12 @@
 		</svg></a>
 	<span id="logo-text">
 		<a href={`${base}/`}> <b>{APP_NAME}</b></a>
-		<a id="by-link" href="https://centerforcollectivelearning.org/">by CCL</a>
+		<span id="by-span">by CCL</span>
 	</span>
 </div>
 
 <style>
-	#by-link {
+	#by-span {
 		font-size: 0.7rem;
 	}
 
