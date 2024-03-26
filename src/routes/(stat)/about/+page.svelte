@@ -11,6 +11,18 @@
 	import matePortrait from '$lib/assets/images/portraits/mate.jpg';
 
 	import SankeyVideo from '$lib/components/SankeyVideo.svelte';
+	import { onMount } from 'svelte';
+	import { parse } from 'platform';
+
+	let isWeak = false;
+	let uInfo: { product?: string; name?: string } = {};
+
+	onMount(() => {
+		uInfo = parse(navigator.userAgent);
+		if (uInfo.product == 'iPhone' || uInfo.name == 'Safari') {
+			isWeak = true;
+		}
+	});
 
 	const uLogos = [cclLogo, corvLogo, udtLogo];
 
@@ -21,9 +33,9 @@
 			role: 'CCL Director',
 			href: 'https://cesarhidalgo.com/'
 		},
-		{src: endrePortrait, name: 'Endre Borza', role: 'Research Data Engineer'},
-		{src: veraPortrait, name: 'Veronika Hamar', role: 'CCL Budapest Executive Director'},
-		{src: matePortrait, name: 'Máté Barkóczi', role: 'Design Intern'}
+		{ src: endrePortrait, name: 'Endre Borza', role: 'Research Data Engineer' },
+		{ src: veraPortrait, name: 'Veronika Hamar', role: 'CCL Budapest Executive Director' },
+		{ src: matePortrait, name: 'Máté Barkóczi', role: 'Designer' }
 	];
 
 	let w = 40;
@@ -40,61 +52,63 @@
 </p>
 
 <svg viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg">
-	<SankeyVideo {w} {h} />
+	<SankeyVideo {w} {h} {isWeak} />
 </svg>
+
 <h1>Our Team</h1>
 
 <div class="bstrip" id="person-bar">
 	<div class="bar">
 		{#each protraits as port}
-		<div class="person">
-			<img class="portrait" src={port.src} alt={port.name} />
-			<p><a href={port.href}>{port.name}</a></p>
-			<p>{port.role}</p>
-		</div>
+			<div class="person">
+				<img class="portrait" src={port.src} alt={port.name} />
+				<p><a href={port.href}>{port.name}</a></p>
+				<p class="prole">{port.role}</p>
+			</div>
 		{/each}
 	</div>
 </div>
+<div class="btxt">
+	<p>
+		The group is part of the <a href="https://centerforcollectivelearning.org/"
+			>Center for Collective Learning</a
+		>
+		research group. Founded in 2010 by Professor Cesar Hidalgo, the group actively contributes to the
+		development of various areas, including economic complexity, the use of crowdsourcing and computer
+		vision methods to understand the physical qualities of cities, and the creation of digital democracy
+		platforms.
+	</p>
+	<p>
+		The Center for Collective Learning is now based at the Artificial and Natural Intelligence
+		Institute (ANITI) at the University of Toulouse and the Corvinus Institute for Advanced Studies
+		(CIAS) at Corvinus University in Budapest. It is supported by several European projects,
+		including an ERA Chair, the European Lighthouse on Artificial Intelligence for Sustainability
+		(ELIAS), and the ObsSea4Clim (Horizon) Ocean Observatory
+	</p>
 
-<p class="btxt">
-	The group is part of the <a href="https://centerforcollectivelearning.org/">Center for Collective Learning</a>
-	research group. Founded in 2010 by Professor Cesar Hidalgo, the group actively contributes to the development
-	of various areas, including economic complexity, the use of crowdsourcing and computer vision methods
-	to understand the physical qualities of cities, and the creation of digital democracy platforms.
-</p>
-<p class="btxt">
-	The Center for Collective Learning is now based at the Artificial and Natural Intelligence
-	Institute (ANITI) at the University of Toulouse and the Corvinus Institute for Advanced Studies
-	(CIAS) at Corvinus University in Budapest. It is supported by several European projects, including
-	an ERA Chair, the European Lighthouse on Artificial Intelligence for Sustainability (ELIAS), and
-	the ObsSea4Clim (Horizon) Ocean Observatory
-</p>
-
-<p class="btxt">
-	You can reach us by contacting Veronika directly @ veronika.hamar@uni-corvinus.hu
-</p>
+	<p>You can reach us by contacting Veronika directly @ veronika.hamar@uni-corvinus.hu</p>
+</div>
 <div class="bstrip">
-	<iframe src="https://www.youtube.com/embed/le75gN3pxPk" />
+	<iframe title="CCL Launch Video" src="https://www.youtube.com/embed/le75gN3pxPk" />
 </div>
 <div class="bstrip logo-strip">
 	{#each uLogos as src}
-	<img class="logo" {src} alt="inst-logo" />
+		<img class="logo" {src} alt="inst-logo" />
 	{/each}
 	<img class="logo" src={euLogo} alt="European Commission Logo" />
 </div>
 
-<!-- TODO: add contact veronika.hamar@uni-corvinus.hu -->
-
 <style>
 	h1 {
 		text-align: center;
+		font-size: 2.9rem;
 		margin: 30px;
 	}
 
 	p {
 		font-weight: 600;
 		font-size: 1.2rem;
-		max-width: 900px;
+		max-width: 1180px;
 		margin-left: auto;
 		margin-right: auto;
 	}
@@ -104,6 +118,7 @@
 		height: 45svh;
 		width: 100%;
 		z-index: -2;
+		margin-bottom: 70px;
 	}
 
 	iframe {
@@ -114,7 +129,14 @@
 		margin-bottom: 40px;
 	}
 
+	a {
+		text-decoration: none;
+		color: var(--color-theme-darkgrey3);
+	}
+
 	#person-bar {
+		padding-top: 80px;
+		padding-bottom: 80px;
 		background-color: var(--color-theme-lightblue);
 	}
 
@@ -123,8 +145,17 @@
 		text-align: justify;
 		padding-left: 35px;
 		padding-right: 35px;
+		margin-top: 120px;
+		margin-bottom: 60px;
 		color: var(--color-theme-darkgrey);
-		/* text-shadow: 2px 2px 4px var(--color-theme-pink); */
+	}
+
+	.btxt > p {
+		font-weight: 400;
+	}
+
+	.prole {
+		font-weight: 300;
 	}
 
 	.bar {
@@ -135,7 +166,7 @@
 		flex-wrap: wrap;
 	}
 
-	.person>p {
+	.person > p {
 		text-align: center;
 	}
 

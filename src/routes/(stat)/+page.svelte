@@ -1,100 +1,120 @@
 <script lang="ts">
-	import { flowerPaths, thinFlowerPaths, pinRange } from '$lib/visual-util';
+	import { flowerPaths, thinFlowerPaths } from '$lib/visual-util';
 	import HexagonLogo from '$lib/components/HexagonLogo.svelte';
 	import Flower from '$lib/components/Flower.svelte';
 	import CircleBurst from '$lib/components/CircleBurst.svelte';
-	import SearchLogo from '$lib/components/SearchLogo.svelte';
 	import ScrollyCGraph from '$lib/components/ScrollyCGraph.svelte';
 	import ScrollySank from '$lib/components/ScrollySank.svelte';
-	import SearchResults from '$lib/components/SearchResults.svelte';
 
-	let rotScaler = 1.2;
-
-	function getInputSpecs(scrollRate: number): [number, number, number] {
-		if (scrollRate == 0) {
-			return [35, 24, 10];
-		}
-		if (scrollRate < 9) {
-			return [100, 0, 0];
-		}
-		return [60, 80, 10];
-	}
-
-	let scrollY: number;
+	let scrollYRaw: number;
 	let innerHeight: number;
 	let outerHeight: number;
 	let innerWidth: number;
 
-	$: sHeight = innerHeight || 2000;
+	let minInHeight = 100000;
+
+	function updateInHeight(newHeight: number) {
+		if (newHeight < minInHeight) {
+			minInHeight = newHeight;
+		}
+		return minInHeight;
+	}
+
+	$: scrollY = scrollYRaw;
+	$: sHeight = updateInHeight(innerHeight);
 	$: sWidth = innerWidth || 2000;
 	$: isWideScreen = sWidth / sHeight > 1.2;
-	$: [inputWidth, inputTop, inLeft] = getInputSpecs(scrollY / sHeight);
+	$: rotScaler = scrollY / 1000 + 1.2;
 
-	const inHeight = 58;
+	function getFixVhFun(height: number, scroll: number) {
+		return (start_vh: number, end_vh: number, offset_vh: number) => {
+			const scrolled_svh = (scroll / height) * 100;
 
-	$: ratePin = (srate: number, erate: number, osrate: number) =>
-		pinRange(scrollY, sHeight * srate, sHeight * erate, sHeight * osrate);
+			let onum = offset_vh;
+
+			if (scrolled_svh < start_vh) {
+				onum += start_vh - scrolled_svh;
+			} else if (scrolled_svh > end_vh) {
+				onum += end_vh - scrolled_svh;
+			}
+			return `${onum}svh`;
+		};
+	}
+
+	$: fixedPin = getFixVhFun(sHeight, scrollY);
 	$: rateScale = (srate: number, frate: number) =>
 		Math.max(0, Math.min((scrollY / sHeight - srate) / frate, 1));
-	$: p2Top = ratePin(1.2, 2.5, 0.3);
 </script>
 
-<svelte:window bind:scrollY bind:innerHeight bind:outerHeight bind:innerWidth />
+<svelte:window bind:scrollY={scrollYRaw} bind:innerHeight bind:outerHeight bind:innerWidth />
 
 <div id="main-container" style="--pwidth: {isWideScreen ? '38%' : '90%'}">
 	<!-- text -->
-	<p id="p-1" style="padding: top: {ratePin(0, 0.7, 0.15)}px;">
+	<p id="p-1" style="opacity: {100 - rateScale(0, 0.2) * 100}%;">
 		In a world, where every country dreams of becoming a knowledge powerhouse, we need more than
 		university rankings.
 	</p>
-	<p id="p-2" style="top: {p2Top}px;">
+	<p
+		id="p-2"
+		style="top: {fixedPin(50, 140, 30)}; opacity: {isWideScreen
+			? 100
+			: 100 - rateScale(0.6, 0.22) * 100}%"
+	>
 		Universities are a source of <b>cultural and economic growth</b>. They attract talent, educate
 		the population, and help produce important innovations.
 	</p>
-	<p id="p-3" style="top: {ratePin(4, 4.7, 0.2)}px;">
+	<p
+		id="p-3"
+		style="top: {fixedPin(isWideScreen ? 245 : 215, 310, 20)};{isWideScreen ? '' : 'width: 80%'}"
+	>
 		But the impact of universities cannot be reduced to a single number. <b
 			>Knowledge is highly specific</b
 		>, and so is the impact of universities.
 	</p>
-	<p id="p-4" style="top: {ratePin(5.3, 5.9, 0.4)}px;">
+	<p
+		id="p-4"
+		style="top: {fixedPin(340, 420, 40)};opacity: {100 - rateScale(4.2, 0.2) * 100}%;{isWideScreen
+			? ''
+			: 'width: 75%'}"
+	>
 		Universities specialize in <b>fields</b> and local <b>networks of collaboration</b>.
-		<span id="inner-4" style="opacity: {rateScale(5.3, 0.4) * 100}%">
+		<span id="inner-4" style="opacity: {rateScale(3.4, 0.2) * 100}%">
 			Isn’t it time we understand them in their right context?
 		</span>
 	</p>
-	<p id="p-5" style="top: {ratePin(6.4, 8.5, 0.4)}px; width: 36%">
+	<p
+		id="p-5"
+		style="top: {fixedPin(
+			500,
+			isWideScreen ? 650 : 600,
+			isWideScreen ? 40 : 60
+		)}; width: {isWideScreen ? 38 : 82}%"
+	>
 		Take the work done by Oregon State University. Instead of looking at them as one element of a
 		list of Universities of varied focuses, sizes and locations, you can visualize how papers
 		relating to <b id="geol">geology</b> or <b id="geog">geography</b>, are citing articles
 		published by authors affiliated with Oregon State around the globe.
 	</p>
 
-	<p id="p-6" style="top: {ratePin(9.1, 9.8, 0.2)}px;">
+	<p id="p-6" style="top: {fixedPin(710, 780, 20)};">
 		Academic impact is not a single thing, but a rich kaleidoscope of topics and geographies that
 		can be exciting to explore.
 	</p>
 	<!-- TODO: cut off and make the end somewhat shorter -->
-	<!-- TODO: pull to be a bit more compact -->
-	<p id="p-7" style="top: {ratePin(9.7, 10.5, 0.4)}px;">
+	<p id="p-7" style="top: {isWideScreen ? 40 : 60}svh;opacity: {rateScale(6.9, 0.2) * 100}%">
 		Go ahead and explore impact beyond rankings!
 	</p>
 	<!-- graphs -->
-	<ScrollyCGraph {scrollY} {sHeight} {ratePin} {isWideScreen} />
-	<ScrollySank {sWidth} {sHeight} {ratePin} {rateScale} {isWideScreen} />
-	<!-- search -->
+	<ScrollyCGraph {scrollY} {sHeight} topOffset={fixedPin(120, 160, 8)} {isWideScreen} />
+	<ScrollySank {sWidth} {sHeight} {fixedPin} {rateScale} {isWideScreen} />
 
 	<!-- decoration -->
-
-	<div class="bg-bar" id="top-blue">
-		{#each [...Array(8).keys()].map((x) => 270 + x * 40) as topOff}
-			<div class="white-line" style="top: {topOff}px" />
-		{/each}
-	</div>
-
+	<div class="bg-bar" id="top-blue" />
+	{#each [...Array(7).keys()].map((x) => 22 + x * 3.75 * (2 - (scrollY / sHeight) * 4)) as topOff}
+		<div class="white-line" style="top: {topOff}svh" />
+	{/each}
 	<div class="bg-bar" id="mid-pink" />
-
 	<div class="bg-bar" id="purp-bar" />
-
 	<div class="bg-bar" id="grey-bar" />
 
 	<svg
@@ -114,7 +134,7 @@
 		<Flower paths={flowerPaths} color="var(--color-theme-purple)" />
 	</svg>
 
-	<svg id="burst-1" viewBox="-110 -110 900 900" xmlns="http://www.w3.org/2000/svg">
+	<svg id="burst-1" viewBox="-115 -115 900 900" xmlns="http://www.w3.org/2000/svg">
 		<CircleBurst />
 	</svg>
 
@@ -125,19 +145,23 @@
 
 <style>
 	#main-container {
-		height: 1100svh;
+		height: 850svh;
 	}
 
 	p {
+		padding: 0px;
+		margin: 0px;
 		font-size: min(5svh, 7vw);
 		font-weight: 400;
 		line-height: 1.5;
-		position: absolute;
+		position: fixed;
 		z-index: 6;
 		width: var(--pwidth);
 	}
 
 	#p-1 {
+		position: absolute;
+		top: 19svh;
 		color: var(--color-theme-darkblue);
 		font-weight: 600;
 		left: 40px;
@@ -166,8 +190,10 @@
 		right: 7%;
 		padding: 2vw;
 		font-size: min(3svh, 5vw);
-		background: var(--color-theme-pink);
-		border: solid var(--color-theme-blue) 8px;
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+		border: solid var(--color-theme-blue) 2px;
+		border-radius: 10px;
 	}
 
 	#p-6 {
@@ -195,7 +221,8 @@
 
 	.white-line {
 		width: 100%;
-		height: 5px;
+		height: min(2.5svh, 3.5vw);
+		opacity: 20%;
 		position: absolute;
 		z-index: -8;
 		background-color: var(--color-theme-white);
@@ -247,7 +274,7 @@
 		height: 340svh;
 		top: 460svh;
 		background-image: linear-gradient(
-			7deg,
+			0deg,
 			rgba(255, 255, 255, 0),
 			rgba(255, 255, 255, 0) 20%,
 			var(--color-theme-lightgrey) 30%,
@@ -273,17 +300,18 @@
 		width: min(1333px, 100%);
 		top: 550px;
 		left: 0px;
+		opacity: 30%;
 		z-index: -6;
 	}
 
 	#burst-1 {
 		width: 66%;
-		top: 3000px;
+		top: 360svh;
 	}
 
 	#flower-img {
 		width: 80%;
-		top: 870svh;
+		top: 670svh;
 		left: 4%;
 	}
 
@@ -291,8 +319,9 @@
 		height: 105.5svh;
 		/* WHY? the height should match main-container height*/
 		width: 100%;
-		top: 1000svh;
 		left: 0px;
+		top: 755svh;
+		position: absolute;
 		opacity: 40%;
 	}
 </style>

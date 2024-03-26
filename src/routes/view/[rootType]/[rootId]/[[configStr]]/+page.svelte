@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
+	import { afterNavigate, goto } from '$app/navigation';
 	import { base } from '$app/paths';
 
 	import type {
@@ -145,6 +145,12 @@
 
 			runEventSequence($page.url.searchParams.get('e') || '');
 		});
+	});
+
+	afterNavigate(() => {
+		if (selectedQcRootOption?.id != $page.params.rootId) {
+			selectedQcRootOption = qcRootOptions.filter((x) => x.id == $page.params.rootId)[0];
+		}
 	});
 
 	function loadNewQc(specId: string | undefined, rootId: string | undefined) {
