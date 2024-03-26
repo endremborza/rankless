@@ -25,9 +25,17 @@
 			goto(`${base}/view/${INSTITUTION_TYPE}/${e.id}`); //TODO this is capitalized!!
 		}
 	}
-	$: searchResults = getTopFzfInsts(searchTerm, instOptions, 6);
+	$: searchResults = getTopFzfInsts(searchTerm, instOptions, 8);
+
+	function key_bind(key) {
+		if (key.key == 'Escape') {
+			resultsHidden = true;
+		}
+	}
 </script>
 
+<!-- TODO: map enter ans escape -->
+<svelte:window on:keydown={key_bind} />
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <div class="search-results" style="display: {resultsHidden ? 'none' : 'flex'};">
