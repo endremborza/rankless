@@ -60,7 +60,9 @@ body {
 body {
 	/* min-height: 100vh; */
 	/* margin: 22; */
-	background-color: var(--color-theme-lightblue);
+	/* background-color: var(--color-theme-lightblue); */
+	/* background-color: var(--color-theme-white); */
+	background-color: #ffffff;
 	/* background-attachment: fixed;
 	background-size: 100vw 100vh;
 	background-image: radial-gradient(
@@ -84,6 +86,22 @@ h1 {
 	display: flex;
 	flex-flow: row wrap;
 	justify-content: center;
+}
+
+.logo-strip {
+	background-color: var(--color-theme-lightgrey);
+	position: relative;
+	bottom: 0px;
+	width: 100%;
+	padding-bottom: 30px;
+	padding-top: 10px;
+}
+
+.logo {
+	width: 180px;
+	margin-left: 50px;
+	margin-right: 50px;
+	margin-top: 30px;
 }
 
 g {
