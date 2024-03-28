@@ -148,8 +148,8 @@
 	});
 
 	afterNavigate(() => {
-		if (selectedQcRootOption?.id != $page.params.rootId) {
-			selectedQcRootOption = qcRootOptions.filter((x) => x.id == $page.params.rootId)[0];
+		if (selectedQcRootOption?.id != $page?.params.rootId) {
+			selectedQcRootOption = qcRootOptions?.filter((x) => x.id == $page.params.rootId)[0];
 		}
 	});
 

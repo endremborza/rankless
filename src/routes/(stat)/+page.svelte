@@ -127,7 +127,10 @@
 	</svg>
 
 	<svg id="thin-flower-img" viewBox="0 -150 1000 1700" xmlns="http://www.w3.org/2000/svg">
-		<Flower paths={thinFlowerPaths} width={6} color="var(--color-theme-lightblue)" />
+		<g style="transform: rotate({scrollY / 88}deg) scaleX({scrollY / sHeight / 2 + 1})"> /* scrolly let to rotate the svg */
+			<Flower paths={thinFlowerPaths} width={6} color="var(--color-theme-lightblue)" />
+		</g>
+		
 	</svg>
 
 	<svg id="flower-img" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
@@ -171,6 +174,7 @@
 		color: var(--color-theme-darkblue);
 		text-align: right;
 		right: 40px;
+		/* padding-bottom: 20px; */
 	}
 
 	#p-2 > b {
@@ -187,6 +191,7 @@
 	}
 
 	#p-5 {
+		color: var(--color-theme-darkgrey3);
 		right: 7%;
 		padding: 2vw;
 		font-size: min(3svh, 5vw);
@@ -196,9 +201,15 @@
 		border-radius: 10px;
 	}
 
-	#p-6 {
-		left: 8%;
-	}
+    #p-6 {
+        left: 8%;
+        font-size: 3.9em; /* Decrease the font size */
+        line-height: 1.1; /* Decrease the line height */
+        position: relative; /* Position relative to allow positioning of the pseudo-element */
+		background: rgb(255,255,255);
+    	background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 50%, rgba(255,255,0,1) 50%, rgba(255,255,0,1) 100%);
+        color: black; /* Set the text color */
+    }
 
 	#p-7 {
 		right: 9%;
@@ -226,7 +237,7 @@
 		position: absolute;
 		z-index: -8;
 		background-color: var(--color-theme-white);
-		opacity: 80%;
+		opacity: 20%;
 	}
 
 	.bg-bar {
@@ -236,8 +247,8 @@
 	}
 
 	#top-blue {
-		height: 80svh;
-		top: 0px;
+		height: 120svh;
+		top: 0svh;
 		opacity: 60%;
 		background-image: linear-gradient(
 			var(--color-theme-lightblue),
@@ -247,16 +258,23 @@
 	}
 
 	#mid-pink {
-		position: absolute;
 		height: 70svh;
 		opacity: 80%;
-		top: 120svh;
+		top: 100svh;
 		background-image: linear-gradient(var(--color-theme-pink), var(--color-theme-lightblue));
 	}
 
+	#bonus-bar {
+		height: 70svh;
+		opacity: 10%;
+		top: 190svh;
+		background-color: black;
+	}
+
 	#purp-bar {
-		position: absolute;
 		height: 90svh;
+		/* width: min(75%, 600px); 
+		min-width: 600px*/
 		width: 75%;
 		margin-left: 25%;
 		top: 350svh;
@@ -323,5 +341,13 @@
 		top: 755svh;
 		position: absolute;
 		opacity: 40%;
+	}
+	@keyframes fadeIn {
+		from {
+			opacity: 1;
+		}
+		to {
+			opacity: 2;
+		}
 	}
 </style>
