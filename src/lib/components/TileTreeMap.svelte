@@ -90,10 +90,11 @@
 {:else}
 {#each flats as node, i}
 <svelte:self data={node.data} width={theOne(node, node.sizes[0], width, 1)} height={theOne(node, node.sizes[1], height,
-	1)} xOffset={theOne(node, node.offsets[0], xOffset, xOffset)} yOffset={theOne(node, node.offsets[1], yOffset,
-	yOffset)} open={openChildren.includes(node.name)} colorStart={open ? colorStart + colorStep * i : colorStart}
-	showText={open} colorEnd={open ? colorStart + colorStep * (i + 1) : colorEnd} {transitionMs}
-	maxPad={theOne(node, maxPad * (node.sizes[0] / width), maxPad, 0)} />
+	1)} xOffset={theOne(node, node.offsets[0], xOffset, node.offsets[0] + node.sizes[0] / 2)} yOffset={theOne(node,
+	node.offsets[1], yOffset, node.offsets[1] + node.sizes[1] / 2)} open={openChildren.includes(node.name)}
+	colorStart={open ? colorStart + colorStep * i : colorStart} showText={open} colorEnd={open ? colorStart +
+	colorStep * (i + 1) : colorEnd} {transitionMs} maxPad={theOne(node, maxPad * (node.sizes[0] / width), maxPad,
+	0)} />
 {/each}
 {/if}
 

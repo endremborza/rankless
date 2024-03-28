@@ -24,21 +24,28 @@
 	--color-range-90: 225, 176, 30;
 	--color-range-95: 238, 198, 17;
 	--color-range-100: 250, 220, 5;
+	--color-range-105: 44, 96, 245;
+	--color-range-110: 239, 143, 160;
 
 	--color-text: #21272A;
 	--color-text-light: #697077;
 
 	--color-theme-yellow: #FBF4E5;
 	--color-theme-lightblue: #DCE3EC;
+	--color-theme-lightblue2: #3F8EF7;
 	--color-theme-darkblue: #0F62FE;
 	--color-theme-blue: #6BA8DA;
 	--color-theme-purple: #C5C5E0;
 	--color-theme-pink: #CEBAD3;
 	--color-theme-red: #FD8A9F;
 	--color-theme-darkgrey: #4F4F4F;
+	--color-theme-darkgrey2: #ababab;
+	--color-theme-darkgrey3: #707070;
 	--color-theme-lightgrey: #D8D8D8;
 	--color-theme-red: #FE7D95;
 	--color-theme-white: #F2F2F2;
+	/* methods video colors */
+	--color-graph-pink: #E83547;
 
 	font-family: var(--font-body);
 	color: var(--color-text);
@@ -53,7 +60,9 @@ body {
 body {
 	/* min-height: 100vh; */
 	/* margin: 22; */
-	background-color: var(--color-theme-lightblue);
+	/* background-color: var(--color-theme-lightblue); */
+	/* background-color: var(--color-theme-white); */
+	background-color: #ffffff;
 	/* background-attachment: fixed;
 	background-size: 100vw 100vh;
 	background-image: radial-gradient(
@@ -77,6 +86,22 @@ h1 {
 	display: flex;
 	flex-flow: row wrap;
 	justify-content: center;
+}
+
+.logo-strip {
+	background-color: var(--color-theme-lightgrey);
+	position: relative;
+	bottom: 0px;
+	width: 100%;
+	padding-bottom: 30px;
+	padding-top: 10px;
+}
+
+.logo {
+	width: 180px;
+	margin-left: 50px;
+	margin-right: 50px;
+	margin-top: 30px;
 }
 
 g {

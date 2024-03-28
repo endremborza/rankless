@@ -1,5 +1,5 @@
 <script lang="ts">
-	export let r = 17.53;
+	export let r = 22;
 	export let fill = 'var(--color-theme-white)';
 	export let r2 = 14.76;
 </script>

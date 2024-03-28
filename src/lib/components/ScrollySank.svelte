@@ -1,19 +1,19 @@
 <script lang="ts">
-	import {getSankeyPath, type Point} from '$lib/visual-util';
+	import { getSankeyPath, type Point } from '$lib/visual-util';
 	import osuInst from '$lib/assets/data/osu-inst.json';
 	import BrokenFittedText from './BrokenFittedText.svelte';
-	import {formatNumber} from '$lib/text-format-util';
+	import { formatNumber } from '$lib/text-format-util';
 
 	export let sWidth: number;
 	export let sHeight: number;
 	export let isWideScreen: boolean;
-	export let ratePin: (s: number, e: number, os: number) => number;
+	export let fixedPin: (s: number, e: number, os: number) => string;
 	export let rateScale: (s: number, f: number) => number;
 
 	type pDef = {
 		cTop: Point;
 		cBot: Point;
-		widths: {parent: number; child: number};
+		widths: { parent: number; child: number };
 		bottomStretch: number;
 		topStretch: number;
 	};
@@ -34,9 +34,9 @@
 
 	$: h = sHeight / sWidth;
 
-	$: phaseTwo = rateScale(6.6, 0.8);
+	$: phaseTwo = rateScale(3.95, 1.8);
 
-	$: topExtension = (1 - rateScale(3, 2)) * 150 * h;
+	$: topExtension = (1 - rateScale(1.5, 2)) * 150 * h;
 	$: y = 3 * h + topExtension - phaseTwo * 10 * h;
 
 	// width is normalized to 100
@@ -44,7 +44,7 @@
 	// should be basically the screen
 
 	$: l1Bottom = 10 * h;
-	function getS(c: {weight: number}[]): number {
+	function getS(c: { weight: number }[]): number {
 		let o = 0;
 		for (let i = 0; i < c.length; i++) {
 			const ch = c[i];
@@ -53,8 +53,8 @@
 		return o;
 	}
 	function getL(
-		c: {children: {weight: number; name: string}[]}[]
-	): {name: string; weight: number}[] {
+		c: { children: { weight: number; name: string }[] }[]
+	): { name: string; weight: number }[] {
 		const o = [];
 		for (let i = 0; i < c.length; i++) {
 			for (let j = 0; j < c[i].children.length; j++) {
@@ -65,18 +65,29 @@
 	}
 	$: osuSum = getS(osuInst);
 
+	$: bottomMultiplier = isWideScreen ? 17 : 9 + phaseTwo * 27;
+
 	$: p1Obj = {
-		cTop: {x: 65, y},
-		cBot: {x: 15, y: y + 50 * h - phaseTwo * 25 * h},
-		widths: {parent: 4, child: (osuInst[0].weight / osuSum) * 17},
+		cTop: { x: isWideScreen ? 65 : 90, y },
+		cBot: {
+			x: isWideScreen ? 15 : 3 + phaseTwo * 20,
+			y: y + 50 * h - phaseTwo * (isWideScreen ? 25 : 33) * h
+		},
+		widths: {
+			parent: isWideScreen ? 4 : 1.5,
+			child: (osuInst[0].weight / osuSum) * bottomMultiplier
+		},
 		bottomStretch: l1Bottom,
 		topStretch: 2.5 * h + topExtension
 	};
 
 	$: p2Obj = {
-		cTop: {x: topPlus(p1Obj), y},
-		cBot: {x: botPlus(p1Obj), y: p1Obj.cBot.y},
-		widths: {parent: 5, child: (osuInst[1].weight / osuSum) * 17},
+		cTop: { x: topPlus(p1Obj), y },
+		cBot: { x: botPlus(p1Obj), y: p1Obj.cBot.y },
+		widths: {
+			parent: isWideScreen ? 5 : 2,
+			child: (osuInst[1].weight / osuSum) * bottomMultiplier
+		},
 		bottomStretch: l1Bottom,
 		topStretch: 2.5 + topExtension
 	};
@@ -84,17 +95,17 @@
 	$: p1 = toP(p1Obj);
 	$: p2 = toP(p2Obj);
 
-	$: bottomStretch = 15 * h;
+	$: bottomStretch = (isWideScreen ? 15 : phaseTwo * 13) * h;
 	$: topStretch = 3 * h;
-	$: l2end = 75 * h;
+	$: l2end = (isWideScreen ? 75 : 70 - phaseTwo * 30) * h;
 
 	$: osuL2 = getL(osuInst);
-	$: l2Sum = getS(osuL2);
+	$: l2Sum = getS(osuL2) * (isWideScreen ? 1 : 0.6);
 
 	$: getL2Obj = (tOff: number, bOff: number, parent: number, i: number) => ({
-		cTop: {x: tOff, y: p1Obj.cBot.y + p1Obj.bottomStretch + topStretch + pad},
-		cBot: {x: bOff, y: l2end},
-		widths: {parent, child: ((osuL2[i] || {weight: 0}).weight / l2Sum) * 43},
+		cTop: { x: tOff, y: p1Obj.cBot.y + p1Obj.bottomStretch + topStretch + pad },
+		cBot: { x: bOff, y: l2end },
+		widths: { parent, child: ((osuL2[i] || { weight: 0 }).weight / l2Sum) * 43 },
 		bottomStretch,
 		topStretch
 	});
@@ -116,29 +127,64 @@
 		p2Obj.widths.child - p21Obj.widths.parent - p22Obj.widths.parent - 2 * pad,
 		5
 	);
+	$: topVh = fixedPin(215, 600, -5);
 </script>
 
-<svg viewBox="0 0 100 {100 * h}" xmlns="http://www.w3.org/2000/svg" width="100%" height="110svh"
-	style="top: {ratePin(3.15, 8, -0.05)}px">
-	<path d={p1} style="fill: rgb(var(--color-range-25));" opacity="75%" />
-	<path d={p2} style=" fill: rgb(var(--color-range-75));" opacity="75%" />
-	{#each [{ pO: p11Obj, cR: 5 }, { pO: p12Obj, cR: 20 }, { pO: p13Obj, cR: 50 }, { pO: p21Obj, cR: 60 }, { pO:
-	p22Obj, cR: 70 }, { pO: p23Obj, cR: 90 }] as { pO, cR }, i}
-	<path d={toP(pO)} style=" fill: rgb(var(--color-range-{cR}));" opacity="{phaseTwo * 75}%" />
-	<g opacity="{Math.pow(phaseTwo, 2) * 100}%">
-		<BrokenFittedText x={pO.cBot.x + pad} y={pO.cBot.y + bottomStretch / 2.5} text={osuL2[i].name}
-			height={bottomStretch / 2.6} width={pO.widths.child - 2 * pad} />
-		<BrokenFittedText x={pO.cBot.x + pO.widths.child * 0.05} y={pO.cBot.y + bottomStretch - pad}
-			text={cText(osuL2[i].weight)} height={bottomStretch / 2} width={pO.widths.child * 0.9} />
-	</g>
+<svg
+	viewBox="0 0 100 {100 * h}"
+	xmlns="http://www.w3.org/2000/svg"
+	width="100%"
+	height="110svh"
+	style="top: {topVh}"
+>
+	<defs>
+		{#each [1, 2] as find}
+			<linearGradient id="fade-{find}" gradientTransform="rotate(90)">
+				<stop class="stop-{find}" offset="0%" stop-opacity="0%" />
+				<stop class="stop-{find}" offset="10%" stop-opacity="2%" />
+				<stop class="stop-{find}" offset="25%" stop-opacity="75%" />
+				<stop class="stop-{find}" offset="100%" stop-opacity="80%" />
+			</linearGradient>
+		{/each}
+	</defs>
+	<path d={p1} fill="url(#fade-1)" />
+	<path d={p2} fill="url(#fade-2)" />
+	{#each [{ pO: p11Obj, cR: 5 }, { pO: p12Obj, cR: 20 }, { pO: p13Obj, cR: 50 }, { pO: p21Obj, cR: 60 }, { pO: p22Obj, cR: 70 }, { pO: p23Obj, cR: 90 }] as { pO, cR }, i}
+		<path d={toP(pO)} style=" fill: rgb(var(--color-range-{cR}));" opacity="{phaseTwo * 75}%" />
+		<g opacity="{Math.pow(phaseTwo, 2) * 100}%">
+			<BrokenFittedText
+				x={pO.cBot.x + pad}
+				y={pO.cBot.y + bottomStretch / 2.5}
+				text={osuL2[i].name}
+				height={bottomStretch / 2.6}
+				width={pO.widths.child - 2 * pad}
+			/>
+			<BrokenFittedText
+				x={pO.cBot.x + pO.widths.child * 0.05}
+				y={pO.cBot.y + bottomStretch - pad}
+				text={cText(osuL2[i].weight)}
+				height={bottomStretch / 2}
+				width={pO.widths.child * 0.9}
+			/>
+		</g>
 	{/each}
 	<g opacity="{Math.pow(phaseTwo, 2) * 100}%">
 		{#each [p1Obj, p2Obj] as pO, i}
-		<BrokenFittedText x={pO.cBot.x + pad} y={pO.cBot.y + l1Bottom / 2} text={osuInst[i].name}
-			height={l1Bottom / 2} width={pO.widths.child - 2 * pad} />
+			<BrokenFittedText
+				x={pO.cBot.x + pad}
+				y={pO.cBot.y + l1Bottom / 2}
+				text={osuInst[i].name}
+				height={l1Bottom / 2}
+				width={pO.widths.child - 2 * pad}
+			/>
 
-		<BrokenFittedText x={pO.cBot.x + 2 * pad} y={pO.cBot.y + l1Bottom - pad} text={cText(osuInst[i].weight)}
-			height={l1Bottom / 3.5} width={pO.widths.child - 4 * pad} />
+			<BrokenFittedText
+				x={pO.cBot.x + 2 * pad}
+				y={pO.cBot.y + l1Bottom - pad}
+				text={cText(osuInst[i].weight)}
+				height={l1Bottom / 3.5}
+				width={pO.widths.child - 4 * pad}
+			/>
 		{/each}
 	</g>
 </svg>
@@ -148,8 +194,16 @@
 		transition: transform 0ms !important;
 	}
 
+	.stop-1 {
+		stop-color: rgb(var(--color-range-25));
+	}
+
+	.stop-2 {
+		stop-color: rgb(var(--color-range-75));
+	}
+
 	svg {
-		position: absolute;
+		position: fixed;
 		z-index: 3;
 	}
 </style>

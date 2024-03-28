@@ -1,7 +1,6 @@
 <script lang="ts">
 	export let size = 3;
 	export let rotated = 0;
-	export let text = 'expand';
 
 	let topRate = 0.13;
 
@@ -35,20 +34,7 @@
 	/>
 </g>
 
-<!-- <text x={size * 0.5} y={size * (tBottomRate + 0.25)} font-size={size * 0.21} text-anchor="middle"
-	>{text}</text
-> -->
-
 <style>
-	text {
-		-webkit-touch-callout: none;
-		-webkit-user-select: none;
-		-khtml-user-select: none;
-		-moz-user-select: none;
-		-ms-user-select: none;
-		user-select: none;
-	}
-
 	path {
 		cursor: pointer;
 	}
