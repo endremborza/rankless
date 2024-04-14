@@ -1,0 +1,1 @@
+const _="Rankless",a="https://tmp-borza-public-cyx.s3.amazonaws.com/quercus-base/v3.1",t="Institution",s="Concept",T="SubConcept",o="Country",n="InstitutionType",c="Period",E="Year",P=[n,t,T,s,o,c,E,s],I=10;let N=4;export{_ as A,I as D,t as I,N as M,a as S,P as a};
