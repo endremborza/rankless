@@ -1,0 +1,1 @@
+const b=.2;function g(e,a,i,n,r,p,A){var c;const t=((e==null?void 0:e.weight)||0)/a,s=((c=r[n][p])==null?void 0:c.spec_baselines[A])||t*.5,o=1/i;return{nodeRate:t,baselineRate:s,specMetric:t/(s+.2*o)}}export{b as A,g};
