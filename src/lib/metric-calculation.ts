@@ -1,27 +1,19 @@
+import type { ResponseNode, OMap, AttributeLabel } from './tree-types';
+export type SpecInfo = { nodeRate: number; baselineRate: number; specMetric: number };
 
-import type { AttributeLabels, WeightedNode } from './tree-types'
-
-export type SpecInfo = { nodeRate: number, baselineRate: number, specMetric: number };
-export const ALPHA = 0.2
+export const ALPHA = 0.1;
 
 export function getSpecMetricObject(
-    node: WeightedNode,
-    nodeDivisor: number,
-    entityNumCount: number,
-    entityKind: string,
-    attributeLabels: AttributeLabels,
-    childId: string,
-    resolver_description: string
+	node: ResponseNode,
+	nodeDivisor: number,
+	attributeLabels: OMap<AttributeLabel> | undefined,
+	childId: number
 ): SpecInfo {
-
-    const nodeRate = (node?.weight || 0) / nodeDivisor
-    const baselineRate: number = attributeLabels[entityKind][childId]?.spec_baselines[resolver_description] || (nodeRate * 0.5)
-    const normalizerEps = 1 / entityNumCount
-
-    return {
-        nodeRate, baselineRate, specMetric: nodeRate / (baselineRate + ALPHA * normalizerEps)
-    }
+	const nodeRate = (node?.linkCount || 0) / nodeDivisor;
+	const baselineRate: number =
+		attributeLabels === undefined
+			? nodeRate * 0.5
+			: attributeLabels[childId]?.specBaseline || nodeRate * 0.5;
+	const specMetric = nodeRate / baselineRate;
+	return { nodeRate, baselineRate, specMetric };
 }
-
-
-
