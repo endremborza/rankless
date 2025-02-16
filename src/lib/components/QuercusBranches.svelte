@@ -5,7 +5,6 @@
 		TreeInfo,
 		OffsetInfo,
 		AttributeLabels,
-		QcSpec,
 		BareNode,
 		LevelOutSpec
 	} from '$lib/tree-types';
@@ -16,12 +15,11 @@
 	import { getSankeyPath } from '$lib/visual-util';
 	import { createEventDispatcher } from 'svelte';
 
-	export let qcSpec: QcSpec;
 	export let attributeLabels: AttributeLabels;
 	export let visibleTreeInfo: TreeInfo;
 	export let selectionState: BareNode;
 	export let levelOutSpecs: LevelOutSpec[] = [];
-	export let pathInCompleteTree: string[] = [];
+	export let pathInCompleteTree: number[] = [];
 
 	//export let treeVizKind: TreeVizKind = 'verticalRectangle';
 
@@ -34,12 +32,14 @@
 	export let treeD2Offset = 0;
 
 	export let childBaseSize = 2.9;
-
 	export let linkSurfaceRate = 0.8;
 	export let childrenInternalMargin = 0.9;
 
 	export let parentSideMargin = 0.8;
 	//export let childSideMargin = 3.8; TODO
+
+	export let heightMultiplier: number = 1.2;
+	export let widthMultiplier: number = 0.6;
 
 	//only internally passed
 	export let d2Offset = (treeD2 - rootD2) / 2 + treeD2Offset;
@@ -77,7 +77,7 @@
 	$: divisibleChildSpace =
 		treeD2 - childBaseSize * nChildLevelNodes - childrenInternalMargin * (nChildLevelNodes - 1);
 
-	function parseChild(childId: string, childNode: EmbeddedNode) {
+	function parseChild(childId: number, childNode: EmbeddedNode) {
 		const cachedProps = {
 			pathInCompleteTree: [...pathInCompleteTree, childId],
 			...getLeftOffsetAndWidth(
@@ -164,7 +164,9 @@
 	}
 
 	function getParsedChildren(visibleNode: EmbeddedNode | undefined, _: object) {
-		return Object.entries(visibleNode?.children || {}).map(([id, child]) => parseChild(id, child));
+		return Object.entries(visibleNode?.children || {}).map(([id, child]) =>
+			parseChild(parseInt(id), child)
+		);
 	}
 
 	$: parsedChildren = getParsedChildren(visibleNode, currentLevelViz);
@@ -189,7 +191,7 @@
 		fill="url('#path-grad-{vizInfo.strId}')"
 	/>
 
-	<BrokenFittedText text={childNode.name} {...textShape} />
+	<BrokenFittedText text={childNode.name} {...textShape} {heightMultiplier} {widthMultiplier} />
 
 	<!-- svelte-ignore a11y-mouse-events-have-key-events -->
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -211,7 +213,6 @@
 	{#if childNode.children}
 		<svelte:self
 			{...cachedProps}
-			{qcSpec}
 			{attributeLabels}
 			{visibleTreeInfo}
 			{selectionState}
@@ -224,6 +225,8 @@
 			{childBaseSize}
 			{linkSurfaceRate}
 			{childrenInternalMargin}
+			{heightMultiplier}
+			{widthMultiplier}
 			parentSideMargin={0}
 			on:ti
 		/>
