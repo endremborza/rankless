@@ -27,34 +27,38 @@
 	--color-range-105: 44, 96, 245;
 	--color-range-110: 239, 143, 160;
 
-	--color-text: #21272A;
+	--color-text: #21272a;
 	--color-text-light: #697077;
 
-	--color-theme-yellow: #FBF4E5;
-	--color-theme-lightblue: #DCE3EC;
-	--color-theme-lightblue2: #3F8EF7;
+	--color-theme-yellow: #fbf4e5;
+	--color-theme-lightblue: #dce3ec;
+	--color-theme-lightblue2: #3f8ef7;
 	--color-theme-darkblue: rgba(var(--color-range-30), 0.9);
-	--color-theme-blue: #6BA8DA;
-	--color-theme-purple: #C5C5E0;
-	--color-theme-pink: #CEBAD3;
-	--color-theme-red: #FD8A9F;
-	--color-theme-darkgrey: #4F4F4F;
+	--color-theme-shadow: var(--color-theme-darkgrey2);
+	--color-theme-blue: #6ba8da;
+	--color-theme-purple: #c5c5e0;
+	--color-theme-pink: #cebad3;
+	--color-theme-red: #fd8a9f;
+	--color-theme-darkgrey: #4f4f4f;
 	--color-theme-darkgrey2: #ababab;
 	--color-theme-darkgrey3: #707070;
-	--color-theme-lightgrey: #D8D8D8;
-	--color-theme-red: #FE7D95;
-	--color-theme-white: #F2F2F2;
+	--color-theme-lightgrey: #d8d8d8;
+	--color-theme-red: #fe7d95;
+	--color-theme-white: #f2f2f2;
 	/* methods video colors */
-	--color-graph-pink: #E83547;
+	--color-graph-pink: #e83547;
 
 	font-family: var(--font-body);
 	color: var(--color-text);
+
+	--unified-margin: min(min(27px, 2vw), 3.7svh);
+	--unified-padding: 18px;
 }
 
 html,
 body {
-  height: 100%;
-  margin: 0;
+	height: 100%;
+	margin: 0;
 }
 
 body {
@@ -72,11 +76,41 @@ a {
 
 a:hover {
 	color: var(--color-theme-darkblue);
-	font-weight: bold;
+	text-shadow: 1px 0px 0px var(--color-theme-shadow);
+	/* font-weight: bold; */
 }
 
-input, option, select {
+input,
+option,
+select {
 	accent-color: var(--color-theme-darkblue);
+}
+
+
+.hoverover {
+	position: absolute;
+	transition: all 500ms;
+	background-color: #ffffff;
+	border: solid 1px var(--color-theme-darkblue);
+	z-index: 13;
+}
+
+.shadowy {
+	border-radius: 6px;
+	box-shadow: 3px 3px 10px var(--color-theme-shadow);
+}
+
+.padded {
+	padding: var(--unified-padding)
+}
+
+
+.marged {
+	margin: var(--unified-margin)
+}
+
+.clickable {
+	cursor: pointer;
 }
 
 .hover-m {
@@ -90,7 +124,6 @@ input, option, select {
 .hover-xl {
 	font-size: min(1.3rem, 2.3vw);
 }
-
 
 .vert-zero {
 	height: 0px;
