@@ -1,6 +1,6 @@
 <script lang="ts">
-	import {getColorArr} from '$lib/style-util';
-	import type {NamedNode} from '$lib/tree-types';
+	import { getColorArr } from '$lib/style-util';
+	import type { NamedNode } from '$lib/tree-types';
 	import BrokenFittedText from './BrokenFittedText.svelte';
 
 	export let data: NamedNode;
@@ -22,7 +22,7 @@
 	$: sumW = childVals?.reduce((l, r) => l + r.weight, 0);
 	$: pad = open ? maxPad : 0;
 	$: colorStep = (colorEnd - colorStart) / childVals.length;
-	$: theOne = (n: {name: string}, baseVal: number, expVal: number, disposedVal: number) =>
+	$: theOne = (n: { name: string }, baseVal: number, expVal: number, disposedVal: number) =>
 		expandedChild === undefined ? baseVal : expandedChild == n.name ? expVal : disposedVal;
 
 	function bsp(
@@ -31,7 +31,7 @@
 		sizes: number[],
 		sumWeight: number,
 		offsetIndex: number,
-		flats: {name: string; data: NamedNode; offsets: number[]; sizes: number[]}[],
+		flats: { name: string; data: NamedNode; offsets: number[]; sizes: number[] }[],
 		pad: number
 	) {
 		if (subc.length == 0) {
@@ -85,23 +85,41 @@
 </script>
 
 {#if childVals.length == 0}
-<rect x={xOffset} y={yOffset} {width} {height}
-	style="--crgb: {getColorArr((colorStart + colorEnd) / 2)}; --transition-ms: {transitionMs}ms" />
+	<rect
+		x={xOffset}
+		y={yOffset}
+		{width}
+		{height}
+		style="--crgb: {getColorArr((colorStart + colorEnd) / 2)}; --transition-ms: {transitionMs}ms"
+	/>
 {:else}
-{#each flats as node, i}
-<svelte:self data={node.data} width={theOne(node, node.sizes[0], width, 1)} height={theOne(node, node.sizes[1], height,
-	1)} xOffset={theOne(node, node.offsets[0], xOffset, node.offsets[0] + node.sizes[0] / 2)} yOffset={theOne(node,
-	node.offsets[1], yOffset, node.offsets[1] + node.sizes[1] / 2)} open={openChildren.includes(node.name)}
-	colorStart={open ? colorStart + colorStep * i : colorStart} showText={open} colorEnd={open ? colorStart +
-	colorStep * (i + 1) : colorEnd} {transitionMs} maxPad={theOne(node, maxPad * (node.sizes[0] / width), maxPad,
-	0)} />
-{/each}
+	{#each flats as node, i}
+		<svelte:self
+			data={node.data}
+			width={theOne(node, node.sizes[0], width, 1)}
+			height={theOne(node, node.sizes[1], height, 1)}
+			xOffset={theOne(node, node.offsets[0], xOffset, node.offsets[0] + node.sizes[0] / 2)}
+			yOffset={theOne(node, node.offsets[1], yOffset, node.offsets[1] + node.sizes[1] / 2)}
+			open={openChildren.includes(node.name)}
+			colorStart={open ? colorStart + colorStep * i : colorStart}
+			showText={open}
+			colorEnd={open ? colorStart + colorStep * (i + 1) : colorEnd}
+			{transitionMs}
+			maxPad={theOne(node, maxPad * (node.sizes[0] / width), maxPad, 0)}
+		/>
+	{/each}
 {/if}
 
 {#if !open && showText}
-<BrokenFittedText text={data.name} width={width * (1 - 2 * edgePad)} height={height * (1 - 2 * edgePad)}
-	fadeMs={transitionMs} transMs={transitionMs} x={xOffset + width * edgePad} y={yOffset + height - height *
-	edgePad} />
+	<BrokenFittedText
+		text={data.name}
+		width={width * (1 - 2 * edgePad)}
+		height={height * (1 - 2 * edgePad)}
+		fadeMs={transitionMs}
+		transMs={transitionMs}
+		x={xOffset + width * edgePad}
+		y={yOffset + height - height * edgePad}
+	/>
 {/if}
 
 <style>

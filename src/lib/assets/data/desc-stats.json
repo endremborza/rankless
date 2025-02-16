@@ -1,12 +1,12 @@
 {
-    "counts": {
-        "work": 18835495,
-        "inst": 3382,
-        "cite": 534553084,
-        "country": 127,
-        "concept": {
-            "sub": 284,
-            "root": 19
-        }
-    }
+	"counts": {
+		"work": 18835495,
+		"inst": 3382,
+		"cite": 534553084,
+		"country": 127,
+		"concept": {
+			"sub": 284,
+			"root": 19
+		}
+	}
 }
