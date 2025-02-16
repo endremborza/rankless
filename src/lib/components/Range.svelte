@@ -12,7 +12,7 @@
 	$: valueSteps = [...Array(max - min).keys()].map((e) => e + min);
 	$: posSteps = [...Array(max - min).keys()].map((e) => (e / (max - min)) * width);
 
-	let moveHandler = (e: MouseEvent) => { };
+	let moveHandler = (e: MouseEvent) => {};
 
 	function trueMover(e: MouseEvent) {
 		let ind = Math.floor((e.layerX / width) * (valueSteps.length - 1));
@@ -25,7 +25,7 @@
 	}
 
 	function dragOff(e: MouseEvent) {
-		moveHandler = (e: MouseEvent) => { };
+		moveHandler = (e: MouseEvent) => {};
 	}
 </script>
 
