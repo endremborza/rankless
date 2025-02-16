@@ -5,13 +5,17 @@
 	export let text: string;
 	export let width: number;
 	export let height: number;
-	export let anchor: string = 'left';
+	export let anchor: 'left' | 'center' | 'right' = 'left';
 	export let bottomAligned: boolean = true;
 	export let x = 0;
 	export let y = 0;
 	export let allowRotation = true;
 	export let fadeMs = 600;
 	export let transMs = 800;
+	//default for monospace
+	export let heightMultiplier: number = 1.2;
+	export let widthMultiplier: number = 0.6;
+
 	const baseFontSize = 10;
 
 	$: words = (text || '').split(' ');
@@ -19,10 +23,10 @@
 		words,
 		width,
 		height,
-		1.2,
-		0.6,
+		heightMultiplier,
+		widthMultiplier,
 		baseFontSize,
-		anchor == 'left',
+		anchor,
 		bottomAligned,
 		allowRotation
 	);
