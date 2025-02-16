@@ -1,1 +1,20 @@
-[{"name": "Pontificia Universidad Cat\u00f3lica de Chile", "weight": 810350, "children": [{"name": "Mathematics", "weight": 22212}, {"name": "Physics", "weight": 22913}, {"name": "Computer science", "weight": 14766}]}, {"name": "Polish Academy of Sciences", "weight": 1728272, "children": [{"name": "Mathematics", "weight": 6229}, {"name": "Physics", "weight": 34116}, {"name": "Computer science", "weight": 15723}]}]
+[
+	{
+		"name": "Pontificia Universidad Cat\u00f3lica de Chile",
+		"weight": 810350,
+		"children": [
+			{ "name": "Mathematics", "weight": 22212 },
+			{ "name": "Physics", "weight": 22913 },
+			{ "name": "Computer science", "weight": 14766 }
+		]
+	},
+	{
+		"name": "Polish Academy of Sciences",
+		"weight": 1728272,
+		"children": [
+			{ "name": "Mathematics", "weight": 6229 },
+			{ "name": "Physics", "weight": 34116 },
+			{ "name": "Computer science", "weight": 15723 }
+		]
+	}
+]

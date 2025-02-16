@@ -1,1 +1,20 @@
-[{"name": "Geology", "weight": 154663, "children": [{"name": "Chinese Academy of Sciences", "weight": 6664}, {"name": "ETH Zurich", "weight": 1953}, {"name": "United States Geological Survey", "weight": 4488}]}, {"name": "Geography", "weight": 70537, "children": [{"name": "Alfred Wegener Institute for Polar and Marine Research", "weight": 954}, {"name": "University of Washington", "weight": 2076}, {"name": "University of Oxford", "weight": 594}]}]
+[
+	{
+		"name": "Geology",
+		"weight": 154663,
+		"children": [
+			{ "name": "Chinese Academy of Sciences", "weight": 6664 },
+			{ "name": "ETH Zurich", "weight": 1953 },
+			{ "name": "United States Geological Survey", "weight": 4488 }
+		]
+	},
+	{
+		"name": "Geography",
+		"weight": 70537,
+		"children": [
+			{ "name": "Alfred Wegener Institute for Polar and Marine Research", "weight": 954 },
+			{ "name": "University of Washington", "weight": 2076 },
+			{ "name": "University of Oxford", "weight": 594 }
+		]
+	}
+]
