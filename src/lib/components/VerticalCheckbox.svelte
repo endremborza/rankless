@@ -28,13 +28,17 @@
 	$: w = width || getWidth(labels);
 </script>
 
-<label class="switch" style="--pad: {pad}px; --fw: {w}px; --w: {w / 2}px;  --tw: {w / 2 -
+<label
+	class="switch"
+	style="--pad: {pad}px; --fw: {w}px; --w: {w / 2}px;  --tw: {w / 2 -
 		2 * pad}px; --height: {height}px;  --hh: {height / 2}px;--full-height: {height +
-		2 * pad}px; --label: '{label}'">
+		2 * pad}px; --label: '{label}'"
+>
 	<span class="tg-bg" />
 	<input type="checkbox" bind:checked />
-	<span class="slider round">{#each labels as l}
-		<div>{l}</div>
+	<span class="slider round"
+		>{#each labels as l}
+			<div>{l}</div>
 		{/each}
 	</span>
 </label>
@@ -64,10 +68,12 @@
 		-webkit-transition: 0.4s;
 		transition: 0.4s;
 		background-color: rgba(var(--color-range-35), 0.6);
-		background-image: linear-gradient(to bottom,
-				rgba(0, 0, 0, 0) 0%,
-				rgba(0, 0, 0, 0) 50%,
-				rgba(0, 0, 0, 0.1) 51%);
+		background-image: linear-gradient(
+			to bottom,
+			rgba(0, 0, 0, 0) 0%,
+			rgba(0, 0, 0, 0) 50%,
+			rgba(0, 0, 0, 0.1) 51%
+		);
 		display: flex;
 		flex-direction: column;
 		justify-content: space-around;
@@ -75,7 +81,7 @@
 		padding-left: 20px;
 	}
 
-	.slider>div {
+	.slider > div {
 		width: 80%;
 		text-align: left;
 		font-size: 23px;
@@ -117,15 +123,17 @@
 		z-index: 1;
 	}
 
-	input:checked+.slider {
+	input:checked + .slider {
 		background-color: rgba(var(--color-range-15), 0.6);
-		background-image: linear-gradient(to bottom,
-				rgba(0, 0, 0, 0.1) 0%,
-				rgba(0, 0, 0, 0.1) 50%,
-				rgba(0, 0, 0, 0) 51%);
+		background-image: linear-gradient(
+			to bottom,
+			rgba(0, 0, 0, 0.1) 0%,
+			rgba(0, 0, 0, 0.1) 50%,
+			rgba(0, 0, 0, 0) 51%
+		);
 	}
 
-	input:checked+.slider:before {
+	input:checked + .slider:before {
 		-webkit-transform: translateY(var(--hh));
 		-ms-transform: translateY(var(--hh));
 		transform: translateY(var(--hh));
