@@ -1,73 +1,59 @@
 <script lang="ts">
-	import { base } from '$app/paths';
-	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
-	import { handleLabels } from '$lib/tree-loading';
 	import { formatNumber } from '$lib/text-format-util';
-	import { getTopFzfRoot } from '$lib/search-util';
-	import type { AttributeLabels, SelectionOption } from '$lib/tree-types';
+	import { BE_REMOTE_URL } from '$lib/constants';
+	import type { RootType, SearchResult } from '$lib/tree-types';
+	import { entToLink } from '$lib/tree-functions';
+	import { onMount } from 'svelte';
 
-	import rootSpecs from '$lib/assets/data/root-basics.json';
-
-	export let resultsHidden: boolean;
 	export let searchTerm: string;
+	export let cat: RootType;
+	export let resultsHidden: boolean;
 
-	let searchOptions: SelectionOption[] = [];
+	let mounted = false;
+	let delayedTerm = '';
+	let searchResults: SearchResult[] = [];
+
+	function getSearchResults(searchTerm: string, cat: RootType, mounted: boolean) {
+		if (!mounted || cat == undefined) {
+			return;
+		}
+		delayedTerm = searchTerm;
+		fetch(
+			`${BE_REMOTE_URL}/names/${cat}?` +
+				new URLSearchParams({
+					q: searchTerm
+				}).toString()
+		)
+			.then((res) => res.json())
+			.then((l: SearchResult[]) => {
+				if (delayedTerm == searchTerm) {
+					searchResults = l.map((e) => {
+						return { ...e, rootType: cat };
+					});
+				}
+			});
+	}
 
 	onMount(() => {
-		handleLabels((aLabels: AttributeLabels) => {
-			let preSO: SelectionOption[] = [];
-			for (let rootSpec of rootSpecs) {
-				Object.entries(aLabels[rootSpec.entity_type]).map(([id, v]) => {
-					preSO.push({
-						id,
-						name: `${rootSpec.prefix} ${v.name}`,
-						meta: v.meta,
-						rootType: rootSpec.entity_type
-					});
-				});
-			}
-			searchOptions = preSO;
-		});
+		mounted = true;
 	});
 
-	function onChange(e: { semanticId: string; rootType: string } | undefined) {
-		if (e != undefined) {
-			goto(`${base}/${e.rootType}/${e.semanticId}`);
-		}
-	}
-	$: searchResults = getTopFzfRoot(searchTerm, searchOptions, 16);
-
-	function keyBind(key: { key: string }) {
-		if (key.key == 'Escape') {
-			resultsHidden = true;
-		}
-	}
+	$: getSearchResults(searchTerm, cat, mounted);
 </script>
 
-<svelte:window on:keydown={keyBind} />
-<!-- svelte-ignore a11y-no-static-element-interactions -->
-<!-- svelte-ignore a11y-click-events-have-key-events -->
 <div class="search-results" style="display: {resultsHidden ? 'none' : 'flex'};">
 	{#each searchResults as searchResult}
-		<div on:click={() => onChange(searchResult)} class="result-card">
+		<a class="result-card" href={entToLink(searchResult)}>
 			<h3 style="font-size: {searchResult.name.length > 50 ? 1.2 : 1.45}em;">
 				{searchResult.name}
 			</h3>
 			<span class="subtitle"
-				>{formatNumber(searchResult.papers)} papers,
-				{formatNumber(searchResult.citations)} citations</span
+				>{formatNumber(searchResult.papers, 0)} papers,
+				{formatNumber(searchResult.citations, 0)} citations</span
 			>
-		</div>
+		</a>
 	{/each}
 </div>
-<!-- svelte-ignore a11y-no-static-element-interactions -->
-<!-- svelte-ignore a11y-click-events-have-key-events -->
-<span
-	id="result-closer"
-	on:click={() => (resultsHidden = true)}
-	style="display: {resultsHidden ? 'none' : 'flex'};">&#10006;</span
->
 
 <style>
 	h3 {
@@ -99,7 +85,7 @@
 		min-width: 240px;
 		background-color: var(--color-theme-white);
 		border: solid var(--color-theme-darkblue) 1px;
-		box-shadow: 8px 8px 13px var(--color-theme-darkgrey3);
+		box-shadow: 8px 8px 13px var(--color-theme-shadow);
 		border-radius: 10px;
 		margin: 40px;
 		margin-bottom: 20px;
@@ -119,28 +105,10 @@
 		transform: translateY(-10px);
 		background-color: var(--color-theme-lightgrey);
 		color: var(--color-theme-darkblue);
-		box-shadow: 3px 3px 13px var(--color-theme-darkgrey);
+		box-shadow: 3px 3px 13px var(--color-theme-shadow);
 	}
 
 	.subtitle {
 		font-size: 1.1em;
-	}
-
-	#result-closer {
-		transition: transform 0.2s ease;
-		position: fixed;
-		top: 60px;
-		right: 0px;
-		font-size: 37px;
-		padding: 12px;
-		text-align: center;
-		border-radius: 35px;
-		cursor: pointer;
-		z-index: 30;
-	}
-
-	#result-closer:hover {
-		font-size: 40px;
-		color: var(--color-theme-darkblue);
 	}
 </style>
