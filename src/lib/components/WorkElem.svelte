@@ -1,30 +1,28 @@
 <script lang="ts">
-	import { INSTITUTION_TYPE } from '$lib/constants';
 	import { formatNumber } from '$lib/text-format-util';
 	import type { AttributeLabels } from '$lib/tree-types';
 	import { onMount } from 'svelte';
 
-	export let workArr: [number, number];
+	export let workId: number;
+	export let workCitations: number;
 	export let attributeLabels: AttributeLabels;
-	export let instId: string | undefined;
+	export let instId: number | undefined;
 
-	let oaId = workArr[0];
 	let title = '';
 	let doi = '';
 	let y = 0;
 	let authors: { name: string; link: string; isOfInst: boolean }[] = [];
 	let localCount = 0;
 
-	$: instName = attributeLabels[INSTITUTION_TYPE][instId || '']?.name || '';
-	$: instOaNum = attributeLabels[INSTITUTION_TYPE][instId || '']?.meta.oa_id || '';
+	$: instAtts = instId === undefined ? { name: '' } : attributeLabels?.institutions[instId];
+	$: instName = instAtts?.name || '';
+	$: instOaNum = (attributeLabels?.institutions || {})[instId || 0]?.oaId || -1;
 	$: fullInstName = instName.length > 50 ? 'affiliated' : `from ${instName}`;
-	$: href = `https://openalex.org/works/W${oaId}`;
+	$: href = `https://openalex.org/works/W${workId}`;
 
 	onMount(() => {
-		if (oaId == 0) {
-			return;
-		}
-		let oaUrl = `https://api.openalex.org/works/W${oaId}?select=publication_year,title,doi,authorships`;
+		if (workId == 0) return;
+		let oaUrl = `https://api.openalex.org/works/W${workId}?select=publication_year,title,doi,authorships`;
 		let instOaId = `https://openalex.org/I${instOaNum}`;
 		fetch(oaUrl).then((resp) => {
 			resp.json().then((o) => {
@@ -41,7 +39,7 @@
 					}
 					authors.push({ name: aship.author.display_name, link: aship.author.id, isOfInst });
 				}
-				authors = authors.sort((l, r) => r.isOfInst - l.isOfInst);
+				authors = authors.sort((l, r) => Number(r.isOfInst) - Number(l.isOfInst));
 				title = o.title;
 			});
 		});
@@ -62,7 +60,7 @@
 			</span>
 		{/if}
 		<span class="hover-m">
-			{formatNumber(workArr[1], 0)} relevant citations
+			{formatNumber(workCitations, 0)} relevant citations
 		</span>
 	</div>
 	{#if authors.length > 0}
