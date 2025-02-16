@@ -1,11 +1,8 @@
 <script lang="ts">
-	import { fade } from 'svelte/transition';
-	import { handleStore } from '$lib/tree-loading';
-
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
-	import { formatNumber } from '$lib/text-format-util';
-	import { MAX_LEVEL_COUNT, COMPLETE_YEAR } from '$lib/constants';
+	import { pluralize } from '$lib/text-format-util';
+	import { MAX_LEVEL_COUNT, BE_REMOTE_URL } from '$lib/constants';
 
 	import QuercusBranches from '$lib/components/QuercusBranches.svelte';
 	import PathLevelInfoBox from '$lib/components/PathLevelInfoBox.svelte';
@@ -13,40 +10,43 @@
 	import NumberSlider from '$lib/components/NumberSlider.svelte';
 	import MidpathBar from '$lib/components/MidpathBar.svelte';
 	import HeadControl from './HeadControl.svelte';
+	import { onMount } from 'svelte';
+	import { replaceState } from '$app/navigation';
+	import HoverBlock from './HoverBlock.svelte';
+	import { fade } from 'svelte/transition';
 
-	const POSSIBLE_YEAR_FILTERS = [COMPLETE_YEAR, 2019, 2020, 2021, 2022, 2023];
+	export let conf: tt.FullTreeConfig;
+	export let selectedQcRootId: number;
 
-	export let defaultQcSpecId: string | undefined;
-	export let selectedQcRootId: string;
-	export let rootType: string;
-	export let attributeLabels: tt.AttributeLabels;
-	export let fullQcSpecs: tt.QcSpecMap;
-	export let removeHighlightUnhover = true;
-	export let startSentence = 'Scholars at';
-	export let specFilterYear = COMPLETE_YEAR;
 	export let rootName = '';
+	export let removeHighlightUnhover = true;
+	export let prefixText = '';
+	export let treeSpecs: tt.TreeSpecs;
+	export let selectionState: tt.BareNode = { children: {} };
+	export let completeTree: tt.ResponseNode;
+	export let attributeLabels: tt.AttributeLabels;
+	export let innerHeight: number;
+	export let innerWidth: number;
 
+	let mounted = false;
 	let allowPapers = true;
 	let showPaper = false;
 
-	let selectedQcSpecId: string;
-	let currentQcSpec: tt.QcSpec;
+	let currentTreeSpec: tt.TreeSpec = treeSpecs.specs[conf.rootType][conf.treeId];
+	let breakdownMatchLevel: number = currentTreeSpec.breakdowns.length;
 
 	let highlightedPath: tt.PathInTree = [];
 	let highlightRoot = selectedQcRootId;
 	let selectedPath: tt.PathInTree = [];
 	let expandControlInd: number | undefined;
 
-	let innerHeight: number;
-	let innerWidth: number;
-
 	let defaultChildD1Rate = 0.3;
 
 	let svgD2 = 100;
 	let rootD2 = 25;
-	let d2Offset = (svgD2 - rootD2) / 2.5;
+	let d2Offset = (svgD2 - rootD2) / 3.3;
 	let sideBarD2 = 0;
-	let controlPad = 3;
+	let controlPad = 0;
 
 	let d1TopPadRate = 9;
 	let d1BottomPadRate = 20;
@@ -58,32 +58,15 @@
 	let showSpecInfoHover = false;
 	let showFilterHover = false;
 
-	let levelOutSpecs: tt.LevelOutSpec[] = Array(MAX_LEVEL_COUNT)
-		.fill(0)
-		.map(() => {
-			return {
-				totalSize: 0,
-				topOffset: 0,
-				levelOptions: [],
-				isVisible: false
-			};
-		});
-	let controlSpecs: tt.ControlSpec[] = Array(MAX_LEVEL_COUNT)
-		.fill(0)
-		.map(() => {
-			return { ...tf.DEFAULT_CONTROL_SPEC };
-		});
+	let levelOutSpecs: tt.LevelOutSpec[] = tf.getDefaultLevelSpecs();
+	let isGlobalSpecialization = currentTreeSpec.defaultIsSpec;
+	let controlSpecs = tf.getDefaultControlSpecs(isGlobalSpecialization);
 	let maxOnOneLevel = 15;
-	let globalControlShowN = tf.DEFAULT_CONTROL_SPEC.limit_n;
-	let isGlobalSpecialization = true;
-	let completeTree: tt.WeightedNode = { weight: 1, source_count: 1, top_source: [0, 0] };
-	let selectionState: tt.BareNode = { children: {} };
+	let selectedBreakdowns = getDefaultBreakdowns(currentTreeSpec);
 
-	let rootAttributes: tt.AttributeLabel;
-
-	let selectedBreakdowns = getDefaultBreakdowns(defaultQcSpecId, fullQcSpecs);
-
-	$: filterSet = specFilterYear == COMPLETE_YEAR ? 'all' : `y-${specFilterYear}`;
+	onMount(() => {
+		mounted = true;
+	});
 
 	$: childD1Rate = expandControlInd == undefined ? defaultChildD1Rate : 0.7;
 	$: svgD1 = (innerHeight / innerWidth) * svgD2;
@@ -105,127 +88,130 @@
 		y: (-(headerRate + d1TopPadRate) * svgD1) / 100
 	};
 
-	$: loadNewQc(selectedBreakdowns, selectedQcRootId, rootType, attributeLabels, filterSet);
-	$: alignToGlobalShown(globalControlShowN);
-
-	$: alignToGlobalControlSpec(isGlobalSpecialization);
-
 	$: visibleTreeInfo = tf.deriveVisibleTree(
 		completeTree,
 		controlSpecs,
 		selectionState,
 		attributeLabels,
-		currentQcSpec
+		currentTreeSpec
 	);
+
+	$: updateTreeSpecId(selectedBreakdowns);
+
+	$: loadNewQc(conf);
+	$: ((isSpec: Boolean) => {
+		controlSpecs.globalSizeBase = isSpec ? 'specialization' : 'volume';
+	})(isGlobalSpecialization);
+
+	$: updateUrl(conf, selectionState);
 
 	$: updateLevelSpecs(
 		visibleTreeInfo,
 		svgD1 * (1 - (headerRate + d1BottomPadRate) / 100),
 		expandControlInd,
-		getBreakdownOptions(fullQcSpecs, rootType),
+		tf.getBreakdownOptions(treeSpecs, conf.rootType),
 		selectedBreakdowns
 	);
 
-	function getDefaultBreakdowns(qcId: string | undefined, qcOptions: tt.QcSpecMap) {
-		if (qcId == undefined) {
-			return [];
-		}
+	function getDefaultBreakdowns(treeSpec: tt.TreeSpec) {
 		const out: tt.SelectedBreakdowns = [];
-		const defaultQcSpec = qcOptions[qcId];
 		for (let i = 0; i < MAX_LEVEL_COUNT; i++) {
-			out.push(defaultQcSpec.bifurcations[i]?.description || '');
+			if (i >= treeSpec.breakdowns.length) break;
+			const bdId = tf.idFromBd(treeSpec.breakdowns[i] || {});
+			out.push(bdId);
 		}
 		return out;
 	}
-	function getBreakdownOptions(allQcSpecs: tt.QcSpecMap, rootType: string) {
-		let out: tt.BreakdownOptions = {};
-		for (let [k, v] of Object.entries(allQcSpecs)) {
-			if (v.root_entity_type == rootType) {
-				fullQcSpecs[k] = v;
-				let boObj = out;
-				for (let bif of v.bifurcations) {
-					const bDef = bif.description;
-					if (!(bDef in boObj)) {
-						boObj[bDef] = { children: {}, qcSpecs: [] };
-					}
-					boObj[bDef].qcSpecs.push(k);
-					boObj = boObj[bDef].children;
-				}
-			}
-		}
-		return out;
-	}
-	function alignToGlobalShown(shown: number) {
-		for (let i in controlSpecs) {
-			controlSpecs[i].limit_n = shown;
+
+	function updateUrl(conf: tt.FullTreeConfig, selectionState: tt.BareNode) {
+		if (mounted) {
+			let newUrl = tf.toLinkWithParams(conf, selectionState);
+			replaceState(newUrl, {});
+			// goto(newUrl);
 		}
 	}
-	function alignToGlobalControlSpec(isSpec: boolean) {
-		for (let i in controlSpecs) {
-			controlSpecs[i].size_base = isSpec ? 'specialization' : 'volume';
-		}
-	}
-	function loadNewQc(
-		selectedBreakdowns: tt.SelectedBreakdowns,
-		rootId: string | undefined,
-		rootType: string,
-		attributeLabels: tt.AttributeLabels,
-		filterSet: string
-	) {
-		showPaper = false;
-		if (rootId == null) {
-			return;
-		}
+
+	function updateTreeSpecId(selectedBreakdowns: tt.SelectedBreakdowns) {
 		if (selectedBreakdowns.length == 0) {
 			return;
 		}
-		let breakdownMatchLevel = 0;
+		let newBreakdownMatchLevel = 0;
 		const newSelections = [];
-		let bdKeys = getBreakdownOptions(fullQcSpecs, rootType);
+		let bdKeys = tf.getBreakdownOptions(treeSpecs, conf.rootType);
 		let bdLevel;
 		for (let selectedBD of selectedBreakdowns) {
+			if (selectedBD == '') {
+				break;
+			}
 			newSelections.push(selectedBD);
-			// need to figure out what index changed, might get messed up...
 			bdLevel = bdKeys[selectedBD];
 			if (bdLevel === undefined) break;
-			if (bdLevel.qcSpecs.includes(selectedQcSpecId)) {
-				breakdownMatchLevel++;
+			if (bdLevel.treeSpecs.includes(conf.treeId)) {
+				newBreakdownMatchLevel++;
 			} else {
 				break;
 			}
 			bdKeys = bdLevel.children;
 		}
+		let newSelectedTreeSpecId;
 		if (bdLevel != undefined) {
-			selectedQcSpecId = bdLevel.qcSpecs[0];
+			newSelectedTreeSpecId = bdLevel.treeSpecs[0];
 		} else {
-			selectedQcSpecId = defaultQcSpecId;
+			newSelectedTreeSpecId = conf.treeId;
 		}
-
-		while (selectedBreakdowns.length > 0) {
-			selectedBreakdowns.pop();
+		if (newSelectedTreeSpecId == conf.treeId) {
+			return;
 		}
-		for (let bif of fullQcSpecs[selectedQcSpecId].bifurcations) {
-			selectedBreakdowns.push(bif.description);
-		}
-
-		//iter breakdown selections, pick qc spec when only one option remains, fill rest of selected breakdowns
+		//iter breakdown selections, pick tree spec when only one option remains, fill rest of selected breakdowns
 		//find depth upto breakdowns match with last qc
 		//prune selection to that depth
-
-		for (let i = breakdownMatchLevel; i < controlSpecs.length; i++) {
-			controlSpecs[i].include = [];
+		for (let i = newBreakdownMatchLevel; i < controlSpecs.levelSpecs.length; i++) {
+			// controlSpecs[i].include = [];
 		}
-		rootAttributes = attributeLabels[rootType][selectedQcRootId];
-		handleStore(`qc-builds/${filterSet}/${selectedQcSpecId}/${rootId}`, (obj: tt.WeightedNode) => {
-			[completeTree, selectionState, currentQcSpec, highlightRoot, rootName] = [
-				obj,
-				tf.intersectionTree(tf.pruneTree(selectionState, breakdownMatchLevel), obj),
-				fullQcSpecs[selectedQcSpecId],
-				rootId,
-				rootAttributes?.name
-			];
+		[conf.treeId, breakdownMatchLevel] = [newSelectedTreeSpecId, newBreakdownMatchLevel];
+	}
+
+	function loadNewQc(conf: tt.FullTreeConfig) {
+		showPaper = false;
+		if (!mounted) {
+			return;
+		}
+		while (selectedBreakdowns.length > 0) {
+			// pop so that svelte does not update it
+			selectedBreakdowns.pop();
+		}
+		for (let bd of treeSpecs.specs[conf.rootType][conf.treeId].breakdowns) {
+			selectedBreakdowns.push(tf.idFromBd(bd));
+		}
+		while (selectedBreakdowns.length < MAX_LEVEL_COUNT) {
+			selectedBreakdowns.push('');
+		}
+		fetch(tf.treeBeUrl(BE_REMOTE_URL, conf)).then((res) => {
+			res
+				.json()
+				.then((jsv: tt.TreeResponse) => {
+					[
+						completeTree,
+						attributeLabels,
+						selectionState,
+						currentTreeSpec,
+						highlightRoot,
+						selectedBreakdowns
+					] = [
+						jsv.tree,
+						jsv.atts,
+						tf.intersectionTree(tf.pruneTree(selectionState, breakdownMatchLevel), jsv.tree),
+						treeSpecs.specs[conf.rootType][conf.treeId],
+						selectedQcRootId,
+						selectedBreakdowns
+					];
+				})
+				.catch((e) => {
+					console.error('error', e);
+				});
 		});
 	}
+
 	function updateLevelSpecs(
 		tree: tt.TreeInfo,
 		svgD1: number,
@@ -235,8 +221,8 @@
 	) {
 		showPaper = false;
 		if (selectedBreakdowns.length == 0) return;
-		let visibleLevelCount = 1;
-		for (let meta of (tree.meta || []).slice(2)) {
+		let visibleLevelCount = 0;
+		for (let meta of (tree.meta || []).slice(1)) {
 			if (meta.totalNodes > 0) visibleLevelCount++;
 		}
 		let currentOptions = breakdownOptions;
@@ -253,6 +239,7 @@
 			currentOptions = currentOptions[selectedBreakdowns[i]]?.children || {};
 		}
 	}
+
 	function selectNode(path: tt.PathInTree) {
 		//console.log(commLog.join(';'));
 		const leafId = path[path.length - 1];
@@ -260,7 +247,7 @@
 		if (parentToChange?.children === undefined) {
 			return;
 		}
-		let isSelected = Object.keys(parentToChange.children).includes(leafId);
+		let isSelected = Object.keys(parentToChange.children).includes(leafId.toString());
 		if (isSelected) {
 			delete parentToChange.children[leafId];
 			selectedPath = tf.getSomePath(selectionState);
@@ -273,6 +260,7 @@
 		showPaper = false;
 		selectionState = selectionState;
 	}
+
 	function handleInteraction(event: CustomEvent<tt.TreeInteractionEvent>) {
 		const path = event.detail.path;
 		const action = event.detail.action;
@@ -288,12 +276,13 @@
 		}
 		selectNode(path);
 	}
+
 	function getStyleMaker(d1Parser: (n: number) => number, d2Parser: (n: number) => number) {
 		return (d1Obj: object, d2Obj: object, d1RateObj: object) => {
 			return [
 				[d1Obj || {}, d1Parser, 'px'],
 				[d2Obj || {}, d2Parser, 'px'],
-				[d1RateObj || {}, (x: number) => x, 'svh']
+				[d1RateObj || {}, (x: number) => x, '%']
 			]
 				.map(([dObj, dParser, suffix]) =>
 					Object.entries(dObj)
@@ -305,14 +294,12 @@
 	}
 </script>
 
-<svelte:window bind:innerWidth bind:innerHeight />
-{#if !Object.values(svgShape).includes(NaN) && !Object.values(svgShape).includes(undefined)}
+{#if !Object.values(svgShape).includes(NaN) && !Object.values(svgShape).some((e) => e === undefined)}
 	<svg
 		viewBox="{svgShape.x} {svgShape.y} {svgShape.width} {svgShape.height}"
 		xmlns="http://www.w3.org/2000/svg"
 	>
 		<QuercusBranches
-			qcSpec={currentQcSpec}
 			branchReachBack={(svgD1 * headerRate) / 100}
 			d2Offset={d2Offset + sideBarD2}
 			{rootD2}
@@ -333,7 +320,7 @@
 			height={headerShape.height * 0.7}
 			width={headerShape.width * 0.8}
 			text={rootName || ''}
-			anchor={'middle'}
+			anchor={'center'}
 			bottomAligned={false}
 			x={headerShape.x + headerShape.width / 2}
 			y={headerShape.y + headerShape.height * 0.75}
@@ -343,59 +330,43 @@
 
 	<div
 		class="floater sentence-container"
-		style={dBasedStyle({ top: 0 }, { left: 20, width: 60 }, { height: d1TopPadRate })}
+		style={dBasedStyle({ top: 0 }, { left: d2Offset, width: rootD2 }, { height: d1TopPadRate })}
 	>
-		<p id="sentence-starter">{startSentence}</p>
-	</div>
-
-	<div
-		class="floater sentence-container"
-		style={dBasedStyle(
-			{},
-			{ left: headerShape.x - headerShape.width / 2, width: headerShape.width * 2 },
-			{ height: headerRate * 0.15, top: headerRate * 0.85 + d1TopPadRate }
-		)}
-	>
-		{#if completeTree.weight > 1}
-			<p id="num-stat-subtitle">
-				({formatNumber(completeTree.source_count || 0, 0)} papers, {formatNumber(
-					completeTree.weight || 0,
-					0
-				)} citations)
-			</p>
-		{/if}
+		<p id="sentence-starter">{prefixText}</p>
 	</div>
 
 	<div
 		class="floater"
 		style={dBasedStyle(
 			{ top: d1PadSize + headerShape.height * 0.5, height: 0 },
-			{ left: controlPad, width: d2Offset * 0.82 },
+			{ left: controlPad, width: d2Offset * 0.88 },
 			{}
 		)}
 	>
-		<NumberSlider bind:value={globalControlShowN} min={1} max={maxOnOneLevel} />
+		<NumberSlider bind:value={controlSpecs.globalLimit} min={1} max={maxOnOneLevel} />
 	</div>
 	<div
 		class="floater"
 		id="right-control"
 		style={dBasedStyle(
 			{ top: d1PadSize, height: headerShape.height },
-			{ right: controlPad, width: 100 - headerShape.width - d2Offset - controlPad - controlPad },
+			{ right: controlPad, width: 100 - headerShape.width - d2Offset - controlPad },
 			{}
 		)}
 	>
-		<HeadControl bind:hoverToggle={showSpecInfoHover} bind:checked={isGlobalSpecialization}
-			>Specialization
-		</HeadControl>
+		<HeadControl
+			bind:hoverToggle={showSpecInfoHover}
+			bind:checked={isGlobalSpecialization}
+			text={'Specialization'}
+		/>
 		<HeadControl
 			bind:hoverToggle={showFilterHover}
 			interactText={false}
 			checked={false}
-			checkBox={false}
-			>Since
-			<select bind:value={specFilterYear}
-				>{#each POSSIBLE_YEAR_FILTERS as y}
+			text={`${pluralize('paper', completeTree.sourceCount)} since`}
+		>
+			<select bind:value={conf.year}
+				>{#each treeSpecs.yearBreaks as y}
 					<option>{y}</option>
 				{/each}
 			</select>
@@ -405,22 +376,24 @@
 		<MidpathBar
 			{index}
 			{levelSpec}
+			d2OffsetCenter={d2Offset + rootD2 / 2}
 			bind:selectedBreakdowns
 			totalD1Offset={headerShape.height + d1PadSize}
 			{dBasedStyle}
+			rootType={conf.rootType}
 		/>
 	{/each}
 	{#if showHoverInfo && highlightedPath.length > 0}
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<div
 			transition:fade={{ duration: 200 }}
-			class="hoverover clickable"
+			class="hoverover shadowy clickable"
+			role="treegrid"
+			tabindex="0"
 			style={dBasedStyle(
 				{},
-				{ right: 2, width: 96 },
-				{
-					bottom: 1,
-					height: d1BottomPadRate / (showPaper ? 0.5 : 2)
-				}
+				{ right: 0, width: 100 },
+				{ bottom: 0, height: d1BottomPadRate / (showPaper ? 0.5 : 2) }
 			)}
 			on:click={() => {
 				if (allowPapers) {
@@ -430,45 +403,39 @@
 		>
 			<PathLevelInfoBox
 				path={highlightedPath}
-				weightedRoot={completeTree}
-				qcSpec={currentQcSpec}
+				rootNode={completeTree}
+				{rootName}
+				treeSpec={currentTreeSpec}
 				rootId={highlightRoot}
 				{attributeLabels}
 				{showPaper}
 			/>
 		</div>
 	{/if}
-	{#if showSpecInfoHover}
-		<div
-			class="floater hoverover"
-			id="spec-hover"
-			style={dBasedStyle(
-				{ top: d1PadSize + headerShape.height },
-				{ left: d2Offset + headerShape.width * 0.2, width: headerShape.width * 1.6 },
-				{}
-			)}
-		>
-			Specialization is calculated using the expected prevelance of a country, source, or concept,
-			and comparing it to the one present in the current breakdown flow. If it is switched off, the
-			sheer volume of citations is considered.
-		</div>
-	{/if}
-	{#if showFilterHover}
-		<div
-			class="floater hoverover"
-			id="spec-hover"
-			style={dBasedStyle(
-				{ top: d1PadSize + headerShape.height * 1.1 },
-				{
-					left: d2Offset + headerShape.width * 0.2,
-					width: headerShape.width * 1.6
-				},
-				{}
-			)}
-		>
-			Filter the underlying dataset to papers published in or after {specFilterYear}.
-		</div>
-	{/if}
+
+	<HoverBlock
+		show={showSpecInfoHover}
+		style={dBasedStyle(
+			{ top: d1PadSize + headerShape.height },
+			{ left: d2Offset + headerShape.width * 0.2, width: headerShape.width * 1.6 },
+			{}
+		)}
+	>
+		Specialization is calculated using the expected prevelance of a country, source, or concept, and
+		comparing it to the one present in the current breakdown flow. If it is switched off, the sheer
+		volume of citations is considered.
+	</HoverBlock>
+
+	<HoverBlock
+		show={showFilterHover}
+		style={dBasedStyle(
+			{ top: d1PadSize + headerShape.height * 1.1 },
+			{ left: d2Offset + headerShape.width * 0.2, width: headerShape.width * 1.6 },
+			{}
+		)}
+	>
+		Filter the underlying dataset to papers published in or after {conf.year}.
+	</HoverBlock>
 {/if}
 
 <style>
@@ -484,7 +451,7 @@
 		display: flex;
 		flex-direction: column;
 		justify-content: space-around;
-		align-items: center;
+		align-items: end;
 	}
 
 	#spec-hover {
@@ -502,20 +469,6 @@
 		text-align: center;
 	}
 
-	.hoverover {
-		position: fixed;
-		transition: all 500ms;
-		background-color: #ffffff;
-		border: solid 1px var(--color-theme-darkblue);
-		border-radius: 10px;
-		box-shadow: 0 0 5px 5px var(--color-theme-lightblue);
-		z-index: 13;
-	}
-
-	.clickable {
-		cursor: pointer;
-	}
-
 	.sentence-container {
 		display: flex;
 		justify-content: center;
@@ -523,13 +476,10 @@
 	}
 
 	.floater {
-		position: fixed;
+		position: absolute;
 	}
 
 	svg {
-		position: fixed;
-		top: 0px;
-		left: 0px;
 		width: 100%;
 		height: 100%;
 	}
