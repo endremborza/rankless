@@ -1,28 +1,22 @@
 <script lang="ts">
-	import {APP_NAME} from '$lib/constants';
-	import {base} from '$app/paths';
 	import './styles.css';
+	import { base } from '$app/paths';
 	import SearchLogo from '$lib/components/SearchLogo.svelte';
 	import SearchResults from '$lib/components/SearchResults.svelte';
-	import {afterNavigate} from '$app/navigation';
-	import {onMount} from 'svelte';
-	import {parse} from 'platform';
-	import {blur, fade, slide} from 'svelte/transition';
+	import { afterNavigate } from '$app/navigation';
+	import { onMount } from 'svelte';
+	import { fade, slide } from 'svelte/transition';
 
-	import rootSpecs from '$lib/assets/data/root-basics.json';
+	import type { RootType } from '$lib/tree-types';
+	import { LATEST_YEAR, ROOT_TYPES } from '$lib/constants';
+	import { prettifyRoot } from '$lib/text-format-util';
+	import TextedLogo from '$lib/components/TextedLogo.svelte';
+	let options: RootType[] = ROOT_TYPES;
+	let cat: RootType = options[0];
 
 	let runner: number;
-	let hPen = 0;
-	let uInfo: {product?: string} = {};
 
-	onMount(() => {
-		uInfo = parse(navigator.userAgent);
-		if (uInfo.product == 'iPhone' || uInfo.product == 'iPad') {
-			hPen = 10;
-		}
-		runner = setInterval(changeText, speed);
-	});
-	function init(el) {
+	function init(el: HTMLInputElement) {
 		el.focus();
 	}
 	function onFocus() {
@@ -33,23 +27,32 @@
 		slimOpened = !slimOpened;
 	}
 
+	onMount(() => {
+		runner = setInterval(changeText, speed);
+	});
 	afterNavigate(() => {
 		slimOpened = false;
 		resultsHidden = true;
 	});
 
-	let innerWidth: number;
-
 	let slimOpened = false;
-
+	let hideSearchButton = false;
 	let resultsHidden = true;
+
 	let searchTerm = '';
 
+	function keyBind(key: { key: string }) {
+		if (key.key == 'Escape') {
+			resultsHidden = true;
+		}
+	}
+
+	//typewriter
 	let speed = 80;
 	let stopAtEnd = 480;
-	let texts = rootSpecs.map((r) => r.entity_type);
+	let texts = ROOT_TYPES;
 	let wordInd = 0;
-	let text = texts[wordInd];
+	let text: string = texts[wordInd];
 	$: basePlaceholder = 'Explore ' + text;
 
 	let letterInd = Math.floor(text.length / 2);
@@ -82,58 +85,111 @@
 
 <svelte:head>
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-	<link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap"
-		rel="stylesheet" />
-	<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
-		rel="stylesheet" />
-	<link href="https://fonts.googleapis.com/css2?family=Major+Mono+Display&display=swap" rel="stylesheet" />
-	<meta name="description"
-		content="Explore academic impact beyond rankings. Rankless offers a fresh perspective on how universities influence each geography and topic, emphasizing diverse forms of impact and providing a richer understanding of academic influence." />
-	<meta property="og:image" content="http://tmp-borza-public-cyx.s3.amazonaws.com/rankless-meta.png" />
-	<title>{APP_NAME}</title>
+	<link rel="preconnect" href="https://fonts.gstatic.com" />
+	<link
+		href="https://fonts.googleapis.com/css2?family=Roboto+Mono&family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap"
+		rel="stylesheet"
+	/>
+	<link
+		href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+		rel="stylesheet"
+	/>
+	<link
+		href="https://fonts.googleapis.com/css2?family=Major+Mono+Display&display=swap"
+		rel="stylesheet"
+	/>
+	<!-- <meta -->
+	<!-- 	property="og:image" -->
+	<!-- 	content="http://tmp-borza-public-cyx.s3.amazonaws.com/rankless-meta.png" -->
+	<!-- /> -->
 </svelte:head>
 
-<svelte:window bind:innerWidth />
-{#if innerWidth != undefined}
-<SearchResults bind:resultsHidden {searchTerm} />
-{#if !resultsHidden}
-<input transition:blur={{ amount: 10, duration: 300 }} bind:value={searchTerm} on:focus={onFocus} use:init {placeholder}
-	type="text" id="search-input" />
-{/if}
+<svelte:window on:keydown={keyBind} />
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <div id="main-fix" transition:fade={{ duration: 100 }}>
-	<div id="main-head">
-		{#if resultsHidden}
-		<div id="head-l" class="head-side-elem">
-			<svg id="slim-stripes" viewBox="-2 -2 22 22" on:click={toggleOpen}>
+	{#if resultsHidden}
+		<div id="head-l" class="head-side-elem shadowy" on:click={toggleOpen}>
+			<svg id="slim-stripes" viewBox="-2 -2 22 22">
 				{#each [3, 9, 15] as sp}
-				<path d="M1,{sp}h16" stroke="var(--color-theme-darkgrey)" stroke-width="1.5px" />
+					<path d="M1,{sp}h16" stroke="var(--color-theme-darkgrey)" stroke-width="1.5px" />
 				{/each}
 			</svg>
 			{#if slimOpened}
-			<div transition:slide={{ duration: 400 }} id="slim-drop">
-				<a href={`${base}/`}>Home</a>
-				<a href={`${base}/about`}>About</a>
-			</div>
+				<div transition:slide={{ duration: 200, axis: 'y' }}>
+					<div transition:slide={{ duration: 400, delay: 200, axis: 'x' }} id="slim-drop">
+						<a href={`${base}/`}>Home</a>
+						<a href={`${base}/about`}>About</a>
+					</div>
+				</div>
 			{/if}
 		</div>
-		<div class="head-side-elem" id="head-r" on:click={onFocus}>
-			<svg id="search-logo" viewBox="-10 -10 60 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-				<SearchLogo />
-			</svg>
+	{:else}
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<span id="result-closer" on:click={() => (resultsHidden = true)}>&#10006;</span>
+	{/if}
+	{#if !hideSearchButton}
+		<div class="head-side-elem shadowy" id="head-r" on:click={onFocus}>
+			{#if !resultsHidden}
+				<input
+					in:slide={{ duration: 300, axis: 'x' }}
+					bind:value={searchTerm}
+					on:focus={onFocus}
+					use:init
+					{placeholder}
+					type="text"
+					id="search-input"
+				/>
+				<div in:slide={{ duration: 200, delay: 250, axis: 'y' }}>
+					{#each options as opt}
+						<label>
+							<input
+								checked={cat === opt}
+								on:change={() => {
+									cat = opt;
+								}}
+								type="radio"
+								name="category"
+								value={opt}
+							/>
+							{prettifyRoot(opt)}
+						</label>
+					{/each}
+				</div>
+			{:else}
+				<svg
+					id="search-logo"
+					viewBox="-10 -10 60 50"
+					fill="none"
+					xmlns="http://www.w3.org/2000/svg"
+				>
+					<SearchLogo />
+				</svg>
+			{/if}
 		</div>
-		{/if}
-	</div>
-	<through on:click={()=> {
-		slimOpened = false;
+	{/if}
+	<SearchResults {resultsHidden} {searchTerm} {cat} />
+	<through
+		on:click={() => {
+			slimOpened = false;
 		}}
-		>
-		<slot />
+	>
+		<div id="main-footed">
+			<div id="main-content">
+				<slot />
+			</div>
+			<div id="main-foot">
+				<TextedLogo pad={0} size={30} />
+				<span>{LATEST_YEAR}</span>
+				<div id="foot-r"><a href={base + '/about#contact'}>Contact</a></div>
+			</div>
+		</div>
+
+		<style>
+		</style>
 	</through>
 </div>
-{/if}
 
 <style>
 	through {
@@ -147,11 +203,13 @@
 	}
 
 	.head-side-elem {
+		position: fixed;
+		top: 3px;
 		padding: 7px;
-		margin: min(min(17px, 2vw), 1.7svh);
+		margin-left: var(--unified-margin);
+		margin-right: var(--unified-margin);
+		margin-top: 1.2svh;
 		border: solid var(--color-theme-darkblue) 2px;
-		border-radius: 8px;
-		box-shadow: 3px 3px 10px var(--color-theme-darkgrey2);
 		cursor: pointer;
 		background-color: var(--color-theme-white);
 		z-index: 10;
@@ -166,24 +224,17 @@
 		height: 100%;
 	}
 
-	#main-head {
-		position: fixed;
-		width: 100%;
-		top: 0px;
-		display: flex;
-		justify-content: space-between;
-		align-items: start;
-		z-index: 2;
-		pointer-events: none;
-	}
-
 	#head-l {
+		left: 0px;
 		padding-bottom: 4px;
+		z-index: 15;
 	}
 
 	#head-r {
+		right: 0px;
 		padding-top: 1px;
 		border-top: solid var(--color-theme-darkblue) 7px;
+		z-index: 25;
 	}
 
 	#slim-stripes {
@@ -198,7 +249,7 @@
 		padding: 9px;
 	}
 
-	#slim-drop>a {
+	#slim-drop > a {
 		padding: 3px;
 	}
 
@@ -211,20 +262,12 @@
 	}
 
 	#search-input {
-		position: fixed;
-		top: 17px;
-		left: 0px;
-		width: 100%;
-		height: 45px;
-		transition: all 0.6s;
-		border-top: solid var(--color-theme-darkblue) 3px;
-		border-right: 0px;
-		border-left: 0px;
-		border-bottom: 0px;
-		border-radius: 0px;
-		background-color: rgba(255, 255, 255, 0.95);
-		font-size: 24px;
+		width: 90vw;
+		height: 35px;
+		border: 0px;
+		font-size: 22px;
 		font-style: italic;
+		background: none;
 		z-index: 25;
 		text-indent: 25px;
 	}
@@ -237,5 +280,51 @@
 
 	input#search-input:focus {
 		outline: none;
+	}
+
+	#result-closer {
+		transition: transform 0.2s ease;
+		position: fixed;
+		top: 80px;
+		left: 0px;
+		font-size: 37px;
+		padding: 12px;
+		text-align: center;
+		border-radius: 35px;
+		cursor: pointer;
+		z-index: 30;
+	}
+
+	#result-closer:hover {
+		font-size: 40px;
+		color: var(--color-theme-darkblue);
+	}
+
+	#main-footed {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+	}
+
+	#main-content {
+		flex: 1 1 auto;
+	}
+
+	#main-foot {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding-left: 3vw;
+		padding-right: 3vw;
+		padding-top: 3px;
+		padding-bottom: 3px;
+		background-color: var(--color-theme-yellow);
+		flex: 0 0 50px;
+		z-index: 1;
+		height: min(50px, 3svh);
+	}
+
+	#foot-r {
+		color: var(--color-theme-darkgrey);
 	}
 </style>
