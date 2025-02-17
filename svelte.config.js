@@ -1,5 +1,6 @@
-import adapter from '@sveltejs/adapter-static';
-import { vitePreprocess } from '@sveltejs/kit/vite';
+// import adapter from '@sveltejs/adapter-auto';
+import adapter from '@sveltejs/adapter-node';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -9,14 +10,14 @@ const config = {
 
 	kit: {
 		adapter: adapter({
-			pages: 'build',
-			assets: 'build',
-			fallback: null,
-			precompress: false,
-			strict: true
+			// pages: 'build',
+			// assets: 'build',
+			// fallback: null,
+			// precompress: false,
+			// strict: true
 		}),
 		paths: {
-			base: process.argv.includes('alpha') ? '/academic-impact-explorer' : ''
+			// base: process.argv.includes('alpha') ? '/academic-impact-explorer' : ''
 		}
 	}
 };
