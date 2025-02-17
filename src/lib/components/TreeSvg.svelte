@@ -1,0 +1,79 @@
+<script lang="ts">
+	import type * as tt from '$lib/tree-types';
+	import BrokenFittedText from './BrokenFittedText.svelte';
+	import QuercusBranches from './QuercusBranches.svelte';
+
+	type RectShape = { x: number; y: number; height: number; width: number };
+
+	let rootD2 = 25;
+	let headerRate = 0.11;
+	let overHangRate = 0.05;
+
+	let minimumChildWidth = 2.5;
+
+	let fbRatio = 1200 / 630; // 227 linkedin
+
+	export let childD1Rate = 0.3;
+
+	export let height = 100;
+	export let width = height * fbRatio;
+	export let x = 0;
+	export let y = -height * (headerRate + 0.05);
+	export let rootName = '';
+
+	export let d2Offset = (height - rootD2) / 2.5;
+
+	export let headerShape: RectShape = {
+		height: height * headerRate,
+		width: rootD2,
+		x: d2Offset,
+		y: -height * headerRate
+	};
+
+	export let levelOutSpecs: tt.LevelOutSpec[];
+	export let selectionState: tt.BareNode = { children: {} };
+	export let visibleTreeInfo: tt.TreeInfo;
+	export let attributeLabels: tt.AttributeLabels;
+
+	//raw svg can't have monospace text
+	export let heightMultiplier: number = 1.5;
+	export let widthMultiplier: number = 0.75;
+
+	let branchReachBack = (height * headerRate) / 10;
+	let treeD2Offset = 10;
+	let treeD2 = width * 0.8;
+
+	// on:ti={handleInteraction}
+</script>
+
+<svg viewBox="{x} {y} {width} {height}" xmlns="http://www.w3.org/2000/svg">
+	<QuercusBranches
+		{branchReachBack}
+		{d2Offset}
+		{rootD2}
+		{attributeLabels}
+		{visibleTreeInfo}
+		{selectionState}
+		{levelOutSpecs}
+		{treeD2}
+		{treeD2Offset}
+		{childD1Rate}
+		{overHangRate}
+		{heightMultiplier}
+		{widthMultiplier}
+		childBaseSize={minimumChildWidth}
+	/>
+
+	<BrokenFittedText
+		height={headerShape.height * 0.7}
+		width={headerShape.width * 0.8}
+		text={rootName}
+		anchor={'center'}
+		bottomAligned={false}
+		x={headerShape.x + headerShape.width / 2}
+		y={headerShape.y + headerShape.height * 0.75}
+		allowRotation={false}
+		{heightMultiplier}
+		{widthMultiplier}
+	/>
+</svg>
