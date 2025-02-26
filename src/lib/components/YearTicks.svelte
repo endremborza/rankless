@@ -26,24 +26,28 @@
 <svg viewBox="-{leftP} -{h + p} {fullW} {fullH}">
 	<TickBars
 		nums={bottomStacks}
-		color={getColor(0.15)}
+		color={getColor(0.16)}
 		{h}
 		{w}
 		{lineW}
 		{barW}
 		{fontSize}
-		text={'papers'}
+		endPad={rightP}
+		startPad={leftP}
+		text={['papers']}
 	/>
 	<TickBars
 		nums={topStacks}
-		color={getColor(0.65)}
+		color={getColor(0.62)}
 		{h}
 		{w}
 		{lineW}
 		{barW}
 		{fontSize}
 		flip={true}
-		text={'citations'}
+		endPad={rightP}
+		startPad={leftP}
+		text={['indexed', 'citations']}
 	/>
 	<line x1="0" y1="0" x2="10" y2="0" width="0.2" stroke="black" stroke-width={lineW} />
 	{#each Array(w).entries() as [i, _]}

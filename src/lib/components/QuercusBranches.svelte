@@ -14,6 +14,7 @@
 	import { treeInteract, type EventMap } from '$lib/tree-events';
 	import { getSankeyPath } from '$lib/visual-util';
 	import { createEventDispatcher } from 'svelte';
+	import { HIGH_OP, LOW_OP } from '$lib/constants';
 
 	export let attributeLabels: AttributeLabels;
 	export let visibleTreeInfo: TreeInfo;
@@ -175,10 +176,10 @@
 {#each parsedChildren as { id, cachedProps, vizInfo, childNode, textShape, hoverShape } (id)}
 	<defs>
 		<linearGradient id="path-grad-{vizInfo.strId}" gradientTransform="rotate(90)">
-			{#each [[0, 5], [20, 15], [50, 25]] as [offsetPct, opaPct]}
+			{#each [[0, 5], [20, 15], [50, LOW_OP]] as [offsetPct, opaPct]}
 				<stop
 					offset="{offsetPct}%"
-					stop-opacity={childNode.isSelected ? '80%' : `${opaPct}%`}
+					stop-opacity="{childNode.isSelected ? HIGH_OP : opaPct}%"
 					stop-color={vizInfo.colorStr}
 				/>
 			{/each}
