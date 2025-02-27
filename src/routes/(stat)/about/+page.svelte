@@ -1,7 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { parse } from 'platform';
-
 	import cclLogo from '$lib/assets/images/icons/ccl-logo.png';
 	import corvLogo from '$lib/assets/images/icons/corv-logo.png';
 
@@ -30,16 +27,6 @@
 		};
 	}
 
-	let isWeak = false;
-	let uInfo: { product?: string; name?: string } = {};
-
-	onMount(() => {
-		uInfo = parse(navigator.userAgent);
-		if (uInfo.product == 'iPhone' || uInfo.name == 'Safari') {
-			isWeak = true;
-		}
-	});
-
 	afterNavigate(() => {
 		let anchor = $page.url.href.split('#')[1];
 		if (anchor) {
@@ -60,7 +47,111 @@
 			href: 'https://cesarhidalgo.com/'
 		}
 	];
+
+	const faQuestions = [
+		{
+			question: 'What are your data-sources?',
+			id: 'data',
+			answer: `
+			We use the latest <a href="https://docs.openalex.org/download-all-data/openalex-snapshot"
+				target="_blank">OpenAlex snapshot</a>
+			as our main data source and expand it using journal classification and impact factor estimates
+			from
+			<a href="https://www.scimagojr.com/" target="_blank">Scimago</a>.
+		`
+		},
+		{
+			question: 'What are indexed citations?',
+			id: 'indexed-citation',
+			answer: `
+			Indexed citations are citations from papers that are pre-filtered to appear in our database. Currently these are works categorized as 'article' by OpenAlex, non-retracted, and noted to have at least 1 citation from any source.
+		`
+		},
+		{
+			question: 'Can I download/export Rankless data?',
+			id: 'export',
+			answer: `
+			Since we are secondary users of data sources, we recommend people to download the data
+			directly from these sources (mainly OpenAlex).
+		`
+		},
+		{
+			question: 'How often do you update your data?',
+			id: 'frequency',
+			answer: `
+			Our current workflow considers monthly updates.
+		`
+		},
+		{
+			question: 'How accurate is your data?',
+			id: 'accuracy',
+			answer: `
+			The accuracy of our data depends on the quality of the entity resolution provided by OpenAlex.
+		`
+		},
+		{
+			question: 'Do you filter the data?',
+			id: 'data-filter',
+			answer: `
+			We consider only non-retracted publications with no more than 20 authors that were published
+			after ${COMPLETE_YEAR}, and have been cited at least once. Additionally, we only consider
+			publication sources and institutions with at least 200 and 500 of such papers respectively.
+		`
+		},
+		{
+			question: 'How do you assign papers and journals to subject categories?',
+			id: 'classification',
+			answer: `
+			We use OpenAlex's hierarchy of <a href="https://docs.openalex.org/api-entities/topics"
+				target="_blank">topics</a>
+			for each piece of work, based on the contents, references, source, etc. We assign topics to a
+			paper
+			with a match score of over 0.6.
+		`
+		},
+		{
+			question: 'How do you measure impact?',
+			id: 'impact',
+			answer: `
+			Our impact flows are based on citations, but in some cases we make use of coathorships to
+			visualize relationships between institutions. In all cases, the number of citations are noted
+			in the charts.
+		`
+		},
+		{
+			question: 'What kind of visualization engine do you use?',
+			id: 'viz',
+			answer: `
+			All our visualizations are hand-rolled SVGs with css transitions, made with <a
+				href="https://svelte.dev/" target="_blank">svelte</a>.
+		`
+		}
+	];
+
+	const ldInnards = faQuestions.map((e) => {
+		return {
+			'@type': 'Question',
+			name: e.question,
+			acceptedAnswer: {
+				'@type': 'Answer',
+				text: e.answer
+			}
+		};
+	});
+
+	const jsonLd = {
+		'@context': 'https://schema.org',
+		'@type': 'FAQPage',
+		name: 'Rankless FAQ',
+		mainEntity: ldInnards
+	};
+
+	const fullLd = '<script type="application/ld+json">' + JSON.stringify(jsonLd) + `<\/script>`;
 </script>
+
+<svelte:head>
+	{@html fullLd}
+</svelte:head>
 
 <h1>About</h1>
 <h2>We need to understand more and rank less</h2>
@@ -141,54 +232,11 @@
 		</div>
 	</div>
 	<div class="wsized">
-		<AccordionElement bind:selectedId title="What are your data-sources?" id="data">
-			We use the latest <a
-				href="https://docs.openalex.org/download-all-data/openalex-snapshot"
-				target="_blank">OpenAlex snapshot</a
-			>
-			as our main data source and expand it using journal classification and impact factor estimates
-			from
-			<a href="https://www.scimagojr.com/" target="_blank">Scimago</a>.
-		</AccordionElement>
-
-		<AccordionElement bind:selectedId title="Can I download/export Rankless data?" id="export">
-			Since we are secondary users of data sources, we recommend people to download the data
-			directly from these sources (mainly OpenAlex).
-		</AccordionElement>
-
-		<AccordionElement bind:selectedId title="How often do you update your data?" id="frequency">
-			Our current workflow considers monthly updates.
-		</AccordionElement>
-
-		<AccordionElement bind:selectedId title="How accurate is your data?" id="accuracy">
-			The accuracy of our data depends on the quality of the entity resolution provided by OpenAlex.
-		</AccordionElement>
-
-		<AccordionElement bind:selectedId title="Do you filter the data?" id="data-filter">
-			We consider only non-retracted publications with no more than 20 authors that were published
-			after {COMPLETE_YEAR}, and have been cited at least twice. Additionally, we only consider
-			publication sources and institutions with at least 200 and 1500 of such papers respectively.
-		</AccordionElement>
-
-		<AccordionElement
-			bind:selectedId
-			title="How do you assign papers and journals to subject categories?"
-			id="classification"
-		>
-			We use OpenAlex's hierarchy of <a
-				href="https://docs.openalex.org/api-entities/topics"
-				target="_blank">topics</a
-			>
-			for each piece of work, based on the contents, references, source, etc. We assign topics to a paper
-			with a match score of over 0.6.
-		</AccordionElement>
-
-		<AccordionElement bind:selectedId title="How do you measure impact?" id="impact">
-			Our impact flows are based on citations, but in some cases we make use of coathorships to
-			visualize relationships between institutions. In all cases, the number of citations are noted
-			in the charts.
-		</AccordionElement>
-
+		{#each faQuestions as q}
+			<AccordionElement bind:selectedId title={q.question} id={q.id}>
+				{@html q.answer}
+			</AccordionElement>
+		{/each}
 		<AccordionElement bind:selectedId title="How do you measure specialization?" id="spec">
 			<div id="faq-explanation">
 				<p>
@@ -247,17 +295,6 @@
 					<SpecConcrete2 />
 				</p>
 			</div>
-		</AccordionElement>
-
-		<AccordionElement
-			bind:selectedId
-			title="What kind of visualization engine do you use?"
-			id="viz"
-		>
-			All our visualizations are hand-rolled SVGs with css transitions, made with <a
-				href="https://svelte.dev/"
-				target="_blank">svelte</a
-			>.
 		</AccordionElement>
 	</div>
 </div>
@@ -372,7 +409,7 @@
 	.portrait {
 		margin: 30px;
 		height: 274px;
-		box-shadow: 7px 7px 17px var(--color-theme-darkgrey);
+		box-shadow: 7px 7px 17px var(--color-theme-shadow);
 	}
 
 	.person > p {

@@ -50,7 +50,7 @@
 	//typewriter
 	let speed = 80;
 	let stopAtEnd = 480;
-	let texts = ROOT_TYPES;
+	let texts = ROOT_TYPES.map(prettifyRoot);
 	let wordInd = 0;
 	let text: string = texts[wordInd];
 	$: basePlaceholder = 'Explore ' + text;
@@ -200,6 +200,10 @@
 		--svg-size: min(min(30px, 5.5vw), 3.8svh);
 		width: var(--svg-size);
 		height: var(--svg-size);
+	}
+
+	label {
+		color: var(--color-theme-darkblue);
 	}
 
 	.head-side-elem {

@@ -1,44 +1,14 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-
-	import { INSTITUTION_TYPE } from '$lib/constants';
-	import { handleLabels } from '$lib/tree-loading';
-	import type * as tt from '$lib/tree-types';
-
-	import introInstIds from '$lib/assets/data/intro-inst-ids.json';
-	import fullQcSpecs from '$lib/assets/data/qc-specs.json';
-
-	import FullQc from '$lib/components/FullQc.svelte';
 	import TypeWriter from '$lib/components/TypeWriter.svelte';
+	import { entToLink } from '$lib/tree-functions';
 
-	let defaultQcSpecId: string | undefined;
-	let selectedQcRootId: string;
-	let rootType: string = INSTITUTION_TYPE;
-	let attributeLabels: tt.AttributeLabels;
+	export let data;
 
-	function getRandElem(l: string[]) {
-		return l[Math.floor(Math.random() * l.length)];
-	}
-
-	onMount(() => {
-		let randRoot = getRandElem(introInstIds);
-		handleLabels((aLabels: tt.AttributeLabels) => {
-			[defaultQcSpecId, attributeLabels, selectedQcRootId] = [
-				getRandElem(
-					Object.entries(fullQcSpecs || {})
-						.filter(([_, v]) => v.root_entity_type == rootType)
-						.map(([k, _]) => k)
-				),
-				aLabels || {},
-				randRoot
-			];
-		});
-	});
 	let texts = ['topics', 'geographies', 'publications', 'relationships'];
 	let wordInd = 0;
 </script>
 
-<div>
+<div id="typewrite">
 	<span id="tw-full">
 		<span id="tw-1"> explore </span>
 		<span id="tw-2">
@@ -47,19 +17,25 @@
 	</span>
 </div>
 
-{#if ![selectedQcRootId, rootType, attributeLabels, fullQcSpecs, defaultQcSpecId].includes(undefined)}
-	<FullQc
-		startSentence={''}
-		{selectedQcRootId}
-		{defaultQcSpecId}
-		{rootType}
-		{fullQcSpecs}
-		{attributeLabels}
-	/>
-{/if}
+<div id="tops">
+	{#each data.tops as entityTop}
+		<div>
+			<h3>{entityTop.name}</h3>
+			<ul>
+				{#each entityTop.entities as ent}
+					<li><a href={entToLink({ ...ent, rootType: entityTop.name })}>{ent.name}</a></li>
+				{/each}
+			</ul>
+		</div>
+	{/each}
+</div>
 
 <style>
-	div {
+	h3 {
+		text-align: center;
+	}
+
+	#typewrite {
 		position: fixed;
 		top: 0px;
 		height: 7svh;
@@ -68,6 +44,22 @@
 		align-items: center;
 		justify-content: center;
 		width: 100%;
+	}
+
+	#tops {
+		margin-top: 10svh;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: space-around;
+		justify-content: center;
+	}
+
+	#tops > div {
+		width: 400px;
+		margin: 100px;
+		padding: 25px;
+		border-radius: 30px;
+		background: var(--color-theme-pink);
 	}
 
 	#tw-full {

@@ -1,13 +1,11 @@
 <script lang="ts">
-	import { APP_NAME, LATEST_YEAR } from '$lib/constants';
+	import { APP_NAME, COMPLETE_YEAR } from '$lib/constants';
 	import { pluralize, prettifyRoot, SEMANTIC_CONF, semantify } from '$lib/text-format-util';
 	import { entToLink, getDefaultYear, idFromBd, toLinkWithParams } from '$lib/tree-functions';
 
 	import type * as tt from '$lib/tree-types';
 
 	import FullQc from '$lib/components/FullQc.svelte';
-	import { getColor } from '$lib/style-util';
-	import TimelineViz from '$lib/components/TimelineViz.svelte';
 	import YearTicks from '$lib/components/YearTicks.svelte';
 	import RandTreeLink from '$lib/components/RandTreeLink.svelte';
 
@@ -23,7 +21,6 @@
 		atts: tt.AttributeLabels;
 		svgLink: string;
 	};
-	let hoveredName = '';
 	$: treeSpecs = data.treeSpecs;
 	$: rootType = data.conf.rootType;
 	$: citeCount = data.view.citations;
@@ -36,49 +33,7 @@
 	$: citeText = pluralize('indexed citation', citeCount);
 	$: metaDescriptions = `Breaking down the impact of ${prefixText.toLowerCase()} ${rootName} - ( ${paperText}, ${citeText} )`;
 
-	let relInstTitle = 'Affiliation History';
-
-	const lineWidth = 80;
-
-	function semantifySfCoords(coords: [number, number]) {
-		let [refC, citC] = coords;
-		let refSem =
-			'are neither overly focused on a small set of topics, neither heavily multidisciplinary';
-		let citSem = 'come from a range of fields that is about as wide as to be expected';
-		if (refC < -0.7) {
-			refSem = 'cover a broader set of topics than expected';
-		} else if (refC > 0.7) {
-			refSem = 'are more focused on a single topic than usual';
-		}
-		if (citC < 0.7) {
-			citSem = 'branch out to more disciplines than usual';
-		} else if (citC > 0.7) {
-			citSem = 'are generally from the same field of study';
-		}
-		return [refSem, citSem];
-	}
-
-	function getTopSems(treeSpecs: tt.TreeSpecs, rootType: tt.RootType): string[] {
-		let tops = [];
-		for (const tSpec of treeSpecs.specs[rootType]) {
-			let entry = semantify(idFromBd(tSpec.breakdowns[0]), rootType, [], 0);
-			if (tops.indexOf(entry) == -1) {
-				tops.push(entry);
-			}
-		}
-		return tops;
-	}
-
-	function getDecatePapers(view: tt.View) {
-		const dN = view.yearlyPapers.reduce((l, r) => r + l);
-		return dN;
-	}
-
-	$: decadePTxt = getDecatePapers(data.view);
-	$: semTops = getTopSems(treeSpecs, rootType);
-
-	$: [refSideSem, citSideSem] = semantifySfCoords(data.view.sfCoords);
-	let bdtName = 'Breakdown Trees';
+	$: decadePTxt = data.view.yearlyPapers.reduce((l, r) => r + l);
 </script>
 
 <svelte:head>
@@ -93,26 +48,32 @@
 			<h1>{rootName}</h1>
 			<div>
 				<span>{paperText}</span>
-				<span>{citeText}</span>
+				and
+				<span><a href="/about#indexed-citation" target="blank_">{citeText}</a></span>
 			</div>
 		</div>
 		<div id="about">
 			<h3>About</h3>
 			<div>
 				{#if rootType == 'authors'}
-					{rootName} has authored {paperText}, with {citeText}, {decadePTxt} of these were published
-					in the last decade. These papers
-					{refSideSem}, while the papers citing them {citSideSem}.
+					{rootName} has authored {paperText} that have received a total of {citeText}. During the
+					last decade {rootName} has published {decadePTxt} papers.
 				{:else if rootType == 'institutions'}
-					{paperText} published by authors affiliated with {rootName}, with {citeText}
+					Since {COMPLETE_YEAR} authors affiliated with {rootName} have published {paperText}, which
+					have received a total of {citeText}.
 				{:else if rootType == 'subfields'}
 					{paperText}
 				{:else if rootType == 'countries'}
-					{paperText}
+					Since {COMPLETE_YEAR} scholars affiliated with institutions in {rootName} have published
+					{paperText}, which have received a total of {citeText}.
 				{:else if rootType == 'sources'}
 					{paperText}
 				{/if}
-				Explore these papers and their impact in more detail in our <a href="#tree">{bdtName}</a>.
+				<ul>
+					{#each data.view.primeRelations as rel}
+						<li><b>{rel.etype}</b>: {rel.name} {rel.score}</li>
+					{/each}
+				</ul>
 			</div>
 		</div>
 	</div>
@@ -157,12 +118,12 @@
 		flex-wrap: wrap;
 		min-height: 180px;
 		align-items: stretch;
-		/* border: solid var(--color-theme-pink) 3px; */
+		gap: 40px;
 	}
 
 	#name-block {
 		display: flex;
-		flex: 7;
+		flex: 8;
 		flex-wrap: wrap;
 		flex-direction: column;
 		justify-content: space-between;
@@ -174,8 +135,11 @@
 	}
 
 	#era {
-		flex: 5;
+		flex: 4;
 		padding: 0px;
+		display: flex;
+		flex-direction: column;
+		justify-content: space-between;
 		/* border: solid black 1px; */
 	}
 
@@ -213,7 +177,6 @@
 
 	#similars > div > span {
 		min-width: 180px;
-		/* max-width: 240px; */
 		flex: 1 0 21%;
 		padding: 6px;
 		border-bottom: solid var(--color-theme-blue) 3px;

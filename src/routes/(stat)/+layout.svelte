@@ -1,47 +1,15 @@
 <script lang="ts">
-	import {base} from '$app/paths';
+	import { base } from '$app/paths';
 	import TextedLogo from '$lib/components/TextedLogo.svelte';
-
-	const year = new Date().getFullYear();
+	import { APP_NAME, LATEST_YEAR } from '$lib/constants';
 </script>
 
-<div id="main-footed">
-	<div id="main-content">
-		<slot />
-	</div>
-	<div id="main-foot">
-		<TextedLogo pad={0} size={30} />
-		<span>{year}</span>
-		<div id="foot-r"><a href={base + '/about#contact' }>Contact</a></div>
-	</div>
-</div>
+<svelte:head>
+	<meta
+		name="description"
+		content="Explore academic impact beyond rankings. Rankless offers a fresh perspective on how universities influence each geography and topic, emphasizing diverse forms of impact and providing a richer understanding of academic influence."
+	/>
+	<title>{APP_NAME}</title>
+</svelte:head>
 
-<style>
-	#main-footed {
-		display: flex;
-		flex-direction: column;
-		height: 100%;
-	}
-
-	#main-content {
-		flex: 1 1 auto;
-	}
-
-	#main-foot {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding-left: 3vw;
-		padding-right: 3vw;
-		padding-top: 3px;
-		padding-bottom: 3px;
-		background-color: var(--color-theme-yellow);
-		flex: 0 0 50px;
-		z-index: 1;
-		height: min(50px, 3svh);
-	}
-
-	#foot-r {
-		color: var(--color-theme-darkgrey);
-	}
-</style>
+<slot />
