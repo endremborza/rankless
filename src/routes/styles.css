@@ -27,7 +27,6 @@
 	--color-range-105: 44, 96, 245;
 	--color-range-110: 239, 143, 160;
 
-	--color-text: #21272a;
 	--color-text-light: #697077;
 
 	--color-theme-yellow: #fbf4e5;
@@ -49,21 +48,45 @@
 	--color-graph-pink: #e83547;
 
 	font-family: var(--font-body);
-	color: var(--color-text);
-
 	--unified-margin: min(min(27px, 2vw), 3.7svh);
 	--unified-padding: 18px;
 }
+:root {
+	--text-bg: #ffffff;
+	--text-bg-2: var(--color-theme-white);
+	/* --text-bg: var(--color-theme-white); */
+	--hard-overlay: #ffffff90;
+	--color-text: #21272a;
+	--accent-text: var(--color-theme-darkgrey);
+	--highlight-text: var(--color-theme-darkblue);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--text-bg: var(--color-theme-darkgrey);
+		--text-bg-2: var(--color-theme-darkgrey3);
+		--hard-overlay: #4f4f4f70;
+		--color-text: var(--color-theme-white);
+		--accent-text: var(--color-theme-lightgrey);
+		--highlight-text: var(--color-theme-pink);
+	}
+}
+ 
+
 
 html,
 body {
 	height: 100%;
 	margin: 0;
+	color: var(--color-text);
+	background-color: var(--text-bg)
+
 }
 
-body {
-	background-color: #ffffff;
+text {
+	fill: var(--color-text)
 }
+
 
 h1 {
 	margin: 0;
@@ -71,11 +94,11 @@ h1 {
 
 a {
 	text-decoration: none;
-	color: var(--color-theme-darkgrey);
+	color: var(--accent-text);
 }
 
 a:hover {
-	color: var(--color-theme-darkblue);
+	color: var(--highlight-text);
 	text-shadow: 1px 0px 0px var(--color-theme-shadow);
 	/* font-weight: bold; */
 }
@@ -90,7 +113,7 @@ select {
 .hoverover {
 	position: absolute;
 	transition: all 500ms;
-	background-color: #ffffff;
+	background-color: var(--text-bg);
 	border: solid 1px var(--color-theme-darkblue);
 	z-index: 13;
 }
@@ -113,16 +136,16 @@ select {
 	cursor: pointer;
 }
 
+.hover-s {
+	font-size: min(0.85rem, 1.8vw);
+}
+
 .hover-m {
 	font-size: min(1rem, 2vw);
 }
 
 .hover-l {
 	font-size: min(1.1rem, 2.1vw);
-}
-
-.hover-xl {
-	font-size: min(1.3rem, 2.3vw);
 }
 
 .vert-zero {
