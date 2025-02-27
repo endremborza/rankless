@@ -54,7 +54,6 @@
 	let overHangRate = 0.05;
 
 	let minimumChildWidth = 2.5;
-	let showHoverInfo = true;
 	let showSpecInfoHover = false;
 	let showFilterHover = false;
 
@@ -332,7 +331,7 @@
 		class="floater sentence-container"
 		style={dBasedStyle({ top: 0 }, { left: d2Offset, width: rootD2 }, { height: d1TopPadRate })}
 	>
-		<p id="sentence-starter">{prefixText}</p>
+		<h3 id="sentence-starter">{prefixText}</h3>
 	</div>
 
 	<div
@@ -383,35 +382,16 @@
 			rootType={conf.rootType}
 		/>
 	{/each}
-	{#if showHoverInfo && highlightedPath.length > 0}
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<div
-			transition:fade={{ duration: 200 }}
-			class="hoverover shadowy clickable"
-			role="treegrid"
-			tabindex="0"
-			style={dBasedStyle(
-				{},
-				{ right: 0, width: 100 },
-				{ bottom: 0, height: d1BottomPadRate / (showPaper ? 0.5 : 2) }
-			)}
-			on:click={() => {
-				if (allowPapers) {
-					showPaper = !showPaper;
-				}
-			}}
-		>
-			<PathLevelInfoBox
-				path={highlightedPath}
-				rootNode={completeTree}
-				{rootName}
-				treeSpec={currentTreeSpec}
-				rootId={highlightRoot}
-				{attributeLabels}
-				{showPaper}
-			/>
-		</div>
-	{/if}
+	<PathLevelInfoBox
+		path={highlightedPath}
+		rootNode={completeTree}
+		initHeight={(10 / 100) * innerHeight}
+		{rootName}
+		treeSpec={currentTreeSpec}
+		rootId={highlightRoot}
+		{attributeLabels}
+		bind:showPaper
+	/>
 
 	<HoverBlock
 		show={showSpecInfoHover}
@@ -440,11 +420,7 @@
 
 <style>
 	#qc-header {
-		fill: #ffffff90;
-	}
-
-	#header-bg {
-		fill: var(--color-theme-darkgrey);
+		fill: var(--hard-overlay);
 	}
 
 	#right-control {
@@ -454,18 +430,7 @@
 		align-items: end;
 	}
 
-	#spec-hover {
-		padding: 12px;
-		font-size: 0.9rem;
-	}
-
 	#sentence-starter {
-		font-size: min(1.5rem, 3.3vw);
-		text-align: center;
-	}
-
-	#num-stat-subtitle {
-		font-size: min(min(1.1rem, 1.9vw), 1.8svh);
 		text-align: center;
 	}
 

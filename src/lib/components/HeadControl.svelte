@@ -13,7 +13,7 @@
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<span
 		id="spec-label"
-		class="small-hover {interactText ? 'clickable' : ''}"
+		class="hover-m {interactText ? 'clickable' : ''}"
 		on:click={() => {
 			if (interactText) {
 				checked = !checked;
@@ -39,9 +39,5 @@
 		align-items: center;
 		justify-content: space-between;
 		flex-wrap: wrap;
-	}
-
-	.small-hover {
-		font-size: min(0.9rem, 2.2vw);
 	}
 </style>

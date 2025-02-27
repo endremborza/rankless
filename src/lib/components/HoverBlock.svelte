@@ -4,15 +4,13 @@
 </script>
 
 {#if show}
-	<div class="hoverover" id="spec-hover" {style}>
+	<div class="hoverover padded shadowy" id="spec-hover" {style}>
 		<slot />
 	</div>
 {/if}
 
 <style>
 	div {
-		padding: 12px;
-		font-size: 0.9rem;
 		position: absolute;
 	}
 </style>

@@ -227,6 +227,7 @@
 
 	.blurred-overlay {
 		backdrop-filter: blur(28px);
+		-webkit-backdrop-filter: blur(28px);
 		border: 2px solid black;
 		border-radius: 10px;
 		position: absolute;

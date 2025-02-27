@@ -1,19 +1,21 @@
 <script lang="ts">
 	import type { AttributeLabels, PathInTree, TreeSpec, ResponseNode } from '$lib/tree-types';
 	import { nameById } from '$lib/tree-functions';
-	import { formatNumber } from '$lib/text-format-util';
+	import { formatNumber, pluralize } from '$lib/text-format-util';
 	import { getSpecMetricObject, type SpecInfo } from '$lib/metric-calculation';
 	import WorkElem from './WorkElem.svelte';
 
 	export let path: PathInTree;
 	export let treeSpec: TreeSpec;
 	export let rootId: number;
+	export let initHeight: number;
 	export let rootName: string;
 	export let attributeLabels: AttributeLabels;
 	export let rootNode: ResponseNode;
 	export let showPaper: boolean = false;
 
 	let instId: number | undefined;
+	let citeText = '';
 
 	function getNodes(
 		path: PathInTree,
@@ -27,6 +29,7 @@
 		spec: SpecInfo;
 	}[] {
 		instId = undefined;
+		const citeRestricts = [];
 		if (treeSpec?.rootType === undefined) {
 			return [];
 		}
@@ -56,9 +59,13 @@
 			if (currentNode.children == undefined) {
 				break;
 			}
+			let name = nameById(attributeLabels, entityKind, childId);
+			if (!bd.sourceSide) {
+				citeRestricts.push(name);
+			}
 			currentNode = currentNode.children[childId] || { linkCount: 0, children: {} };
 			nodes.push({
-				name: nameById(attributeLabels, entityKind, childId),
+				name,
 				linkCount: currentNode.linkCount,
 				sourceCount: currentNode.sourceCount,
 				topSourceId: currentNode.topSourceId,
@@ -70,6 +77,13 @@
 					childId
 				)
 			});
+		}
+		let leaf = nodes[nodes.length - 1];
+		if (citeRestricts.length > 0) {
+			citeText =
+				pluralize('citation', leaf.topSourceLinks) + ' on branch of ' + citeRestricts.join(' > ');
+		} else {
+			citeText = pluralize('citation', leaf.topSourceLinks || 0);
 		}
 		return nodes;
 	}
@@ -87,75 +101,78 @@
 	}
 
 	let hoverSpec = false;
-	let topRate = 75;
 
 	$: pathNodes = getNodes(path || [], rootNode);
 	$: leaf = pathNodes[pathNodes.length - 1];
 </script>
 
-{#if path != undefined}
-	<div class="top-container" style="height: {showPaper ? topRate : 0}%;">
-		{#if showPaper}
-			<WorkElem
-				workId={leaf.topSourceId}
-				workCitations={leaf.topSourceLinks}
-				{attributeLabels}
-				{instId}
-			/>
-		{/if}
-	</div>
-	<div class="box-container" style="height: {showPaper ? 100 - topRate : 100}%;">
-		<h2 class="hover-l">{leaf.name}</h2>
-		<!-- svelte-ignore a11y-mouse-events-have-key-events -->
-		<p
-			on:mouseover={() => {
-				hoverSpec = false;
-			}}
-			on:mouseleave={() => {
-				hoverSpec = false;
-			}}
-			class="hover-m"
-		>
-			{getDesc(leaf.spec.specMetric)} Specialization
-		</p>
-		{#if hoverSpec}
-			<span id="spec-hover">
-				metric = {formatNumber(leaf.spec.specMetric, 3)}; base = {leaf.spec.baselineRate}; nodeRate
-				= {leaf.spec.nodeRate}; childN={leaf.linkCount}
-			</span>
-		{/if}
-		<p class="hover-m">
-			{formatNumber(leaf.linkCount || 0, 0)} ({(leaf.spec.nodeRate * 100).toFixed(2)}%) citation{#if leaf.linkCount > 1}s{/if},
-			{formatNumber(leaf.sourceCount || 0, 0)} paper{#if leaf.sourceCount > 1}s{/if}
-		</p>
-	</div>
-{/if}
+<!-- svelte-ignore a11y-click-events-have-key-events -->
+<!-- svelte-ignore a11y-mouse-events-have-key-events -->
+<div
+	class="hoverover shadowy clickable growing"
+	id="container"
+	role="treegrid"
+	tabindex="0"
+	style="height: {initHeight * (showPaper ? 4 : 1)}px"
+	on:click={() => {
+		showPaper = !showPaper;
+	}}
+>
+	{#if path != undefined}
+		<div class="growing" style="height: {initHeight * (showPaper ? 3 : 0)}px;">
+			{#if showPaper}
+				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} />
+			{/if}
+		</div>
+		<div id="box-container" style="height: {initHeight}px;">
+			<h2 class="hover-l">{leaf.name}</h2>
+			<p
+				on:mouseover={() => {
+					//debugging thing
+					hoverSpec = false;
+				}}
+				on:mouseleave={() => {
+					hoverSpec = false;
+				}}
+				class="hover-m"
+			>
+				{getDesc(leaf.spec.specMetric)} Specialization
+			</p>
+			{#if hoverSpec}
+				<span id="spec-hover">
+					metric = {formatNumber(leaf.spec.specMetric, 3)}; base = {leaf.spec.baselineRate};
+					nodeRate = {leaf.spec.nodeRate}; childN={leaf.linkCount}
+				</span>
+			{/if}
+			<p class="hover-m">
+				{formatNumber(leaf.linkCount || 0, 0)} ({(leaf.spec.nodeRate * 100).toFixed(2)}%) citation{#if leaf.linkCount > 1}s{/if},
+				{formatNumber(leaf.sourceCount || 0, 0)} paper{#if leaf.sourceCount > 1}s{/if}
+			</p>
+		</div>
+	{/if}
+</div>
 
 <style>
-	h2 {
-		text-align: center;
-		padding: 15px;
-		margin: 0px;
-		text-align: center;
-	}
-
 	p {
 		text-align: center;
-		padding-left: 20px;
 	}
 
-	.box-container {
+	.growing {
+		transition: height 350ms ease-in-out;
+	}
+
+	#container {
+		width: 100%;
+		bottom: 0px;
+	}
+
+	#box-container {
 		display: flex;
 		flex-direction: row;
-		justify-content: space-around;
+		justify-content: space-between;
 		align-items: center;
-	}
-
-	.top-container {
-		display: flex;
-		flex-direction: column;
-		justify-content: space-around;
-		align-items: center;
+		padding-left: var(--unified-padding);
+		padding-right: var(--unified-padding);
 	}
 
 	#spec-hover {

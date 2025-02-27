@@ -3,7 +3,7 @@ export type Point = { x: number; y: number };
 export type ScaledTicks = {
 	max: number;
 	total: number;
-	scaled: IterableIterator<[number, number]>;
+	scaled: [number, number][];
 	nominal: number[];
 };
 
@@ -16,7 +16,7 @@ export function rescale(nums: number[], h: number): ScaledTicks {
 		}
 		total += e;
 	}
-	return { scaled: nums.map((n) => (n / max) * h).entries(), max, total, nominal: nums };
+	return { scaled: [...nums.map((n) => (n / max) * h).entries()], max, total, nominal: nums };
 }
 
 export const pinRange = (sY: number | undefined, b: number, e: number, offset: number): number =>

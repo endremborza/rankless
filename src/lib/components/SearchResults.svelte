@@ -43,7 +43,7 @@
 
 <div class="search-results" style="display: {resultsHidden ? 'none' : 'flex'};">
 	{#each searchResults as searchResult}
-		<a class="result-card" href={entToLink(searchResult)}>
+		<a class="result-card shadowy padded" href={entToLink(searchResult)}>
 			<h3 style="font-size: {searchResult.name.length > 50 ? 1.2 : 1.45}em;">
 				{searchResult.name}
 			</h3>
@@ -83,17 +83,12 @@
 		cursor: pointer;
 		height: 210px;
 		min-width: 240px;
-		background-color: var(--color-theme-white);
+		background-color: var(--text-bg-2);
 		border: solid var(--color-theme-darkblue) 1px;
-		box-shadow: 8px 8px 13px var(--color-theme-shadow);
-		border-radius: 10px;
 		margin: 40px;
-		margin-bottom: 20px;
+		margin-bottom: var(--unified-margin);
 		margin-top: 0px;
-		text-align: left;
-		padding: 30px;
 		flex: 0 0 18%;
-		padding: 20px;
 		display: flex;
 		flex-direction: column;
 		justify-content: space-around;
@@ -106,9 +101,5 @@
 		background-color: var(--color-theme-lightgrey);
 		color: var(--color-theme-darkblue);
 		box-shadow: 3px 3px 13px var(--color-theme-shadow);
-	}
-
-	.subtitle {
-		font-size: 1.1em;
 	}
 </style>

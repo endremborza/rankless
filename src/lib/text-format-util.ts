@@ -191,7 +191,7 @@ function lineLen(words: string[]) {
 export const SEMANTIC_CONF = {
 	authors: {
 		prefix: '👤',
-		start: 'Papers of'
+		start: 'Papers by'
 	},
 	institutions: {
 		prefix: '🏛',

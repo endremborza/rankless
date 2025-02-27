@@ -16,15 +16,20 @@ export type View = {
 	citations: number;
 	papers: number;
 	dmId: number;
+	primeRelations: RelatedEntity[],
 	similars: SearchResult[];
-	comparisons: SearchResult[];
-	sfCoords: [number, number];
+	// sfCoords: [number, number];
 	instRels: InstRel[];
 	startYear: number,
 	yearlyPapers: number[],
 	yearlyCites: number[],
 };
-
+export type RelatedEntity = {
+	name: string,
+	semanticId: string,
+	etype: EntityType,
+	score: number,
+}
 export type SelectionOption = {
 	name: string;
 	id: string;

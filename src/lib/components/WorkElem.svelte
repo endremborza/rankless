@@ -1,10 +1,9 @@
 <script lang="ts">
-	import { formatNumber } from '$lib/text-format-util';
 	import type { AttributeLabels } from '$lib/tree-types';
 	import { onMount } from 'svelte';
 
 	export let workId: number;
-	export let workCitations: number;
+	export let citeText: string;
 	export let attributeLabels: AttributeLabels;
 	export let instId: number | undefined;
 
@@ -47,81 +46,75 @@
 </script>
 
 {#if title}
-	<div>
-		<h4 class="hover-l">Most Cited Paper</h4>
-	</div>
-	<div>
-		<h3 class="hover-xl"><a {href} target="_blank">{title}</a> ({y})</h3>
-	</div>
-	<div>
+	<div id="main" class="padded">
+		<h4 class="hover-l">Top Paper</h4>
+		<row>
+			<rowheader class="hover-m">Title:</rowheader>
+			<h3 class="hover-l"><a {href} target="_blank">{title}</a> ({y})</h3>
+		</row>
 		{#if doi}
-			<span class="hover-m">
-				<a href={doi} target="_blank">{doi}</a>
-			</span>
+			<row>
+				<rowheader class="hover-m">Doi:</rowheader>
+				<span class="hover-m">
+					<a href={doi} target="_blank">{doi}</a>
+				</span>
+			</row>
 		{/if}
-		<span class="hover-m">
-			{formatNumber(workCitations, 0)} relevant citations
-		</span>
+		{#if authors.length > 0}
+			<row>
+				<rowheader class="hover-m">
+					Author{authors.length > 1 ? 's' : ''}:
+				</rowheader>
+				<al class="hover-m">
+					{#each authors.slice(0, 3).entries() as [i, author]}
+						<a href={author.link} target="_blank"
+							>{author.name}{author.isOfInst ? '*' : ''}{i < Math.min(authors.length - 1, 2)
+								? ','
+								: ''}
+						</a>
+					{/each}
+					{#if authors.length > 3}
+						<a {href} target="_blank">& {authors.length - 3} others</a>
+					{/if}
+				</al>
+			</row>
+		{/if}
+		<row>
+			<rowheader class="hover-m">Citations: </rowheader>
+			<span class="hover-m">
+				{citeText}
+			</span>
+		</row>
+		<footnote class="hover-s">
+			{#if localCount > 0}*: author of {fullInstName} ({localCount}/{authors.length}){/if}
+		</footnote>
+		<hr />
 	</div>
-	{#if authors.length > 0}
-		<div>
-			<h3 class="hover-m" style="flex: 3">
-				{authors.length} author{authors.length > 1 ? 's' : ''}
-				{#if localCount > 0}({localCount} {fullInstName}){/if}
-			</h3>
-			<al class="hover-m" style="flex: 7">
-				{#each authors.slice(0, 3) as author}
-					<a href={author.link} class={author.isOfInst ? 'bold' : ''} target="_blank"
-						>{author.name}</a
-					>
-				{/each}
-
-				{#if authors.length > 3}
-					<a {href} target="_blank">{authors.length - 3} others</a>
-				{/if}
-			</al>
-		</div>
-	{/if}
-	<hr />
 {/if}
 
 <style>
-	:root {
-		--side-pad: 20px;
-	}
-
-	a:hover {
-		font-weight: inherit;
+	h3,
+	h4 {
+		margin: 0px;
 	}
 
 	a {
 		text-decoration: underline;
 	}
 
-	h3,
-	h4 {
-		text-align: center;
-		margin: 0px;
-		padding-left: var(--side-pad);
-		padding-right: var(--side-pad);
+	row {
+		width: 100%;
+		display: flex;
+		gap: 20px;
+		justify-content: space-between;
 	}
 
-	span {
-		padding-left: var(--side-pad);
-		padding-right: var(--side-pad);
+	rowheader {
+		flex: 2;
 	}
 
 	hr {
-		width: 80%;
-	}
-
-	div {
 		width: 100%;
-		margin: 12px;
-		display: flex;
-		flex-direction: row;
-		justify-content: space-around;
-		align-items: center;
 	}
 
 	al {
@@ -129,14 +122,22 @@
 		flex-direction: row;
 		justify-content: space-around;
 		align-items: center;
-		padding-right: var(--side-pad);
 	}
 
 	al > a {
-		padding-left: 5px;
+		padding-left: 15px;
 	}
 
-	.bold {
-		font-weight: 600;
+	footnote {
+		width: 100%;
+		text-align: right;
+	}
+
+	#main {
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+		justify-content: space-around;
+		align-items: start;
 	}
 </style>
