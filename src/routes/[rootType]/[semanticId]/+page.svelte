@@ -21,6 +21,32 @@
 		atts: tt.AttributeLabels;
 		svgLink: string;
 	};
+
+	const REL_DESCS = [
+		'Papers in fields',
+		'Citing in fields',
+		'Papers in topics',
+		'Collaborations with nation',
+		'Published in journal'
+	];
+
+	function getTopRels(view: tt.View) {
+		const out = [];
+		let id = 0;
+		let sub: { desc: string; subs: tt.RelatedEntity[] } = { desc: REL_DESCS[id], subs: [] };
+		for (const rel of view.primeRelations) {
+			if (rel.relType != id) {
+				out.push(sub);
+				id = rel.relType;
+				sub = { desc: REL_DESCS[id], subs: [] };
+			}
+			sub.subs.push(rel);
+		}
+		out.push(sub);
+
+		return out;
+	}
+
 	$: treeSpecs = data.treeSpecs;
 	$: rootType = data.conf.rootType;
 	$: citeCount = data.view.citations;
@@ -32,6 +58,7 @@
 	$: paperText = pluralize('paper', paperCount);
 	$: citeText = pluralize('indexed citation', citeCount);
 	$: metaDescriptions = `Breaking down the impact of ${prefixText.toLowerCase()} ${rootName} - ( ${paperText}, ${citeText} )`;
+	$: topRels = getTopRels(data.view);
 
 	$: decadePTxt = data.view.yearlyPapers.reduce((l, r) => r + l);
 </script>
@@ -70,8 +97,13 @@
 					{paperText}
 				{/if}
 				<ul>
-					{#each data.view.primeRelations as rel}
-						<li><b>{rel.etype}</b>: {rel.name} {rel.score}</li>
+					{#each topRels as rel}
+						<li><b>{rel.desc}</b></li>
+						<ul>
+							{#each rel.subs as sub}
+								<li>{sub.name} {sub.score}</li>
+							{/each}
+						</ul>
 					{/each}
 				</ul>
 			</div>
