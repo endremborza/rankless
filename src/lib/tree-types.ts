@@ -28,6 +28,7 @@ export type RelatedEntity = {
 	name: string,
 	semanticId: string,
 	etype: EntityType,
+	relType: number,
 	score: number,
 }
 export type SelectionOption = {
