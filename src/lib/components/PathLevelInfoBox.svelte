@@ -81,7 +81,9 @@
 		let leaf = nodes[nodes.length - 1];
 		if (citeRestricts.length > 0) {
 			citeText =
-				pluralize('citation', leaf.topSourceLinks) + ' on branch of ' + citeRestricts.join(' > ');
+				pluralize('citation', leaf.topSourceLinks || 0) +
+				' on branch of ' +
+				citeRestricts.join(' > ');
 		} else {
 			citeText = pluralize('citation', leaf.topSourceLinks || 0);
 		}
@@ -136,7 +138,9 @@
 				}}
 				class="hover-m"
 			>
-				{getDesc(leaf.spec.specMetric)} Specialization
+				{#if path.length > 0}
+					{getDesc(leaf.spec.specMetric)} Specialization
+				{/if}
 			</p>
 			{#if hoverSpec}
 				<span id="spec-hover">
@@ -145,7 +149,12 @@
 				</span>
 			{/if}
 			<p class="hover-m">
-				{formatNumber(leaf.linkCount || 0, 0)} ({(leaf.spec.nodeRate * 100).toFixed(2)}%) citation{#if leaf.linkCount > 1}s{/if},
+				{formatNumber(leaf.linkCount || 0, 0)}
+
+				{#if path.length > 0}
+					({(leaf.spec.nodeRate * 100).toFixed(2)}%)
+				{/if}
+				citation{#if leaf.linkCount > 1}s{/if},
 				{formatNumber(leaf.sourceCount || 0, 0)} paper{#if leaf.sourceCount > 1}s{/if}
 			</p>
 		</div>

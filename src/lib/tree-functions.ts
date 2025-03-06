@@ -268,8 +268,8 @@ function flatFilter(
 
 		const weightDerivation =
 			sizeBase == 'volume'
-				? (node: tt.ResponseNode) => node?.linkCount || 0
-				: (node: tt.ResponseNode, childId: number, denominatorWeight: number) =>
+				? (node: tt.ResponseNode, childId: number) => childId == 0 ? 0 : (node?.linkCount || 0)
+				: (node: tt.ResponseNode, childId: number, denominatorWeight: number) => childId == 0 ? 0 :
 					getSpecMetricObject(node, denominatorWeight, attributeLabels[entityKind], childId)
 						.specMetric;
 

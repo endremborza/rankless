@@ -5,7 +5,7 @@
 	import SearchResults from '$lib/components/SearchResults.svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { fade, slide } from 'svelte/transition';
+	import { slide } from 'svelte/transition';
 
 	import type { RootType } from '$lib/tree-types';
 	import { LATEST_YEAR, ROOT_TYPES } from '$lib/constants';
@@ -15,10 +15,19 @@
 	let cat: RootType = options[0];
 
 	let runner: number;
+	let mounted = false;
 
 	function init(el: HTMLInputElement) {
 		el.focus();
 	}
+
+	function focusSelect(e: FocusEvent) {
+		resultsHidden = false;
+		if (e.target != undefined) {
+			e.target.select();
+		}
+	}
+
 	function onFocus() {
 		resultsHidden = false;
 	}
@@ -29,6 +38,7 @@
 
 	onMount(() => {
 		runner = setInterval(changeText, speed);
+		mounted = true;
 	});
 	afterNavigate(() => {
 		slimOpened = false;
@@ -44,6 +54,16 @@
 	function keyBind(key: { key: string }) {
 		if (key.key == 'Escape') {
 			resultsHidden = true;
+		}
+	}
+
+	function setNoScroll(rHide: boolean) {
+		if (mounted) {
+			if (rHide) {
+				document.body.classList.remove('no-scroll');
+			} else {
+				document.body.classList.add('no-scroll');
+			}
 		}
 	}
 
@@ -81,6 +101,7 @@
 	}
 
 	$: placeholder = resultsHidden ? '' : basePlaceholder;
+	$: setNoScroll(resultsHidden);
 </script>
 
 <svelte:head>
@@ -107,7 +128,7 @@
 <svelte:window on:keydown={keyBind} />
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
-<div id="main-fix" transition:fade={{ duration: 100 }}>
+<div id="main-fix">
 	{#if resultsHidden}
 		<div id="head-l" class="head-side-elem shadowy" on:click={toggleOpen}>
 			<svg id="slim-stripes" viewBox="-2 -2 22 22">
@@ -127,7 +148,7 @@
 	{:else}
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<span id="result-closer" on:click={() => (resultsHidden = true)}>&#10006;</span>
+		<span id="result-closer" class="marged" on:click={() => (resultsHidden = true)}>&#10006;</span>
 	{/if}
 	{#if !hideSearchButton}
 		<div class="head-side-elem shadowy" id="head-r" on:click={onFocus}>
@@ -135,7 +156,7 @@
 				<input
 					in:slide={{ duration: 300, axis: 'x' }}
 					bind:value={searchTerm}
-					on:focus={onFocus}
+					on:focus={focusSelect}
 					use:init
 					{placeholder}
 					type="text"
@@ -170,32 +191,22 @@
 		</div>
 	{/if}
 	<SearchResults {resultsHidden} {searchTerm} {cat} />
-	<through
+	<div
+		id="main-content"
 		on:click={() => {
 			slimOpened = false;
 		}}
 	>
-		<div id="main-footed">
-			<div id="main-content">
-				<slot />
-			</div>
-			<div id="main-foot">
-				<TextedLogo pad={0} size={30} />
-				<span>{LATEST_YEAR}</span>
-				<div id="foot-r"><a href={base + '/about#contact'}>Contact</a></div>
-			</div>
-		</div>
-
-		<style>
-		</style>
-	</through>
+		<slot />
+	</div>
+	<div id="main-foot">
+		<TextedLogo pad={0} size={30} />
+		<span>{LATEST_YEAR}</span>
+		<div id="foot-r"><a href={base + '/about#contact'}>Contact</a></div>
+	</div>
 </div>
 
 <style>
-	through {
-		height: 100%;
-	}
-
 	svg {
 		--svg-size: min(min(30px, 5.5vw), 3.8svh);
 		width: var(--svg-size);
@@ -204,6 +215,10 @@
 
 	label {
 		color: var(--color-theme-darkblue);
+	}
+
+	:global(body.no-scroll) {
+		overflow: hidden;
 	}
 
 	.head-side-elem {
@@ -225,7 +240,7 @@
 		display: flex;
 		flex-flow: column;
 		box-sizing: border-box;
-		height: 100%;
+		min-height: 100dvh;
 	}
 
 	#head-l {
@@ -254,6 +269,7 @@
 	}
 
 	#slim-drop > a {
+		color: var(--color-theme-darkgrey);
 		padding: 3px;
 	}
 
@@ -289,25 +305,23 @@
 	#result-closer {
 		transition: transform 0.2s ease;
 		position: fixed;
-		top: 80px;
+		top: 0px;
 		left: 0px;
 		font-size: 37px;
-		padding: 12px;
 		text-align: center;
-		border-radius: 35px;
 		cursor: pointer;
 		z-index: 30;
+	}
+
+	@media (max-width: 1000px) {
+		#result-closer {
+			top: 100px;
+		}
 	}
 
 	#result-closer:hover {
 		font-size: 40px;
 		color: var(--color-theme-darkblue);
-	}
-
-	#main-footed {
-		display: flex;
-		flex-direction: column;
-		height: 100%;
 	}
 
 	#main-content {
@@ -323,12 +337,12 @@
 		padding-top: 3px;
 		padding-bottom: 3px;
 		background-color: var(--color-theme-yellow);
+		color: var(--color-theme-darkgrey);
 		flex: 0 0 50px;
 		z-index: 1;
 		height: min(50px, 3svh);
 	}
-
-	#foot-r {
+	#foot-r > a {
 		color: var(--color-theme-darkgrey);
 	}
 </style>

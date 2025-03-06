@@ -11,7 +11,6 @@ const IS_DEV = import.meta.env.MODE == 'development';
 export const BE_URL = 'http://127.0.0.1:3038/v1';
 export const BE_REMOTE_URL = IS_DEV ? BE_URL : `${FULL_HOST}:3039/v1`;
 
-export const INSTITUTION_TYPE: RootType = 'institutions';
 export const ROOT_TYPES: RootType[] = [
 	'authors',
 	'institutions',

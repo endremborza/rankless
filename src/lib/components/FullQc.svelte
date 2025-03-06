@@ -13,13 +13,14 @@
 	import { onMount } from 'svelte';
 	import { replaceState } from '$app/navigation';
 	import HoverBlock from './HoverBlock.svelte';
-	import { fade } from 'svelte/transition';
 
 	export let conf: tt.FullTreeConfig;
 	export let selectedQcRootId: number;
 
 	export let rootName = '';
 	export let removeHighlightUnhover = true;
+	export let setUrl = true;
+	export let allowControls = true;
 	export let prefixText = '';
 	export let treeSpecs: tt.TreeSpecs;
 	export let selectionState: tt.BareNode = { children: {} };
@@ -123,10 +124,9 @@
 	}
 
 	function updateUrl(conf: tt.FullTreeConfig, selectionState: tt.BareNode) {
-		if (mounted) {
+		if (mounted && setUrl) {
 			let newUrl = tf.toLinkWithParams(conf, selectionState);
 			replaceState(newUrl, {});
-			// goto(newUrl);
 		}
 	}
 
@@ -334,43 +334,45 @@
 		<h3 id="sentence-starter">{prefixText}</h3>
 	</div>
 
-	<div
-		class="floater"
-		style={dBasedStyle(
-			{ top: d1PadSize + headerShape.height * 0.5, height: 0 },
-			{ left: controlPad, width: d2Offset * 0.88 },
-			{}
-		)}
-	>
-		<NumberSlider bind:value={controlSpecs.globalLimit} min={1} max={maxOnOneLevel} />
-	</div>
-	<div
-		class="floater"
-		id="right-control"
-		style={dBasedStyle(
-			{ top: d1PadSize, height: headerShape.height },
-			{ right: controlPad, width: 100 - headerShape.width - d2Offset - controlPad },
-			{}
-		)}
-	>
-		<HeadControl
-			bind:hoverToggle={showSpecInfoHover}
-			bind:checked={isGlobalSpecialization}
-			text={'Specialization'}
-		/>
-		<HeadControl
-			bind:hoverToggle={showFilterHover}
-			interactText={false}
-			checked={false}
-			text={`${pluralize('paper', completeTree.sourceCount)} since`}
+	{#if allowControls}
+		<div
+			class="floater"
+			style={dBasedStyle(
+				{ top: d1PadSize + headerShape.height * 0.5, height: 0 },
+				{ left: controlPad, width: d2Offset * 0.88 },
+				{}
+			)}
 		>
-			<select bind:value={conf.year}
-				>{#each treeSpecs.yearBreaks as y}
-					<option>{y}</option>
-				{/each}
-			</select>
-		</HeadControl>
-	</div>
+			<NumberSlider bind:value={controlSpecs.globalLimit} min={1} max={maxOnOneLevel} />
+		</div>
+		<div
+			class="floater"
+			id="right-control"
+			style={dBasedStyle(
+				{ top: d1PadSize, height: headerShape.height },
+				{ right: controlPad, width: 100 - headerShape.width - d2Offset - controlPad },
+				{}
+			)}
+		>
+			<HeadControl
+				bind:hoverToggle={showSpecInfoHover}
+				bind:checked={isGlobalSpecialization}
+				text={'Specialization'}
+			/>
+			<HeadControl
+				bind:hoverToggle={showFilterHover}
+				interactText={false}
+				checked={false}
+				text={`since`}
+			>
+				<select bind:value={conf.year}
+					>{#each treeSpecs.yearBreaks as y}
+						<option>{y}</option>
+					{/each}
+				</select>
+			</HeadControl>
+		</div>
+	{/if}
 	{#each levelOutSpecs || [] as levelSpec, index}
 		<MidpathBar
 			{index}
@@ -380,6 +382,7 @@
 			totalD1Offset={headerShape.height + d1PadSize}
 			{dBasedStyle}
 			rootType={conf.rootType}
+			{allowControls}
 		/>
 	{/each}
 	<PathLevelInfoBox
@@ -414,7 +417,10 @@
 			{}
 		)}
 	>
-		Filter the underlying dataset to papers published in or after {conf.year}.
+		Filter the underlying dataset to papers published in or after {conf.year}. This includes {pluralize(
+			'paper',
+			completeTree.sourceCount
+		)} making up this tree, where all necessary information is available to create this breakdown.
 	</HoverBlock>
 {/if}
 

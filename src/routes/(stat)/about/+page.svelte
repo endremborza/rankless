@@ -336,8 +336,8 @@
 	}
 
 	a {
-		text-decoration: none;
-		color: var(--color-theme-darkgrey3);
+		text-decoration: underline;
+		/* color: var(--color-theme-darkgrey3); */
 	}
 
 	#person-bar {
@@ -385,7 +385,7 @@
 		padding-right: 35px;
 		margin-top: 100px;
 		margin-bottom: 60px;
-		color: var(--color-theme-darkgrey);
+		/* color: var(--color-theme-darkgrey); */
 	}
 
 	@media (max-width: 768px) {

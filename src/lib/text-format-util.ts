@@ -216,6 +216,7 @@ const SING_MAP: Record<string, string> = { countries: 'country' };
 const CO_FAL = 'are cited by authors working in';
 const SPEC = 'specifically';
 
+
 const SEM_MAP = {
 	authors: {
 		'subfields-true': {
@@ -280,6 +281,13 @@ const SEM_MAP = {
 				}
 			},
 			semantic: 'published in'
+		},
+		"authors-true": {
+			children: {
+				"works-true": { children: { "subfields-false": { semantic: "are cited by papers covering" } }, semantic: SPEC },
+				"countries-false": { "children": { "institutions-false": { "semantic": "specifically at" } }, "semantic": "are cited by authors working in" }
+			},
+			semantic: "co-authored with"
 		}
 	},
 	institutions: {

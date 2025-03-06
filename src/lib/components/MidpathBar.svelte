@@ -9,7 +9,10 @@
 	export let totalD1Offset: number;
 	export let d2OffsetCenter: number;
 	export let rootType: RootType;
+	export let allowControls: boolean = true;
 	export let dBasedStyle: (d1: OMap<number>, d2: OMap<number>, d3: OMap<number>) => string;
+
+	$: canSelect = levelSpec.levelOptions.length > 1 && allowControls;
 </script>
 
 {#if levelSpec.isVisible}
@@ -25,15 +28,12 @@
 			{}
 		)}
 	>
-		<div
-			class="sel-cover {levelSpec.levelOptions.length > 1 ? 'sel-clicky' : ''}"
-			style="--d2-shift: {d2OffsetCenter}%"
-		>
+		<div class="sel-cover {canSelect ? 'sel-clicky' : ''}" style="--d2-shift: {d2OffsetCenter}%">
 			<span>
 				{semantify(selectedBreakdowns[index], rootType, selectedBreakdowns, index).split('<')[0]}
 			</span>
 		</div>
-		{#if levelSpec.levelOptions.length > 1}
+		{#if canSelect}
 			<select bind:value={selectedBreakdowns[index]} class="sel-base" style="opacity: 0">
 				{#each levelSpec.levelOptions as bd}
 					<option value={bd}>

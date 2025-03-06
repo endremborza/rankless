@@ -57,6 +57,7 @@
 				on:focus={() => setHover(i, y)}
 				on:mouseleave={loseHover}
 				on:focusout={loseHover}
+				style="filter: drop-shadow(0px 0px 0.15px rgba(220, 220, 220, 0.9));"
 			/>
 		{/if}
 	{/each}

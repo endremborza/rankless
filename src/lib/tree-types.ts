@@ -48,13 +48,14 @@ export type RootType = 'authors' | 'institutions' | 'sources' | 'countries' | 's
 export type EntityType = RootType | 'works' | 'topics';
 export type SearchResult = {
 	name: string;
-	id: string;
 	semanticId: string;
 	rootType: RootType;
 	papers: number;
 	citations: number;
 };
+
 export type TreeResponse = { tree: ResponseNode; atts: AttributeLabels };
+export type TopsResponse = { name: RootType; entities: SearchResult[] }[];
 export type TreeSpec = {
 	rootType: RootType;
 	breakdowns: BreakdownSpec[];
