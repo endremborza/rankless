@@ -67,7 +67,7 @@
 		--text-bg-2: var(--color-theme-darkgrey3);
 		--hard-overlay: #4f4f4f70;
 		--color-text: var(--color-theme-white);
-		--accent-text: var(--color-theme-lightgrey);
+		--accent-text: var(--color-theme-pink);
 		--highlight-text: var(--color-theme-yellow);
 	}
 }
@@ -125,6 +125,9 @@ select {
 	padding: var(--unified-padding)
 }
 
+.ali {
+	text-decoration: underline;
+}
 
 .marged {
 	margin: var(--unified-margin)
