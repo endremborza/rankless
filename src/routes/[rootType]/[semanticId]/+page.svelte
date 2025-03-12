@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { APP_NAME, ROOT_TYPES } from '$lib/constants';
 	import { pluralize, prettifyRoot, SEMANTIC_CONF } from '$lib/text-format-util';
-	import { entToLink, getDefaultYear, idFromBd, toLinkWithParams } from '$lib/tree-functions';
+	import { entToLink } from '$lib/tree-functions';
 
 	import type * as tt from '$lib/tree-types';
 
@@ -43,7 +43,7 @@
 		let link = bold;
 		if (ROOT_TYPES.includes(r.etype as tt.RootType)) {
 			let href = entToLink({ rootType: r.etype as tt.RootType, semanticId: r.semanticId });
-			link = `<a href="${href}">${r.name}</a>`;
+			link = `<a class="ali" href="${href}">${r.name}</a>`;
 		}
 		return {
 			score: r.score,
