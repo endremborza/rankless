@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { APP_NAME, ROOT_TYPES } from '$lib/constants';
+	import { APP_NAME, COMPLETE_YEAR, ROOT_TYPES } from '$lib/constants';
 	import { pluralize, prettifyRoot, SEMANTIC_CONF } from '$lib/text-format-util';
 	import { entToLink } from '$lib/tree-functions';
 
@@ -13,6 +13,23 @@
 
 	let innerHeight: number;
 	let innerWidth: number;
+
+	type RelTypes =
+		| 'paper-fields'
+		| 'citing-fields'
+		| 'paper-topics'
+		| 'collab-nation'
+		| 'paper-journals'
+		| 'paper-authors';
+
+	const REL_TYPES: RelTypes[] = [
+		'paper-fields',
+		'citing-fields',
+		'paper-topics',
+		'collab-nation',
+		'paper-journals',
+		'paper-authors'
+	];
 
 	export let data: {
 		view: tt.View;
@@ -29,15 +46,6 @@
 			prefix + commaAndjoin([...rels.map((r) => fun(toDecorated(r)))]);
 	}
 
-	const REL_DESCS = [
-		'Papers in fields',
-		'Citing in fields',
-		'Papers in topics',
-		'Collaborations with nation',
-		'Published in journal',
-		'Authors publishing'
-	];
-
 	function toDecorated(r: tt.RelatedEntity): DecoratedRelated {
 		let bold = `<b>${r.name}</b>`;
 		let link = bold;
@@ -53,10 +61,7 @@
 		};
 	}
 
-	type Semantifyer = {
-		fun: (rels: tt.RelatedEntity[]) => string;
-		i: number;
-	};
+	type Semantifyer = (rels: tt.RelatedEntity[]) => string;
 
 	type DecoratedRelated = {
 		score: number;
@@ -65,126 +70,137 @@
 		bold: string;
 	};
 
-	function getSemantifyers(rootName: string, rootType: tt.RootType): Semantifyer[] {
+	function getSemantifyers(rootName: string, rootType: tt.RootType): [RelTypes, Semantifyer][] {
 		if (rootType == 'authors') {
 			return [
-				{
-					fun: semFunMaker('This includes ', (r) => `${pluralize('paper', r.score)} in ${r.bold}`),
-					i: 0
-				},
-				{
-					fun: semFunMaker(
-						`${rootName} is often cited by papers focused on `,
-						(r) => `${r.name} (${pluralize('paper', r.score)})`
-					),
-					i: 2
-				},
-				{
-					fun: semFunMaker(
+				[
+					'paper-fields',
+					semFunMaker('This includes ', (r) => `${pluralize('paper', r.score)} in ${r.bold}`)
+				],
+				[
+					'paper-topics',
+					semFunMaker(
 						'The topics of these papers are ',
 						(r) => `${r.name} (${pluralize('paper', r.score)})`
-					),
-					i: 1
-				},
-				{
-					fun: semFunMaker('and collaborates with scholars based in ', (r) => r.link),
-					i: 3
-				},
-				{
-					fun: semFunMaker('and has published in prestigious journals such as ', (r) => r.name),
-					i: 5
-				},
-				{
-					fun: semFunMaker(
-						`${rootName}'s co-authors include `,
-						(r) => `${r.link} (${pluralize('paper', r.score)})`
-					),
-					i: 4
-				}
+					)
+				],
+				[
+					'paper-topics',
+					semFunMaker(
+						`${rootName} is often cited by papers focused on `,
+						(r) => `${r.name} (${pluralize('paper', r.score)})`
+					)
+				],
+				['collab-nation', semFunMaker('and collaborates with scholars based in ', (r) => r.link)],
+				[
+					'paper-authors',
+					semFunMaker(`${rootName}'s co-authors include `, (r) => `${r.link} ${r.score}`)
+				],
+				[
+					'paper-journals',
+					semFunMaker('and has published in prestigious journals such as ', (r) => r.name)
+				]
 			];
 		} else if (rootType == 'institutions') {
 			return [
-				{
-					fun: semFunMaker(
+				[
+					'paper-fields',
+					semFunMaker(
 						'Scholars at this organization have produced ',
 						(r) => `${pluralize('paper', r.score)} in ${r.name}`
-					),
-					i: 0
-				},
-				{
-					fun: semFunMaker(
+					)
+				],
+				[
+					'paper-topics',
+					semFunMaker('on the topics of ', (r) => `${r.name} (${pluralize('paper', r.score)})`)
+				],
+				[
+					'citing-fields',
+					semFunMaker(
 						`Their work is cited by papers focused on `,
 						(r) => `${r.name} (${pluralize('citation', r.score)})`
-					),
-					i: 2
-				},
-				{
-					fun: semFunMaker(
-						'on the topics of ',
-						(r) => `${r.name} (${pluralize('paper', r.score)})`
-					),
-					i: 1
-				},
-				{
-					fun: semFunMaker(`Authors at ${rootName} collaborate with scholars in `, (r) => r.link),
-					i: 3
-				},
-				{
-					fun: semFunMaker('and has published in prestigious journals including ', (r) => r.name),
-					i: 4
-				},
-				{
-					fun: semFunMaker(
-						`${rootName}'s authors include `,
-						(r) => `${r.name} (${pluralize('paper', r.score)})`
-					),
-					i: -1
-				}
+					)
+				],
+				[
+					'collab-nation',
+					semFunMaker(`Authors at ${rootName} collaborate with scholars in `, (r) => r.link)
+				],
+				[
+					'paper-journals',
+					semFunMaker('and has published in prestigious journals including ', (r) => r.name)
+				],
+				[
+					'paper-authors',
+					semFunMaker(`${rootName}'s most productive authors include `, (r) => r.link)
+				]
 			];
 		} else if (rootType == 'countries') {
 			return [
-				{
-					fun: semFunMaker(
+				[
+					'paper-fields',
+					semFunMaker(
 						`Scholars in ${rootName} publish mostly in `,
 						(r) => `${r.name} (${pluralize('paper', r.score)})`
-					),
-					i: 0
-				},
-				{
-					fun: semFunMaker(
+					)
+				],
+				[
+					'citing-fields',
+					semFunMaker(
 						'and are cited by scholars working on ',
 						(r) => `${r.name} (${pluralize('citation', r.score)})`
-					),
-					i: 1
-				},
-				{
-					fun: semFunMaker(
-						'on the topics of ',
-						(r) => `${r.name} (${pluralize('paper', r.score)})`
-					),
-					i: -1
-				},
-				{
-					fun: semFunMaker(
-						`Scholars in ${rootName} collaborate with scholars from `,
-						(r) => r.link
-					),
-					i: 2
-				},
-				{
-					fun: semFunMaker(
+					)
+				],
+				[
+					'collab-nation',
+					semFunMaker(`Scholars in ${rootName} collaborate with scholars from `, (r) => r.link)
+				],
+				[
+					'paper-journals',
+					semFunMaker(
 						`Scholars in ${rootName} have published in prestigous journals including `,
 						(r) => r.name
-					),
-					i: 4
-				},
-				{
-					fun: semFunMaker(
-						`Some of the most productive scholars in ${rootName} are `,
+					)
+				]
+			];
+		} else if (rootType == 'sources') {
+			return [
+				[
+					'paper-fields',
+					semFunMaker(
+						`Papers published in ${rootName} usually cover `,
+						(r) => `${r.link} (${pluralize('paper', r.score)})`
+					)
+				],
+				[
+					'paper-topics',
+					semFunMaker(
+						'specifically the topics of ',
 						(r) => `${r.name} (${pluralize('paper', r.score)})`
-					),
-					i: 3
-				}
+					)
+				],
+				[
+					'paper-authors',
+					semFunMaker(`The most active scholars publishing in ${rootName} are `, (r) => r.link)
+				]
+			];
+		} else if (rootType == 'subfields') {
+			return [
+				[
+					'paper-topics',
+					semFunMaker(
+						`Papers on ${rootType} are most often about the specific topic of `,
+						(r) => r.name
+					)
+				],
+				['paper-fields', semFunMaker('and also cover the fields of ', (r) => r.link)],
+				[
+					'citing-fields',
+					semFunMaker(`Papers citing papers on ${rootType} are usually about`, (r) => r.link)
+				],
+				[
+					'paper-authors',
+					semFunMaker(`Some of the most active scholars covering ${rootName} are `, (r) => r.link)
+				]
 			];
 		}
 
@@ -199,25 +215,15 @@
 		citeText: string
 	) {
 		let semantifyers = getSemantifyers(rootName, rootType);
-		const out: string[] = [];
-		let id = 0;
-		let subs: tt.RelatedEntity[] = [];
-		const adder = () => {
-			if (id < semantifyers.length) {
-				let semI = semantifyers[id];
-				out[semI.i] = semI.fun(subs);
-			}
-		};
+		let relationsMap: Record<RelTypes, tt.RelatedEntity[]> = Object.fromEntries(
+			REL_TYPES.map((e) => [e as RelTypes, [] as tt.RelatedEntity[]])
+		);
 		for (const rel of view.primeRelations) {
-			if (rel.relType != id) {
-				adder();
-				id = rel.relType;
-				subs = [];
-			}
-			subs.push(rel);
+			relationsMap[REL_TYPES[rel.relType]].push(rel);
 		}
-		if (subs.length > 0) {
-			adder();
+		const out: string[] = [];
+		for (const [relK, relSemantifyer] of semantifyers) {
+			out.push(relSemantifyer(relationsMap[relK]));
 		}
 
 		let postText = sentenceJoiner(out);
@@ -225,8 +231,8 @@
 			authors: `${rootName} has authored ${paperText} that have received a total of ${citeText}`,
 			institutions: `In recent decades, authors affiliated with ${rootName} have published ${paperText}, which have received a total of ${citeText}`,
 			countries: `In recent decades scholars affiliated with institutions in ${rootName} have published ${paperText}, which have received a total of ${citeText}`,
-			sources: ``,
-			subfields: ``
+			subfields: `${paperText} covering ${rootName} have received a total of ${citeText} since ${COMPLETE_YEAR}`,
+			sources: `The ${paperText} published in ${rootName} in the last decades have received a total of ${citeText}`
 		};
 		return {
 			prefix: prefixes[rootType],
@@ -258,17 +264,16 @@
 	function getTopRels(view: tt.View) {
 		const out = [];
 		let id = 0;
-		let sub: { desc: string; subs: tt.RelatedEntity[] } = { desc: REL_DESCS[id], subs: [] };
+		let sub: { desc: string; subs: tt.RelatedEntity[] } = { desc: REL_TYPES[id], subs: [] };
 		for (const rel of view.primeRelations) {
 			if (rel.relType != id) {
 				out.push(sub);
 				id = rel.relType;
-				sub = { desc: REL_DESCS[id], subs: [] };
+				sub = { desc: REL_TYPES[id], subs: [] };
 			}
 			sub.subs.push(rel);
 		}
 		out.push(sub);
-
 		return out;
 	}
 
