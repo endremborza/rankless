@@ -185,6 +185,11 @@
 		while (selectedBreakdowns.length < MAX_LEVEL_COUNT) {
 			selectedBreakdowns.push('');
 		}
+		let newTreeSpec = treeSpecs.specs[conf.rootType][conf.treeId];
+		let newGlobalSpec = isGlobalSpecialization;
+		if (newTreeSpec.defaultIsSpec != currentTreeSpec.defaultIsSpec) {
+			newGlobalSpec = newTreeSpec.defaultIsSpec;
+		}
 		fetch(tf.treeBeUrl(BE_REMOTE_URL, conf)).then((res) => {
 			res
 				.json()
@@ -195,14 +200,16 @@
 						selectionState,
 						currentTreeSpec,
 						highlightRoot,
-						selectedBreakdowns
+						selectedBreakdowns,
+						isGlobalSpecialization
 					] = [
 						jsv.tree,
 						jsv.atts,
 						tf.intersectionTree(tf.pruneTree(selectionState, breakdownMatchLevel), jsv.tree),
-						treeSpecs.specs[conf.rootType][conf.treeId],
+						newTreeSpec,
 						selectedQcRootId,
-						selectedBreakdowns
+						selectedBreakdowns,
+						newGlobalSpec
 					];
 				})
 				.catch((e) => {
