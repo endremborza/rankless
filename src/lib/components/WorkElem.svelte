@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { AttributeLabels } from '$lib/tree-types';
 	import { onMount } from 'svelte';
+	import HoverI from './HoverI.svelte';
+	import HoverBlock from './HoverBlock.svelte';
 
 	export let workId: number;
 	export let citeText: string;
@@ -9,6 +11,8 @@
 
 	let title = '';
 	let doi = '';
+	let abstract = '';
+	let abstractDetails = false;
 	let y = 0;
 	let authors: { name: string; link: string; isOfInst: boolean }[] = [];
 	let localCount = 0;
@@ -17,16 +21,24 @@
 	$: instName = instAtts?.name || '';
 	$: instOaNum = (attributeLabels?.institutions || {})[instId || 0]?.oaId || -1;
 	$: fullInstName = instName.length > 50 ? 'affiliated' : `from ${instName}`;
-	$: href = `https://openalex.org/works/W${workId}`;
+	let oaLink = `https://openalex.org/works/W${workId}`;
+	$: href = doi.length > 0 ? doi : oaLink;
 
 	onMount(() => {
 		if (workId == 0) return;
-		let oaUrl = `https://api.openalex.org/works/W${workId}?select=publication_year,title,doi,authorships`;
+		let oaUrl = `https://api.openalex.org/works/W${workId}?select=publication_year,title,doi,authorships,abstract_inverted_index`;
 		let instOaId = `https://openalex.org/I${instOaNum}`;
 		fetch(oaUrl).then((resp) => {
 			resp.json().then((o) => {
 				doi = o.doi;
 				y = o.publication_year;
+				let aWords = [];
+				for (const [word, idxs] of Object.entries(o.abstract_inverted_index || {})) {
+					for (const i of idxs) {
+						aWords[i] = word;
+					}
+				}
+				abstract = aWords.join(' ');
 				for (let aship of o.authorships) {
 					let isOfInst = false;
 					for (let aff of aship.institutions || []) {
@@ -52,11 +64,18 @@
 			<rowheader class="hover-m">Title:</rowheader>
 			<h3 class="hover-l"><a {href} target="_blank">{title}</a> ({y})</h3>
 		</row>
-		{#if doi}
+		{#if abstract}
 			<row>
-				<rowheader class="hover-m">Doi:</rowheader>
+				<rowheader class="hover-m">Abstract:</rowheader>
 				<span class="hover-m">
-					<a href={doi} target="_blank">{doi}</a>
+					{#if abstract.length > 80}
+						{abstract.slice(0, 80)}... <HoverI bind:hoverToggle={abstractDetails} />
+						<HoverBlock show={abstractDetails} style="bottom: 20px; right: 20px; width: 80%;"
+							>{abstract}</HoverBlock
+						>
+					{:else}
+						{abstract}
+					{/if}
 				</span>
 			</row>
 		{/if}
@@ -74,7 +93,7 @@
 						</a>
 					{/each}
 					{#if authors.length > 3}
-						<a {href} target="_blank">& {authors.length - 3} others</a>
+						<a href={oaLink} target="_blank">& {authors.length - 3} others</a>
 					{/if}
 				</al>
 			</row>
