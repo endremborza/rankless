@@ -36,8 +36,5 @@
 		"typescript": "^5.0.0",
 		"vite": "^5.0.0"
 	},
-	"type": "module",
-	"dependencies": {
-		"unidecode": "^0.1.8"
-	}
+	"type": "module"
 }
