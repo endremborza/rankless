@@ -67,7 +67,7 @@
 
 	onMount(() => {
 		mounted = true;
-		if (shallowed) {
+		if (shallowed && allowControls) {
 			let initConf = conf;
 			fetch(tf.treeBeUrl(BE_REMOTE_URL, initConf, undefined)).then((res) => {
 				res
