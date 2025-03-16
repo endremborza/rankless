@@ -39,6 +39,7 @@
 		tree: tt.ResponseNode;
 		atts: tt.AttributeLabels;
 		svgLink: string;
+		shallowed: boolean;
 	};
 
 	function semFunMaker(prefix: string, fun: (r: DecoratedRelated) => string) {
@@ -347,6 +348,7 @@
 			completeTree={data.tree}
 			{innerHeight}
 			{innerWidth}
+			shallowed={data.shallowed}
 		/>
 	</div>
 </div>
