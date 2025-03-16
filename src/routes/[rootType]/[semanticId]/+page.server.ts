@@ -24,15 +24,16 @@ export const load: PageServerLoad = async ({ params, url }) => {
 		.then((specs) => specs);
 
 	let conf: tt.FullTreeConfig = { semanticId, year: spec.year, treeId: spec.treeId, rootType };
-	const { tree, atts } = await fetch(tf.treeBeUrl(BE_URL, conf))
+	const { tree, atts, shallowed } = await fetch(tf.treeBeUrl(BE_URL, conf, 1))
 		.then((res) => res.json())
 		.then((resp) => resp);
+
 
 	let sp = url.searchParams.toString();
 	let svgLink = `${FULL_HOST}/pic/${rootType}/${semanticId}/breakdown.svg?${sp}`;
 
 	if (view) {
-		return { view, conf, treeSpecs, selectionState: spec.selectionState, tree, atts, svgLink };
+		return { view, conf, treeSpecs, selectionState: spec.selectionState, tree, atts, svgLink, shallowed };
 	}
 
 	error(404, 'Not found');

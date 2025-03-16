@@ -21,6 +21,7 @@
 	export let removeHighlightUnhover = true;
 	export let setUrl = true;
 	export let allowControls = true;
+	export let shallowed = false;
 	export let prefixText = '';
 	export let treeSpecs: tt.TreeSpecs;
 	export let selectionState: tt.BareNode = { children: {} };
@@ -66,6 +67,26 @@
 
 	onMount(() => {
 		mounted = true;
+		if (shallowed) {
+			let initConf = conf;
+			fetch(tf.treeBeUrl(BE_REMOTE_URL, initConf, undefined)).then((res) => {
+				res
+					.json()
+					.then((jsv: tt.TreeResponse) => {
+						if (
+							initConf.treeId == conf.treeId &&
+							initConf.semanticId == conf.semanticId &&
+							initConf.year == conf.year
+						) {
+							console.log('deepening');
+							[completeTree, attributeLabels, shallowed] = [jsv.tree, jsv.atts, false];
+						}
+					})
+					.catch((e) => {
+						console.error('error', e);
+					});
+			});
+		}
 	});
 
 	$: childD1Rate = expandControlInd == undefined ? defaultChildD1Rate : 0.7;
@@ -190,7 +211,7 @@
 		if (newTreeSpec.defaultIsSpec != currentTreeSpec.defaultIsSpec) {
 			newGlobalSpec = newTreeSpec.defaultIsSpec;
 		}
-		fetch(tf.treeBeUrl(BE_REMOTE_URL, conf)).then((res) => {
+		fetch(tf.treeBeUrl(BE_REMOTE_URL, conf, undefined)).then((res) => {
 			res
 				.json()
 				.then((jsv: tt.TreeResponse) => {
@@ -201,7 +222,8 @@
 						currentTreeSpec,
 						highlightRoot,
 						selectedBreakdowns,
-						isGlobalSpecialization
+						isGlobalSpecialization,
+						shallowed
 					] = [
 						jsv.tree,
 						jsv.atts,
@@ -209,7 +231,8 @@
 						newTreeSpec,
 						selectedQcRootId,
 						selectedBreakdowns,
-						newGlobalSpec
+						newGlobalSpec,
+						false
 					];
 				})
 				.catch((e) => {
