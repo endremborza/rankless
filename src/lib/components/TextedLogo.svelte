@@ -5,6 +5,7 @@
 
 	export let size = 40;
 	export let pad = 40;
+	export let varColor = 'color-theme-darkgrey';
 </script>
 
 <div id="hl" style="padding-left: {pad}px;">
@@ -12,8 +13,8 @@
 		<PathLogo />
 	</svg>
 	<span id="logo-text">
-		<a href={`${base}/`}> <b>{APP_NAME}</b></a>
-		<span id="by-span">by CCL</span>
+		<a href={`${base}/`} style="color: var(--{varColor})"> <b>{APP_NAME}</b></a>
+		<span id="by-span" style="color: var(--{varColor})">by CCL</span>
 	</span>
 </div>
 
@@ -47,6 +48,5 @@
 
 	a {
 		text-decoration: none;
-		color: var(--color-theme-darkgrey);
 	}
 </style>
