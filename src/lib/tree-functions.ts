@@ -60,9 +60,14 @@ export function idFromBd(bd: tt.BreakdownSpec): string {
 	return `${bd.attributeType}-${bd.sourceSide}`;
 }
 
-export function treeBeUrl(root: string, conf: tt.FullTreeConfig): string {
-	return `${root}/trees/${conf.rootType}/${conf.semanticId}?tid=${conf.treeId}&year=${conf.year}`;
+export function treeBeUrl(root: string, conf: tt.FullTreeConfig, shallow: undefined | number = undefined): string {
+	let url = `${root}/trees/${conf.rootType}/${conf.semanticId}?tid=${conf.treeId}&year=${conf.year}`;
+	if (shallow != undefined) {
+		url += `&shallow=${shallow}`
+	}
+	return url
 }
+
 
 export function entToLink(e: { rootType: tt.RootType; semanticId: string }): string {
 	return `${base}/${e.rootType}/${e.semanticId}`;
@@ -97,7 +102,7 @@ export function parseLinkWithParams(params: URLSearchParams, rootType: tt.RootTy
 }
 
 export function getDefaultYear(rt: tt.RootType) {
-	if (['authors', 'sources'].includes(rt)) {
+	if (['authors', 'sources', 'institutions'].includes(rt)) {
 		return COMPLETE_YEAR
 	}
 	return 2020
