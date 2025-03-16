@@ -7,6 +7,7 @@
 	import { BE_REMOTE_URL } from '$lib/constants';
 	import { page } from '$app/stores';
 	import { SEMANTIC_CONF, prettifyRoot } from '$lib/text-format-util';
+	import TextedLogo from '$lib/components/TextedLogo.svelte';
 
 	export let data;
 	let mounted = false;
@@ -88,7 +89,7 @@
 			treeId: Math.floor(Math.random() * treeCount),
 			rootType
 		};
-		fetch(tf.treeBeUrl(BE_REMOTE_URL, confBase))
+		fetch(tf.treeBeUrl(BE_REMOTE_URL, confBase, 1))
 			.then((res) => res.json())
 			.then((resp) => {
 				[conf, treeResp, prefixText, rootName, selectionState] = [
@@ -111,12 +112,9 @@
 	$: loadSelected(selectedInds, data.tops, mounted);
 </script>
 
-<div id="typewrite">
-	<span id="tw-full">
-		<span id="tw-1"> explore </span>
-		<span id="tw-2">
-			<TypeWriter {texts} speed={50} bind:wordInd />
-		</span>
+<div id="land-header">
+	<span>
+		<TextedLogo varColor={'color-text'} pad={0} size={30} />
 	</span>
 </div>
 
@@ -169,7 +167,7 @@
 		background: var(--color-theme-red);
 	}
 
-	#typewrite {
+	#land-header {
 		position: fixed;
 		top: 0px;
 		height: 7svh;
@@ -178,6 +176,12 @@
 		align-items: center;
 		justify-content: center;
 		width: 100%;
+	}
+
+	#land-header > span {
+		width: min(290px, 60vw);
+		font-size: min(1.4rem, 4vw);
+		left: 20vw;
 	}
 
 	#tops {
@@ -214,12 +218,6 @@
 		min-width: 360px;
 		flex: 8;
 		pointer-events: none;
-	}
-
-	#tw-full {
-		width: min(290px, 60vw);
-		font-size: min(1.4rem, 4vw);
-		left: 20vw;
 	}
 
 	#tw-2 {
