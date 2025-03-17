@@ -157,12 +157,12 @@
 <h2>We need to understand more and rank less</h2>
 
 <p class="btxt">
-	Rankless is an experimental data visualization project that allows users to interactively explore
-	the impact of thousands of universities. It is built on the idea that universities generate impact
-	that is specific to a geography and to certain topics, and that rankings obscure that impact by
-	reducing it to a single dimension. By transcending rankings, we highlight a university’s
-	multidimensional impact by showing you who they work with and who cites them. To understand more,
-	sometimes, we need to rank less.
+	Rankless is an experimental data visualization project that allows users to explore the impact of
+	thousands of universities. It is built on the idea that universities generate impact that is
+	specific to a geography and to certain topics, and that rankings obscure that impact by reducing
+	it to a single dimension. By transcending rankings, we highlight a university’s multidimensional
+	impact by showing you who they work with and who cites them. To understand more, sometimes, we
+	need to rank less.
 </p>
 
 <h1>Our Team</h1>
