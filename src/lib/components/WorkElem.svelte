@@ -30,7 +30,7 @@
 		let instOaId = `https://openalex.org/I${instOaNum}`;
 		fetch(oaUrl).then((resp) => {
 			resp.json().then((o) => {
-				doi = o.doi;
+				doi = o.doi || '';
 				y = o.publication_year;
 				let aWords = [];
 				for (const [word, idxs] of Object.entries(o.abstract_inverted_index || {})) {
