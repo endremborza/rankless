@@ -132,7 +132,7 @@
 				],
 				[
 					'paper-authors',
-					semFunMaker(`${rootName}'s most productive authors include `, (r) => r.link)
+					semFunMaker(`Some of ${rootName}'s most productive authors include `, (r) => r.link)
 				]
 			];
 		} else if (rootType == 'countries') {
