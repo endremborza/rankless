@@ -202,7 +202,7 @@
 	<div id="main-foot">
 		<TextedLogo pad={0} size={30} />
 		<span>{LATEST_YEAR}</span>
-		<div id="foot-r"><a href={base + '/about#contact'}>Contact</a></div>
+		<div id="foot-r"><a href="{base}/about#contact">Contact</a></div>
 	</div>
 </div>
 
