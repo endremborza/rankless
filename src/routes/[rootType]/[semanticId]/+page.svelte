@@ -306,10 +306,10 @@
 		<HoverBlock
 			show={showIndexedCiteText}
 			style={'top: 20svh; left:20vw; width: 60vw;max-width: 550px'}
-			>Indexed citations are citations from papers that are loaded into our database to create
-			breakdowns of impact. These papers are categorized as articles, are not retracted and have at
-			least 1 citation from any work.</HoverBlock
 		>
+			Citations made by non-retracted papers categorized as "article", "book", or "review" that have
+			received at least one citation and are not retracted and are not retracted.
+		</HoverBlock>
 		<div id="nametag">
 			<h1>{rootName}</h1>
 			<div>
