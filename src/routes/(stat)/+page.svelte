@@ -219,9 +219,4 @@
 		flex: 8;
 		pointer-events: none;
 	}
-
-	#tw-2 {
-		background-color: var(--color-theme-darkblue);
-		color: var(--color-theme-white);
-	}
 </style>
