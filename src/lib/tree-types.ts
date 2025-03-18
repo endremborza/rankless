@@ -54,7 +54,7 @@ export type SearchResult = {
 	citations: number;
 };
 
-export type TreeResponse = { tree: ResponseNode; atts: AttributeLabels };
+export type TreeResponse = { tree: ResponseNode; atts: AttributeLabels, shallowed: boolean };
 export type TopsResponse = { name: RootType; entities: SearchResult[] }[];
 export type TreeSpec = {
 	rootType: RootType;
