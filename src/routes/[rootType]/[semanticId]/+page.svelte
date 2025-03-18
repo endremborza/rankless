@@ -128,7 +128,7 @@
 				],
 				[
 					'paper-journals',
-					semFunMaker('and has published in prestigious journals including ', (r) => r.name)
+					semFunMaker('and have published in prestigious journals including ', (r) => r.name)
 				],
 				[
 					'paper-authors',
