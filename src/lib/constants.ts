@@ -1,8 +1,9 @@
 import type { RootType } from './tree-types';
+import { PUBLIC_ORIGIN } from '$env/static/public';
 
 export const APP_NAME = 'Rankless';
 
-export const FULL_HOST = 'https://alpha.rankless.org';
+export const FULL_HOST = PUBLIC_ORIGIN || 'http://127.0.0.1';
 export const LAST_MOD = '2025-02-13';
 export const SITEMAP_STEP_SIZE = 1000;
 
