@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import HoverI from './HoverI.svelte';
 	import HoverBlock from './HoverBlock.svelte';
+	import AxesOfFocusReach from './AxesOfFocusReach.svelte';
 
 	export let workId: number;
 	export let citeText: string;
@@ -48,7 +49,9 @@
 							break;
 						}
 					}
-					authors.push({ name: aship.author.display_name, link: aship.author.id, isOfInst });
+					let lElems = aship.author.id.split('/');
+					let link = `/oa-id/${lElems[lElems.length - 1]}`;
+					authors.push({ name: aship.author.display_name, link, isOfInst });
 				}
 				authors = authors.sort((l, r) => Number(r.isOfInst) - Number(l.isOfInst));
 				title = o.title;
