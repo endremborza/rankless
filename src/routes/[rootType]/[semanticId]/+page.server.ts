@@ -24,10 +24,13 @@ export const load: PageServerLoad = async ({ params, url }) => {
 		.then((specs) => specs);
 
 	let conf: tt.FullTreeConfig = { semanticId, year: spec.year, treeId: spec.treeId, rootType };
-	const { tree, atts, shallowed } = await fetch(tf.treeBeUrl(BE_URL, conf, 1))
+	const treeResp: tt.TreeResponse = await fetch(tf.treeBeUrl(BE_URL, conf, 1))
 		.then((res) => res.json())
 		.then((resp) => resp);
-
+	if (treeResp.tree == undefined || treeResp.shallowed == undefined || treeResp.atts == undefined) {
+		error(404, 'Not found');
+	}
+	const { tree, atts, shallowed } = treeResp;
 
 	let sp = url.searchParams.toString();
 	let svgLink = `${FULL_HOST}/pic/${rootType}/${semanticId}/breakdown.svg?${sp}`;
