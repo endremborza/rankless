@@ -93,10 +93,7 @@
 					)
 				],
 				['collab-nation', semFunMaker('and collaborates with scholars based in ', (r) => r.link)],
-				[
-					'paper-authors',
-					semFunMaker(`${rootName}'s co-authors include `, (r) => `${r.link} ${r.score}`)
-				],
+				['paper-authors', semFunMaker(`${rootName}'s co-authors include `, (r) => r.link)],
 				[
 					'paper-journals',
 					semFunMaker('and has published in prestigious journals such as ', (r) => r.name)
