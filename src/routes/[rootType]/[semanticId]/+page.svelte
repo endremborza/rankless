@@ -96,7 +96,7 @@
 				['paper-authors', semFunMaker(`${rootName}'s co-authors include `, (r) => r.link)],
 				[
 					'paper-journals',
-					semFunMaker('and has published in prestigious journals such as ', (r) => r.name)
+					semFunMaker('and has published in prestigious journals such as ', (r) => r.link)
 				]
 			];
 		} else if (rootType == 'institutions') {
@@ -125,7 +125,7 @@
 				],
 				[
 					'paper-journals',
-					semFunMaker('and have published in prestigious journals including ', (r) => r.name)
+					semFunMaker('and have published in prestigious journals including ', (r) => r.link)
 				],
 				[
 					'paper-authors',
@@ -156,7 +156,7 @@
 					'paper-journals',
 					semFunMaker(
 						`Scholars in ${rootName} have published in prestigous journals including `,
-						(r) => r.name
+						(r) => r.link
 					)
 				]
 			];
