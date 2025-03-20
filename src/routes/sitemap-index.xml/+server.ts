@@ -24,9 +24,6 @@ export const GET: RequestHandler = async () => {
 	);
 
 	let innards = [];
-
-	max_page = Math.min(10, max_page);
-
 	for (let i = 0; i < max_page; i++) {
 		innards.push(get_sm_entry(`-${i + 1}`));
 	}
