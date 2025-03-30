@@ -19,9 +19,16 @@ export const load: PageServerLoad = async ({ params, url }) => {
 		.then((res) => res.json())
 		.then((view) => view);
 
-	const treeSpecs = await fetch(`${BE_URL}/specs`)
+	const treeSpecs: tt.TreeSpecs = await fetch(`${BE_URL}/specs`)
 		.then((res) => res.json())
-		.then((specs) => specs);
+		.then((specs: tt.TreeSpecs) => {
+			//possible quick fixes in specs
+			// for (let i = 0; i < specs.specs['sources'].length; i++) {
+			// specs.specs['sources'][i].defaultIsSpec = false;
+			// }
+			return specs
+		});
+
 
 	let conf: tt.FullTreeConfig = { semanticId, year: spec.year, treeId: spec.treeId, rootType };
 	const treeResp: tt.TreeResponse = await fetch(tf.treeBeUrl(BE_URL, conf, 1))
