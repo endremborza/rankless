@@ -1,2 +1,2 @@
-# Academic Impact Explorer
+# Rankless monorepo
 
