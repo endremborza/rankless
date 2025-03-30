@@ -1,0 +1,12 @@
+[lib]
+proc-macro = true
+
+[package]
+name = "dmove-macro"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+clap = { version = "4.5.20", features = ["derive"] }
+syn = "2.0"
+quote = "1.0"
