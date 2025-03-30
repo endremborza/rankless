@@ -1,0 +1,11 @@
+[workspace]
+members = [
+    "dmove",
+    "dmove_macro",
+    "muwo_search",
+    "rankless_rs",
+    "rankless_server",
+    "rankless_trees",
+]
+package = { version = "0.1.0", edition = "2021" }
+resolver = "2"
