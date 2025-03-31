@@ -250,9 +250,14 @@ class Transper:
 
     def sync_txt(self, txt, name, dir):
         p = Path(name)
+        existed = p.exists()
+        if existed:
+            past_blob = p.read_bytes()
         p.write_text(txt)
         self.ssh.prsync(p, dir)
         p.unlink()
+        if existed:
+            p.write_bytes(past_blob)
 
     def sync_service(self, txt, name):
         self.sync_txt(txt, name, self.systemd_dir)
