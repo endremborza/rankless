@@ -547,7 +547,6 @@ def new_small_alpha(pushed_certs: bool):
 
 
 def new_large_alpha():
-    assert get_running_inst(False) is None
     new_alpha_inst = get_new_inst(500, BIG16)
     tpr = get_tpr(new_alpha_inst)
     tpr.setup(backend=True, bun=True)
