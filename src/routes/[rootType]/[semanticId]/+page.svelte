@@ -193,7 +193,7 @@
 				['paper-fields', semFunMaker('and also cover the fields of ', (r) => r.link)],
 				[
 					'citing-fields',
-					semFunMaker(`Papers citing papers on ${rootType} are usually about`, (r) => r.link)
+					semFunMaker(`Papers citing papers on ${rootType} are usually about `, (r) => r.link)
 				],
 				[
 					'paper-authors',
