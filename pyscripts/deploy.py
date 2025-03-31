@@ -556,10 +556,11 @@ def promote_alpha_to_live():
     assert alpha_inst is not None
     tpr = get_tpr(alpha_inst)
     tpr.setup_fe_service(LIVE_DOMAIN, bun=True, procs=12)
+    tpr.update_env()
     for fes in tpr.fe_services:
         fes.restart()
     tpr.setup_nginx(cert=False)
     tpr.add_dns_fw(FW_DOMAIN, cert=False)
-    ec2c.associate_address(
-        InstanceId=alpha_inst.id, AllocationId=live_ip_alloc.alloc_id
-    )
+    # ec2c.associate_address(
+    #     InstanceId=alpha_inst.id, AllocationId=live_ip_alloc.alloc_id
+    # )
