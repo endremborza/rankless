@@ -6,6 +6,7 @@ import type { RequestHandler } from './$types';
 
 import TreeSvg from '$lib/components/TreeSvg.svelte';
 import { BE_URL, MAX_LEVEL_COUNT } from '$lib/constants';
+import { loadSpecs } from '$lib/loading-functions';
 // const TreeSvg = require('$lib/components/TreeSvg.svelte').default;
 
 export const GET: RequestHandler = async ({ params, url }) => {
@@ -33,9 +34,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	const { tree, atts } = await fetch(tf.treeBeUrl(BE_URL, conf, 1))
 		.then((res) => res.json())
 		.then((resp) => resp);
-	const treeSpecs: tt.TreeSpecs = await fetch(`${BE_URL}/specs`)
-		.then((res) => res.json())
-		.then((specs) => specs);
+	const treeSpecs: tt.TreeSpecs = await loadSpecs();
 	const view = await fetch(`${BE_URL}/views/${rootType}/${semanticId}`)
 		.then((res) => res.json())
 		.then((view) => view);
