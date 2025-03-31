@@ -27,6 +27,9 @@ export const load: PageServerLoad = async ({ params, url }) => {
 		.then((res) => res.json())
 		.then((view) => view)
 		.catch(() => error(404, 'Not found'));
+	if (view == undefined) {
+		error(404, 'Not found');
+	}
 
 	const treeSpecs = await lf.loadSpecs();
 
