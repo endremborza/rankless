@@ -52,6 +52,7 @@ data_subdirs = [
     "derive_links3",
     "derive_links4",
     "derive_links5",
+    "cache"
     # "extern",
 ]
 ignores = [
