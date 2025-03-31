@@ -501,14 +501,32 @@ def pull_live_certs():
     get_tpr(get_running_inst(True)).pull_certs()
 
 
+def sync_fe_to_alpha():
+    _sync_fe(False)
+
+
+def sync_fe_to_live():
+    is_at_tag = False
+    assert is_at_tag  # TODO
+    _sync_fe(True)
+
+
+def _sync_fe(live: bool):
+    tpr = get_tpr(get_running_inst(live))
+    tpr.sync_code()
+    tpr.build_js()
+    for fes in tpr.fe_services:
+        fes.restart()
+
+
 def new_small_alpha(pushed_certs: bool):
     assert get_running_inst(False) is None
     new_alpha_inst = get_new_inst(30, SMALL)
     tpr = get_tpr(new_alpha_inst)
     tpr.setup(backend=False, bun=True)
+    tpr.setup_fe_service(ALPHA_DOMAIN, bun=True, procs=2)
     tpr.setup_code()
     tpr.build_js()
-    tpr.setup_fe_service(ALPHA_DOMAIN, bun=True, procs=2)
     for fes in tpr.fe_services:
         fes.restart()
     if pushed_certs:
@@ -529,13 +547,13 @@ def new_large_alpha():
     tpr = get_tpr(new_alpha_inst)
     tpr.setup(backend=True, bun=True)
     tpr.validate()
+    tpr.setup_fe_service(ALPHA_DOMAIN, bun=True, procs=12)
     tpr.setup_code()
     tpr.build_js()
     tpr.build_rs()
 
     tpr.sync_data_to()
 
-    tpr.setup_fe_service(ALPHA_DOMAIN, bun=True, procs=12)
     for fes in tpr.fe_services:
         fes.restart()
 
