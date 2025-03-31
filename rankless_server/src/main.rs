@@ -141,6 +141,8 @@ struct SearchResult {
     semantic_id: String,
     #[serde(skip_serializing)]
     full_name: String,
+    #[serde(skip_serializing)]
+    oa_id: u64,
     #[serde(rename = "dmId")]
     dm_id: usize,
     papers: u32,
@@ -204,6 +206,7 @@ impl PrepFilter for Authors {
             & (sr.papers > 1)
             & (sr.citations > 2)
             & (sr.papers < 1000)
+            & !(consts::AUTHOR_BLACKLIST.contains(&sr.oa_id))
     }
 
     fn is_top(sr: &SearchResult) -> bool {
@@ -267,6 +270,7 @@ impl SearchResult {
             semantic_id,
             papers: entif.wcounts[i].to_usize() as u32,
             citations: entif.ccounts[i].to_usize() as u32,
+            oa_id: entif.oa_id[i],
             dm_id: i,
         }
     }
