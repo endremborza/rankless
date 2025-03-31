@@ -283,7 +283,6 @@
 	$: paperCount = data.view.papers;
 	$: rootName = data.view.name;
 	$: selectedQcRootId = data.view.dmId;
-	$: titleExtension = rootName.length > 0 ? ` - ${rootName}` : '';
 	$: prefixText = SEMANTIC_CONF[rootType]?.start || '';
 	$: paperText = pluralize('paper', paperCount);
 	$: citeText = pluralize('indexed citation', citeCount);
@@ -293,7 +292,7 @@
 </script>
 
 <svelte:head>
-	<title>{APP_NAME}{titleExtension}</title>
+	<title>{rootName}, scholarly publications and citations - {APP_NAME}</title>
 	<meta name="description" content={metaDescriptions} />
 	<meta property="og:image" content={data.svgLink} />
 </svelte:head>
