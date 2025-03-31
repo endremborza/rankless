@@ -73,9 +73,8 @@ export function entToLink(e: { rootType: tt.RootType; semanticId: string }): str
 	return `${base}/${e.rootType}/${e.semanticId}`;
 }
 
-export function toLinkWithParams(conf: tt.FullTreeConfig, selectionState: tt.BareNode): string {
+export function decorBaseLink(url: string, conf: tt.FullTreeConfig, selectionState: tt.BareNode): string {
 	let params = [];
-	let url = entToLink({ rootType: conf.rootType, semanticId: conf.semanticId });
 	if (conf.year != getDefaultYear(conf.rootType)) {
 		params.push(`since=${conf.year}`);
 	}
@@ -90,8 +89,12 @@ export function toLinkWithParams(conf: tt.FullTreeConfig, selectionState: tt.Bar
 	if (params.length > 0) {
 		url += '?' + params.join('&');
 	}
-
 	return url;
+}
+
+export function toLinkWithParams(conf: tt.FullTreeConfig, selectionState: tt.BareNode): string {
+	let url = entToLink({ rootType: conf.rootType, semanticId: conf.semanticId });
+	return decorBaseLink(url, conf, selectionState)
 }
 export function parseLinkWithParams(params: URLSearchParams, rootType: tt.RootType): tt.ShareSpec {
 	let year = parseInt(params.get('since') || getDefaultYear(rootType).toString());
