@@ -28,6 +28,9 @@ run-server:
 extend_csvs bm:
 	python3 -m pyscripts.$@
 
+pull_live_certs sync_fe_to_alpha:
+	python3 -c "from pyscripts.deploy import $@;$@()"
+
 set-full:
 	cp bak-gen-full/* rankless_rs/src/gen/
 	./set-env full
