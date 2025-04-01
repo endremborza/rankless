@@ -345,23 +345,24 @@ impl PreAttResultExtension {
         let prime_relations = self
             .prime_relations
             .iter()
-            .map(|sr| {
+            .filter_map(|sr| {
                 let etype = ETYPE_ENC[sr.etype_id as usize];
                 let att = &satts[etype][sr.dm_id.to_usize()];
-                //TODO - this still displays it on the frontend...
                 let mut semantic_id = "".to_string();
                 if let Some(rstate) = nstates.get(etype) {
                     if let Some(_) = rstate.semantic_id_map.get(&att.semantic_id) {
                         semantic_id = att.semantic_id.clone();
+                    } else {
+                        return None;
                     }
                 }
-                PostAttRelatedEntity {
+                Some(PostAttRelatedEntity {
                     semantic_id,
                     name: att.name.clone(),
                     etype: etype.to_string(),
                     rel_type: sr.rel_type,
                     score: sr.score,
-                }
+                })
             })
             .collect();
         PostAttResultExtension { prime_relations }
