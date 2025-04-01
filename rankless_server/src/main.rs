@@ -203,12 +203,12 @@ i_fil!(Countries, Subfields);
 impl PrepFilter for Authors {
     fn filter_sr(sr: &SearchResult, _gets: &Getters, entif: &RootInterfaces<Self>) -> bool {
         let max_yearly_pcount = *entif.yearly_papers[sr.dm_id].iter().max().unwrap_or(&0);
-        let is_paper_mill = (sr.papers < 10_000) & (max_yearly_pcount < 300);
+        let is_not_paper_mill = (sr.papers < 10_000) & (max_yearly_pcount < 300);
         (sr.full_name.trim().len() > 0)
             & (sr.semantic_id.trim().len() > 0)
             & (sr.papers > 1)
             & (sr.citations > 2)
-            & !(is_paper_mill)
+            & is_not_paper_mill
             & !(consts::AUTHOR_BLACKLIST.contains(&sr.oa_id))
     }
 
