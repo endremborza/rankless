@@ -3,7 +3,7 @@ mod consts;
 use axum::{
     body::Body,
     extract::{Path, Query, State},
-    http::{header::CACHE_CONTROL, HeaderMap, HeaderValue, Method},
+    http::{header::CACHE_CONTROL, HeaderMap, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::get,
     Json, Router,
@@ -57,6 +57,7 @@ const ETYPE_ENC: [&str; 6] = [
 
 type InstTrm = TreeRunManager<(Institutions, Authors, Subfields, Countries, Sources)>;
 type Coords = [f64; 2];
+type NameStateMap = HashMap<&'static str, NameState>;
 
 #[derive(Deserialize)]
 struct BasicQ {
@@ -176,9 +177,9 @@ struct KDItem {
     id: usize,
 }
 
-trait PrepFilter {
+trait PrepFilter: RootInterfaceable + Sized {
     //TODO: move to dmove steps, so that gets is not needed
-    fn filter_sr(sr: &SearchResult, _gets: &Getters) -> bool {
+    fn filter_sr(sr: &SearchResult, _gets: &Getters, _entif: &RootInterfaces<Self>) -> bool {
         (sr.full_name.trim().len() > 0)
             & (sr.semantic_id.trim().len() > 0)
             & (sr.papers > 1)
@@ -200,12 +201,14 @@ macro_rules! i_fil {
 i_fil!(Countries, Subfields);
 
 impl PrepFilter for Authors {
-    fn filter_sr(sr: &SearchResult, _gets: &Getters) -> bool {
+    fn filter_sr(sr: &SearchResult, _gets: &Getters, entif: &RootInterfaces<Self>) -> bool {
+        let max_yearly_pcount = *entif.yearly_papers[sr.dm_id].iter().max().unwrap_or(&0);
+        let is_paper_mill = (sr.papers < 10_000) & (max_yearly_pcount < 300);
         (sr.full_name.trim().len() > 0)
             & (sr.semantic_id.trim().len() > 0)
             & (sr.papers > 1)
             & (sr.citations > 2)
-            & (sr.papers < 1000)
+            & !(is_paper_mill)
             & !(consts::AUTHOR_BLACKLIST.contains(&sr.oa_id))
     }
 
@@ -223,7 +226,7 @@ impl PrepFilter for Institutions {
 }
 
 impl PrepFilter for Sources {
-    fn filter_sr(sr: &SearchResult, gets: &Getters) -> bool {
+    fn filter_sr(sr: &SearchResult, gets: &Getters, _entif: &RootInterfaces<Self>) -> bool {
         let id = NET::<Sources>::from_usize(sr.dm_id);
         let mut best_q = 5;
         for ty8 in YearInterface::iter() {
@@ -334,15 +337,26 @@ impl PreAttResultExtension {
             .collect()
     }
 
-    fn to_post(&self, satts: &AttributeLabelUnion) -> PostAttResultExtension {
+    fn to_post(
+        &self,
+        satts: &AttributeLabelUnion,
+        nstates: &Arc<NameStateMap>,
+    ) -> PostAttResultExtension {
         let prime_relations = self
             .prime_relations
             .iter()
             .map(|sr| {
                 let etype = ETYPE_ENC[sr.etype_id as usize];
                 let att = &satts[etype][sr.dm_id.to_usize()];
+                //TODO - this still displays it on the frontend...
+                let mut semantic_id = "".to_string();
+                if let Some(rstate) = nstates.get(etype) {
+                    if let Some(_) = rstate.semantic_id_map.get(&att.semantic_id) {
+                        semantic_id = att.semantic_id.clone();
+                    }
+                }
                 PostAttRelatedEntity {
-                    semantic_id: att.semantic_id.clone(),
+                    semantic_id,
                     name: att.name.clone(),
                     etype: etype.to_string(),
                     rel_type: sr.rel_type,
@@ -457,7 +471,7 @@ impl NameState {
                     entif,
                 )
             })
-            .filter(|sr| E::filter_sr(sr, gets))
+            .filter(|sr| E::filter_sr(sr, gets, entif))
             .collect();
         responses.sort_by_key(|e| u32::MAX - e.citations);
         responses.into()
@@ -490,7 +504,7 @@ impl InstRelOut {
             inst_sem_id.to_string(),
             iif,
         );
-        if !Institutions::filter_sr(&i_sr, gets) {
+        if !Institutions::filter_sr(&i_sr, gets, iif) {
             inst_sem_id = "".to_string();
         }
 
@@ -505,60 +519,68 @@ impl InstRelOut {
     }
 }
 
-macro_rules! multi_route {
-    ($s: ident, $($T: ty),*) => {
-        {
-            let gets = Arc::new(Getters::new(Arc::new($s)));
-            let static_att_union: Arc<Mutex<AttributeLabelUnion>> = Arc::new(Mutex::new(HashMap::new()));
-            let mut ei_ns_map = HashMap::new();
-            let cv_pair = Arc::new((Mutex::new(None), Condvar::new()));
-            $(
-                add_thread::<$T>(&gets, &static_att_union, &cv_pair, &mut ei_ns_map);
-            )*
+fn get_rest(
+    stowage: Stowage,
+) -> (
+    NameStateMap,
+    Arc<AttributeLabelUnion>,
+    Arc<InstTrm>,
+    Vec<EntityDescription>,
+    Vec<TopResult>,
+) {
+    let gets = Arc::new(Getters::new(Arc::new(stowage)));
+    let static_att_union: Arc<Mutex<AttributeLabelUnion>> = Arc::new(Mutex::new(HashMap::new()));
+    let mut ei_ns_map = HashMap::new();
+    let cv_pair = Arc::new((Mutex::new(None), Condvar::new()));
 
-            let ccount = gets.total_cite_count();
-            set_and_notify(cv_pair, Some(ccount));
-            NodeInterfaces::<Topics>::new(&gets.stowage).update_stats(&mut static_att_union.lock().unwrap(), ccount);
-            NodeInterfaces::<Qs>::new(&gets.stowage).update_stats(&mut static_att_union.lock().unwrap(), ccount);
+    //TODO: make this a macro
+    add_thread::<Institutions>(&gets, &static_att_union, &cv_pair, &mut ei_ns_map);
+    add_thread::<Authors>(&gets, &static_att_union, &cv_pair, &mut ei_ns_map);
+    add_thread::<Subfields>(&gets, &static_att_union, &cv_pair, &mut ei_ns_map);
+    add_thread::<Countries>(&gets, &static_att_union, &cv_pair, &mut ei_ns_map);
+    add_thread::<Sources>(&gets, &static_att_union, &cv_pair, &mut ei_ns_map);
 
-            let mut ns_map: HashMap<&str, NameState> = HashMap::from_iter(ei_ns_map.into_iter().map(|(k,t)|
-                (k, t.join().unwrap())
-            ));
-            let satts = Arc::new(Arc::into_inner(static_att_union).unwrap().into_inner().unwrap());
+    let ccount = gets.total_cite_count();
+    set_and_notify(cv_pair, Some(ccount));
+    NodeInterfaces::<Topics>::new(&gets.stowage)
+        .update_stats(&mut static_att_union.lock().unwrap(), ccount);
+    NodeInterfaces::<Qs>::new(&gets.stowage)
+        .update_stats(&mut static_att_union.lock().unwrap(), ccount);
 
-            let mut tops = Vec::new();
-            let mut descriptions = Vec::new();
-            let mut sem_maps = HashMap::new();
-            let name_state_route = Router::new()
-            $(.route(&format!("/names/{}", <$T as Entity>::NAME), get(name_get))
-                //TODO - this can be done outside a macro if the hashmap is done
-                .route(&format!("/slice/{}/:from/:to", <$T as Entity>::NAME), get(slice_get))
-                .route(&format!("/views/{}/:semantic_id", <$T as Entity>::NAME), get(view_get))
-                .route(&format!("/sem-id-via-oa/{}/:oa_id", <$T as Entity>::NAME), get(sem_id_get))
-                .with_state({
-                    let nstate = ns_map.remove(<$T>::NAME).expect("NState thread panicked");
-                    let entities = nstate.responses.iter().filter(|e| <$T as PrepFilter>::is_top(e)).map(|e| e.clone()).collect();
-                    let name = <$T as Entity>::NAME.to_string();
-                    let dmid_map = HashMap::from_iter(nstate.semantic_id_map.clone().into_iter().map(|(k, v)| (k, v.dm_id)));
-                    sem_maps.insert(name.clone(), dmid_map);
-                    tops.push(TopResult {name, entities });
-                    descriptions.push(EntityDescription::new::<$T>(nstate.responses.len()));
-                    (nstate.into(), satts.clone())
-                })
-            )*;
+    let mut ns_map: NameStateMap = HashMap::new();
+    let mut tops = Vec::new();
+    let mut descriptions = Vec::new();
+    let mut sem_maps = HashMap::new();
 
-            assert_eq!(ns_map.len(), 0);
-            let tm: Arc<InstTrm> = TreeRunManager::new(gets, satts, sem_maps, N_THREADS);
-            (name_state_route, tm, descriptions, tops)
-        }
-    };
+    for (name, handle) in ei_ns_map.into_iter() {
+        let (nstate, tr, ed) = handle.join().expect(&format!("{name} state thread"));
+        let dmid_map = HashMap::from_iter(
+            nstate
+                .semantic_id_map
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k, v.dm_id)),
+        );
+        sem_maps.insert(name.to_string(), dmid_map);
+        tops.push(tr);
+        descriptions.push(ed);
+        ns_map.insert(name, nstate);
+    }
+    let satts = Arc::new(
+        Arc::into_inner(static_att_union)
+            .unwrap()
+            .into_inner()
+            .unwrap(),
+    );
+    let tm: Arc<InstTrm> = TreeRunManager::new(gets, satts.clone(), sem_maps, N_THREADS);
+    (ns_map, satts, tm, descriptions, tops)
 }
 
 fn add_thread<E>(
     gets: &Arc<Getters>,
     atts: &Arc<Mutex<AttributeLabelUnion>>,
     cv_pair: &Arc<(Mutex<Option<f64>>, Condvar)>,
-    ei_ns_map: &mut HashMap<&'static str, JoinHandle<NameState>>,
+    ei_ns_map: &mut HashMap<&'static str, JoinHandle<(NameState, TopResult, EntityDescription)>>,
 ) where
     E: RootInterfaceable + PrepFilter + MainEntity + NamespacedEntity,
 {
@@ -566,6 +588,7 @@ fn add_thread<E>(
     let au_clone = Arc::clone(atts);
     let shared_cvp = Arc::clone(cv_pair);
     let thread = std::thread::spawn(move || {
+        let name = E::NAME.to_string();
         let ent_intf = RootInterfaces::<E>::new(&gets_clone.stowage);
         let nstate = NameState::new::<E>(&ent_intf, &gets_clone);
         let (lock, cvar) = &*shared_cvp;
@@ -575,7 +598,15 @@ fn add_thread<E>(
         }
         let ccount = *data.as_ref().unwrap();
         ent_intf.update_stats(&mut au_clone.lock().unwrap(), ccount);
-        nstate
+        let entities = nstate
+            .responses
+            .iter()
+            .filter(|e| <E as PrepFilter>::is_top(e))
+            .map(|e| e.clone())
+            .collect();
+        let tr = TopResult { name, entities };
+        let ed = EntityDescription::new::<E>(nstate.responses.len());
+        (nstate, tr, ed)
     });
     ei_ns_map.insert(<E>::NAME, thread);
 }
@@ -594,14 +625,14 @@ async fn main() {
         .quality(CompressionLevel::Fastest);
 
     let stowage = Stowage::new(&path);
-    let (response_api, tree_manager, entity_descriptions, tops) = multi_route!(
-        stowage,
-        Authors,
-        Institutions,
-        Sources,
-        Subfields,
-        Countries
-    );
+    let (ns_map, satts, tree_manager, entity_descriptions, tops) = get_rest(stowage);
+
+    let response_api = Router::new()
+        .route("/names/:etype", get(name_get))
+        .route("/slice/:etype/:from/:to", get(slice_get))
+        .route("/views/:etype/:semantic_id", get(view_get))
+        .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))
+        .with_state((ns_map.into(), satts.clone()));
 
     let count_api = static_router(&entity_descriptions);
     let specs_api = static_router(&tree_manager.specs);
@@ -633,17 +664,20 @@ async fn main() {
 }
 
 async fn slice_get(
-    Path(ends): Path<(usize, usize)>,
-    states: State<(Arc<NameState>, Arc<AttributeLabelUnion>)>,
+    Path((etype, pstart, pend)): Path<(String, usize, usize)>,
+    states: State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>)>,
 ) -> Response<Body> {
     const MAX_SLICE: usize = 1000;
-    let state = states.0 .0;
-    let start = min(ends.0, state.responses.len() - 1);
-    let end = min(
-        max(start + 1, min(start + MAX_SLICE, ends.1)),
-        state.responses.len(),
-    );
-    Json(&state.responses[start..end]).into_response()
+    if let Some(state) = states.0 .0.get(etype.as_str()) {
+        let start = min(pstart, state.responses.len() - 1);
+        let end = min(
+            max(start + 1, min(start + MAX_SLICE, pend)),
+            state.responses.len(),
+        );
+        Json(&state.responses[start..end]).into_response()
+    } else {
+        (StatusCode::NOT_FOUND, "no such entity").into_response()
+    }
 }
 
 async fn state_get(str_state: State<Arc<str>>) -> (HeaderMap, Response<Body>) {
@@ -677,15 +711,13 @@ async fn tops_get(tops_state: State<Arc<Vec<TopResult>>>) -> Json<Vec<TopResult>
 }
 
 async fn view_get(
-    Path(semantic_id): Path<String>,
-    states: State<(Arc<NameState>, Arc<AttributeLabelUnion>)>,
+    Path((etype, semantic_id)): Path<(String, String)>,
+    states: State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>)>,
 ) -> Json<Option<ViewResult>> {
-    let state = states.0 .0;
     let satts = states.0 .1;
-    let iopt = state.semantic_id_map.get(&semantic_id);
-    let out = match iopt {
-        None => None,
-        Some(sem_val) => {
+    let mut out = None;
+    if let Some(state) = states.0 .0.get(etype.as_str()) {
+        if let Some(sem_val) = state.semantic_id_map.get(&semantic_id) {
             let i = sem_val.result_id;
             let srs = &state.responses[i];
             let ext = &state.exts[i];
@@ -704,44 +736,50 @@ async fn view_get(
                 similars,
                 ext: ext.clone(),
                 sr: srs.clone(),
-                prep_ext: state.prep_exts[i].to_post(&satts),
+                prep_ext: state.prep_exts[i].to_post(&satts, &states.0 .0),
             };
-            Some(vr)
-        }
-    };
+            out = Some(vr)
+        };
+    }
     Json(out)
 }
 
 async fn sem_id_get(
-    Path(oa_id): Path<usize>,
-    states: State<(Arc<NameState>, Arc<AttributeLabelUnion>)>,
+    Path((etype, oa_id)): Path<(String, usize)>,
+    states: State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>)>,
 ) -> Json<[Option<String>; 1]> {
-    let nstate = states.0 .0;
-    let out = match nstate.oa_id_map.get(&oa_id) {
-        Some(e) => {
+    let mut out = None;
+    if let Some(nstate) = states.0 .0.get(etype.as_str()) {
+        if let Some(e) = nstate.oa_id_map.get(&oa_id) {
             let s = nstate.responses[*e].semantic_id.clone();
-            Some(s)
+            out = Some(s);
         }
-        None => None,
-    };
+    }
     Json([out])
 }
 
 async fn name_get(
+    Path(etype): Path<String>,
     q: Query<BasicQ>,
-    states: State<(Arc<NameState>, Arc<AttributeLabelUnion>)>,
-) -> (HeaderMap, Json<Vec<SearchResult>>) {
-    let state = states.0 .0;
-    let q_string = q.q.clone().unwrap();
-    let top_n_inds = state.engine.query(&q_string);
-    let resp = Json(
-        top_n_inds
-            .into_iter()
-            .filter(|e| (*e as usize) < state.responses.len())
-            .map(|e| state.responses[e as usize].clone())
-            .collect(),
-    );
-    (cache_header(60), resp)
+    states: State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>)>,
+) -> (HeaderMap, Response) {
+    if let Some(state) = states.0 .0.get(etype.as_str()) {
+        let q_string = q.q.clone().unwrap();
+        let top_n_inds = state.engine.query(&q_string);
+        let resp: Json<Vec<SearchResult>> = Json(
+            top_n_inds
+                .into_iter()
+                .filter(|e| (*e as usize) < state.responses.len())
+                .map(|e| state.responses[e as usize].clone())
+                .collect(),
+        );
+        (cache_header(60), resp.into_response())
+    } else {
+        (
+            HeaderMap::new(),
+            (StatusCode::NOT_FOUND, "no such entity").into_response(),
+        )
+    }
 }
 
 fn cache_header(mins: usize) -> HeaderMap {
