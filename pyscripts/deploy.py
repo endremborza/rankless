@@ -533,7 +533,7 @@ def new_small_alpha(pushed_certs: bool):
     tpr.setup_code()
     tpr.build_js()
     for fes in tpr.fe_services:
-        fes.restart()
+        fes.start()
     if pushed_certs:
         tpr.push_certs()
         tpr.setup_nginx(cert=False)
@@ -562,7 +562,7 @@ def new_large_alpha():
         fes.restart()
 
     tpr.setup_be_service()
-    tpr.be_service.restart()
+    tpr.be_service.start()
 
     tpr.push_certs()
     tpr.setup_nginx(cert=False)
