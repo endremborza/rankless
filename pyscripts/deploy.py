@@ -579,8 +579,12 @@ def promote_alpha_to_live():
     tpr = get_tpr(alpha_inst)
     tpr.setup_fe_service(LIVE_DOMAIN, bun=True, procs=12)
     tpr.update_env()
+    tpr.sync_code()
+    tpr.build_js()
     for fes in tpr.fe_services:
         fes.restart()
+    # delete alpha deploy
+    # sudo rm /etc/nginx/sites-enabled/{ALPHA_DOMAIN}
     tpr.setup_nginx(cert=False)
     tpr.add_dns_fw(FW_DOMAIN, cert=False)
     # ec2c.associate_address(
