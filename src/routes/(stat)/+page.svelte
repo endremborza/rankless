@@ -120,6 +120,18 @@
 
 <div id="tops">
 	<div id="init-list" class="marged">
+		<a
+			href="https://vote.webbyawards.com/PublicVoting#/2025/websites-and-mobile-sites/general-desktop-mobile-sites/science"
+			target="_blank"
+			style="background: var(--color-theme-darkblue);border: solid var(--color-theme-pink) 3px;padding:8px;color: white; text-align: right;"
+		>
+			Vote for us at the 2025 Webby's
+			<img
+				src="https://vote.webbyawards.com/content/img/webbys_logo--white.svg"
+				height="30px"
+				alt="webby logo"
+			/>
+		</a>
 		{#each data.tops.entries() as [i, entityTop]}
 			<h3>{prettifyRoot(entityTop.name)}</h3>
 			{#each entityTop.entities.slice(0, 3).entries() as [j, ent]}
