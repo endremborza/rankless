@@ -181,7 +181,7 @@
 	}
 
 	#land-header > span {
-		width: min(290px, 60vw);
+		width: min(390px, 60vw);
 		font-size: min(1.4rem, 4vw);
 		left: 20vw;
 	}
