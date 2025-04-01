@@ -10,6 +10,7 @@
 	import RandTreeLink from '$lib/components/RandTreeLink.svelte';
 	import HoverI from '$lib/components/HoverI.svelte';
 	import HoverBlock from '$lib/components/HoverBlock.svelte';
+	import Webby from '$lib/components/Webby.svelte';
 
 	let innerHeight: number;
 	let innerWidth: number;
@@ -347,6 +348,9 @@
 			shallowed={data.shallowed}
 		/>
 	</div>
+</div>
+<div class="shadowy padded marged">
+	<Webby />
 </div>
 <div id="similars" class="shadowy padded marged">
 	<h3>Explore {prettifyRoot(rootType)} with similar magnitude of impact</h3>
