@@ -22,6 +22,10 @@ FW_DOMAIN = "rankless.org"
 BIG16 = "c6a.4xlarge"
 SMALL = "c6a.large"
 
+LARGE_INSTANCE_TYPE = BIG16
+LARGE_STORAGE_GB = 500
+LARGE_FE_PROCS = 12
+
 be_service_name = "rankless-backend.service"
 fe_service_template_name = "rankless-frontend@.service"
 tunnel_service_name = "rankless-tunnel.service"
@@ -251,6 +255,7 @@ class Transper:
     def sync_txt(self, txt, name, dir):
         p = Path(name)
         existed = p.exists()
+        past_blob = b""
         if existed:
             past_blob = p.read_bytes()
         p.write_text(txt)
@@ -498,6 +503,12 @@ server {{
         txt = f"PUBLIC_ORIGIN=https://{dns}\nOA_ROOT={self.data_dir}"
         self.sync_txt(txt, ".env", self.deploy_dir)
 
+    def update_fe(self):
+        self.sync_code()
+        self.build_js()
+        for fes in self.fe_services:
+            fes.restart()
+
     def reload_systemctl(self):
         self.ssh.prun("sudo systemctl daemon-reload")
 
@@ -506,22 +517,16 @@ def pull_live_certs():
     get_tpr(get_running_inst(True)).pull_certs()
 
 
+def get_running_tpr(live: bool):
+    return get_tpr(get_running_inst(live))
+
+
 def sync_fe_to_alpha():
-    _sync_fe(False)
+    get_running_tpr(False).update_fe()
 
 
 def sync_fe_to_live():
-    is_at_tag = False
-    assert is_at_tag  # TODO
-    _sync_fe(True)
-
-
-def _sync_fe(live: bool):
-    tpr = get_tpr(get_running_inst(live))
-    tpr.sync_code()
-    tpr.build_js()
-    for fes in tpr.fe_services:
-        fes.restart()
+    get_running_tpr(True).update_fe()
 
 
 def new_small_alpha(pushed_certs: bool):
@@ -546,48 +551,78 @@ def new_small_alpha(pushed_certs: bool):
     return new_alpha_inst
 
 
-def new_large_alpha():
-    new_alpha_inst = get_new_inst(500, BIG16)
-    tpr = get_tpr(new_alpha_inst)
+def new_large_alpha(img_id):
+    inst = ec2.create_instances(
+        ImageId=img_id,
+        InstanceType=LARGE_INSTANCE_TYPE,
+        KeyName=key_name,
+        MinCount=1,
+        MaxCount=1,
+    )[0]
+    inst.wait_until_running()
+    inst.load()
+    tpr = get_tpr(inst)
+
+    tpr.setup_fe_service(ALPHA_DOMAIN, bun=True, procs=LARGE_FE_PROCS)
+    tpr.update_fe()
+    tpr.be_service.start()
+    tpr.setup_nginx(cert=False)
+    return associate_id(inst, False)
+
+
+def new_large_image():
+    v = subprocess.check_output(["git", "tag", "--points-at", "HEAD"]).decode().strip()
+    _parse_v(v)
+    inst = get_new_inst(LARGE_STORAGE_GB, LARGE_INSTANCE_TYPE)
+    tpr = get_tpr(inst)
     tpr.setup(backend=True, bun=True)
     tpr.validate()
-    tpr.setup_fe_service(ALPHA_DOMAIN, bun=True, procs=12)
+    tpr.setup_fe_service(LIVE_DOMAIN, bun=True, procs=LARGE_FE_PROCS)
     tpr.setup_code()
     tpr.build_js()
     tpr.build_rs()
-
     tpr.sync_data_to()
-
-    for fes in tpr.fe_services:
-        fes.restart()
-
     tpr.setup_be_service()
-    tpr.be_service.start()
-
     tpr.push_certs()
-    tpr.setup_nginx(cert=False)
-    ec2c.associate_address(
-        InstanceId=new_alpha_inst.id, AllocationId=alpha_ip_alloc.alloc_id
+    inst.stop()
+    inst.wait_until_stopped()
+    image_id = inst.create_image(
+        Name=f"Rankless {v}",
+        Description=f"{v} node, bun, rust and services",
     )
-    new_alpha_inst.reload()
-    return new_alpha_inst
+    inst.terminate()
+    return image_id
+
+
+def bump_v():
+    tag_str = subprocess.check_output(
+        ["git", "describe", "--tags", "--abbrev=0"]
+    ).decode()
+    vns = _parse_v(tag_str)
+    next_v = f"v{vns[0]}.{vns[1]}.{vns[2] + 1}"
+    subprocess.call(["git", "tag", next_v])
 
 
 def promote_alpha_to_live():
     alpha_inst = get_running_inst(False)
     assert alpha_inst is not None
     tpr = get_tpr(alpha_inst)
-    tpr.setup_fe_service(LIVE_DOMAIN, bun=True, procs=12)
+    tpr.setup_fe_service(LIVE_DOMAIN, bun=True, procs=LARGE_FE_PROCS)
     tpr.update_env()
-    tpr.sync_code()
-    tpr.build_js()
-    for fes in tpr.fe_services:
-        fes.restart()
-    # delete alpha deploy
-    # sudo rm /etc/nginx/sites-enabled/{ALPHA_DOMAIN}
+    tpr.update_fe()
+    tpr.ssh.prun(f"sudo rm /etc/nginx/sites-enabled/{ALPHA_DOMAIN}")
     tpr.setup_nginx(cert=False)
     tpr.add_dns_fw(FW_DOMAIN, cert=False)
-    # ec2c.associate_address(
-    #     InstanceId=alpha_inst.id, AllocationId=live_ip_alloc.alloc_id
-    # )
+    associate_id(alpha_inst, True)
     tpr.refresh_certs(FW_DOMAIN)
+
+
+def associate_id(inst, live: bool):
+    ipa = live_ip_alloc if live else alpha_ip_alloc
+    ec2c.associate_address(InstanceId=inst.id, AllocationId=ipa.alloc_id)
+    inst.reload()
+    return inst
+
+
+def _parse_v(tag_str):
+    return list(map(int, re.findall(r"^v(\d+)\.(\d+)\.(\d+)$", tag_str)[0]))
