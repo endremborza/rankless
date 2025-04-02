@@ -331,7 +331,7 @@
 		</div>
 	</div>
 </div>
-<div id="tree-row" class="shadowy padded marged">
+<div class="shadowy padded marged">
 	<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} id="tree">
 		<FullQc
 			{rootName}
@@ -402,12 +402,8 @@
 		min-width: 300px;
 	}
 
-	#tree-row {
-		height: 100svh;
-	}
-
 	#tree {
-		height: 100%;
+		height: 100svh;
 	}
 
 	#similars {
