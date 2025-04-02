@@ -25,7 +25,7 @@ tree-test:
 run-server:
 	cargo run --release -p rankless-server -- $(OA_ROOT) 
 
-extend_csvs bm:
+extend_csvs bm live_monitoring:
 	python3 -m pyscripts.$@
 
 pull_live_certs sync_fe_to_alpha:
