@@ -170,7 +170,7 @@
 	}
 
 	.focused > a {
-		color: var(--color-theme-darkgrey);
+		color: var(--color-theme-black);
 		font-weight: 700;
 	}
 
