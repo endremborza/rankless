@@ -60,7 +60,7 @@
 			</div>
 		</div>
 		<div id="about">
-			<h3>About</h3>
+			<h2>About</h2>
 			<div>
 				{data.aboutParagraph.prefix}.
 				{@html data.aboutParagraph.postText}
@@ -68,7 +68,7 @@
 		</div>
 	</div>
 	<div id="era">
-		<h3>In The Last Decade</h3>
+		<h2>In The Last Decade</h2>
 		<div bind:clientHeight={ticksHeight}>
 			<YearTicks
 				bottomStacks={data.view.yearlyPapers}
