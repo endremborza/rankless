@@ -121,12 +121,12 @@
 	}}
 >
 	{#if path != undefined}
-		<div class="growing" style="height: {initHeight * (showPaper ? 3 : 0)}px;">
+		<div role="gridcell" class="growing" style="height: {initHeight * (showPaper ? 3 : 0)}px;">
 			{#if showPaper}
 				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} />
 			{/if}
 		</div>
-		<div id="box-container" style="height: {initHeight}px;">
+		<div role="gridcell" id="box-container" style="height: {initHeight}px;">
 			<h2 class="hover-l">{leaf.name}</h2>
 			<p
 				on:mouseover={() => {
