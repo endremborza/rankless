@@ -113,7 +113,7 @@
 <div
 	class="hoverover shadowy clickable growing"
 	id="container"
-	role="treegrid"
+	role="textbox"
 	tabindex="0"
 	style="height: {initHeight * (showPaper ? 4 : 1)}px"
 	on:click={() => {
@@ -121,12 +121,12 @@
 	}}
 >
 	{#if path != undefined}
-		<div role="gridcell" class="growing" style="height: {initHeight * (showPaper ? 3 : 0)}px;">
+		<div class="growing" style="height: {initHeight * (showPaper ? 3 : 0)}px;">
 			{#if showPaper}
 				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} />
 			{/if}
 		</div>
-		<div role="gridcell" id="box-container" style="height: {initHeight}px;">
+		<div id="box-container" style="height: {initHeight}px;">
 			<h2 class="hover-l">{leaf.name}</h2>
 			<p
 				on:mouseover={() => {
