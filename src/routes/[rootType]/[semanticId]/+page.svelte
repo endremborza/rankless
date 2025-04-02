@@ -37,8 +37,11 @@
 
 <svelte:head>
 	<title>{data.view.name} - scholarly publications and citations - {APP_NAME}</title>
+	<meta name="twitter:card" content="summary" />
+	<meta name="twitter:creator" content="@LearningCCL" />
 	<meta name="description" content={data.metaDescriptions} />
 	<meta property="og:image" content={data.svgLink} />
+	<meta property="og:title" content="{data.view.name} | {APP_NAME}" />
 </svelte:head>
 
 <div id="head-row" class="shadowy padded marged">
