@@ -43,6 +43,8 @@
 	--color-theme-lightgrey: #d8d8d8;
 	--color-theme-red: #fe7d95;
 	--color-theme-white: #f2f2f2;
+	--color-theme-darktext: #21272a;
+	--color-theme-black: #1b2222;
 	/* methods video colors */
 	--color-graph-pink: #e83547;
 
@@ -55,7 +57,7 @@
 	--text-bg-2: var(--color-theme-white);
 	/* --text-bg: var(--color-theme-white); */
 	--hard-overlay: #ffffff90;
-	--color-text: #21272a;
+	--color-text: var(--color-theme-darktext);
 	--accent-text: var(--color-theme-darkgrey);
 	--highlight-text: var(--color-theme-darkblue);
 }
