@@ -287,13 +287,13 @@
 	$: prefixText = SEMANTIC_CONF[rootType]?.start || '';
 	$: paperText = pluralize('paper', paperCount);
 	$: citeText = pluralize('indexed citation', citeCount);
-	$: metaDescriptions = `Breaking down the impact of ${prefixText.toLowerCase()} ${rootName} - ( ${paperText}, ${citeText} )`;
+	$: metaDescriptions = `Breaking down the academic impact of ${prefixText.toLowerCase()} ${rootName} - ( ${paperText}, ${citeText} )`;
 
 	$: aboutParagraph = getSemanticRels(data.view, rootName, rootType, paperText, citeText);
 </script>
 
 <svelte:head>
-	<title>{rootName}, scholarly publications and citations - {APP_NAME}</title>
+	<title>{rootName} - scholarly publications and citations - {APP_NAME}</title>
 	<meta name="description" content={metaDescriptions} />
 	<meta property="og:image" content={data.svgLink} />
 </svelte:head>
