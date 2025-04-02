@@ -590,3 +590,4 @@ def promote_alpha_to_live():
     # ec2c.associate_address(
     #     InstanceId=alpha_inst.id, AllocationId=live_ip_alloc.alloc_id
     # )
+    tpr.refresh_certs(FW_DOMAIN)
