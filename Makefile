@@ -25,10 +25,10 @@ tree-test:
 run-server:
 	cargo run --release -p rankless-server -- $(OA_ROOT) 
 
-extend_csvs bm live_monitoring:
+extend_csvs bm live_monitoring report:
 	python3 -m pyscripts.$@
 
-pull_live_certs sync_fe_to_alpha:
+pull_live_certs sync_fe_to_alpha sync_fe_to_live:
 	python3 -c "from pyscripts.deploy import $@;$@()"
 
 set-full:
