@@ -1,8 +1,7 @@
-/* @import '@fontsource/fira-mono'; */
-
 :root {
+	/* --font-mono: 'Roboto Mono', monospace; */
+	--font-mono: 'Courier New', monospace;
 	--font-body: var(--font-mono);
-	--font-mono: 'Roboto Mono', monospace;
 
 	--color-range-5: 13, 198, 243;
 	--color-range-10: 25, 176, 230;
@@ -79,6 +78,7 @@ body {
 	margin: 0px;
 	color: var(--color-text);
 	background-color: var(--text-bg);
+	font-display: swap;
 }
 
 text {

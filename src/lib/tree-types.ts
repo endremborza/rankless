@@ -54,6 +54,14 @@ export type SearchResult = {
 	citations: number;
 };
 
+export type SubbedRel = { desc: string; subs: RelatedEntity[] };
+export type AboutPara = {
+	prefix: string;
+	postText: string;
+	topRels: SubbedRel[];
+}
+
+
 export type TreeResponse = { tree: ResponseNode; atts: AttributeLabels, shallowed: boolean };
 export type TopsResponse = { name: RootType; entities: SearchResult[] }[];
 export type TreeSpec = {
