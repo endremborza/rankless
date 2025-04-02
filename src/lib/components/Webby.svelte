@@ -9,8 +9,7 @@
 
 <style>
 	img {
-		max-height: 60%;
-		max-width: 15%;
+		width: 80px;
 	}
 
 	a {
