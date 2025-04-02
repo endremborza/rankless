@@ -113,8 +113,8 @@
 <div
 	class="hoverover shadowy clickable growing"
 	id="container"
-	role="textbox"
-	tabindex="0"
+	role="none"
+	tabindex="-1"
 	style="height: {initHeight * (showPaper ? 4 : 1)}px"
 	on:click={() => {
 		showPaper = !showPaper;
