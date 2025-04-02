@@ -169,6 +169,10 @@
 		background: var(--color-theme-red);
 	}
 
+	.focused > a {
+		color: var(--color-theme-darkblue);
+	}
+
 	#land-header {
 		position: fixed;
 		top: 0px;
