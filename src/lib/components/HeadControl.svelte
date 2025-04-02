@@ -23,7 +23,7 @@
 		{text}
 	</span>
 	<slot>
-		<input type="checkbox" bind:checked />
+		<input type="checkbox" bind:checked aria-label={text} />
 	</slot>
 </div>
 

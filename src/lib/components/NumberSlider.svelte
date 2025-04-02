@@ -8,8 +8,8 @@
 </script>
 
 <div class="vert-zero" transition:fade={{ duration }}>
-	<input type="range" {min} {max} bind:value />
-	<label for="topn-input"><span>−</span><span>+</span></label>
+	<input id="slider" type="range" {min} {max} bind:value />
+	<label for="slider"><span>−</span><span>+</span></label>
 </div>
 
 <style>

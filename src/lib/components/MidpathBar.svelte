@@ -34,7 +34,12 @@
 			</span>
 		</div>
 		{#if canSelect}
-			<select bind:value={selectedBreakdowns[index]} class="sel-base" style="opacity: 0">
+			<select
+				bind:value={selectedBreakdowns[index]}
+				class="sel-base"
+				style="opacity: 0"
+				aria-label="Breakdown selection"
+			>
 				{#each levelSpec.levelOptions as bd}
 					<option value={bd}>
 						{semOptioned(semantify(bd, rootType, selectedBreakdowns, index), bd)}

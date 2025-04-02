@@ -395,7 +395,7 @@
 				checked={false}
 				text={`since`}
 			>
-				<select bind:value={conf.year}
+				<select bind:value={conf.year} aria-label="Since year"
 					>{#each treeSpecs.yearBreaks as y}
 						<option>{y}</option>
 					{/each}
