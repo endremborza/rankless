@@ -170,7 +170,8 @@
 	}
 
 	.focused > a {
-		color: var(--color-theme-darkblue);
+		color: var(--color-theme-darkgrey);
+		font-weight: 700;
 	}
 
 	#land-header {
