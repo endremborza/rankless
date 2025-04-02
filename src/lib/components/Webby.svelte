@@ -4,14 +4,14 @@
 	class="padded"
 >
 	<span> We are nominated for a Webby! Please vote for us! </span>
-	<img src="https://vote.webbyawards.com/content/img/webbys_logo--white.svg" alt="webby logo" />
+	<img
+		style="width: 80px; height:45px"
+		src="https://vote.webbyawards.com/content/img/webbys_logo--white.svg"
+		alt="webby logo"
+	/>
 </a>
 
 <style>
-	img {
-		width: 80px;
-	}
-
 	a {
 		display: flex;
 		gap: 10px;
