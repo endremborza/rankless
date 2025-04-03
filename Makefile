@@ -28,7 +28,7 @@ run-server:
 extend_csvs bm live_monitoring report:
 	python3 -m pyscripts.$@
 
-pull_live_certs sync_fe_to_alpha sync_fe_to_live:
+pull_live_certs sync_fe_to_alpha sync_fe_to_live bump_v:
 	python3 -c "from pyscripts.deploy import $@;$@()"
 
 set-full:
