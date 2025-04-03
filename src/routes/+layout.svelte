@@ -24,7 +24,7 @@
 	function focusSelect(e: FocusEvent) {
 		resultsHidden = false;
 		if (e.target != undefined) {
-			e.target.select();
+			(e.target as HTMLTextAreaElement).select();
 		}
 	}
 
