@@ -36,7 +36,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.view.name} - scholarly publications and citations - {APP_NAME}</title>
+	<title>{APP_NAME} | {data.view.name}</title>
 	<meta name="twitter:card" content="summary" />
 	<meta name="twitter:creator" content="@LearningCCL" />
 	<meta name="description" content={data.metaDescriptions} />
