@@ -123,7 +123,7 @@ function nodeToConfStr(node: tt.BareNode): string {
 }
 
 function nodeFromConfStr(confStr: string): tt.BareNode {
-	let node: tt.BareNode = { children: {} };
+	let node: { children: Record<number, tt.BareNode> } = { children: {} };
 	let levels = confStr.split('x');
 	let l1 = levels[0] || '';
 	let i = 0;
@@ -152,9 +152,12 @@ export function pruneTree(tree: tt.BareNode, depth: number): tt.BareNode {
 }
 
 export function intersectionTree(smallerTree: tt.BareNode, biggerTree: tt.BareNode): tt.BareNode {
-	const children = {};
-	for (let kStr of Object.keys(smallerTree.children || {})) {
-		if (Object.keys(biggerTree.children || {}).includes(kStr)) {
+	const children: Record<number, tt.BareNode> = {};
+	if (smallerTree.children == undefined || biggerTree.children == undefined) {
+		return { children }
+	}
+	for (let kStr of Object.keys(smallerTree.children)) {
+		if (Object.keys(biggerTree.children).includes(kStr)) {
 			let k = parseInt(kStr);
 			children[k] = intersectionTree(smallerTree.children[k], biggerTree.children[k] || {});
 		}
