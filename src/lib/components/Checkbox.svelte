@@ -2,7 +2,7 @@
 	type vType = string | number | boolean;
 
 	export let values: [vType, vType] = ['On', 'Off'];
-	export let labels: [string, string] = values.map((e) => e.toString());
+	export let labels: [string, string] = [values[0].toString(), values[1].toString()];
 	export let value: vType = values[0];
 	export let pad = 5;
 	export let height = 26;
