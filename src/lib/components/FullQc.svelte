@@ -31,7 +31,6 @@
 	export let innerWidth: number;
 
 	let mounted = false;
-	let allowPapers = true;
 	let showPaper = false;
 
 	let currentTreeSpec: tt.TreeSpec = treeSpecs.specs[conf.rootType][conf.treeId];
