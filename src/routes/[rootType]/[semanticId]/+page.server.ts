@@ -256,9 +256,9 @@ function getSemanticRels(
 	citeText: string
 ): tt.AboutPara {
 	let semantifyers = getSemantifyers(rootName, rootType);
-	let relationsMap: Record<RelTypes, tt.RelatedEntity[]> = Object.fromEntries(
+	let relationsMap = Object.fromEntries(
 		REL_TYPES.map((e) => [e as RelTypes, [] as tt.RelatedEntity[]])
-	);
+	) as Record<RelTypes, tt.RelatedEntity[]>;
 	for (const rel of view.primeRelations) {
 		relationsMap[REL_TYPES[rel.relType]].push(rel);
 	}
