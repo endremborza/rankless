@@ -1,11 +1,9 @@
 <script lang="ts">
 	import FullQc from '$lib/components/FullQc.svelte';
-	import TypeWriter from '$lib/components/TypeWriter.svelte';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 	import { onMount } from 'svelte';
 	import { BE_REMOTE_URL } from '$lib/constants';
-	import { page } from '$app/stores';
 	import { SEMANTIC_CONF, prettifyRoot } from '$lib/text-format-util';
 	import TextedLogo from '$lib/components/TextedLogo.svelte';
 	import Webby from '$lib/components/Webby.svelte';
@@ -17,9 +15,6 @@
 
 	let innerHeight: number;
 	let innerWidth: number;
-
-	let texts = ['topics', 'geographies', 'publications', 'relationships'];
-	let wordInd = 0;
 
 	let selectorInterval: number;
 	let selectedInds: [number, number] = [0, 0];
@@ -48,7 +43,10 @@
 					ksIn.splice(0, 1);
 				}
 			};
-			let prepKs = Object.entries(tree.children || {}).map(([k, v]) => [v.linkCount, k]);
+			let prepKs: [number, string][] = Object.entries(tree.children || {}).map(([k, v]) => [
+				v.linkCount,
+				k
+			]);
 			prepKs.sort((l, r) => l[0] - r[0]);
 			let ks = prepKs.map(([_, k]) => k).slice(-6);
 			// let ks = Object.keys(tree.children || {}).slice(0, 7);
@@ -80,13 +78,11 @@
 	}
 
 	function setTree(rootType: tt.RootType, e: tt.SearchResult) {
-		let spec: tt.ShareSpec = tf.parseLinkWithParams($page.url.searchParams, rootType);
-
+		let year = tf.getDefaultYear(rootType);
 		let treeCount = data.treeSpecs.specs[rootType].length;
-
 		let confBase: tt.FullTreeConfig = {
 			semanticId: e.semanticId,
-			year: spec.year,
+			year,
 			treeId: Math.floor(Math.random() * treeCount),
 			rootType
 		};
