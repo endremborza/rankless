@@ -119,13 +119,13 @@ function getSemantifyers(rootName: string, rootType: tt.RootType): [RelTypes, Se
 		return [
 			[
 				'paper-fields',
-				semFunMaker('This includes ', (r) => `${pluralize('paper', r.score)} in ${r.bold}`)
+				semFunMaker('This includes ', (r) => `${pluralize('paper', r.score)} in ${r.link}`)
 			],
 			[
 				'paper-topics',
 				semFunMaker(
 					'The topics of these papers are ',
-					(r) => `${r.name} (${pluralize('paper', r.score)})`
+					(r) => `${r.bold} (${pluralize('paper', r.score)})`
 				)
 			],
 			[
