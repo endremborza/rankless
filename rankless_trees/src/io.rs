@@ -18,7 +18,7 @@ use rankless_rs::{
     env_consts::START_YEAR,
     gen::a1_entity_mapping::Works,
     steps::{
-        a1_entity_mapping::{POSSIBLE_YEAR_FILTERS, YBT},
+        a1_entity_mapping::{N_PERS, POSSIBLE_YEAR_FILTERS, YBT},
         derive_links1::WorkPeriods,
     },
 };
@@ -577,13 +577,7 @@ impl TreeBasisState {
                         let tid_path = tid_entry.unwrap().path();
                         if let Ok(tid) = fpparse(&tid_path) {
                             let ck = CacheKey { eid, tid, etype };
-                            let mut v = Vec::new();
-                            for pid_entry in std::fs::read_dir(&tid_path).unwrap() {
-                                let pid_path = pid_entry.unwrap().path();
-                                if let Ok(pint) = fpparse(&pid_path) {
-                                    v.push(pint)
-                                }
-                            }
+                            let v = (0..N_PERS as u8).collect();
                             cmap.insert(ck, CacheValue::Done(v));
                         }
                     }
