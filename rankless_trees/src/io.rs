@@ -573,12 +573,15 @@ impl TreeBasisState {
                         Ok(id) => id,
                         _ => continue,
                     };
-                    for tid_entry in std::fs::read_dir(&eid_path).unwrap() {
-                        let tid_path = tid_entry.unwrap().path();
-                        if let Ok(tid) = fpparse(&tid_path) {
-                            let ck = CacheKey { eid, tid, etype };
-                            let v = (0..N_PERS as u8).collect();
-                            cmap.insert(ck, CacheValue::Done(v));
+                    if let Ok(tid_entries) = std::fs::read_dir(&eid_path) {
+                        for tid_eo in tid_entries {
+                            if let Ok(tid_e) = tid_eo {
+                                if let Ok(tid) = fpparse(&tid_e.path()) {
+                                    let ck = CacheKey { eid, tid, etype };
+                                    let v = (0..N_PERS as u8).collect();
+                                    cmap.insert(ck, CacheValue::Done(v));
+                                }
+                            }
                         }
                     }
                 }
