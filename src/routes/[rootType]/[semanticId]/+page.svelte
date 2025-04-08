@@ -99,9 +99,9 @@
 		/>
 	</div>
 </div>
-<div class="shadowy padded marged">
-	<Webby />
-</div>
+<!-- <div class="shadowy padded marged"> -->
+<!-- 	<Webby /> -->
+<!-- </div> -->
 <div id="similars" class="shadowy padded marged">
 	<h3>Explore {prettifyRoot(data.conf.rootType)} with similar magnitude of impact</h3>
 	<div>

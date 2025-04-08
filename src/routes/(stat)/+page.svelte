@@ -117,7 +117,7 @@
 
 <div id="tops">
 	<div id="init-list" class="marged">
-		<Webby />
+		<!-- <Webby /> -->
 		{#each data.tops.entries() as [i, entityTop]}
 			<h3>{prettifyRoot(entityTop.name)}</h3>
 			{#each entityTop.entities.slice(0, 3).entries() as [j, ent]}
