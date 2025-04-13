@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import boto3
+import pandas as pd
 from dotenv import load_dotenv
 from tqdm.notebook import tqdm
 
@@ -14,10 +15,14 @@ load_dotenv()
 SERIVCE_DIR = ".config/systemd/user"
 SSL_ETC_DIR = "/etc/letsencrypt/live"
 LOCAL_SSL_TAR = "ssl_dir.tar.gz"
+AMI_IMG_CSV = "ami-imgs.csv"
 
 ALPHA_DOMAIN = "alpha.rankless.org"
 LIVE_DOMAIN = "www.rankless.org"
 FW_DOMAIN = "rankless.org"
+
+FE_UPSTREAM = "rankless_frontend"
+BE_UPSTREAM = "rankless_backend"
 
 BIG16 = "c6a.4xlarge"
 SMALL = "c6a.large"
@@ -25,6 +30,11 @@ SMALL = "c6a.large"
 LARGE_INSTANCE_TYPE = BIG16
 LARGE_STORAGE_GB = 500
 LARGE_FE_PROCS = 12
+DEFAULT_RS_PORT = 3038
+BUN_PORT_START = 3000
+
+
+NGINX_AVDIR, NGINX_ENDIR = [f"/etc/nginx/sites-{s}" for s in ["available", "enabled"]]
 
 be_service_name = "rankless-backend.service"
 fe_service_template_name = "rankless-frontend@.service"
@@ -79,6 +89,22 @@ image_id = ubuntu24_image_id
 class IpAlloc:
     ip: str
     alloc_id: str
+
+
+@dataclass
+class UpstreamConf:
+    fe_ports: list[int]
+    ip: str = "127.0.0.1"
+    be_port: int = DEFAULT_RS_PORT
+
+    def be_server(self):
+        return self.sconf(self.be_port)
+
+    def fe_servers(self):
+        return map(self.sconf, self.fe_ports)
+
+    def sconf(self, port):
+        return f"server {self.ip}:{port};"
 
 
 def get_ip_alloc(live: bool):
@@ -202,9 +228,9 @@ class ServiceMan:
 
 class Transper:
     def __init__(self, sshc: SSHrer):
-        for _ in tqdm(range(10)):
+        for _ in range(10):
             try:
-                sshc.prun("echo working")
+                sshc.run("echo working")
                 break
             except Exception as e:
                 print(e)
@@ -272,7 +298,7 @@ class Transper:
         self.sync_service(be_service_txt, be_service_name)
 
     def setup_fe_service(
-        self, inst_dns: str, node_port_start=3000, procs=10, bun=False
+        self, inst_dns: str, node_port_start=BUN_PORT_START, procs=10, bun=False
     ):
         if bun:
             comm = "%h/.bun/bin/bun run build/"
@@ -316,17 +342,35 @@ WantedBy=default.target
             self.ssh.run(f"cat ~/{SERIVCE_DIR}/{fe_service_template_name}"),
         )[0]
 
-    def setup_nginx(self, inst_dns=None, rs_port=3038, cert=True):
+    def setup_nginx(self, inst_dns=None, rs_port=DEFAULT_RS_PORT, cert=True):
         if inst_dns is None:
             inst_dns = self.get_dns()
         if cert:
             self.get_cert(inst_dns)
         ports = self.get_fe_ports()
         assert ports
-        servers = [f"server 127.0.0.1:{port};" for port in ports]
-        serv_conf = "    \n".join(servers)
-        cert_dir = f"{SSL_ETC_DIR}/{inst_dns}"
+        self.nginx_add_upstreams([UpstreamConf(ports)])
         self.ssh.prun(f"mkdir -p {self.fe_cache_dir} {self.be_cache_dir}")
+        cert_dir = f"{SSL_ETC_DIR}/{inst_dns}"
+        server_prefix = f"""
+    server_name {inst_dns};
+
+    ssl_certificate {cert_dir}/fullchain.pem;
+    ssl_certificate_key {cert_dir}/privkey.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    access_log /var/log/nginx/access.log upstream_time;
+"""
+        loc_suffix = """
+        proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+"""
 
         nginx_conf = f"""
 proxy_cache_path {self.be_cache_dir} levels=1:2 keys_zone=be-cache:50m max_size=20g;
@@ -337,66 +381,29 @@ log_format upstream_time '$remote_addr - $remote_user [$time_local] '
                          '"$http_referer" "$http_user_agent"'
                          'rt=$request_time uct="$upstream_connect_time" uht="$upstream_header_time" urt="$upstream_response_time"';
 
-upstream rankless_frontend {{
-    {serv_conf}
-}}
-
-upstream rankless_backend {{
-    server 127.0.0.1:{rs_port};
-}}
-
 server {{
     listen 443 ssl;
-    server_name {inst_dns};
-
-    ssl_certificate {cert_dir}/fullchain.pem;
-    ssl_certificate_key {cert_dir}/privkey.pem;
-
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-
-    access_log /var/log/nginx/access.log upstream_time;
+    {server_prefix}
 
     gzip on;
-    # gzip_vary on;
-    # gzip_proxied any;
-    # gzip_comp_level 6;
-    # gzip_buffers 16 8k;
-    # gzip_http_version 1.1;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
     gzip_min_length 1000;   
 
     location / {{
-        proxy_pass http://rankless_frontend;
+        proxy_pass http://{FE_UPSTREAM};
         proxy_cache fe-cache;
-        proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
+        {loc_suffix}
     }}
 }}
 
 server {{
     listen {rs_port + 1} ssl;
-    server_name {inst_dns};
-
-    ssl_certificate {cert_dir}/fullchain.pem;
-    ssl_certificate_key {cert_dir}/privkey.pem;
-
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
+    {server_prefix}
 
     location / {{
-        proxy_pass http://rankless_backend;
+        proxy_pass http://{BE_UPSTREAM};
         proxy_cache be-cache;
-        proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
+        {loc_suffix}
     }}
 }}
 
@@ -407,13 +414,11 @@ server {{
    return 301 https://$server_name$request_uri;
 }}
         """
-        self.send_nginx_conf(nginx_conf, inst_dns)
+        self._send_nginx_conf(nginx_conf, inst_dns)
         self.restart_nginx()
 
     def clean_cert_default(self):
-        self.ssh.prun(
-            f"sudo rm -f /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default"
-        )
+        self._send_nginx_conf("", "default")
 
     def get_cert(self, dns):
         self.ssh.prun(
@@ -456,25 +461,36 @@ server {{
     return 301 https://{orig_dns}$request_uri;
 }}
 """
-        self.send_nginx_conf(nginx_conf, dns_to_fw)
+        self._send_nginx_conf(nginx_conf, dns_to_fw)
         if cert:
             self.get_cert(dns_to_fw)
 
-    def send_nginx_conf(self, nginx_conf, dns):
-        self.sync_txt(nginx_conf, dns, self.inst_home)
-        self.ssh.prun(
-            f"sudo rm -f /etc/nginx/sites-available/{dns} /etc/nginx/sites-enabled/{dns}"
-        )
-        self.ssh.prun(f"sudo cp {self.inst_home}/{dns} /etc/nginx/sites-available/")
-        self.ssh.prun(
-            f"sudo ln -s /etc/nginx/sites-available/{dns} /etc/nginx/sites-enabled/"
-        )
+    def nginx_add_upstreams(self, upstreams: list[UpstreamConf]):
+        us_etc_name = "app_upstreams"
+        fe_servers = []
+        be_servers = []
+        for conf in upstreams:
+            fe_servers.extend(conf.fe_servers())
+            be_servers.append(conf.be_server())
+
+        fe_conf = "    \n".join(fe_servers)
+        be_conf = "    \n".join(be_servers)
+        conf_txt = f"""
+upstream {FE_UPSTREAM} {{
+    {fe_conf}
+}}
+
+upstream {BE_UPSTREAM} {{
+     {be_conf}
+}}
+"""
+        self._send_nginx_conf(conf_txt, us_etc_name)
 
     def restart_nginx(self):
-        self.ssh.prun("sudo nginx -t")
-        self.reload_systemctl()
-        for comm in ["reload", "restart", "status"]:
-            self.ssh.prun(f"sudo systemctl {comm} nginx")
+        self._nginx_run(["reload", "restart", "status"])
+
+    def reload_nginx(self):
+        self._nginx_run(["reload", "status"])
 
     def sync_data_to(self):
         for subdir in tqdm(data_subdirs):
@@ -511,6 +527,19 @@ server {{
 
     def reload_systemctl(self):
         self.ssh.prun("sudo systemctl daemon-reload")
+
+    def _nginx_run(self, comms):
+        self.ssh.prun("sudo nginx -t")
+        self.reload_systemctl()
+        for comm in comms:
+            self.ssh.prun(f"sudo systemctl {comm} nginx")
+
+    def _send_nginx_conf(self, conf_txt, slug):
+        self.ssh.prun(f"sudo rm -f {NGINX_AVDIR}/{slug} {NGINX_ENDIR}/{slug}")
+        if conf_txt:
+            self.sync_txt(conf_txt, slug, self.inst_home)
+            self.ssh.prun(f"sudo mv {self.inst_home}/{slug} {NGINX_AVDIR}/")
+            self.ssh.prun(f"sudo ln -s {NGINX_AVDIR}/{slug} {NGINX_ENDIR}/")
 
 
 def pull_live_certs():
@@ -551,9 +580,9 @@ def new_small_alpha(pushed_certs: bool):
     return new_alpha_inst
 
 
-def new_large_alpha(img_id):
+def new_large_alpha():
     inst = ec2.create_instances(
-        ImageId=img_id,
+        ImageId=_last_img(),
         InstanceType=LARGE_INSTANCE_TYPE,
         KeyName=key_name,
         MinCount=1,
@@ -562,7 +591,6 @@ def new_large_alpha(img_id):
     inst.wait_until_running()
     inst.load()
     tpr = get_tpr(inst)
-
     tpr.setup_fe_service(ALPHA_DOMAIN, bun=True, procs=LARGE_FE_PROCS)
     tpr.update_fe()
     tpr.be_service.start()
@@ -572,7 +600,7 @@ def new_large_alpha(img_id):
 
 def new_large_image():
     v = subprocess.check_output(["git", "tag", "--points-at", "HEAD"]).decode().strip()
-    _parse_v(v)
+    vns = _parse_v(v)
     inst = get_new_inst(LARGE_STORAGE_GB, LARGE_INSTANCE_TYPE)
     tpr = get_tpr(inst)
     tpr.setup(backend=True, bun=True)
@@ -586,19 +614,40 @@ def new_large_image():
     tpr.push_certs()
     inst.stop()
     inst.wait_until_stopped()
-    image_id = inst.create_image(
+    image = inst.create_image(
         Name=f"Rankless {v}",
         Description=f"{v} node, bun, rust and services",
     )
     inst.terminate()
+    pd.read_csv(AMI_IMG_CSV).pipe(
+        lambda df: pd.concat(
+            [df, pd.DataFrame([[*vns, image.id]], columns=df.columns)],
+            ignore_index=True,
+        )
+    ).drop_duplicates().to_csv(AMI_IMG_CSV, index=False)
     return image_id
 
 
+def horizontal_instances(n):
+    ips = []
+    for inst in ec2.create_instances(
+        ImageId=_last_img(),
+        InstanceType=LARGE_INSTANCE_TYPE,
+        KeyName=key_name,
+        MinCount=n,
+        MaxCount=n,
+    ):
+        inst.wait_until_running()
+        inst.load()
+        tpr = get_tpr(inst)
+        tpr.update_fe()
+        tpr.be_service.start()
+        ips.append(inst.public_ip_address)
+    return ips
+
+
 def bump_v():
-    tag_str = subprocess.check_output(
-        ["git", "describe", "--tags", "--abbrev=0"]
-    ).decode()
-    vns = _parse_v(tag_str)
+    vns = _last_vns()
     next_v = f"v{vns[0]}.{vns[1]}.{vns[2] + 1}"
     subprocess.call(["git", "tag", next_v])
 
@@ -610,7 +659,7 @@ def promote_alpha_to_live():
     tpr.setup_fe_service(LIVE_DOMAIN, bun=True, procs=LARGE_FE_PROCS)
     tpr.update_env()
     tpr.update_fe()
-    tpr.ssh.prun(f"sudo rm /etc/nginx/sites-enabled/{ALPHA_DOMAIN}")
+    tpr.ssh.prun(f"sudo rm {NGINX_ENDIR}/{ALPHA_DOMAIN}")
     tpr.setup_nginx(cert=False)
     tpr.add_dns_fw(FW_DOMAIN, cert=False)
     associate_id(alpha_inst, True)
@@ -622,6 +671,22 @@ def associate_id(inst, live: bool):
     ec2c.associate_address(InstanceId=inst.id, AllocationId=ipa.alloc_id)
     inst.reload()
     return inst
+
+
+def _last_img():
+    return (
+        pd.read_csv(AMI_IMG_CSV)
+        .pipe(lambda df: df.set_index([*df.columns[:3]]))
+        .sort_index()
+        .iloc[-1, 0]
+    )
+
+
+def _last_vns():
+    tag_str = subprocess.check_output(
+        ["git", "describe", "--tags", "--abbrev=0"]
+    ).decode()
+    return _parse_v(tag_str)
 
 
 def _parse_v(tag_str):

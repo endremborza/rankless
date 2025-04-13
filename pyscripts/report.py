@@ -1,4 +1,5 @@
 import datetime as dt
+import json
 import re
 from pathlib import Path
 
@@ -30,22 +31,45 @@ if __name__ == "__main__":
     rep_dir = gen_date.strftime("%Y-%m-%d-%H-%M")
     rep_dpath = Path("reports", rep_dir)
     rep_dpath.mkdir(exist_ok=True, parents=True)
+    ssh_id = "rankless-live"
 
-    tpr = Transper(SSHrer("rankless-live"))
-
+    tpr = Transper(SSHrer(ssh_id))
     logtail = tpr.ssh.run(f"tail -{n} /var/log/nginx/access.log")
-
     line_rex = re.compile(
         r'(.*?) \-.*\-.*\[(.*)\].*"([A-Z]+) (.*?)".*rt=(.*) uct="(.*)" uht="(.*)" urt="(.*)"'
     )
-
     root = f"https://{tpr.get_dns()}"
-
     code_df = pd.DataFrame(
         re.findall(r'"GET (.*?)" (\d\d\d)', logtail), columns=["endp", "code"]
     ).assign(code=lambda df: df["code"].astype(int))
-
     err_df = code_df.loc[lambda df: (df["code"] // 100) == 5]
+    hour_df = (
+        pd.DataFrame(
+            map(
+                lambda e: e[0], filter(None, map(line_rex.findall, logtail.split("\n")))
+            ),
+            columns=["addr", "time", "r", "p", "rt", "uct", "uht", "urt"],
+        )
+        .assign(
+            t=lambda df: df["time"].pipe(pd.to_datetime, format="%d/%b/%Y:%H:%M:%S %z"),
+            urt=lambda df: df["urt"].apply(tryfloat),
+        )
+        .loc[lambda df: df["t"] > (df["t"].max() - dt.timedelta(hours=1))]
+    )
+
+    tdel = hour_df["t"].max() - hour_df["t"].min()
+
+    log_rec = {
+        "period": f"{tdel}".split(" ")[-1],
+        "uniqe_clients": hour_df["addr"].nunique(),
+        "total_requests": hour_df.shape[0],
+        "request_per_second": round(hour_df.shape[0] / tdel.total_seconds(), 3),
+    } | dict(
+        zip(
+            ["resp_time_median", "resp_time_p99", "resp_time_p999"],
+            hour_df["urt"].quantile([0.5, 0.99, 0.999]),
+        )
+    )
 
     pct_miss = f"{round((err_df.shape[0] / code_df.shape[0]) * 100, 2)}%"
 
@@ -56,15 +80,9 @@ if __name__ == "__main__":
         )
     )
 
-    ldf = pd.DataFrame(
-        map(lambda e: e[0], filter(None, map(line_rex.findall, logtail.split("\n")))),
-        columns=["addr", "time", "r", "p", "rt", "uct", "uht", "urt"],
-    ).assign(
-        t=lambda df: df["time"].pipe(pd.to_datetime, format="%d/%b/%Y:%H:%M:%S %z"),
-        urt=lambda df: df["urt"].apply(tryfloat),
+    df = (
+        hour_df.resample(samp, on="t")["urt"].agg([p99, "count"]).reset_index().tail(40)
     )
-
-    df = ldf.resample(samp, on="t")["urt"].agg([p99, "count"]).reset_index().tail(40)
 
     fig, ax1 = plt.subplots()
 
@@ -86,7 +104,6 @@ if __name__ == "__main__":
 
     html_str = f"""<body>
     <h1>{rep_dir} report</h1>
-    <h3>{n} lines in {ldf["t"].max() - ldf["t"].min()}</h3>
     <h3>{pct_miss} 500 rate</h3>
     <img src="fig.png" />
     <h3>Misses:</h3>
@@ -95,21 +112,37 @@ if __name__ == "__main__":
     """
 
     (rep_dpath / "index.html").write_text(html_str)
+    (rep_dpath / "rec.json").write_text(json.dumps(log_rec))
+    hour_df.to_csv(rep_dpath / "reqs.csv.gz")
 
     reps = []
+    links = []
     for sd in rep_dpath.parent.iterdir():
         if sd.is_dir():
             rn = sd.name
-            subtitle = re.findall("<h3>(.*)</h3>", (sd / "index.html").read_text())[0]
-            reps.append(f'<li><a href="./{rn}/index.html">{rn}</a> {subtitle}</li>')
+            links.append(f'<li><a href="./{rn}/index.html">{rn}</a></li>')
+            js_fp = sd / "rec.json"
+            if js_fp.exists():
+                reps.append({"report": rn} | json.loads(js_fp.read_text()))
+
+    head_n = 48
+    html_table = (
+        pd.DataFrame(reps)
+        .set_index("report")
+        .sort_index(ascending=False)
+        .head(head_n)
+        .style.background_gradient(axis=0)
+        .to_html()
+    )
 
     (rep_dpath.parent / "index.html").write_text(
         f"""
     <body>
     <h1>Reports</h1>
-    <ul>
-    {''.join(sorted(reps))}
-    </ul>
+            {html_table}
+            <ul>
+            {''.join(sorted(links)[-head_n:][::-1])}
+            </ul>
     </body>
     """
     )

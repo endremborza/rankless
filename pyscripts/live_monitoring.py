@@ -7,6 +7,8 @@ from email.mime.text import MIMEText
 
 import requests
 
+from .deploy import get_running_tpr
+
 EMAIL_ADDRESS = os.environ["GMAIL_ADDR"]
 EMAIL_PASSWORD = os.environ["GMAIL_APP_PW"]
 TO_EMAIL = EMAIL_ADDRESS
@@ -46,10 +48,16 @@ if __name__ == "__main__":
     while True:
         try:
             validate()
+            ltpr = get_running_tpr(True)
+            rem_bytes, full_pct = map(
+                int,
+                re.findall(r"/dev/root.*?(\d+)\s+(\d+)% /\n", ltpr.ssh.run("df"))[0],
+            )
+            assert full_pct < 95, f"getting full {full_pct}"
             if not started:
                 started = True
-                raise RuntimeError("just started")
-            time.sleep(90)
+                raise RuntimeError(f"just started {rem_bytes / 1e6} at {full_pct}%")
+            time.sleep(70)
         except Exception as e:
             print(e)
             warn(e)
