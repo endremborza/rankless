@@ -1,4 +1,4 @@
-#![feature(min_specialization)]
+// #![feature(min_specialization)]
 // #![feature(generic_const_exprs)]
 // rustup override set nightly-2024-07-25
 mod common;
