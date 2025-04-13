@@ -523,10 +523,10 @@ impl<T, E> BoxRoller<T, E> {
 
 impl<T> StorableMarker<Self> for T {
     type FinalType = Self;
-    default fn update(&mut self, other: Self) {
+    fn update(&mut self, other: Self) {
         *self = other;
     }
-    default fn finalize(self) -> Self::FinalType {
+    fn finalize(self) -> Self::FinalType {
         self
     }
 }
@@ -552,7 +552,7 @@ where
     E: Entity + MappableEntity,
     CsvObj: ObjAttGetter<E>,
 {
-    default fn get_att(&self) -> Option<E::KeyType> {
+    fn get_att(&self) -> Option<E::KeyType> {
         self.get_obj_att()
     }
 }
