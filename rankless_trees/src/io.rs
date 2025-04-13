@@ -50,7 +50,6 @@ pub struct TreeBasisState {
 pub struct TreeRunManager<T> {
     state: Arc<TreeBasisState>,
     pub specs: TreeSpecs,
-    semantic_id_maps: HashMap<String, HashMap<String, usize>>,
     thread_pool: Vec<JoinHandle<()>>,
     cv_pair: BasisCvp,
     p: PhantomData<T>,
@@ -96,6 +95,7 @@ pub struct TreeQ {
     pub big_prep: Option<bool>,
     pub big_read: Option<bool>,
     pub shallow: Option<u8>,
+    pub cacheable: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -426,12 +426,7 @@ impl<T> TreeRunManager<T>
 where
     T: RunManagerSub,
 {
-    pub fn new(
-        gets: Arc<Getters>,
-        atts: Arc<AttributeLabelUnion>,
-        maps: HashMap<String, HashMap<String, usize>>,
-        n: usize,
-    ) -> Arc<Self> {
+    pub fn new(gets: Arc<Getters>, atts: Arc<AttributeLabelUnion>, n: usize) -> Arc<Self> {
         let specs = T::get_specs();
         let thread_pool = Vec::new();
         let mut state = TreeBasisState::new(Arc::into_inner(gets).expect("gets for state"), atts);
@@ -442,7 +437,6 @@ where
                 state: Arc::new(state),
                 thread_pool,
                 specs,
-                semantic_id_maps: maps,
                 cv_pair: BasisCvp::init_empty(),
                 p: PhantomData,
             }
@@ -450,15 +444,9 @@ where
         )
     }
 
-    pub fn get_resp(
-        &self,
-        q: TreeQ,
-        root_type: &String,
-        semantic_id: &String,
-    ) -> Option<TreeResponse> {
+    pub fn get_resp(&self, q: TreeQ, root_type: &String, eid: usize) -> Option<TreeResponse> {
         let res_cvp = ResCvp::init_empty();
-        let eid = self.semantic_id_maps.get(root_type)?.get(semantic_id)?;
-        let fq = T::make_fq(q, *eid, root_type, &self.specs)?;
+        let fq = T::make_fq(q, eid, root_type, &self.specs)?;
         self.add_to_queue(Some(fq), res_cvp.clone());
         {
             let (lock, cvar) = &*res_cvp;
@@ -482,9 +470,7 @@ where
     pub fn fake() -> Arc<Self> {
         let gets = Getters::fake();
         let atts = HashMap::new();
-        let tm = HashMap::from_iter(vec![("0".to_string(), 0), ("1".to_string(), 1)].into_iter());
-        let maps = HashMap::from_iter(vec![("test".to_string(), tm)].into_iter());
-        Self::new(Arc::new(gets), atts.into(), maps, 2)
+        Self::new(Arc::new(gets), atts.into(), 2)
     }
 
     fn add_to_queue(&self, fq: Option<FullTreeQuery>, res_cvp: ResCvp) {
@@ -562,12 +548,9 @@ impl TreeBasisState {
         let mut cmap = self.im_cache.lock().unwrap();
         for (k, _) in &specs.specs {
             let rt_cdir = self.rt_cache_dir(&k);
-            let etype = match specs.to_eid(k) {
-                None => continue,
-                Some(e) => e,
-            };
-            if rt_cdir.exists() {
-                for eid_entry in std::fs::read_dir(rt_cdir).unwrap() {
+            if let (Some(etype), Ok(dir_contents)) = (specs.to_eid(k), std::fs::read_dir(rt_cdir)) {
+                println!("filling cache for {k}");
+                for eid_entry in dir_contents {
                     let eid_path = eid_entry.unwrap().path();
                     let eid: usize = match fpparse(&eid_path) {
                         Ok(id) => id,

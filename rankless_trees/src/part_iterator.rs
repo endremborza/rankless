@@ -230,6 +230,8 @@ pub trait PartitioningIterator<'a>:
     ) {
         let now = std::time::Instant::now();
         let bds = Self::get_spec().breakdowns;
+        //TODO unnecessary if not cacheable
+        //also, should break the cycle if non cacheable
         let pruned_tree = prune(full_tree, &state.att_union, &bds);
         println!("{fq}: pruned in {}", now.elapsed().as_millis());
         //cache pruned response, use it if no connections are requested
@@ -244,9 +246,11 @@ pub trait PartitioningIterator<'a>:
                 set_and_notify(res_cvp, Some(full_resp));
             }
         }
-        let resp_path = state.pruned_cache_file_period(fq, pid);
-        write_buf_path(pruned_tree, &resp_path).unwrap();
-        println!("{fq}: wrote to {:?}", resp_path);
+        if fq.q.cacheable.unwrap_or(true) {
+            let resp_path = state.pruned_cache_file_period(fq, pid);
+            write_buf_path(pruned_tree, &resp_path).unwrap();
+            println!("{fq}: wrote to {:?}", resp_path);
+        }
     }
 
     fn write_tmp_parts<CT, SR>(state: &'a TreeBasisState, fq: &FullTreeQuery)

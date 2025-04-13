@@ -694,18 +694,17 @@ pub mod big_test_tree {
             big_prep: None,
             big_read: None,
             shallow: None,
+            cacheable: None,
         };
 
         let tstate = TreeRunManager::<(BigTestEntity, BigTestEntity)>::fake();
         let name = BigTestEntity::NAME.to_string();
-        let id = "0".to_string();
-
         let ts1 = tstate.clone();
-        let (q1, n1, i1) = (q.clone(), name.clone(), id.clone());
-        let t = thread::spawn(move || ts1.get_resp(q1, &n1, &i1).unwrap());
+        let (q1, n1, i1) = (q.clone(), name.clone(), 0);
+        let t = thread::spawn(move || ts1.get_resp(q1, &n1, i1).unwrap());
         thread::sleep(Duration::from_millis(100));
         let ts2 = tstate.clone();
-        let t2 = thread::spawn(move || ts2.get_resp(q, &name, &id).unwrap());
+        let t2 = thread::spawn(move || ts2.get_resp(q, &name, 0).unwrap());
 
         let r = t.join().unwrap();
         let r2 = t2.join().unwrap();
@@ -840,16 +839,15 @@ mod tests {
             big_prep: None,
             big_read: None,
             shallow: None,
+            cacheable: None,
         }
     }
 
     #[test]
     fn to_tree1() {
         let tstate = TreeRunManager::<(TestEntity, TestEntity)>::fake();
-        let id = "0".to_string();
-
         let r = tstate
-            .get_resp(q(0), &TestEntity::NAME.to_string(), &id)
+            .get_resp(q(0), &TestEntity::NAME.to_string(), 0)
             .unwrap();
         println!("{}", to_string_pretty(&r).unwrap());
         match &r.tree.children.deref() {
@@ -887,14 +885,13 @@ mod tests {
     fn to_tree2() {
         let tstate = TreeRunManager::<(TestEntity, TestEntity)>::fake();
         let name = TestEntity::NAME.to_string();
-        let id = "0".to_string();
-        let r = tstate.get_resp(q(1), &name, &id).unwrap();
+        let r = tstate.get_resp(q(1), &name, 0).unwrap();
         println!("{}", to_string_pretty(&r).unwrap());
         val_res2(&r);
-        let rcached = tstate.get_resp(q(1), &name, &id).unwrap();
+        let rcached = tstate.get_resp(q(1), &name, 0).unwrap();
         val_res2(&rcached);
 
-        let r = tstate.get_resp(q(2), &name, &id).unwrap();
+        let r = tstate.get_resp(q(2), &name, 0).unwrap();
         println!("{}", to_string_pretty(&r).unwrap());
         assert_eq!(r.tree.node.source_count, 2);
         assert_eq!(r.tree.node.link_count, 3);
@@ -933,12 +930,12 @@ mod tests {
             big_prep,
             big_read,
             shallow: None,
+            cacheable: None,
         };
-        let id = "0".to_string();
-        let resp = tstate.get_resp(gq(Some(true), None), &name, &id).unwrap();
+        let resp = tstate.get_resp(gq(Some(true), None), &name, 0).unwrap();
         assert_eq!(resp.tree.node.top_cite_count, 0);
 
-        let resp = tstate.get_resp(gq(None, Some(true)), &name, &id).unwrap();
+        let resp = tstate.get_resp(gq(None, Some(true)), &name, 0).unwrap();
         assert_eq!(resp.tree.node.top_cite_count, 0);
 
         let mut years: Vec<Option<RawYear>> =
@@ -947,10 +944,9 @@ mod tests {
         for year in years.into_iter() {
             let mut qy = gq(None, None);
             qy.year = year;
-            let resp2 = tstate.get_resp(qy.clone(), &name, &id).unwrap();
+            let resp2 = tstate.get_resp(qy.clone(), &name, 0).unwrap();
             assert_eq!(resp.tree.node.top_cite_count, 0);
-            let id2 = "1".to_string();
-            let resp3 = tstate.get_resp(qy, &name, &id2).unwrap();
+            let resp3 = tstate.get_resp(qy, &name, 1).unwrap();
             assert_eq!(resp2.tree.node, resp3.tree.node);
         }
     }

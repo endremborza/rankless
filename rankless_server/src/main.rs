@@ -44,6 +44,7 @@ use rankless_trees::{
 };
 
 const PORT: u16 = 3038;
+const CACHEABLE_FROM: u32 = 10_000;
 const N_THREADS: usize = 16;
 const UPPER_LIMIT: u32 = u32::MAX;
 const ETYPE_ENC: [&str; 6] = [
@@ -551,18 +552,9 @@ fn get_rest(
     let mut ns_map: NameStateMap = HashMap::new();
     let mut tops = Vec::new();
     let mut descriptions = Vec::new();
-    let mut sem_maps = HashMap::new();
 
     for (name, handle) in ei_ns_map.into_iter() {
         let (nstate, tr, ed) = handle.join().expect(&format!("{name} state thread"));
-        let dmid_map = HashMap::from_iter(
-            nstate
-                .semantic_id_map
-                .clone()
-                .into_iter()
-                .map(|(k, v)| (k, v.dm_id)),
-        );
-        sem_maps.insert(name.to_string(), dmid_map);
         tops.push(tr);
         descriptions.push(ed);
         ns_map.insert(name, nstate);
@@ -573,7 +565,7 @@ fn get_rest(
             .into_inner()
             .unwrap(),
     );
-    let tm: Arc<InstTrm> = TreeRunManager::new(gets, satts.clone(), sem_maps, N_THREADS);
+    let tm: Arc<InstTrm> = TreeRunManager::new(gets, satts.clone(), N_THREADS);
     (ns_map, satts, tm, descriptions, tops)
 }
 
@@ -627,13 +619,14 @@ async fn main() {
 
     let stowage = Stowage::new(&path);
     let (ns_map, satts, tree_manager, entity_descriptions, tops) = get_rest(stowage);
+    let ns_map_arc: Arc<NameStateMap> = ns_map.into();
 
     let response_api = Router::new()
         .route("/names/:etype", get(name_get))
         .route("/slice/:etype/:from/:to", get(slice_get))
         .route("/views/:etype/:semantic_id", get(view_get))
         .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))
-        .with_state((ns_map.into(), satts.clone()));
+        .with_state((ns_map_arc.clone(), satts.clone()));
 
     let count_api = static_router(&entity_descriptions);
     let specs_api = static_router(&tree_manager.specs);
@@ -644,7 +637,7 @@ async fn main() {
 
     let tree_api = Router::new()
         .route("/:root_type/:semantic_id", get(tree_get))
-        .with_state(tree_manager.clone());
+        .with_state((tree_manager.clone(), ns_map_arc.clone()));
 
     let api = Router::new()
         .nest("/", response_api)
@@ -688,10 +681,19 @@ async fn state_get(str_state: State<Arc<str>>) -> (HeaderMap, Response<Body>) {
 async fn tree_get(
     Path((root_type, semantic_id)): Path<(String, String)>,
     tree_q: Query<TreeQ>,
-    state: State<Arc<InstTrm>>,
+    states: State<(Arc<InstTrm>, Arc<NameStateMap>)>,
 ) -> (HeaderMap, Json<Option<TreeResponse>>) {
-    let resp = Json(state.get_resp(tree_q.0, &root_type, &semantic_id));
-    (cache_header(60), resp)
+    let mut tq = tree_q.0;
+    let (tm, ns_map) = states.0;
+    if let Some(nstate) = ns_map.get(root_type.as_str()) {
+        if let Some(sval) = nstate.semantic_id_map.get(&semantic_id) {
+            let ncite = nstate.responses[sval.result_id].citations;
+            tq.cacheable = Some(ncite >= CACHEABLE_FROM);
+            let resp = Json(tm.get_resp(tq, &root_type, sval.dm_id));
+            return (cache_header(60), resp);
+        }
+    }
+    (cache_header(0), None.into())
 }
 
 async fn tops_get(tops_state: State<Arc<Vec<TopResult>>>) -> Json<Vec<TopResult>> {
