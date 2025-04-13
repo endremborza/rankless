@@ -25,6 +25,26 @@ tree-test:
 run-server:
 	cargo run --release -p rankless-server -- $(OA_ROOT) 
 
+cov-test:
+	export CARGO_INCREMENTAL=0
+	export RUSTFLAGS="-Cinstrument-coverage"
+	export RUSTDOCFLAGS="-Cinstrument-coverage"
+
+	cargo clean
+	cargo test
+
+	grcov . \
+	  --binary-path ./target/debug/ \
+	  -s . \
+	  -t html \
+	  --branch \
+	  --ignore-not-existing \
+	  --ignore "/*" \
+	  -o ./target/coverage/html
+
+	rm default_*.profraw
+	rm ./*/default_*.profraw
+
 extend_csvs bm live_monitoring report:
 	python3 -m pyscripts.$@
 
