@@ -45,6 +45,7 @@ be_service_frame = """
 Description=Rankless Backend
 
 [Service]
+LimitNOFILE=65534
 ExecStart={}/target/release/rankless-server {}
 Restart=always
 RestartSec=15
@@ -650,6 +651,11 @@ def bump_v():
     vns = _last_vns()
     next_v = f"v{vns[0]}.{vns[1]}.{vns[2] + 1}"
     subprocess.call(["git", "tag", next_v])
+    # git push origin tag <tag_name>
+    # not recommended
+    # git push --tags
+    # annoted, within the ancestors tags
+    # git push --follow-tags
 
 
 def promote_alpha_to_live():
