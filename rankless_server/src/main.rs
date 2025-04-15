@@ -8,7 +8,10 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use dmove::{para::set_and_notify, Entity, NamespacedEntity, UnsignedNumber, ET};
+use dmove::{
+    para::{set_and_notify, AcTuple},
+    Entity, InitEmpty, NamespacedEntity, UnsignedNumber, ET,
+};
 use hashbrown::HashMap;
 use kd_tree::{KdPoint, KdTree};
 use rand::seq::SliceRandom;
@@ -16,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     cmp::{max, min},
     net::SocketAddr,
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Mutex},
     thread::{sleep, JoinHandle},
     time,
 };
@@ -534,7 +537,7 @@ fn get_rest(
     let gets = Arc::new(Getters::new(Arc::new(stowage)));
     let static_att_union: Arc<Mutex<AttributeLabelUnion>> = Arc::new(Mutex::new(HashMap::new()));
     let mut ei_ns_map = HashMap::new();
-    let cv_pair = Arc::new((Mutex::new(None), Condvar::new()));
+    let cv_pair = AcTuple::<Option<f64>>::init_empty();
 
     //TODO: make this a macro
     add_thread::<Institutions>(&gets, &static_att_union, &cv_pair, &mut ei_ns_map);
@@ -570,10 +573,22 @@ fn get_rest(
     (ns_map, satts, tm, descriptions, tops)
 }
 
+fn wait_for_data<T>(cvp: AcTuple<Option<T>>) -> T
+where
+    T: Copy,
+{
+    let (lock, cvar) = &*cvp;
+    let mut data = lock.lock().unwrap();
+    while data.is_none() {
+        data = cvar.wait(data).unwrap();
+    }
+    *data.as_ref().unwrap()
+}
+
 fn add_thread<E>(
     gets: &Arc<Getters>,
     atts: &Arc<Mutex<AttributeLabelUnion>>,
-    cv_pair: &Arc<(Mutex<Option<f64>>, Condvar)>,
+    cv_pair: &AcTuple<Option<f64>>,
     ei_ns_map: &mut HashMap<&'static str, JoinHandle<(NameState, TopResult, EntityDescription)>>,
 ) where
     E: RootInterfaceable + PrepFilter + MainEntity + NamespacedEntity,
@@ -585,12 +600,7 @@ fn add_thread<E>(
         let name = E::NAME.to_string();
         let ent_intf = RootInterfaces::<E>::new(&gets_clone.stowage);
         let nstate = NameState::new::<E>(&ent_intf, &gets_clone);
-        let (lock, cvar) = &*shared_cvp;
-        let mut data = lock.lock().unwrap();
-        while data.is_none() {
-            data = cvar.wait(data).unwrap();
-        }
-        let ccount = *data.as_ref().unwrap();
+        let ccount = wait_for_data(shared_cvp);
         ent_intf.update_stats(&mut au_clone.lock().unwrap(), ccount);
         let entities = nstate
             .responses
@@ -781,7 +791,7 @@ async fn name_get(
     states: State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>)>,
 ) -> (HeaderMap, Response) {
     if let Some(state) = states.0 .0.get(etype.as_str()) {
-        let q_string = q.q.clone().unwrap();
+        let q_string = q.q.clone().unwrap_or("".to_string());
         let top_n_inds = state.engine.query(&q_string);
         let resp: Json<Vec<SearchResult>> = Json(
             top_n_inds

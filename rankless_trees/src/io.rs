@@ -5,7 +5,7 @@ use std::{
     marker::PhantomData,
     path::PathBuf,
     str::FromStr,
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Mutex},
     thread::JoinHandle,
     u32, u8, vec,
 };
@@ -23,7 +23,7 @@ use rankless_rs::{
     },
 };
 
-use dmove::{BigId, Entity, InitEmpty, ET};
+use dmove::{para::AcTuple, BigId, Entity, InitEmpty, ET};
 
 use crate::{ids::get_atts, instances::TreeGetter, interfacing::Getters, AttributeLabelUnion};
 
@@ -36,10 +36,10 @@ pub type CollapsedNode = CollapsedNodeGen<WT>;
 pub type CollapsedNodeJson = CollapsedNodeGen<Option<BigId>>;
 pub type CacheMap = HashMap<CacheKey, CacheValue>;
 
-pub type ResCvp = Arc<(Mutex<Option<TreeResponse>>, Condvar)>;
-pub type BoolCvp = Arc<(Mutex<bool>, Condvar)>;
+pub type ResCvp = AcTuple<Option<TreeResponse>>;
+pub type BoolCvp = AcTuple<bool>;
 type BasisQuElem = (Option<FullTreeQuery>, ResCvp);
-type BasisCvp = Arc<(Mutex<VecDeque<BasisQuElem>>, Condvar)>;
+type BasisCvp = AcTuple<VecDeque<BasisQuElem>>;
 
 pub struct TreeBasisState {
     pub gets: Getters,

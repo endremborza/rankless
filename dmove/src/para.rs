@@ -2,6 +2,8 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use crossbeam_channel::{bounded, Receiver};
 
+pub type AcTuple<T> = Arc<(Mutex<T>, Condvar)>;
+
 pub trait Worker<T>
 where
     T: Send,
