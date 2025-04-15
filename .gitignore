@@ -18,3 +18,4 @@ roots.json
 __pycache__
 *.tar.gz
 /reports
+*.profraw
