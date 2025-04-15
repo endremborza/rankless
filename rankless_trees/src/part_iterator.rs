@@ -75,7 +75,7 @@ pub trait PartitioningIterator<'a>:
         println!("requested entity: {fq}");
         if fq.q.big_prep.unwrap_or(false) {
             Self::write_tmp_parts(state, &fq);
-            println!("setting");
+            println!("setting {fq}");
             set_and_notify(res_cvp, Some(TreeResponse::empty()));
             println!("wrote tmp {fq}");
             return;
@@ -145,7 +145,6 @@ pub trait PartitioningIterator<'a>:
             pids.push(pid8);
             // TODO: wrote complete once
             // write_buf_path(&tree, get_path(pid8)).unwrap();
-            pid8
         };
         create_dir_all(get_path(0).parent().unwrap()).unwrap();
 
@@ -172,8 +171,11 @@ pub trait PartitioningIterator<'a>:
             let mut ser_tree_o = None;
             for (pid, part_root) in roots.into_iter().enumerate().rev() {
                 Self::fold_tree(&mut ser_tree_o, part_root);
-                let stref = &ser_tree_o.as_ref().unwrap();
-                check_w(pid, &stref, Some(res_cvp.clone()));
+                let stref = ser_tree_o.as_ref().unwrap();
+                check_w(pid, stref, Some(res_cvp.clone()));
+                if !fq.q.cacheable.unwrap_or(true) & (pid as u8 == fq.period) {
+                    break;
+                }
             }
             println!(
                 "{fq}: converted, ingested and wrote trees in {}",
@@ -230,8 +232,10 @@ pub trait PartitioningIterator<'a>:
     ) {
         let now = std::time::Instant::now();
         let bds = Self::get_spec().breakdowns;
-        //TODO unnecessary if not cacheable
-        //also, should break the cycle if non cacheable
+        let cacheable = fq.q.cacheable.unwrap_or(true);
+        if !cacheable & (pid != fq.period) {
+            return;
+        }
         let pruned_tree = prune(full_tree, &state.att_union, &bds);
         println!("{fq}: pruned in {}", now.elapsed().as_millis());
         //cache pruned response, use it if no connections are requested
@@ -246,7 +250,7 @@ pub trait PartitioningIterator<'a>:
                 set_and_notify(res_cvp, Some(full_resp));
             }
         }
-        if fq.q.cacheable.unwrap_or(true) {
+        if cacheable {
             let resp_path = state.pruned_cache_file_period(fq, pid);
             write_buf_path(pruned_tree, &resp_path).unwrap();
             println!("{fq}: wrote to {:?}", resp_path);
@@ -346,7 +350,7 @@ where
     CT: Collapsing + TopTree,
     DisJTree<PI::Root, CT>: Into<BufSerTree>,
     IntXTree<PI::Root, CT>: Updater<CT>,
-    F1: FnMut(usize, &BufSerTree, Option<ResCvp>) -> u8,
+    F1: FnMut(usize, &BufSerTree, Option<ResCvp>),
 {
     let et_id = NET::<PI::Root>::from_usize(fq.ck.eid);
     let cache_root = tmp_part_cache_root(fq);
