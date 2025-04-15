@@ -17,7 +17,8 @@ use std::{
     cmp::{max, min},
     net::SocketAddr,
     sync::{Arc, Condvar, Mutex},
-    thread::JoinHandle,
+    thread::{sleep, JoinHandle},
+    time,
 };
 
 use tower::ServiceBuilder;
@@ -651,10 +652,23 @@ async fn main() {
 
     let loc_addr = SocketAddr::from(([127, 0, 0, 1], PORT));
     println!("{loc_addr} set-up in {}", now.elapsed().as_secs());
-    axum_server::bind(loc_addr)
-        .serve(app.clone().into_make_service())
-        .await
-        .unwrap()
+    loop {
+        match axum_server::bind(loc_addr)
+            .serve(app.clone().into_make_service())
+            .await
+        {
+            Ok(rapp) => return rapp,
+            Err(e) => {
+                if let std::io::ErrorKind::AddrInUse = e.kind() {
+                    println!("addr in use, waiting 10 secs");
+                    sleep(time::Duration::from_secs(10));
+                } else {
+                    eprintln!("failed binding and serving {e}");
+                    sleep(time::Duration::from_secs(30));
+                }
+            }
+        }
+    }
 }
 
 async fn slice_get(
