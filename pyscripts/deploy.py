@@ -377,6 +377,7 @@ WantedBy=default.target
         nginx_conf = f"""
 proxy_cache_path {self.be_cache_dir} levels=1:2 keys_zone=be-cache:50m max_size=20g;
 proxy_cache_path {self.fe_cache_dir} levels=1:2 keys_zone=fe-cache:50m max_size=10g;
+limit_req_zone $binary_remote_addr zone=baselimit:10m rate=2r/s;
 
 log_format upstream_time '$remote_addr - $remote_user [$time_local] '
                          '"$request" $status $body_bytes_sent '
@@ -395,6 +396,7 @@ server {{
         proxy_pass http://{FE_UPSTREAM};
         proxy_cache fe-cache;
         {loc_suffix}
+        limit_req zone=baselimit burst=60;
     }}
 }}
 
@@ -406,6 +408,7 @@ server {{
         proxy_pass http://{BE_UPSTREAM};
         proxy_cache be-cache;
         {loc_suffix}
+        limit_req zone=baselimit burst=80;
     }}
 }}
 
