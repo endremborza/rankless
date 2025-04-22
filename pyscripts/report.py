@@ -23,6 +23,23 @@ def tryfloat(s):
 n = 100_000
 # samp = "1min"
 samp = "10min"
+line_rex = re.compile(
+    r'(.*?) \-.*\-.*\[(.*)\].*"([A-Z]+) (.*?)" (\d\d\d) (\d+) "(.*)" "(.*)"rt=(.*) uct="(.*)" uht="(.*)" urt="(.*)"'
+)
+line_cols = [
+    "addr",
+    "time",
+    "r",
+    "p",
+    "code",
+    "size",
+    "referrer",
+    "agent",
+    "rt",
+    "uct",
+    "uht",
+    "urt",
+]
 
 
 if __name__ == "__main__":
@@ -35,9 +52,6 @@ if __name__ == "__main__":
 
     tpr = Transper(SSHrer(ssh_id))
     logtail = tpr.ssh.run(f"tail -{n} /var/log/nginx/access.log")
-    line_rex = re.compile(
-        r'(.*?) \-.*\-.*\[(.*)\].*"([A-Z]+) (.*?)".*rt=(.*) uct="(.*)" uht="(.*)" urt="(.*)"'
-    )
     root = f"https://{tpr.get_dns()}"
     code_df = pd.DataFrame(
         re.findall(r'"GET (.*?)" (\d\d\d)', logtail), columns=["endp", "code"]
@@ -48,7 +62,7 @@ if __name__ == "__main__":
             map(
                 lambda e: e[0], filter(None, map(line_rex.findall, logtail.split("\n")))
             ),
-            columns=["addr", "time", "r", "p", "rt", "uct", "uht", "urt"],
+            columns=line_cols,
         )
         .assign(
             t=lambda df: df["time"].pipe(pd.to_datetime, format="%d/%b/%Y:%H:%M:%S %z"),
@@ -58,20 +72,23 @@ if __name__ == "__main__":
     )
 
     tdel = hour_df["t"].max() - hour_df["t"].min()
+    miss_n = err_df.shape[0]
+    miss_rate = miss_n / code_df.shape[0]
+    pct_miss = f"{round(miss_rate * 100, 2)}%"
 
     log_rec = {
         "period": f"{tdel}".split(" ")[-1],
         "uniqe_clients": hour_df["addr"].nunique(),
         "total_requests": hour_df.shape[0],
         "request_per_second": round(hour_df.shape[0] / tdel.total_seconds(), 3),
+        "500_count": miss_n,
+        "500_rate": miss_rate,
     } | dict(
         zip(
             ["resp_time_median", "resp_time_p99", "resp_time_p999"],
             hour_df["urt"].quantile([0.5, 0.99, 0.999]),
         )
     )
-
-    pct_miss = f"{round((err_df.shape[0] / code_df.shape[0]) * 100, 2)}%"
 
     misses = "\n".join(
         map(
@@ -101,6 +118,11 @@ if __name__ == "__main__":
     ax1.set_title(pct_miss)
     fig.tight_layout()
     plt.savefig(rep_dpath / "fig.png")
+    try:
+        files_table_str = tpr.get_backend_open_files_df().to_html()
+    except Exception as e:
+        print(e)
+        files_table_str = str(e)
 
     html_str = f"""<body>
     <h1>{rep_dir} report</h1>
@@ -108,12 +130,14 @@ if __name__ == "__main__":
     <img src="fig.png" />
     <h3>Misses:</h3>
     <ul>{misses}</ul>
+    <hr />
+    {files_table_str}
     </body>
     """
 
     (rep_dpath / "index.html").write_text(html_str)
     (rep_dpath / "rec.json").write_text(json.dumps(log_rec))
-    hour_df.to_csv(rep_dpath / "reqs.csv.gz")
+    hour_df.to_csv(rep_dpath / "reqs.csv.gz", index=False)
 
     reps = []
     links = []
