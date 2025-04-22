@@ -297,6 +297,7 @@ class Transper:
     def setup_be_service(self):
         be_service_txt = be_service_frame.format(self.deploy_dir, self.data_dir)
         self.sync_service(be_service_txt, be_service_name)
+        self.be_service.enable()
 
     def setup_fe_service(
         self, inst_dns: str, node_port_start=BUN_PORT_START, procs=10, bun=False
@@ -528,6 +529,23 @@ upstream {BE_UPSTREAM} {{
 
     def reload_systemctl(self):
         self.ssh.prun("sudo systemctl daemon-reload")
+
+    def get_backend_open_files_df(self):
+        comm = f"cat /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/{be_service_name}/cgroup.procs"
+        fdfs = []
+        for pid in self.ssh.run(comm).strip().split():
+            fdfs.append(
+                pd.DataFrame(
+                    map(
+                        lambda s: s.split(),
+                        self.ssh.run(f"ls -l /proc/{pid}/fd").strip().split("\n")[1:],
+                    )
+                )
+                .assign(n=lambda df: df.loc[:, 8].astype(int))
+                .loc[:, [7, "n", 10]]
+                .sort_values("n")
+            )
+        return pd.concat(fdfs, ignore_index=True)
 
     def _nginx_run(self, comms):
         self.ssh.prun("sudo nginx -t")
