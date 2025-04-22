@@ -3,7 +3,7 @@ mod consts;
 use axum::{
     body::Body,
     extract::{Path, Query, State},
-    http::{header::CACHE_CONTROL, HeaderMap, HeaderValue, Method, StatusCode},
+    http::{header::CACHE_CONTROL, HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     routing::get,
     Json, Router,
@@ -16,6 +16,7 @@ use hashbrown::HashMap;
 use kd_tree::{KdPoint, KdTree};
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
+use socket2::{Domain, Socket, Type};
 use std::{
     cmp::{max, min},
     net::SocketAddr,
@@ -23,13 +24,7 @@ use std::{
     thread::{sleep, JoinHandle},
     time,
 };
-
-use tower::ServiceBuilder;
-use tower_http::{
-    compression::CompressionLayer,
-    cors::{Any, CorsLayer},
-    CompressionLevel,
-};
+use tokio::net::TcpListener;
 
 use muwo_search::SearchEngine;
 use rankless_rs::{
@@ -620,14 +615,6 @@ async fn main() {
     let path: String = std::env::args().last().unwrap();
     let now = std::time::Instant::now();
     println!("reading from path: {}", path);
-    let cors = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST])
-        .allow_origin(Any);
-
-    let compression = CompressionLayer::new()
-        .gzip(true)
-        .quality(CompressionLevel::Fastest);
-
     let stowage = Stowage::new(&path);
     let (ns_map, satts, tree_manager, entity_descriptions, tops) = get_rest(stowage);
     let ns_map_arc: Arc<NameStateMap> = ns_map.into();
@@ -655,27 +642,35 @@ async fn main() {
         .nest("/trees", tree_api)
         .nest("/counts", count_api)
         .nest("/specs", specs_api)
-        .nest("/tops", tops_api)
-        .layer(ServiceBuilder::new().layer(cors).layer(compression));
+        .nest("/tops", tops_api);
 
     let app = Router::new().nest("/v1", api);
 
     let loc_addr = SocketAddr::from(([127, 0, 0, 1], PORT));
-    println!("{loc_addr} set-up in {}", now.elapsed().as_secs());
-    loop {
-        match axum_server::bind(loc_addr)
-            .serve(app.clone().into_make_service())
-            .await
-        {
-            Ok(rapp) => return rapp,
-            Err(e) => {
-                if let std::io::ErrorKind::AddrInUse = e.kind() {
-                    println!("addr in use, waiting 10 secs");
-                    sleep(time::Duration::from_secs(10));
-                } else {
-                    eprintln!("failed binding and serving {e}");
-                    sleep(time::Duration::from_secs(30));
-                }
+    println!("{loc_addr} set-up in {} ttcpl", now.elapsed().as_secs());
+
+    let socket = Socket::new(Domain::IPV4, Type::STREAM, None).unwrap();
+    // socket.set_linger(Some(Duration::from_secs(3))).unwrap();
+    // socket.set_reuse_address(true).unwrap();
+    // socket
+    //     .set_tcp_user_timeout(Some(Duration::from_secs(5)))
+    //     .unwrap();
+    // socket.set_keepalive(false).unwrap();
+    socket.bind(&loc_addr.into()).unwrap();
+    socket.listen(1024).unwrap();
+    let listener = TcpListener::from_std(socket.into()).unwrap();
+    match axum::serve(listener, app.clone().into_make_service())
+        .tcp_nodelay(true)
+        .await
+    {
+        Ok(rapp) => return rapp,
+        Err(e) => {
+            if let std::io::ErrorKind::AddrInUse = e.kind() {
+                println!("addr in use, waiting 10 secs");
+                sleep(time::Duration::from_secs(10));
+            } else {
+                eprintln!("failed binding and serving {e}");
+                sleep(time::Duration::from_secs(30));
             }
         }
     }
