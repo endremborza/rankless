@@ -650,30 +650,22 @@ async fn main() {
     println!("{loc_addr} set-up in {} ttcpl", now.elapsed().as_secs());
 
     let socket = Socket::new(Domain::IPV4, Type::STREAM, None).unwrap();
-    // socket.set_linger(Some(Duration::from_secs(3))).unwrap();
-    // socket.set_reuse_address(true).unwrap();
-    // socket
-    //     .set_tcp_user_timeout(Some(Duration::from_secs(5)))
-    //     .unwrap();
-    // socket.set_keepalive(false).unwrap();
-    socket.bind(&loc_addr.into()).unwrap();
-    socket.listen(1024).unwrap();
-    let listener = TcpListener::from_std(socket.into()).unwrap();
-    match axum::serve(listener, app.clone().into_make_service())
-        .tcp_nodelay(true)
-        .await
-    {
-        Ok(rapp) => return rapp,
-        Err(e) => {
-            if let std::io::ErrorKind::AddrInUse = e.kind() {
-                println!("addr in use, waiting 10 secs");
-                sleep(time::Duration::from_secs(10));
-            } else {
-                eprintln!("failed binding and serving {e}");
-                sleep(time::Duration::from_secs(30));
+    loop {
+        match socket.bind(&loc_addr.into()) {
+            Ok(_) => break,
+            Err(e) => {
+                println!("error binding socket: {e}");
+
+                sleep(time::Duration::from_secs(6));
             }
         }
     }
+    socket.listen(1024).unwrap();
+    let listener = TcpListener::from_std(socket.into()).unwrap();
+    axum::serve(listener, app.clone().into_make_service())
+        .tcp_nodelay(true)
+        .await
+        .unwrap()
 }
 
 async fn slice_get(
