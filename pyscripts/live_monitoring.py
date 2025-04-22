@@ -62,7 +62,7 @@ if __name__ == "__main__":
                     break
                 except:
                     pass
-            assert nfiles < 120
+            assert nfiles < 120, f"too many open files: {nfiles}"
             if not started:
                 started = True
                 raise RuntimeError(
