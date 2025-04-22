@@ -53,11 +53,22 @@ if __name__ == "__main__":
                 int,
                 re.findall(r"/dev/root.*?(\d+)\s+(\d+)% /\n", ltpr.ssh.run("df"))[0],
             )
-            assert full_pct < 95, f"getting full {full_pct}"
+            assert full_pct < 97, f"getting full {full_pct}"
+
+            nfiles = 200
+            for _ in range(5):
+                try:
+                    nfiles = ltpr.get_backend_open_files_df().shape[0]
+                    break
+                except:
+                    pass
+            assert nfiles < 120
             if not started:
                 started = True
-                raise RuntimeError(f"just started {rem_bytes / 1e6} at {full_pct}%")
-            time.sleep(70)
+                raise RuntimeError(
+                    f"just started {rem_bytes / 1e6} at {full_pct}% full {nfiles} open"
+                )
         except Exception as e:
             print(e)
             warn(e)
+        time.sleep(20)
