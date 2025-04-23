@@ -396,7 +396,7 @@ server {{
         proxy_pass http://{FE_UPSTREAM};
         proxy_cache fe-cache;
         {loc_suffix}
-        limit_req zone=baselimit burst=60;
+        limit_req zone=baselimit burst=100 nodelay;
     }}
 }}
 
@@ -408,7 +408,7 @@ server {{
         proxy_pass http://{BE_UPSTREAM};
         proxy_cache be-cache;
         {loc_suffix}
-        limit_req zone=baselimit burst=80;
+        limit_req zone=baselimit burst=100 nodelay;
     }}
 }}
 
