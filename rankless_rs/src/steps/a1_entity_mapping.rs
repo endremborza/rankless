@@ -13,7 +13,7 @@ use crate::{
     env_consts::{FINAL_YEAR, START_YEAR},
     oa_structs::{
         post::{Authorship, Institution},
-        IdStruct,
+        Geo, IdStruct,
     },
     NameMarker, QuickestVBox,
 };
@@ -168,6 +168,15 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     ids_from_atts::<Institution, _>(&starc, "countries", institutions::C, |e| {
         short_string_to_u64(&e.country_code.unwrap_or("".to_string()))
     });
+
+    entities_from_iter(
+        &starc,
+        "cities",
+        starc
+            .read_csv_objs::<Geo>(institutions::C, institutions::atts::geo)
+            .map(|e| short_string_to_u64(&e.city.unwrap_or("".to_string()))),
+        None,
+    );
 
     //TODO: distinguish as no null value here (??)
     //fix inderect authorships

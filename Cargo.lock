@@ -871,7 +871,6 @@ dependencies = [
 name = "rankless-trees"
 version = "0.1.0"
 dependencies = [
- "bincode",
  "dmove",
  "dmove-macro",
  "hashbrown 0.14.5",

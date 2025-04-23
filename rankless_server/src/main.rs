@@ -37,12 +37,14 @@ use rankless_rs::{
     Stowage,
 };
 use rankless_trees::{
+    extensions::DistinctionText,
     interfacing::{Getters, NodeInterfaces, RootInterfaceable, RootInterfaces},
     io::{TreeQ, TreeResponse, TreeRunManager},
     AttributeLabelUnion,
 };
 
 const PORT: u16 = 3038;
+const SEARCH_SIZE: usize = 20;
 const CACHEABLE_FROM: u32 = 10_000;
 const N_THREADS: usize = 16;
 const UPPER_LIMIT: u32 = u32::MAX;
@@ -106,7 +108,7 @@ struct EntityDescription {
 }
 
 struct NameState {
-    engine: SearchEngine,
+    engine: SearchEngine<SEARCH_SIZE>,
     responses: Box<[SearchResult]>,
     exts: Box<[ResultExtension]>,
     prep_exts: Box<[PreAttResultExtension]>,
@@ -146,6 +148,8 @@ struct SearchResult {
     oa_id: u64,
     #[serde(rename = "dmId")]
     dm_id: usize,
+    #[serde(rename = "distinctText", skip_serializing_if = "Option::is_none")]
+    distinct_text: Option<String>,
     papers: u32,
     citations: u32,
 }
@@ -262,6 +266,7 @@ impl SearchResult {
         name: String,
         ext: String,
         semantic_id: String,
+        distinct_text: Option<String>,
         entif: &RootInterfaces<E>,
     ) -> Self
     where
@@ -271,6 +276,7 @@ impl SearchResult {
             full_name: format!("{name} {ext}").trim().to_string(),
             name,
             semantic_id,
+            distinct_text,
             papers: entif.wcounts[i].to_usize() as u32,
             citations: entif.ccounts[i].to_usize() as u32,
             oa_id: entif.oa_id[i],
@@ -397,7 +403,7 @@ where
 impl NameState {
     fn new<E>(entif: &RootInterfaces<E>, gets: &Getters) -> Self
     where
-        E: RootInterfaceable + PrepFilter,
+        E: RootInterfaceable + PrepFilter + DistinctionText,
     {
         let responses = Self::get_resps(entif, gets);
         let engine = SearchEngine::new(responses.iter().map(|e| e.full_name.clone()));
@@ -454,21 +460,24 @@ impl NameState {
 
     fn get_resps<E>(entif: &RootInterfaces<E>, gets: &Getters) -> Box<[SearchResult]>
     where
-        E: RootInterfaceable + PrepFilter,
+        E: RootInterfaceable + PrepFilter + DistinctionText,
     {
+        let dist_txt = <E as DistinctionText>::get_distinction_text_arr(entif, gets);
         let mut responses: Vec<SearchResult> = entif
             .names
             .0
             .iter()
             .zip(entif.name_exts.0.iter())
             .zip(entif.sem_ids.0.iter())
+            .zip(dist_txt.to_vec().into_iter())
             .enumerate()
-            .map(|(i, ((name, ext), semantic_id))| {
+            .map(|(i, (((name, ext), semantic_id), dist_txt))| {
                 SearchResult::new(
                     i,
                     name.to_string(),
                     ext.to_string(),
                     semantic_id.to_string(),
+                    dist_txt,
                     entif,
                 )
             })
@@ -503,6 +512,7 @@ impl InstRelOut {
             inst_name.to_string(),
             "".to_string(),
             inst_sem_id.to_string(),
+            None,
             iif,
         );
         if !Institutions::filter_sr(&i_sr, gets, iif) {
@@ -586,7 +596,7 @@ fn add_thread<E>(
     cv_pair: &AcTuple<Option<f64>>,
     ei_ns_map: &mut HashMap<&'static str, JoinHandle<(NameState, TopResult, EntityDescription)>>,
 ) where
-    E: RootInterfaceable + PrepFilter + MainEntity + NamespacedEntity,
+    E: RootInterfaceable + PrepFilter + MainEntity + NamespacedEntity + DistinctionText,
 {
     let gets_clone = Arc::clone(gets);
     let au_clone = Arc::clone(atts);

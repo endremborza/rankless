@@ -1,24 +1,27 @@
 use crate::{
     common::{
         field_id_parse, init_empty_slice, oa_id_parse, short_string_to_u64, BeS, DoiMarker,
-        MainEntity, NameExtensionMarker, NameMarker, ParsedId, QuickestNumbered, Stowage,
-        MAIN_NAME, NET,
+        MainEntity, NameExtensionMarker, NameMarker, NumberedEntity, ParsedId, QuickestNumbered,
+        Stowage, MAIN_NAME, NET,
     },
     csv_writers::{institutions, works},
     gen::a1_entity_mapping::{
-        AreaFields, Authors, Authorships, Countries, Fields, Institutions, Sources, Subfields,
-        Topics, Works,
+        AreaFields, Authors, Authorships, Cities, Countries, Fields, Institutions, Sources,
+        Subfields, Topics, Works,
     },
     oa_structs::{
-        post::{read_post_str_arr, Authorship, Institution, Location, Source, SubField, Topic},
+        post::{
+            read_post_str_arr, Author, Authorship, IdSet, Institution, Location, Source, SubField,
+            Topic,
+        },
         FieldLike, Geo, Named, NamedEntity, ReferencedWork, Work, WorkTopic,
     },
     steps::a1_entity_mapping::{iter_authorships, Qs, SourceArea, YearInterface, Years},
 };
 use dmove::{
-    para::Worker, BigId, DiscoMapEntityBuilder, Entity, EntityImmutableMapperBackend,
-    FixAttBuilder, InitEmpty, LoadedIdMap, MappableEntity, MetaIntegrator, NamespacedEntity,
-    UnsignedNumber, VarAttBuilder, ET,
+    para::Worker, BigId, DiscoMapEntityBuilder, DowncastingBuilder, Entity,
+    EntityImmutableMapperBackend, FixAttBuilder, InitEmpty, LoadedIdMap, MappableEntity,
+    MetaIntegrator, NamespacedEntity, UnsignedNumber, VarAttBuilder, ET,
 };
 use levenshtein::levenshtein;
 use serde::{de::DeserializeOwned, Deserialize};
@@ -158,6 +161,117 @@ impl Stowage {
             (<Sources as Entity>::T, <Years as Entity>::T),
             <Qs as Entity>::T,
         >, _, _>(source_q_kv_iter, Some("source-year-qs"));
+    }
+
+    fn add_inst_atts(
+        &mut self,
+    ) -> (
+        BeS<QuickestNumbered, Institutions>,
+        BeS<QuickestNumbered, Countries>,
+    ) {
+        let cif = self.get_entity_interface::<Cities, QuickestNumbered>();
+        let iif: BeS<QuickestNumbered, Institutions> =
+            self.get_entity_interface::<Institutions, QuickestNumbered>();
+        let coif = self.get_entity_interface::<Countries, QuickestNumbered>();
+        let mut cinames = init_empty_slice::<Cities, String>();
+        let mut conames = init_empty_slice::<Countries, String>();
+        let mut ccs = init_empty_slice::<Countries, [u8; 2]>();
+        let mut cities = init_empty_slice::<Institutions, ET<Cities>>();
+        let mut locs = init_empty_slice::<Institutions, (f64, f64)>();
+        for cgeo in self.read_csv_objs::<Geo>(Institutions::NAME, institutions::atts::geo) {
+            let rcid = short_string_to_u64(cgeo.city.as_ref().unwrap_or(&"".to_string()));
+            let cid = cif.0.get(&rcid).unwrap();
+            let rcoid = cgeo.get_parsed_id();
+            let coid = coif.0.get(&rcoid).unwrap();
+            ccs[coid.to_usize()] = rcoid.to_le_bytes()[..2].try_into().unwrap();
+            cinames[cid.to_usize()] = cgeo.city.unwrap_or("".to_string());
+            conames[coid.to_usize()] = cgeo.country.unwrap_or("".to_string());
+            if let Some(iid) = iif.0.get(&oa_id_parse(&cgeo.parent_id.unwrap())) {
+                let iid_u = iid.to_usize();
+                cities[iid_u] = *cid;
+                if let (Some(lon), Some(lat)) = (cgeo.longitude, cgeo.latitude) {
+                    locs[iid_u] = (lat, lon);
+                }
+            }
+        }
+
+        const ROR_PREFIX: &str = "https://ror.org/";
+        let mut inames = init_empty_slice::<Institutions, String>();
+        let mut rors = init_empty_slice::<Institutions, [u8; 9]>();
+        for iobj in self.read_csv_objs::<Institution>(Institutions::NAME, MAIN_NAME) {
+            if let Some(iid) = iif.0.get(&iobj.get_parsed_id()) {
+                let iid_u = iid.to_usize();
+                inames[iid_u] = iobj.display_name;
+                assign_farr(iobj.ror, ROR_PREFIX, &mut rors, iid_u);
+            }
+        }
+
+        add_name_box::<Countries>(self, conames);
+        add_name_box::<Cities>(self, cinames);
+        add_name_box::<Institutions>(self, inames);
+        self.add_iter_owned::<FixAttBuilder, _, _>(ccs.to_vec().into_iter(), Some("country-codes"));
+        self.add_iter_owned::<FixAttBuilder, _, _>(locs.to_vec().into_iter(), Some("inst-locs"));
+        self.add_iter_owned::<FixAttBuilder, _, _>(rors.to_vec().into_iter(), Some("inst-rors"));
+        self.add_iter_owned::<FixAttBuilder, _, _>(
+            cities.to_vec().into_iter(),
+            Some("inst-cities"),
+        );
+
+        (iif, coif)
+    }
+
+    fn add_author_atts(&mut self) {
+        let aif = self.get_entity_interface::<Authors, QuickestNumbered>();
+        let mut names = init_empty_slice::<Authors, String>();
+        const ORCID_PREF: &str = "https://orcid.org/";
+        let mut orcids = init_empty_slice::<Authors, [u8; 19]>();
+        let mut raw_cites = init_empty_slice::<Authors, usize>();
+        let mut raw_works = init_empty_slice::<Authors, usize>();
+        for aobj in self.read_csv_objs::<Author>(Authors::NAME, MAIN_NAME) {
+            if let Some(aidt) = aif.0.get(&aobj.get_parsed_id()) {
+                let aid = aidt.to_usize();
+                names[aid] = aobj.display_name.unwrap_or("".to_string());
+                assign_farr(aobj.orcid, ORCID_PREF, &mut orcids, aid);
+                raw_cites[aid] = aobj.cited_by_count.unwrap_or(0) as usize;
+                raw_works[aid] = aobj.works_count.unwrap_or(0) as usize;
+            }
+        }
+        add_name_box::<Authors>(self, names);
+        self.add_iter_owned::<FixAttBuilder, _, _>(
+            orcids.to_vec().into_iter(),
+            Some("author-orcids"),
+        );
+        self.add_iter_owned::<DowncastingBuilder, _, _>(
+            raw_cites.to_vec().into_iter(),
+            Some("author-raw-cites"),
+        );
+        self.add_iter_owned::<DowncastingBuilder, _, _>(
+            raw_works.to_vec().into_iter(),
+            Some("author-raw-work-counts"),
+        );
+    }
+
+    fn add_theme_atts<E, F>(&mut self, ifs: &BeS<QuickestNumbered, E>, gatt: F)
+    where
+        E: NumberedEntity<T = ET<E>>,
+        ET<E>: UnsignedNumber,
+        F: Fn(&str) -> BigId,
+    {
+        const IDS: &str = "ids";
+        const WPREF: &str = "https://en.wikipedia.org/wiki/";
+        let mut wids = init_empty_slice::<E, String>();
+        for ids in self.read_csv_objs::<IdSet>(E::NAME, IDS) {
+            if let (Some(id), Some(wid)) = (
+                ifs.0.get(&gatt(&ids.parent_id.clone().unwrap())),
+                ids.wikipedia,
+            ) {
+                wids[id.to_usize()] = wid.replace(WPREF, "");
+            }
+        }
+        self.add_iter_owned::<VarAttBuilder, _, _>(
+            wids.to_vec().into_iter(),
+            Some(&format!("{}-wikipedia", E::NAME)),
+        );
     }
 
     fn add_work_atts(&self, winf: Arc<LoadedIdMap<ET<Works>>>) -> LoadedIdMap<ET<Works>> {
@@ -801,26 +915,27 @@ pub fn main(mut stowage: Stowage) -> io::Result<()> {
         let winf = stowage.add_ship_relations();
         stowage.add_work_atts(winf.into())
     };
-
+    let (insts_interface, countries_interface) = stowage.add_inst_atts();
+    stowage.add_author_atts();
     let mut str_writer = StrWriter::new(&stowage);
     let fields_interface = str_writer.write_name::<FieldLike, Fields>();
-    let countries_interface = str_writer
-        .set_path(Institutions::NAME, institutions::atts::geo)
-        .write_name::<Geo, Countries>();
     let subfields_interface = str_writer.write_name::<FieldLike, Subfields>();
-    let insts_interface = write_inst_names(&stowage);
     let sources_interface = str_writer.write_name::<Source, Sources>();
-    str_writer.write_name::<NamedEntity, Authors>();
     let topics_interface = str_writer.write_name::<NamedEntity, Topics>();
-    str_writer.write_name_ext::<Institution, Institutions>(&insts_interface);
+
+    str_writer.write_name_ext::<Institution, Institutions>(&insts_interface); //TODO: move to inst
+                                                                              //atts
     str_writer.write_name_ext::<Source, Sources>(&sources_interface);
+
+    stowage.add_theme_atts::<Subfields, _>(&subfields_interface, field_id_parse);
+    stowage.add_theme_atts::<Topics, _>(&topics_interface, oa_id_parse);
 
     stowage.add_empty_name_ext::<Authors>();
     stowage.add_empty_name_ext::<Countries>();
     stowage.add_empty_name_ext::<Subfields>();
 
     stowage.add_source_qs(&sources_interface, &YearInterface {});
-    stowage.object_property::<Institution, Institutions, _, _, _>(
+    stowage.object_property::<Institution, Institutions, Countries, _, _>(
         &insts_interface,
         &countries_interface,
         "inst-countries",
@@ -865,65 +980,6 @@ pub fn main(mut stowage: Stowage) -> io::Result<()> {
     Ok(())
 }
 
-fn write_inst_names(stowage: &Stowage) -> LoadedIdMap<NET<Institutions>> {
-    type E = Institutions;
-    let interface = stowage.get_entity_interface::<E, QuickestNumbered>();
-    let mut cities = init_empty_slice::<E, String>();
-    let mut ccs = init_empty_slice::<E, String>();
-    stowage
-        .read_csv_objs::<Geo>(E::NAME, institutions::atts::geo)
-        .for_each(|e| {
-            let iu = interface
-                .0
-                .get(&oa_id_parse(&e.parent_id.unwrap()))
-                .unwrap_or(&0)
-                .to_usize();
-            if let Some(city) = e.city {
-                cities[iu] = city.clone();
-            }
-            if let Some(cc) = e.country_code {
-                ccs[iu] = cc.clone();
-            }
-        });
-
-    let winit: GenWorker<_, _, _, _, _, NameMarker, _> =
-        GenWorker::new(DataAttWorker::<E, String, _>::new(&interface));
-    let raw_names = winit
-        .para(stowage.read_csv_objs::<NamedEntity>(E::NAME, MAIN_NAME))
-        .worker
-        .attribute_arr
-        .into_inner()
-        .unwrap();
-    let countried_names: Vec<String> = raw_names
-        .iter()
-        .enumerate()
-        .map(|(i, e)| {
-            for (j, rn) in raw_names.iter().enumerate() {
-                if (i != j) & (rn == e) & (ccs[i].len() > 0) {
-                    return format!("{e} ({})", ccs[i]);
-                }
-            }
-            e.clone()
-        })
-        .collect();
-    let citied_names: Vec<String> = countried_names
-        .iter()
-        .enumerate()
-        .map(|(i, e)| {
-            for (j, cn) in countried_names.iter().enumerate() {
-                if (i != j) & (cn == e) & (cities[i].len() > 0) {
-                    return format!("{} ({})", raw_names[i], cities[i]);
-                }
-            }
-            e.clone()
-        })
-        .collect();
-    let prop_name = &get_name_name::<E>();
-    stowage.declare_iter::<VarAttBuilder, _, _, E, NameMarker>(citied_names.into_iter(), prop_name);
-
-    interface
-}
-
 fn get_name_name<E: Entity>() -> String {
     format!("{}-names", E::NAME)
 }
@@ -938,4 +994,28 @@ fn iter_mboxa<T>(ba: Mutex<Box<[T]>>) -> std::vec::IntoIter<T> {
 
 fn post_ext_name(in_str: &Option<String>) -> Option<String> {
     Some(read_post_str_arr(in_str).join(" "))
+}
+
+fn add_name_box<E: Entity>(stowage: &Stowage, names: Box<[String]>) {
+    stowage.declare_iter::<VarAttBuilder, _, _, E, NameMarker>(
+        names.to_vec().into_iter(),
+        &get_name_name::<E>(),
+    );
+}
+
+fn assign_farr<const S: usize>(
+    so: Option<String>,
+    prefix: &str,
+    arr: &mut Box<[[u8; S]]>,
+    ind: usize,
+) {
+    if let Some(s) = so {
+        arr[ind] = s
+            .into_bytes()
+            .into_iter()
+            .skip(prefix.len())
+            .collect::<Vec<u8>>()
+            .try_into()
+            .unwrap();
+    }
 }

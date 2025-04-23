@@ -16,8 +16,6 @@ use tqdm::Iter;
 
 type IndType = u32;
 
-const MAX_HEAP_SIZE: usize = 16;
-
 const SPLIT_CHAR: u8 = 32;
 const ASCII_LC_MIN: u8 = 97;
 const ASCII_LC_MAX: u8 = 122;
@@ -29,15 +27,15 @@ const MAX_QUERY_WORDS: usize = 32;
 
 const BRANCHING_LEVELS: usize = 2;
 
-type IndOutTrie<NL> = GenTrie<NL, FixedHeap<IndType, MAX_HEAP_SIZE>>;
-type TrieNodeRoot = IndOutTrie<TrieNodeL1>;
-type TrieNodeL1 = IndOutTrie<TrieLeaves>;
+type IndOutTrie<NL, const S: usize> = GenTrie<NL, FixedHeap<IndType, S>>;
+type TrieNodeRoot<const S: usize> = IndOutTrie<TrieNodeL1<S>, S>;
+type TrieNodeL1<const S: usize> = IndOutTrie<TrieLeaves, S>;
 
-type PrepTrieL1 = IndOutTrie<Vec<PrepLeaf>>;
-type PrepTrieRoot = IndOutTrie<PrepTrieL1>;
+type PrepTrieL1<const S: usize> = IndOutTrie<Vec<PrepLeaf>, S>;
+type PrepTrieRoot<const S: usize> = IndOutTrie<PrepTrieL1<S>, S>;
 
-pub struct SearchEngine {
-    tree: CustomTrie,
+pub struct SearchEngine<const S: usize> {
+    tree: CustomTrie<S>,
 }
 
 struct QueryResult {
@@ -62,9 +60,9 @@ struct GenTrie<NextLevel, Out> {
     out: Out,
 }
 
-struct CustomTrie {
-    prefix_tree: TrieNodeRoot,
-    inner_tree: TrieNodeRoot,
+struct CustomTrie<const S: usize> {
+    prefix_tree: TrieNodeRoot<S>,
+    inner_tree: TrieNodeRoot<S>,
     char_array: Box<[u8]>,
 }
 
@@ -105,7 +103,7 @@ trait QueriableLevel {
     ) -> Vec<IndType>;
 }
 
-impl<T> IndOutTrie<T> {
+impl<T, const S: usize> IndOutTrie<T, S> {
     fn rel_inds(&self) -> Vec<IndType> {
         self.out
             .arr
@@ -152,7 +150,7 @@ impl<T: Iterator<Item = TrieLeaf>> From<T> for TrieLeaves {
     }
 }
 
-impl<T: Construct> Construct for IndOutTrie<T> {
+impl<T: Construct, const S: usize> Construct for IndOutTrie<T, S> {
     fn new() -> Self {
         let children = core::array::from_fn(|_| T::new());
         Self {
@@ -162,7 +160,7 @@ impl<T: Construct> Construct for IndOutTrie<T> {
     }
 }
 
-impl<T: QueriableLevel> QueriableLevel for IndOutTrie<T> {
+impl<T: QueriableLevel, const S: usize> QueriableLevel for IndOutTrie<T, S> {
     fn query(&self, word: &[u8], char_arr: &[u8]) -> QueryResult {
         if word.len() == 0 {
             let perfect = self.rel_inds();
@@ -280,8 +278,8 @@ impl QueriableLevel for TrieLeaves {
     }
 }
 
-impl PrepTrieRoot {
-    fn finalize(mut self, char_array: &Vec<u8>) -> TrieNodeRoot {
+impl<const S: usize> PrepTrieRoot<S> {
+    fn finalize(mut self, char_array: &Vec<u8>) -> TrieNodeRoot<S> {
         self.out.sort();
         let out = self.out;
         let children = child_into(self.children, |c| c.finalize(char_array));
@@ -324,8 +322,8 @@ impl PrepTrieRoot {
     }
 }
 
-impl PrepTrieL1 {
-    fn finalize(mut self, char_array: &Vec<u8>) -> TrieNodeL1 {
+impl<const S: usize> PrepTrieL1<S> {
+    fn finalize(mut self, char_array: &Vec<u8>) -> TrieNodeL1<S> {
         self.out.sort();
         let out = self.out;
         let children = child_into(self.children, |mut c| {
@@ -377,7 +375,7 @@ impl WordViaCharr {
     }
 }
 
-impl CustomTrie {
+impl<const S: usize> CustomTrie<S> {
     fn new(mut idxed_words: Vec<IndexedWord>) -> Self {
         idxed_words.sort_by(|l, r| get_suffix(&l.word).cmp(&get_suffix(&r.word)));
         let mut char_array = Vec::new();
@@ -513,7 +511,7 @@ impl StackWordSet {
     }
 }
 
-impl SearchEngine {
+impl<const S: usize> SearchEngine<S> {
     pub fn new<I: Iterator<Item = String>>(haystacks: I) -> Self {
         //TODO/performance:
         // involve sizetype (authors-names is only u8 max len!)
@@ -526,11 +524,7 @@ impl SearchEngine {
 
     pub fn query(&self, query: &str) -> Vec<IndType> {
         let sword = StackWordSet::new(query);
-        self.tree
-            .query(&sword, MAX_HEAP_SIZE)
-            .into_iter()
-            .take(MAX_HEAP_SIZE)
-            .collect()
+        self.tree.query(&sword, S).into_iter().take(S).collect()
     }
 }
 
@@ -626,7 +620,9 @@ where
 mod tests {
     use super::*;
 
-    fn get_test_engine() -> SearchEngine {
+    const TEST_SIZE: usize = 16;
+
+    fn get_test_engine() -> SearchEngine<TEST_SIZE> {
         let haystacks = vec![
             "abc",
             "xyz",
@@ -699,19 +695,22 @@ mod tests {
     #[test]
     fn no_multiplied_result() {
         let haystacks = vec!["aba aba aba", "xxx", "zzz"];
-        let engine = SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
+        let engine: SearchEngine<TEST_SIZE> =
+            SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
         println!("tlen: {}", engine.tree.char_array.len());
         assert_eq!(engine.query("ab").len(), 1);
 
         let haystacks = vec!["abas abazz abaxy", "tabaxi", "zzz"];
-        let engine = SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
+        let engine: SearchEngine<TEST_SIZE> =
+            SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
         assert_eq!(engine.query("ab").len(), 2);
     }
 
     #[test]
     fn multi_word_query() {
         let haystacks = vec!["aba cdx", "aba", "cdx", "crum brabn", "udx crtasba"];
-        let engine = SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
+        let engine: SearchEngine<TEST_SIZE> =
+            SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
         assert_eq!(engine.query("ab cd"), vec![0]);
         assert_eq!(engine.query("ru ra"), vec![3]);
         assert_eq!(engine.query("dx ba"), vec![0, 4]);
@@ -720,21 +719,24 @@ mod tests {
     #[test]
     fn optimized_array() {
         let haystacks = vec!["ababc", "xaabc", "wuabc"];
-        let engine = SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
+        let engine: SearchEngine<TEST_SIZE> =
+            SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
         assert_eq!(engine.tree.char_array.len(), 3);
     }
 
     #[test]
     fn gets_long() {
         let haystacks = vec!["Hiroyasa Hidaka", "Manuel Hidalgo", "Hisao Hidaka"];
-        let engine = SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
+        let engine: SearchEngine<TEST_SIZE> =
+            SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
         assert_eq!(engine.query("hidalgo")[0], 1);
     }
 
     #[test]
     fn gets_ch() {
         let haystacks = vec!["China", "Chile", "Chad"];
-        let engine = SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
+        let engine: SearchEngine<TEST_SIZE> =
+            SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
         assert_eq!(engine.query("ch")[0], 0);
     }
 
@@ -742,7 +744,7 @@ mod tests {
     fn perfect_match() {
         let mut haystacks: Vec<String> = (0..30).map(|_| "Wes".to_string()).collect();
         haystacks.push("West".to_string());
-        let engine = SearchEngine::new(haystacks.into_iter());
+        let engine: SearchEngine<TEST_SIZE> = SearchEngine::new(haystacks.into_iter());
         assert_eq!(engine.query("west")[0], 30);
     }
 
@@ -760,7 +762,8 @@ mod tests {
             "MITc",
             "MITc",
         ];
-        let engine = SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
+        let engine: SearchEngine<TEST_SIZE> =
+            SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
         println!("{:?}", engine.query("mit linc"));
         assert_eq!(engine.query("mit linc")[0], 3);
     }

@@ -6,16 +6,18 @@ use crate::{
 };
 use rankless_rs::{
     common::{
-        init_empty_slice, BeS, MainEntity, MainWorkMarker, MarkedBackendLoader, NumberedEntity,
-        QuickAttPair, QuickMap, QuickestBox, QuickestVBox, Stowage, Top3AffCountryMarker,
-        Top3AuthorMarker, Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker,
-        Top3PaperTopicMarker, WorkLoader, YearlyCitationsMarker, YearlyPapersMarker, NET,
+        init_empty_slice, BeS, InstRelMarker, MainEntity, MainWorkMarker, MarkedBackendLoader,
+        NumberedEntity, QuickAttPair, QuickMap, QuickestBox, QuickestVBox, Stowage,
+        Top3AffCountryMarker, Top3AuthorMarker, Top3CitingSfMarker, Top3JournalMarker,
+        Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader, YearlyCitationsMarker,
+        YearlyPapersMarker, NET,
     },
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{
-            AuthorshipAuthor, AuthorshipInstitutions, InstCountries, SourceYearQs, TopicSubfields,
-            WorkAuthorships, WorkSources, WorkTopics, WorkYears, WorksNames,
+            AuthorshipAuthor, AuthorshipInstitutions, CitiesNames, CountryCodes, InstCities,
+            InstCountries, SourceYearQs, TopicSubfields, WorkAuthorships, WorkSources, WorkTopics,
+            WorkYears, WorksNames,
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
         derive_links2::{WorkCitingCounts, WorkCountries, WorkTopSource},
@@ -24,7 +26,7 @@ use rankless_rs::{
     steps::{
         a1_entity_mapping::YearInterface,
         derive_links1::{CountryInsts, WorkPeriods},
-        derive_links5::EraRec,
+        derive_links5::{EraRec, InstRelation, N_RELS},
     },
     CiteCountMarker, NameExtensionMarker, NameMarker, QuickestNumbered, SemanticIdMarker,
     WorkCountMarker,
@@ -198,13 +200,15 @@ macro_rules! make_ent_interfaces {
             $( + StringAtt<$f_mark>)*
             $( + NumAtt<$r_mark>)*
             $( + FixAtt<$fix_mark, FT=$fix_t>)*
-            $( + FloatAtt<$float_mark>)* {}
+            $( + FloatAtt<$float_mark>)*
+        {}
 
         impl <T> $T for T where T: Entity
             $( + StringAtt<$f_mark>)*
             $( + NumAtt<$r_mark>)*
             $( + FixAtt<$fix_mark, FT=$fix_t>)*
-            $( + FloatAtt<$float_mark>)* {}
+            $( + FloatAtt<$float_mark>)*
+        {}
 
     };
 }
@@ -222,6 +226,8 @@ make_interfaces!(
     source_stats => SourceStats,
     tsuf => TopicSubfields,
     icountry => InstCountries,
+    icity => InstCities,
+    ccodes => CountryCodes,
     shipa => AuthorshipAuthor,
     wccount => WorkCitingCounts;
     wtopics -> WorkTopics,
@@ -231,6 +237,7 @@ make_interfaces!(
     wsources -> WorkSources,
     wcountries -> WorkCountries,
     shipis -> AuthorshipInstitutions,
+    cinames -> CitiesNames,
     country_insts -> CountryInsts;
     sqy >> SourceYearQs
 );
@@ -247,9 +254,9 @@ make_ent_interfaces!(
     top_aff_countries - Top3AffCountryMarker | TopRec<Countries>,
     top_paper_topic - Top3PaperTopicMarker | TopRec<Topics>,
     top_citing_sfc - Top3CitingSfMarker | TopRec<Subfields>,
-    top_paper_sfc - Top3PaperSfMarker | TopRec<Subfields>;;
+    top_paper_sfc - Top3PaperSfMarker | TopRec<Subfields>,
+    inst_rels - InstRelMarker | [InstRelation; N_RELS];;
     oa_id; MainEntity, NamespacedEntity
-    // inst_rels - InstRelMarker | [InstRelation; N_RELS];
     // ref_sfc : RefSubfieldsConcentrationMarker,
     // cit_sfc : CitSubfieldsConcentrationMarker
 

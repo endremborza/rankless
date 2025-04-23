@@ -52,6 +52,7 @@ export type SearchResult = {
 	rootType: RootType;
 	papers: number;
 	citations: number;
+	distinctText?: string;
 };
 
 export type SubbedRel = { desc: string; subs: RelatedEntity[] };

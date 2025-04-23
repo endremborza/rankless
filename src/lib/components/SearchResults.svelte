@@ -1,9 +1,9 @@
 <script lang="ts">
-	import {formatNumber} from '$lib/text-format-util';
-	import {BE_REMOTE_URL} from '$lib/constants';
-	import type {RootType, SearchResult} from '$lib/tree-types';
-	import {entToLink} from '$lib/tree-functions';
-	import {onMount} from 'svelte';
+	import { formatNumber } from '$lib/text-format-util';
+	import { BE_REMOTE_URL } from '$lib/constants';
+	import type { RootType, SearchResult } from '$lib/tree-types';
+	import { entToLink } from '$lib/tree-functions';
+	import { onMount } from 'svelte';
 
 	export let searchTerm: string;
 	export let cat: RootType;
@@ -20,15 +20,15 @@
 		delayedTerm = searchTerm;
 		fetch(
 			`${BE_REMOTE_URL}/names/${cat}?` +
-			new URLSearchParams({
-				q: searchTerm
-			}).toString()
+				new URLSearchParams({
+					q: searchTerm
+				}).toString()
 		)
 			.then((res) => res.json())
 			.then((l: SearchResult[]) => {
 				if (delayedTerm == searchTerm) {
 					searchResults = l.map((e) => {
-						return {...e, rootType: cat};
+						return { ...e, rootType: cat };
 					});
 				}
 			});
@@ -51,13 +51,16 @@
 
 <div class="search-results" style="display: {resultsHidden ? 'none' : 'flex'};">
 	{#each searchResults as searchResult}
-	<a class="result-card shadowy padded" href={entToLink(searchResult)}>
-		<h3 style="font-size: {getHeaderFontSize(searchResult.name.length)};">
-			{searchResult.name}
-		</h3>
-		<span>{formatNumber(searchResult.papers, 0)} papers,
-			{formatNumber(searchResult.citations, 0)} citations <br />on field1, field2...</span>
-	</a>
+		<a class="result-card shadowy padded" href={entToLink(searchResult)}>
+			<h3 style="font-size: {getHeaderFontSize(searchResult.name.length)};">
+				{searchResult.name}
+			</h3>
+			<span
+				>{formatNumber(searchResult.papers, 0)} papers,
+				{formatNumber(searchResult.citations, 0)} citations {#if searchResult.distinctText != undefined}<br
+					/>{searchResult.distinctText}{/if}</span
+			>
+		</a>
 	{/each}
 </div>
 
@@ -108,7 +111,7 @@
 		box-shadow: 3px 3px 13px var(--color-theme-shadow);
 	}
 
-	.result-card>span {
-		font-size: 0.8rem;
+	.result-card > span {
+		font-size: 0.9rem;
 	}
 </style>

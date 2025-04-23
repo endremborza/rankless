@@ -125,6 +125,12 @@ impl InitEmpty for () {
     fn init_empty() -> Self {}
 }
 
+impl InitEmpty for f64 {
+    fn init_empty() -> Self {
+        0.0
+    }
+}
+
 impl InitEmpty for bool {
     fn init_empty() -> Self {
         false

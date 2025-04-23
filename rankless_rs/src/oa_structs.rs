@@ -196,8 +196,8 @@ pub struct Geo {
     region: Option<String>,
     pub country_code: Option<String>,
     pub country: Option<String>,
-    latitude: Option<f64>,
-    longitude: Option<f64>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -489,8 +489,8 @@ pub mod post {
     #[derive(Deserialize, Debug)]
     pub struct Author {
         id: String,
-        // orcid: Option<String>,
-        // display_name: Option<String>,
+        pub orcid: Option<String>,
+        pub display_name: Option<String>,
         pub works_count: Option<u32>,
         pub cited_by_count: Option<u32>,
     }
@@ -512,12 +512,40 @@ pub mod post {
     }
 
     #[derive(Deserialize, Debug)]
+    pub struct IdSet {
+        pub parent_id: Option<String>,
+        pub wikipedia: Option<String>,
+        // openalex: Option<String>,
+        // ror: Option<String>,
+        // grid: Option<String>,
+        // orcid: Option<String>,
+        // scopus: Option<String>,
+        // twitter: Option<String>,
+        // wikidata: Option<String>,
+        // umls_aui: Option<String>,
+        // umls_cui: Option<String>,
+        // mag: Option<i64>,
+        // issn_l: Option<String>,
+        // issn: Option<String>,
+        // fatcat: Option<String>,
+        // doi: Option<String>,
+        // pmid: Option<String>,
+        // pmcid: Option<String>,
+    }
+
+    #[derive(Deserialize, Debug)]
     pub struct Institution {
         id: String,
         pub display_name: String,
         pub country_code: Option<String>,
         pub display_name_acronyms: Option<String>,
         pub display_name_alternatives: Option<String>,
+        pub ror: Option<String>,
+        // homepage_url: Option<String>,
+        // image_url: Option<String>,
+        // image_thumbnail_url: Option<String>,
+        // works_count: Option<u32>,
+        // cited_by_count: Option<u64>,
     }
 
     #[derive(Deserialize, Debug)]
