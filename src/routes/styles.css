@@ -80,7 +80,6 @@ body {
 	margin: 0px;
 	color: var(--color-text);
 	background-color: var(--text-bg);
-	font-display: swap;
 }
 
 text {
