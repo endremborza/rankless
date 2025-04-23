@@ -409,6 +409,7 @@ server {{
         proxy_cache be-cache;
         {loc_suffix}
         limit_req zone=baselimit burst=100 nodelay;
+        add_header Access-Control-Allow-Origin *;
     }}
 }}
 
