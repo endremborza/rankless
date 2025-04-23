@@ -668,15 +668,20 @@ def horizontal_instances(n):
     return ips
 
 
-def bump_v():
+def bump_v(i=2):
     vns = _last_vns()
-    next_v = f"v{vns[0]}.{vns[1]}.{vns[2] + 1}"
+    vns[i] += 1
+    for j in range(i + 1, 3):
+        vns[j] = 0
+    next_v = f"v{vns[0]}.{vns[1]}.{vns[2]}"
     subprocess.call(["git", "tag", next_v])
-    # git push origin tag <tag_name>
-    # not recommended
-    # git push --tags
+    subprocess.call(["git", "push", "origin", "tag", next_v])
     # annoted, within the ancestors tags
     # git push --follow-tags
+
+
+def bump_v_minor():
+    bump_v(1)
 
 
 def promote_alpha_to_live():

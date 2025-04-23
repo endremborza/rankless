@@ -45,10 +45,14 @@ cov-test:
 	rm default_*.profraw
 	rm ./*/default_*.profraw
 
+rm-prof:
+	rm default_*.profraw
+	rm ./*/default_*.profraw
+
 extend_csvs bm live_monitoring report:
 	python3 -m pyscripts.$@
 
-pull_live_certs sync_fe_to_alpha sync_fe_to_live bump_v:
+pull_live_certs sync_fe_to_alpha sync_fe_to_live bump_v bump_v_minor:
 	python3 -c "from pyscripts.deploy import $@;$@()"
 
 set-full:
