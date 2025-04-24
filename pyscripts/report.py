@@ -53,27 +53,24 @@ if __name__ == "__main__":
     tpr = Transper(SSHrer(ssh_id))
     logtail = tpr.ssh.run(f"tail -{n} /var/log/nginx/access.log")
     root = f"https://{tpr.get_dns()}"
-    code_df = pd.DataFrame(
-        re.findall(r'"GET (.*?)" (\d\d\d)', logtail), columns=["endp", "code"]
-    ).assign(code=lambda df: df["code"].astype(int))
-    err_df = code_df.loc[lambda df: (df["code"] // 100) == 5]
     hour_df = (
         pd.DataFrame(
             map(
                 lambda e: e[0], filter(None, map(line_rex.findall, logtail.split("\n")))
             ),
-            columns=line_cols,
+            columns=line_cols,  # pyright: ignore[reportArgumentType]
         )
         .assign(
             t=lambda df: df["time"].pipe(pd.to_datetime, format="%d/%b/%Y:%H:%M:%S %z"),
             urt=lambda df: df["urt"].apply(tryfloat),
+            code=lambda df: df["code"].astype(int),
         )
         .loc[lambda df: df["t"] > (df["t"].max() - dt.timedelta(hours=1))]
     )
-
+    err_df = hour_df.loc[lambda df: (df["code"] // 100) == 5]
     tdel = hour_df["t"].max() - hour_df["t"].min()
     miss_n = err_df.shape[0]
-    miss_rate = miss_n / code_df.shape[0]
+    miss_rate = miss_n / hour_df.shape[0]
     pct_miss = f"{round(miss_rate * 100, 2)}%"
 
     log_rec = {
@@ -92,8 +89,8 @@ if __name__ == "__main__":
 
     misses = "\n".join(
         map(
-            lambda ep: f"<li><a href=\"{root}{ep.split(' ')[0]}\">{ep.split(' ')[0]}</a></li>",
-            err_df["endp"].drop_duplicates().head(50),
+            lambda ekv: f"<li><a href=\"{root}{ekv[0].split(' ')[0]}\">{ekv[0].split(' ')[0]} ({ekv[1]})</a></li>",
+            err_df["p"].value_counts().head(50).items(),
         )
     )
 
