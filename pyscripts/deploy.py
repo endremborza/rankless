@@ -129,14 +129,19 @@ ec2c = session.client("ec2")
 def get_running_inst(live: bool):
     ip_alloc = live_ip_alloc if live else alpha_ip_alloc
     ip = ip_alloc.ip
-    for inst in ec2.instances.all():
+    for inst in ec2.instances.all():  # pyright: ignore[reportAttributeAccessIssue]
         if inst.public_ip_address == ip:
             return inst
 
 
 def get_dangling_instances():
     ips = [live_ip_alloc.ip, alpha_ip_alloc.ip]
-    return [inst for inst in ec2.instances.all() if inst.public_ip_address not in ips]
+    all_insts = ec2.instances.all()  # pyright: ignore[reportAttributeAccessIssue]
+
+    def filt(inst):
+        return inst.public_ip_address not in ips
+
+    return list(filter(filt, all_insts))
 
 
 def get_new_inst(vol_size: int, itype: str):
@@ -148,7 +153,7 @@ def get_new_inst(vol_size: int, itype: str):
             "DeleteOnTermination": True,
         },
     }
-    inst = ec2.create_instances(
+    inst = ec2.create_instances(  # pyright: ignore[reportAttributeAccessIssue]
         ImageId=ubuntu24_image_id,
         InstanceType=itype,
         KeyName=key_name,
@@ -604,7 +609,7 @@ def new_small_alpha(pushed_certs: bool):
 
 
 def new_large_alpha():
-    inst = ec2.create_instances(
+    inst = ec2.create_instances(  # pyright: ignore[reportAttributeAccessIssue]
         ImageId=_last_img(),
         InstanceType=LARGE_INSTANCE_TYPE,
         KeyName=key_name,
@@ -653,7 +658,7 @@ def new_large_image():
 
 def horizontal_instances(n):
     ips = []
-    for inst in ec2.create_instances(
+    for inst in ec2.create_instances(  # pyright: ignore[reportAttributeAccessIssue]
         ImageId=_last_img(),
         InstanceType=LARGE_INSTANCE_TYPE,
         KeyName=key_name,
