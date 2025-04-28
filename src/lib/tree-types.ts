@@ -23,6 +23,7 @@ export type View = {
 	startYear: number,
 	yearlyPapers: number[],
 	yearlyCites: number[],
+	meta?: Record<string, string>;
 };
 export type RelatedEntity = {
 	name: string,

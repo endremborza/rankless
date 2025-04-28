@@ -248,6 +248,16 @@ function getSemantifyers(rootName: string, rootType: tt.RootType): [RelTypes, Se
 	return [];
 }
 
+function extendPostText(rootType: tt.RootType, view: tt.View, postText: string) {
+	if (rootType == 'authors') {
+		let slug = (view.meta || {}).wikiSlug;
+		if (slug != undefined) {
+			return postText + `<br/> You can learn more about the impact of ${view.name} by visiting their  <a href="https://pantheon.world/profile/person/${slug}">Pantheon page</a>`
+		}
+	}
+	return postText
+}
+
 function getSemanticRels(
 	view: tt.View,
 	rootName: string,
@@ -277,7 +287,7 @@ function getSemanticRels(
 	};
 	return {
 		prefix: prefixes[rootType],
-		postText,
+		postText: extendPostText(rootType, view, postText),
 		topRels: getTopRels(view)
 	};
 }
@@ -298,7 +308,7 @@ function sentenceJoiner(parts: string[]) {
 			out.push(parts[i] + '.');
 		}
 	}
-	out.push(parts[parts.length - 1]);
+	out.push(parts[parts.length - 1] + '.');
 	return out.join(' ');
 }
 
