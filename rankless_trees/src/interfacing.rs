@@ -15,9 +15,10 @@ use rankless_rs::{
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{
-            AuthorshipAuthor, AuthorshipInstitutions, CitiesNames, CountryCodes, InstCities,
-            InstCountries, SourceYearQs, TopicSubfields, WorkAuthorships, WorkSources, WorkTopics,
-            WorkYears, WorksNames,
+            AuthorRawCites, AuthorRawWorkCounts, AuthorWikiSlugs, AuthorshipAuthor,
+            AuthorshipInstitutions, CitiesNames, CountryCodes, InstCities, InstCountries, InstLocs,
+            SourceYearQs, TopicSubfields, WorkAuthorships, WorkSources, WorkTopics, WorkYears,
+            WorksNames,
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
         derive_links2::{WorkCitingCounts, WorkCountries, WorkTopSource},
@@ -227,8 +228,11 @@ make_interfaces!(
     tsuf => TopicSubfields,
     icountry => InstCountries,
     icity => InstCities,
+    iloc => InstLocs,
     ccodes => CountryCodes,
     shipa => AuthorshipAuthor,
+    raw_cites => AuthorRawCites,
+    raw_works => AuthorRawWorkCounts,
     wccount => WorkCitingCounts;
     wtopics -> WorkTopics,
     wsubfields -> WorkSubfields,
@@ -238,6 +242,7 @@ make_interfaces!(
     wcountries -> WorkCountries,
     shipis -> AuthorshipInstitutions,
     cinames -> CitiesNames,
+    aslugs -> AuthorWikiSlugs,
     country_insts -> CountryInsts;
     sqy >> SourceYearQs
 );
@@ -289,6 +294,12 @@ pub trait FixAtt<Mark>: MarkedAttribute<Mark> {
 
 pub trait WorksFromMemory: MarkedAttribute<MainWorkMarker> + NumberedEntity {
     fn works_from_ram(gets: &Getters, id: NET<Self>) -> &[WT];
+}
+
+pub trait MetaMapGetter {
+    fn get_meta(_id: usize, _gets: &Getters) -> Option<HashMap<&'static str, String>> {
+        None
+    }
 }
 
 impl<E> NodeInterfaces<E>
@@ -413,6 +424,29 @@ where
     type FT = ET<MAA<Self, Mark>>;
     fn load(stowage: &Stowage) -> Box<[Self::FT]> {
         stowage.get_marked_interface::<Self, Mark, QuickestBox>()
+    }
+}
+
+impl MetaMapGetter for Sources {}
+impl MetaMapGetter for Subfields {}
+impl MetaMapGetter for Countries {}
+
+impl MetaMapGetter for Institutions {
+    fn get_meta(id: usize, gets: &Getters) -> Option<HashMap<&'static str, String>> {
+        let loc = gets.iloc(&id);
+        let kvs = vec![("lat", loc.0.to_string()), ("lon", loc.1.to_string())];
+        Some(HashMap::from_iter(kvs.into_iter()))
+    }
+}
+impl MetaMapGetter for Authors {
+    fn get_meta(id: usize, gets: &Getters) -> Option<HashMap<&'static str, String>> {
+        let slug = String::from_utf8(gets.aslugs(id).to_vec()).unwrap();
+        let kvs = vec![
+            ("wikiSlug", slug),
+            ("rawCites", gets.raw_cites(&id).to_string()),
+            ("rawPapers", gets.raw_works(&id).to_string()),
+        ];
+        Some(HashMap::from_iter(kvs.into_iter()))
     }
 }
 
