@@ -38,7 +38,7 @@ use rankless_rs::{
 };
 use rankless_trees::{
     extensions::DistinctionText,
-    interfacing::{Getters, NodeInterfaces, RootInterfaceable, RootInterfaces},
+    interfacing::{Getters, MetaMapGetter, NodeInterfaces, RootInterfaceable, RootInterfaces},
     io::{TreeQ, TreeResponse, TreeRunManager},
     AttributeLabelUnion,
 };
@@ -150,6 +150,8 @@ struct SearchResult {
     dm_id: usize,
     #[serde(rename = "distinctText", skip_serializing_if = "Option::is_none")]
     distinct_text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    meta: Option<HashMap<&'static str, String>>,
     papers: u32,
     citations: u32,
 }
@@ -268,9 +270,10 @@ impl SearchResult {
         semantic_id: String,
         distinct_text: Option<String>,
         entif: &RootInterfaces<E>,
+        gets: &Getters,
     ) -> Self
     where
-        E: RootInterfaceable,
+        E: RootInterfaceable + MetaMapGetter,
     {
         Self {
             full_name: format!("{name} {ext}").trim().to_string(),
@@ -280,6 +283,7 @@ impl SearchResult {
             papers: entif.wcounts[i].to_usize() as u32,
             citations: entif.ccounts[i].to_usize() as u32,
             oa_id: entif.oa_id[i],
+            meta: E::get_meta(i, gets),
             dm_id: i,
         }
     }
@@ -403,7 +407,7 @@ where
 impl NameState {
     fn new<E>(entif: &RootInterfaces<E>, gets: &Getters) -> Self
     where
-        E: RootInterfaceable + PrepFilter + DistinctionText,
+        E: RootInterfaceable + PrepFilter + DistinctionText + MetaMapGetter,
     {
         let responses = Self::get_resps(entif, gets);
         let engine = SearchEngine::new(responses.iter().map(|e| e.full_name.clone()));
@@ -460,7 +464,7 @@ impl NameState {
 
     fn get_resps<E>(entif: &RootInterfaces<E>, gets: &Getters) -> Box<[SearchResult]>
     where
-        E: RootInterfaceable + PrepFilter + DistinctionText,
+        E: RootInterfaceable + PrepFilter + DistinctionText + MetaMapGetter,
     {
         let dist_txt = <E as DistinctionText>::get_distinction_text_arr(entif, gets);
         let mut responses: Vec<SearchResult> = entif
@@ -479,6 +483,7 @@ impl NameState {
                     semantic_id.to_string(),
                     dist_txt,
                     entif,
+                    gets,
                 )
             })
             .filter(|sr| E::filter_sr(sr, gets, entif))
@@ -514,6 +519,7 @@ impl InstRelOut {
             inst_sem_id.to_string(),
             None,
             iif,
+            gets,
         );
         if !Institutions::filter_sr(&i_sr, gets, iif) {
             inst_sem_id = "".to_string();
@@ -596,7 +602,12 @@ fn add_thread<E>(
     cv_pair: &AcTuple<Option<f64>>,
     ei_ns_map: &mut HashMap<&'static str, JoinHandle<(NameState, TopResult, EntityDescription)>>,
 ) where
-    E: RootInterfaceable + PrepFilter + MainEntity + NamespacedEntity + DistinctionText,
+    E: RootInterfaceable
+        + PrepFilter
+        + MainEntity
+        + NamespacedEntity
+        + DistinctionText
+        + MetaMapGetter,
 {
     let gets_clone = Arc::clone(gets);
     let au_clone = Arc::clone(atts);
