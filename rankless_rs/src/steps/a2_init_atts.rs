@@ -45,6 +45,12 @@ struct SourceQ {
     best_q: u8,
 }
 
+#[derive(Deserialize)]
+struct WikiId {
+    slug: String,
+    oa_id: BigId,
+}
+
 struct ShipRelWriter {
     ship2a: Mutex<Box<[ET<Authors>]>>,
     ship2is: Mutex<Box<[Vec<ET<Institutions>>]>>,
@@ -223,6 +229,7 @@ impl Stowage {
     fn add_author_atts(&mut self) {
         let aif = self.get_entity_interface::<Authors, QuickestNumbered>();
         let mut names = init_empty_slice::<Authors, String>();
+        let mut wiki_slugs = init_empty_slice::<Authors, String>();
         const ORCID_PREF: &str = "https://orcid.org/";
         let mut orcids = init_empty_slice::<Authors, [u8; 19]>();
         let mut raw_cites = init_empty_slice::<Authors, usize>();
@@ -236,7 +243,17 @@ impl Stowage {
                 raw_works[aid] = aobj.works_count.unwrap_or(0) as usize;
             }
         }
+
+        for wobj in self.read_csv_objs::<WikiId>(Authors::NAME, "wiki-slug") {
+            if let Some(aidt) = aif.0.get(&wobj.oa_id) {
+                wiki_slugs[aidt.to_usize()] = wobj.slug;
+            }
+        }
         add_name_box::<Authors>(self, names);
+        self.add_iter_owned::<VarAttBuilder, _, _>(
+            wiki_slugs.to_vec().into_iter(),
+            Some("author-wiki-slugs"),
+        );
         self.add_iter_owned::<FixAttBuilder, _, _>(
             orcids.to_vec().into_iter(),
             Some("author-orcids"),
