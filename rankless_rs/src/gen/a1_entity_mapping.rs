@@ -14,6 +14,8 @@ pub struct Qs { }
 
 pub struct Sources { }
 
+pub struct Cities { }
+
 pub struct Topics { }
 
 pub struct Institutions { }
@@ -63,6 +65,12 @@ impl Entity for Countries { type T = u8; const N: usize = 229; const NAME: & str
 impl MappableEntity for Countries { type KeyType = u64; }
 
 impl NamespacedEntity for Countries { const NS: & str = "a1_entity_mapping"; }
+
+impl Entity for Cities { type T = u16; const N: usize = 14308; const NAME: & str = "cities"; }
+
+impl MappableEntity for Cities { type KeyType = u64; }
+
+impl NamespacedEntity for Cities { const NS: & str = "a1_entity_mapping"; }
 
 impl Entity for Authors { type T = u32; const N: usize = 3882892; const NAME: & str = "authors"; }
 
