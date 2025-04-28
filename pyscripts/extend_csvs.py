@@ -54,3 +54,7 @@ if __name__ == "__main__":
         .unique()
     )
     q_matched_df.to_pandas().to_csv(get_csv_path(EntC.SOURCES, EntC.QS), index=False)
+    oa_to_slug = pd.read_csv(link_frame.format("oa-to-wiki-authors")).drop(
+        "rl_i", axis=1
+    )
+    oa_to_slug.to_csv(get_csv_path(EntC.AUTHORS, "wiki-slug"), index=False)
