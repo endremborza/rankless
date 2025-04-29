@@ -161,7 +161,7 @@ pub trait PartitioningIterator<'a>:
                 let mut part_root: IntXTree<Self::Root, CT> = et_id.into();
                 match hither_o {
                     Some(hither) => Self::StackBasis::fold_into(&mut part_root, hither),
-                    None => println!("nothing in a partition"),
+                    None => println!("{fq}: parition-heap is none at roots len {}", roots.len()),
                 }
                 roots.push(part_root.collapse());
             });
@@ -184,11 +184,10 @@ pub trait PartitioningIterator<'a>:
         }
         let cv = CacheValue::Done(pids);
         let mut cache_map = state.im_cache.lock().unwrap();
-        let bcvp = match cache_map.insert(fq.ck, cv).unwrap() {
+        let bcvp = match cache_map.insert(fq.ck.clone(), cv).unwrap() {
             CacheValue::InProgress(cvp) => cvp,
             _ => {
-                println!("WARNING: non inprogress cache");
-                return;
+                return println!("{fq}: non inprogress cache");
             }
         };
         set_and_notify(bcvp, true)
@@ -360,8 +359,8 @@ where
     let mut next_bp_o = year_bp_iter.next();
     let bufr = &mut buf[..StackFr::<PI::StackBasis>::S];
     for y in YearInterface::iter().rev() {
-        let mut reader =
-            BufReader::new(File::open(cache_root.join(y.to_string())).expect("reading year cache"));
+        let cache_fp = cache_root.join(y.to_string());
+        let mut reader = BufReader::new(File::open(&cache_fp).expect("reading year cache"));
         let mut year_heap = MinHeap::new();
         while let Ok(_) = reader.read_exact(bufr) {
             let fr = StackFr::<PI::StackBasis>::from_fbytes(bufr);
@@ -371,7 +370,7 @@ where
         let mut part_root: IntXTree<PI::Root, CT> = et_id.into();
         match hither_o {
             Some(hither) => PI::StackBasis::fold_into(&mut part_root, hither),
-            None => println!("nothing in a partition"),
+            None => println!("{fq} nothing read at y{y} from {cache_fp:?}"),
         }
         PI::fold_tree(&mut ser_tree_o, part_root.collapse());
         let y16 = YearInterface::reverse(y);
