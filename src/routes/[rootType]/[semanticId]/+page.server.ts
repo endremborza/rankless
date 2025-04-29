@@ -252,7 +252,7 @@ function extendPostText(rootType: tt.RootType, view: tt.View, postText: string) 
 	if (rootType == 'authors') {
 		let slug = (view.meta || {}).wikiSlug;
 		if (slug != undefined) {
-			return postText + `<br/> You can learn more about the impact of ${view.name} by visiting their  <a href="https://pantheon.world/profile/person/${slug}">Pantheon page</a>`
+			return postText + `<br/> You can learn more about the impact of ${view.name} by visiting their  <a href="https://pantheon.world/profile/person/${slug}" target="_blank">Pantheon page</a>`
 		}
 	}
 	return postText
