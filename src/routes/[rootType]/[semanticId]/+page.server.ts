@@ -250,8 +250,8 @@ function getSemantifyers(rootName: string, rootType: tt.RootType): [RelTypes, Se
 
 function extendPostText(rootType: tt.RootType, view: tt.View, postText: string) {
 	if (rootType == 'authors') {
-		let slug = (view.meta || {}).wikiSlug;
-		if (slug != undefined) {
+		let slug = (view.meta || {}).wikiSlug || '';
+		if (slug.length > 0) {
 			return postText + `<br/> You can learn more about the impact of ${view.name} by visiting their  <a href="https://pantheon.world/profile/person/${slug}" target="_blank">Pantheon page</a>`
 		}
 	}
