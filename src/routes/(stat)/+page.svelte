@@ -104,7 +104,7 @@
 	let treeResp: tt.TreeResponse = data.treeResp;
 	let rootName = data.rootName;
 	let selectedQcRootId = 0;
-	let prefixText = '';
+	let prefixText = data.prefixText;
 	let selectionState: tt.BareNode = {};
 
 	$: loadSelected(selectedInds);
