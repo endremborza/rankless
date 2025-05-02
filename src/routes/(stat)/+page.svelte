@@ -67,7 +67,7 @@
 			if (i < 0) {
 				return;
 			}
-			// clearInterval(selectorInterval);
+			clearInterval(selectorInterval);
 			setTimeout(() => {
 				if (selectedInds[0] == i && selectedInds[1] == j) {
 					setTree(data.tops[i].name, data.tops[i].entities[j]);
@@ -77,7 +77,6 @@
 	}
 
 	function setTree(rootType: tt.RootType, e: tt.SearchResult) {
-		console.log('newsetting');
 		let year = tf.getDefaultYear(rootType);
 		let treeCount = data.treeSpecs.specs[rootType].length;
 		let confBase: tt.FullTreeConfig = {
@@ -96,6 +95,8 @@
 					e.name,
 					{}
 				];
+				clearInterval(selectorInterval);
+				selectorInterval = setInterval(randSelect, selShift);
 			});
 	}
 
