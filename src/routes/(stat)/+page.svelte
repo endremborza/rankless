@@ -6,7 +6,6 @@
 	import { BE_REMOTE_URL } from '$lib/constants';
 	import { SEMANTIC_CONF, prettifyRoot } from '$lib/text-format-util';
 	import TextedLogo from '$lib/components/TextedLogo.svelte';
-	import Webby from '$lib/components/Webby.svelte';
 
 	export let data;
 	let mounted = false;
@@ -62,7 +61,7 @@
 		}
 	}
 
-	function loadSelected(selInds: [number, number], tops: tt.TopsResponse, mounted: boolean) {
+	function loadSelected(selInds: [number, number]) {
 		if (mounted) {
 			const [i, j] = selInds;
 			if (i < 0) {
@@ -71,13 +70,14 @@
 			// clearInterval(selectorInterval);
 			setTimeout(() => {
 				if (selectedInds[0] == i && selectedInds[1] == j) {
-					setTree(tops[i].name, tops[i].entities[j]);
+					setTree(data.tops[i].name, data.tops[i].entities[j]);
 				}
 			}, loadMs);
 		}
 	}
 
 	function setTree(rootType: tt.RootType, e: tt.SearchResult) {
+		console.log('newsetting');
 		let year = tf.getDefaultYear(rootType);
 		let treeCount = data.treeSpecs.specs[rootType].length;
 		let confBase: tt.FullTreeConfig = {
@@ -99,14 +99,14 @@
 			});
 	}
 
-	let conf: tt.FullTreeConfig | undefined;
-	let treeResp: tt.TreeResponse | undefined;
-	let rootName = '';
+	let conf: tt.FullTreeConfig = data.conf;
+	let treeResp: tt.TreeResponse = data.treeResp;
+	let rootName = data.rootName;
 	let selectedQcRootId = 0;
 	let prefixText = '';
 	let selectionState: tt.BareNode = {};
 
-	$: loadSelected(selectedInds, data.tops, mounted);
+	$: loadSelected(selectedInds);
 </script>
 
 <div id="land-header">
@@ -121,8 +121,8 @@
 		{#each data.tops.entries() as [i, entityTop]}
 			<h3>{prettifyRoot(entityTop.name)}</h3>
 			{#each entityTop.entities.slice(0, 3).entries() as [j, ent]}
-				<span
-					role="none"
+				<a
+					href={tf.entToLink({ ...ent, rootType: entityTop.name })}
 					on:mouseover={() => {
 						selectedInds = [i, j];
 					}}
@@ -134,28 +134,30 @@
 					}}
 					class={selectedInds[0] == i && selectedInds[1] == j ? 'focused' : ''}
 				>
-					<a href={tf.entToLink({ ...ent, rootType: entityTop.name })}>{ent.name}</a>
-				</span>
+					{ent.name}
+				</a>
 			{/each}
 		{/each}
 	</div>
 	<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} id="preview" class="marged">
 		{#if conf != undefined && treeResp != undefined}
-			<FullQc
-				{rootName}
-				{selectedQcRootId}
-				{conf}
-				{prefixText}
-				{selectionState}
-				treeSpecs={data.treeSpecs}
-				removeHighlightUnhover={false}
-				setUrl={false}
-				allowControls={false}
-				attributeLabels={treeResp.atts}
-				completeTree={treeResp.tree}
-				{innerHeight}
-				{innerWidth}
-			/>
+			<a href={tf.entToLink(conf)}>
+				<FullQc
+					{rootName}
+					{selectedQcRootId}
+					{conf}
+					{prefixText}
+					{selectionState}
+					treeSpecs={data.treeSpecs}
+					removeHighlightUnhover={false}
+					setUrl={false}
+					allowControls={false}
+					attributeLabels={treeResp.atts}
+					completeTree={treeResp.tree}
+					{innerHeight}
+					{innerWidth}
+				/>
+			</a>
 		{/if}
 	</div>
 </div>
@@ -163,9 +165,6 @@
 <style>
 	.focused {
 		background: var(--color-theme-red);
-	}
-
-	.focused > a {
 		color: var(--color-theme-black);
 		font-weight: 700;
 	}
@@ -207,7 +206,7 @@
 		padding-right: var(--unified-padding);
 	}
 
-	#init-list > span {
+	#init-list > a {
 		min-width: 180px;
 		padding: 6px;
 		border-bottom: solid var(--color-theme-blue) 3px;
@@ -220,6 +219,6 @@
 	#preview {
 		min-width: 360px;
 		flex: 8;
-		pointer-events: none;
+		/* pointer-events: none; */
 	}
 </style>

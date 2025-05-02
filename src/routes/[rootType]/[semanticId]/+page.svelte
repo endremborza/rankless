@@ -9,7 +9,6 @@
 	import RandTreeLink from '$lib/components/RandTreeLink.svelte';
 	import HoverI from '$lib/components/HoverI.svelte';
 	import HoverBlock from '$lib/components/HoverBlock.svelte';
-	import Webby from '$lib/components/Webby.svelte';
 
 	let innerHeight: number;
 	let innerWidth: number;
