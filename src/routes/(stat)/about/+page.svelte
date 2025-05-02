@@ -409,6 +409,7 @@
 	.portrait {
 		margin: 30px;
 		height: 274px;
+		width: 250px;
 		box-shadow: 7px 7px 17px var(--color-theme-shadow);
 	}
 
