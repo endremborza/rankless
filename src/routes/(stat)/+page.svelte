@@ -6,11 +6,12 @@
 	import { BE_REMOTE_URL } from '$lib/constants';
 	import { SEMANTIC_CONF, prettifyRoot } from '$lib/text-format-util';
 	import TextedLogo from '$lib/components/TextedLogo.svelte';
+	import { fade } from 'svelte/transition';
 
 	export let data;
 	let mounted = false;
 	const loadMs = 400;
-	const selShift = loadMs * 6;
+	const selShift = loadMs * 3;
 
 	let innerHeight: number;
 	let innerWidth: number;
@@ -28,7 +29,11 @@
 	}
 
 	function randSelect() {
-		let tree = treeResp?.tree;
+		let resps = Object.values(treeResps);
+		if (resps.length == 0) {
+			return;
+		}
+		let tree = resps[0]?.tree;
 		if (tree != undefined) {
 			if (indsOfAnim[0] != selectedInds[0] || indsOfAnim[1] != selectedInds[1]) {
 				indsOfAnim = selectedInds;
@@ -88,9 +93,11 @@
 		fetch(tf.treeBeUrl(BE_REMOTE_URL, confBase, 1))
 			.then((res) => res.json())
 			.then((resp) => {
-				[conf, treeResp, prefixText, rootName, selectionState] = [
+				let rObj: Record<string, tt.TreeResponse> = {};
+				rObj[e.semanticId] = resp;
+				[conf, treeResps, prefixText, rootName, selectionState] = [
 					confBase,
-					resp,
+					rObj,
 					SEMANTIC_CONF[rootType]?.start || '',
 					e.name,
 					{}
@@ -101,7 +108,7 @@
 	}
 
 	let conf: tt.FullTreeConfig = data.conf;
-	let treeResp: tt.TreeResponse = data.treeResp;
+	let treeResps: Record<string, tt.TreeResponse> = { '0-0': data.treeResp };
 	let rootName = data.rootName;
 	let selectedQcRootId = 0;
 	let prefixText = data.prefixText;
@@ -118,7 +125,6 @@
 
 <div id="tops">
 	<div id="init-list" class="marged">
-		<!-- <Webby /> -->
 		{#each data.tops.entries() as [i, entityTop]}
 			<h3>{prettifyRoot(entityTop.name)}</h3>
 			{#each entityTop.entities.slice(0, 3).entries() as [j, ent]}
@@ -141,25 +147,25 @@
 		{/each}
 	</div>
 	<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} id="preview" class="marged">
-		{#if conf != undefined && treeResp != undefined}
-			<a href={tf.entToLink(conf)}>
+		{#each Object.entries(treeResps) as [_k, treeResp]}
+			<a in:fade out:fade href={tf.entToLink(conf)}>
 				<FullQc
 					{rootName}
 					{selectedQcRootId}
 					{conf}
 					{prefixText}
 					{selectionState}
+					attributeLabels={treeResp.atts}
+					completeTree={treeResp.tree}
 					treeSpecs={data.treeSpecs}
 					removeHighlightUnhover={false}
 					setUrl={false}
 					allowControls={false}
-					attributeLabels={treeResp.atts}
-					completeTree={treeResp.tree}
 					{innerHeight}
 					{innerWidth}
 				/>
 			</a>
-		{/if}
+		{/each}
 	</div>
 </div>
 
