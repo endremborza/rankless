@@ -401,7 +401,7 @@ server {{
         proxy_pass http://{FE_UPSTREAM};
         proxy_cache fe-cache;
         {loc_suffix}
-        limit_req zone=baselimit burst=100 nodelay;
+        limit_req zone=baselimit burst=30 nodelay;
     }}
 }}
 
@@ -413,7 +413,7 @@ server {{
         proxy_pass http://{BE_UPSTREAM};
         proxy_cache be-cache;
         {loc_suffix}
-        limit_req zone=baselimit burst=100 nodelay;
+        limit_req zone=baselimit burst=30 nodelay;
         add_header Access-Control-Allow-Origin *;
     }}
 }}
