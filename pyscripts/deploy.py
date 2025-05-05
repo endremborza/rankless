@@ -29,7 +29,7 @@ BIG16 = "c6a.4xlarge"
 SMALL = "c6a.large"
 
 LARGE_INSTANCE_TYPE = BIG16
-LARGE_STORAGE_GB = 500
+LARGE_STORAGE_GB = 300
 LARGE_FE_PROCS = 12
 DEFAULT_RS_PORT = 3038
 BUN_PORT_START = 3000
@@ -75,7 +75,6 @@ ignores = [
     "authors-ref-subfields",
     "authors-cit-subfields",
     "source-pairs-by-path",
-    "authors-rel-insts",
 ]
 
 
@@ -84,7 +83,6 @@ key_name = os.environ["RL_KEY_ID"]
 key_path = os.environ["RL_KEY_PATH"]
 
 ubuntu24_image_id = "ami-0f67ca03a667867bb"
-image_id = ubuntu24_image_id
 
 
 @dataclass
@@ -145,17 +143,23 @@ def get_dangling_instances():
     return list(filter(filt, all_insts))
 
 
-def get_new_inst(vol_size: int, itype: str):
-    block_device = {
+def get_block_device(size, upgraded: bool = False):
+    ext = {"Throughput": 500, "Iops": 16000} if upgraded else {}
+    return {
         "DeviceName": "/dev/sda1",
         "Ebs": {
-            "VolumeSize": vol_size,
+            "VolumeSize": size,
             "VolumeType": "gp3",
+            **ext,
             "DeleteOnTermination": True,
         },
     }
+
+
+def get_new_inst(vol_size: int, itype: str, img: str = ubuntu24_image_id, ext=False):
+    block_device = get_block_device(vol_size, ext)
     inst = ec2.create_instances(  # pyright: ignore[reportAttributeAccessIssue]
-        ImageId=ubuntu24_image_id,
+        ImageId=img,
         InstanceType=itype,
         KeyName=key_name,
         MinCount=1,
@@ -654,7 +658,7 @@ def new_large_image():
             ignore_index=True,
         )
     ).drop_duplicates().to_csv(AMI_IMG_CSV, index=False)
-    return image_id
+    return image.id
 
 
 def horizontal_instances(n):
