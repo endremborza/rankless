@@ -42,13 +42,13 @@ impl MappableEntity for Topics { type KeyType = u64; }
 
 impl NamespacedEntity for Topics { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for Institutions { type T = u16; const N: usize = 29649; const NAME: & str = "institutions"; }
+impl Entity for Institutions { type T = u16; const N: usize = 29742; const NAME: & str = "institutions"; }
 
 impl MappableEntity for Institutions { type KeyType = u64; }
 
 impl NamespacedEntity for Institutions { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for Sources { type T = u16; const N: usize = 39073; const NAME: & str = "sources"; }
+impl Entity for Sources { type T = u16; const N: usize = 39212; const NAME: & str = "sources"; }
 
 impl MappableEntity for Sources { type KeyType = u64; }
 
@@ -66,25 +66,25 @@ impl MappableEntity for Countries { type KeyType = u64; }
 
 impl NamespacedEntity for Countries { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for Cities { type T = u16; const N: usize = 14308; const NAME: & str = "cities"; }
+impl Entity for Cities { type T = u16; const N: usize = 14417; const NAME: & str = "cities"; }
 
 impl MappableEntity for Cities { type KeyType = u64; }
 
 impl NamespacedEntity for Cities { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for Authors { type T = u32; const N: usize = 3882892; const NAME: & str = "authors"; }
+impl Entity for Authors { type T = u32; const N: usize = 3905863; const NAME: & str = "authors"; }
 
 impl MappableEntity for Authors { type KeyType = u64; }
 
 impl NamespacedEntity for Authors { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for Works { type T = u32; const N: usize = 72804467; const NAME: & str = "works"; }
+impl Entity for Works { type T = u32; const N: usize = 73125224; const NAME: & str = "works"; }
 
 impl MappableEntity for Works { type KeyType = u64; }
 
 impl NamespacedEntity for Works { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for Authorships { type T = u32; const N: usize = 276436340; const NAME: & str = "authorships"; }
+impl Entity for Authorships { type T = u32; const N: usize = 278003101; const NAME: & str = "authorships"; }
 
 impl MappableEntity for Authorships { type KeyType = usize; }
 
