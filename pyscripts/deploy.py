@@ -683,7 +683,7 @@ def bump_v(i=2):
     next_v = f"v{vns[0]}.{vns[1]}.{vns[2]}"
     v_const_ts = "src/lib/v_constants.ts"
     const_v_txt = f"""
-export const LAST_MOD = '{dt.date.dotay().isoformat()}';
+export const LAST_MOD = '{dt.date.today().isoformat()}';
 export const VERSION = '{next_v}';
 """
     Path(v_const_ts).write_text(const_v_txt)
