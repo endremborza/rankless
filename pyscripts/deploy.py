@@ -1,3 +1,4 @@
+import datetime as dt
 import os
 import re
 import subprocess
@@ -680,6 +681,14 @@ def bump_v(i=2):
     for j in range(i + 1, 3):
         vns[j] = 0
     next_v = f"v{vns[0]}.{vns[1]}.{vns[2]}"
+    v_const_ts = "src/lib/v_constants.ts"
+    const_v_txt = f"""
+export const LAST_MOD = '{dt.date.dotay().isoformat()}';
+export const VERSION = '{next_v}';
+"""
+    Path(v_const_ts).write_text(const_v_txt)
+    subprocess.call(["git", "add", v_const_ts])
+    subprocess.call(["git", "commit", "-m", f"{next_v} consts"])
     subprocess.call(["git", "tag", next_v])
     subprocess.call(["git", "push", "origin", "tag", next_v])
     # annoted, within the ancestors tags

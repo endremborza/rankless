@@ -1,4 +1,5 @@
-import { BE_URL, SITEMAP_STEP_SIZE, FULL_HOST, LAST_MOD } from '$lib/constants';
+import { BE_URL, SITEMAP_STEP_SIZE, FULL_HOST } from '$lib/constants';
+import { LAST_MOD } from '$lib/v_constants';
 import type { SearchResult } from '$lib/tree-types';
 import type { RequestHandler } from './$types';
 

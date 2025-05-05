@@ -1,4 +1,5 @@
-import { FULL_HOST, LAST_MOD, SITEMAP_STEP_SIZE, BE_URL } from '$lib/constants';
+import { FULL_HOST, SITEMAP_STEP_SIZE, BE_URL } from '$lib/constants';
+import { LAST_MOD } from '$lib/v_constants';
 import type { RequestHandler } from './$types';
 
 function get_sm_entry(suff: string) {

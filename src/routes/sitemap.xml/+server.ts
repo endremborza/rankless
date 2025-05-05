@@ -1,4 +1,5 @@
-import { FULL_HOST, LAST_MOD } from '$lib/constants';
+import { FULL_HOST } from '$lib/constants';
+import { LAST_MOD } from '$lib/v_constants';
 import type { RequestHandler } from './$types';
 
 const text = `<?xml version="1.0" encoding="UTF-8"?>

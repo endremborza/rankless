@@ -4,7 +4,6 @@ import { PUBLIC_ORIGIN } from '$env/static/public';
 export const APP_NAME = 'Rankless';
 
 export const FULL_HOST = PUBLIC_ORIGIN || 'http://127.0.0.1';
-export const LAST_MOD = '2025-04-01';
 export const SITEMAP_STEP_SIZE = 1000;
 
 export const BE_URL = 'http://127.0.0.1:3038/v1';
