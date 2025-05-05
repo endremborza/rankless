@@ -3,6 +3,7 @@
 	import { prettifyRoot } from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
+	import * as tf from '$lib/tree-functions';
 
 	import FullQc from '$lib/components/FullQc.svelte';
 	import YearTicks from '$lib/components/YearTicks.svelte';
@@ -41,6 +42,7 @@
 	<meta name="description" content={data.metaDescriptions} />
 	<meta property="og:image" content={data.svgLink} />
 	<meta property="og:title" content="{data.view.name} | {APP_NAME}" />
+	<link rel="canonical" href={tf.externalUrl(data.conf.rootType, data.conf.semanticId)} />
 </svelte:head>
 
 <div id="head-row" class="shadowy padded marged">

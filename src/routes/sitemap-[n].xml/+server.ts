@@ -2,6 +2,7 @@ import { BE_URL, SITEMAP_STEP_SIZE, FULL_HOST } from '$lib/constants';
 import { LAST_MOD } from '$lib/v_constants';
 import type { SearchResult } from '$lib/tree-types';
 import type { RequestHandler } from './$types';
+import { externalUrl } from '$lib/tree-functions';
 
 export const GET: RequestHandler = async ({ params }) => {
 	let n = parseInt(params.n) - 1;
@@ -35,7 +36,7 @@ export const GET: RequestHandler = async ({ params }) => {
 		.map(
 			(e) => `
   <url>
-    <loc>${FULL_HOST}/${e.rootType}/${e.semanticId}</loc>
+    <loc>${externalUrl(e.rootType, e.semanticId)}</loc>
     <lastmod>${LAST_MOD}</lastmod>
   </url>`
 		)

@@ -1,6 +1,6 @@
 import { base } from '$app/paths';
 import type * as tt from '$lib/tree-types';
-import { COMPLETE_YEAR, DEFAULT_LIMIT_N, MAX_LEVEL_COUNT } from './constants';
+import { COMPLETE_YEAR, DEFAULT_LIMIT_N, FULL_HOST, MAX_LEVEL_COUNT } from './constants';
 import { getSpecMetricObject } from './metric-calculation';
 
 export const DEFAULT_CONTROL_SPEC: tt.ControlSpec = {
@@ -70,7 +70,15 @@ export function treeBeUrl(root: string, conf: tt.FullTreeConfig, shallow: undefi
 
 
 export function entToLink(e: { rootType: tt.RootType; semanticId: string }): string {
-	return `${base}/${e.rootType}/${e.semanticId}`;
+	return entityUrl(e.rootType, e.semanticId, base);
+}
+
+export function externalUrl(rootType: tt.RootType, semanticId: string): string {
+	return entityUrl(rootType, semanticId, FULL_HOST);
+}
+
+export function entityUrl(rootType: tt.RootType, semanticId: string, host: string): string {
+	return `${host}/${rootType}/${semanticId}`;
 }
 
 export function decorBaseLink(url: string, conf: tt.FullTreeConfig, selectionState: tt.BareNode): string {
