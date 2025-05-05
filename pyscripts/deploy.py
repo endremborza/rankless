@@ -406,7 +406,8 @@ server {{
         proxy_pass http://{FE_UPSTREAM};
         proxy_cache fe-cache;
         {loc_suffix}
-        limit_req zone=baselimit burst=30 nodelay;
+        limit_req zone=baselimit burst=120 nodelay;
+        limit_req_status 429;
     }}
 }}
 
@@ -418,7 +419,8 @@ server {{
         proxy_pass http://{BE_UPSTREAM};
         proxy_cache be-cache;
         {loc_suffix}
-        limit_req zone=baselimit burst=30 nodelay;
+        limit_req zone=baselimit burst=120 nodelay;
+        limit_req_status 429;
         add_header Access-Control-Allow-Origin *;
     }}
 }}
@@ -614,15 +616,7 @@ def new_small_alpha(pushed_certs: bool):
 
 
 def new_large_alpha():
-    inst = ec2.create_instances(  # pyright: ignore[reportAttributeAccessIssue]
-        ImageId=_last_img(),
-        InstanceType=LARGE_INSTANCE_TYPE,
-        KeyName=key_name,
-        MinCount=1,
-        MaxCount=1,
-    )[0]
-    inst.wait_until_running()
-    inst.load()
+    inst = get_new_inst(LARGE_STORAGE_GB, LARGE_INSTANCE_TYPE, _last_img(), True)
     tpr = get_tpr(inst)
     tpr.setup_fe_service(ALPHA_DOMAIN, bun=True, procs=LARGE_FE_PROCS)
     tpr.update_fe()
