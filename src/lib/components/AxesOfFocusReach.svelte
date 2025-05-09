@@ -3,6 +3,13 @@
 	import HoverI from '$lib/components/HoverI.svelte';
 	import HoverBlock from '$lib/components/HoverBlock.svelte';
 	import { getColor } from '$lib/style-util';
+
+	export let data: {
+		view: {
+			sfCoords: [number, number];
+			comparisons: [{ sfCoords: [number, number]; name: string }];
+		};
+	};
 	let axEnds = 3.5;
 	let axWidth = 0.032;
 	let colorRange = [0.05, 0.3, 0.55, 0.8].map(getColor);
@@ -20,6 +27,7 @@
 	};
 	let showAxesHelp = false;
 	let showComparisons = false;
+	let hoveredName = '';
 </script>
 
 <div id="sf-map">
