@@ -158,6 +158,9 @@ if __name__ == "__main__":
 
     (rep_dpath.parent / "index.html").write_text(
         f"""
+    <head>
+    <title>Access log report</title>
+    </head>
     <body>
     <h1>Reports</h1>
             {html_table}
