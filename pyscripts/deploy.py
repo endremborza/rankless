@@ -367,6 +367,10 @@ WantedBy=default.target
         server_prefix = f"""
     server_name {inst_dns};
 
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    gzip_min_length 1000;   
+
     ssl_certificate {cert_dir}/fullchain.pem;
     ssl_certificate_key {cert_dir}/privkey.pem;
 
@@ -382,6 +386,9 @@ WantedBy=default.target
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
+
+        limit_req zone=baselimit burst=120 nodelay;
+        limit_req_status 429;
 """
 
         nginx_conf = f"""
@@ -398,16 +405,10 @@ server {{
     listen 443 ssl;
     {server_prefix}
 
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-    gzip_min_length 1000;   
-
     location / {{
         proxy_pass http://{FE_UPSTREAM};
         proxy_cache fe-cache;
         {loc_suffix}
-        limit_req zone=baselimit burst=120 nodelay;
-        limit_req_status 429;
     }}
 }}
 
@@ -419,8 +420,6 @@ server {{
         proxy_pass http://{BE_UPSTREAM};
         proxy_cache be-cache;
         {loc_suffix}
-        limit_req zone=baselimit burst=120 nodelay;
-        limit_req_status 429;
         add_header Access-Control-Allow-Origin *;
     }}
 }}
