@@ -26,7 +26,7 @@ const MIN_FOR_HIT: usize = 25;
 const TOP_TOPIC: usize = 20;
 const TOP_SUBFIELD: usize = 100;
 const TOP_YEAR: usize = 50;
-const TOP_ALL_TIME: usize = 40_000;
+const TOP_ALL_TIME: usize = 30_000;
 
 type CCUI = ET<MAA<Works, CiteCountMarker>>;
 
