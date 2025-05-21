@@ -359,6 +359,8 @@ WantedBy=default.target
             inst_dns = self.get_dns()
         if cert:
             self.get_cert(inst_dns)
+        for cd in [self.be_cache_dir, self.fe_cache_dir]:
+            self.ssh.run(f"sudo chown -R www-data:www-data {cd}")
         ports = self.get_fe_ports()
         assert ports
         self.nginx_add_upstreams([UpstreamConf(ports)])
@@ -387,7 +389,7 @@ WantedBy=default.target
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
 
-        limit_req zone=baselimit burst=120 nodelay;
+        limit_req zone=baselimit burst=90 nodelay;
         limit_req_status 429;
 """
 
