@@ -41,6 +41,7 @@ pub struct NameExtensionMarker;
 pub struct DoiMarker;
 pub struct SemanticIdMarker;
 pub struct MainWorkMarker;
+pub struct HitWorkMarker;
 pub struct WorkCountMarker;
 pub struct CiteCountMarker;
 pub struct RefSubfieldsArrayMarker;

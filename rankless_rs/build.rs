@@ -18,9 +18,13 @@ fn main() {
     }
 
     let year = 2025;
+    let start_year = 1950;
     let env_dependent_vars = vec![
         ("FINAL_YEAR", [year, year, year, year]),
-        ("START_YEAR", [1990, 1990, 1980, 1950]),
+        (
+            "START_YEAR",
+            [start_year, start_year, start_year, start_year],
+        ),
         ("MIN_PAPERS_FOR_INST", [40, 20, 30, 250]),
         ("MIN_PAPERS_FOR_SOURCE", [10, 20, 50, 200]),
         ("MIN_AUTHOR_WORK_COUNT", [10, 10, 10, 8]),

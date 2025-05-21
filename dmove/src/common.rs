@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, VecDeque},
+    collections::{BTreeSet, BinaryHeap, VecDeque},
     fmt::{Debug, Display},
     fs::File,
     hash::Hash,
@@ -140,6 +140,12 @@ impl InitEmpty for bool {
 impl InitEmpty for String {
     fn init_empty() -> Self {
         "".to_string()
+    }
+}
+
+impl<T> InitEmpty for Box<[T]> {
+    fn init_empty() -> Self {
+        Vec::new().into_boxed_slice()
     }
 }
 
@@ -328,6 +334,15 @@ where
 impl InitEmpty for Condvar {
     fn init_empty() -> Self {
         Condvar::new()
+    }
+}
+
+impl<T> InitEmpty for BinaryHeap<T>
+where
+    T: Ord,
+{
+    fn init_empty() -> Self {
+        Self::new()
     }
 }
 

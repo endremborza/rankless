@@ -6,9 +6,9 @@ use crate::{
 };
 use rankless_rs::{
     common::{
-        init_empty_slice, BeS, InstRelMarker, MainEntity, MainWorkMarker, MarkedBackendLoader,
-        NumberedEntity, QuickAttPair, QuickMap, QuickestBox, QuickestVBox, Stowage,
-        Top3AffCountryMarker, Top3AuthorMarker, Top3CitingSfMarker, Top3JournalMarker,
+        init_empty_slice, BeS, HitWorkMarker, InstRelMarker, MainEntity, MainWorkMarker,
+        MarkedBackendLoader, NumberedEntity, QuickAttPair, QuickMap, QuickestBox, QuickestVBox,
+        Stowage, Top3AffCountryMarker, Top3AuthorMarker, Top3CitingSfMarker, Top3JournalMarker,
         Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader, YearlyCitationsMarker,
         YearlyPapersMarker, NET,
     },
@@ -22,7 +22,8 @@ use rankless_rs::{
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
         derive_links2::{WorkCitingCounts, WorkCountries, WorkTopSource},
-        derive_links5::SourceStats,
+        derive_links3::{HitPapers, HitPapersDois, HitPapersNames},
+        derive_links5::{HitPaperYearlyCitations, SourceStats},
     },
     steps::{
         a1_entity_mapping::YearInterface,
@@ -34,9 +35,10 @@ use rankless_rs::{
 };
 
 use dmove::{
-    BackendLoading, BigId, ByteFixArrayInterface, CompactEntity, Entity,
+    BackendLoading, BigId, ByteArrayInterface, ByteFixArrayInterface, CompactEntity, Entity,
     EntityImmutableRefMapperBackend, Locators, MappableEntity, MarkedAttribute, NamespacedEntity,
-    UnsignedNumber, VaST, VarAttBuilder, VarBox, VattArrPair, ET, MAA,
+    UnsignedNumber, VaST, VarAttBuilder, VarBox, VarSizedAttributeElement, VariableSizeAttribute,
+    VattArrPair, ET, MAA,
 };
 use hashbrown::HashMap;
 use rand::Rng;
@@ -55,6 +57,7 @@ pub struct Getters {
     pub wn_locators: Locators<WorksNames, u64>,
     pub inst_oa: Box<[BigId]>,
     pub work_oa: Box<[BigId]>,
+    pub hit_papers: Box<[BigId]>,
 }
 
 macro_rules! make_interfaces {
@@ -169,6 +172,7 @@ macro_rules! make_ent_interfaces {
     ($S:ident, $T:ident,
         $($f_key:ident => $f_mark:ty),*;
         $($r_key:ident -> $r_mark:ty),*;
+        $($var_key:ident - $var_mark:ty = $var_t:ty),*;
         $($fix_key:ident - $fix_mark:ty | $fix_t:ty),*;
         $($float_key:ident : $float_mark:ty),*;
         $($oa_key:ident),*;
@@ -178,9 +182,10 @@ macro_rules! make_ent_interfaces {
         pub struct $S<T> where T: $T
         {
             $(pub $f_key: VarBox<String>),*,
-            $(pub $r_key: Box<[<T as NumAtt<$r_mark>>::Num]>),*,
-            $(pub $fix_key: Box<[<T as FixAtt<$fix_mark>>::FT]>),*
-            $(pub $float_key: Box<[f64]>),*
+            $(pub $r_key: Box<[<T as NumAtt<$r_mark>>::Num]>),*
+            $(, pub $var_key: VarBox<<T as VarAtt<$var_mark>>::VT>)*
+            $(, pub $fix_key: Box<[<T as FixAtt<$fix_mark>>::FT]>)*
+            $(, pub $float_key: Box<[f64]>),*
             $(, pub $oa_key: Box<[u64]>)*
         }
 
@@ -189,9 +194,10 @@ macro_rules! make_ent_interfaces {
             pub fn new(stowage: &Stowage) -> Self {
                 Self {
                     $($f_key: <E as StringAtt<$f_mark>>::load(stowage)),*,
-                    $($r_key: <E as NumAtt<$r_mark>>::load(stowage)),*,
-                    $($fix_key:  <E as FixAtt<$fix_mark>>::load(stowage)),*
-                    $($float_key:  <E as FloatAtt<$float_mark>>::load(stowage))*
+                    $($r_key: <E as NumAtt<$r_mark>>::load(stowage)),*
+                    $(, $fix_key:  <E as FixAtt<$fix_mark>>::load(stowage))*
+                    $(, $var_key:  <E as VarAtt<$var_mark>>::load(stowage))*
+                    $(, $float_key:  <E as FloatAtt<$float_mark>>::load(stowage))*
                     $(,$oa_key: reverse_id::<E>(stowage))*
                 }
             }
@@ -200,6 +206,7 @@ macro_rules! make_ent_interfaces {
         pub trait $T: Entity
             $( + StringAtt<$f_mark>)*
             $( + NumAtt<$r_mark>)*
+            $( + VarAtt<$var_mark, VT=$var_t>)*
             $( + FixAtt<$fix_mark, FT=$fix_t>)*
             $( + FloatAtt<$float_mark>)*
         {}
@@ -207,6 +214,7 @@ macro_rules! make_ent_interfaces {
         impl <T> $T for T where T: Entity
             $( + StringAtt<$f_mark>)*
             $( + NumAtt<$r_mark>)*
+            $( + VarAtt<$var_mark, VT=$var_t>)*
             $( + FixAtt<$fix_mark, FT=$fix_t>)*
             $( + FloatAtt<$float_mark>)*
         {}
@@ -243,6 +251,9 @@ make_interfaces!(
     shipis -> AuthorshipInstitutions,
     cinames -> CitiesNames,
     aslugs -> AuthorWikiSlugs,
+    hit_names -> HitPapersNames,
+    hit_dois -> HitPapersDois,
+    hit_yearlies -> HitPaperYearlyCitations,
     country_insts -> CountryInsts;
     sqy >> SourceYearQs
 );
@@ -252,6 +263,7 @@ make_ent_interfaces!(
     RootInterfaceable,
     names => NameMarker, name_exts => NameExtensionMarker, sem_ids => SemanticIdMarker;
     wcounts -> WorkCountMarker, ccounts -> CiteCountMarker;
+    hit_works - HitWorkMarker = Box<[ET<HitPapers>]>;
     yearly_papers - YearlyPapersMarker | EraRec,
     yearly_cites - YearlyCitationsMarker | EraRec,
     top_journals - Top3JournalMarker | TopRec<Sources>,
@@ -271,7 +283,7 @@ make_ent_interfaces!(
     NodeInterfaces,
     NodeInterfaceable,
     names => NameMarker;
-    ccounts -> CiteCountMarker;;;;
+    ccounts -> CiteCountMarker;;;;;
 );
 
 pub trait StringAtt<Mark>: MarkedAttribute<Mark> {
@@ -290,6 +302,11 @@ pub trait FloatAtt<Mark>: MarkedAttribute<Mark> {
 pub trait FixAtt<Mark>: MarkedAttribute<Mark> {
     type FT: ByteFixArrayInterface;
     fn load(stowage: &Stowage) -> Box<[Self::FT]>;
+}
+
+pub trait VarAtt<Mark>: MarkedAttribute<Mark> {
+    type VT: ByteArrayInterface;
+    fn load(stowage: &Stowage) -> VarBox<Self::VT>;
 }
 
 pub trait WorksFromMemory: MarkedAttribute<MainWorkMarker> + NumberedEntity {
@@ -335,6 +352,7 @@ impl Getters {
     pub fn new(stowage: Arc<Stowage>) -> Self {
         let inst_oa = reverse_id::<Institutions>(&stowage);
         let work_oa = reverse_id::<Works>(&stowage);
+        let hit_papers = reverse_id::<HitPapers>(&stowage);
         let path = stowage.path_from_ns(WorksNames::NS);
         let wn_locators =
             <Locators<WorksNames, _> as BackendLoading<WorksNames>>::load_backend(&path);
@@ -346,6 +364,7 @@ impl Getters {
             stowage,
             inst_oa,
             work_oa,
+            hit_papers,
         }
     }
 
@@ -378,6 +397,7 @@ impl Getters {
             ifs,
             inst_oa: Vec::new().into(),
             work_oa: (0..20000000).collect::<Vec<BigId>>().into(),
+            hit_papers: Vec::new().into(),
         }
     }
 }
@@ -424,6 +444,18 @@ where
     type FT = ET<MAA<Self, Mark>>;
     fn load(stowage: &Stowage) -> Box<[Self::FT]> {
         stowage.get_marked_interface::<Self, Mark, QuickestBox>()
+    }
+}
+
+impl<T, Mark> VarAtt<Mark> for T
+where
+    T: MarkedAttribute<Mark>,
+    MAA<T, Mark>: NamespacedEntity + CompactEntity + VariableSizeAttribute,
+    ET<MAA<T, Mark>>: ByteArrayInterface + VarSizedAttributeElement,
+{
+    type VT = ET<MAA<Self, Mark>>;
+    fn load(stowage: &Stowage) -> VarBox<Self::VT> {
+        stowage.get_marked_interface::<Self, Mark, QuickestVBox>()
     }
 }
 

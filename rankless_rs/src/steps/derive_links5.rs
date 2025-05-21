@@ -12,7 +12,8 @@ use std::{
 
 use dmove::{
     ByteFixArrayInterface, DowncastingBuilder, Entity, FixAttBuilder, InitEmpty, MarkedAttribute,
-    NamespacedEntity, UnsignedNumber, VarAttIterator, VariableSizeAttribute, VattArrPair, ET, MAA,
+    NamespacedEntity, UnsignedNumber, VarAttBuilder, VarAttIterator, VariableSizeAttribute,
+    VattArrPair, ET, MAA,
 };
 use dmove_macro::ByteFixArrayInterface;
 use hashbrown::{HashMap, HashSet};
@@ -34,6 +35,7 @@ use crate::{
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
         derive_links2::{WorkCountries, WorkTopSource},
+        derive_links3::HitPapers,
     },
     make_interface_struct,
     oa_structs::{
@@ -42,10 +44,10 @@ use crate::{
     },
     semantic_ids::{semantify, SemCsvObj},
     steps::a1_entity_mapping::Qs,
-    CiteCountMarker, QuickestBox, ReadIter, Stowage, WorkCountMarker,
+    CiteCountMarker, QuickestBox, QuickestNumbered, ReadIter, Stowage, WorkCountMarker,
 };
 
-use super::a1_entity_mapping::Years;
+use super::a1_entity_mapping::{YearInterface, Years};
 
 pub const N_RELS: usize = 8;
 pub const ERA_SIZE: usize = 11;
@@ -481,6 +483,36 @@ impl CiteDeriver {
         )
     }
 
+    fn hit_paper_atts(&self) {
+        let mut cy_counts = init_empty_slice::<HitPapers, Box<[u32]>>();
+        self.stowage
+            .get_entity_interface::<HitPapers, QuickestNumbered>()
+            .0
+            .iter()
+            .for_each(|(wid, hwid)| {
+                let wu = wid.to_usize();
+                let wyear = self.backends.year[wu];
+                let mut v = vec![0; (FINAL_YEAR - YearInterface::reverse(wyear)).to_usize()];
+                self.backends
+                    .wciting
+                    .get(&wu)
+                    .expect("cites for work")
+                    .iter()
+                    .for_each(|cw| {
+                        let cyear = self.backends.year[cw.to_usize()];
+                        if cyear >= wyear {
+                            v[(cyear - wyear).to_usize()] += 1;
+                        }
+                    });
+
+                cy_counts[hwid.to_usize()] = v.into_boxed_slice();
+            });
+        self.stowage.add_iter_owned::<VarAttBuilder, _, _>(
+            cy_counts.to_vec().into_iter(),
+            Some("hit-paper-yearly-citations"),
+        );
+    }
+
     fn q_ccs(&mut self) {
         let mut q_maps = init_empty_slice::<Qs, HashMap<ET<Works>, usize>>();
         let qy_map = self
@@ -535,6 +567,7 @@ impl CiteDeriver {
 }
 
 impl CdManager {
+    //TODO: this could be replaced with the parallel macro
     fn new(cd: CiteDeriver) -> Self {
         Self {
             cd: Arc::new(cd),
@@ -664,6 +697,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     cd.q_ccs();
     let mut cdm = CdManager::new(cd);
     cdm.send(CiteDeriver::author_paths);
+    cdm.send(CiteDeriver::hit_paper_atts);
     cdm.send(CiteDeriver::cite_count::<Institutions>);
     cdm.send(CiteDeriver::cite_count::<Countries>);
     cdm.send(CiteDeriver::cite_count::<Subfields>);

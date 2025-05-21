@@ -97,7 +97,7 @@ impl VariableSizeAttribute for CountryInsts {
     type SizeType = u32;
 }
 
-pub fn invert_read_multi_link_to_work<L>(stowage: &mut Stowage, name: &str)
+pub fn invert_read_multi_link_to_work<L>(stowage: &Stowage, name: &str)
 where
     L: Entity<T = Box<[ET<L::Target>]>>
         + Link<Source = Works>
@@ -112,12 +112,8 @@ where
     stowage.declare::<L::Target, MainWorkMarker>(name);
 }
 
-pub fn invert_multi_link<L, LIF>(
-    stowage: &mut Stowage,
-    interface: LIF,
-    name: &str,
-    ignore_zero: bool,
-) where
+pub fn invert_multi_link<L, LIF>(stowage: &Stowage, interface: LIF, name: &str, ignore_zero: bool)
+where
     L: Entity<T = Box<[ET<L::Target>]>> + Link,
     ET<L::Source>: UnsignedNumber,
     ET<L::Target>: UnsignedNumber,

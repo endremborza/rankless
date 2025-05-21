@@ -61,6 +61,8 @@ type InstTrm = TreeRunManager<(Institutions, Authors, Subfields, Countries, Sour
 type Coords = [f64; 2];
 type NameStateMap = HashMap<&'static str, NameState>;
 
+type StatesT = State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>, Arc<InstTrm>)>;
+
 #[derive(Deserialize)]
 struct BasicQ {
     q: Option<String>,
@@ -138,6 +140,16 @@ struct InstRelOut {
 }
 
 #[derive(Serialize, Clone)]
+struct PaperOut {
+    year: u16,
+    name: String,
+    doi: String,
+    citations: u32,
+    #[serde(rename = "yearlyCites", skip_serializing_if = "Option::is_none")]
+    yearly_cites: Option<Box<[u32]>>,
+}
+
+#[derive(Serialize, Clone)]
 struct SearchResult {
     name: String,
     #[serde(rename = "semanticId")]
@@ -171,11 +183,14 @@ struct ResultExtension {
 #[derive(Serialize, Clone)]
 struct PostAttResultExtension {
     #[serde(rename = "primeRelations")]
-    pub prime_relations: Vec<PostAttRelatedEntity>,
+    prime_relations: Vec<PostAttRelatedEntity>,
+    #[serde(rename = "hitPapers")]
+    hit_papers: Box<[PaperOut]>,
 }
 
 struct PreAttResultExtension {
     pub prime_relations: Box<[PreAttRelatedEntity]>,
+    hit_papers: Box<[usize]>,
 }
 
 struct KDItem {
@@ -340,8 +355,13 @@ impl PreAttResultExtension {
                 );
                 add_to_relations::<Sources, _>(&entif.top_journals[i], &mut prime_relations, 4);
                 add_to_relations::<Authors, _>(&entif.top_authors[i], &mut prime_relations, 5);
+                let mut hit_papers = Vec::new();
+                if let Some(hits) = entif.hit_works.0.get(i) {
+                    hits.iter().for_each(|e| hit_papers.push(e.to_usize()));
+                }
                 Self {
                     prime_relations: prime_relations.into(),
+                    hit_papers: hit_papers.into(),
                 }
             })
             .collect()
@@ -350,7 +370,8 @@ impl PreAttResultExtension {
     fn to_post(
         &self,
         satts: &AttributeLabelUnion,
-        nstates: &Arc<NameStateMap>,
+        nstates: &NameStateMap,
+        gets: &Getters,
     ) -> PostAttResultExtension {
         let prime_relations = self
             .prime_relations
@@ -375,7 +396,24 @@ impl PreAttResultExtension {
                 })
             })
             .collect();
-        PostAttResultExtension { prime_relations }
+        let hit_papers = self
+            .hit_papers
+            .iter()
+            .map(|hwid| {
+                let wid = gets.hit_papers[*hwid].to_usize();
+                PaperOut {
+                    year: YearInterface::reverse(*gets.year(&wid)),
+                    name: String::from_utf8(gets.hit_names(*hwid).to_vec()).unwrap(),
+                    doi: String::from_utf8(gets.hit_dois(*hwid).to_vec()).unwrap(),
+                    citations: *gets.wccount(&wid) as u32,
+                    yearly_cites: Some(gets.hit_yearlies(*hwid).into()),
+                }
+            })
+            .collect();
+        PostAttResultExtension {
+            prime_relations,
+            hit_papers,
+        }
     }
 }
 
@@ -645,7 +683,8 @@ async fn main() {
         .route("/slice/:etype/:from/:to", get(slice_get))
         .route("/views/:etype/:semantic_id", get(view_get))
         .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))
-        .with_state((ns_map_arc.clone(), satts.clone()));
+        .route("/trees/:root_type/:semantic_id", get(tree_get))
+        .with_state((ns_map_arc, satts, tree_manager.clone()));
 
     let count_api = static_router(&entity_descriptions);
     let specs_api = static_router(&tree_manager.specs);
@@ -654,13 +693,8 @@ async fn main() {
         .route("/", get(tops_get))
         .with_state(Arc::new(tops));
 
-    let tree_api = Router::new()
-        .route("/:root_type/:semantic_id", get(tree_get))
-        .with_state((tree_manager.clone(), ns_map_arc.clone()));
-
     let api = Router::new()
         .nest("/", response_api)
-        .nest("/trees", tree_api)
         .nest("/counts", count_api)
         .nest("/specs", specs_api)
         .nest("/tops", tops_api);
@@ -691,7 +725,7 @@ async fn main() {
 
 async fn slice_get(
     Path((etype, pstart, pend)): Path<(String, usize, usize)>,
-    states: State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>)>,
+    states: StatesT,
 ) -> Response<Body> {
     const MAX_SLICE: usize = 1000;
     if let Some(state) = states.0 .0.get(etype.as_str()) {
@@ -713,10 +747,10 @@ async fn state_get(str_state: State<Arc<str>>) -> (HeaderMap, Response<Body>) {
 async fn tree_get(
     Path((root_type, semantic_id)): Path<(String, String)>,
     tree_q: Query<TreeQ>,
-    states: State<(Arc<InstTrm>, Arc<NameStateMap>)>,
+    states: StatesT,
 ) -> (HeaderMap, Json<Option<TreeResponse>>) {
     let mut tq = tree_q.0;
-    let (tm, ns_map) = states.0;
+    let (ns_map, _, tm) = states.0;
     if let Some(nstate) = ns_map.get(root_type.as_str()) {
         if let Some(sval) = nstate.semantic_id_map.get(&semantic_id) {
             let ncite = nstate.responses[sval.result_id].citations;
@@ -747,9 +781,10 @@ async fn tops_get(tops_state: State<Arc<Vec<TopResult>>>) -> Json<Vec<TopResult>
 
 async fn view_get(
     Path((etype, semantic_id)): Path<(String, String)>,
-    states: State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>)>,
+    states: StatesT,
 ) -> Json<Option<ViewResult>> {
     let satts = states.0 .1;
+    let tm = states.0 .2;
     let mut out = None;
     if let Some(state) = states.0 .0.get(etype.as_str()) {
         if let Some(sem_val) = state.semantic_id_map.get(&semantic_id) {
@@ -771,7 +806,7 @@ async fn view_get(
                 similars,
                 ext: ext.clone(),
                 sr: srs.clone(),
-                prep_ext: state.prep_exts[i].to_post(&satts, &states.0 .0),
+                prep_ext: state.prep_exts[i].to_post(&satts, &states.0 .0, &tm.state.gets),
             };
             out = Some(vr)
         };
@@ -781,7 +816,7 @@ async fn view_get(
 
 async fn sem_id_get(
     Path((etype, oa_id)): Path<(String, usize)>,
-    states: State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>)>,
+    states: StatesT,
 ) -> Json<[Option<String>; 1]> {
     let mut out = None;
     if let Some(nstate) = states.0 .0.get(etype.as_str()) {
@@ -796,7 +831,7 @@ async fn sem_id_get(
 async fn name_get(
     Path(etype): Path<String>,
     q: Query<BasicQ>,
-    states: State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>)>,
+    states: StatesT,
 ) -> (HeaderMap, Response) {
     if let Some(state) = states.0 .0.get(etype.as_str()) {
         let q_string = q.q.clone().unwrap_or("".to_string());

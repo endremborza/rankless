@@ -48,7 +48,7 @@ pub struct TreeBasisState {
 }
 
 pub struct TreeRunManager<T> {
-    state: Arc<TreeBasisState>,
+    pub state: Arc<TreeBasisState>,
     pub specs: TreeSpecs,
     thread_pool: Vec<JoinHandle<()>>,
     cv_pair: BasisCvp,
