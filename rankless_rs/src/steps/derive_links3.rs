@@ -1,14 +1,19 @@
 use std::{collections::BinaryHeap, sync::Arc};
 
 use crate::{
+    agg_tree::HeapIterator,
     common::{init_empty_slice, MainWorkMarker},
+    env_consts::FINAL_YEAR,
     gen::{
         a1_entity_mapping::{Authors, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{WorkDois, WorkTopics, WorkYears, WorksNames},
         derive_links1::WorkSubfields,
         derive_links2::WorkCountries,
     },
-    steps::{a1_entity_mapping::Years, derive_links1::invert_read_multi_link_to_work},
+    steps::{
+        a1_entity_mapping::{YearInterface, Years},
+        derive_links1::invert_read_multi_link_to_work,
+    },
     CiteCountMarker, QuickestBox, QuickestVBox, ReadIter, Stowage, WorkCountMarker,
 };
 use dmove::{
@@ -68,18 +73,18 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
 
     let mut theap = BinaryHeap::new();
     cc_interface.iter().for_each(|e| theap.push(*e));
-    let global_limit = theap
-        .into_iter()
-        .take(TOP_ALL_TIME)
-        .last()
-        .expect("at least some");
+    let global_limit = topn(theap, TOP_ALL_TIME);
 
     let doi_interface = starc.get_entity_interface::<WorkDois, QuickestVBox>();
     let name_interface = starc.get_entity_interface::<WorksNames, ReadIter>();
     let mut hit_names = vec!["Unknown".to_string()]; //TODO: 0 id is unknown, but all this needing to map to
                                                      //u64 is unnecessary here
     let mut hit_dois = vec!["".to_string()];
+    let this_year = YearInterface::parse(FINAL_YEAR);
     let hit_papers = name_interface.enumerate().filter_map(|(wid, name)| {
+        if w_years[wid] >= this_year {
+            return None;
+        }
         let wcc = cc_interface[wid];
         if (wcc.to_usize() >= MIN_FOR_HIT)
             && (wcc >= global_limit
@@ -117,7 +122,18 @@ where
     count_heaps
         .to_vec()
         .into_iter()
-        .map(|e| e.into_iter().take(n).last().unwrap_or(0))
+        .map(|e| topn(e, n))
         .collect::<Vec<CCUI>>()
         .into()
+}
+
+fn topn(mut h: BinaryHeap<CCUI>, n: usize) -> CCUI {
+    let mut out = CCUI::MAX;
+    for _ in 0..n {
+        match h.pop() {
+            Some(e) => out = e,
+            None => break,
+        }
+    }
+    out
 }

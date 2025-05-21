@@ -43,6 +43,7 @@ use rankless_trees::{
     AttributeLabelUnion,
 };
 
+const MAX_HITS: usize = 80;
 const PORT: u16 = 3038;
 const SEARCH_SIZE: usize = 20;
 const CACHEABLE_FROM: u32 = 10_000;
@@ -357,7 +358,9 @@ impl PreAttResultExtension {
                 add_to_relations::<Authors, _>(&entif.top_authors[i], &mut prime_relations, 5);
                 let mut hit_papers = Vec::new();
                 if let Some(hits) = entif.hit_works.0.get(i) {
-                    hits.iter().for_each(|e| hit_papers.push(e.to_usize()));
+                    hits.iter()
+                        .take(MAX_HITS)
+                        .for_each(|e| hit_papers.push(e.to_usize()));
                 }
                 Self {
                     prime_relations: prime_relations.into(),
