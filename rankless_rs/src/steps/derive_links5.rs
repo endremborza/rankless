@@ -492,7 +492,7 @@ impl CiteDeriver {
             .for_each(|(wid, hwid)| {
                 let wu = wid.to_usize();
                 let wyear = self.backends.year[wu];
-                let mut v = vec![0; (FINAL_YEAR - YearInterface::reverse(wyear)).to_usize()];
+                let mut v = vec![0; (1 + FINAL_YEAR - YearInterface::reverse(wyear)).to_usize()];
                 self.backends
                     .wciting
                     .get(&wu)
