@@ -16,13 +16,14 @@ export type View = {
 	citations: number;
 	papers: number;
 	dmId: number;
-	primeRelations: RelatedEntity[],
+	primeRelations: RelatedEntity[];
+	hitPapers: Paper[];
 	similars: SearchResult[];
 	// sfCoords: [number, number];
 	instRels: InstRel[];
-	startYear: number,
-	yearlyPapers: number[],
-	yearlyCites: number[],
+	startYear: number;
+	yearlyPapers: number[];
+	yearlyCites: number[];
 	meta?: Record<string, string>;
 };
 export type RelatedEntity = {
@@ -31,7 +32,7 @@ export type RelatedEntity = {
 	etype: EntityType,
 	relType: number,
 	score: number,
-}
+};
 export type SelectionOption = {
 	name: string;
 	id: string;
@@ -43,6 +44,9 @@ export type FullTreeConfig = {
 	treeId: number;
 	rootType: RootType;
 	semanticId: string;
+};
+export type Paper = {
+	year: number; name: string; doi: string; citations: number; yearlyCites: number[]
 };
 
 export type RootType = 'authors' | 'institutions' | 'sources' | 'countries' | 'subfields';
