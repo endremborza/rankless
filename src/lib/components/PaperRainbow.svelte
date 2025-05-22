@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { LATEST_YEAR } from '$lib/constants';
-	import { getColor } from '$lib/style-util';
+	import { getColor, getColorArr } from '$lib/style-util';
 	import { formatNumber } from '$lib/text-format-util';
 	import type * as tt from '$lib/tree-types';
 	import { onDestroy, onMount } from 'svelte';
@@ -57,6 +57,8 @@
 			let cCum = 0;
 			const pBasis = [];
 			for (const [y, yCites] of paper.yearlyCites.entries()) {
+				console.log(y + startYear);
+				if (y + startYear + minYear >= LATEST_YEAR) break;
 				cCum -= yCites / yScale;
 				const ch = y == 0 ? 'M' : 'L';
 				pBasis.push(`${ch} ${(startYear + y) / xScale} ${cCum}`);
@@ -100,14 +102,13 @@
 	function getLiStyle(i: number, visInds: number[]) {
 		if (visInds.includes(i)) {
 			let rate = (i - visInds[0]) / visInds.length;
-			return `background-color:${getColor(rate)}`;
+			return `background-color: rgba(${getColorArr(rate)}, 0.3)`;
 		}
 		return '';
 	}
 
 	function updateFirstVisible(): void {
 		const containerRect = listContainer.getBoundingClientRect();
-
 		const visibleItems = listItemElements
 			.map((el, index) => ({ el, index, rect: el.getBoundingClientRect() }))
 			.filter(({ rect }) => rect.bottom > containerRect.top && rect.top < containerRect.bottom)
@@ -135,31 +136,32 @@
 
 	$: visInds = getVisInds(papers, firstVisible || 0);
 	$: fb = getFigureBasis(papers, visInds);
+	$: highlightedVis = visInds.includes(highlighted) ? highlighted - visInds[0] : undefined;
 </script>
 
 <svg
 	viewBox="{fb.xMin} {fb.yMin} {fb.width} {fb.height}"
 	style="aspect-ratio: {fb.aspect.toFixed(3)};"
 >
-	{#each fb.figPapers as paper, i}
+	{#each fb.figPapers as paper}
 		<path
 			role="region"
 			fill={getColor(paper.rate)}
 			stroke="none"
 			d={paper.path}
-			opacity={paper.i == highlighted ? 0.9 : 0.1}
-			id="hit-paper-path-{i}"
+			opacity={paper.i == highlighted ? 0.95 : 0.2}
+			id="hit-paper-path-{paper.i}"
 			on:mouseover={() => fixHighlight(paper.i)}
 			on:focus={() => fixHighlight(paper.i)}
 		/>
-		{#if paper.i == highlighted}
-			<text font-size="0.4">
-				<textPath href="#hit-paper-path-{i}">
-					{paper.pathName}
-				</textPath>
-			</text>
-		{/if}
 	{/each}
+	{#if highlightedVis != undefined}
+		<text font-size="0.4">
+			<textPath href="#hit-paper-path-{highlighted}">
+				{fb.figPapers[highlightedVis].pathName}
+			</textPath>
+		</text>
+	{/if}
 
 	<g stroke-width="0.03" stroke="var(--color-text)" font-size={fontSize}>
 		<path d="M 0, 0 h {xBase}" />
@@ -176,24 +178,23 @@
 	</g>
 </svg>
 
-<ul id="paper-list" bind:this={listContainer}>
+<ol id="paper-list" bind:this={listContainer}>
 	{#each papers as paper, i}
 		<li
 			style={getLiStyle(i, visInds || [])}
 			data-index={i}
 			on:mouseover={() => fixHighlight(i)}
 			on:focus={() => fixHighlight(i)}
+			class="shadowy"
 		>
 			{#if paper.doi.length > 0}
-				<a href={paper.doi} target="_blank"
-					>{paper.name} ({paper.year}) - {formatNumber(paper.citations)} indexed citations</a
-				>
+				<a href={paper.doi} target="_blank">{paper.name} ({paper.year})</a>
 			{:else}
-				{paper.name} ({paper.year}) - {formatNumber(paper.citations)} indexed citations
+				{paper.name} ({paper.year})
 			{/if}
 		</li>
 	{/each}
-</ul>
+</ol>
 
 <style>
 	svg {
@@ -211,11 +212,13 @@
 	#paper-list {
 		padding-top: 40px;
 		padding-right: 18px;
-		max-height: 240px;
+		max-height: 30svh;
 		overflow-y: scroll;
 	}
 
 	#paper-list > li {
 		margin-top: var(--unified-margin);
+		padding: var(--unified-padding);
+		font-weight: 600;
 	}
 </style>
