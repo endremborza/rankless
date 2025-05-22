@@ -12,8 +12,6 @@ from .deploy import get_running_tpr
 EMAIL_ADDRESS = os.environ["GMAIL_ADDR"]
 EMAIL_PASSWORD = os.environ["GMAIL_APP_PW"]
 TO_EMAIL = EMAIL_ADDRESS
-SUBJECT = "Rankless Down"
-BODY = "Rankless Down!!"
 
 url = "https://www.rankless.org/"
 
@@ -33,9 +31,9 @@ def validate():
     val_url(url + random.choice(links))
 
 
-def warn(e):
-    msg = MIMEText(BODY + "\n" + str(e))
-    msg["Subject"] = SUBJECT
+def warn(subject, body):
+    msg = MIMEText(body)
+    msg["Subject"] = subject
     msg["From"] = EMAIL_ADDRESS
     msg["To"] = TO_EMAIL
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
@@ -48,27 +46,40 @@ if __name__ == "__main__":
     while True:
         try:
             validate()
-            ltpr = get_running_tpr(True)
+            try:
+                ltpr = get_running_tpr(True)
+            except Exception as e:
+                warn("Rankless ssh error", str(e))
+                time.sleep(10)
+                continue
             rem_bytes, full_pct = map(
                 int,
                 re.findall(r"/dev/root.*?(\d+)\s+(\d+)% /\n", ltpr.ssh.run("df"))[0],
             )
-            assert full_pct < 97, f"getting full {full_pct}"
+            if full_pct >= 97:
+                warn("Rankless filling", f"getting full {full_pct}")
+                time.sleep(20)
+                continue
 
-            nfiles = 200
+            nfiles = None
             for _ in range(5):
                 try:
                     nfiles = ltpr.get_backend_open_files_df().shape[0]
                     break
                 except:
                     pass
-            assert nfiles < 120, f"too many open files: {nfiles}"
+            if nfiles is None:
+                warn("Rankless no backend", "nfiles not found")
+                time.sleep(60)
+            elif nfiles > 120:
+                warn("Rankless too many open files", str(nfiles))
+                time.sleep(60)
             if not started:
                 started = True
-                raise RuntimeError(
-                    f"just started {rem_bytes / 1e6} at {full_pct}% full {nfiles} open"
+                warn(
+                    "Rankless monitoring",
+                    f"just started {rem_bytes / 1e6} at {full_pct}% full {nfiles} open",
                 )
         except Exception as e:
-            print(e)
-            warn(e)
+            warn("Rankless Down", str(e))
         time.sleep(20)
