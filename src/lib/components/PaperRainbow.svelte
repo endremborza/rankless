@@ -3,13 +3,13 @@
 	import { getColor, getColorArr } from '$lib/style-util';
 	import { formatNumber } from '$lib/text-format-util';
 	import type * as tt from '$lib/tree-types';
-	import { onDestroy, onMount } from 'svelte';
+	import { onMount } from 'svelte';
 
 	export let papers: tt.Paper[];
 	const xPad = 2;
 	const yPad = 1;
 	const xBase = 26;
-	const yBase = 8;
+	const yBase = 12;
 	const maxN = 5;
 	const fontSize = 0.5;
 	let highlighted = 0;
@@ -57,7 +57,6 @@
 			let cCum = 0;
 			const pBasis = [];
 			for (const [y, yCites] of paper.yearlyCites.entries()) {
-				console.log(y + startYear);
 				if (y + startYear + minYear >= LATEST_YEAR) break;
 				cCum -= yCites / yScale;
 				const ch = y == 0 ? 'M' : 'L';
@@ -99,22 +98,25 @@
 		highlighted = i;
 	}
 
-	function getLiStyle(i: number, visInds: number[]) {
+	function getLiStyle(i: number, visInds: number[], highlighted: number | undefined) {
 		if (visInds.includes(i)) {
 			let rate = (i - visInds[0]) / visInds.length;
-			return `background-color: rgba(${getColorArr(rate)}, 0.3)`;
+			let ext =
+				highlighted == i ? '0.5); box-shadow: 3px 3px 10px var(--color-theme-shadow);' : '0.3)';
+			return `background-color: rgba(${getColorArr(rate)}, ${ext}`;
 		}
 		return '';
 	}
 
 	function updateFirstVisible(): void {
 		const containerRect = listContainer.getBoundingClientRect();
-		const visibleItems = listItemElements
+
+		const fullyVisibleItems = listItemElements
 			.map((el, index) => ({ el, index, rect: el.getBoundingClientRect() }))
-			.filter(({ rect }) => rect.bottom > containerRect.top && rect.top < containerRect.bottom)
+			.filter(({ rect }) => rect.top >= containerRect.top && rect.bottom <= containerRect.bottom)
 			.sort((a, b) => a.rect.top - b.rect.top);
 
-		firstVisible = visibleItems.length > 0 ? visibleItems[0].index : null;
+		firstVisible = fullyVisibleItems.length > 0 ? fullyVisibleItems[0].index : null;
 	}
 
 	function onScrollDebounced() {
@@ -139,80 +141,90 @@
 	$: highlightedVis = visInds.includes(highlighted) ? highlighted - visInds[0] : undefined;
 </script>
 
-<svg
-	viewBox="{fb.xMin} {fb.yMin} {fb.width} {fb.height}"
-	style="aspect-ratio: {fb.aspect.toFixed(3)};"
->
-	{#each fb.figPapers as paper}
-		<path
-			role="region"
-			fill={getColor(paper.rate)}
-			stroke="none"
-			d={paper.path}
-			opacity={paper.i == highlighted ? 0.95 : 0.2}
-			id="hit-paper-path-{paper.i}"
-			on:mouseover={() => fixHighlight(paper.i)}
-			on:focus={() => fixHighlight(paper.i)}
-		/>
-	{/each}
-	{#if highlightedVis != undefined}
-		<text font-size="0.4">
-			<textPath href="#hit-paper-path-{highlighted}">
-				{fb.figPapers[highlightedVis].pathName}
-			</textPath>
-		</text>
-	{/if}
-
-	<g stroke-width="0.03" stroke="var(--color-text)" font-size={fontSize}>
-		<path d="M 0, 0 h {xBase}" />
-		{#each fb.yearTicks as yTick}
-			<path d="M {yTick.x}, 0 v {yPad / 4}" />
-			{#if yTick.name != undefined}
-				<text x={yTick.x} y={yPad * 0.9} text-anchor="middle">{yTick.name}</text>
-			{/if}
+<div>
+	<svg
+		viewBox="{fb.xMin} {fb.yMin} {fb.width} {fb.height}"
+		style="aspect-ratio: {fb.aspect.toFixed(3)};"
+	>
+		{#each fb.figPapers as paper}
+			<path
+				role="region"
+				fill={getColor(paper.rate)}
+				stroke="none"
+				d={paper.path}
+				opacity={paper.i == highlighted ? 0.95 : 0.2}
+				id="hit-paper-path-{paper.i}"
+				on:mouseover={() => fixHighlight(paper.i)}
+				on:focus={() => fixHighlight(paper.i)}
+			/>
 		{/each}
-		<path d="M {xBase}, {-yBase} h {xPad / 8}" />
-		<text x={xBase + xPad / 4} y={-yBase + fontSize / 3.5} text-anchor="left"
-			>{formatNumber(fb.cMax)}</text
-		>
-	</g>
-</svg>
+		{#if highlightedVis != undefined}
+			<text font-size="0.4">
+				<textPath href="#hit-paper-path-{highlighted}">
+					{fb.figPapers[highlightedVis].pathName}
+				</textPath>
+			</text>
+		{/if}
 
-<ol id="paper-list" bind:this={listContainer}>
-	{#each papers as paper, i}
-		<li
-			style={getLiStyle(i, visInds || [])}
-			data-index={i}
-			on:mouseover={() => fixHighlight(i)}
-			on:focus={() => fixHighlight(i)}
-			class="shadowy"
-		>
-			{#if paper.doi.length > 0}
-				<a href={paper.doi} target="_blank">{paper.name} ({paper.year})</a>
-			{:else}
-				{paper.name} ({paper.year})
-			{/if}
-		</li>
-	{/each}
-</ol>
+		<g stroke-width="0.03" stroke="var(--color-text)" font-size={fontSize}>
+			<path d="M 0, 0 h {xBase}" />
+			{#each fb.yearTicks as yTick}
+				<path d="M {yTick.x}, 0 v {yPad / 4}" />
+				{#if yTick.name != undefined}
+					<text x={yTick.x} y={yPad * 0.9} text-anchor="middle">{yTick.name}</text>
+				{/if}
+			{/each}
+			<path d="M {xBase}, {-yBase} h {xPad / 8}" />
+			<text x={xBase + xPad / 4} y={-yBase + fontSize / 3.5} text-anchor="left"
+				>{formatNumber(fb.cMax)}</text
+			>
+		</g>
+	</svg>
+
+	<ol id="paper-list" bind:this={listContainer}>
+		{#each papers as paper, i}
+			<li
+				style={getLiStyle(i, visInds || [], highlighted)}
+				data-index={i}
+				on:mouseover={() => fixHighlight(i)}
+				on:focus={() => fixHighlight(i)}
+			>
+				{#if paper.doi.length > 0}
+					<a href={paper.doi} target="_blank">{paper.name} ({paper.year})</a>
+				{:else}
+					{paper.name} ({paper.year})
+				{/if}
+			</li>
+		{/each}
+	</ol>
+</div>
 
 <style>
+	div {
+		display: flex;
+		flex-wrap: wrap;
+	}
+
 	svg {
-		width: 100%;
+		min-width: 600px;
+		flex: 8;
 	}
 
 	text {
 		pointer-events: none;
 	}
 
-	path {
+	path,
+	li {
 		transition: all 400ms;
 	}
 
 	#paper-list {
+		flex: 4;
+		min-width: 400px;
 		padding-top: 40px;
 		padding-right: 18px;
-		max-height: 30svh;
+		max-height: 55svh;
 		overflow-y: scroll;
 	}
 
