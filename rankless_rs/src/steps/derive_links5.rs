@@ -30,8 +30,8 @@ use crate::{
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{
-            AuthorshipAuthor, AuthorshipInstitutions, CountriesNames, InstCountries, SourceYearQs,
-            WorkAuthorships, WorkSources, WorkTopics, WorkYears,
+            AuthorshipAuthor, AuthorshipInstitutions, CountryCodesThree, InstCountries,
+            SourceYearQs, WorkAuthorships, WorkSources, WorkTopics, WorkYears,
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
         derive_links2::{WorkCountries, WorkTopSource},
@@ -42,9 +42,10 @@ use crate::{
         post::{Institution, Source},
         FieldLike, NamedEntity,
     },
-    semantic_ids::{semantify, SemCsvObj},
+    semantic_ids::SemCsvObj,
     steps::a1_entity_mapping::Qs,
-    CiteCountMarker, QuickestBox, QuickestNumbered, ReadIter, Stowage, WorkCountMarker,
+    CiteCountMarker, QuickestBox, QuickestNumbered, ReadFixIter, ReadIter, Stowage,
+    WorkCountMarker,
 };
 
 use super::a1_entity_mapping::{YearInterface, Years};
@@ -155,8 +156,8 @@ impl Stowage {
         self.write_semantic_id::<Sources>();
         self.write_semantic_id::<Subfields>();
         let citer = self
-            .get_entity_interface::<CountriesNames, ReadIter>()
-            .map(|e| semantify(&e));
+            .get_entity_interface::<CountryCodesThree, ReadFixIter>()
+            .map(|e| String::from_utf8(e.into()).unwrap().to_lowercase());
         self.decsem::<Countries, _>(citer);
     }
 
