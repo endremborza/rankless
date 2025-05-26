@@ -57,7 +57,6 @@ impl Stowage {
         while let Some((_wc, eid)) = miss_heap.pop() {
             let id_opts_vec = &id_ops[eid];
             if id_opts_vec.len() == 0 {
-                // assert_eq!(_wc.to_usize(), 0, "{}({eid})", E::NAME);
                 if _wc.to_usize() > 0 {
                     println!("missing: {}({eid})", E::NAME);
                 }
@@ -107,8 +106,8 @@ impl AddSemId for Source {
         if let Some(abb) = &self.abbreviated_title {
             out.push(abb.clone());
         }
-        out.sort_by_key(|e| e.len());
         out.push(self.display_name.clone());
+        out.sort_by_key(|e| e.len());
         out.iter().map(semantify).collect()
     }
 }
