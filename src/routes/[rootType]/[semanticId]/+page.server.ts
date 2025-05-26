@@ -3,6 +3,8 @@ import type { PageServerLoad } from './$types';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
 import * as lf from '$lib/loading-functions';
+import oldCountrySem from '$lib/assets/data/old-country-semantic-id-map.json';
+import alpha2CC from '$lib/assets/data/country-alpha-2-to-3.json';
 import { BE_URL, COMPLETE_YEAR, FULL_HOST, ROOT_TYPES } from '$lib/constants';
 import { pluralize, SEMANTIC_CONF } from '$lib/text-format-util';
 
@@ -20,9 +22,19 @@ export const load: PageServerLoad = async ({ params, url }) => {
 
 	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType);
 	let conf: tt.FullTreeConfig = { semanticId, year: spec.year, treeId: spec.treeId, rootType };
-	if (semanticId != semanticId.toLowerCase()) {
-		//TODO: should be simple thing to test
-		let linkBase = tf.entToLink({ rootType, semanticId: semanticId.toLowerCase() });
+	let newSemId: string | undefined = semanticId.toLowerCase();
+	if (rootType == 'countries') {
+		if (semanticId.length == 2) {
+			newSemId = alpha2CC[semanticId.toUpperCase()];
+		} else if (semanticId.length != 3) {
+			newSemId = oldCountrySem[semanticId.toLowerCase()];
+		}
+	}
+	if (newSemId == undefined) {
+		error(404, 'Not found');
+	}
+	if (semanticId != newSemId) {
+		let linkBase = tf.entToLink({ rootType, semanticId: newSemId });
 		let link = tf.decorBaseLink(linkBase, conf, spec.selectionState)
 		redirect(301, link);
 	}
