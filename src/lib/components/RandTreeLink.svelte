@@ -30,7 +30,8 @@
 		return { ent, suff, pref };
 	}
 
-	$: treeId = Math.floor(Math.random() * treeSpecs.specs[rootType].length);
+	// $: treeId = Math.floor(Math.random() * treeSpecs.specs[rootType].length);
+	let treeId = 0;
 	$: conf = { year: getDefaultYear(rootType), treeId, semanticId, rootType };
 
 	$: href = toLinkWithParams(conf, {});
@@ -38,4 +39,4 @@
 	$: pref = SEMANTIC_CONF[rootType].start;
 </script>
 
-<a {href}>Top {sem.ent} {sem.pref}{pref.toLowerCase()} <b>{name}</b>{sem.suff}</a>
+<a {href}>Breakdown of academic impact, for {pref.toLowerCase()} <b>{name}</b></a>

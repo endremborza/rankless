@@ -14,7 +14,7 @@ use dmove::{
 };
 use hashbrown::HashMap;
 use kd_tree::{KdPoint, KdTree};
-use rand::seq::SliceRandom;
+use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
 use std::{
@@ -797,7 +797,8 @@ async fn view_get(
             let query = get_query_arr(&srs, &state);
             let n_close = min(state.responses.len() / 20, 500);
             let mut closes = state.query_tree.nearests(&query, n_close);
-            closes.shuffle(&mut rand::thread_rng());
+            let mut rng = StdRng::seed_from_u64(742);
+            closes.shuffle(&mut rng);
             let similars = closes
                 .iter()
                 .take(8)
