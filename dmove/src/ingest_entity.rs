@@ -1,4 +1,4 @@
-use std::fs::{create_dir_all, File};
+use std::fs::{create_dir_all, File, OpenOptions};
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::ops::Range;
 use std::path::PathBuf;
@@ -91,7 +91,8 @@ where
 
 impl MetaIntegrator<BigId> for Data64MappedEntityBuilder {
     fn setup(builder: &MainBuilder, name: &str) -> Self {
-        let map = IdMap::new(builder.parent_root.join(name));
+        let mut map = IdMap::new(builder.parent_root.join(name));
+        map.nuke();
         Self {
             map,
             name: name.to_string(),
@@ -138,6 +139,15 @@ impl IdMap {
             current_non_null_count,
             extension_set: HashSet::new(),
         }
+    }
+
+    pub fn nuke(&mut self) {
+        OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(&self.map_buffer)
+            .expect("map buffer truncating");
+        self.current_non_null_count = 0;
     }
 
     pub fn extend(&mut self) {
