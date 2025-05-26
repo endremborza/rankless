@@ -5,6 +5,7 @@ use crate::{
         Stowage, MAIN_NAME, NET,
     },
     csv_writers::{institutions, works},
+    data_consts::CC_MAP,
     gen::a1_entity_mapping::{
         AreaFields, Authors, Authorships, Cities, Countries, Fields, Institutions, Sources,
         Subfields, Topics, Works,
@@ -189,9 +190,11 @@ impl Stowage {
             let cid = cif.0.get(&rcid).unwrap();
             let rcoid = cgeo.get_parsed_id();
             let coid = coif.0.get(&rcoid).unwrap();
-            ccs[coid.to_usize()] = rcoid.to_le_bytes()[..2].try_into().unwrap();
-            cinames[cid.to_usize()] = cgeo.city.unwrap_or("".to_string());
-            conames[coid.to_usize()] = cgeo.country.unwrap_or("".to_string());
+            if *coid > 0 {
+                ccs[coid.to_usize()] = rcoid.to_le_bytes()[..2].try_into().unwrap();
+                cinames[cid.to_usize()] = cgeo.city.unwrap_or("".to_string());
+                conames[coid.to_usize()] = cgeo.country.unwrap_or("".to_string());
+            }
             if let Some(iid) = iif.0.get(&oa_id_parse(&cgeo.parent_id.unwrap())) {
                 let iid_u = iid.to_usize();
                 cities[iid_u] = *cid;
@@ -211,11 +214,22 @@ impl Stowage {
                 assign_farr(iobj.ror, ROR_PREFIX, &mut rors, iid_u);
             }
         }
-
+        let cc3s = ccs
+            .iter()
+            .map(|e| {
+                for (k, v) in CC_MAP.iter() {
+                    if k == e {
+                        return v.clone();
+                    }
+                }
+                [0; 3]
+            })
+            .collect::<Vec<[u8; 3]>>();
         add_name_box::<Countries>(self, conames);
         add_name_box::<Cities>(self, cinames);
         add_name_box::<Institutions>(self, inames);
         self.add_iter_owned::<FixAttBuilder, _, _>(ccs.to_vec().into_iter(), Some("country-codes"));
+        self.add_iter_owned::<FixAttBuilder, _, _>(cc3s.into_iter(), Some("country-codes-three"));
         self.add_iter_owned::<FixAttBuilder, _, _>(locs.to_vec().into_iter(), Some("inst-locs"));
         self.add_iter_owned::<FixAttBuilder, _, _>(rors.to_vec().into_iter(), Some("inst-rors"));
         self.add_iter_owned::<FixAttBuilder, _, _>(
