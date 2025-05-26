@@ -10,7 +10,7 @@
 	import RandTreeLink from '$lib/components/RandTreeLink.svelte';
 	import HoverI from '$lib/components/HoverI.svelte';
 	import HoverBlock from '$lib/components/HoverBlock.svelte';
-	import PaperRainbow from '$lib/components/PaperRainbow.svelte';
+	// import PaperRainbow from '$lib/components/PaperRainbow.svelte';
 
 	let innerHeight: number;
 	let innerWidth: number;
@@ -101,9 +101,9 @@
 		/>
 	</div>
 </div>
-<div class="shadowy padded marged">
-	<PaperRainbow papers={data.view.hitPapers} />
-</div>
+<!-- <div class="shadowy padded marged"> -->
+<!-- 	<PaperRainbow papers={data.view.hitPapers} /> -->
+<!-- </div> -->
 <div id="similars" class="shadowy padded marged">
 	<h3>Explore {prettifyRoot(data.conf.rootType)} with similar magnitude of impact</h3>
 	<div>
