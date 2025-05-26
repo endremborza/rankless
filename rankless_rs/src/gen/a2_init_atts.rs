@@ -22,15 +22,17 @@ pub struct InstitutionsNames { }
 
 pub struct AuthorRawCites { }
 
+pub struct CountryCodesThree { }
+
 pub struct InstitutionsNameExts { }
 
 pub struct SubfieldsWikipedia { }
 
 pub struct InstCities { }
 
-pub struct InstRors { }
-
 pub struct TopicsWikipedia { }
+
+pub struct InstRors { }
 
 pub struct WorkDois { }
 
@@ -165,6 +167,12 @@ impl Entity for CountryCodes { type T = [u8; 2]; const N: usize = 230; const NAM
 impl MappableEntity for CountryCodes { type KeyType = usize; }
 
 impl NamespacedEntity for CountryCodes { const NS: & str = "a2_init_atts"; }
+
+impl Entity for CountryCodesThree { type T = [u8; 3]; const N: usize = 230; const NAME: & str = "country-codes-three"; }
+
+impl MappableEntity for CountryCodesThree { type KeyType = usize; }
+
+impl NamespacedEntity for CountryCodesThree { const NS: & str = "a2_init_atts"; }
 
 impl Entity for InstLocs { type T = (f64, f64); const N: usize = 29743; const NAME: & str = "inst-locs"; }
 
