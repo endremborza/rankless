@@ -1,3 +1,4 @@
+import multiprocessing
 import os
 import random
 import re
@@ -17,18 +18,18 @@ url = "https://www.rankless.org/"
 
 
 def val_url(url):
-    r = requests.get(url)
+    r = requests.get(url, timeout=5)
     assert r.ok, f"{url} failed with {r.status_code}"
     t = r.elapsed.microseconds / 1_000_000
     assert t < 1.2, f"{url} took {t}s"
     return r
 
 
-def validate():
+def validate(n=1):
     r = val_url(url)
     links = re.findall(r'href="\.\/([a-z]+?\/.+?)"', r.text)
     assert len(links) > 0, "no links found"
-    val_url(url + random.choice(links))
+    return [val_url(url + random.choice(links)) for _ in range(n)]
 
 
 def warn(subject, body):
@@ -45,13 +46,14 @@ if __name__ == "__main__":
     started = False
     while True:
         try:
-            validate()
-            try:
-                ltpr = get_running_tpr(True)
-            except Exception as e:
-                warn("Rankless ssh error", str(e))
-                time.sleep(10)
-                continue
+            with multiprocessing.Pool(1) as pool:
+                res = pool.map_async(validate, [1]).get(timeout=3)
+                try:
+                    ltpr = pool.map_async(get_running_tpr, [True]).get(timeout=3)[0]
+                except Exception as e:
+                    warn("Rankless ssh error", str(e))
+                    time.sleep(10)
+                    continue
             rem_bytes, full_pct = map(
                 int,
                 re.findall(r"/dev/root.*?(\d+)\s+(\d+)% /\n", ltpr.ssh.run("df"))[0],

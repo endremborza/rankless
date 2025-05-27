@@ -188,7 +188,14 @@ class SSHrer:
         self.basis.append(self.full_host)
 
     def run(self, comm):
-        return subprocess.check_output([*self.basis, comm]).decode()
+        try:
+            return subprocess.check_output(
+                [*self.basis, comm], stderr=subprocess.STDOUT, text=True
+            )
+        except subprocess.CalledProcessError as e:
+            print("Command failed with return code:", e.returncode)
+            print("Output including warnings/errors:\n", e.output)
+            raise e
 
     def prun(self, comm):
         print(self.run(comm))
@@ -254,7 +261,7 @@ class Transper:
         cache_dir = f"{self.inst_home}/nginx-cache"
         self.be_cache_dir = f"{cache_dir}/be"
         self.fe_cache_dir = f"{cache_dir}/fe"
-        self.ssh.prun(
+        self.ssh.run(
             f"mkdir -p {self.data_dir} {self.deploy_dir} {self.systemd_dir} {self.be_cache_dir} {self.fe_cache_dir}"
         )
         self.be_service = ServiceMan(be_service_name, sshc)
