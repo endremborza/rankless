@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	let newSemId: string | undefined = semanticId.toLowerCase();
 	if (rootType == 'countries') {
 		if (semanticId.length == 2) {
-			newSemId = alpha2CC[semanticId.toUpperCase()];
+			newSemId = alpha2CC[semanticId.toUpperCase()] || newSemId;
 		} else if (semanticId.length != 3) {
 			newSemId = oldCountrySem[semanticId.toLowerCase()];
 		}
