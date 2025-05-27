@@ -1,8 +1,12 @@
-import { BE_URL, SITEMAP_STEP_SIZE, FULL_HOST } from '$lib/constants';
+import { BE_URL, SITEMAP_STEP_SIZE } from '$lib/constants';
 import { LAST_MOD } from '$lib/v_constants';
 import type { SearchResult } from '$lib/tree-types';
 import type { RequestHandler } from './$types';
 import { externalUrl } from '$lib/tree-functions';
+
+function isAsciiOnly(str) {
+	return /^[\x01-\x7F]+$/.test(str);
+}
 
 export const GET: RequestHandler = async ({ params }) => {
 	let n = parseInt(params.n) - 1;
@@ -28,7 +32,11 @@ export const GET: RequestHandler = async ({ params }) => {
 		await fetch(links[i].url).then((r) =>
 			r.json().then((l) => {
 				l.forEach(
-					(e: SearchResult) => { if (e.semanticId.trim().length > 0) { resps.push({ ...e, rootType: links[i].name }); } })
+					(e: SearchResult) => {
+						if (isAsciiOnly(e.semanticId)) {
+							resps.push({ ...e, rootType: links[i].name });
+						}
+					})
 			})
 		);
 	}
