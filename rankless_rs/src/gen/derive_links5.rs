@@ -18,6 +18,8 @@ pub struct SubfieldsTopPaperTopics { }
 
 pub struct TopicsPapersYearly { }
 
+pub struct HitPaperYearlyCitations { }
+
 pub struct AuthorsTopPaperSubfields { }
 
 pub struct AuthorsTopCitingSubfields { }
@@ -271,6 +273,14 @@ impl MappableEntity for QsCiteCount { type KeyType = usize; }
 impl NamespacedEntity for QsCiteCount { const NS: & str = "derive_links5"; }
 
 impl MarkedAttribute<crate::common::CiteCountMarker> for crate::steps::a1_entity_mapping::Qs { type AttributeEntity = QsCiteCount; }
+
+impl Entity for HitPaperYearlyCitations { type T = Box<[u32]>; const N: usize = 79256; const NAME: & str = "hit-paper-yearly-citations"; }
+
+impl MappableEntity for HitPaperYearlyCitations { type KeyType = usize; }
+
+impl VariableSizeAttribute for HitPaperYearlyCitations { type SizeType = u8; }
+
+impl NamespacedEntity for HitPaperYearlyCitations { const NS: & str = "derive_links5"; }
 
 impl Entity for AuthorsSemanticIds { type T = String; const N: usize = 3905864; const NAME: & str = "authors-semantic-ids"; }
 
