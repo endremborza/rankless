@@ -30,8 +30,8 @@ use crate::{
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{
-            AuthorshipAuthor, AuthorshipInstitutions, CountryCodesThree, InstCountries,
-            SourceYearQs, WorkAuthorships, WorkSources, WorkTopics, WorkYears,
+            AuthorshipAuthor, AuthorshipInstitutions, CountryCodes, CountryCodesThree,
+            InstCountries, SourceYearQs, WorkAuthorships, WorkSources, WorkTopics, WorkYears,
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
         derive_links2::{WorkCountries, WorkTopSource},
@@ -157,7 +157,14 @@ impl Stowage {
         self.write_semantic_id::<Subfields>();
         let citer = self
             .get_entity_interface::<CountryCodesThree, ReadFixIter>()
-            .map(|e| String::from_utf8(e.into()).unwrap().to_lowercase());
+            .zip(self.get_entity_interface::<CountryCodes, ReadFixIter>())
+            .map(|(e3, e2)| {
+                if e3 != [0; 3] {
+                    String::from_utf8(e3.into()).unwrap().to_lowercase()
+                } else {
+                    String::from_utf8(e2.into()).unwrap().to_lowercase()
+                }
+            });
         self.decsem::<Countries, _>(citer);
     }
 
