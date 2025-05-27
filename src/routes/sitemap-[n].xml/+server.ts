@@ -28,7 +28,7 @@ export const GET: RequestHandler = async ({ params }) => {
 		await fetch(links[i].url).then((r) =>
 			r.json().then((l) => {
 				l.forEach(
-					(e: SearchResult) => { if (e.semanticId.trim().length > 0) { resps.push({ ...e, rootType: links[i].name }); } })
+					(e: SearchResult) => { if (/^[\x00-\x7F]+$/.test(e.semanticId)) { resps.push({ ...e, rootType: links[i].name }); } })
 			})
 		);
 	}
