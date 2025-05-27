@@ -1,7 +1,8 @@
 import { base } from '$app/paths';
 import type * as tt from '$lib/tree-types';
-import { COMPLETE_YEAR, DEFAULT_LIMIT_N, FULL_HOST, MAX_LEVEL_COUNT } from './constants';
+import { COMPLETE_YEAR, DEFAULT_LIMIT_N, MAX_LEVEL_COUNT } from './constants';
 import { getSpecMetricObject } from './metric-calculation';
+import { getExternalUrl } from './route-functions';
 
 export const DEFAULT_CONTROL_SPEC: tt.ControlSpec = {
 	include: [],
@@ -70,15 +71,15 @@ export function treeBeUrl(root: string, conf: tt.FullTreeConfig, shallow: undefi
 
 
 export function entToLink(e: { rootType: tt.RootType; semanticId: string }): string {
-	return entityUrl(e.rootType, e.semanticId, base);
+	return `${base}${getEntityPath(e.rootType, e.semanticId)}`;
 }
 
-export function externalUrl(rootType: tt.RootType, semanticId: string): string {
-	return entityUrl(rootType, semanticId, FULL_HOST);
+export function getEntityPath(rootType: tt.RootType, semanticId: string) {
+	return `/${rootType}/${semanticId}`
 }
 
-export function entityUrl(rootType: tt.RootType, semanticId: string, host: string): string {
-	return `${host}/${rootType}/${semanticId}`;
+export function externalEntityUrl(rootType: tt.RootType, semanticId: string): string {
+	return getExternalUrl(getEntityPath(rootType, semanticId))
 }
 
 export function decorBaseLink(url: string, conf: tt.FullTreeConfig, selectionState: tt.BareNode): string {

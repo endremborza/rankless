@@ -43,7 +43,7 @@
 	<meta name="description" content={data.metaDescriptions} />
 	<meta property="og:image" content={data.svgLink} />
 	<meta property="og:title" content="{data.view.name} | {APP_NAME}" />
-	<link rel="canonical" href={tf.externalUrl(data.conf.rootType, data.conf.semanticId)} />
+	<link rel="canonical" href={tf.externalEntityUrl(data.conf.rootType, data.conf.semanticId)} />
 </svelte:head>
 
 <div id="head-row" class="shadowy padded marged">

@@ -1,8 +1,8 @@
 import { BE_URL, SITEMAP_STEP_SIZE } from '$lib/constants';
-import { LAST_MOD } from '$lib/v_constants';
 import type { SearchResult } from '$lib/tree-types';
 import type { RequestHandler } from './$types';
-import { externalUrl } from '$lib/tree-functions';
+import { getEntityPath } from '$lib/tree-functions';
+import { getSitemapResponse } from '$lib/route-functions';
 
 function isAsciiOnly(str) {
 	return /^[\x01-\x7F]+$/.test(str);
@@ -40,20 +40,6 @@ export const GET: RequestHandler = async ({ params }) => {
 			})
 		);
 	}
-
-	let innards = resps
-		.map(
-			(e) => `
-  <url>
-    <loc>${externalUrl(e.rootType, e.semanticId)}</loc>
-    <lastmod>${LAST_MOD}</lastmod>
-  </url>`
-		)
-		.join('');
-
-	let text = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${innards}
-</urlset>`;
-	return new Response(text, { headers: { 'Content-Type': 'application/xml' } });
+	let paths = resps.map((e) => getEntityPath(e.rootType, e.semanticId));
+	return getSitemapResponse(paths);
 };

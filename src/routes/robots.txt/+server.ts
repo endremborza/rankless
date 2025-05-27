@@ -1,12 +1,11 @@
-import { FULL_HOST } from '$lib/constants';
+import { getExternalUrl } from '$lib/route-functions';
 import type { RequestHandler } from './$types';
 
-const text = `
-User-agent: *
+const text = `User-agent: *
 Allow: /
 
-Sitemap: ${FULL_HOST}/sitemap-index.xml
-Sitemap: ${FULL_HOST}/sitemap.xml`;
+Sitemap: ${getExternalUrl('/sitemap-index.xml')}
+Sitemap: ${getExternalUrl('/sitemap.xml')}`;
 
 export const GET: RequestHandler = () => {
 	return new Response(text);

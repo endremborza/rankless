@@ -5,8 +5,9 @@ import * as tf from '$lib/tree-functions';
 import * as lf from '$lib/loading-functions';
 import oldCountrySem from '$lib/assets/data/old-country-semantic-id-map.json';
 import alpha2CC from '$lib/assets/data/country-alpha-2-to-3.json';
-import { BE_URL, COMPLETE_YEAR, FULL_HOST, ROOT_TYPES } from '$lib/constants';
+import { BE_URL, COMPLETE_YEAR, ROOT_TYPES } from '$lib/constants';
 import { pluralize, SEMANTIC_CONF } from '$lib/text-format-util';
+import { getExternalUrl } from '$lib/route-functions';
 
 
 export const ssr = true;
@@ -58,7 +59,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	const { tree, atts, shallowed } = treeResp;
 
 	let sp = url.searchParams.toString();
-	let svgLink = `${FULL_HOST}/pic/${rootType}/${semanticId}/breakdown.svg?${sp}`;
+	let svgLink = getExternalUrl(`/pic/${rootType}/${semanticId}/breakdown.svg?${sp}`);
 
 	let paperText = pluralize('paper', view.papers);
 	let citeText = pluralize('indexed citation', view.citations);

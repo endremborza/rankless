@@ -1,14 +1,6 @@
-import { FULL_HOST, SITEMAP_STEP_SIZE, BE_URL } from '$lib/constants';
-import { LAST_MOD } from '$lib/v_constants';
+import { SITEMAP_STEP_SIZE, BE_URL } from '$lib/constants';
+import { getSubSitemap } from '$lib/route-functions';
 import type { RequestHandler } from './$types';
-
-function get_sm_entry(suff: string) {
-	return `
-   <sitemap>
-      <loc>${FULL_HOST}/sitemap${suff}.xml</loc>
-      <lastmod>${LAST_MOD}</lastmod>
-   </sitemap>`;
-}
 
 export const GET: RequestHandler = async () => {
 	let max_page = await fetch(`${BE_URL}/counts`).then((r) =>
@@ -26,13 +18,12 @@ export const GET: RequestHandler = async () => {
 
 	let innards = [];
 	for (let i = 0; i < max_page; i++) {
-		innards.push(get_sm_entry(`-${i + 1}`));
+		innards.push(getSubSitemap(`-${i + 1}`));
 	}
 
 	let text = `<?xml version="1.0" encoding="UTF-8"?>
-
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  ${get_sm_entry('')}
+  ${getSubSitemap('')}
   ${innards.join('')}
 </sitemapindex>
 `;
