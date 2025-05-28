@@ -49,9 +49,9 @@ if __name__ == "__main__":
             with multiprocessing.Pool(1) as pool:
                 res = pool.map_async(validate, [1]).get(timeout=3)
                 try:
-                    ltpr = pool.map_async(get_running_tpr, [True]).get(timeout=3)[0]
+                    ltpr = pool.map_async(get_running_tpr, [True]).get(timeout=10)[0]
                 except Exception as e:
-                    warn("Rankless ssh error", str(e))
+                    warn("Rankless ssh error", f"{type(e)}({str(e)}")
                     time.sleep(10)
                     continue
             rem_bytes, full_pct = map(
@@ -83,5 +83,5 @@ if __name__ == "__main__":
                     f"just started {rem_bytes / 1e6} at {full_pct}% full {nfiles} open",
                 )
         except Exception as e:
-            warn("Rankless Down", str(e))
+            warn("Rankless Down", f"{type(e)}({str(e)}")
         time.sleep(20)

@@ -193,8 +193,7 @@ class SSHrer:
                 [*self.basis, comm], stderr=subprocess.STDOUT, text=True
             )
         except subprocess.CalledProcessError as e:
-            print("Command failed with return code:", e.returncode)
-            print("Output including warnings/errors:\n", e.output)
+            print(f"{comm}\nexit code {e.returncode}:\n", e.output)
             raise e
 
     def prun(self, comm):
