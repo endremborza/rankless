@@ -3,6 +3,7 @@ import os
 import random
 import re
 import smtplib
+import subprocess
 import time
 from email.mime.text import MIMEText
 
@@ -33,7 +34,7 @@ def validate(n=1):
 
 
 def warn(subject, body):
-    msg = MIMEText(body)
+    msg = MIMEText(f"{subprocess.check_output(['hostname']).decode().strip()}:\n{body}")
     msg["Subject"] = subject
     msg["From"] = EMAIL_ADDRESS
     msg["To"] = TO_EMAIL
