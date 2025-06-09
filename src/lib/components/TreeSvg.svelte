@@ -47,6 +47,12 @@
 </script>
 
 <svg viewBox="{x} {y} {width} {height}" xmlns="http://www.w3.org/2000/svg">
+	<style>
+		text {
+			font-family: 'Courier New', monospace;
+			font-size: 12px;
+		}
+	</style>
 	<QuercusBranches
 		{branchReachBack}
 		{d2Offset}
