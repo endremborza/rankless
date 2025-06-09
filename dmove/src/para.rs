@@ -47,11 +47,20 @@ macro_rules! para_multi_gen_run {
     };
 }
 
-pub fn set_and_notify<T>(cvp: Arc<(Mutex<T>, Condvar)>, val: T) {
+pub fn set_and_notify<T>(cvp: AcTuple<T>, val: T) {
     let (lock, cvar) = &*cvp;
     let mut data = lock.lock().unwrap();
     *data = val;
     cvar.notify_all();
+}
+
+pub fn wait_for_data<T>(cvp: AcTuple<Option<T>>) -> T {
+    let (lock, cvar) = &*cvp;
+    let mut data = lock.lock().unwrap();
+    while data.is_none() {
+        data = cvar.wait(data).unwrap();
+    }
+    data.take().unwrap()
 }
 
 fn para_run<W, T, I>(in_v: I, setup: &W, n_threads: usize)
