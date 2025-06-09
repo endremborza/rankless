@@ -29,11 +29,14 @@
 	export let attributeLabels: tt.AttributeLabels;
 	export let innerHeight: number;
 	export let innerWidth: number;
+	export let currentTreeSpec: tt.TreeSpec = treeSpecs.specs[conf.rootType][conf.treeId];
+	export let level1Stats: tt.OMap<number>;
+	export let selectedBreakdowns = getDefaultBreakdowns(currentTreeSpec);
+	export let isGlobalSpecialization = currentTreeSpec.defaultIsSpec;
 
 	let mounted = false;
 	let showPaper = false;
 
-	let currentTreeSpec: tt.TreeSpec = treeSpecs.specs[conf.rootType][conf.treeId];
 	let breakdownMatchLevel: number = currentTreeSpec.breakdowns.length;
 
 	let highlightedPath: tt.PathInTree = [];
@@ -59,10 +62,8 @@
 	let showFilterHover = false;
 
 	let levelOutSpecs: tt.LevelOutSpec[] = tf.getDefaultLevelSpecs();
-	let isGlobalSpecialization = currentTreeSpec.defaultIsSpec;
 	let controlSpecs = tf.getDefaultControlSpecs(isGlobalSpecialization);
 	let maxOnOneLevel = 15;
-	let selectedBreakdowns = getDefaultBreakdowns(currentTreeSpec);
 
 	onMount(() => {
 		mounted = true;
@@ -77,7 +78,7 @@
 							initConf.semanticId == conf.semanticId &&
 							initConf.year == conf.year
 						) {
-							console.log('deepening');
+							// console.log('deepening');
 							[completeTree, attributeLabels, shallowed] = [jsv.tree, jsv.atts, false];
 						}
 					})
@@ -87,6 +88,19 @@
 			});
 		}
 	});
+
+	function updateL1(visTree: tt.TreeInfo) {
+		let l1Type = currentTreeSpec.breakdowns[0]?.attributeType;
+		try {
+			let l1Kv = Object.entries(visTree.tree.children).map(([k, v]) => [
+				attributeLabels[l1Type][k].name,
+				v.weight
+			]);
+			level1Stats = Object.fromEntries(l1Kv);
+		} catch (error) {
+			// console.log(error);
+		}
+	}
 
 	$: childD1Rate = expandControlInd == undefined ? defaultChildD1Rate : 0.7;
 	$: svgD1 = (innerHeight / innerWidth) * svgD2;
@@ -115,6 +129,7 @@
 		attributeLabels,
 		currentTreeSpec
 	);
+	$: updateL1(visibleTreeInfo);
 
 	$: updateTreeSpecId(selectedBreakdowns);
 

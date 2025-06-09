@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { APP_NAME } from '$lib/constants';
-	import { prettifyRoot } from '$lib/text-format-util';
+	import { prettifyRoot, semantify } from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
@@ -10,6 +10,7 @@
 	import RandTreeLink from '$lib/components/RandTreeLink.svelte';
 	import HoverI from '$lib/components/HoverI.svelte';
 	import HoverBlock from '$lib/components/HoverBlock.svelte';
+	import WorldMapSvg from '$lib/components/WorldMapSvg.svelte';
 	// import PaperRainbow from '$lib/components/PaperRainbow.svelte';
 
 	let innerHeight: number;
@@ -34,6 +35,16 @@
 	let showIndexedCiteText = false;
 
 	let ticksHeight: number;
+	let compMode = false;
+	let isGlobalSpecialization: boolean;
+	let currentTreeSpec: tt.TreeSpec = data.treeSpecs.specs[data.conf.rootType][data.conf.treeId];
+	let level1Stats = {};
+	let selectedBreakdowns: string[];
+	$: showsCountry = currentTreeSpec.breakdowns[0]?.attributeType == 'countries';
+	$: titleSuffix =
+		selectedBreakdowns != undefined
+			? semantify(selectedBreakdowns[0], data.conf.rootType, selectedBreakdowns, 0).split('<')[0]
+			: '';
 </script>
 
 <svelte:head>
@@ -83,23 +94,43 @@
 		</div>
 	</div>
 </div>
-<div id="tree-row" class="shadowy padded marged">
-	<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} id="tree">
-		<FullQc
-			rootName={data.view.name}
-			selectedQcRootId={data.view.dmId}
-			conf={data.conf}
-			prefixText={data.prefixText}
-			selectionState={data.selectionState}
-			treeSpecs={data.treeSpecs}
-			removeHighlightUnhover={false}
-			attributeLabels={data.atts}
-			completeTree={data.tree}
-			{innerHeight}
-			{innerWidth}
-			shallowed={data.shallowed}
-		/>
+<div class="shadowy padded marged">
+	<input type="checkbox" bind:checked={compMode} /> side by side view
+</div>
+<div class="comp-basis" style={compMode ? 'display: flex' : ''}>
+	<div class="shadowy padded marged comp-elem">
+		<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} id="tree">
+			<FullQc
+				bind:level1Stats
+				bind:currentTreeSpec
+				bind:selectedBreakdowns
+				bind:isGlobalSpecialization
+				rootName={data.view.name}
+				selectedQcRootId={data.view.dmId}
+				conf={data.conf}
+				prefixText={data.prefixText}
+				selectionState={data.selectionState}
+				treeSpecs={data.treeSpecs}
+				removeHighlightUnhover={false}
+				attributeLabels={data.atts}
+				completeTree={data.tree}
+				{innerHeight}
+				{innerWidth}
+				shallowed={data.shallowed}
+			/>
+		</div>
 	</div>
+	{#if showsCountry}
+		<div class="shadowy padded marged comp-elem">
+			<div id="map-elem">
+				<h2>{data.prefixText} {data.view.name} {titleSuffix}</h2>
+				<WorldMapSvg
+					countryLevels={level1Stats}
+					weightText={isGlobalSpecialization ? 'Revealed comparative advantage' : 'Citations'}
+				/>
+			</div>
+		</div>
+	{/if}
 </div>
 <!-- <div class="shadowy padded marged"> -->
 <!-- 	<PaperRainbow papers={data.view.hitPapers} /> -->
@@ -173,5 +204,17 @@
 		padding: 6px;
 		border-bottom: solid var(--color-theme-blue) 3px;
 		background: rgba(var(--color-range-15), 0.1);
+	}
+
+	#map-elem {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		height: 100%;
+		gap: 50px;
+	}
+
+	.comp-elem {
+		flex: 6;
 	}
 </style>
