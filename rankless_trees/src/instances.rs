@@ -11,10 +11,10 @@ use crate::{
     },
     interfacing::Getters,
     io::{
-        BufSerChildren, BufSerTree, CollapsedNode, FullTreeQuery, ResCvp, TreeBasisState, TreeQ,
-        TreeResponse, TreeSpec, WorkCiteT, WorkWInd, WT,
+        BufSerChildren, BufSerTree, CollapsedNode, CollapsedNodeGen, TreeQ, TreeResponse, TreeSpec,
+        WorkCiteT, WorkWInd, WT,
     },
-    part_iterator::PartitioningIterator,
+    part_iterator::{PartitioningIterator, TreeMakingParams},
 };
 use muwo_search::{ordered_calls, sorted_iters_to_arr, ExtendableArr, OrderedMapper};
 use rankless_rs::{
@@ -60,8 +60,7 @@ struct WVecMerger<'a> {
 }
 
 pub trait TreeGetter: NumberedEntity {
-    fn set_tree(state: &TreeBasisState, fq: FullTreeQuery, res_cvp: ResCvp);
-
+    fn run_params(params: TreeMakingParams);
     fn get_specs() -> Vec<TreeSpec>;
 }
 
@@ -305,12 +304,15 @@ impl ReinstateFrom<WT> for WorkTree {
 }
 
 //TODO/clarity - low-prio - these could be derived
-impl InitEmpty for CollapsedNode {
+impl<T> InitEmpty for CollapsedNodeGen<T>
+where
+    T: InitEmpty,
+{
     fn init_empty() -> Self {
         Self {
             link_count: 0,
             source_count: 0,
-            top_source: 0,
+            top_source: T::init_empty(),
             top_cite_count: 0,
         }
     }
@@ -701,10 +703,10 @@ pub mod big_test_tree {
         let name = BigTestEntity::NAME.to_string();
         let ts1 = tstate.clone();
         let (q1, n1, i1) = (q.clone(), name.clone(), 0);
-        let t = thread::spawn(move || ts1.get_resp(q1, &n1, i1).unwrap());
+        let t = thread::spawn(move || ts1.get_single_resp(q1, &n1, i1).unwrap());
         thread::sleep(Duration::from_millis(100));
         let ts2 = tstate.clone();
-        let t2 = thread::spawn(move || ts2.get_resp(q, &name, 0).unwrap());
+        let t2 = thread::spawn(move || ts2.get_single_resp(q, &name, 0).unwrap());
 
         let r = t.join().unwrap();
         let r2 = t2.join().unwrap();
@@ -718,7 +720,7 @@ pub mod big_test_tree {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{JsSerChildren, TreeRunManager};
+    use crate::io::{JsSerChildren, ShallowQ, TreeRunManager};
     use dmove::{BigId, MappableEntity, NamespacedEntity};
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use rankless_rs::steps::{
@@ -846,9 +848,8 @@ mod tests {
     #[test]
     fn to_tree1() {
         let tstate = TreeRunManager::<(TestEntity, TestEntity)>::fake();
-        let r = tstate
-            .get_resp(q(0), &TestEntity::NAME.to_string(), 0)
-            .unwrap();
+        let name = TestEntity::NAME.to_string();
+        let r = tstate.get_single_resp(q(0), &name, 0).unwrap();
         println!("{}", to_string_pretty(&r).unwrap());
         match &r.tree.children.deref() {
             JsSerChildren::Nodes(nodes) => match &nodes[&30].children.deref() {
@@ -885,16 +886,37 @@ mod tests {
     fn to_tree2() {
         let tstate = TreeRunManager::<(TestEntity, TestEntity)>::fake();
         let name = TestEntity::NAME.to_string();
-        let r = tstate.get_resp(q(1), &name, 0).unwrap();
+        let r = tstate.get_single_resp(q(1), &name, 0).unwrap();
         println!("{}", to_string_pretty(&r).unwrap());
         val_res2(&r);
-        let rcached = tstate.get_resp(q(1), &name, 0).unwrap();
+        let rcached = tstate.get_single_resp(q(1), &name, 0).unwrap();
         val_res2(&rcached);
 
-        let r = tstate.get_resp(q(2), &name, 0).unwrap();
+        let r = tstate.get_single_resp(q(2), &name, 0).unwrap();
         println!("{}", to_string_pretty(&r).unwrap());
         assert_eq!(r.tree.node.source_count, 2);
         assert_eq!(r.tree.node.link_count, 3);
+
+        Arc::into_inner(tstate).unwrap().join();
+    }
+
+    #[test]
+    fn to_multiple_trees1() {
+        let tstate = TreeRunManager::<(TestEntity, TestEntity)>::fake();
+        let name = TestEntity::NAME.to_string();
+        let q0 = q(0);
+        let sq = ShallowQ {
+            ids: vec![0, 1, 2],
+            year: q0.year,
+            tid: q0.tid,
+            filter: None,
+            satts: None,
+        };
+        let multi_r = tstate.get_shallows(sq, &name).unwrap();
+        println!("{}", to_string_pretty(&multi_r).unwrap());
+        let tree2 = multi_r.trees.get(&2).unwrap();
+        assert_eq!(tree2.node.source_count, 2);
+        assert_eq!(tree2.node.link_count, 3);
 
         Arc::into_inner(tstate).unwrap().join();
     }
@@ -932,10 +954,14 @@ mod tests {
             shallow: None,
             cacheable: None,
         };
-        let resp = tstate.get_resp(gq(Some(true), None), &name, 0).unwrap();
+        let resp = tstate
+            .get_single_resp(gq(Some(true), None), &name, 0)
+            .unwrap();
         assert_eq!(resp.tree.node.top_cite_count, 0);
 
-        let resp = tstate.get_resp(gq(None, Some(true)), &name, 0).unwrap();
+        let resp = tstate
+            .get_single_resp(gq(None, Some(true)), &name, 0)
+            .unwrap();
         assert_eq!(resp.tree.node.top_cite_count, 0);
 
         let mut years: Vec<Option<RawYear>> =
@@ -944,9 +970,9 @@ mod tests {
         for year in years.into_iter() {
             let mut qy = gq(None, None);
             qy.year = year;
-            let resp2 = tstate.get_resp(qy.clone(), &name, 0).unwrap();
+            let resp2 = tstate.get_single_resp(qy.clone(), &name, 0).unwrap();
             assert_eq!(resp.tree.node.top_cite_count, 0);
-            let resp3 = tstate.get_resp(qy, &name, 1).unwrap();
+            let resp3 = tstate.get_single_resp(qy, &name, 1).unwrap();
             assert_eq!(resp2.tree.node, resp3.tree.node);
         }
     }

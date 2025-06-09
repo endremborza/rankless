@@ -1,6 +1,4 @@
-use dmove::{
-    Entity, EntityMutableMapperBackend, NamespacedEntity, UnsignedNumber, VattReadingRefMap,
-};
+use dmove::{Entity, EntityMutableMapperBackend, UnsignedNumber};
 
 use hashbrown::HashMap;
 
@@ -8,13 +6,10 @@ use crate::{
     interfacing::Getters,
     io::{
         AttributeLabel, AttributeLabelOut, AttributeLabels, BreakdownSpec, BufSerChildren,
-        BufSerTree, FullTreeQuery, TreeBasisState,
+        BufSerTree, FullTreeQuery, ManFileHandle, TreeBasisState,
     },
 };
-use rankless_rs::gen::{
-    a1_entity_mapping::{Institutions, Works},
-    a2_init_atts::WorksNames,
-};
+use rankless_rs::gen::a1_entity_mapping::{Institutions, Works};
 
 pub type AttributeLabelUnion = HashMap<String, Box<[AttributeLabel]>>;
 
@@ -22,27 +17,16 @@ pub fn get_atts(
     tree: &BufSerTree,
     bds: &[BreakdownSpec],
     state: &TreeBasisState,
+    fh: &mut ManFileHandle,
     fq: &FullTreeQuery,
 ) -> AttributeLabels {
-    let parent = state
-        .gets
-        .stowage
-        .path_from_ns(<WorksNames as NamespacedEntity>::NS);
-    let mut work_name_basis =
-        VattReadingRefMap::<WorksNames>::from_locator(&state.gets.wn_locators, &parent);
     let eid = fq.ck.eid;
     let etype = &fq.name;
 
     let mut atts = HashMap::new();
     let eatts = atts.entry(etype.to_string()).or_insert(HashMap::new());
-    add_leaves(
-        vec![eid as u32].iter(),
-        eatts,
-        &mut work_name_basis,
-        &etype,
-        state,
-    );
-    ext_atts(&mut atts, tree, bds, &mut work_name_basis, state);
+    add_leaves(vec![eid as u32].iter(), eatts, fh, &etype, state);
+    ext_atts(&mut atts, tree, bds, fh, state);
     atts
 }
 
@@ -50,7 +34,7 @@ fn ext_atts(
     atts: &mut AttributeLabels,
     tree: &BufSerTree,
     bds: &[BreakdownSpec],
-    work_map: &mut VattReadingRefMap<WorksNames>,
+    work_map: &mut ManFileHandle,
     state: &TreeBasisState,
 ) {
     let at = &bds[0].attribute_type;
@@ -69,7 +53,7 @@ fn ext_atts(
 fn add_leaves<'a, I>(
     leaves: I,
     eatts: &mut HashMap<usize, AttributeLabelOut>,
-    work_map: &mut VattReadingRefMap<WorksNames>,
+    work_map: &mut ManFileHandle,
     at: &str,
     state: &TreeBasisState,
 ) where

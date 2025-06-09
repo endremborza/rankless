@@ -15,6 +15,7 @@ const BASIS_TRAIT: &str = "FoldStackBase";
 const FC_TRAIT: &str = "FoldingStackConsumer";
 const TG_TRAIT: &str = "TreeGetter";
 const E_TRAIT: &str = "Entity";
+const RUN_PM_SIGN: &str = "fn run_params(params: TreeMakingParams)";
 
 #[proc_macro]
 pub fn def_me_struct(_: TokenStream) -> TokenStream {
@@ -39,22 +40,19 @@ pub fn impl_subs(ts: TokenStream) -> TokenStream {
         syn::parse_str(&format!("<{}>", pts)).expect("GTs");
     let where_inner = cjoin((0..n).map(|e| format!("T{e}: {TG_TRAIT} + {E_TRAIT}")));
     let wheres: syn::WhereClause = syn::parse_str(&format!("where {where_inner}")).unwrap();
-    let if_inner = (0..n).map(|e| {
-        format!(
-            "if fq.ck.etype == {e} {{ return <T{e} as TreeGetter>::set_tree(state, fq, res_cvp) }}",
-        )
-    });
     let spec_pairs = cjoin((0..n).map(|e| format!("(T{e}::NAME.to_string(), T{e}::get_specs())")));
     let kv_vec: syn::Expr = parse_str(&format!("vec![{spec_pairs}]")).unwrap();
-    let ijoined = join(if_inner, " else ");
-    let in_expr: syn::Expr = parse_str(&ijoined).unwrap();
+    let if_inner = get_by_fun_inner(
+        (0..n).map(|e| format!("<T{e} as TreeGetter>::run_params(params)")),
+        "params.fq.ck.etype",
+    );
+    let ff = format!("{RUN_PM_SIGN} {{ {if_inner} }}");
+    let fill_fun: syn::Stmt = parse_str(&ff).expect(&format!("fill fun {ff}"));
 
     quote! {
-
             impl #t_gens RunManagerSub for #ttup #wheres {
-                fn fill_res_cvp(state: &TreeBasisState, fq: FullTreeQuery, res_cvp: ResCvp) {
-                    #in_expr
-                }
+
+                #fill_fun
 
                 fn get_specs() -> TreeSpecs {
                     TreeSpecs::new(#kv_vec)
@@ -100,7 +98,6 @@ pub fn impl_fbarrs(ts: TokenStream) -> TokenStream {
             )
         }}
     }}
-    
 "
         );
         out.push(impl_str);
@@ -387,23 +384,18 @@ pub fn derive_tree_getter(attr: TokenStream, item: TokenStream) -> TokenStream {
             .map(|e| format!("specs.push({mod_name}::{e}::get_spec());")),
         "\n",
     );
-
-    let if_inners = join(
-        tree_types.iter().enumerate().map(|(i, tn)| {
-            format!(
-                "if tid == {i} {{
-            return {mod_name}::{tn}::fill_res_cvp(fq, state, res_cvp);
-        }}"
-            )
-        }),
-        "\n",
+    let if_inners = get_by_fun_inner(
+        tree_types
+            .iter()
+            .map(|tn| format!("params.run::<{mod_name}::{tn}>()")),
+        "tid",
     );
 
     let added_impl = format!(
         "impl TreeGetter for {attr} {{
     
-    fn set_tree(state: &TreeBasisState, fq: FullTreeQuery, res_cvp: ResCvp) {{
-        let tid = fq.q.tid.unwrap_or(0);
+    {RUN_PM_SIGN} {{
+        let tid = params.fq.q.tid.unwrap_or(0);
         {if_inners}
     }}
 
@@ -415,7 +407,7 @@ pub fn derive_tree_getter(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 }}"
     );
-    let added_syn: syn::Item = parse_str(&added_impl).unwrap();
+    let added_syn: syn::Item = parse_exp(added_impl);
     let out = quote! {
         #input
         #added_syn
@@ -602,6 +594,20 @@ fn get_stack_type_elems(in_types: &Vec<String>) -> Vec<String> {
         stack_type_elems.push(child.clone());
     }
     stack_type_elems
+}
+
+fn get_by_fun_inner<I, E>(runs: I, ind_var_id: &str) -> String
+where
+    I: Iterator<Item = E>,
+    E: Display,
+{
+    //TODO ensure ind var matches at least once.
+    //otherwise could possibly hang
+    return join(
+        runs.enumerate()
+            .map(|(i, tn)| format!("if {ind_var_id} == {i} {{ return {tn}; }}")),
+        "\n",
+    );
 }
 
 fn spec_match(rec_size: usize, last_si: usize) -> String {

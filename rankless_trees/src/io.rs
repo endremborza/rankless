@@ -16,16 +16,21 @@ use serde::{Deserialize, Serialize};
 
 use rankless_rs::{
     env_consts::START_YEAR,
-    gen::a1_entity_mapping::Works,
+    gen::{a1_entity_mapping::Works, a2_init_atts::WorksNames},
     steps::{
         a1_entity_mapping::{N_PERS, POSSIBLE_YEAR_FILTERS, YBT},
         derive_links1::WorkPeriods,
     },
 };
 
-use dmove::{para::AcTuple, BigId, Entity, InitEmpty, ET};
+use dmove::{
+    para::AcTuple, BackendLoading, BigId, Entity, InitEmpty, NamespacedEntity, VattReadingMap, ET,
+};
 
-use crate::{ids::get_atts, instances::TreeGetter, interfacing::Getters, AttributeLabelUnion};
+use crate::{
+    instances::TreeGetter, interfacing::Getters, part_iterator::TreeMakingParams,
+    AttributeLabelUnion,
+};
 
 pub type WT = ET<Works>;
 pub type WorkCiteT = u32;
@@ -35,10 +40,11 @@ pub type AttributeLabels = HashMap<String, HashMap<usize, AttributeLabelOut>>;
 pub type CollapsedNode = CollapsedNodeGen<WT>;
 pub type CollapsedNodeJson = CollapsedNodeGen<Option<BigId>>;
 pub type CacheMap = HashMap<CacheKey, CacheValue>;
+pub type ManFileHandle = VattReadingMap<WorksNames>;
 
-pub type ResCvp = AcTuple<Option<TreeResponse>>;
+pub type ResCvp = AcTuple<Option<AnyResponse>>;
 pub type BoolCvp = AcTuple<bool>;
-type BasisQuElem = (Option<FullTreeQuery>, ResCvp);
+type BasisQuElem = (Option<AnyQuery>, ResCvp);
 type BasisCvp = AcTuple<VecDeque<BasisQuElem>>;
 
 pub struct TreeBasisState {
@@ -62,11 +68,19 @@ pub struct CacheKey {
     pub tid: u8,
 }
 
+#[derive(Clone)]
 pub struct FullTreeQuery {
     pub q: TreeQ,
     pub ck: CacheKey,
     pub period: u8,
     pub name: String,
+}
+
+#[derive(Clone)]
+pub struct FullMultiTreeQuery {
+    pub sq: ShallowQ,
+    pub act_fq: FullTreeQuery,
+    pub act_ind: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -98,6 +112,15 @@ pub struct TreeQ {
     pub cacheable: Option<bool>,
 }
 
+#[derive(Deserialize, Clone)]
+pub struct ShallowQ {
+    pub ids: Vec<usize>,
+    pub year: Option<u16>,
+    pub tid: Option<u8>,
+    pub filter: Option<Vec<usize>>,
+    pub satts: Option<bool>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct CollapsedNodeGen<T> {
     #[serde(rename = "linkCount")]
@@ -127,7 +150,13 @@ pub struct JsSerTree {
 pub struct TreeResponse {
     pub tree: JsSerTree,
     pub atts: AttributeLabels,
-    shallowed: bool,
+    pub shallowed: bool,
+}
+
+#[derive(Serialize)]
+pub struct ShallowTreesResponse {
+    pub trees: HashMap<usize, JsSerTree>,
+    pub atts: AttributeLabels,
 }
 
 #[derive(Serialize)]
@@ -168,6 +197,16 @@ pub struct BreakdownSpec {
 pub struct SCIter<'a> {
     children: &'a BufSerChildren,
     key_iter: vec::IntoIter<&'a u32>,
+}
+
+pub enum AnyQuery {
+    Single(FullTreeQuery),
+    Shallows(FullMultiTreeQuery),
+}
+
+pub enum AnyResponse {
+    Single(TreeResponse),
+    Shallows(ShallowTreesResponse),
 }
 
 pub enum CacheValue {
@@ -227,37 +266,10 @@ impl Display for FullTreeQuery {
 }
 
 impl TreeResponse {
-    pub fn from_pruned(
-        pruned_tree: BufSerTree,
-        fq: &FullTreeQuery,
-        bds: &Vec<BreakdownSpec>,
-        state: &TreeBasisState,
-        shallowed: bool,
-    ) -> Self {
-        let now = std::time::Instant::now();
-        let atts = get_atts(&pruned_tree, &bds, state, fq);
-        println!("{fq}: got atts in {}", now.elapsed().as_millis());
-
-        let now = std::time::Instant::now();
-        let tree = JsSerTree::from_buf(pruned_tree, &state.gets);
-        println!("{fq}: converted in {}", now.elapsed().as_millis());
-        Self {
-            tree,
-            atts,
-            shallowed,
-        }
-    }
-
     pub fn empty() -> Self {
-        //TODO quite hacky
         Self {
             tree: JsSerTree {
-                node: CollapsedNodeGen {
-                    link_count: 0,
-                    source_count: 0,
-                    top_source: None,
-                    top_cite_count: 0,
-                },
+                node: CollapsedNodeGen::init_empty(),
                 children: JsSerChildren::Leaves(HashMap::new()).into(),
             },
             atts: HashMap::new(),
@@ -284,6 +296,11 @@ impl TreeSpecs {
             }
         }
         None
+    }
+
+    pub fn to_ck(&self, tid: u8, root_type: &String, eid: usize) -> Option<CacheKey> {
+        let etype = self.to_eid(root_type)?;
+        Some(CacheKey { etype, tid, eid })
     }
 }
 
@@ -393,29 +410,8 @@ impl JsSerChildren {
 }
 
 pub trait RunManagerSub {
-    fn fill_res_cvp(state: &TreeBasisState, fq: FullTreeQuery, res_cvp: ResCvp);
+    fn run_params(params: TreeMakingParams);
     fn get_specs() -> TreeSpecs;
-    fn make_fq(
-        q: TreeQ,
-        eid: usize,
-        root_type: &String,
-        specs: &TreeSpecs,
-    ) -> Option<FullTreeQuery> {
-        let etype = specs.to_eid(root_type)?;
-        let ck = CacheKey {
-            etype,
-            tid: q.tid.unwrap_or(0),
-            eid,
-        };
-        let period = WorkPeriods::from_year(q.year.unwrap_or(START_YEAR));
-        let fq = FullTreeQuery {
-            ck,
-            q,
-            period,
-            name: root_type.to_string(),
-        };
-        Some(fq)
-    }
 }
 
 // make this a derive trait for some struct
@@ -428,14 +424,13 @@ where
 {
     pub fn new(gets: Arc<Getters>, atts: Arc<AttributeLabelUnion>, n: usize) -> Arc<Self> {
         let specs = T::get_specs();
-        let thread_pool = Vec::new();
         let mut state = TreeBasisState::new(Arc::into_inner(gets).expect("gets for state"), atts);
         state.fill_cache(&specs);
 
         Arc::new(
             Self {
                 state: Arc::new(state),
-                thread_pool,
+                thread_pool: Vec::new(),
                 specs,
                 cv_pair: BasisCvp::init_empty(),
                 p: PhantomData,
@@ -444,10 +439,48 @@ where
         )
     }
 
-    pub fn get_resp(&self, q: TreeQ, root_type: &String, eid: usize) -> Option<TreeResponse> {
+    pub fn get_single_resp(
+        &self,
+        q: TreeQ,
+        root_type: &String,
+        eid: usize,
+    ) -> Option<TreeResponse> {
+        let fq = make_fq(q, eid, root_type, &self.specs)?;
+        let aq = AnyQuery::Single(fq);
+        match self.get_resp(aq)? {
+            AnyResponse::Single(resp) => Some(resp),
+            _ => None,
+        }
+    }
+
+    pub fn get_shallows(&self, sq: ShallowQ, root_type: &String) -> Option<ShallowTreesResponse> {
+        return None;
+        //TODO
+        let tq = TreeQ {
+            year: sq.year,
+            tid: sq.tid,
+            connections: None,
+            big_prep: None,
+            big_read: None,
+            shallow: Some(0),
+            cacheable: None,
+        };
+        let act_fq = make_fq(tq, *sq.ids.get(0)?, root_type, &self.specs)?;
+        let fmq = FullMultiTreeQuery {
+            act_fq,
+            sq,
+            act_ind: 0,
+        };
+        let aq = AnyQuery::Shallows(fmq);
+        match self.get_resp(aq)? {
+            AnyResponse::Shallows(resp) => Some(resp),
+            _ => None,
+        }
+    }
+
+    fn get_resp(&self, aq: AnyQuery) -> Option<AnyResponse> {
         let res_cvp = ResCvp::init_empty();
-        let fq = T::make_fq(q, eid, root_type, &self.specs)?;
-        self.add_to_queue(Some(fq), res_cvp.clone());
+        self.add_to_queue(Some(aq), res_cvp.clone());
         {
             let (lock, cvar) = &*res_cvp;
             let mut out = lock.lock().unwrap();
@@ -473,21 +506,26 @@ where
         Self::new(Arc::new(gets), atts.into(), 2)
     }
 
-    fn add_to_queue(&self, fq: Option<FullTreeQuery>, res_cvp: ResCvp) {
+    fn add_to_queue(&self, aq: Option<AnyQuery>, res_cvp: ResCvp) {
         let (lock, cvar) = &*self.cv_pair;
         let mut data = lock.lock().unwrap();
-        data.push_back((fq, res_cvp));
+        data.push_back((aq, res_cvp));
         cvar.notify_all();
     }
 
     fn fill_thread_pool(mut self, n: usize) -> Self {
         for _ in 0..n {
-            let shared_cvp = Arc::clone(&self.cv_pair);
+            let shared_cvp = self.cv_pair.clone();
             let shared_state = self.state.clone();
+            let mut thread_fh = self.get_file_handle();
             let thread = std::thread::spawn(move || loop {
                 let (fqo, res_cvp) = Self::get_q_cvp(shared_cvp.clone());
                 match fqo {
-                    Some(fq) => T::fill_res_cvp(&shared_state, fq, res_cvp),
+                    Some(aq) => {
+                        let params =
+                            TreeMakingParams::new(&shared_state, &mut thread_fh, aq, res_cvp);
+                        T::run_params(params);
+                    }
                     None => break,
                 }
             });
@@ -503,6 +541,15 @@ where
             data = cvar.wait(data).unwrap();
         }
         return data.pop_back().unwrap();
+    }
+
+    fn get_file_handle(&self) -> ManFileHandle {
+        let parent = self
+            .state
+            .gets
+            .stowage
+            .path_from_ns(<WorksNames as NamespacedEntity>::NS);
+        VattReadingMap::<WorksNames>::load_backend(&parent)
     }
 }
 
@@ -520,12 +567,19 @@ impl TreeBasisState {
         self.cache_dir(fq).join(format!("full-{}.gz", period))
     }
 
+    pub fn full_shallow_cache_file_period(&self, fq: &FullTreeQuery, period: u8) -> PathBuf {
+        self.cache_dir(fq)
+            .join(format!("full-shallow-{}.gz", period))
+    }
+
     pub fn pruned_cache_file(&self, fq: &FullTreeQuery) -> PathBuf {
         self.pruned_cache_file_period(fq, fq.period)
     }
+
     pub fn pruned_cache_file_period(&self, fq: &FullTreeQuery, period: u8) -> PathBuf {
         self.cache_dir(fq).join(format!("{}.gz", period))
     }
+
     pub fn fake() -> Self {
         Self {
             im_cache: Mutex::new(HashMap::new()),
@@ -556,21 +610,45 @@ impl TreeBasisState {
                         Ok(id) => id,
                         _ => continue,
                     };
-                    if let Ok(tid_entries) = std::fs::read_dir(&eid_path) {
-                        for tid_eo in tid_entries {
-                            if let Ok(tid_e) = tid_eo {
-                                if let Ok(tid) = fpparse(&tid_e.path()) {
-                                    let ck = CacheKey { eid, tid, etype };
-                                    let v = (0..N_PERS as u8).collect();
-                                    cmap.insert(ck, CacheValue::Done(v));
-                                }
-                            }
-                        }
+                    for tid in get_tids_of_dir(&eid_path, true).into_iter() {
+                        let ck = CacheKey { eid, tid, etype };
+                        let v = (0..N_PERS as u8).collect();
+                        cmap.insert(ck, CacheValue::Done(v));
                     }
                 }
             }
         }
     }
+}
+
+fn make_fq(q: TreeQ, eid: usize, root_type: &String, specs: &TreeSpecs) -> Option<FullTreeQuery> {
+    let fq = FullTreeQuery {
+        ck: specs.to_ck(q.tid.unwrap_or(0), root_type, eid)?,
+        period: WorkPeriods::from_year(q.year.unwrap_or(START_YEAR)),
+        q,
+        name: root_type.to_string(),
+    };
+    Some(fq)
+}
+
+fn get_tids_of_dir(entity_dir_path: &PathBuf, defalt_to_all: bool) -> Vec<u8> {
+    if defalt_to_all {
+        return POSSIBLE_YEAR_FILTERS
+            .iter()
+            .map(|e| WorkPeriods::from_year(*e))
+            .collect();
+    }
+    let mut out = Vec::new();
+    if let Ok(tid_entries) = std::fs::read_dir(&entity_dir_path) {
+        for tid_eo in tid_entries {
+            if let Ok(tid_e) = tid_eo {
+                if let Ok(tid) = fpparse(&tid_e.path()) {
+                    out.push(tid);
+                }
+            }
+        }
+    }
+    out
 }
 
 fn fpparse<T: FromStr>(p: &PathBuf) -> Result<T, T::Err>

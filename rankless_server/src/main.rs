@@ -39,14 +39,14 @@ use rankless_rs::{
 use rankless_trees::{
     extensions::DistinctionText,
     interfacing::{Getters, MetaMapGetter, NodeInterfaces, RootInterfaceable, RootInterfaces},
-    io::{TreeQ, TreeResponse, TreeRunManager},
+    io::{ShallowQ, ShallowTreesResponse, TreeQ, TreeResponse, TreeRunManager},
     AttributeLabelUnion,
 };
 
 const MAX_HITS: usize = 80;
 const PORT: u16 = 3038;
 const SEARCH_SIZE: usize = 20;
-const CACHEABLE_FROM: u32 = 10_000;
+const CACHEABLE_FROM: u32 = 20_000;
 const N_THREADS: usize = 16;
 const UPPER_LIMIT: u32 = u32::MAX;
 const ETYPE_ENC: [&str; 6] = [
@@ -129,7 +129,7 @@ struct SemVal {
 }
 
 #[derive(Serialize, Clone)]
-struct InstRelOut {
+struct EntityRelationshipOut {
     start: u16,
     end: u16,
     #[serde(rename = "semId")]
@@ -547,7 +547,7 @@ impl EntityDescription {
     }
 }
 
-impl InstRelOut {
+impl EntityRelationshipOut {
     fn from(v: &InstRelation, iif: &RootInterfaces<Institutions>, gets: &Getters) -> Self {
         let iid = v.inst.to_usize();
         let inst_name = iif.names.0.get(iid).unwrap().clone();
@@ -687,6 +687,7 @@ async fn main() {
         .route("/views/:etype/:semantic_id", get(view_get))
         .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))
         .route("/trees/:root_type/:semantic_id", get(tree_get))
+        .route("/shallows/:root_type", get(shallows_get))
         .with_state((ns_map_arc, satts, tree_manager.clone()));
 
     let count_api = static_router(&entity_descriptions);
@@ -758,11 +759,20 @@ async fn tree_get(
         if let Some(sval) = nstate.semantic_id_map.get(&semantic_id) {
             let ncite = nstate.responses[sval.result_id].citations;
             tq.cacheable = Some(ncite >= CACHEABLE_FROM);
-            let resp = Json(tm.get_resp(tq, &root_type, sval.dm_id));
+            let resp = Json(tm.get_single_resp(tq, &root_type, sval.dm_id));
             return (cache_header(60), resp);
         }
     }
     (cache_header(0), None.into())
+}
+
+async fn shallows_get(
+    Path(root_type): Path<String>,
+    q: Query<ShallowQ>,
+    states: StatesT,
+) -> (HeaderMap, Json<Option<ShallowTreesResponse>>) {
+    let resp = Json(states.0 .2.get_shallows(q.0, &root_type));
+    (cache_header(60), resp)
 }
 
 async fn tops_get(tops_state: State<Arc<Vec<TopResult>>>) -> Json<Vec<TopResult>> {
