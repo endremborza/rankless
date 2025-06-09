@@ -1,10 +1,10 @@
 import { BE_URL } from '$lib/constants';
-import type { SearchResult } from '$lib/tree-types';
+import type { RootType, SearchResult } from '$lib/tree-types';
 import type { RequestHandler } from './$types';
 import { getEntityPath } from '$lib/tree-functions';
 import { getSitemapResponse } from '$lib/route-functions';
 
-function isAsciiOnly(str) {
+function isAsciiOnly(str: string) {
 	return /^[\x01-\x7F]+$/.test(str);
 }
 
@@ -31,12 +31,13 @@ export const GET: RequestHandler = async ({ params }) => {
 	let resps: SearchResult[] = [];
 
 	for (let i = 0; i < links.length; i++) {
+		let rootType = links[i].name as RootType;
 		await fetch(links[i].url).then((r) =>
 			r.json().then((l) => {
 				l.forEach(
 					(e: SearchResult) => {
 						if (isAsciiOnly(e.semanticId)) {
-							resps.push({ ...e, rootType: links[i].name });
+							resps.push({ ...e, rootType });
 						}
 					})
 			})
