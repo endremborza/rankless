@@ -1,7 +1,6 @@
 use std::{collections::BinaryHeap, sync::Arc};
 
 use crate::{
-    agg_tree::HeapIterator,
     common::{init_empty_slice, MainWorkMarker},
     env_consts::FINAL_YEAR,
     gen::{
@@ -22,7 +21,7 @@ use dmove::{
     MAA,
 };
 
-const MIN_FOR_HIT: usize = 25;
+const MIN_FOR_HIT: usize = 40;
 const TOP_TOPIC: usize = 20;
 const TOP_SUBFIELD: usize = 100;
 const TOP_YEAR: usize = 50;
