@@ -18,12 +18,24 @@ SSL_ETC_DIR = "/etc/letsencrypt/live"
 LOCAL_SSL_TAR = "ssl_dir.tar.gz"
 AMI_IMG_CSV = "ami-imgs.csv"
 
-ALPHA_DOMAIN = "alpha.rankless.org"
-LIVE_DOMAIN = "www.rankless.org"
-FW_DOMAIN = "rankless.org"
+MAIN_DOMAIN = "rankless.org"
+
+
+def subd(sub):
+    return f"{sub}.{MAIN_DOMAIN}"
+
+
+ALPHA_DOMAIN = subd("alpha")
+LIVE_DOMAIN = subd("www")
+FW_DOMAIN = MAIN_DOMAIN
+ALPHA_BACKEND = subd("alpha-api")
+LIVE_BACKEND = subd("api")
 
 FE_UPSTREAM = "rankless_frontend"
 BE_UPSTREAM = "rankless_backend"
+
+BE_URL_VAR = "PUBLIC_BACKEND_URL"
+PUB_URL_VAR = "PUBLIC_ORIGIN"
 
 BIG16 = "c6a.4xlarge"
 SMALL = "c6a.large"
@@ -316,7 +328,7 @@ class Transper:
         self.be_service.enable()
 
     def setup_fe_service(
-        self, inst_dns: str, node_port_start=BUN_PORT_START, procs=10, bun=False
+        self, inst_domain: str, first_port=BUN_PORT_START, procs=10, bun=False
     ):
         if bun:
             comm = "%h/.bun/bin/bun run build/"
@@ -330,7 +342,7 @@ After=network.target
 
 [Service]
 WorkingDirectory={self.deploy_dir}
-Environment=ORIGIN=https://{inst_dns} PORT=%i
+Environment=ORIGIN=https://{inst_domain} PORT=%i
 ExecStart={comm}
 Restart=always
 RestartSec=15
@@ -340,7 +352,7 @@ WantedBy=default.target
 """
         self.sync_service(fe_service_txt, fe_service_template_name)
         for i in range(procs):
-            sman = self.fes_from_port(node_port_start + i)
+            sman = self.fes_from_port(first_port + i)
             sman.enable()
             self.fe_services.append(sman)
 
@@ -354,39 +366,42 @@ WantedBy=default.target
     def fill_fe_services(self):
         self.fe_services = [self.fes_from_port(p) for p in self.get_fe_ports()]
 
-    def get_dns(self):
+    def get_domain(self):
         return re.findall(
             "ORIGIN=https://(.*) ",
             self.ssh.run(f"cat ~/{SERIVCE_DIR}/{fe_service_template_name}"),
         )[0]
 
-    def setup_nginx(self, inst_dns=None, rs_port=DEFAULT_RS_PORT, cert=True):
-        if inst_dns is None:
-            inst_dns = self.get_dns()
+    def get_backend_domain(self):
+        domain = self.get_domain()
+        if domain == ALPHA_DOMAIN:
+            return ALPHA_BACKEND
+        if domain == LIVE_DOMAIN:
+            return LIVE_BACKEND
+        raise ValueError(f"{domain} is not recognized")
+
+    def setup_nginx(self, inst_domain=None, rs_port=DEFAULT_RS_PORT, cert=True):
+        if inst_domain is None:
+            inst_domain = self.get_domain()
         if cert:
-            self.get_cert(inst_dns)
+            self.get_cert(inst_domain)
         for cd in [self.be_cache_dir, self.fe_cache_dir]:
             self.ssh.run(f"sudo chown -R www-data:www-data {cd}")
         ports = self.get_fe_ports()
         assert ports
         self.nginx_add_upstreams([UpstreamConf(ports)])
         self.ssh.prun(f"mkdir -p {self.fe_cache_dir} {self.be_cache_dir}")
-        cert_dir = f"{SSL_ETC_DIR}/{inst_dns}"
         server_prefix = f"""
-    server_name {inst_dns};
+    listen 443 ssl;
 
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
     gzip_min_length 1000;   
 
-    ssl_certificate {cert_dir}/fullchain.pem;
-    ssl_certificate_key {cert_dir}/privkey.pem;
-
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
-    access_log /var/log/nginx/access.log upstream_time;
-"""
+    access_log /var/log/nginx/access.log upstream_time;"""
         loc_suffix = """
         proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
         proxy_http_version 1.1;
@@ -395,9 +410,8 @@ WantedBy=default.target
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
 
-        limit_req zone=baselimit burst=90 nodelay;
-        limit_req_status 429;
-"""
+        limit_req zone=baselimit burst=55 nodelay;
+        limit_req_status 429;"""
 
         nginx_conf = f"""
 proxy_cache_path {self.be_cache_dir} levels=1:2 keys_zone=be-cache:50m max_size=20g;
@@ -410,7 +424,8 @@ log_format upstream_time '$remote_addr - $remote_user [$time_local] '
                          'rt=$request_time uct="$upstream_connect_time" uht="$upstream_header_time" urt="$upstream_response_time"';
 
 server {{
-    listen 443 ssl;
+
+    {self.get_server_prefix(inst_domain)}
     {server_prefix}
 
     location / {{
@@ -421,7 +436,7 @@ server {{
 }}
 
 server {{
-    listen {rs_port + 1} ssl;
+    {self.get_server_prefix(inst_domain)}
     {server_prefix}
 
     location / {{
@@ -432,22 +447,28 @@ server {{
     }}
 }}
 
-# Redirect HTTP to HTTPS
 server {{
    listen 80;
-   server_name {inst_dns};
+   server_name {inst_domain};
    return 301 https://$server_name$request_uri;
 }}
         """
-        self._send_nginx_conf(nginx_conf, inst_dns)
+        self._send_nginx_conf(nginx_conf, inst_domain)
         self.restart_nginx()
+
+    def get_server_prefix(self, domain):
+        cert_dir = f"{SSL_ETC_DIR}/{domain}"
+        return f"""
+    server_name {domain};
+    ssl_certificate {cert_dir}/fullchain.pem;
+    ssl_certificate_key {cert_dir}/privkey.pem;"""
 
     def clean_cert_default(self):
         self._send_nginx_conf("", "default")
 
-    def get_cert(self, dns):
+    def get_cert(self, domain):
         self.ssh.prun(
-            f"sudo certbot --nginx --non-interactive --agree-tos --register-unsafely-without-email -d {dns}"
+            f"sudo certbot --nginx --non-interactive --agree-tos --register-unsafely-without-email -d {domain}"
         )
         self.clean_cert_default()
 
@@ -460,35 +481,35 @@ server {{
         self.ssh.prun(f"sudo tar zxvf {LOCAL_SSL_TAR} -C /")
 
     def refresh_certs(self, *other_domains):
-        for domain in [self.get_dns(), *other_domains]:
+        for domain in [self.get_domain(), *other_domains]:
             self.get_cert(domain)
 
-    def add_dns_fw(self, dns_to_fw: str, cert=True):
-        orig_dns = self.get_dns()
+    def add_domain_fw(self, domain_to_fw: str, cert=True):
+        orig_domain = self.get_domain()
         nginx_conf = f"""
 server {{
     listen 80;
     listen [::]:80;
-    server_name {dns_to_fw};
-    return 301 https://{orig_dns}$request_uri;
+    server_name {domain_to_fw};
+    return 301 https://{orig_domain}$request_uri;
 }}
 
 server {{
     listen 443 ssl;
     listen [::]:443 ssl;
-    server_name {dns_to_fw};
+    server_name {domain_to_fw};
 
-    ssl_certificate {SSL_ETC_DIR}/{dns_to_fw}/fullchain.pem;
-    ssl_certificate_key {SSL_ETC_DIR}/{dns_to_fw}/privkey.pem;
+    ssl_certificate {SSL_ETC_DIR}/{domain_to_fw}/fullchain.pem;
+    ssl_certificate_key {SSL_ETC_DIR}/{domain_to_fw}/privkey.pem;
     
     include /etc/letsencrypt/options-ssl-nginx.conf;
 
-    return 301 https://{orig_dns}$request_uri;
+    return 301 https://{orig_domain}$request_uri;
 }}
 """
-        self._send_nginx_conf(nginx_conf, dns_to_fw)
+        self._send_nginx_conf(nginx_conf, domain_to_fw)
         if cert:
-            self.get_cert(dns_to_fw)
+            self.get_cert(domain_to_fw)
 
     def nginx_add_upstreams(self, upstreams: list[UpstreamConf]):
         us_etc_name = "app_upstreams"
@@ -540,8 +561,9 @@ upstream {BE_UPSTREAM} {{
         self.ssh.prun(f"cd {self.deploy_dir};source ~/.profile;cargo build --release")
 
     def update_env(self):
-        dns = self.get_dns()
-        txt = f"PUBLIC_ORIGIN=https://{dns}\nOA_ROOT={self.data_dir}"
+        domain = self.get_domain()
+        be_url = "https://" + self.get_backend_domain()
+        txt = f"{PUB_URL_VAR}=https://{domain}\n{BE_URL_VAR}={be_url}\nOA_ROOT={self.data_dir}"
         self.sync_txt(txt, ".env", self.deploy_dir)
 
     def update_fe(self):
@@ -713,7 +735,7 @@ def promote_alpha_to_live():
     tpr.update_fe()
     tpr.ssh.prun(f"sudo rm {NGINX_ENDIR}/{ALPHA_DOMAIN}")
     tpr.setup_nginx(cert=False)
-    tpr.add_dns_fw(FW_DOMAIN, cert=False)
+    tpr.add_domain_fw(FW_DOMAIN, cert=False)
     associate_id(alpha_inst, True)
     tpr.refresh_certs(FW_DOMAIN)
 
