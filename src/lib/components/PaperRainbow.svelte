@@ -13,6 +13,7 @@
 	const maxN = 5;
 	const fontSize = 0.5;
 	let highlighted = 0;
+	//TODO!! - scrolling fails in brave!
 
 	let listContainer: HTMLUListElement;
 	let listItemElements: HTMLLIElement[] = [];
