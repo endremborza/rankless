@@ -436,7 +436,7 @@ server {{
 }}
 
 server {{
-    {self.get_server_prefix(inst_domain)}
+    {self.get_server_prefix(self.get_backend_domain())}
     {server_prefix}
 
     location / {{
@@ -481,7 +481,7 @@ server {{
         self.ssh.prun(f"sudo tar zxvf {LOCAL_SSL_TAR} -C /")
 
     def refresh_certs(self, *other_domains):
-        for domain in [self.get_domain(), *other_domains]:
+        for domain in [self.get_domain(), self.get_backend_domain(), *other_domains]:
             self.get_cert(domain)
 
     def add_domain_fw(self, domain_to_fw: str, cert=True):
@@ -635,10 +635,7 @@ def new_small_alpha(pushed_certs: bool):
     if pushed_certs:
         tpr.push_certs()
         tpr.setup_nginx(cert=False)
-    ec2c.associate_address(
-        InstanceId=new_alpha_inst.id, AllocationId=alpha_ip_alloc.alloc_id
-    )
-    new_alpha_inst.reload()
+    associate_id(new_alpha_inst, False)
     if not pushed_certs:
         get_tpr(new_alpha_inst).setup_nginx(cert=True)
     return new_alpha_inst
