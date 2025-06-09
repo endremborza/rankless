@@ -67,17 +67,21 @@ if __name__ == "__main__":
         )
         .loc[lambda df: df["t"] > (df["t"].max() - dt.timedelta(hours=1))]
     )
+    hn = hour_df.shape[0]
     err_df = hour_df.loc[lambda df: (df["code"] // 100) == 5]
     tdel = hour_df["t"].max() - hour_df["t"].min()
     miss_n = err_df.shape[0]
-    miss_rate = miss_n / hour_df.shape[0]
+    c429 = int((hour_df["code"] == 429).sum())
+    miss_rate = miss_n / hn
     pct_miss = f"{round(miss_rate * 100, 2)}%"
 
     log_rec = {
         "period": f"{tdel}".split(" ")[-1],
         "uniqe_clients": hour_df["addr"].nunique(),
-        "total_requests": hour_df.shape[0],
+        "total_requests": hn,
         "request_per_second": round(hour_df.shape[0] / tdel.total_seconds(), 3),
+        "429_count": c429,
+        "429_rate": c429 / hn,
         "500_count": miss_n,
         "500_rate": miss_rate,
     } | dict(
