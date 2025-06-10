@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { APP_NAME } from '$lib/constants';
-	import { prettifyRoot, semantify } from '$lib/text-format-util';
+	import { prettifyRoot } from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
@@ -33,18 +33,24 @@
 	};
 
 	let showIndexedCiteText = false;
-
 	let ticksHeight: number;
 	let compMode = false;
-	let isGlobalSpecialization: boolean;
 	let currentTreeSpec: tt.TreeSpec = data.treeSpecs.specs[data.conf.rootType][data.conf.treeId];
-	let level1Stats = {};
-	let selectedBreakdowns: string[];
-	$: showsCountry = currentTreeSpec.breakdowns[0]?.attributeType == 'countries';
-	$: titleSuffix =
-		selectedBreakdowns != undefined
-			? semantify(selectedBreakdowns[0], data.conf.rootType, selectedBreakdowns, 0).split('<')[0]
-			: '';
+
+	function getCountryInds(specs: tt.TreeSpec[]) {
+		let out = [];
+		for (let i = 0; i < specs.length; i++) {
+			if (specs[i].breakdowns[0].attributeType == 'countries') out.push(i);
+		}
+		return out;
+	}
+
+	$: countryL1Specs = getCountryInds(data.treeSpecs.specs[data.conf.rootType]);
+	$: showsCountry = countryL1Specs.length > 0;
+	$: [countryResp, countryTreeId] =
+		currentTreeSpec.rootType == 'countries'
+			? [{ tree: data.tree, atts: data.atts, shallowed: true }, data.conf.treeId]
+			: [undefined, countryL1Specs[0] || -1];
 </script>
 
 <svelte:head>
@@ -101,14 +107,10 @@
 	<div class="shadowy padded marged comp-elem">
 		<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} id="tree">
 			<FullQc
-				bind:level1Stats
-				bind:currentTreeSpec
-				bind:selectedBreakdowns
-				bind:isGlobalSpecialization
 				rootName={data.view.name}
+				prefixText={data.prefixText}
 				selectedQcRootId={data.view.dmId}
 				conf={data.conf}
-				prefixText={data.prefixText}
 				selectionState={data.selectionState}
 				treeSpecs={data.treeSpecs}
 				removeHighlightUnhover={false}
@@ -123,10 +125,14 @@
 	{#if showsCountry}
 		<div class="shadowy padded marged comp-elem">
 			<div id="map-elem">
-				<h2>{data.prefixText} {data.view.name} {titleSuffix}</h2>
 				<WorldMapSvg
-					countryLevels={level1Stats}
-					weightText={isGlobalSpecialization ? 'Revealed comparative advantage' : 'Citations'}
+					resp={countryResp}
+					{countryL1Specs}
+					treeId={countryTreeId}
+					rootName={data.view.name}
+					prefixText={data.prefixText}
+					conf={data.conf}
+					treeSpecs={data.treeSpecs}
 				/>
 			</div>
 		</div>
@@ -211,7 +217,6 @@
 		flex-direction: column;
 		justify-content: center;
 		height: 100%;
-		gap: 50px;
 	}
 
 	.comp-elem {

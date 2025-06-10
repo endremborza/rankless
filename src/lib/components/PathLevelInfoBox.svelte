@@ -112,7 +112,7 @@
 <!-- svelte-ignore a11y-mouse-events-have-key-events -->
 <div
 	class="hoverover shadowy clickable growing"
-	id="container"
+	id="plibox-container"
 	role="none"
 	tabindex="-1"
 	style="height: {initHeight * (showPaper ? 4 : 1)}px"
@@ -170,7 +170,7 @@
 		transition: height 350ms ease-in-out;
 	}
 
-	#container {
+	#plibox-container {
 		width: 100%;
 		bottom: 0px;
 	}

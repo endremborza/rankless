@@ -27,6 +27,18 @@ export function getDefaultLevelSpecs() {
 		});
 }
 
+
+export function getDefaultBreakdowns(treeSpec: tt.TreeSpec) {
+	const out: tt.SelectedBreakdowns = [];
+	for (let i = 0; i < MAX_LEVEL_COUNT; i++) {
+		if (i >= treeSpec.breakdowns.length) break;
+		const bdId = idFromBd(treeSpec.breakdowns[i] || {});
+		out.push(bdId);
+	}
+	return out;
+}
+
+
 export function getDefaultControlSpecs(spec: boolean): tt.FullControlSpecs {
 	return {
 		globalLimit: 10,
@@ -39,13 +51,18 @@ export function getDefaultControlSpecs(spec: boolean): tt.FullControlSpecs {
 	};
 }
 
-export function getBreakdownOptions(treeSpecs: tt.TreeSpecs, rootType: tt.RootType) {
+export function getBreakdownOptions(treeSpecs: tt.TreeSpecs, rootType: tt.RootType, maxD: number = MAX_LEVEL_COUNT) {
 	//TODO: this should be cached, its just clutter
 	let entityTreeSpecs = treeSpecs.specs[rootType];
+	return fillBreakdownOptions(entityTreeSpecs.entries(), maxD)
+}
+
+export function fillBreakdownOptions(specsEnum: ArrayIterator<[number, tt.TreeSpec]>, maxD: number = MAX_LEVEL_COUNT) {
 	let out: tt.BreakdownOptions = {};
-	for (let [i, v] of entityTreeSpecs.entries()) {
+	for (let [i, v] of specsEnum) {
 		let boObj = out;
-		for (let bd of v.breakdowns) {
+		for (const [bi, bd] of v.breakdowns.entries()) {
+			if (bi >= maxD) break;
 			const bDef = idFromBd(bd);
 			if (!(bDef in boObj)) {
 				boObj[bDef] = { children: {}, treeSpecs: [] };
@@ -55,6 +72,7 @@ export function getBreakdownOptions(treeSpecs: tt.TreeSpecs, rootType: tt.RootTy
 		}
 	}
 	return out;
+
 }
 
 export function idFromBd(bd: tt.BreakdownSpec): string {

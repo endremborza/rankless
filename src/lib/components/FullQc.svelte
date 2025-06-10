@@ -30,8 +30,7 @@
 	export let innerHeight: number;
 	export let innerWidth: number;
 	export let currentTreeSpec: tt.TreeSpec = treeSpecs.specs[conf.rootType][conf.treeId];
-	export let level1Stats: tt.OMap<number>;
-	export let selectedBreakdowns = getDefaultBreakdowns(currentTreeSpec);
+	export let selectedBreakdowns = tf.getDefaultBreakdowns(currentTreeSpec);
 	export let isGlobalSpecialization = currentTreeSpec.defaultIsSpec;
 
 	let mounted = false;
@@ -89,19 +88,6 @@
 		}
 	});
 
-	function updateL1(visTree: tt.TreeInfo) {
-		let l1Type = currentTreeSpec.breakdowns[0]?.attributeType;
-		try {
-			let l1Kv = Object.entries(visTree.tree.children).map(([k, v]) => [
-				attributeLabels[l1Type][k].name,
-				v.weight
-			]);
-			level1Stats = Object.fromEntries(l1Kv);
-		} catch (error) {
-			// console.log(error);
-		}
-	}
-
 	$: childD1Rate = expandControlInd == undefined ? defaultChildD1Rate : 0.7;
 	$: svgD1 = (innerHeight / innerWidth) * svgD2;
 	$: d1ToPixels = (d1: number) => (d1 * innerHeight) / svgD1;
@@ -129,7 +115,6 @@
 		attributeLabels,
 		currentTreeSpec
 	);
-	$: updateL1(visibleTreeInfo);
 
 	$: updateTreeSpecId(selectedBreakdowns);
 
@@ -147,16 +132,6 @@
 		tf.getBreakdownOptions(treeSpecs, conf.rootType),
 		selectedBreakdowns
 	);
-
-	function getDefaultBreakdowns(treeSpec: tt.TreeSpec) {
-		const out: tt.SelectedBreakdowns = [];
-		for (let i = 0; i < MAX_LEVEL_COUNT; i++) {
-			if (i >= treeSpec.breakdowns.length) break;
-			const bdId = tf.idFromBd(treeSpec.breakdowns[i] || {});
-			out.push(bdId);
-		}
-		return out;
-	}
 
 	function updateUrl(conf: tt.FullTreeConfig, selectionState: tt.BareNode) {
 		if (mounted && setUrl) {
