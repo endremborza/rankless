@@ -12,6 +12,7 @@
 	import PathLevelInfoBox from './PathLevelInfoBox.svelte';
 
 	export let rootName = '';
+	export let rootId: number;
 	export let prefixText = '';
 	export let countryL1Specs: number[];
 	export let conf: tt.FullTreeConfig;
@@ -121,11 +122,11 @@
 		}
 	}
 
-	function updateStyle(styleEl: SVGStyleElement | null, l1Weights: LevelT, highlighted) {
+	function updateStyle(styleEl: SVGStyleElement | null, l1Weights: LevelT, highlighted: string) {
 		if (styleEl == undefined) return;
 		styleEl.textContent = getClassStyles(l1Weights, highlighted);
 	}
-	function reloadResp(treeId: number, year: number) {
+	function reloadResp(treeId: number, year: number, _rootId: number) {
 		if (mounted == false) return;
 		let newConf: tt.FullTreeConfig = { ...conf, treeId, year };
 		fetch(tf.treeBeUrl(BE_REMOTE_URL, newConf, 0)).then((res) => {
@@ -151,7 +152,7 @@
 		svgEl.insertBefore(styleEl, svgEl.firstChild);
 		mounted = true;
 		if (resp == undefined) {
-			reloadResp(treeId, year);
+			reloadResp(treeId, year, rootId);
 		}
 	});
 
@@ -167,7 +168,7 @@
 	$: updateTreeId(selectedBreakdowns, levelOptions);
 	$: updateL1(visibleTreeInfo);
 	$: updateStyle(styleEl, countryLevels, highlighted);
-	$: reloadResp(treeId, year);
+	$: reloadResp(treeId, year, rootId);
 
 	let clicked = false;
 	function setHover(cc: string) {
@@ -257,7 +258,7 @@
 			initHeight={120}
 			{rootName}
 			treeSpec={currentTreeSpec}
-			rootId={resp.tree.topSourceId}
+			{rootId}
 			attributeLabels={resp.atts}
 		/>
 	{/if}

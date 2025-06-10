@@ -35,7 +35,6 @@
 	let showIndexedCiteText = false;
 	let ticksHeight: number;
 	let compMode = false;
-	let currentTreeSpec: tt.TreeSpec = data.treeSpecs.specs[data.conf.rootType][data.conf.treeId];
 
 	function getCountryInds(specs: tt.TreeSpec[]) {
 		let out = [];
@@ -44,13 +43,19 @@
 		}
 		return out;
 	}
+	function updateCountryRespAndId(data) {
+		let _countryL1Specs = getCountryInds(data.treeSpecs.specs[data.conf.rootType]);
+		return data.treeSpecs.specs[data.conf.rootType][data.conf.treeId].rootType == 'countries'
+			? [{ tree: data.tree, atts: data.atts, shallowed: true }, data.conf.treeId, _countryL1Specs]
+			: [undefined, _countryL1Specs[0] || -1, _countryL1Specs];
+	}
+	let countryResp: tt.TreeResponse | undefined;
+	let countryTreeId: number | undefined;
+	let countryL1Specs: number[];
 
-	$: countryL1Specs = getCountryInds(data.treeSpecs.specs[data.conf.rootType]);
-	$: showsCountry = countryL1Specs.length > 0;
-	$: [countryResp, countryTreeId] =
-		currentTreeSpec.rootType == 'countries'
-			? [{ tree: data.tree, atts: data.atts, shallowed: true }, data.conf.treeId]
-			: [undefined, countryL1Specs[0] || -1];
+	//resp might remain 0, so we need to alert the country map
+	$: [countryResp, countryTreeId, countryL1Specs] = updateCountryRespAndId(data);
+	$: showsCountry = countryL1Specs?.length > 0;
 </script>
 
 <svelte:head>
@@ -127,6 +132,7 @@
 			<div id="map-elem">
 				<WorldMapSvg
 					resp={countryResp}
+					rootId={data.view.dmId}
 					{countryL1Specs}
 					treeId={countryTreeId}
 					rootName={data.view.name}
