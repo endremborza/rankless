@@ -59,6 +59,14 @@ pub struct CountryBesties<'a> {
     cit_wids: Option<Iter<'a, ET<Works>>>,
 }
 
+pub struct CountryCiters<'a> {
+    gets: &'a Getters,
+    ref_wids: Peekable<Iter<'a, WT>>,
+    cit_wids: Option<Peekable<Iter<'a, ET<Works>>>>,
+    cit_insts: Option<Peekable<Iter<'a, ET<Institutions>>>>,
+    cit_sfs: Option<Iter<'a, ET<Subfields>>>,
+}
+
 pub struct AuthorBesties<'a> {
     gets: &'a Getters,
     id: ET<Authors>,
@@ -1092,6 +1100,35 @@ impl<'a> Iterator for CountryBesties<'a> {
     }
 }
 
+impl<'a> Iterator for CountryCiters<'a> {
+    type Item = (
+        PartitionId,
+        StackFr<<Self as PartitioningIterator<'a>>::StackBasis>,
+    );
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let ref_wid = reg_peek!(self.ref_wids);
+            let ref_per = self.gets.wperiod(ref_wid);
+            let cit_wid = opt_peek!(self.cit_wids, self.ref_wids, self.gets.citing(*ref_wid));
+            let cit_inst = opt_peek!(
+                self.cit_insts,
+                self.cit_wids.as_mut().unwrap(),
+                self.gets.winsts(*cit_wid)
+            );
+            let cit_country = self.gets.icountry(cit_inst);
+            let cit_sf = opt_next!(
+                self.cit_sfs,
+                self.cit_insts.as_mut().unwrap(),
+                self.gets.wsubfields(*cit_wid)
+            );
+            return Some((
+                *ref_per,
+                (*cit_country, *cit_sf, *cit_inst, *ref_wid, *cit_wid),
+            ));
+        }
+    }
+}
+
 impl<'a> Iterator for AuthorBestiePapers<'a> {
     type Item = (
         PartitionId,
@@ -1360,6 +1397,25 @@ impl<'a> PartitioningIterator<'a> for CountryBesties<'a> {
             ref_wids: gets.cworks(id).iter().peekable(),
             ref_insts: None,
             ref_sfs: None,
+            cit_wids: None,
+        }
+    }
+}
+
+impl<'a> PartitioningIterator<'a> for CountryCiters<'a> {
+    type StackBasis = (
+        IntX<Countries, 0, false>,
+        IntX<Subfields, 1, true>,
+        IntX<Institutions, 2, false>,
+    );
+    type Root = Countries;
+    const PARTITIONS: usize = N_PERS;
+    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+        Self {
+            gets,
+            ref_wids: gets.cworks(id).iter().peekable(),
+            cit_insts: None,
+            cit_sfs: None,
             cit_wids: None,
         }
     }

@@ -20,10 +20,10 @@ use crate::{
         FullMultiTreeQuery, FullTreeQuery, JsSerTree, ManFileHandle, ResCvp, ShallowTreesResponse,
         TreeBasisState, TreeResponse, TreeSpec, WT,
     },
-    prune::{cut_tree, prune},
+    prune::{cut_tree, prune, prune_wide},
 };
 use dmove::{
-    para::{set_and_notify, wait_for_data},
+    para::{set_and_notify, wait_for_data, wait_for_data_with_taker},
     ByteFixArrayInterface, Entity, InitEmpty, UnsignedNumber,
 };
 use hashbrown::{hash_map::Entry, HashMap};
@@ -39,7 +39,7 @@ use serde::Serialize;
 
 const MAX_PARTITIONS: usize = 16;
 const MAX_BUFSIZE: usize = 512;
-const SHALLOW_LIMIT: u64 = 50_000;
+const SHALLOW_LIMIT: u64 = 50_000; // size (bytes) of file
 
 type SrHeap<'a, S> = MinHeap<StackFr<<S as PartitioningIterator<'a>>::StackBasis>>;
 
@@ -208,24 +208,19 @@ where
         if self.params.fq.q.big_prep.unwrap_or(false) {
             return self.write_tmp_parts();
         }
-        let pruned_path = self.params.state.pruned_cache_file(&self.params.fq);
         let prog = Progress::from_e(&self.params.state.im_cache, &self.params.fq);
         //getting one of e(tid) might trigger all others
         match prog {
             Progress::Calculate => {
                 return self.fill_calculate();
             }
-            Progress::Wait(cvp) => {
-                let (lock, cvar) = &*cvp;
-                let mut done = lock.lock().unwrap();
-                while !*done {
-                    done = cvar.wait(done).unwrap();
-                }
-            }
+            Progress::Wait(cvp) => wait_for_data_with_taker(cvp, |_| ()), //TODO make sure this
+            //is tested
             Progress::Load => {}
         }
         let now = std::time::Instant::now();
-        let mut pruned_tree: BufSerTree = match read_buf_path(&pruned_path) {
+        let resp_tree_path = self.params.state.resp_cache_file(&self.params.fq);
+        let mut resp_tree: BufSerTree = match read_buf_path(&resp_tree_path) {
             Ok(pt) => pt,
             Err(_) => {
                 self.log("failed load");
@@ -235,16 +230,16 @@ where
         let mut shallowed = false;
         if let Some(sh_depth) = self.params.fq.q.shallow {
             shallowed = true;
-            if let Ok(md) = std::fs::metadata(pruned_path) {
+            if let Ok(md) = std::fs::metadata(resp_tree_path) {
                 if md.st_size() < SHALLOW_LIMIT {
                     shallowed = false;
                 }
             };
             if shallowed {
-                pruned_tree = cut_tree(&pruned_tree, sh_depth);
+                resp_tree = cut_tree(&resp_tree, sh_depth);
             }
         }
-        let resp = self.to_tree_resp(pruned_tree, shallowed);
+        let resp = self.to_tree_resp(resp_tree, shallowed);
         self.tlog("loaded and sent cache", now);
         set_single_resp(self.params.res_cvp.clone(), resp);
     }
@@ -298,7 +293,7 @@ where
                 return self.log("non inprogress cache");
             }
         };
-        set_and_notify(bcvp, true)
+        set_and_notify(bcvp, Some(()))
     }
 
     fn fill_heaps(&self, et_id: &NET<TMK::Root>) -> [SrHeap<'a, TMK>; MAX_PARTITIONS] {
@@ -385,34 +380,79 @@ where
     }
 
     fn write_resp(&mut self, full_tree: &BufSerTree, res_cvp_o: Option<ResCvp>, pid: u8) {
-        let now = std::time::Instant::now();
-        let bds = TMK::get_spec().breakdowns;
         let cacheable = self.params.fq.q.cacheable.unwrap_or(true);
         if !cacheable & (pid != self.params.fq.period) {
             return;
         }
-        let pruned_tree = prune(full_tree, &self.params.state.att_union, &bds);
-        self.tlog("pruned", now);
+        let mut pruned_o = None;
+        let mut wide_o = None;
         if let Some(res_cvp) = res_cvp_o {
             if pid == self.params.fq.period {
-                let (resp_base_tree, sh) = if let Some(depth) = self.params.fq.q.shallow {
-                    (cut_tree(&pruned_tree, depth), true)
-                } else {
-                    (pruned_tree.clone(), false)
-                };
-                let full_resp = self.to_tree_resp(resp_base_tree, sh);
-                set_single_resp(res_cvp, full_resp);
+                self.set_tree_to_res_cvp(res_cvp, full_tree, cacheable, &mut pruned_o, &mut wide_o);
             }
         }
         if cacheable {
-            self.cache_tree(pruned_tree, TreeBasisState::pruned_cache_file_period, pid);
-            // TODO: for full shallow ones
-            // self.cache_tree(
-            //     cut_tree(&full_tree, 0),
-            //     TreeBasisState::full_shallow_cache_file_period,
-            //     pid,
-            // );
+            self.cache_tree(
+                pruned_o.unwrap_or(self.prune_tree(full_tree)),
+                TreeBasisState::pruned_cache_file_period,
+                pid,
+            );
+            self.cache_tree(
+                wide_o.unwrap_or(self.to_wide_tree(full_tree)),
+                TreeBasisState::wide_cache_file_period,
+                pid,
+            );
         }
+    }
+
+    fn set_tree_to_res_cvp(
+        &mut self,
+        res_cvp: ResCvp,
+        full_tree: &BufSerTree,
+        cacheable: bool,
+        pruned_o: &mut Option<BufSerTree>,
+        wide_o: &mut Option<BufSerTree>,
+    ) {
+        let (resp_base_tree, sh) = if !cacheable {
+            //non cacheable is not shallowed, unless wide
+            if self.params.fq.q.wide.unwrap_or(false) {
+                (self.to_wide_tree(full_tree), true)
+            } else {
+                (self.prune_tree(full_tree), false)
+            }
+        } else {
+            if self.params.fq.q.wide.unwrap_or(false) {
+                //don't allow too wide
+                let wide_tree = self.to_wide_tree(full_tree);
+                *wide_o = Some(wide_tree.clone());
+                (wide_tree, true)
+            } else {
+                let pruned_tree = self.prune_tree(full_tree);
+                *pruned_o = Some(pruned_tree.clone());
+                if let Some(depth) = self.params.fq.q.shallow {
+                    (cut_tree(&pruned_tree, depth), true)
+                } else {
+                    (pruned_tree, false)
+                }
+            }
+        };
+        set_single_resp(res_cvp, self.to_tree_resp(resp_base_tree, sh));
+    }
+
+    fn prune_tree(&self, full_tree: &BufSerTree) -> BufSerTree {
+        let now = std::time::Instant::now();
+        let bds = TMK::get_spec().breakdowns;
+        let pruned_tree = prune(full_tree, &self.params.state.att_union, &bds);
+        self.tlog("pruned", now);
+        pruned_tree
+    }
+
+    fn to_wide_tree(&self, full_tree: &BufSerTree) -> BufSerTree {
+        let now = std::time::Instant::now();
+        let bds = TMK::get_spec().breakdowns;
+        let wide_tree = prune_wide(full_tree, &self.params.state.att_union, &bds);
+        self.tlog("wide cut", now);
+        wide_tree
     }
 
     fn cache_tree<F, T>(&self, obj: T, f: F, pid: u8)

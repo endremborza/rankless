@@ -43,7 +43,7 @@ pub type CacheMap = HashMap<CacheKey, CacheValue>;
 pub type ManFileHandle = VattReadingMap<WorksNames>;
 
 pub type ResCvp = AcTuple<Option<AnyResponse>>;
-pub type BoolCvp = AcTuple<bool>;
+pub type BoolCvp = AcTuple<Option<()>>;
 type BasisQuElem = (Option<AnyQuery>, ResCvp);
 type BasisCvp = AcTuple<VecDeque<BasisQuElem>>;
 
@@ -109,6 +109,7 @@ pub struct TreeQ {
     pub big_prep: Option<bool>,
     pub big_read: Option<bool>,
     pub shallow: Option<u8>,
+    pub wide: Option<bool>,
     pub cacheable: Option<bool>,
 }
 
@@ -381,6 +382,13 @@ impl BufSerChildren {
             Self::Leaves(ls) => ls.keys().collect(),
         }
     }
+
+    pub fn get_strict(&self, k: &u32) -> CollapsedNode {
+        match self {
+            Self::Nodes(nodes) => nodes[k].node.clone(),
+            Self::Leaves(ls) => ls[k].clone(),
+        }
+    }
 }
 
 impl JsSerTree {
@@ -464,6 +472,7 @@ where
             big_read: None,
             shallow: Some(0),
             cacheable: None,
+            wide: None,
         };
         let act_fq = make_fq(tq, *sq.ids.get(0)?, root_type, &self.specs)?;
         let fmq = FullMultiTreeQuery {
@@ -567,17 +576,20 @@ impl TreeBasisState {
         self.cache_dir(fq).join(format!("full-{}.gz", period))
     }
 
-    pub fn full_shallow_cache_file_period(&self, fq: &FullTreeQuery, period: u8) -> PathBuf {
-        self.cache_dir(fq)
-            .join(format!("full-shallow-{}.gz", period))
-    }
-
-    pub fn pruned_cache_file(&self, fq: &FullTreeQuery) -> PathBuf {
-        self.pruned_cache_file_period(fq, fq.period)
+    pub fn wide_cache_file_period(&self, fq: &FullTreeQuery, period: u8) -> PathBuf {
+        self.cache_dir(fq).join(format!("wide-{}.gz", period))
     }
 
     pub fn pruned_cache_file_period(&self, fq: &FullTreeQuery, period: u8) -> PathBuf {
         self.cache_dir(fq).join(format!("{}.gz", period))
+    }
+
+    pub fn resp_cache_file(&self, fq: &FullTreeQuery) -> PathBuf {
+        if fq.q.wide.unwrap_or(false) {
+            self.wide_cache_file_period(fq, fq.period)
+        } else {
+            self.pruned_cache_file_period(fq, fq.period)
+        }
     }
 
     pub fn fake() -> Self {

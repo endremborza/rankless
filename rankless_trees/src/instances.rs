@@ -7,7 +7,7 @@ use crate::{
         FullRefCountryInstSubfieldByRef, InstBesties, IntX, PostRefIterWrap, QedInf,
         RefSubCiSubTByRef, SourceSubfieldCiCoByRef, SourceWCoiByRef, StackBasis, StackFr,
         SubfieldCountryInstByRef, SubfieldCountryInstSourceByRef, SubfieldCountryInstSubfieldByRef,
-        SubfieldRefTopicCountryInst, SubfieldWCoiByRef, WorkingAuthors,
+        SubfieldRefTopicCountryInst, SubfieldWCoiByRef, WorkingAuthors, CountryCiters
     },
     interfacing::Getters,
     io::{
@@ -542,6 +542,7 @@ mod country_trees {
             IntX<Countries, 3, false>,
         ),
     >;
+    pub type Tree4<'a> = CountryCiters<'a>;
 }
 
 #[derive_tree_getter(Sources)]
@@ -611,6 +612,19 @@ pub mod test_tools {
                 Some(v) => Some((TSB::get_pid(&v), v)),
                 None => None,
             }
+        }
+    }
+
+    pub fn test_q(i: u8) -> TreeQ {
+        TreeQ {
+            year: None,
+            tid: Some(i),
+            connections: None,
+            big_prep: None,
+            big_read: None,
+            shallow: None,
+            cacheable: None,
+            wide: None,
         }
     }
 }
@@ -689,15 +703,7 @@ pub mod big_test_tree {
         };
         fake_attu.insert(Countries::NAME.to_string(), gatts(8, "C"));
         fake_attu.insert(Institutions::NAME.to_string(), gatts(16, "I"));
-        let q = TreeQ {
-            year: None,
-            tid: None,
-            connections: None,
-            big_prep: None,
-            big_read: None,
-            shallow: None,
-            cacheable: None,
-        };
+        let q = test_q(0);
 
         let tstate = TreeRunManager::<(BigTestEntity, BigTestEntity)>::fake();
         let name = BigTestEntity::NAME.to_string();
@@ -728,7 +734,7 @@ mod tests {
         derive_links1::WorkPeriods,
     };
     use std::{ops::Deref, sync::Arc};
-    use test_tools::{TestSB, Tither};
+    use test_tools::{test_q, TestSB, Tither};
 
     use serde_json::to_string_pretty;
 
@@ -833,23 +839,11 @@ mod tests {
         }
     }
 
-    fn q(i: u8) -> TreeQ {
-        TreeQ {
-            year: None,
-            tid: Some(i),
-            connections: None,
-            big_prep: None,
-            big_read: None,
-            shallow: None,
-            cacheable: None,
-        }
-    }
-
     #[test]
     fn to_tree1() {
         let tstate = TreeRunManager::<(TestEntity, TestEntity)>::fake();
         let name = TestEntity::NAME.to_string();
-        let r = tstate.get_single_resp(q(0), &name, 0).unwrap();
+        let r = tstate.get_single_resp(test_q(0), &name, 0).unwrap();
         println!("{}", to_string_pretty(&r).unwrap());
         match &r.tree.children.deref() {
             JsSerChildren::Nodes(nodes) => match &nodes[&30].children.deref() {
@@ -886,13 +880,13 @@ mod tests {
     fn to_tree2() {
         let tstate = TreeRunManager::<(TestEntity, TestEntity)>::fake();
         let name = TestEntity::NAME.to_string();
-        let r = tstate.get_single_resp(q(1), &name, 0).unwrap();
+        let r = tstate.get_single_resp(test_q(1), &name, 0).unwrap();
         println!("{}", to_string_pretty(&r).unwrap());
         val_res2(&r);
-        let rcached = tstate.get_single_resp(q(1), &name, 0).unwrap();
+        let rcached = tstate.get_single_resp(test_q(1), &name, 0).unwrap();
         val_res2(&rcached);
 
-        let r = tstate.get_single_resp(q(2), &name, 0).unwrap();
+        let r = tstate.get_single_resp(test_q(2), &name, 0).unwrap();
         println!("{}", to_string_pretty(&r).unwrap());
         assert_eq!(r.tree.node.source_count, 2);
         assert_eq!(r.tree.node.link_count, 3);
@@ -904,7 +898,7 @@ mod tests {
     fn to_multiple_trees1() {
         let tstate = TreeRunManager::<(TestEntity, TestEntity)>::fake();
         let name = TestEntity::NAME.to_string();
-        let q0 = q(0);
+        let q0 = test_q(0);
         let sq = ShallowQ {
             ids: vec![0, 1, 2],
             year: q0.year,
@@ -953,6 +947,7 @@ mod tests {
             big_read,
             shallow: None,
             cacheable: None,
+            wide: None,
         };
         let resp = tstate
             .get_single_resp(gq(Some(true), None), &name, 0)

@@ -11,11 +11,31 @@ use crate::{
 
 const MAX_SIBLINGS: usize = 16;
 const MAX_DEPTH: usize = 8;
+const MAX_WIDE: usize = 512;
 type IndType = u32;
 
 pub fn prune(tree: &BufSerTree, astats: &AttributeLabelUnion, bds: &[BreakdownSpec]) -> BufSerTree {
     let mut denoms = [0; MAX_DEPTH];
     prune_tree::<MAX_SIBLINGS>(tree, astats, bds, &mut denoms, 0)
+}
+
+pub fn prune_wide(
+    tree: &BufSerTree,
+    astats: &AttributeLabelUnion,
+    bds: &[BreakdownSpec],
+) -> BufSerTree {
+    if tree.children.len() > MAX_WIDE {
+        let keys = get_keepers::<MAX_WIDE>(tree, astats, bds, &[tree.node.link_count], 0);
+        let leaves =
+            HashMap::from_iter(keys.into_iter().map(|k| (k, tree.children.get_strict(&k))));
+        let children = BufSerChildren::Leaves(leaves);
+        BufSerTree {
+            node: tree.node.clone(),
+            children: children.into(),
+        }
+    } else {
+        cut_tree(tree, 0)
+    }
 }
 
 pub fn cut_tree(tree: &BufSerTree, depth: u8) -> BufSerTree {
@@ -47,28 +67,8 @@ fn prune_tree<const SIZE: usize>(
     depth: usize,
 ) -> BufSerTree {
     denoms[depth] = tree.node.link_count;
-
     let to_keep: Vec<u32> = if tree.children.len() > SIZE {
-        let bd_denom = f64::from(denoms[bds[depth].spec_denom_ind as usize]);
-        let mut top_weights: FixedHeap<Reverse<(u32, IndType)>, SIZE> = FixedHeap::new();
-        let mut top_specs: FixedHeap<Reverse<(f64, IndType)>, SIZE> = FixedHeap::new();
-        let entity_type = &bds[depth].attribute_type;
-        for (k, child) in tree.children.iter_items().filter(|(k, _)| **k != 0) {
-            let cw = child.link_count;
-            let numerator = f64::from(cw);
-            top_weights.push_unique(Reverse((cw, *k)));
-            let baseline = match astats.get(entity_type) {
-                Some(arr) => arr[k.to_usize()].spec_baseline,
-                None => 1.0,
-            };
-            let child_spec = numerator / bd_denom / baseline;
-            top_specs.push_unique(Reverse((child_spec, *k)));
-        }
-        top_weights
-            .into_iter()
-            .map(|e| e.0 .1)
-            .chain(top_specs.into_iter().map(|e| e.0 .1))
-            .collect()
+        get_keepers::<SIZE>(tree, astats, bds, denoms, depth)
     } else {
         tree.children.keys().into_iter().map(|e| *e).collect()
     };
@@ -86,6 +86,35 @@ fn prune_tree<const SIZE: usize>(
         node: tree.node.clone(),
         children: Box::new(children),
     }
+}
+
+fn get_keepers<const SIZE: usize>(
+    tree: &BufSerTree,
+    astats: &AttributeLabelUnion,
+    bds: &[BreakdownSpec],
+    denoms: &[u32],
+    depth: usize,
+) -> Vec<u32> {
+    let bd_denom = f64::from(denoms[bds[depth].spec_denom_ind as usize]);
+    let mut top_weights: FixedHeap<Reverse<(u32, IndType)>, SIZE> = FixedHeap::new();
+    let mut top_specs: FixedHeap<Reverse<(f64, IndType)>, SIZE> = FixedHeap::new();
+    let entity_type = &bds[depth].attribute_type;
+    for (k, child) in tree.children.iter_items().filter(|(k, _)| **k != 0) {
+        let cw = child.link_count;
+        let numerator = f64::from(cw);
+        top_weights.push_unique(Reverse((cw, *k)));
+        let baseline = match astats.get(entity_type) {
+            Some(arr) => arr[k.to_usize()].spec_baseline,
+            None => 1.0,
+        };
+        let child_spec = numerator / bd_denom / baseline;
+        top_specs.push_unique(Reverse((child_spec, *k)));
+    }
+    top_weights
+        .into_iter()
+        .map(|e| e.0 .1)
+        .chain(top_specs.into_iter().map(|e| e.0 .1))
+        .collect()
 }
 
 fn keep_keys<K, V, F>(map: &HashMap<K, V>, to_keep: &Vec<K>, mut keep_map: F) -> HashMap<K, V>
