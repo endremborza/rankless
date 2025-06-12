@@ -136,7 +136,6 @@
 					{countryL1Specs}
 					treeId={countryTreeId}
 					rootName={data.view.name}
-					prefixText={data.prefixText}
 					conf={data.conf}
 					treeSpecs={data.treeSpecs}
 				/>

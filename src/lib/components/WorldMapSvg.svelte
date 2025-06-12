@@ -13,7 +13,6 @@
 
 	export let rootName = '';
 	export let rootId: number;
-	export let prefixText = '';
 	export let countryL1Specs: number[];
 	export let conf: tt.FullTreeConfig;
 	export let treeSpecs: tt.TreeSpecs;
@@ -29,14 +28,14 @@
 	let highlightedRate: undefined | number;
 	let infoPath: number[] = [];
 
-	let baselineOp = ((LOW_OP + HIGH_OP) * 0.7) / 200;
-	let colorRates = [0.5, 0.4, 0.3, 0.2, 0.1];
-	let minColor = colorRates[0];
-	let maxColor = colorRates[colorRates.length - 1];
+	let minOp = LOW_OP * 0.5;
+	let maxOp = HIGH_OP * 1.2;
+	let mainColorRate = 0.5;
+
 	let xMin = 0;
-	let yMin = 0;
+	let yMin = -20;
 	let mapWidth = 2000;
-	let mapHeight = 1000;
+	let mapHeight = 950;
 	let maxw: undefined | number;
 	let minw: undefined | number;
 	let svgEl: SVGSVGElement;
@@ -45,7 +44,8 @@
 
 	let currentTreeSpec = treeSpecs.specs[conf.rootType][treeId];
 	let selectedBreakdowns = tf.getDefaultBreakdowns(currentTreeSpec);
-	let isSpec = currentTreeSpec.defaultIsSpec;
+	let isSpec = false;
+
 	$: levelOptions = tf.fillBreakdownOptions(
 		countryL1Specs.map((e) => [e, treeSpecs.specs[conf.rootType][e]]),
 		1
@@ -67,19 +67,15 @@
 			}
 		}
 		let wspan = (maxw || 1) - (minw || 0);
-		const scaler = (w: number) => (((w - (minw || 0)) / wspan) * baselineOp) / 3 + baselineOp;
+		const scaler = (w: number) => ((w - (minw || 0)) / wspan) * (maxOp - minOp) + minOp;
 		const sLines = [];
 		for (const [c, { w }] of Object.entries(levels)) {
-			let colorR = ((w - (minw || 0)) / wspan) * (maxColor - minColor) + minColor;
-			let lineColor = getColor(colorR);
+			let lineColor = getColor(mainColorRate);
 			let isHighlighted = c == highlighted;
-			let opa = scaler(w);
-			if (isHighlighted) {
-				opa = 1.9;
-			}
+			let opa = scaler(w) / 100;
 			let line = `fill: ${lineColor}; fill-opacity: ${opa};`;
 			if (isHighlighted) {
-				line += `stroke: ${lineColor};stroke-width: 4.5;`;
+				line += `stroke-width: 4.5;`;
 			}
 			sLines.push(`path.${classNamer(c)} {${line}}`);
 		}
@@ -141,11 +137,6 @@
 		});
 	}
 
-	$: titleSuffix =
-		selectedBreakdowns != undefined
-			? semantify(selectedBreakdowns[0], conf.rootType, selectedBreakdowns, 0).split('<')[0]
-			: '';
-
 	onMount(() => {
 		const svgNS = 'http://www.w3.org/2000/svg';
 		styleEl = document.createElementNS(svgNS, 'style') as SVGStyleElement;
@@ -164,7 +155,13 @@
 		levelSpecs: [tf.DEFAULT_CONTROL_SPEC]
 	};
 	$: visibleTreeInfo = getVisTree(resp, globConf);
-	$: weightText = isSpec ? 'Revealed comparative advantage' : 'Citations';
+	$: isRefSide = (selectedBreakdowns[0] || '').split('-')[1] == 'true';
+	$: if (selectedBreakdowns) console.log(selectedBreakdowns, isRefSide);
+	$: weightText = isSpec
+		? 'Revealed comparative advantage'
+		: isRefSide
+		? 'Total citations of papers'
+		: 'Citations';
 	$: updateTreeId(selectedBreakdowns, levelOptions);
 	$: updateL1(visibleTreeInfo);
 	$: updateStyle(styleEl, countryLevels, highlighted);
@@ -189,25 +186,51 @@
 	}
 
 	function getGradient(colorRates: number[]) {
-		let steps = [];
-		for (const [i, cr] of colorRates.entries()) {
-			let pct = (100 * i) / (colorRates.length - 1);
-			steps.push(`rgba(${getColorArr(cr)}, ${baselineOp}) ${pct}%`);
-		}
+		let steps = [
+			`rgba(${getColorArr(mainColorRate)}, ${minOp}%) 0%`,
+			`rgba(${getColorArr(mainColorRate)}, ${maxOp}%) 100%`
+		];
+		// for (const [i, cr] of colorRates.entries()) {
+		// 	let pct = (100 * i) / (colorRates.length - 1);
+		// 	steps.push(`rgba(${getColorArr(cr)}, ${baselineOp}) ${pct}%`);
+		// }
 		return `linear-gradient(to right, ${steps.join(', ')})`;
 	}
+
+	type CountryBd = 'countries-true' | 'countries-false';
+
+	const C_SEM_MAP: Record<tt.RootType, Record<CountryBd, string>> = {
+		countries: { 'countries-true': 'collaborating with authores based in' },
+		institutions: {
+			'countries-true': 'collaborating with shcolars at',
+			'countries-false': 'citing shcolars working at at'
+		},
+		authors: { 'countries-false': 'citing papers authored by' },
+		sources: { 'countries-true': 'where authors publish in' }
+	};
+
+	function countrySemantify(rootType: tt.RootType, bd: string) {
+		let oBase = C_SEM_MAP[rootType];
+		if (oBase == undefined) return '';
+		return oBase[bd] || '';
+	}
+
+	$: titleSuffix =
+		selectedBreakdowns != undefined ? countrySemantify(conf.rootType, selectedBreakdowns[0]) : '';
 </script>
 
-<h2>{prefixText} {rootName} {titleSuffix} - top {TOP_N}</h2>
+<h3>Top {TOP_N} countries {titleSuffix} {rootName}</h3>
 
-<span>
-	<select bind:value={selectedBreakdowns[0]} class="sel-base" aria-label="Breakdown selection">
-		{#each Object.keys(levelOptions) as bd}
-			<option value={bd}>
-				{semantify(bd, conf.rootType, selectedBreakdowns, 0)}
-			</option>
-		{/each}
-	</select>
+<span id="map-control-block">
+	{#if Object.keys(levelOptions).length > 1}
+		<select bind:value={selectedBreakdowns[0]} class="sel-base" aria-label="Breakdown selection">
+			{#each Object.keys(levelOptions) as bd}
+				<option value={bd}>
+					{countrySemantify(conf.rootType, bd)}
+				</option>
+			{/each}
+		</select>
+	{/if}
 	Since
 	<select bind:value={year} aria-label="Since year"
 		>{#each treeSpecs.yearBreaks as y}
@@ -238,7 +261,7 @@
 	{/each}
 </svg>
 
-<div id="map-label-container" style="--grad: {getGradient(colorRates)}">
+<div id="map-label-container" style="--grad: {getGradient()}">
 	<div>{formatNumber(minw || 0)}</div>
 	<div class="label-gradient-box">
 		{#if highlightedRate != undefined}<div
@@ -265,6 +288,10 @@
 </div>
 
 <style>
+	h3 {
+		text-align: center;
+	}
+
 	svg {
 		max-height: 65svh;
 	}
@@ -286,6 +313,14 @@
 		position: relative;
 		height: 160px;
 		width: 100%;
+	}
+
+	#map-control-block {
+		display: flex;
+		gap: var(--unified-padding);
+		justify-content: center;
+		width: 100%;
+		margin-bottom: var(--unified-padding);
 	}
 
 	#w-text {
