@@ -9,7 +9,7 @@ use axum::{
     Json, Router,
 };
 use dmove::{
-    para::{set_and_notify, AcTuple},
+    para::{set_and_notify, wait_for_data_copy, AcTuple},
     Entity, InitEmpty, NamespacedEntity, UnsignedNumber, ET,
 };
 use hashbrown::HashMap;
@@ -625,18 +625,6 @@ fn get_rest(
     (ns_map, satts, tm, descriptions, tops)
 }
 
-fn wait_for_data<T>(cvp: AcTuple<Option<T>>) -> T
-where
-    T: Copy,
-{
-    let (lock, cvar) = &*cvp;
-    let mut data = lock.lock().unwrap();
-    while data.is_none() {
-        data = cvar.wait(data).unwrap();
-    }
-    *data.as_ref().unwrap()
-}
-
 fn add_thread<E>(
     gets: &Arc<Getters>,
     atts: &Arc<Mutex<AttributeLabelUnion>>,
@@ -657,7 +645,7 @@ fn add_thread<E>(
         let name = E::NAME.to_string();
         let ent_intf = RootInterfaces::<E>::new(&gets_clone.stowage);
         let nstate = NameState::new::<E>(&ent_intf, &gets_clone);
-        let ccount = wait_for_data(shared_cvp);
+        let ccount = wait_for_data_copy(shared_cvp);
         ent_intf.update_stats(&mut au_clone.lock().unwrap(), ccount);
         let entities = nstate
             .responses
