@@ -19,7 +19,7 @@ url = "https://www.rankless.org/"
 
 
 def val_url(url):
-    r = requests.get(url, timeout=5)
+    r = requests.get(url, timeout=2)
     assert r.ok, f"{url} failed with {r.status_code}"
     t = r.elapsed.microseconds / 1_000_000
     assert t < 1.2, f"{url} took {t}s"
@@ -43,27 +43,36 @@ def warn(subject, body):
         server.sendmail(EMAIL_ADDRESS, TO_EMAIL, msg.as_string())
 
 
+def err_w(subject, e: Exception):
+    return warn(subject, f"{type(e).__name__}({str(e)})")
+
+
 if __name__ == "__main__":
     started = False
     while True:
         try:
             with multiprocessing.Pool(1) as pool:
-                res = pool.map_async(validate, [1]).get(timeout=3)
+                res = pool.map_async(validate, [1]).get(timeout=6)
                 try:
                     ltpr = pool.map_async(get_running_tpr, [True]).get(timeout=10)[0]
                 except Exception as e:
-                    warn("Rankless ssh error", f"{type(e)}({str(e)}")
+                    err_w("Rankless ssh error", e)
                     time.sleep(10)
                     continue
-            rem_bytes, full_pct = map(
-                int,
-                re.findall(r"/dev/root.*?(\d+)\s+(\d+)% /\n", ltpr.ssh.run("df"))[0],
-            )
+            try:
+                rem_bytes, full_pct = map(
+                    int,
+                    re.findall(r"/dev/root.*?(\d+)\s+(\d+)% /\n", ltpr.ssh.run("df"))[
+                        0
+                    ],
+                )
+            except:
+                warn("Error getting ssh info", "")
+                continue
             if full_pct >= 97:
                 warn("Rankless filling", f"getting full {full_pct}")
                 time.sleep(20)
                 continue
-
             nfiles = None
             for _ in range(5):
                 try:
@@ -84,5 +93,5 @@ if __name__ == "__main__":
                     f"just started {rem_bytes / 1e6} at {full_pct}% full {nfiles} open",
                 )
         except Exception as e:
-            warn("Rankless Down", f"{type(e)}({str(e)}")
+            err_w("Rankless Down", e)
         time.sleep(20)
