@@ -1,4 +1,4 @@
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 
 use crossbeam_channel::{bounded, Receiver};
 
@@ -55,12 +55,26 @@ pub fn set_and_notify<T>(cvp: AcTuple<T>, val: T) {
 }
 
 pub fn wait_for_data<T>(cvp: AcTuple<Option<T>>) -> T {
+    wait_for_data_with_taker(cvp, |mut x| x.take().unwrap())
+}
+
+pub fn wait_for_data_copy<T>(cvp: AcTuple<Option<T>>) -> T
+where
+    T: Copy,
+{
+    wait_for_data_with_taker(cvp, |x| *x.as_ref().unwrap())
+}
+
+pub fn wait_for_data_with_taker<T, F>(cvp: AcTuple<Option<T>>, taker: F) -> T
+where
+    for<'a> F: FnOnce(MutexGuard<'a, Option<T>>) -> T,
+{
     let (lock, cvar) = &*cvp;
     let mut data = lock.lock().unwrap();
     while data.is_none() {
         data = cvar.wait(data).unwrap();
     }
-    data.take().unwrap()
+    taker(data)
 }
 
 fn para_run<W, T, I>(in_v: I, setup: &W, n_threads: usize)
