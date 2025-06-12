@@ -22,7 +22,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	let semanticId: string = params.semanticId;
 
 	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType);
-	let conf: tt.FullTreeConfig = { semanticId, year: spec.year, treeId: spec.treeId, rootType };
+	let conf: tt.FullTreeConfig = { semanticId, year: spec.year, treeId: spec.treeId, rootType, wide: false };
 	let newSemId: string | undefined = semanticId.toLowerCase();
 	if (rootType == 'countries') {
 		if (semanticId.length == 2) {

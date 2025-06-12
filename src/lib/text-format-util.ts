@@ -443,6 +443,16 @@ const SEM_MAP = {
 				}
 			},
 			semantic: 'collaborate with authors in'
+		},
+
+		'countries-false': {
+			children: {
+				'subfields-false': {
+					children: { 'institutions-false': { semantic: 'at' } },
+					semantic: 'working on'
+				}
+			},
+			semantic: 'are cited by authors working in'
 		}
 	},
 	subfields: {

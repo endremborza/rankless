@@ -46,7 +46,7 @@
 	function updateCountryRespAndId(data) {
 		let _countryL1Specs = getCountryInds(data.treeSpecs.specs[data.conf.rootType]);
 		return data.treeSpecs.specs[data.conf.rootType][data.conf.treeId].rootType == 'countries'
-			? [{ tree: data.tree, atts: data.atts, shallowed: true }, data.conf.treeId, _countryL1Specs]
+			? [undefined, data.conf.treeId, _countryL1Specs]
 			: [undefined, _countryL1Specs[0] || -1, _countryL1Specs];
 	}
 	let countryResp: tt.TreeResponse | undefined;

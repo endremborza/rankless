@@ -30,7 +30,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	let rootType = params.rootType as tt.RootType;
 	let semanticId = params.semanticId;
 	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType);
-	let conf: tt.FullTreeConfig = { semanticId, year: spec.year, treeId: spec.treeId, rootType };
+	let conf: tt.FullTreeConfig = { semanticId, year: spec.year, treeId: spec.treeId, rootType, wide: false };
 	const { tree, atts } = await fetch(tf.treeBeUrl(BE_URL, conf, 1))
 		.then((res) => res.json())
 		.then((resp) => resp);

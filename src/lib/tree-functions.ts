@@ -84,6 +84,9 @@ export function treeBeUrl(root: string, conf: tt.FullTreeConfig, shallow: undefi
 	if (shallow != undefined) {
 		url += `&shallow=${shallow}`
 	}
+	if (conf.wide) {
+		url += `&wide=true`
+	}
 	return url
 }
 

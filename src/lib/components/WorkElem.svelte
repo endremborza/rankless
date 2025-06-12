@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import HoverI from './HoverI.svelte';
 	import HoverBlock from './HoverBlock.svelte';
-	import AxesOfFocusReach from './AxesOfFocusReach.svelte';
+	// import AxesOfFocusReach from './AxesOfFocusReach.svelte';
 
 	export let workId: number;
 	export let citeText: string;

@@ -7,7 +7,7 @@
 	import countryPaths from '$lib/assets/data/country-svg-paths.json';
 	// import countryBoxes from '$lib/assets/data/country-svg-boxes.json';
 	import { getColor, getColorArr } from '$lib/style-util';
-	import { formatNumber, semantify } from '$lib/text-format-util';
+	import { formatNumber } from '$lib/text-format-util';
 	import { BE_REMOTE_URL, HIGH_OP, LOW_OP } from '$lib/constants';
 	import PathLevelInfoBox from './PathLevelInfoBox.svelte';
 
@@ -21,7 +21,7 @@
 
 	type LevelT = tt.OMap<{ w: number; id: number }>;
 
-	let year = conf.year;
+	let year = treeSpecs.yearBreaks[0]; //conf.year;
 	let countryLevels: LevelT = {};
 	let mounted = false;
 	let highlighted = '';
@@ -40,7 +40,7 @@
 	let minw: undefined | number;
 	let svgEl: SVGSVGElement;
 	let styleEl: SVGStyleElement | null = null;
-	const TOP_N = 15;
+	const TOP_N = 200;
 
 	let currentTreeSpec = treeSpecs.specs[conf.rootType][treeId];
 	let selectedBreakdowns = tf.getDefaultBreakdowns(currentTreeSpec);
@@ -124,7 +124,7 @@
 	}
 	function reloadResp(treeId: number, year: number, _rootId: number) {
 		if (mounted == false) return;
-		let newConf: tt.FullTreeConfig = { ...conf, treeId, year };
+		let newConf: tt.FullTreeConfig = { ...conf, treeId, year, wide: true };
 		fetch(tf.treeBeUrl(BE_REMOTE_URL, newConf, 0)).then((res) => {
 			res
 				.json()
@@ -156,7 +156,6 @@
 	};
 	$: visibleTreeInfo = getVisTree(resp, globConf);
 	$: isRefSide = (selectedBreakdowns[0] || '').split('-')[1] == 'true';
-	$: if (selectedBreakdowns) console.log(selectedBreakdowns, isRefSide);
 	$: weightText = isSpec
 		? 'Revealed comparative advantage'
 		: isRefSide
@@ -185,7 +184,7 @@
 		};
 	}
 
-	function getGradient(colorRates: number[]) {
+	function getGradient() {
 		let steps = [
 			`rgba(${getColorArr(mainColorRate)}, ${minOp}%) 0%`,
 			`rgba(${getColorArr(mainColorRate)}, ${maxOp}%) 100%`
@@ -197,16 +196,19 @@
 		return `linear-gradient(to right, ${steps.join(', ')})`;
 	}
 
-	type CountryBd = 'countries-true' | 'countries-false';
-
-	const C_SEM_MAP: Record<tt.RootType, Record<CountryBd, string>> = {
-		countries: { 'countries-true': 'collaborating with authores based in' },
+	// type CountryBd = 'countries-true' | 'countries-false';
+	const C_SEM_MAP: Record<tt.RootType, Record<string, string>> = {
+		countries: {
+			'countries-true': 'collaborating with authors based in',
+			'countries-false': 'citing scholars based in'
+		},
 		institutions: {
 			'countries-true': 'collaborating with shcolars at',
-			'countries-false': 'citing shcolars working at at'
+			'countries-false': 'citing scholars working at'
 		},
 		authors: { 'countries-false': 'citing papers authored by' },
-		sources: { 'countries-true': 'where authors publish in' }
+		sources: { 'countries-true': 'where authors publish in' },
+		subfields: {}
 	};
 
 	function countrySemantify(rootType: tt.RootType, bd: string) {
@@ -219,7 +221,7 @@
 		selectedBreakdowns != undefined ? countrySemantify(conf.rootType, selectedBreakdowns[0]) : '';
 </script>
 
-<h3>Top {TOP_N} countries {titleSuffix} {rootName}</h3>
+<h3>Countries {titleSuffix} {rootName}</h3>
 
 <span id="map-control-block">
 	{#if Object.keys(levelOptions).length > 1}

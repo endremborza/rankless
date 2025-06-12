@@ -44,6 +44,7 @@ export type FullTreeConfig = {
 	treeId: number;
 	rootType: RootType;
 	semanticId: string;
+	wide: boolean;
 };
 export type Paper = {
 	year: number; name: string; doi: string; citations: number; yearlyCites: number[]
