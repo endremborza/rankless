@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
     tpr = Transper(SSHrer(ssh_id))
     logtail = tpr.ssh.run(f"tail -{n} /var/log/nginx/access.log")
-    root = f"https://{tpr.get_dns()}"
+    root = f"https://{tpr.get_domain()}"
     hour_df = (
         pd.DataFrame(
             map(
