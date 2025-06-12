@@ -18,11 +18,11 @@
 	export let selectedQcRootId: number;
 
 	export let rootName = '';
+	export let prefixText = '';
 	export let removeHighlightUnhover = true;
 	export let setUrl = true;
 	export let allowControls = true;
 	export let shallowed = false;
-	export let prefixText = '';
 	export let treeSpecs: tt.TreeSpecs;
 	export let selectionState: tt.BareNode = { children: {} };
 	export let completeTree: tt.ResponseNode;
