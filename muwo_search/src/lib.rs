@@ -12,7 +12,6 @@ use std::cmp::min;
 use std::convert::TryInto;
 use std::fmt::Debug;
 use std::{ops::AddAssign, usize};
-use tqdm::Iter;
 
 type IndType = u32;
 
@@ -383,13 +382,7 @@ impl<const S: usize> CustomTrie<S> {
         let mut prep_tree = PrepTrieRoot::new();
         let mut inner_prep = PrepTrieRoot::new();
 
-        for idxed_word in idxed_words
-            .into_iter()
-            .rev()
-            .tqdm()
-            .desc(Some("building trie"))
-            .filter(|e| e.word.len() > 0)
-        {
+        for idxed_word in idxed_words.into_iter().rev().filter(|e| e.word.len() > 0) {
             last_suff = prep_tree.extend(&idxed_word, &mut char_array, 0, &last_suff);
             for i in 1..(idxed_word.word.len() - 1) {
                 inner_prep.extend(&idxed_word, &mut char_array, i, &last_suff);

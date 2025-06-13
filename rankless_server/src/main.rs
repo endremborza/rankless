@@ -451,7 +451,9 @@ impl NameState {
         E: RootInterfaceable + PrepFilter + DistinctionText + MetaMapGetter,
     {
         let responses = Self::get_resps(entif, gets);
+        let now = std::time::Instant::now();
         let engine = SearchEngine::new(responses.iter().map(|e| e.full_name.clone()));
+        println!("search engine for {} in {}", E::NAME, now.elapsed().as_millis());
         let mut semantic_id_map = HashMap::new();
         let mut oa_id_map = HashMap::new();
         let mut kdt_base = Vec::new();
