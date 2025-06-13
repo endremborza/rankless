@@ -454,9 +454,9 @@ impl NameState {
         let now = std::time::Instant::now();
         let engine = SearchEngine::new(responses.iter().map(|e| e.full_name.clone()));
         println!(
-            "search engine for {} in {}",
+            "search engine for {} in {}s",
             E::NAME,
-            now.elapsed().as_millis()
+            now.elapsed().as_secs()
         );
         let mut semantic_id_map = HashMap::new();
         let mut oa_id_map = HashMap::new();
