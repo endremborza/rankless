@@ -54,7 +54,7 @@ type TopRec5<E> = [(u32, ET<E>); 5];
 pub struct Getters {
     ifs: Interfaces,
     pub stowage: Arc<Stowage>,
-    pub wn_locators: Locators<WorksNames, u64>,
+    pub wn_locators: Arc<Locators<WorksNames, u64>>,
     pub inst_oa: Box<[BigId]>,
     pub work_oa: Box<[BigId]>,
     pub hit_papers: Box<[BigId]>,
@@ -355,7 +355,7 @@ impl Getters {
         let hit_papers = reverse_id::<HitPapers>(&stowage);
         let path = stowage.path_from_ns(WorksNames::NS);
         let wn_locators =
-            <Locators<WorksNames, _> as BackendLoading<WorksNames>>::load_backend(&path);
+            <Locators<WorksNames, _> as BackendLoading<WorksNames>>::load_backend(&path).into();
         let ifs = Interfaces::new(stowage.clone());
         println!("loaded full Getters");
         Self {
@@ -386,7 +386,7 @@ impl Getters {
 
         let path = stowage.path_from_ns(WorksNames::NS);
         let wn_locators =
-            <Locators<WorksNames, _> as BackendLoading<WorksNames>>::load_backend(&path);
+            <Locators<WorksNames, _> as BackendLoading<WorksNames>>::load_backend(&path).into();
         let mut ifs = Interfaces::fake();
         //TODO a hack for testing
         ifs.year = YearInterface::iter().collect();

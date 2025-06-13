@@ -24,7 +24,8 @@ use rankless_rs::{
 };
 
 use dmove::{
-    para::AcTuple, BackendLoading, BigId, Entity, InitEmpty, NamespacedEntity, VattReadingMap, ET,
+    para::AcTuple, BackendLoading, BigId, Entity, InitEmpty, NamespacedEntity, VattReadingArcMap,
+    VattReadingMap, ET,
 };
 
 use crate::{
@@ -40,7 +41,7 @@ pub type AttributeLabels = HashMap<String, HashMap<usize, AttributeLabelOut>>;
 pub type CollapsedNode = CollapsedNodeGen<WT>;
 pub type CollapsedNodeJson = CollapsedNodeGen<Option<BigId>>;
 pub type CacheMap = HashMap<CacheKey, CacheValue>;
-pub type ManFileHandle = VattReadingMap<WorksNames>;
+pub type ManFileHandle = VattReadingArcMap<WorksNames>;
 
 pub type ResCvp = AcTuple<Option<AnyResponse>>;
 pub type BoolCvp = AcTuple<Option<()>>;
@@ -558,7 +559,7 @@ where
             .gets
             .stowage
             .path_from_ns(<WorksNames as NamespacedEntity>::NS);
-        VattReadingMap::<WorksNames>::load_backend(&parent)
+        VattReadingArcMap::<WorksNames>::from_locator(self.state.gets.wn_locators.clone(), &parent)
     }
 }
 

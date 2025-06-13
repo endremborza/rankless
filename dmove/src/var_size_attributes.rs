@@ -3,6 +3,7 @@ use std::{
     io::{BufReader, Read, Seek, Write},
     marker::PhantomData,
     path::PathBuf,
+    sync::Arc,
 };
 
 use crate::{
@@ -50,6 +51,16 @@ where
     buf: [u8; MAX_BUF],
 }
 
+pub struct VattReadingArcMap<E>
+where
+    E: VariableSizeAttribute,
+    <E as Entity>::T: VarSizedAttributeElement,
+{
+    file_pair: VattFilePair,
+    locators: Arc<Locators<E, u64>>,
+    buf: [u8; MAX_BUF],
+}
+
 pub struct VattArrPair<E, LT>
 where
     E: VariableSizeAttribute,
@@ -87,7 +98,7 @@ where
     <E as Entity>::T: VarSizedAttributeElement,
     LocType: UnsignedNumber,
 {
-    divided_locs: Box<[LocType]>,
+    divided_locs: Box<[LocType]>, //needs to be large enough for end of file
     divided_sizes: Box<[E::SizeType]>,
 }
 
@@ -179,6 +190,21 @@ where
     E::T: VarSizedAttributeElement,
 {
     pub fn from_locator(locators: &'a Locators<E, u64>, parent: &PathBuf) -> Self {
+        let file_pair = VattFilePair::open(&parent.join(E::NAME));
+        Self {
+            locators,
+            buf: [0; MAX_BUF],
+            file_pair,
+        }
+    }
+}
+
+impl<E> VattReadingArcMap<E>
+where
+    E: VariableSizeAttribute,
+    E::T: VarSizedAttributeElement,
+{
+    pub fn from_locator(locators: Arc<Locators<E, u64>>, parent: &PathBuf) -> Self {
         let file_pair = VattFilePair::open(&parent.join(E::NAME));
         Self {
             locators,
@@ -427,6 +453,16 @@ where
 {
     fn get_via_mut(&mut self, k: &usize) -> Option<<E as Entity>::T> {
         get_via_mut(self.locators, &mut self.file_pair, &mut self.buf, k)
+    }
+}
+
+impl<E> EntityMutableMapperBackend<E> for VattReadingArcMap<E>
+where
+    E: CompactEntity + VariableSizeAttribute,
+    <E as Entity>::T: VarSizedAttributeElement,
+{
+    fn get_via_mut(&mut self, k: &usize) -> Option<<E as Entity>::T> {
+        get_via_mut(&self.locators, &mut self.file_pair, &mut self.buf, k)
     }
 }
 
