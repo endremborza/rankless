@@ -453,7 +453,11 @@ impl NameState {
         let responses = Self::get_resps(entif, gets);
         let now = std::time::Instant::now();
         let engine = SearchEngine::new(responses.iter().map(|e| e.full_name.clone()));
-        println!("search engine for {} in {}", E::NAME, now.elapsed().as_millis());
+        println!(
+            "search engine for {} in {}",
+            E::NAME,
+            now.elapsed().as_millis()
+        );
         let mut semantic_id_map = HashMap::new();
         let mut oa_id_map = HashMap::new();
         let mut kdt_base = Vec::new();
@@ -593,6 +597,7 @@ fn get_rest(
     let mut ei_ns_map = HashMap::new();
     let cv_pair = AcTuple::<Option<f64>>::init_empty();
 
+    print_mem_use("pre thread starts");
     //TODO: make this a macro
     add_thread::<Institutions>(&gets, &static_att_union, &cv_pair, &mut ei_ns_map);
     add_thread::<Authors>(&gets, &static_att_union, &cv_pair, &mut ei_ns_map);
@@ -617,6 +622,7 @@ fn get_rest(
         descriptions.push(ed);
         ns_map.insert(name, nstate);
     }
+    print_mem_use("after ei ns map");
     let satts = Arc::new(
         Arc::into_inner(static_att_union)
             .unwrap()
@@ -624,7 +630,19 @@ fn get_rest(
             .unwrap(),
     );
     let tm: Arc<InstTrm> = TreeRunManager::new(gets, satts.clone(), N_THREADS);
+    print_mem_use("got tm");
     (ns_map, satts, tm, descriptions, tops)
+}
+
+fn print_mem_use(suff: &str) {
+    if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
+        for line in status.lines() {
+            if line.starts_with("VmRSS:") {
+                println!("Memory usage at {suff}: {line}");
+                break;
+            }
+        }
+    }
 }
 
 fn add_thread<E>(
