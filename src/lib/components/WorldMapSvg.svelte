@@ -57,10 +57,11 @@
 	);
 	$: currentTreeSpec = treeSpecs.specs[conf.rootType][treeId];
 
-	const fixName = (s: string) => (s == 'Türkiye' ? 'Turkey' : s);
+	const fixNameForPaths = (s: string) => (s == 'Türkiye' ? 'Turkey' : s);
+	const fixNameForData = (s: string) => (s == 'Turkey' ? 'Türkiye' : s);
 
 	function classNamer(s: string) {
-		let sn = fixName(s);
+		let sn = fixNameForPaths(s);
 		return `country-${sn.toLowerCase().replaceAll(' ', '-')}`;
 	}
 
@@ -214,7 +215,7 @@
 	function setHover(cc: string) {
 		return () => {
 			if (!clicked) {
-				highlighted = fixName(cc);
+				highlighted = fixNameForData(cc);
 				if (highlighted in countryLevels && highlighted != '') {
 					infoPath = [countryLevels[highlighted].id];
 					if (maxw != undefined && minw != undefined) {
