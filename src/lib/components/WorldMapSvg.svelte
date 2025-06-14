@@ -61,7 +61,7 @@
 		return `country-${s.toLowerCase().replaceAll(' ', '-')}`;
 	}
 
-	const getOpaRate = (i: number, n: number) => (i / (n + 1)) * (maxOp - minOp) + minOp;
+	const getOpaRate = (i: number, n: number) => (i / n) * (maxOp - minOp) + minOp;
 
 	function getClassStyles(
 		levels: LevelT,
@@ -140,8 +140,6 @@
 		}
 	}
 
-	function getVisTree() {}
-
 	function updateTreeId(bSelected: string[], bdOptions: tt.BreakdownOptions) {
 		let bop = bSelected[0];
 		let treeIds = bdOptions[bop]?.treeSpecs || [];
@@ -194,7 +192,6 @@
 	});
 
 	let globConf: tt.FullControlSpecs;
-
 	$: globConf = {
 		globalSizeBase: isSpec ? 'specialization' : 'volume',
 		globalLimit: TOP_N,
@@ -325,7 +322,9 @@
 				<div
 					class="label-bp-box"
 					style="background-color: rgba({getColorArr(mainColorRate)}, {getOpaRate(i, nBreakPoints) /
-						100})"
+						100}); color: {getOpaRate(i, nBreakPoints) < 50
+						? 'var(--color-text)'
+						: 'var(--color-theme-white)'}"
 					role="region"
 					on:mouseover={() => {
 						highlightedQ = i;
@@ -392,6 +391,7 @@
 		display: flex;
 		justify-content: space-evenly;
 		padding: 6px;
+		font-weight: 600;
 	}
 
 	.label-bp-container {
