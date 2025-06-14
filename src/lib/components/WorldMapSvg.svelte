@@ -26,6 +26,7 @@
 	let mounted = false;
 	let highlighted = '';
 	let highlightedRate: undefined | number;
+	let highlightedQ = -1;
 	let infoPath: number[] = [];
 
 	let minOp = LOW_OP * 0.5;
@@ -40,7 +41,12 @@
 	let minw: undefined | number;
 	let svgEl: SVGSVGElement;
 	let styleEl: SVGStyleElement | null = null;
+
 	const TOP_N = 200;
+
+	let nBreakPoints = 3;
+	let pullerRate = 0.15;
+	let breakPoints: number[] = [];
 
 	let currentTreeSpec = treeSpecs.specs[conf.rootType][treeId];
 	let selectedBreakdowns = tf.getDefaultBreakdowns(currentTreeSpec);
@@ -55,25 +61,46 @@
 		return `country-${s.toLowerCase().replaceAll(' ', '-')}`;
 	}
 
-	function getClassStyles(levels: LevelT, highlighted: string) {
+	const getOpaRate = (i: number, n: number) => (i / (n + 1)) * (maxOp - minOp) + minOp;
+
+	function getClassStyles(levels: LevelT, highlighted: string, highlightedQ: number) {
 		maxw = undefined;
 		minw = undefined;
+		let scaleBpPrep = [];
 		for (const { w } of Object.values(levels)) {
-			if (maxw == undefined || w > maxw) {
-				maxw = w;
-			}
-			if (minw == undefined || w < minw) {
-				minw = w;
-			}
+			if (maxw == undefined || w > maxw) maxw = w;
+			if (minw == undefined || w < minw) minw = w;
+			if (nBreakPoints > 0) scaleBpPrep.push(w);
 		}
+		if (nBreakPoints > 0) scaleBpPrep.sort();
+		breakPoints = [minw || 0];
 		let wspan = (maxw || 1) - (minw || 0);
-		const scaler = (w: number) => ((w - (minw || 0)) / wspan) * (maxOp - minOp) + minOp;
+		for (let i = 1; i <= nBreakPoints; i++) {
+			let rate = i / (nBreakPoints + 1);
+			let puller = rate * wspan + (minw || 0);
+			let qVal = scaleBpPrep[Math.floor(scaleBpPrep.length * rate)];
+			breakPoints.push(pullerRate * puller + (1 - pullerRate) * qVal);
+		}
+		let scaler = (w: number) => {
+			let op = ((w - (minw || 0)) / wspan) * (maxOp - minOp) + minOp;
+			return { op, hl: false };
+		};
+		if (nBreakPoints > 0) {
+			scaler = (w: number) => {
+				let oI = 0;
+				for (let i = 1; i <= nBreakPoints; i++) {
+					if (w >= breakPoints[i]) oI++;
+				}
+				return { op: getOpaRate(oI, nBreakPoints), hl: oI == highlightedQ };
+			};
+		}
 		const sLines = [];
 		for (const [c, { w }] of Object.entries(levels)) {
 			let lineColor = getColor(mainColorRate);
 			let isHighlighted = c == highlighted;
-			let opa = scaler(w) / 100;
-			let line = `fill: ${lineColor}; fill-opacity: ${opa};`;
+			let { op, hl } = scaler(w);
+			isHighlighted = isHighlighted || hl;
+			let line = `fill: ${lineColor}; fill-opacity: ${op / 100};`;
 			if (isHighlighted) {
 				line += `stroke-width: 4.5;`;
 			}
@@ -118,9 +145,15 @@
 		}
 	}
 
-	function updateStyle(styleEl: SVGStyleElement | null, l1Weights: LevelT, highlighted: string) {
+	function updateStyle(
+		styleEl: SVGStyleElement | null,
+		l1Weights: LevelT,
+		highlighted: string,
+		highlightedQ: number,
+		_nbp: number
+	) {
 		if (styleEl == undefined) return;
-		styleEl.textContent = getClassStyles(l1Weights, highlighted);
+		styleEl.textContent = getClassStyles(l1Weights, highlighted, highlightedQ);
 	}
 	function reloadResp(treeId: number, year: number, _rootId: number) {
 		if (mounted == false) return;
@@ -163,7 +196,7 @@
 		: 'Citations';
 	$: updateTreeId(selectedBreakdowns, levelOptions);
 	$: updateL1(visibleTreeInfo);
-	$: updateStyle(styleEl, countryLevels, highlighted);
+	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints);
 	$: reloadResp(treeId, year, rootId);
 
 	let clicked = false;
@@ -254,6 +287,7 @@
 				class={classNamer(cc)}
 				role="region"
 				on:mouseover={setHover(cc)}
+				on:mouseleave={setHover('')}
 				on:click={() => {
 					clicked = !clicked;
 					setHover(cc)();
@@ -264,15 +298,42 @@
 </svg>
 
 <div id="map-label-container" style="--grad: {getGradient()}">
-	<div>{formatNumber(minw || 0)}</div>
-	<div class="label-gradient-box">
-		{#if highlightedRate != undefined}<div
-				id="w-tick"
-				style="--loff: {highlightedRate * 100}%"
-			/>{/if}
-	</div>
-	<div>{formatNumber(maxw || 0)}</div>
+	{#if nBreakPoints > 0}
+		<!-- svelte-ignore a11y-mouse-events-have-key-events -->
+		<div class="label-bp-container">
+			{#each breakPoints as bp, i}
+				<div
+					class="label-bp-box"
+					style="background-color: rgba({getColorArr(mainColorRate)}, {getOpaRate(i, nBreakPoints) /
+						100})"
+					role="region"
+					on:mouseover={() => {
+						highlightedQ = i;
+					}}
+					on:mouseleave={() => {
+						highlightedQ = -1;
+					}}
+				>
+					<span>{formatNumber(bp)}</span> <span>-</span>
+					<span>{formatNumber(breakPoints[i + 1] - 1 || maxw || 0)}</span>
+				</div>
+			{/each}
+		</div>
+	{:else}
+		<div>{formatNumber(minw || 0)}</div>
+		<div class="label-gradient-box">
+			{#if highlightedRate != undefined}<div
+					id="w-tick"
+					style="--loff: {highlightedRate * 100}%"
+				/>{/if}
+		</div>
+		<div>{formatNumber(maxw || 0)}</div>
+	{/if}
 	<div id="w-text">{weightText}</div>
+	<div id="bp-ctrl">
+		{nBreakPoints} breakpoints
+		<input type="range" bind:value={nBreakPoints} step="1" min="0" max="7" />
+	</div>
 </div>
 
 <div id="map-hover">
@@ -303,6 +364,21 @@
 		fill-opacity: 0;
 		stroke: var(--color-text);
 		transition: all 800ms;
+	}
+
+	.label-bp-box {
+		flex: 1;
+		max-width: 140px;
+		display: flex;
+		justify-content: space-evenly;
+		padding: 6px;
+	}
+
+	.label-bp-container {
+		width: 100%;
+		display: flex;
+		justify-content: center;
+		gap: var(--unified-padding);
 	}
 
 	.label-gradient-box {
