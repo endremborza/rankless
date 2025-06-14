@@ -397,6 +397,7 @@
 	.label-bp-container {
 		width: 100%;
 		display: flex;
+		flex-wrap: wrap;
 		justify-content: center;
 		gap: var(--unified-padding);
 	}
@@ -415,6 +416,7 @@
 
 	#map-control-block {
 		display: flex;
+		flex-wrap: wrap;
 		gap: var(--unified-padding);
 		justify-content: center;
 		width: 100%;
