@@ -57,8 +57,10 @@
 	);
 	$: currentTreeSpec = treeSpecs.specs[conf.rootType][treeId];
 
+	const fixName = (s: string) => (s == 'Türkiye' ? 'Turkey' : s);
+
 	function classNamer(s: string) {
-		let sn = s == 'Türkiye' ? 'Turkey' : s;
+		let sn = fixName(s);
 		return `country-${sn.toLowerCase().replaceAll(' ', '-')}`;
 	}
 
@@ -212,11 +214,11 @@
 	function setHover(cc: string) {
 		return () => {
 			if (!clicked) {
-				highlighted = cc;
-				if (cc in countryLevels && cc != '') {
-					infoPath = [countryLevels[cc].id];
+				highlighted = fixName(cc);
+				if (highlighted in countryLevels && highlighted != '') {
+					infoPath = [countryLevels[highlighted].id];
 					if (maxw != undefined && minw != undefined) {
-						highlightedRate = (countryLevels[cc].w - minw) / (maxw - minw);
+						highlightedRate = (countryLevels[highlighted].w - minw) / (maxw - minw);
 					}
 				} else {
 					infoPath = [];
