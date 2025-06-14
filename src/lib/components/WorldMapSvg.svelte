@@ -229,6 +229,14 @@
 		return `linear-gradient(to right, ${steps.join(', ')})`;
 	}
 
+	function bpEnd(bps: number[], i: number) {
+		let nBp = bps[i + 1] - 1 || maxw || 0;
+		if (nBp < bps[i]) {
+			return nBp + 1;
+		}
+		return nBp;
+	}
+
 	// type CountryBd = 'countries-true' | 'countries-false';
 	const C_SEM_MAP: Record<tt.RootType, Record<string, string>> = {
 		countries: {
@@ -315,7 +323,7 @@
 					}}
 				>
 					<span>{formatNumber(bp)}</span> <span>-</span>
-					<span>{formatNumber(breakPoints[i + 1] - 1 || maxw || 0)}</span>
+					<span>{formatNumber(bpEnd(breakPoints, i))}</span>
 				</div>
 			{/each}
 		</div>
