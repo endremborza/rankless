@@ -389,6 +389,7 @@
 		justify-content: space-evenly;
 		padding: 6px;
 		font-weight: 600;
+		cursor: default;
 	}
 
 	.label-bp-container {
