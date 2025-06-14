@@ -384,11 +384,12 @@
 
 	.label-bp-box {
 		flex: 1;
-		max-width: 140px;
+		max-width: 120px;
 		display: flex;
 		justify-content: space-evenly;
-		padding: 6px;
+		padding: 4px;
 		font-weight: 600;
+		font-size: 12px;
 		cursor: default;
 	}
 
