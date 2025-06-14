@@ -37,8 +37,8 @@
 	let yMin = -20;
 	let mapWidth = 2000;
 	let mapHeight = 950;
-	let maxw: undefined | number;
-	let minw: undefined | number;
+	let maxw = 0;
+	let minw = 0;
 	let svgEl: SVGSVGElement;
 	let styleEl: SVGStyleElement | null = null;
 
@@ -48,14 +48,14 @@
 	let pullerRate = 0.15;
 	let breakPoints: number[] = [];
 
-	let currentTreeSpec = treeSpecs.specs[conf.rootType][treeId];
-	let selectedBreakdowns = tf.getDefaultBreakdowns(currentTreeSpec);
+	let selectedBreakdowns = tf.getDefaultBreakdowns(treeSpecs.specs[conf.rootType][treeId]);
 	let isSpec = false;
 
 	$: levelOptions = tf.fillBreakdownOptions(
 		countryL1Specs.map((e) => [e, treeSpecs.specs[conf.rootType][e]]),
 		1
 	);
+	$: currentTreeSpec = treeSpecs.specs[conf.rootType][treeId];
 
 	function classNamer(s: string) {
 		return `country-${s.toLowerCase().replaceAll(' ', '-')}`;
@@ -63,34 +63,43 @@
 
 	const getOpaRate = (i: number, n: number) => (i / (n + 1)) * (maxOp - minOp) + minOp;
 
-	function getClassStyles(levels: LevelT, highlighted: string, highlightedQ: number) {
-		maxw = undefined;
-		minw = undefined;
+	function getClassStyles(
+		levels: LevelT,
+		highlighted: string,
+		highlightedQ: number,
+		nBreakPoints: number
+	) {
+		if (Object.values(levels).length == 0) return '';
+		let locMaxw: undefined | number = undefined;
+		let locMinw: undefined | number = undefined;
 		let scaleBpPrep = [];
 		for (const { w } of Object.values(levels)) {
-			if (maxw == undefined || w > maxw) maxw = w;
-			if (minw == undefined || w < minw) minw = w;
+			if (locMaxw == undefined || w > locMaxw) locMaxw = w;
+			if (locMinw == undefined || w < locMinw) locMinw = w;
 			if (nBreakPoints > 0) scaleBpPrep.push(w);
 		}
 		if (nBreakPoints > 0) scaleBpPrep.sort((a, b) => a - b);
-		breakPoints = [minw || 0];
-		let wspan = (maxw || 1) - (minw || 0);
+		let newBreakPoints = [locMinw || 0];
+		let wspan = (locMaxw || 1) - (locMinw || 0);
 		for (let i = 1; i <= nBreakPoints; i++) {
 			let rate = i / (nBreakPoints + 1);
-			let puller = rate * wspan + (minw || 0);
+			let puller = rate * wspan + (locMinw || 0);
 			let qInd = Math.floor(scaleBpPrep.length * rate);
 			let qVal = scaleBpPrep[qInd];
-			breakPoints.push(pullerRate * puller + (1 - pullerRate) * qVal);
+			// console.log(i, puller, qVal, qInd, scaleBpPrep);
+			newBreakPoints.push(pullerRate * puller + (1 - pullerRate) * qVal);
 		}
+		// console.log(newBreakPoints);
+		// console.log(scaleBpPrep);
 		let scaler = (w: number) => {
-			let op = ((w - (minw || 0)) / wspan) * (maxOp - minOp) + minOp;
+			let op = ((w - (locMinw || 0)) / wspan) * (maxOp - minOp) + minOp;
 			return { op, hl: false };
 		};
 		if (nBreakPoints > 0) {
 			scaler = (w: number) => {
 				let oI = 0;
 				for (let i = 1; i <= nBreakPoints; i++) {
-					if (w >= breakPoints[i]) oI++;
+					if (w >= newBreakPoints[i]) oI++;
 				}
 				return { op: getOpaRate(oI, nBreakPoints), hl: oI == highlightedQ };
 			};
@@ -107,12 +116,18 @@
 			}
 			sLines.push(`path.${classNamer(c)} {${line}}`);
 		}
+		[minw, maxw, breakPoints] = [locMinw || 0, locMaxw || 1, newBreakPoints];
 		return sLines.join('\n');
 	}
 
-	function updateL1(visTree: tt.TreeInfo | undefined) {
-		if (visTree == undefined) return;
+	function updateL1(
+		resp: tt.TreeResponse | undefined,
+		globConf: tt.FullControlSpecs,
+		spec: tt.TreeSpec
+	) {
 		if (resp == undefined) return;
+		let visTree = tf.deriveVisibleTree(resp.tree, globConf, {}, resp.atts, spec);
+		if (visTree == undefined) return;
 		let l1Type = 'countries' as tt.RootType;
 		try {
 			let l1Kv = Object.entries(visTree.tree.children).map(([k, v]) => [
@@ -121,14 +136,11 @@
 			]);
 			countryLevels = Object.fromEntries(l1Kv);
 		} catch (error) {
-			// console.log(error);
+			console.log(error);
 		}
 	}
 
-	function getVisTree(resp: tt.TreeResponse | undefined, globConf: tt.FullControlSpecs) {
-		if (resp == undefined) return undefined;
-		return tf.deriveVisibleTree(resp.tree, globConf, {}, resp.atts, currentTreeSpec);
-	}
+	function getVisTree() {}
 
 	function updateTreeId(bSelected: string[], bdOptions: tt.BreakdownOptions) {
 		let bop = bSelected[0];
@@ -151,10 +163,10 @@
 		l1Weights: LevelT,
 		highlighted: string,
 		highlightedQ: number,
-		_nbp: number
+		nbps: number
 	) {
 		if (styleEl == undefined) return;
-		styleEl.textContent = getClassStyles(l1Weights, highlighted, highlightedQ);
+		styleEl.textContent = getClassStyles(l1Weights, highlighted, highlightedQ, nbps);
 	}
 	function reloadResp(treeId: number, year: number, _rootId: number) {
 		if (mounted == false) return;
@@ -188,7 +200,6 @@
 		globalLimit: TOP_N,
 		levelSpecs: [tf.DEFAULT_CONTROL_SPEC]
 	};
-	$: visibleTreeInfo = getVisTree(resp, globConf);
 	$: isRefSide = (selectedBreakdowns[0] || '').split('-')[1] == 'true';
 	$: weightText = isSpec
 		? 'Revealed comparative advantage'
@@ -196,7 +207,7 @@
 		? 'Total citations of papers'
 		: 'Citations';
 	$: updateTreeId(selectedBreakdowns, levelOptions);
-	$: updateL1(visibleTreeInfo);
+	$: updateL1(resp, globConf, currentTreeSpec);
 	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints);
 	$: reloadResp(treeId, year, rootId);
 
