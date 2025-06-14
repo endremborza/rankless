@@ -21,7 +21,8 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	}
 	let semanticId: string = params.semanticId;
 
-	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType);
+	const treeSpecs = await lf.loadSpecs();
+	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
 	let conf: tt.FullTreeConfig = { semanticId, year: spec.year, treeId: spec.treeId, rootType, wide: false };
 	let newSemId: string | undefined = semanticId.toLowerCase();
 	if (rootType == 'countries') {
@@ -48,7 +49,6 @@ export const load: PageServerLoad = async ({ params, url }) => {
 		error(404, 'Not found');
 	}
 
-	const treeSpecs = await lf.loadSpecs();
 
 	const treeResp: tt.TreeResponse = await fetch(tf.treeBeUrl(BE_URL, conf, 1))
 		.then((res) => res.json())

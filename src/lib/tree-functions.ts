@@ -126,9 +126,13 @@ export function toLinkWithParams(conf: tt.FullTreeConfig, selectionState: tt.Bar
 	let url = entToLink({ rootType: conf.rootType, semanticId: conf.semanticId });
 	return decorBaseLink(url, conf, selectionState)
 }
-export function parseLinkWithParams(params: URLSearchParams, rootType: tt.RootType): tt.ShareSpec {
+export function parseLinkWithParams(params: URLSearchParams, rootType: tt.RootType, treeSpecs: tt.TreeSpecs): tt.ShareSpec {
 	let year = parseInt(params.get('since') || getDefaultYear(rootType).toString());
 	let treeId = parseInt(params.get('tree') || '1') - 1 || 0;
+	let nTrees = treeSpecs.specs[rootType].length;
+	if (treeId < 0 || treeId >= nTrees) {
+		treeId = 0;
+	}
 	let selectionStateStr = params.get('paths') || '';
 	let selectionState = nodeFromConfStr(selectionStateStr);
 	return { year, treeId, selectionState };

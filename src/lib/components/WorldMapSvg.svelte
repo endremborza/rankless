@@ -89,8 +89,6 @@
 			// console.log(i, puller, qVal, qInd, scaleBpPrep);
 			newBreakPoints.push(pullerRate * puller + (1 - pullerRate) * qVal);
 		}
-		// console.log(newBreakPoints);
-		// console.log(scaleBpPrep);
 		let scaler = (w: number) => {
 			let op = ((w - (locMinw || 0)) / wspan) * (maxOp - minOp) + minOp;
 			return { op, hl: false };
@@ -122,10 +120,15 @@
 
 	function updateL1(
 		resp: tt.TreeResponse | undefined,
-		globConf: tt.FullControlSpecs,
+		isSpecialization: boolean,
 		spec: tt.TreeSpec
 	) {
 		if (resp == undefined) return;
+		let globConf: tt.FullControlSpecs = {
+			globalSizeBase: isSpecialization ? 'specialization' : 'volume',
+			globalLimit: TOP_N,
+			levelSpecs: [tf.DEFAULT_CONTROL_SPEC]
+		};
 		let visTree = tf.deriveVisibleTree(resp.tree, globConf, {}, resp.atts, spec);
 		if (visTree == undefined) return;
 		let l1Type = 'countries' as tt.RootType;
@@ -191,12 +194,6 @@
 		}
 	});
 
-	let globConf: tt.FullControlSpecs;
-	$: globConf = {
-		globalSizeBase: isSpec ? 'specialization' : 'volume',
-		globalLimit: TOP_N,
-		levelSpecs: [tf.DEFAULT_CONTROL_SPEC]
-	};
 	$: isRefSide = (selectedBreakdowns[0] || '').split('-')[1] == 'true';
 	$: weightText = isSpec
 		? 'Revealed comparative advantage'
@@ -204,7 +201,7 @@
 		? 'Total citations of papers'
 		: 'Citations';
 	$: updateTreeId(selectedBreakdowns, levelOptions);
-	$: updateL1(resp, globConf, currentTreeSpec);
+	$: updateL1(resp, isSpec, currentTreeSpec);
 	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints);
 	$: reloadResp(treeId, year, rootId);
 

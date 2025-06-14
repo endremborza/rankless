@@ -45,7 +45,8 @@
 	}
 	function updateCountryRespAndId(data) {
 		let _countryL1Specs = getCountryInds(data.treeSpecs.specs[data.conf.rootType]);
-		return data.treeSpecs.specs[data.conf.rootType][data.conf.treeId].rootType == 'countries'
+		return data.treeSpecs.specs[data.conf.rootType][data.conf.treeId].breakdowns[0].attributeType ==
+			'countries'
 			? [undefined, data.conf.treeId, _countryL1Specs]
 			: [undefined, _countryL1Specs[0] || -1, _countryL1Specs];
 	}
