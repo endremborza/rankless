@@ -80,7 +80,6 @@
 			let puller = rate * wspan + (minw || 0);
 			let qInd = Math.floor(scaleBpPrep.length * rate);
 			let qVal = scaleBpPrep[qInd];
-			console.log(i, puller, qVal, qInd, scaleBpPrep);
 			breakPoints.push(pullerRate * puller + (1 - pullerRate) * qVal);
 		}
 		let scaler = (w: number) => {
