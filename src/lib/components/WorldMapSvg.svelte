@@ -58,7 +58,8 @@
 	$: currentTreeSpec = treeSpecs.specs[conf.rootType][treeId];
 
 	function classNamer(s: string) {
-		return `country-${s.toLowerCase().replaceAll(' ', '-')}`;
+		let sn = s == 'Türkiye' ? 'Turkey' : s;
+		return `country-${sn.toLowerCase().replaceAll(' ', '-')}`;
 	}
 
 	const getOpaRate = (i: number, n: number) => (i / n) * (maxOp - minOp) + minOp;
@@ -67,7 +68,8 @@
 		levels: LevelT,
 		highlighted: string,
 		highlightedQ: number,
-		nBreakPoints: number
+		nBreakPoints: number,
+		pullerRate: number
 	) {
 		if (Object.values(levels).length == 0) return '';
 		let locMaxw: undefined | number = undefined;
@@ -164,10 +166,11 @@
 		l1Weights: LevelT,
 		highlighted: string,
 		highlightedQ: number,
-		nbps: number
+		nbps: number,
+		pullerRate: number
 	) {
 		if (styleEl == undefined) return;
-		styleEl.textContent = getClassStyles(l1Weights, highlighted, highlightedQ, nbps);
+		styleEl.textContent = getClassStyles(l1Weights, highlighted, highlightedQ, nbps, pullerRate);
 	}
 	function reloadResp(treeId: number, year: number, _rootId: number) {
 		if (mounted == false) return;
@@ -202,7 +205,7 @@
 		: 'Citations';
 	$: updateTreeId(selectedBreakdowns, levelOptions);
 	$: updateL1(resp, isSpec, currentTreeSpec);
-	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints);
+	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints, pullerRate);
 	$: reloadResp(treeId, year, rootId);
 
 	let clicked = false;
@@ -350,6 +353,11 @@
 		{nBreakPoints} breakpoints
 		<input type="range" bind:value={nBreakPoints} step="1" min="0" max="7" />
 	</div>
+	<div id="pct-ctrl">
+		Percentile
+		<input type="range" bind:value={pullerRate} step="0.01" min="0" max="1" />
+		Linear
+	</div>
 </div>
 
 <div id="map-hover">
@@ -405,6 +413,13 @@
 		width: 80%;
 		height: 16px;
 		background: var(--grad);
+	}
+
+	#pct-ctrl {
+		width: 100%;
+		display: flex;
+		justify-content: center;
+		gap: 10px;
 	}
 
 	#map-hover {
