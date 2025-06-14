@@ -72,13 +72,15 @@
 			if (minw == undefined || w < minw) minw = w;
 			if (nBreakPoints > 0) scaleBpPrep.push(w);
 		}
-		if (nBreakPoints > 0) scaleBpPrep.sort();
+		if (nBreakPoints > 0) scaleBpPrep.sort((a, b) => a - b);
 		breakPoints = [minw || 0];
 		let wspan = (maxw || 1) - (minw || 0);
 		for (let i = 1; i <= nBreakPoints; i++) {
 			let rate = i / (nBreakPoints + 1);
 			let puller = rate * wspan + (minw || 0);
-			let qVal = scaleBpPrep[Math.floor(scaleBpPrep.length * rate)];
+			let qInd = Math.floor(scaleBpPrep.length * rate);
+			let qVal = scaleBpPrep[qInd];
+			console.log(i, puller, qVal, qInd, scaleBpPrep);
 			breakPoints.push(pullerRate * puller + (1 - pullerRate) * qVal);
 		}
 		let scaler = (w: number) => {
@@ -204,7 +206,7 @@
 		return () => {
 			if (!clicked) {
 				highlighted = cc;
-				if (cc in countryLevels) {
+				if (cc in countryLevels && cc != '') {
 					infoPath = [countryLevels[cc].id];
 					if (maxw != undefined && minw != undefined) {
 						highlightedRate = (countryLevels[cc].w - minw) / (maxw - minw);

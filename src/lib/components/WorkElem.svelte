@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { AttributeLabels } from '$lib/tree-types';
+	import type { AttributeLabels, AttributeLabel } from '$lib/tree-types';
 	import { onMount } from 'svelte';
 	import HoverI from './HoverI.svelte';
 	import HoverBlock from './HoverBlock.svelte';
@@ -18,9 +18,22 @@
 	let authors: { name: string; link: string; isOfInst: boolean }[] = [];
 	let localCount = 0;
 
-	$: instAtts = instId === undefined ? { name: '' } : attributeLabels?.institutions[instId];
-	$: instName = instAtts?.name || '';
-	$: instOaNum = (attributeLabels?.institutions || {})[instId || 0]?.oaId || -1;
+	function getInstInfo(labels: AttributeLabels, id: number | undefined): [AttributeLabel, number] {
+		let instAtts: AttributeLabel = { name: '', oaId: -1, specBaseline: 0 };
+		let instOaNum = -1;
+		let instLabs = labels?.institutions;
+		if (instLabs != undefined && id != undefined) {
+			let thisInstAtts = instLabs[id];
+			if (thisInstAtts != undefined) {
+				instAtts = thisInstAtts;
+				instOaNum = instAtts.oaId || -1;
+			}
+		}
+		return [instAtts, instOaNum];
+	}
+
+	$: [instAtts, instOaNum] = getInstInfo(attributeLabels, instId);
+	$: instName = instAtts.name || '';
 	$: fullInstName = instName.length > 50 ? 'affiliated' : `from ${instName}`;
 	let oaLink = `https://openalex.org/works/W${workId}`;
 	$: href = doi.length > 0 ? doi : oaLink;
