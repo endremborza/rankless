@@ -633,6 +633,12 @@ def full_setup_from_nothing(tpr: Transper, domain, procn: int, backend=True, bun
         tpr.build_rs()
         tpr.sync_data_to()
         tpr.setup_be_service()
+    for live in [False, True]:
+        try:
+            get_running_tpr(live).pull_certs()
+            tpr.push_certs()
+        except:
+            pass
     tpr.push_certs()
     tpr.setup_nginx(cert=False)
 
