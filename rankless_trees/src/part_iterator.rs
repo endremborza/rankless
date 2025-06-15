@@ -470,7 +470,7 @@ where
     }
 
     fn tlog<D: Display>(&self, s: D, now: std::time::Instant) {
-        self.log(format!("{} in {}", s, now.elapsed().as_millis()));
+        self.log(format!("{} in {}ms", s, now.elapsed().as_millis()));
     }
 
     fn to_tree_resp(&mut self, pruned_tree: BufSerTree, shallowed: bool) -> TreeResponse {
