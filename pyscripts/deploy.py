@@ -326,6 +326,7 @@ class Transper:
         be_service_txt = be_service_frame.format(self.deploy_dir, self.data_dir)
         self.sync_service(be_service_txt, be_service_name)
         self.be_service.enable()
+        self.be_service.start()
 
     def setup_fe_service(
         self, inst_domain: str, first_port=BUN_PORT_START, procs=10, bun=False
