@@ -45,7 +45,7 @@
 	const TOP_N = 200;
 
 	let nBreakPoints = 3;
-	let pullerRate = 0.15;
+	let pullerRate = 0.12;
 	let breakPoints: number[] = [];
 
 	let selectedBreakdowns = tf.getDefaultBreakdowns(treeSpecs.specs[conf.rootType][treeId]);
@@ -352,15 +352,6 @@
 		<div>{formatNumber(maxw || 0)}</div>
 	{/if}
 	<div id="w-text">{weightText}</div>
-	<div id="bp-ctrl">
-		{nBreakPoints} breakpoints
-		<input type="range" bind:value={nBreakPoints} step="1" min="0" max="7" />
-	</div>
-	<div id="pct-ctrl">
-		Percentile
-		<input type="range" bind:value={pullerRate} step="0.01" min="0" max="1" />
-		Linear
-	</div>
 </div>
 
 <div id="map-hover">

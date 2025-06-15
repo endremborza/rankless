@@ -177,6 +177,7 @@
 
 	#box-container {
 		display: flex;
+		gap: var(--unified-padding);
 		flex-direction: row;
 		justify-content: space-between;
 		align-items: center;
