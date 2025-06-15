@@ -622,32 +622,31 @@ def sync_fe_to_live():
     get_running_tpr(True).update_fe()
 
 
-def new_small_alpha(pushed_certs: bool):
-    assert get_running_inst(False) is None
+def full_setup_from_nothing(tpr: Transper, domain, procn: int, backend=True, bun=True):
+    tpr.setup(backend=backend, bun=bun)
+    tpr.validate()
+    tpr.setup_fe_service(domain, bun=bun, procs=procn)
+    tpr.setup_code()
+    tpr.update_fe()
+    if backend:
+        tpr.build_rs()
+        tpr.sync_data_to()
+        tpr.setup_be_service()
+    tpr.push_certs()
+    tpr.setup_nginx(cert=False)
+
+
+def new_small_alpha():
     new_alpha_inst = get_new_inst(30, SMALL)
     tpr = get_tpr(new_alpha_inst)
-    tpr.setup(backend=False, bun=True)
-    tpr.setup_fe_service(ALPHA_DOMAIN, bun=True, procs=2)
-    tpr.setup_code()
-    tpr.build_js()
-    for fes in tpr.fe_services:
-        fes.start()
-    if pushed_certs:
-        tpr.push_certs()
-        tpr.setup_nginx(cert=False)
-    associate_id(new_alpha_inst, False)
-    if not pushed_certs:
-        get_tpr(new_alpha_inst).setup_nginx(cert=True)
-    return new_alpha_inst
+    full_setup_from_nothing(tpr, ALPHA_DOMAIN, 2, backend=False)
+    return associate_id(new_alpha_inst, False)
 
 
 def new_large_alpha():
-    inst = get_new_inst(LARGE_STORAGE_GB, LARGE_INSTANCE_TYPE, _last_img(), True)
+    inst = get_new_inst(LARGE_STORAGE_GB, LARGE_INSTANCE_TYPE)
     tpr = get_tpr(inst)
-    tpr.setup_fe_service(ALPHA_DOMAIN, bun=True, procs=LARGE_FE_PROCS)
-    tpr.update_fe()
-    tpr.be_service.start()
-    tpr.setup_nginx(cert=False)
+    full_setup_from_nothing(tpr, ALPHA_DOMAIN, LARGE_FE_PROCS)
     return associate_id(inst, False)
 
 
@@ -656,15 +655,7 @@ def new_large_image():
     vns = _parse_v(v)
     inst = get_new_inst(LARGE_STORAGE_GB, LARGE_INSTANCE_TYPE)
     tpr = get_tpr(inst)
-    tpr.setup(backend=True, bun=True)
-    tpr.validate()
-    tpr.setup_fe_service(LIVE_DOMAIN, bun=True, procs=LARGE_FE_PROCS)
-    tpr.setup_code()
-    tpr.build_js()
-    tpr.build_rs()
-    tpr.sync_data_to()
-    tpr.setup_be_service()
-    tpr.push_certs()
+    full_setup_from_nothing(tpr, LIVE_DOMAIN, LARGE_FE_PROCS)
     inst.stop()
     inst.wait_until_stopped()
     image = inst.create_image(
@@ -734,7 +725,7 @@ def promote_alpha_to_live():
     tpr.setup_nginx(cert=False)
     tpr.add_domain_fw(FW_DOMAIN, cert=False)
     associate_id(alpha_inst, True)
-    tpr.refresh_certs(FW_DOMAIN)
+    get_running_tpr(True).refresh_certs(FW_DOMAIN)
 
 
 def associate_id(inst, live: bool):
