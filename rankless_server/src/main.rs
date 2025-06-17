@@ -1,3 +1,6 @@
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 mod consts;
 
 use axum::{
@@ -24,7 +27,7 @@ use std::{
     thread::{sleep, JoinHandle},
     time,
 };
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, sync::Notify};
 
 use muwo_search::SearchEngine;
 use rankless_rs::{
@@ -46,7 +49,7 @@ use rankless_trees::{
 const MAX_HITS: usize = 80;
 const PORT: u16 = 3038;
 const SEARCH_SIZE: usize = 20;
-const CACHEABLE_FROM: u32 = 20_000;
+const CACHEABLE_FROM: u32 = 10_000;
 const N_THREADS: usize = 16;
 const UPPER_LIMIT: u32 = u32::MAX;
 const ETYPE_ENC: [&str; 6] = [
@@ -682,6 +685,13 @@ fn add_thread<E>(
 
 #[tokio::main(worker_threads = 16)]
 async fn main() {
+    let shutdown = Arc::new(Notify::new());
+    let shutdown_clone = shutdown.clone();
+    let signal_task = tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.unwrap();
+        shutdown_clone.notify_one();
+    });
+
     let path: String = std::env::args().last().unwrap();
     let now = std::time::Instant::now();
     println!("reading from path: {}", path);
@@ -708,31 +718,37 @@ async fn main() {
     let api = Router::new()
         .nest("/", response_api)
         .nest("/counts", count_api)
-        .nest("/specs", specs_api)
-        .nest("/tops", tops_api);
+        .nest("/tops", tops_api)
+        .nest("/specs", specs_api);
 
     let app = Router::new().nest("/v1", api);
-
     let loc_addr = SocketAddr::from(([127, 0, 0, 1], PORT));
-    println!("{loc_addr} set-up in {} ttcpl", now.elapsed().as_secs());
-
+    let stime = now.elapsed().as_secs();
+    println!(
+        "{loc_addr} set-up in {stime}s ({}min {}sec) - shd",
+        stime / 60,
+        stime % 60
+    );
     let socket = Socket::new(Domain::IPV4, Type::STREAM, None).unwrap();
+    socket.set_nonblocking(true).unwrap();
     loop {
         match socket.bind(&loc_addr.into()) {
             Ok(_) => break,
             Err(e) => {
                 println!("error binding socket: {e}");
-
                 sleep(time::Duration::from_secs(6));
             }
         }
     }
     socket.listen(1024).unwrap();
     let listener = TcpListener::from_std(socket.into()).unwrap();
-    axum::serve(listener, app.clone().into_make_service())
-        .tcp_nodelay(true)
+    axum::serve(listener, app.into_make_service())
+        .with_graceful_shutdown(async move {
+            shutdown.notified().await;
+        })
         .await
-        .unwrap()
+        .unwrap();
+    signal_task.await.unwrap();
 }
 
 async fn slice_get(
