@@ -66,7 +66,7 @@ where
     V: ByteFixArrayInterface,
 {
     fn load_backend(path: &PathBuf) -> Self {
-        let mut out = Vec::new();
+        let mut out = Vec::with_capacity(E::N + 1);
         let fp = path.join(E::NAME);
         let mut br = BufReader::new(File::open(&fp).expect(fp.to_str().unwrap_or("???")));
         // let size: usize = std::mem::size_of::<E::T>();
