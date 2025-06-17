@@ -381,7 +381,7 @@ WantedBy=default.target
             return LIVE_BACKEND
         raise ValueError(f"{domain} is not recognized")
 
-    def setup_nginx(self, inst_domain=None, rs_port=DEFAULT_RS_PORT, cert=True):
+    def setup_nginx(self, inst_domain=None, cert=True):
         if inst_domain is None:
             inst_domain = self.get_domain()
         if cert:
@@ -455,7 +455,6 @@ server {{
 }}
         """
         self._send_nginx_conf(nginx_conf, inst_domain)
-        self.restart_nginx()
 
     def get_server_prefix(self, domain):
         cert_dir = f"{SSL_ETC_DIR}/{domain}"
@@ -641,6 +640,8 @@ def full_setup_from_nothing(tpr: Transper, domain, procn: int, backend=True, bun
             pass
     tpr.push_certs()
     tpr.setup_nginx(cert=False)
+    tpr.refresh_certs()
+    tpr.restart_nginx()
 
 
 def new_small_alpha():
@@ -731,6 +732,7 @@ def promote_alpha_to_live():
     tpr.ssh.prun(f"sudo rm {NGINX_ENDIR}/{ALPHA_DOMAIN}")
     tpr.setup_nginx(cert=False)
     tpr.add_domain_fw(FW_DOMAIN, cert=False)
+    tpr.restart_nginx()
     associate_id(alpha_inst, True)
     get_running_tpr(True).refresh_certs(FW_DOMAIN)
 
