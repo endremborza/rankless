@@ -392,12 +392,12 @@ where
         }
         if self.is_cacheable() {
             self.cache_tree(
-                pruned_o.unwrap_or(self.prune_tree(full_tree)),
+                pruned_o.unwrap_or_else(|| self.prune_tree(full_tree)),
                 TreeBasisState::pruned_cache_file_period,
                 pid,
             );
             self.cache_tree(
-                wide_o.unwrap_or(self.to_wide_tree(full_tree)),
+                wide_o.unwrap_or_else(|| self.to_wide_tree(full_tree)),
                 TreeBasisState::wide_cache_file_period,
                 pid,
             );
