@@ -524,7 +524,7 @@ where
     }
 
     fn fill_thread_pool(mut self, n: usize) -> Self {
-        for _ in 0..n {
+        for i in 0..n {
             let shared_cvp = self.cv_pair.clone();
             let shared_state = self.state.clone();
             let mut thread_fh = self.get_file_handle();
@@ -536,7 +536,10 @@ where
                             TreeMakingParams::new(&shared_state, &mut thread_fh, aq, res_cvp);
                         T::run_params(params);
                     }
-                    None => break,
+                    None => {
+                        println!("killing worker thread {i}");
+                        break;
+                    }
                 }
             });
             self.thread_pool.push(thread);
