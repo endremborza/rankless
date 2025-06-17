@@ -616,7 +616,8 @@ impl TreeBasisState {
 
     fn fill_cache(&mut self, specs: &TreeSpecs) {
         let mut cmap = self.im_cache.lock().unwrap();
-        for (k, _) in &specs.specs {
+        for (k, specv) in &specs.specs {
+            let ntids = specv.len() as u8;
             let rt_cdir = self.rt_cache_dir(&k);
             if let (Some(etype), Ok(dir_contents)) = (specs.to_eid(k), std::fs::read_dir(rt_cdir)) {
                 println!("filling cache for {k}");
@@ -626,7 +627,7 @@ impl TreeBasisState {
                         Ok(id) => id,
                         _ => continue,
                     };
-                    for tid in get_tids_of_dir(&eid_path, true).into_iter() {
+                    for tid in get_tids_of_dir(&eid_path, true, ntids).into_iter() {
                         let ck = CacheKey { eid, tid, etype };
                         let v = (0..N_PERS as u8).collect();
                         cmap.insert(ck, CacheValue::Done(v));
@@ -647,12 +648,9 @@ fn make_fq(q: TreeQ, eid: usize, root_type: &String, specs: &TreeSpecs) -> Optio
     Some(fq)
 }
 
-fn get_tids_of_dir(entity_dir_path: &PathBuf, defalt_to_all: bool) -> Vec<u8> {
+fn get_tids_of_dir(entity_dir_path: &PathBuf, defalt_to_all: bool, n: u8) -> Vec<u8> {
     if defalt_to_all {
-        return POSSIBLE_YEAR_FILTERS
-            .iter()
-            .map(|e| WorkPeriods::from_year(*e))
-            .collect();
+        return (0..n).collect();
     }
     let mut out = Vec::new();
     if let Ok(tid_entries) = std::fs::read_dir(&entity_dir_path) {
