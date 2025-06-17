@@ -646,17 +646,21 @@ def full_setup_from_nothing(tpr: Transper, domain, procn: int, backend=True, bun
 
 
 def new_small_alpha():
-    new_alpha_inst = get_new_inst(30, SMALL)
-    tpr = get_tpr(new_alpha_inst)
-    full_setup_from_nothing(tpr, ALPHA_DOMAIN, 2, backend=False)
-    return associate_id(new_alpha_inst, False)
+    return _new_alpha(30, SMALL, 2, False)
 
 
 def new_large_alpha():
-    inst = get_new_inst(LARGE_STORAGE_GB, LARGE_INSTANCE_TYPE)
+    return _new_alpha(LARGE_STORAGE_GB, LARGE_INSTANCE_TYPE, LARGE_FE_PROCS, True)
+
+
+def _new_alpha(storage, itype, fe_procn, backend):
+    inst = get_new_inst(storage, itype)
     tpr = get_tpr(inst)
-    full_setup_from_nothing(tpr, ALPHA_DOMAIN, LARGE_FE_PROCS)
-    return associate_id(inst, False)
+    full_setup_from_nothing(tpr, ALPHA_DOMAIN, fe_procn, backend=backend)
+    new_tpr = get_tpr(associate_id(inst, False))
+    new_tpr.refresh_certs()
+    new_tpr.restart_nginx()
+    return new_tpr
 
 
 def new_large_image():
