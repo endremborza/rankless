@@ -362,7 +362,7 @@ where
 {
     const S: usize = AS * T::S;
     fn to_fbytes(&self) -> Box<[u8]> {
-        let mut out = Vec::new();
+        let mut out = Vec::with_capacity(Self::S);
         for e in self.iter() {
             out.extend(e.to_fbytes().iter())
         }
@@ -371,7 +371,7 @@ where
 
     fn from_fbytes(buf: &[u8]) -> Self {
         let size = T::S;
-        let mut out = Vec::new();
+        let mut out = Vec::with_capacity(AS);
         let (mut s, mut e) = (0, size);
         while e <= buf.len() {
             out.push(T::from_fbytes(&buf[s..e]));
