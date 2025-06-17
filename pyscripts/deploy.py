@@ -458,10 +458,17 @@ server {{
 
     def get_server_prefix(self, domain):
         cert_dir = f"{SSL_ETC_DIR}/{domain}"
+        suffix = ""
+        try:
+            self.ssh.run(f"sudo ls {cert_dir}")
+            suffix = f"""ssl_certificate {cert_dir}/fullchain.pem;
+    ssl_certificate_key {cert_dir}/privkey.pem;"""
+        except:
+            pass
+
         return f"""
     server_name {domain};
-    ssl_certificate {cert_dir}/fullchain.pem;
-    ssl_certificate_key {cert_dir}/privkey.pem;"""
+    {suffix}"""
 
     def clean_cert_default(self):
         self._send_nginx_conf("", "default")
@@ -497,13 +504,9 @@ server {{
 server {{
     listen 443 ssl;
     listen [::]:443 ssl;
-    server_name {domain_to_fw};
-
-    ssl_certificate {SSL_ETC_DIR}/{domain_to_fw}/fullchain.pem;
-    ssl_certificate_key {SSL_ETC_DIR}/{domain_to_fw}/privkey.pem;
+    {self.get_server_prefix(domain_to_fw)}
     
     include /etc/letsencrypt/options-ssl-nginx.conf;
-
     return 301 https://{orig_domain}$request_uri;
 }}
 """
@@ -640,8 +643,6 @@ def full_setup_from_nothing(tpr: Transper, domain, procn: int, backend=True, bun
             pass
     tpr.push_certs()
     tpr.setup_nginx(cert=False)
-    tpr.refresh_certs()
-    tpr.restart_nginx()
 
 
 def new_small_alpha():
