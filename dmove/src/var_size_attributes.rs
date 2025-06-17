@@ -2,6 +2,7 @@ use std::{
     fs::{create_dir_all, File},
     io::{BufReader, Read, Seek, Write},
     marker::PhantomData,
+    os::linux::fs::MetadataExt,
     path::PathBuf,
     sync::Arc,
 };
@@ -227,8 +228,8 @@ where
         let mut size_buf = [0; MAX_NUMBUF];
         let size_slice = &mut size_buf[..E::SizeType::S];
         let mut seek = 0;
-        let mut locators_size = Vec::new();
-        let mut locators_loc = Vec::new();
+        let mut locators_size = Vec::with_capacity(E::N + 1);
+        let mut locators_loc = Vec::with_capacity(E::N + 1);
 
         while let Ok(_) = counts.read_exact(size_slice) {
             let size = E::SizeType::from_fbytes(size_slice);
@@ -380,17 +381,32 @@ where
     LT: UnsignedNumber,
 {
     fn load_backend(path: &PathBuf) -> Self {
-        let file_pair = VattFilePair::open(&path.join(E::NAME));
+        let parent_dir = path.join(E::NAME);
+        let file_pair = VattFilePair::open(&parent_dir);
         let mut count_br = BufReader::new(file_pair.counts);
         let mut target_br = BufReader::new(file_pair.targets);
         let locators = Locators::<E, LT>::from_file(&mut count_br);
-        let mut v = Vec::new();
+        let elem_size: usize = size_of::<<E::T as VarSizedAttributeElement>::SubType>();
+        let cap_b = std::fs::metadata(parent_dir.join("targets"))
+            .unwrap()
+            .st_size()
+            .to_usize();
+        let mut v = Vec::with_capacity(cap_b / elem_size);
         let mut buf = [0; MAX_BUF];
         let bufr = &mut buf[0..Self::BL];
         while let Ok(_) = target_br.read_exact(bufr) {
             v.push(E::subtype_from_buf(bufr))
         }
 
+        let loclsize = locators.divided_locs.len() * size_of::<LT>() / 1_000_000;
+        let locssize = locators.divided_sizes.len() * size_of::<E::SizeType>() / 1_000_000;
+        let locsum = loclsize + locssize;
+        let arrsum = v.len() * elem_size / 1_000_000;
+        println!(
+            "got vatt pair {} -\tlocators:{loclsize}+{locssize}={locsum}MB;\tarr:{arrsum}MB;\tsum:{}MB",
+            E::NAME,
+            locsum + arrsum,
+        );
         Self {
             locators,
             arr: v.into(),
