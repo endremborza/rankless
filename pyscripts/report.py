@@ -1,6 +1,5 @@
 import datetime as dt
 import json
-import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -13,60 +12,16 @@ def p99(s):
     return s.quantile(0.99)
 
 
-def tryfloat(s):
-    try:
-        return float(s)
-    except:
-        return float("nan")
-
-
-n = 100_000
-# samp = "1min"
 samp = "10min"
-line_rex = re.compile(
-    r'(.*?) \-.*\-.*\[(.*)\].*"([A-Z]+) (.*?)" (\d\d\d) (\d+) "(.*)" "(.*)"rt=(.*) uct="(.*)" uht="(.*)" urt="(.*)"'
-)
-line_cols = [
-    "addr",
-    "time",
-    "r",
-    "p",
-    "code",
-    "size",
-    "referrer",
-    "agent",
-    "rt",
-    "uct",
-    "uht",
-    "urt",
-]
 
 
 if __name__ == "__main__":
-
-    gen_date = dt.datetime.now()
-    rep_dir = gen_date.strftime("%Y-%m-%d-%H-%M")
+    rep_dir = dt.datetime.now().strftime("%Y-%m-%d-%H-%M")
     rep_dpath = Path("reports", rep_dir)
     rep_dpath.mkdir(exist_ok=True, parents=True)
     ssh_id = "rankless-live"
-
     tpr = Transper(SSHrer(ssh_id))
-    logtail = tpr.ssh.run(f"tail -{n} /var/log/nginx/access.log")
-    root = f"https://{tpr.get_domain()}"
-    hour_df = (
-        pd.DataFrame(
-            map(
-                lambda e: e[0], filter(None, map(line_rex.findall, logtail.split("\n")))
-            ),
-            columns=line_cols,  # pyright: ignore[reportArgumentType]
-        )
-        .assign(
-            t=lambda df: df["time"].pipe(pd.to_datetime, format="%d/%b/%Y:%H:%M:%S %z"),
-            urt=lambda df: df["urt"].apply(tryfloat),
-            code=lambda df: df["code"].astype(int),
-        )
-        .loc[lambda df: df["t"] > (df["t"].max() - dt.timedelta(hours=1))]
-    )
+    hour_df = tpr.get_nginx_logs_df(60, 100_000)
     hn = hour_df.shape[0]
     err_df = hour_df.loc[lambda df: (df["code"] // 100) == 5]
     tdel = hour_df["t"].max() - hour_df["t"].min()
@@ -91,17 +46,14 @@ if __name__ == "__main__":
         )
     )
 
-    misses = "\n".join(
-        map(
-            lambda ekv: f"<li><a href=\"{root}{ekv[0].split(' ')[0]}\">{ekv[0].split(' ')[0]} ({ekv[1]})</a></li>",
-            err_df["p"].value_counts().head(50).items(),
-        )
-    )
+    def make_line(kv):
+        return f"<li><a href=\"{root}{kv[0].split(' ')[0]}\">{kv[0].split(' ')[0]} ({kv[1]})</a></li>"
 
+    root = f"https://{tpr.get_domain()}"
+    misses = "\n".join(map(make_line, err_df["p"].value_counts().head(50).items()))
     df = (
         hour_df.resample(samp, on="t")["urt"].agg([p99, "count"]).reset_index().tail(40)
     )
-
     fig, ax1 = plt.subplots()
 
     ax1.set_xlabel("Date")

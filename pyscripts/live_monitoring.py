@@ -60,12 +60,7 @@ if __name__ == "__main__":
                     time.sleep(10)
                     continue
             try:
-                rem_bytes, full_pct = map(
-                    int,
-                    re.findall(r"/dev/root.*?(\d+)\s+(\d+)% /\n", ltpr.ssh.run("df"))[
-                        0
-                    ],
-                )
+                rem_bytes, full_pct = ltpr.get_storage_stats()
             except:
                 warn("Error getting ssh info", "")
                 continue

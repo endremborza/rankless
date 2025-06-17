@@ -595,6 +595,55 @@ upstream {BE_UPSTREAM} {{
             )
         return pd.concat(fdfs, ignore_index=True)
 
+    def get_free_memory(self):
+        ks = ["total", "used", "free", "shared", "buff/cache", "available"]
+        vs = re.findall(
+            r"Mem: +(\d+) +(\d+) +(\d+) +(\d+) +(\d+) +(\d+)", self.ssh.run("free")
+        )[0]
+        return dict(zip(ks, map(int, vs)))
+
+    def get_storage_stats(self):
+        cmatch = re.findall(r"/dev/root.*?(\d+)\s+(\d+)% /\n", self.ssh.run("df"))[0]
+        rem_bytes, full_pct = map(int, cmatch)
+        return rem_bytes, full_pct
+
+    def get_nginx_logs_df(self, minutes=3, n=10_000):
+        line_rex = re.compile(
+            r'(.*?) \-.*\-.*\[(.*)\].*"([A-Z]+) (.*?)" (\d\d\d) (\d+) "(.*)" "(.*)"rt=(.*) uct="(.*)" uht="(.*)" urt="(.*)"'
+        )
+        line_cols = [
+            "addr",
+            "time",
+            "r",
+            "p",
+            "code",
+            "size",
+            "referrer",
+            "agent",
+            "rt",
+            "uct",
+            "uht",
+            "urt",
+        ]
+        logtail = self.ssh.run(f"tail -{n} /var/log/nginx/access.log")
+        return (
+            pd.DataFrame(
+                map(
+                    lambda e: e[0],
+                    filter(None, map(line_rex.findall, logtail.split("\n"))),
+                ),
+                columns=line_cols,  # pyright: ignore[reportArgumentType]
+            )
+            .assign(
+                t=lambda df: df["time"].pipe(
+                    pd.to_datetime, format="%d/%b/%Y:%H:%M:%S %z"
+                ),
+                urt=lambda df: df["urt"].apply(tryfloat),
+                code=lambda df: df["code"].astype(int),
+            )
+            .loc[lambda df: df["t"] > (df["t"].max() - dt.timedelta(minutes=minutes))]
+        )
+
     def _nginx_run(self, comms):
         self.ssh.prun("sudo nginx -t")
         self.reload_systemctl()
@@ -747,6 +796,13 @@ def associate_id(inst, live: bool):
     ec2c.associate_address(InstanceId=inst.id, AllocationId=ipa.alloc_id)
     inst.reload()
     return inst
+
+
+def tryfloat(s):
+    try:
+        return float(s)
+    except:
+        return float("nan")
 
 
 def _last_img():
