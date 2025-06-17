@@ -247,8 +247,10 @@ where
     fn fill_calculate(&mut self) {
         let mut pids = Vec::new();
         let et_id = NET::<TMK::Root>::from_usize(self.params.fq.ck.eid);
-        let full_path = self.params.state.full_cache_file_period(&self.params.fq, 0);
-        create_dir_all(full_path.parent().unwrap()).unwrap();
+        if self.is_cacheable() {
+            let full_path = self.params.state.full_cache_file_period(&self.params.fq, 0);
+            create_dir_all(full_path.parent().unwrap()).unwrap();
+        }
         if self.params.fq.q.big_read.unwrap_or(false) {
             self.read_big_calculate(&mut pids);
             // clone could possibly be done better, but should not be big deal
@@ -277,9 +279,7 @@ where
                 TMK::fold_tree(&mut ser_tree_o, part_root);
                 let stref = ser_tree_o.as_ref().unwrap();
                 self.check_w(pid, stref, Some(self.params.res_cvp.clone()), &mut pids);
-                if !self.params.fq.q.cacheable.unwrap_or(true)
-                    & (pid as u8 == self.params.fq.period)
-                {
+                if !self.is_cacheable() & (pid as u8 == self.params.fq.period) {
                     break;
                 }
             }
@@ -380,18 +380,17 @@ where
     }
 
     fn write_resp(&mut self, full_tree: &BufSerTree, res_cvp_o: Option<ResCvp>, pid: u8) {
-        let cacheable = self.params.fq.q.cacheable.unwrap_or(true);
-        if !cacheable & (pid != self.params.fq.period) {
+        if !self.is_cacheable() & (pid != self.params.fq.period) {
             return;
         }
         let mut pruned_o = None;
         let mut wide_o = None;
         if let Some(res_cvp) = res_cvp_o {
             if pid == self.params.fq.period {
-                self.set_tree_to_res_cvp(res_cvp, full_tree, cacheable, &mut pruned_o, &mut wide_o);
+                self.set_tree_to_res_cvp(res_cvp, full_tree, &mut pruned_o, &mut wide_o);
             }
         }
-        if cacheable {
+        if self.is_cacheable() {
             self.cache_tree(
                 pruned_o.unwrap_or(self.prune_tree(full_tree)),
                 TreeBasisState::pruned_cache_file_period,
@@ -409,11 +408,10 @@ where
         &mut self,
         res_cvp: ResCvp,
         full_tree: &BufSerTree,
-        cacheable: bool,
         pruned_o: &mut Option<BufSerTree>,
         wide_o: &mut Option<BufSerTree>,
     ) {
-        let (resp_base_tree, sh) = if !cacheable {
+        let (resp_base_tree, sh) = if !self.is_cacheable() {
             //non cacheable is not shallowed, unless wide
             if self.params.fq.q.wide.unwrap_or(false) {
                 (self.to_wide_tree(full_tree), true)
@@ -493,6 +491,10 @@ where
             atts,
             shallowed,
         }
+    }
+
+    fn is_cacheable(&self) -> bool {
+        self.params.fq.q.cacheable.unwrap_or(true)
     }
 }
 
