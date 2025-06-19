@@ -29,9 +29,10 @@
 	let highlightedQ = -1;
 	let infoPath: number[] = [];
 
-	let minOp = LOW_OP * 0.5;
+	let minOp = LOW_OP * 0.65;
 	let maxOp = HIGH_OP * 1.2;
-	let mainColorRate = 0.5;
+	let minColorRate = 0.32;
+	let maxColorRate = 0.45;
 
 	let xMin = 0;
 	let yMin = -20;
@@ -64,8 +65,8 @@
 		let sn = fixNameForPaths(s);
 		return `country-${sn.toLowerCase().replaceAll(' ', '-')}`;
 	}
-
-	const getOpaRate = (i: number, n: number) => (i / n) * (maxOp - minOp) + minOp;
+	const getColorRate = (r: number) => r * (maxColorRate - minColorRate) + minColorRate;
+	const getOpaRate = (r: number) => r * (maxOp - minOp) + minOp;
 
 	function getClassStyles(
 		levels: LevelT,
@@ -94,9 +95,11 @@
 			// console.log(i, puller, qVal, qInd, scaleBpPrep);
 			newBreakPoints.push(pullerRate * puller + (1 - pullerRate) * qVal);
 		}
+		const linScaler = (w: number) => (w - (locMinw || 0)) / wspan;
 		let scaler = (w: number) => {
-			let op = ((w - (locMinw || 0)) / wspan) * (maxOp - minOp) + minOp;
-			return { op, hl: false };
+			let op = linScaler(w) * (maxOp - minOp) + minOp;
+			let color = linScaler(w) * (maxColorRate - minColorRate) + minColorRate;
+			return { op, hl: false, color };
 		};
 		if (nBreakPoints > 0) {
 			scaler = (w: number) => {
@@ -104,14 +107,15 @@
 				for (let i = 1; i <= nBreakPoints; i++) {
 					if (w >= newBreakPoints[i]) oI++;
 				}
-				return { op: getOpaRate(oI, nBreakPoints), hl: oI == highlightedQ };
+				let color = getColorRate(oI / nBreakPoints);
+				return { op: getOpaRate(oI / nBreakPoints), hl: oI == highlightedQ, color };
 			};
 		}
 		const sLines = [];
 		for (const [c, { w }] of Object.entries(levels)) {
-			let lineColor = getColor(mainColorRate);
 			let isHighlighted = c == highlighted;
-			let { op, hl } = scaler(w);
+			let { op, hl, color } = scaler(w);
+			let lineColor = getColor(color);
 			isHighlighted = isHighlighted || hl;
 			let line = `fill: ${lineColor}; fill-opacity: ${op / 100};`;
 			if (isHighlighted) {
@@ -231,8 +235,8 @@
 
 	function getGradient() {
 		let steps = [
-			`rgba(${getColorArr(mainColorRate)}, ${minOp}%) 0%`,
-			`rgba(${getColorArr(mainColorRate)}, ${maxOp}%) 100%`
+			`rgba(${getColorArr(minColorRate)}, ${minOp}%) 0%`,
+			`rgba(${getColorArr(maxColorRate)}, ${maxOp}%) 100%`
 		];
 		// for (const [i, cr] of colorRates.entries()) {
 		// 	let pct = (100 * i) / (colorRates.length - 1);
@@ -256,7 +260,7 @@
 			'countries-false': 'citing scholars based in'
 		},
 		institutions: {
-			'countries-true': 'collaborating with shcolars at',
+			'countries-true': 'collaborating with scholars at',
 			'countries-false': 'citing scholars working at'
 		},
 		authors: { 'countries-false': 'citing papers authored by' },
@@ -324,8 +328,9 @@
 			{#each breakPoints as bp, i}
 				<div
 					class="label-bp-box"
-					style="background-color: rgba({getColorArr(mainColorRate)}, {getOpaRate(i, nBreakPoints) /
-						100}); color: {getOpaRate(i, nBreakPoints) < 50
+					style="background-color: rgba({getColorArr(getColorRate(i / nBreakPoints))}, {getOpaRate(
+						i / nBreakPoints
+					) / 100}); color: {getOpaRate(i / nBreakPoints) < 50
 						? 'var(--color-text)'
 						: 'var(--color-theme-white)'}"
 					role="region"
