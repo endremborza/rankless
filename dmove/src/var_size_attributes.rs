@@ -32,35 +32,25 @@ pub struct VattFilePair {
     targets: File,
 }
 
-pub struct VattReadingMap<E>
+//TODO:
+//create more efficient locators
+//e.g. in locators, first few _bits_ tell where to look
+//multiple arrays held for small and for larger ones
+pub struct VattReadingMapGen<E, LT>
 where
+    LT: LocationFinder<E>,
     E: VariableSizeAttribute,
-    <E as Entity>::T: VarSizedAttributeElement,
+    ET<E>: VarSizedAttributeElement,
 {
     file_pair: VattFilePair,
-    locators: Locators<E, u64>,
     buf: [u8; MAX_BUF],
+    locators: LT,
+    p: PhantomData<E>,
 }
 
-pub struct VattReadingRefMap<'a, E>
-where
-    E: VariableSizeAttribute,
-    <E as Entity>::T: VarSizedAttributeElement,
-{
-    file_pair: VattFilePair,
-    locators: &'a Locators<E, u64>,
-    buf: [u8; MAX_BUF],
-}
-
-pub struct VattReadingArcMap<E>
-where
-    E: VariableSizeAttribute,
-    <E as Entity>::T: VarSizedAttributeElement,
-{
-    file_pair: VattFilePair,
-    locators: Arc<Locators<E, u64>>,
-    buf: [u8; MAX_BUF],
-}
+pub type VattReadingMap<E> = VattReadingMapGen<E, Locators<E, u64>>;
+pub type VattReadingRefMap<'a, E> = VattReadingMapGen<E, &'a Locators<E, u64>>;
+pub type VattReadingArcMap<E> = VattReadingMapGen<E, Arc<Locators<E, u64>>>;
 
 pub struct VattArrPair<E, LT>
 where
@@ -106,6 +96,14 @@ where
 pub trait VarSizedAttributeElement: ByteArrayInterface {
     const DIVISOR: usize = 1;
     type SubType: ByteFixArrayInterface;
+}
+
+pub trait LocationFinder<E: VariableSizeAttribute>
+where
+    ET<E>: VarSizedAttributeElement,
+{
+    fn get_via_mut(&self, file_pair: &mut VattFilePair, buf: &mut [u8], k: &usize)
+        -> Option<ET<E>>;
 }
 
 impl<T> From<Vec<T>> for VarBox<T> {
@@ -185,32 +183,19 @@ where
     }
 }
 
-impl<'a, E> VattReadingRefMap<'a, E>
+impl<E, LT> VattReadingMapGen<E, LT>
 where
     E: VariableSizeAttribute,
     E::T: VarSizedAttributeElement,
+    LT: LocationFinder<E>,
 {
-    pub fn from_locator(locators: &'a Locators<E, u64>, parent: &PathBuf) -> Self {
+    pub fn from_locator(locators: LT, parent: &PathBuf) -> Self {
         let file_pair = VattFilePair::open(&parent.join(E::NAME));
         Self {
             locators,
             buf: [0; MAX_BUF],
             file_pair,
-        }
-    }
-}
-
-impl<E> VattReadingArcMap<E>
-where
-    E: VariableSizeAttribute,
-    E::T: VarSizedAttributeElement,
-{
-    pub fn from_locator(locators: Arc<Locators<E, u64>>, parent: &PathBuf) -> Self {
-        let file_pair = VattFilePair::open(&parent.join(E::NAME));
-        Self {
-            locators,
-            buf: [0; MAX_BUF],
-            file_pair,
+            p: PhantomData,
         }
     }
 }
@@ -427,6 +412,7 @@ where
             locators: Locators::<E, u64>::from_file(&mut file_pair.counts),
             file_pair,
             buf,
+            p: PhantomData,
         }
     }
 }
@@ -452,33 +438,15 @@ where
     }
 }
 
-impl<E> EntityMutableMapperBackend<E> for VattReadingMap<E>
+impl<E, LT> EntityMutableMapperBackend<E> for VattReadingMapGen<E, LT>
 where
     E: CompactEntity + VariableSizeAttribute,
-    <E as Entity>::T: VarSizedAttributeElement,
+    ET<E>: VarSizedAttributeElement,
+    LT: LocationFinder<E>,
 {
     fn get_via_mut(&mut self, k: &usize) -> Option<<E as Entity>::T> {
-        get_via_mut(&self.locators, &mut self.file_pair, &mut self.buf, k)
-    }
-}
-
-impl<'a, E> EntityMutableMapperBackend<E> for VattReadingRefMap<'a, E>
-where
-    E: CompactEntity + VariableSizeAttribute,
-    <E as Entity>::T: VarSizedAttributeElement,
-{
-    fn get_via_mut(&mut self, k: &usize) -> Option<<E as Entity>::T> {
-        get_via_mut(self.locators, &mut self.file_pair, &mut self.buf, k)
-    }
-}
-
-impl<E> EntityMutableMapperBackend<E> for VattReadingArcMap<E>
-where
-    E: CompactEntity + VariableSizeAttribute,
-    <E as Entity>::T: VarSizedAttributeElement,
-{
-    fn get_via_mut(&mut self, k: &usize) -> Option<<E as Entity>::T> {
-        get_via_mut(&self.locators, &mut self.file_pair, &mut self.buf, k)
+        self.locators
+            .get_via_mut(&mut self.file_pair, &mut self.buf, k)
     }
 }
 
@@ -503,31 +471,49 @@ where
     }
 }
 
-fn get_via_mut<E>(
-    locators: &Locators<E, u64>,
-    file_pair: &mut VattFilePair,
-    buf: &mut [u8],
-    k: &usize,
-) -> Option<ET<E>>
+impl<E> LocationFinder<E> for Locators<E, u64>
 where
-    E: VariableSizeAttribute + CompactEntity,
+    E: VariableSizeAttribute,
     ET<E>: VarSizedAttributeElement,
 {
-    if *k >= locators.divided_locs.len() {
-        return None;
+    fn get_via_mut(
+        &self,
+        file_pair: &mut VattFilePair,
+        buf: &mut [u8],
+        k: &usize,
+    ) -> Option<ET<E>> {
+        if *k >= self.divided_locs.len() {
+            return None;
+        }
+        let divided_seek = &self.divided_locs[*k];
+        let divided_size = &self.divided_sizes[*k];
+        let full_seek = divided_seek * (E::T::DIVISOR as u64);
+        file_pair
+            .targets
+            .seek(std::io::SeekFrom::Start(full_seek))
+            .expect(&format!("ran out of file for {}", E::NAME));
+        Some(from_buf::<E>(
+            E::full_size_from_st(*divided_size),
+            &mut file_pair.targets,
+            buf,
+        ))
     }
-    let divided_seek = &locators.divided_locs[*k];
-    let divided_size = &locators.divided_sizes[*k];
-    let full_seek = divided_seek * (E::T::DIVISOR as u64);
-    file_pair
-        .targets
-        .seek(std::io::SeekFrom::Start(full_seek))
-        .expect(&format!("ran out of file for {}", E::NAME));
-    Some(from_buf::<E>(
-        E::full_size_from_st(*divided_size),
-        &mut file_pair.targets,
-        buf,
-    ))
+}
+
+impl<T, E> LocationFinder<E> for Arc<T>
+where
+    E: VariableSizeAttribute,
+    ET<E>: VarSizedAttributeElement,
+    T: LocationFinder<E>,
+{
+    fn get_via_mut(
+        &self,
+        file_pair: &mut VattFilePair,
+        buf: &mut [u8],
+        k: &usize,
+    ) -> Option<ET<E>> {
+        T::get_via_mut(self, file_pair, buf, k)
+    }
 }
 
 fn from_buf<E>(full_size: usize, targets: &mut File, buf: &mut [u8]) -> E::T

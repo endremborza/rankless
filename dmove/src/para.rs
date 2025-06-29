@@ -36,14 +36,16 @@ where
 #[macro_export]
 macro_rules! para_multi_gen_run {
     ($fun: ident, $($t: ident),*; $parc: expr) => {
-        let mut threads = Vec::new();
-        $(
-            let pc = $parc.clone();
-            threads.push(
-                std::thread::spawn(move || $fun::<$t>(&pc))
-            );
-        )*
-        threads.into_iter().for_each(|t| t.join().unwrap());
+        {
+            let mut threads = Vec::new();
+            $(
+                let pc = $parc.clone();
+                threads.push(
+                    std::thread::spawn(move || $fun::<$t>(&pc))
+                );
+            )*
+            threads.into_iter().map(|t| t.join().unwrap())
+        }
     };
 }
 

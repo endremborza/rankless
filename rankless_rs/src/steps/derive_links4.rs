@@ -53,7 +53,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
                                                                                  //try and fail with QuickMap
     let wcc = stowage.get_entity_interface::<WorkCitingCounts, QuickestBox>();
     let parc = Arc::new((stowage, hit_map, wcc));
-    para_multi_gen_run!(sorted_hit_papers, Institutions, Authors, Countries, Sources, Subfields, Topics; parc);
+    para_multi_gen_run!(sorted_hit_papers, Institutions, Authors, Countries, Sources, Subfields, Topics; parc).last();
     parc.0.write_code()?;
     Ok(())
 }

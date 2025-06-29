@@ -44,7 +44,8 @@ where
 
 pub fn main(stowage: Stowage) -> std::io::Result<()> {
     let starc = Arc::new(stowage);
-    para_multi_gen_run!(work_count, Sources, Institutions, Authors, Subfields, Topics; starc);
+    para_multi_gen_run!(work_count, Sources, Institutions, Authors, Subfields, Topics; starc)
+        .last();
     invert_read_multi_link_to_work::<WorkCountries>(&starc, "country-works");
     let cc_interface = starc.get_entity_interface::<MAA<Works, CiteCountMarker>, QuickestBox>();
 

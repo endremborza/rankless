@@ -13,7 +13,7 @@ use axum::{
 };
 use dmove::{
     para::{set_and_notify, wait_for_data_copy, AcTuple},
-    Entity, InitEmpty, NamespacedEntity, UnsignedNumber, ET,
+    para_multi_gen_run, Entity, InitEmpty, NamespacedEntity, UnsignedNumber, ET,
 };
 use hashbrown::HashMap;
 use kd_tree::{KdPoint, KdTree};
@@ -24,7 +24,7 @@ use std::{
     cmp::{max, min},
     net::SocketAddr,
     sync::{Arc, Mutex},
-    thread::{sleep, JoinHandle},
+    thread::sleep,
     time,
 };
 use tokio::{net::TcpListener, sync::Notify};
@@ -41,7 +41,10 @@ use rankless_rs::{
 };
 use rankless_trees::{
     extensions::DistinctionText,
-    interfacing::{Getters, MetaMapGetter, NodeInterfaces, RootInterfaceable, RootInterfaces},
+    interfacing::{
+        Getters, MetaMapGetter, NodeInterfaceable, NodeInterfaces, RootInterfaceable,
+        RootInterfaces,
+    },
     io::{ShallowQ, ShallowTreesResponse, TreeQ, TreeResponse, TreeRunManager},
     AttributeLabelUnion,
 };
@@ -49,6 +52,7 @@ use rankless_trees::{
 const MAX_HITS: usize = 80;
 const PORT: u16 = 3038;
 const SEARCH_SIZE: usize = 20;
+const MAX_SLICE: usize = 40_000;
 const CACHEABLE_FROM: u32 = 10_000;
 const N_THREADS: usize = 16;
 const UPPER_LIMIT: u32 = u32::MAX;
@@ -64,8 +68,8 @@ const ETYPE_ENC: [&str; 6] = [
 type InstTrm = TreeRunManager<(Institutions, Authors, Subfields, Countries, Sources)>;
 type Coords = [f64; 2];
 type NameStateMap = HashMap<&'static str, NameState>;
-
 type StatesT = State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>, Arc<InstTrm>)>;
+type StateKv = (&'static str, (NameState, TopResult, EntityDescription));
 
 #[derive(Deserialize)]
 struct BasicQ {
@@ -596,45 +600,31 @@ fn get_rest(
     Vec<TopResult>,
 ) {
     let gets = Arc::new(Getters::new(Arc::new(stowage)));
-    let static_att_union: Arc<Mutex<AttributeLabelUnion>> = Arc::new(Mutex::new(HashMap::new()));
-    let mut ei_ns_map = HashMap::new();
+    let mux_satts: Arc<Mutex<AttributeLabelUnion>> = Arc::new(Mutex::new(HashMap::new()));
     let cv_pair = AcTuple::<Option<f64>>::init_empty();
-
-    print_mem_use("pre thread starts");
-    //TODO: make this a macro
-    add_thread::<Institutions>(&gets, &static_att_union, &cv_pair, &mut ei_ns_map);
-    add_thread::<Authors>(&gets, &static_att_union, &cv_pair, &mut ei_ns_map);
-    add_thread::<Subfields>(&gets, &static_att_union, &cv_pair, &mut ei_ns_map);
-    add_thread::<Countries>(&gets, &static_att_union, &cv_pair, &mut ei_ns_map);
-    add_thread::<Sources>(&gets, &static_att_union, &cv_pair, &mut ei_ns_map);
-
-    let ccount = gets.total_cite_count();
-    set_and_notify(cv_pair, Some(ccount));
-    NodeInterfaces::<Topics>::new(&gets.stowage)
-        .update_stats(&mut static_att_union.lock().unwrap(), ccount);
-    NodeInterfaces::<Qs>::new(&gets.stowage)
-        .update_stats(&mut static_att_union.lock().unwrap(), ccount);
-
     let mut ns_map: NameStateMap = HashMap::new();
     let mut tops = Vec::new();
     let mut descriptions = Vec::new();
-
-    for (name, handle) in ei_ns_map.into_iter() {
-        let (nstate, tr, ed) = handle.join().expect(&format!("{name} state thread"));
-        tops.push(tr);
-        descriptions.push(ed);
-        ns_map.insert(name, nstate);
+    {
+        print_mem_use("pre thread starts");
+        let arg_tup = (gets.clone(), mux_satts.clone(), cv_pair.clone());
+        let ei_ns_kvs = para_multi_gen_run!(get_state_tr_ed_kv, Institutions, Authors, Subfields, Countries, Sources; arg_tup);
+        let ccount = gets.total_cite_count();
+        set_and_notify(cv_pair, Some(ccount));
+        let arg_tup_n = (gets.clone(), mux_satts.clone(), ccount.clone());
+        para_multi_gen_run!(update_w_node_if, Topics, Qs; arg_tup_n).last();
+        for (name, (nstate, tr, ed)) in ei_ns_kvs {
+            tops.push(tr);
+            descriptions.push(ed);
+            ns_map.insert(name, nstate);
+        }
     }
     print_mem_use("after ei ns map");
-    let satts = Arc::new(
-        Arc::into_inner(static_att_union)
-            .unwrap()
-            .into_inner()
-            .unwrap(),
-    );
-    let tm: Arc<InstTrm> = TreeRunManager::new(gets, satts.clone(), N_THREADS);
+    let satts = Arc::into_inner(mux_satts).unwrap().into_inner().unwrap();
+    let asatts = Arc::new(satts);
+    let tm: Arc<InstTrm> = TreeRunManager::new(gets, asatts.clone(), N_THREADS);
     print_mem_use("got tm");
-    (ns_map, satts, tm, descriptions, tops)
+    (ns_map, asatts, tm, descriptions, tops)
 }
 
 fn print_mem_use(suff: &str) {
@@ -648,12 +638,22 @@ fn print_mem_use(suff: &str) {
     }
 }
 
-fn add_thread<E>(
-    gets: &Arc<Getters>,
-    atts: &Arc<Mutex<AttributeLabelUnion>>,
-    cv_pair: &AcTuple<Option<f64>>,
-    ei_ns_map: &mut HashMap<&'static str, JoinHandle<(NameState, TopResult, EntityDescription)>>,
+fn update_w_node_if<T>(
+    (gets, mux_satts, ccount): &(Arc<Getters>, Arc<Mutex<AttributeLabelUnion>>, f64),
 ) where
+    T: NodeInterfaceable,
+{
+    NodeInterfaces::<T>::new(&gets.stowage).update_stats(&mut mux_satts.lock().unwrap(), *ccount);
+}
+
+fn get_state_tr_ed_kv<E>(
+    full_tup: &(
+        Arc<Getters>,
+        Arc<Mutex<AttributeLabelUnion>>,
+        AcTuple<Option<f64>>,
+    ),
+) -> StateKv
+where
     E: RootInterfaceable
         + PrepFilter
         + MainEntity
@@ -661,26 +661,21 @@ fn add_thread<E>(
         + DistinctionText
         + MetaMapGetter,
 {
-    let gets_clone = Arc::clone(gets);
-    let au_clone = Arc::clone(atts);
-    let shared_cvp = Arc::clone(cv_pair);
-    let thread = std::thread::spawn(move || {
-        let name = E::NAME.to_string();
-        let ent_intf = RootInterfaces::<E>::new(&gets_clone.stowage);
-        let nstate = NameState::new::<E>(&ent_intf, &gets_clone);
-        let ccount = wait_for_data_copy(shared_cvp);
-        ent_intf.update_stats(&mut au_clone.lock().unwrap(), ccount);
-        let entities = nstate
-            .responses
-            .iter()
-            .filter(|e| <E as PrepFilter>::is_top(e))
-            .map(|e| e.clone())
-            .collect();
-        let tr = TopResult { name, entities };
-        let ed = EntityDescription::new::<E>(nstate.responses.len());
-        (nstate, tr, ed)
-    });
-    ei_ns_map.insert(<E>::NAME, thread);
+    let (gets_clone, au_clone, shared_cvp) = full_tup.clone();
+    let name = E::NAME.to_string();
+    let ent_intf = RootInterfaces::<E>::new(&gets_clone.stowage);
+    let nstate = NameState::new::<E>(&ent_intf, &gets_clone);
+    let ccount = wait_for_data_copy(shared_cvp);
+    ent_intf.update_stats(&mut au_clone.lock().unwrap(), ccount);
+    let entities = nstate
+        .responses
+        .iter()
+        .filter(|e| <E as PrepFilter>::is_top(e))
+        .map(|e| e.clone())
+        .collect();
+    let tr = TopResult { name, entities };
+    let ed = EntityDescription::new::<E>(nstate.responses.len());
+    (E::NAME, (nstate, tr, ed))
 }
 
 #[tokio::main(worker_threads = 16)]
@@ -755,7 +750,6 @@ async fn slice_get(
     Path((etype, pstart, pend)): Path<(String, usize, usize)>,
     states: StatesT,
 ) -> Response<Body> {
-    const MAX_SLICE: usize = 1000;
     if let Some(state) = states.0 .0.get(etype.as_str()) {
         let start = min(pstart, state.responses.len() - 1);
         let end = min(
