@@ -1,5 +1,9 @@
 import type { RootType } from './tree-types';
 
+export function isAsciiOnly(str: string) {
+	return /^[\x01-\x7F]+$/.test(str);
+}
+
 export function pluralize(word: string, num: number, maxFix = 2) {
 	if (num == 1) {
 		return `1 ${word}`;

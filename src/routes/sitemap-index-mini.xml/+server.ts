@@ -1,5 +1,5 @@
 import { SITEMAP_STEP_SIZE, BE_URL } from '$lib/constants';
-import { getSubSitemap } from '$lib/route-functions';
+import { getSitemapIndex } from '$lib/route-functions';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async () => {
@@ -15,12 +15,10 @@ export const GET: RequestHandler = async () => {
 			return max;
 		})
 	);
-	let innards = [getSubSitemap('')];
+	let innards = [''];
 	for (let i = 0; i <= Math.min(max_page, 100); i++) {
-		innards.push(getSubSitemap(`-mini-${i + 1}`));
+		innards.push(`-mini-${i + 1}`);
 	}
-	let text = `<?xml version="1.0" encoding="UTF-8"?>
-<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${innards.join('')}</sitemapindex>`;
-	return new Response(text, { headers: { 'Content-Type': 'application/xml' } });
+	return getSitemapIndex(innards)
 };
 

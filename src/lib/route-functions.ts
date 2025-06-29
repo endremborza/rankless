@@ -24,3 +24,11 @@ export function getSitemapUrlSet(paths: string[]) {
 export function getSitemapResponse(paths: string[]) {
 	return new Response(getSitemapUrlSet(paths), { headers: { 'Content-Type': 'application/xml' } });
 }
+
+export function getSitemapIndex(subParams: string[]) {
+	let text = `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${subParams.map(getSubSitemap).join('')}</sitemapindex>`;
+	return new Response(text, { headers: { 'Content-Type': 'application/xml' } });
+
+}
+
