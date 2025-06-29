@@ -45,6 +45,7 @@ LARGE_STORAGE_GB = 300
 LARGE_FE_PROCS = 12
 DEFAULT_RS_PORT = 3038
 BUN_PORT_START = 3000
+FE_RESTART_WAIT = 20  # secs
 
 
 NGINX_AVDIR, NGINX_ENDIR = [f"/etc/nginx/sites-{s}" for s in ["available", "enabled"]]
@@ -108,15 +109,19 @@ class UpstreamConf:
     fe_ports: list[int]
     ip: str = "127.0.0.1"
     be_port: int = DEFAULT_RS_PORT
+    fe_timeout: int = FE_RESTART_WAIT
+    suffix: str = ""
 
     def be_server(self):
+        self.suffix = ""
         return self.sconf(self.be_port)
 
     def fe_servers(self):
+        self.suffix = f" max_fails=1 fail_timeout={self.fe_timeout}s"
         return map(self.sconf, self.fe_ports)
 
     def sconf(self, port):
-        return f"server {self.ip}:{port};"
+        return f"server {self.ip}:{port}{self.suffix};"
 
 
 def get_ip_alloc(live: bool):
@@ -275,6 +280,8 @@ class Transper:
         self.ssh.run(
             f"mkdir -p {self.data_dir} {self.deploy_dir} {self.systemd_dir} {self.be_cache_dir} {self.fe_cache_dir}"
         )
+        for cd in [self.be_cache_dir, self.fe_cache_dir]:
+            self.ssh.run(f"sudo chown -R www-data:www-data {cd}")
         self.be_service = ServiceMan(be_service_name, sshc)
         self.fe_services = []
         self.fill_fe_services()
@@ -282,9 +289,10 @@ class Transper:
     def get_node_v(self):
         return self.ssh.run("source .nvm/nvm.sh;nvm version").strip()
 
-    def validate(self):
+    def validate(self, backend=True):
         print(self.get_node_v())
-        self.ssh.prun("source .profile;cargo --version")
+        if backend:
+            self.ssh.prun("source .profile;cargo --version")
 
     def clean_caches(self):
         self.ssh.prun(f"rm -rf {self.data_dir}/cache")
@@ -386,8 +394,6 @@ WantedBy=default.target
             inst_domain = self.get_domain()
         if cert:
             self.get_cert(inst_domain)
-        for cd in [self.be_cache_dir, self.fe_cache_dir]:
-            self.ssh.run(f"sudo chown -R www-data:www-data {cd}")
         ports = self.get_fe_ports()
         assert ports
         self.nginx_add_upstreams([UpstreamConf(ports)])
@@ -433,6 +439,8 @@ server {{
         proxy_pass http://{FE_UPSTREAM};
         proxy_cache fe-cache;
         {loc_suffix}
+        proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+        proxy_next_upstream_tries 5;
     }}
 }}
 
@@ -522,8 +530,8 @@ server {{
             fe_servers.extend(conf.fe_servers())
             be_servers.append(conf.be_server())
 
-        fe_conf = "    \n".join(fe_servers)
-        be_conf = "    \n".join(be_servers)
+        fe_conf = "\n    ".join(fe_servers)
+        be_conf = "\n    ".join(be_servers)
         conf_txt = f"""
 upstream {FE_UPSTREAM} {{
     {fe_conf}
@@ -574,6 +582,7 @@ upstream {BE_UPSTREAM} {{
         self.build_js()
         for fes in self.fe_services:
             fes.restart()
+            time.sleep(FE_RESTART_WAIT / 3)
 
     def reload_systemctl(self):
         self.ssh.prun("sudo systemctl daemon-reload")
@@ -676,7 +685,7 @@ def sync_fe_to_live():
 
 def full_setup_from_nothing(tpr: Transper, domain, procn: int, backend=True, bun=True):
     tpr.setup(backend=backend, bun=bun)
-    tpr.validate()
+    tpr.validate(backend=backend)
     tpr.setup_fe_service(domain, bun=bun, procs=procn)
     tpr.setup_code()
     tpr.update_fe()
