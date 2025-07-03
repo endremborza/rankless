@@ -19,7 +19,7 @@ url = "https://www.rankless.org/"
 
 
 def val_url(url):
-    r = requests.get(url, timeout=2)
+    r = requests.get(url)
     assert r.ok, f"{url} failed with {r.status_code}"
     t = r.elapsed.microseconds / 1_000_000
     assert t < 1.2, f"{url} took {t}s"
@@ -52,7 +52,10 @@ if __name__ == "__main__":
     while True:
         try:
             with multiprocessing.Pool(1) as pool:
-                res = pool.map_async(validate, [1]).get(timeout=6)
+                try:
+                    res = pool.map_async(validate, [1]).get(timeout=6)
+                except Exception as e:
+                    err_w("Rankless Failed Validation", e)
                 try:
                     ltpr = pool.map_async(get_running_tpr, [True]).get(timeout=10)[0]
                 except Exception as e:
