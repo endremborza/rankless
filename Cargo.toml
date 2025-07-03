@@ -9,3 +9,6 @@ members = [
 ]
 package = { version = "0.1.0", edition = "2021" }
 resolver = "2"
+# [profile.release]
+# debug = true
+# strip = false
