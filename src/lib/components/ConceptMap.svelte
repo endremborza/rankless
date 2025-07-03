@@ -18,10 +18,13 @@
 
 	const minSize = 1.5;
 	const maxSize = 3.1;
-	const minOpacity = LOW_OP * 1.5;
+	const minSaturation = 0.7;
+	const maxSaturation = 2.5; //HIGH_OP;
+	const minOpacity = LOW_OP * 2;
 	const maxOpacity = 100; //HIGH_OP;
 
 	const getOpFromRate = (x: number) => x * (maxOpacity - minOpacity) + minOpacity;
+	const getSatFromRate = (x: number) => x * (maxSaturation - minSaturation) + minSaturation;
 	const getSizeFromRate = (x: number) => x * (maxSize - minSize) + minSize;
 
 	let svgEl: SVGSVGElement;
@@ -84,9 +87,9 @@
 		if (Object.values(levels).length == 0) return '';
 		const { linScaler, newBreakPoints } = tf.getFlatRescaler(levels, nBreakPoints, pullerRate);
 		let scaler = (w: number) => {
-			let op = getOpFromRate(linScaler(w));
+			let sat = getSatFromRate(linScaler(w));
 			let size = getSizeFromRate(linScaler(w));
-			return { op, hl: false, size };
+			return { sat, hl: false, size };
 		};
 		if (nBreakPoints > 0) {
 			scaler = (w: number) => {
@@ -95,17 +98,17 @@
 					if (w >= newBreakPoints[i]) oI++;
 				}
 				let size = getSizeFromRate(oI / nBreakPoints);
-				return { op: getOpFromRate(oI / nBreakPoints), hl: oI == highlightedQ, color: size };
+				return { sat: getSatFromRate(oI / nBreakPoints), hl: oI == highlightedQ, color: size };
 			};
 		}
 		const sLines = [];
 		for (const [c, { w }] of Object.entries(levels)) {
 			let isHighlighted = c == highlighted;
-			let { op, hl, size } = scaler(w);
+			let { sat, hl, size } = scaler(w);
 			isHighlighted = isHighlighted || hl;
-			let line = `r: ${size.toFixed(2)}px; fill-opacity: ${op / 100};`;
+			let line = `r: ${size.toFixed(2)}px; filter: saturate(${sat});`;
 			if (isHighlighted) {
-				line += `stroke-width: 1.5;`;
+				// line += `stroke-width: 1.5;`;
 			}
 			sLines.push(`circle.${classNamer(c)} {${line}}`);
 		}
@@ -156,7 +159,8 @@
 	<svg
 		bind:this={svgEl}
 		viewBox="-40 -10 180 120"
-		style="--fs: {fontSize}px; --r: {minSize * 0.35}px; --op: {(minOpacity * 0.5) / 100}"
+		style="--fs: {fontSize}px; --r: {minSize * 0.35}px; --op: {(minOpacity * 0.5) /
+			100}; --sat: {minSaturation * 0.8}"
 	>
 		{#each edges as [s, t, w]}
 			<line
@@ -214,7 +218,7 @@
 
 	circle {
 		r: var(--r);
-		fill-opacity: var(--op);
+		filter: saturation(var(--sat));
 	}
 
 	.parent-head {
