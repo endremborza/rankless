@@ -1,4 +1,4 @@
-import type { RootType } from './tree-types';
+import type { EntityType, RootType } from './tree-types';
 import { PUBLIC_ORIGIN, PUBLIC_BACKEND_URL } from '$env/static/public';
 
 export const APP_NAME = 'Rankless';
@@ -17,6 +17,8 @@ export const ROOT_TYPES: RootType[] = [
 	'countries',
 	'subfields'
 ];
+
+export const ENTITY_TYPES: EntityType[] = ['topics', 'works', 'qs', ...ROOT_TYPES];
 
 export const HIGH_OP = 80;
 export const LOW_OP = 25;

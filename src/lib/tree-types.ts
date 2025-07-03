@@ -51,7 +51,7 @@ export type Paper = {
 };
 
 export type RootType = 'authors' | 'institutions' | 'sources' | 'countries' | 'subfields';
-export type EntityType = RootType | 'works' | 'topics';
+export type EntityType = RootType | 'works' | 'topics' | 'qs';
 export type SearchResult = {
 	name: string;
 	semanticId: string;
@@ -68,7 +68,6 @@ export type AboutPara = {
 	topRels: SubbedRel[];
 }
 
-
 export type TreeResponse = { tree: ResponseNode; atts: AttributeLabels, shallowed: boolean };
 export type TopsResponse = { name: RootType; entities: SearchResult[] }[];
 export type TreeSpec = {
@@ -77,6 +76,8 @@ export type TreeSpec = {
 	defaultIsSpec: boolean;
 };
 export type TreeSpecs = { specs: Record<RootType, TreeSpec[]>; yearBreaks: number[] };
+export type IndsByEntityType = Record<EntityType, number[]>;
+export type LevelT = OMap<{ w: number; id: number }>;
 
 export type BreakdownSpec = {
 	attributeType: RootType;
