@@ -1,6 +1,6 @@
 import { base } from '$app/paths';
 import type * as tt from '$lib/tree-types';
-import { COMPLETE_YEAR, DEFAULT_LIMIT_N, MAX_LEVEL_COUNT } from './constants';
+import { COMPLETE_YEAR, DEFAULT_LIMIT_N, MAX_LEVEL_COUNT, ENTITY_TYPES } from './constants';
 import { getSpecMetricObject } from './metric-calculation';
 import { getExternalUrl } from './route-functions';
 
@@ -11,6 +11,7 @@ export const DEFAULT_CONTROL_SPEC: tt.ControlSpec = {
 	showTop: true,
 	sizeBase: 'specialization'
 };
+export const MAX_COUNT_FLAT = 300;
 
 type LevelNodeDescription = { path: tt.PathInTree; node: tt.ResponseNode; derivedWeight: number };
 
@@ -27,6 +28,13 @@ export function getDefaultLevelSpecs() {
 		});
 }
 
+export function getTreeIndsByEntityType(specs: tt.TreeSpec[]): tt.IndsByEntityType {
+	let out = Object.fromEntries(ENTITY_TYPES.map((e) => [e, []])) as unknown as tt.IndsByEntityType;
+	for (let i = 0; i < specs.length; i++) {
+		out[specs[i].breakdowns[0].attributeType].push(i);
+	}
+	return out;
+}
 
 export function getDefaultBreakdowns(treeSpec: tt.TreeSpec) {
 	const out: tt.SelectedBreakdowns = [];
@@ -37,7 +45,6 @@ export function getDefaultBreakdowns(treeSpec: tt.TreeSpec) {
 	}
 	return out;
 }
-
 
 export function getDefaultControlSpecs(spec: boolean): tt.FullControlSpecs {
 	return {
@@ -57,7 +64,7 @@ export function getBreakdownOptions(treeSpecs: tt.TreeSpecs, rootType: tt.RootTy
 	return fillBreakdownOptions(entityTreeSpecs.entries(), maxD)
 }
 
-export function fillBreakdownOptions(specsEnum: ArrayIterator<[number, tt.TreeSpec]>, maxD: number = MAX_LEVEL_COUNT) {
+export function fillBreakdownOptions(specsEnum: ArrayIterator<[number, tt.TreeSpec]> | [number, tt.TreeSpec][], maxD: number = MAX_LEVEL_COUNT) {
 	let out: tt.BreakdownOptions = {};
 	for (let [i, v] of specsEnum) {
 		let boObj = out;
@@ -89,7 +96,6 @@ export function treeBeUrl(root: string, conf: tt.FullTreeConfig, shallow: undefi
 	}
 	return url
 }
-
 
 export function entToLink(e: { rootType: tt.RootType; semanticId: string }): string {
 	return `${base}${getEntityPath(e.rootType, e.semanticId)}`;
@@ -126,6 +132,7 @@ export function toLinkWithParams(conf: tt.FullTreeConfig, selectionState: tt.Bar
 	let url = entToLink({ rootType: conf.rootType, semanticId: conf.semanticId });
 	return decorBaseLink(url, conf, selectionState)
 }
+
 export function parseLinkWithParams(params: URLSearchParams, rootType: tt.RootType, treeSpecs: tt.TreeSpecs): tt.ShareSpec {
 	let year = parseInt(params.get('since') || getDefaultYear(rootType).toString());
 	let treeId = parseInt(params.get('tree') || '1') - 1 || 0;
@@ -396,6 +403,54 @@ function flatFilter(
 	}
 	return outNodes;
 }
+
+export function flatFromResp(
+	resp: tt.TreeResponse | undefined,
+	isSpecialization: boolean,
+	spec: tt.TreeSpec
+): undefined | tt.OMap<{ w: number }> {
+	if (resp == undefined) return;
+	let globConf: tt.FullControlSpecs = {
+		globalSizeBase: isSpecialization ? 'specialization' : 'volume',
+		globalLimit: MAX_COUNT_FLAT,
+		levelSpecs: [DEFAULT_CONTROL_SPEC]
+	};
+	let visTree = deriveVisibleTree(resp.tree, globConf, {}, resp.atts, spec);
+	if (visTree == undefined) return;
+	try {
+		let l1Kv = Object.entries(visTree.tree.children || {}).map(([k, v]) =>
+			[k, { w: v.weight }]
+		);
+		return Object.fromEntries(l1Kv);
+	} catch (error) {
+		console.log(error);
+	}
+}
+
+export function getFlatRescaler(levels: tt.LevelT, nBreakPoints: number, pullerRate: number) {
+	let locMaxw: undefined | number = undefined;
+	let locMinw: undefined | number = undefined;
+	let scaleBpPrep = [];
+	for (const { w } of Object.values(levels)) {
+		if (locMaxw == undefined || w > locMaxw) locMaxw = w;
+		if (locMinw == undefined || w < locMinw) locMinw = w;
+		if (nBreakPoints > 0) scaleBpPrep.push(w);
+	}
+	if (nBreakPoints > 0) scaleBpPrep.sort((a, b) => a - b);
+	let newBreakPoints = [locMinw || 0];
+	let wspan = (locMaxw || 1) - (locMinw || 0);
+	for (let i = 1; i <= nBreakPoints; i++) {
+		let rate = i / (nBreakPoints + 1);
+		let puller = rate * wspan + (locMinw || 0);
+		let qInd = Math.floor(scaleBpPrep.length * rate);
+		let qVal = scaleBpPrep[qInd];
+		// console.log(i, puller, qVal, qInd, scaleBpPrep);
+		newBreakPoints.push(pullerRate * puller + (1 - pullerRate) * qVal);
+	}
+	const linScaler = (w: number) => (w - (locMinw || 0)) / wspan;
+	return { linScaler, newBreakPoints, locMinw, locMaxw };
+}
+
 
 export function insertKeepingOrder<T>(elem: T, arr: T[], f: (l: T, r: T) => number) {
 	//0 if equal, -x if l is 'less desirable'
