@@ -87,6 +87,16 @@ profile:
 	echo "1" | sudo tee /proc/sys/kernel/kptr_restrict
 	# install linux-tools-generic
 
+heaptrack:
+	# cargo build --release
+	# heaptrack target/release/rankless-server $(OA_ROOT) 
+	sudo sysctl kernel.yama.ptrace_scope=0 # 1 is default
+	heaptrack -p $(pidof rankless-server)
+
+restart-service:
+	cargo build --release
+	systemctl --user restart rankless-backend.service
+
 test-server:
 	time curl localhost:3038/v1/names/authors?q=ces
 
