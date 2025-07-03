@@ -1,3 +1,4 @@
+import random
 import time
 from io import BytesIO
 
@@ -5,10 +6,14 @@ import requests
 from lxml import etree
 from tqdm import tqdm
 
-SITEMAP_INDEX_URL = "https://www.rankless.org/sitemap-index.xml"
-SITEMAP_INDEX_URL = "http://127.0.0.1:5173/sitemap-index.xml"
-SITEMAP_INDEX_URL = "http://127.0.0.1:5173/sitemap-index-mini.xml"
-# SITEMAP_INDEX_URL = "https://alpha.rankless.org/sitemap-index.xml"
+ROOT = "https://www.rankless.org"
+ROOT = "https://alpha.rankless.org"
+# ROOT = "http://127.0.0.1:5173"
+
+indices = ["", "-mini", "-entities"]
+indices = ["-mini", "-entities"]
+
+urls = [f"{ROOT}/sitemap-index{suff}.xml" for suff in indices]
 
 
 def elems(content):
@@ -18,18 +23,25 @@ def elems(content):
 
 
 def main():
-    index_resp = requests.get(SITEMAP_INDEX_URL)
-    assert (
-        index_resp.ok
-    ), f"[FAIL] Could not fetch sitemap index (status {index_resp.status_code if index_resp else 'N/A'})"
+    rand_sample = []
+    for url in urls:
+        index_resp = requests.get(url)
+        assert (
+            index_resp.ok
+        ), f"[FAIL] Could not fetch sitemap index (status {index_resp.status_code if index_resp else 'N/A'})"
 
-    lens = []
-    for sitemap_url in tqdm(elems(index_resp.content)):
-        resp = requests.get(sitemap_url)
-        assert resp.ok, sitemap_url
-        lens.append(f"{sitemap_url} -> {len(elems(resp.content))}")
-        time.sleep(0.6)
-    print("\n".join(lens))
+        lens = []
+        for sitemap_url in tqdm(elems(index_resp.content), desc=url):
+            resp = requests.get(sitemap_url)
+            assert resp.ok, sitemap_url
+            sitemap_subs = elems(resp.content)
+            rand_sample.append(random.choice(sitemap_subs))
+            lens.append(f"{sitemap_url} -> {len(sitemap_subs)}")
+            time.sleep(0.5)
+        print("\n".join(lens))
+    for found_url in tqdm(rand_sample, desc="found"):
+        assert requests.get(found_url).ok, found_url
+        time.sleep(0.1)
 
 
 if __name__ == "__main__":
