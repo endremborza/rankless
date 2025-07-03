@@ -9,7 +9,7 @@ use crate::{
         field_id_parse, oa_id_parse, short_string_to_u64, BackendSelector, MarkedBackendLoader,
         ObjIter, ParsedId, Stowage, MAIN_NAME,
     },
-    csv_writers::{authors, fields, institutions, sources, subfields, topics, works},
+    csv_writers::{authors, domains, fields, institutions, sources, subfields, topics, works},
     env_consts::{FINAL_YEAR, START_YEAR},
     oa_structs::{
         post::{Authorship, Institution},
@@ -142,7 +142,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let mut threads = Vec::new();
     let starc = Arc::new(stowage);
 
-    for sw in vec![fields::C, subfields::C] {
+    for sw in vec![fields::C, subfields::C, domains::C] {
         let sc = starc.clone();
         threads.push(thread::spawn(move || {
             ids_from_atts::<IdStruct, _>(&sc, sw, sw, |e| field_id_parse(&e.id.unwrap()));

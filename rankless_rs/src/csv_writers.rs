@@ -8,7 +8,7 @@ use tqdm::Iter;
 
 use crate::common::Stowage;
 use crate::oa_structs::{
-    Ancestor, AssociatedInstitution, Author, Authorship, Biblio, Concept, FieldLike, Geo,
+    Ancestor, AssociatedInstitution, Author, Authorship, Biblio, Concept, Field, FieldLike, Geo,
     IdCountDecorated, IdTrait, Institution, Location, OpenAccess, Publisher, RelatedConcept,
     Source, SubField, SummaryStats, Topic, Work, WorkTopic,
 };
@@ -154,7 +154,7 @@ create_complex_writers!(
     Publisher - publishers;;;,
     Author - authors;; summary_stats -> SummaryStats;,
     Topic - topics;;;,
-    FieldLike - fields;;;,
+    Field - fields;;;,
     FieldLike - domains;;;,
     SubField - subfields;;;,
     Concept - concepts; ancestors => Ancestor & related_concepts => RelatedConcept;;,

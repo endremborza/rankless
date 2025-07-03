@@ -7,13 +7,13 @@ use crate::{
     csv_writers::{institutions, works},
     data_consts::CC_MAP,
     gen::a1_entity_mapping::{
-        AreaFields, Authors, Authorships, Cities, Countries, Fields, Institutions, Sources,
+        AreaFields, Authors, Authorships, Cities, Countries, Domains, Fields, Institutions, Sources,
         Subfields, Topics, Works,
     },
     oa_structs::{
         post::{
-            read_post_str_arr, Author, Authorship, IdSet, Institution, Location, Source, SubField,
-            Topic,
+            read_post_str_arr, Author, Authorship, Field, IdSet, Institution, Location, Source,
+            SubField, Topic,
         },
         FieldLike, Geo, Named, NamedEntity, ReferencedWork, Work, WorkTopic,
     },
@@ -759,6 +759,12 @@ impl ObjAttGetter<Fields> for SubField {
     }
 }
 
+impl ObjAttGetter<Domains> for Field {
+    fn get_obj_att(&self) -> Option<<Domains as MappableEntity>::KeyType> {
+        Some(field_id_parse(&self.domain))
+    }
+}
+
 impl ObjAttGetter<Subfields> for Topic {
     fn get_obj_att(&self) -> Option<<Subfields as MappableEntity>::KeyType> {
         Some(field_id_parse(&self.subfield))
@@ -949,6 +955,7 @@ pub fn main(mut stowage: Stowage) -> io::Result<()> {
     let (insts_interface, countries_interface) = stowage.add_inst_atts();
     stowage.add_author_atts();
     let mut str_writer = StrWriter::new(&stowage);
+    let domains_interface = str_writer.write_name::<FieldLike, Domains>();
     let fields_interface = str_writer.write_name::<FieldLike, Fields>();
     let subfields_interface = str_writer.write_name::<FieldLike, Subfields>();
     let sources_interface = str_writer.write_name::<Source, Sources>();
@@ -975,6 +982,11 @@ pub fn main(mut stowage: Stowage) -> io::Result<()> {
         &subfields_interface,
         &fields_interface,
         "subfield-ancestors",
+    )?;
+    stowage.object_property::<Field, Fields, _, _, _>(
+        &fields_interface,
+        &domains_interface,
+        "field-ancestors",
     )?;
     stowage.object_property::<Topic, Topics, _, _, _>(
         &topics_interface,

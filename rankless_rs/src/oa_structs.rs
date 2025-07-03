@@ -43,7 +43,8 @@ add_id_traits!(
     Work,
     Topic,
     FieldLike,
-    SubField
+    SubField,
+    Field
 );
 
 add_strict_parsed_id_traits!(Institution, Work, NamedEntity);
@@ -149,6 +150,14 @@ pub struct SubField {
     pub display_name: String,
     #[serde(default, deserialize_with = "deserialize_strict_hash_field")]
     pub field: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct Field {
+    pub id: String,
+    pub display_name: String,
+    #[serde(default, deserialize_with = "deserialize_strict_hash_field")]
+    pub domain: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -507,8 +516,13 @@ pub mod post {
     #[derive(Deserialize, Debug)]
     pub struct SubField {
         pub id: String,
-        // pub display_name: String,
         pub field: String,
+    }
+
+    #[derive(Deserialize, Debug)]
+    pub struct Field {
+        pub id: String,
+        pub domain: String,
     }
 
     #[derive(Deserialize, Debug)]
@@ -560,6 +574,12 @@ pub mod post {
     add_strict_parsed_id_traits!(Author, Topic, Institution, Source);
 
     impl ParsedId for SubField {
+        fn get_parsed_id(&self) -> BigId {
+            field_id_parse(&self.id)
+        }
+    }
+
+    impl ParsedId for Field {
         fn get_parsed_id(&self) -> BigId {
             field_id_parse(&self.id)
         }
