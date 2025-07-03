@@ -198,12 +198,6 @@
 	</svg>
 </FlatOutFrame>
 
-<div>
-	{subfields[parseInt(hovered)][0]} -> {fields[getField(hovered)][0]} -> {domains[
-		getDomain(hovered)
-	]}
-</div>
-
 <style>
 	svg {
 		width: 100%;
