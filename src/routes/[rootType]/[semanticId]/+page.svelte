@@ -11,6 +11,7 @@
 	import HoverI from '$lib/components/HoverI.svelte';
 	import HoverBlock from '$lib/components/HoverBlock.svelte';
 	import WorldMapSvg from '$lib/components/WorldMapSvg.svelte';
+	import ConceptMap from '$lib/components/ConceptMap.svelte';
 	// import PaperRainbow from '$lib/components/PaperRainbow.svelte';
 
 	let innerHeight: number;
@@ -36,27 +37,10 @@
 	let ticksHeight: number;
 	let compMode = false;
 
-	function getCountryInds(specs: tt.TreeSpec[]) {
-		let out = [];
-		for (let i = 0; i < specs.length; i++) {
-			if (specs[i].breakdowns[0].attributeType == 'countries') out.push(i);
-		}
-		return out;
-	}
-	function updateCountryRespAndId(data) {
-		let _countryL1Specs = getCountryInds(data.treeSpecs.specs[data.conf.rootType]);
-		return data.treeSpecs.specs[data.conf.rootType][data.conf.treeId].breakdowns[0].attributeType ==
-			'countries'
-			? [undefined, data.conf.treeId, _countryL1Specs]
-			: [undefined, _countryL1Specs[0] || -1, _countryL1Specs];
-	}
-	let countryResp: tt.TreeResponse | undefined;
-	let countryTreeId: number | undefined;
-	let countryL1Specs: number[];
-
 	//resp might remain 0, so we need to alert the country map
-	$: [countryResp, countryTreeId, countryL1Specs] = updateCountryRespAndId(data);
-	$: showsCountry = countryL1Specs?.length > 0;
+	$: indsByEntityType = tf.getTreeIndsByEntityType(data.treeSpecs.specs[data.conf.rootType]);
+	$: showsCountry = indsByEntityType.countries.length > 0;
+	$: showsSubfields = indsByEntityType.subfields.length > 0;
 </script>
 
 <svelte:head>
@@ -106,9 +90,17 @@
 		</div>
 	</div>
 </div>
-<div class="shadowy padded marged">
-	<input type="checkbox" bind:checked={compMode} /> side by side view
-</div>
+{#if showsSubfields}
+	<div class="shadowy padded marged" id="concept-map">
+		<ConceptMap
+			rootId={data.view.dmId}
+			{indsByEntityType}
+			rootName={data.view.name}
+			conf={data.conf}
+			treeSpecs={data.treeSpecs}
+		/>
+	</div>
+{/if}
 <div class="comp-basis" style={compMode ? 'display: flex' : ''}>
 	<div class="shadowy padded marged comp-elem">
 		<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} id="tree">
@@ -132,10 +124,8 @@
 		<div class="shadowy padded marged comp-elem">
 			<div id="map-elem">
 				<WorldMapSvg
-					resp={countryResp}
 					rootId={data.view.dmId}
-					{countryL1Specs}
-					treeId={countryTreeId}
+					{indsByEntityType}
 					rootName={data.view.name}
 					conf={data.conf}
 					treeSpecs={data.treeSpecs}

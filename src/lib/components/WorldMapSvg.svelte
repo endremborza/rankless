@@ -8,22 +8,17 @@
 	// import countryBoxes from '$lib/assets/data/country-svg-boxes.json';
 	import { getColor, getColorArr } from '$lib/style-util';
 	import { formatNumber } from '$lib/text-format-util';
-	import { BE_REMOTE_URL, HIGH_OP, LOW_OP } from '$lib/constants';
-	import PathLevelInfoBox from './PathLevelInfoBox.svelte';
+	import { HIGH_OP, LOW_OP } from '$lib/constants';
+	import FlatOutFrame from './FlatOutFrame.svelte';
 
 	export let rootName = '';
 	export let rootId: number;
-	export let countryL1Specs: number[];
+	export let indsByEntityType: tt.IndsByEntityType;
 	export let conf: tt.FullTreeConfig;
 	export let treeSpecs: tt.TreeSpecs;
-	export let resp: tt.TreeResponse | undefined;
-	export let treeId = countryL1Specs[0];
 
-	type LevelT = tt.OMap<{ w: number; id: number }>;
-
-	let year = treeSpecs.yearBreaks[0]; //conf.year;
-	let countryLevels: LevelT = {};
-	let mounted = false;
+	let resp: tt.TreeResponse | undefined;
+	let countryLevels: tt.LevelT = {};
 	let highlighted = '';
 	let highlightedRate: undefined | number;
 	let highlightedQ = -1;
@@ -43,63 +38,49 @@
 	let svgEl: SVGSVGElement;
 	let styleEl: SVGStyleElement | null = null;
 
-	const TOP_N = 200;
-
 	let nBreakPoints = 3;
 	let pullerRate = 0.12;
 	let breakPoints: number[] = [];
 
-	let selectedBreakdowns = tf.getDefaultBreakdowns(treeSpecs.specs[conf.rootType][treeId]);
+	let clicked = false;
 	let isSpec = false;
+	let treeId: number;
+	let flatOut = {};
 
-	$: levelOptions = tf.fillBreakdownOptions(
-		countryL1Specs.map((e) => [e, treeSpecs.specs[conf.rootType][e]]),
-		1
-	);
-	$: currentTreeSpec = treeSpecs.specs[conf.rootType][treeId];
+	$: isRefSide = treeSpecs.specs[conf.rootType][treeId]?.breakdowns[0].sourceSide;
+	$: weightText = isSpec
+		? 'Revealed comparative advantage'
+		: isRefSide
+		? 'Total citations of papers'
+		: 'Citations';
+	$: updateL1(flatOut, resp);
+	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints, pullerRate);
 
 	const fixNameForPaths = (s: string) => (s == 'Türkiye' ? 'Turkey' : s);
 	const fixNameForData = (s: string) => (s == 'Turkey' ? 'Türkiye' : s);
+	const getColorRate = (r: number) => r * (maxColorRate - minColorRate) + minColorRate;
+	const getOpaRate = (r: number) => r * (maxOp - minOp) + minOp;
 
 	function classNamer(s: string) {
 		let sn = fixNameForPaths(s);
 		return `country-${sn.toLowerCase().replaceAll(' ', '-')}`;
 	}
-	const getColorRate = (r: number) => r * (maxColorRate - minColorRate) + minColorRate;
-	const getOpaRate = (r: number) => r * (maxOp - minOp) + minOp;
 
 	function getClassStyles(
-		levels: LevelT,
+		levels: tt.LevelT,
 		highlighted: string,
 		highlightedQ: number,
 		nBreakPoints: number,
 		pullerRate: number
 	) {
 		if (Object.values(levels).length == 0) return '';
-		let locMaxw: undefined | number = undefined;
-		let locMinw: undefined | number = undefined;
-		let scaleBpPrep = [];
-		for (const { w } of Object.values(levels)) {
-			if (locMaxw == undefined || w > locMaxw) locMaxw = w;
-			if (locMinw == undefined || w < locMinw) locMinw = w;
-			if (nBreakPoints > 0) scaleBpPrep.push(w);
-		}
-		if (nBreakPoints > 0) scaleBpPrep.sort((a, b) => a - b);
-		let newBreakPoints = [locMinw || 0];
-		let wspan = (locMaxw || 1) - (locMinw || 0);
-		for (let i = 1; i <= nBreakPoints; i++) {
-			let rate = i / (nBreakPoints + 1);
-			let puller = rate * wspan + (locMinw || 0);
-			let qInd = Math.floor(scaleBpPrep.length * rate);
-			let qVal = scaleBpPrep[qInd];
-			// console.log(i, puller, qVal, qInd, scaleBpPrep);
-			newBreakPoints.push(pullerRate * puller + (1 - pullerRate) * qVal);
-		}
-		const linScaler = (w: number) => (w - (locMinw || 0)) / wspan;
+		const { linScaler, newBreakPoints, locMinw, locMaxw } = tf.getFlatRescaler(
+			levels,
+			nBreakPoints,
+			pullerRate
+		);
 		let scaler = (w: number) => {
-			let op = linScaler(w) * (maxOp - minOp) + minOp;
-			let color = linScaler(w) * (maxColorRate - minColorRate) + minColorRate;
-			return { op, hl: false, color };
+			return { op: getOpaRate(linScaler(w)), hl: false, color: getColorRate(linScaler(w)) };
 		};
 		if (nBreakPoints > 0) {
 			scaler = (w: number) => {
@@ -127,50 +108,23 @@
 		return sLines.join('\n');
 	}
 
-	function updateL1(
-		resp: tt.TreeResponse | undefined,
-		isSpecialization: boolean,
-		spec: tt.TreeSpec
-	) {
-		if (resp == undefined) return;
-		let globConf: tt.FullControlSpecs = {
-			globalSizeBase: isSpecialization ? 'specialization' : 'volume',
-			globalLimit: TOP_N,
-			levelSpecs: [tf.DEFAULT_CONTROL_SPEC]
-		};
-		let visTree = tf.deriveVisibleTree(resp.tree, globConf, {}, resp.atts, spec);
-		if (visTree == undefined) return;
-		let l1Type = 'countries' as tt.RootType;
-		try {
-			let l1Kv = Object.entries(visTree.tree.children).map(([k, v]) => [
-				resp.atts[l1Type][k].name,
-				{ w: v.weight, id: k }
-			]);
-			countryLevels = Object.fromEntries(l1Kv);
-		} catch (error) {
-			console.log(error);
-		}
-	}
-
-	function updateTreeId(bSelected: string[], bdOptions: tt.BreakdownOptions) {
-		let bop = bSelected[0];
-		let treeIds = bdOptions[bop]?.treeSpecs || [];
-		if (treeIds.length == 0) {
-			for (const [k, v] of Object.entries(bdOptions)) {
-				if (v.treeSpecs.length > 0) {
-					[bSelected[0], treeId] = [k, v.treeSpecs[0]];
-				}
-				return;
+	function updateL1(flatOut: undefined | tt.LevelT, resp: undefined | tt.TreeResponse) {
+		if (flatOut != undefined && resp != undefined) {
+			try {
+				let l1Kv = Object.entries(flatOut).map(([k, { w }]) => [
+					resp.atts['countries'][k].name,
+					{ w, id: k }
+				]);
+				countryLevels = Object.fromEntries(l1Kv);
+			} catch (error) {
+				console.log(error);
 			}
-		}
-		if (!(treeId in treeIds)) {
-			treeId = treeIds[0];
 		}
 	}
 
 	function updateStyle(
 		styleEl: SVGStyleElement | null,
-		l1Weights: LevelT,
+		l1Weights: tt.LevelT,
 		highlighted: string,
 		highlightedQ: number,
 		nbps: number,
@@ -179,43 +133,7 @@
 		if (styleEl == undefined) return;
 		styleEl.textContent = getClassStyles(l1Weights, highlighted, highlightedQ, nbps, pullerRate);
 	}
-	function reloadResp(treeId: number, year: number, _rootId: number) {
-		if (mounted == false) return;
-		let newConf: tt.FullTreeConfig = { ...conf, treeId, year, wide: true };
-		fetch(tf.treeBeUrl(BE_REMOTE_URL, newConf, 0)).then((res) => {
-			res
-				.json()
-				.then((jsv: tt.TreeResponse) => {
-					resp = jsv;
-				})
-				.catch((e) => {
-					console.error('error', e);
-				});
-		});
-	}
 
-	onMount(() => {
-		const svgNS = 'http://www.w3.org/2000/svg';
-		styleEl = document.createElementNS(svgNS, 'style') as SVGStyleElement;
-		svgEl.insertBefore(styleEl, svgEl.firstChild);
-		mounted = true;
-		if (resp == undefined) {
-			reloadResp(treeId, year, rootId);
-		}
-	});
-
-	$: isRefSide = (selectedBreakdowns[0] || '').split('-')[1] == 'true';
-	$: weightText = isSpec
-		? 'Revealed comparative advantage'
-		: isRefSide
-		? 'Total citations of papers'
-		: 'Citations';
-	$: updateTreeId(selectedBreakdowns, levelOptions);
-	$: updateL1(resp, isSpec, currentTreeSpec);
-	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints, pullerRate);
-	$: reloadResp(treeId, year, rootId);
-
-	let clicked = false;
 	function setHover(cc: string) {
 		return () => {
 			if (!clicked) {
@@ -253,7 +171,12 @@
 		return nBp;
 	}
 
-	// type CountryBd = 'countries-true' | 'countries-false';
+	onMount(() => {
+		const svgNS = 'http://www.w3.org/2000/svg';
+		styleEl = document.createElementNS(svgNS, 'style') as SVGStyleElement;
+		svgEl.insertBefore(styleEl, svgEl.firstChild);
+	});
+
 	const C_SEM_MAP: Record<tt.RootType, Record<string, string>> = {
 		countries: {
 			'countries-true': 'collaborating with authors based in',
@@ -273,111 +196,86 @@
 		if (oBase == undefined) return '';
 		return oBase[bd] || '';
 	}
-
-	$: titleSuffix =
-		selectedBreakdowns != undefined ? countrySemantify(conf.rootType, selectedBreakdowns[0]) : '';
 </script>
 
-<h3>Countries {titleSuffix} {rootName}</h3>
-
-<span id="map-control-block">
-	{#if Object.keys(levelOptions).length > 1}
-		<select bind:value={selectedBreakdowns[0]} class="sel-base" aria-label="Breakdown selection">
-			{#each Object.keys(levelOptions) as bd}
-				<option value={bd}>
-					{countrySemantify(conf.rootType, bd)}
-				</option>
-			{/each}
-		</select>
-	{/if}
-	Since
-	<select bind:value={year} aria-label="Since year"
-		>{#each treeSpecs.yearBreaks as y}
-			<option>{y}</option>
-		{/each}
-	</select>
-	<input type="checkbox" bind:checked={isSpec} /> Specialization
-</span>
-<svg bind:this={svgEl} viewBox="{xMin} {yMin} {mapWidth} {mapHeight}">
-	<!-- svelte-ignore a11y-mouse-events-have-key-events -->
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-	{#each Object.entries(countryPaths) as [cc, cpaths]}
-		{#each cpaths as d}
-			<path
-				{d}
-				stroke-width="1"
-				stroke="black"
-				class={classNamer(cc)}
-				role="region"
-				on:mouseover={setHover(cc)}
-				on:mouseleave={setHover('')}
-				on:click={() => {
-					clicked = !clicked;
-					setHover(cc)();
-				}}
-			/>
-		{/each}
-	{/each}
-</svg>
-
-<div id="map-label-container" style="--grad: {getGradient()}">
-	{#if nBreakPoints > 0}
+<FlatOutFrame
+	titlePrefix="Countries"
+	l1Type="countries"
+	semantifyer={countrySemantify}
+	{rootName}
+	{rootId}
+	{indsByEntityType}
+	{conf}
+	{treeSpecs}
+	year={treeSpecs.yearBreaks[0]}
+	bind:flatOut
+	bind:treeId
+	bind:resp
+	{infoPath}
+>
+	<svg bind:this={svgEl} viewBox="{xMin} {yMin} {mapWidth} {mapHeight}">
 		<!-- svelte-ignore a11y-mouse-events-have-key-events -->
-		<div class="label-bp-container">
-			{#each breakPoints as bp, i}
-				<div
-					class="label-bp-box"
-					style="background-color: rgba({getColorArr(getColorRate(i / nBreakPoints))}, {getOpaRate(
-						i / nBreakPoints
-					) / 100}); color: {getOpaRate(i / nBreakPoints) < 50
-						? 'var(--color-text)'
-						: 'var(--color-theme-white)'}"
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+		{#each Object.entries(countryPaths) as [cc, cpaths]}
+			{#each cpaths as d}
+				<path
+					{d}
+					stroke-width="1"
+					stroke="black"
+					class={classNamer(cc)}
 					role="region"
-					on:mouseover={() => {
-						highlightedQ = i;
+					on:mouseover={setHover(cc)}
+					on:mouseleave={setHover('')}
+					on:click={() => {
+						clicked = !clicked;
+						setHover(cc)();
 					}}
-					on:mouseleave={() => {
-						highlightedQ = -1;
-					}}
-				>
-					<span>{formatNumber(bp)}</span> <span>-</span>
-					<span>{formatNumber(bpEnd(breakPoints, i))}</span>
-				</div>
+				/>
 			{/each}
-		</div>
-	{:else}
-		<div>{formatNumber(minw || 0)}</div>
-		<div class="label-gradient-box">
-			{#if highlightedRate != undefined}<div
-					id="w-tick"
-					style="--loff: {highlightedRate * 100}%"
-				/>{/if}
-		</div>
-		<div>{formatNumber(maxw || 0)}</div>
-	{/if}
-	<div id="w-text">{weightText}</div>
-</div>
+		{/each}
+	</svg>
 
-<div id="map-hover">
-	{#if resp != undefined}
-		<PathLevelInfoBox
-			path={infoPath}
-			rootNode={resp.tree}
-			initHeight={120}
-			{rootName}
-			treeSpec={currentTreeSpec}
-			{rootId}
-			attributeLabels={resp.atts}
-		/>
-	{/if}
-</div>
+	<div id="map-label-container" style="--grad: {getGradient()}">
+		{#if nBreakPoints > 0}
+			<!-- svelte-ignore a11y-mouse-events-have-key-events -->
+			<div class="label-bp-container">
+				{#each breakPoints as bp, i}
+					<div
+						class="label-bp-box"
+						style="background-color: rgba({getColorArr(
+							getColorRate(i / nBreakPoints)
+						)}, {getOpaRate(i / nBreakPoints) / 100}); color: {getOpaRate(i / nBreakPoints) < 50
+							? 'var(--color-text)'
+							: 'var(--color-theme-white)'}"
+						role="region"
+						on:mouseover={() => {
+							highlightedQ = i;
+						}}
+						on:mouseleave={() => {
+							highlightedQ = -1;
+						}}
+					>
+						<span>{formatNumber(bp)}</span> <span>-</span>
+						<span>{formatNumber(bpEnd(breakPoints, i))}</span>
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<div>{formatNumber(minw || 0)}</div>
+			<div class="label-gradient-box">
+				{#if highlightedRate != undefined}<div
+						id="w-tick"
+						style="--loff: {highlightedRate * 100}%"
+					/>{/if}
+			</div>
+			<div>{formatNumber(maxw || 0)}</div>
+		{/if}
+		<div id="w-text">{weightText}</div>
+	</div>
+</FlatOutFrame>
 
 <style>
-	h3 {
-		text-align: center;
-	}
-
 	svg {
 		max-height: 65svh;
 	}
@@ -412,28 +310,6 @@
 		width: 80%;
 		height: 16px;
 		background: var(--grad);
-	}
-
-	#pct-ctrl {
-		width: 100%;
-		display: flex;
-		justify-content: center;
-		gap: 10px;
-	}
-
-	#map-hover {
-		position: relative;
-		height: 160px;
-		width: 100%;
-	}
-
-	#map-control-block {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--unified-padding);
-		justify-content: center;
-		width: 100%;
-		margin-bottom: var(--unified-padding);
 	}
 
 	#w-text {
