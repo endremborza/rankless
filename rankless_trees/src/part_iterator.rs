@@ -243,49 +243,48 @@ where
 
     fn fill_calculate(&mut self) {
         let mut pids = Vec::new();
-        if self.params.fq.q.big_prep.unwrap_or(false) {
+        let et_id = NET::<TMK::Root>::from_usize(self.params.fq.ck.eid);
+        if self.is_cacheable() {
+            let full_path = self.params.state.full_cache_file_period(&self.params.fq, 0);
+            create_dir_all(full_path.parent().unwrap()).unwrap();
+        }
+        if self.params.fq.q.big_read.unwrap_or(false) {
+            self.read_big_calculate(&mut pids);
+            // clone could possibly be done better, but should not be big deal
+            set_single_resp(self.params.res_cvp.clone(), TreeResponse::empty())
+        } else if self.params.fq.q.big_prep.unwrap_or(false) {
             self.write_tmp_parts();
             pids.extend(0..N_PERS as u8);
+            set_single_resp(self.params.res_cvp.clone(), TreeResponse::empty())
         } else {
-            let et_id = NET::<TMK::Root>::from_usize(self.params.fq.ck.eid);
-            if self.is_cacheable() {
-                let full_path = self.params.state.full_cache_file_period(&self.params.fq, 0);
-                create_dir_all(full_path.parent().unwrap()).unwrap();
-            }
-            if self.params.fq.q.big_read.unwrap_or(false) {
-                self.read_big_calculate(&mut pids);
-                // clone could possibly be done better, but should not be big deal
-                set_single_resp(self.params.res_cvp.clone(), TreeResponse::empty())
-            } else {
-                let heaps = self.fill_heaps(&et_id);
-                let now = std::time::Instant::now();
-                let mut roots = Vec::new();
-                heaps.into_iter().take(TMK::PARTITIONS).for_each(|heap| {
-                    let hither_o: Option<HeapIterator<TMK::SR>> = heap.into();
-                    let mut part_root: IntXTree<TMK::Root, TMK::CT> = et_id.into();
-                    match hither_o {
-                        Some(hither) => TMK::StackBasis::fold_into(&mut part_root, hither),
-                        None => self.log(format!(
-                            "parition-heap is none at roots len {}",
-                            roots.len()
-                        )),
-                    }
-                    roots.push(part_root.collapse());
-                });
-                self.tlog("got roots", now);
-
-                let now = std::time::Instant::now();
-                let mut ser_tree_o = None;
-                for (pid, part_root) in roots.into_iter().enumerate().rev() {
-                    TMK::fold_tree(&mut ser_tree_o, part_root);
-                    let stref = ser_tree_o.as_ref().unwrap();
-                    self.check_w(pid, stref, Some(self.params.res_cvp.clone()), &mut pids);
-                    if !self.is_cacheable() & (pid as u8 == self.params.fq.period) {
-                        break;
-                    }
+            let heaps = self.fill_heaps(&et_id);
+            let now = std::time::Instant::now();
+            let mut roots = Vec::new();
+            heaps.into_iter().take(TMK::PARTITIONS).for_each(|heap| {
+                let hither_o: Option<HeapIterator<TMK::SR>> = heap.into();
+                let mut part_root: IntXTree<TMK::Root, TMK::CT> = et_id.into();
+                match hither_o {
+                    Some(hither) => TMK::StackBasis::fold_into(&mut part_root, hither),
+                    None => self.log(format!(
+                        "parition-heap is none at roots len {}",
+                        roots.len()
+                    )),
                 }
-                self.tlog("converted, ingested and wrote trees", now);
+                roots.push(part_root.collapse());
+            });
+            self.tlog("got roots", now);
+
+            let now = std::time::Instant::now();
+            let mut ser_tree_o = None;
+            for (pid, part_root) in roots.into_iter().enumerate().rev() {
+                TMK::fold_tree(&mut ser_tree_o, part_root);
+                let stref = ser_tree_o.as_ref().unwrap();
+                self.check_w(pid, stref, Some(self.params.res_cvp.clone()), &mut pids);
+                if !self.is_cacheable() & (pid as u8 == self.params.fq.period) {
+                    break;
+                }
             }
+            self.tlog("converted, ingested and wrote trees", now);
         }
         let cv = CacheValue::Done(pids);
         let mut cache_map = self.params.state.im_cache.lock().unwrap();
