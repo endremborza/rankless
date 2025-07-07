@@ -3,10 +3,11 @@ use std::vec::IntoIter;
 use crate::{
     components::{
         AuthorBestiePapers, AuthorBesties, CiteSubSourceTop, CitingCoInstSuToByRef,
-        CitingCoSuToByRef, CitingSourceCoSuByRef, CountryBesties, CountryCiters, CountryInstsPost,
-        FullRefCountryInstSubfieldByRef, InstBesties, IntX, PostRefIterWrap, QedInf,
-        RefSubCiSubTByRef, SourceSubfieldCiCoByRef, SourceWCoiByRef, StackBasis, StackFr,
-        SubfieldCountryInstByRef, SubfieldCountryInstSourceByRef, SubfieldCountryInstSubfieldByRef,
+        CitingCoSuToByRef, CitingSourceCoSuByRef, CitingSuByRef, CountryBesties, CountryCiters,
+        CountryInstsPost, FullRefCountryInstSubfieldByRef, InstBesties, IntX, PostRefIterWrap,
+        QedInf, RefCountryByRef, RefSuByRef, RefSubCiSubTByRef, SourceSubfieldCiCoByRef,
+        SourceWCoiByRef, StackBasis, StackFr, SubfieldCountryInstByRef,
+        SubfieldCountryInstSourceByRef, SubfieldCountryInstSubfieldByRef,
         SubfieldRefTopicCountryInst, SubfieldWCoiByRef, WorkingAuthors,
     },
     interfacing::Getters,
@@ -499,6 +500,7 @@ mod author_trees {
     pub type Tree7<'a> = PostRefIterWrap<'a, Authors, SourceSubfieldCiCoByRef<'a>>;
     pub type Tree8<'a> = AuthorBestiePapers<'a>;
     pub type Tree9<'a> = AuthorBesties<'a>;
+    pub type Tree10<'a> = PostRefIterWrap<'a, Authors, CitingSuByRef<'a>>;
 }
 
 #[derive_tree_getter(Institutions)]
@@ -543,6 +545,8 @@ mod country_trees {
         ),
     >;
     pub type Tree4<'a> = CountryCiters<'a>;
+    pub type Tree5<'a> = PostRefIterWrap<'a, Countries, CitingSuByRef<'a>>;
+    pub type Tree6<'a> = PostRefIterWrap<'a, Countries, RefSuByRef<'a>>;
 }
 
 #[derive_tree_getter(Sources)]
@@ -563,6 +567,9 @@ mod subfield_trees {
 
     pub type Tree1<'a> = SubfieldRefTopicCountryInst<'a>;
     pub type Tree2<'a> = PostRefIterWrap<'a, Subfields, FullRefSourceCountryInstByRef<'a>>;
+    pub type Tree3<'a> = PostRefIterWrap<'a, Subfields, CitingSuByRef<'a>>;
+    pub type Tree4<'a> = PostRefIterWrap<'a, Subfields, RefCountryByRef<'a>>;
+    pub type Tree5<'a> = PostRefIterWrap<'a, Subfields, CitingCoSuToByRef<'a>>;
 }
 
 pub mod test_tools {
