@@ -477,6 +477,15 @@ const SEM_MAP = {
 				}
 			},
 			semantic: 'are published in'
-		}
+		},
+		'countries-false': {
+			children: {
+				'subfields-false': {
+					children: { 'topics-false': { semantic: 'specifically' } },
+					semantic: 'working on'
+				}
+			},
+			semantic: 'are cited by authors working in'
+		},
 	}
 };

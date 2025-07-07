@@ -35,7 +35,6 @@
 
 	let showIndexedCiteText = false;
 	let ticksHeight: number;
-	let compMode = false;
 
 	//resp might remain 0, so we need to alert the country map
 	$: indsByEntityType = tf.getTreeIndsByEntityType(data.treeSpecs.specs[data.conf.rootType]);
@@ -90,19 +89,8 @@
 		</div>
 	</div>
 </div>
-{#if showsSubfields}
-	<div class="shadowy padded marged" id="concept-map">
-		<ConceptMap
-			rootId={data.view.dmId}
-			{indsByEntityType}
-			rootName={data.view.name}
-			conf={data.conf}
-			treeSpecs={data.treeSpecs}
-		/>
-	</div>
-{/if}
-<div class="comp-basis" style={compMode ? 'display: flex' : ''}>
-	<div class="shadowy padded marged comp-elem">
+<div class="comp-basis">
+	<div class="shadowy padded marged">
 		<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} id="tree">
 			<FullQc
 				rootName={data.view.name}
@@ -120,17 +108,26 @@
 			/>
 		</div>
 	</div>
+	{#if showsSubfields}
+		<div class="shadowy padded marged concept-map" id="research-space">
+			<ConceptMap
+				rootId={data.view.dmId}
+				{indsByEntityType}
+				rootName={data.view.name}
+				conf={data.conf}
+				treeSpecs={data.treeSpecs}
+			/>
+		</div>
+	{/if}
 	{#if showsCountry}
-		<div class="shadowy padded marged comp-elem">
-			<div id="map-elem">
-				<WorldMapSvg
-					rootId={data.view.dmId}
-					{indsByEntityType}
-					rootName={data.view.name}
-					conf={data.conf}
-					treeSpecs={data.treeSpecs}
-				/>
-			</div>
+		<div class="shadowy padded marged world-map" id="world-map">
+			<WorldMapSvg
+				rootId={data.view.dmId}
+				{indsByEntityType}
+				rootName={data.view.name}
+				conf={data.conf}
+				treeSpecs={data.treeSpecs}
+			/>
 		</div>
 	{/if}
 </div>
@@ -208,14 +205,10 @@
 		background: rgba(var(--color-range-15), 0.1);
 	}
 
-	#map-elem {
+	.world-map {
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
 		height: 100%;
-	}
-
-	.comp-elem {
-		flex: 6;
 	}
 </style>

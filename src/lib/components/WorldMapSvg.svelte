@@ -188,7 +188,10 @@
 		},
 		authors: { 'countries-false': 'citing papers authored by' },
 		sources: { 'countries-true': 'where authors publish in' },
-		subfields: {}
+		subfields: {
+			'countries-true': 'where authors publish papers about',
+			'countries-false': 'where authors cite papers about'
+		}
 	};
 
 	function countrySemantify(rootType: tt.RootType, bd: string) {

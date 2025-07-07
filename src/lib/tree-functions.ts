@@ -58,10 +58,15 @@ export function getDefaultControlSpecs(spec: boolean): tt.FullControlSpecs {
 	};
 }
 
-export function getBreakdownOptions(treeSpecs: tt.TreeSpecs, rootType: tt.RootType, maxD: number = MAX_LEVEL_COUNT) {
+export function getBreakdownOptions(treeSpecs: tt.TreeSpecs, rootType: tt.RootType, maxD: number = MAX_LEVEL_COUNT, minD: number = 2) {
 	//TODO: this should be cached, its just clutter
 	let entityTreeSpecs = treeSpecs.specs[rootType];
-	return fillBreakdownOptions(entityTreeSpecs.entries(), maxD)
+	const entries = [];
+	for (let i = 0; i < entityTreeSpecs.length; i++) {
+		let v = entityTreeSpecs[i]
+		if (v.breakdowns.length >= minD) entries.push([i, v] as [number, tt.TreeSpec]);
+	}
+	return fillBreakdownOptions(entries, maxD)
 }
 
 export function fillBreakdownOptions(specsEnum: ArrayIterator<[number, tt.TreeSpec]> | [number, tt.TreeSpec][], maxD: number = MAX_LEVEL_COUNT) {

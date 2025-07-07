@@ -45,7 +45,7 @@
 				return;
 			}
 		}
-		if (!(treeId in treeIds)) {
+		if (!treeIds.includes(treeId)) {
 			treeId = treeIds[0];
 		}
 	}
@@ -65,6 +65,11 @@
 		});
 	}
 
+	function setNewFlout(resp: tt.TreeResponse | undefined, isSpec: boolean) {
+		let newFlout = tf.flatFromResp(resp, isSpec, currentTreeSpec);
+		if (newFlout != undefined) flatOut = newFlout;
+	}
+
 	onMount(() => {
 		mounted = true;
 		if (resp == undefined) {
@@ -72,10 +77,7 @@
 		}
 	});
 	$: updateTreeId(selectedBreakdowns, levelOptions);
-	$: {
-		let newFlout = tf.flatFromResp(resp, isSpec, currentTreeSpec);
-		if (newFlout != undefined) flatOut = newFlout;
-	}
+	$: setNewFlout(resp, isSpec);
 	$: reloadResp(treeId, year, rootId);
 	$: titleSuffix =
 		selectedBreakdowns != undefined ? semantifyer(conf.rootType, selectedBreakdowns[0]) : '';

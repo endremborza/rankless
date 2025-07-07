@@ -2,7 +2,7 @@
 	import { nodes, edges } from '$lib/assets/data/concept-map.json';
 	import { subfields, fields, domains } from '$lib/assets/data/field-hierarchy.json';
 	import fieldOrderMap from '$lib/assets/data/fields-ordered.json';
-	import { getColor } from '$lib/style-util';
+	import { getColor, getColorArr } from '$lib/style-util';
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
@@ -16,12 +16,15 @@
 	export let conf: tt.FullTreeConfig;
 	export let treeSpecs: tt.TreeSpecs;
 
-	const minSize = 1.5;
-	const maxSize = 3.1;
-	const minSaturation = 0.7;
-	const maxSaturation = 2.5; //HIGH_OP;
+	const minSize = 0.8;
+	const maxSize = 2.1;
+	const minSaturation = 0.2;
+	const maxSaturation = 1; //HIGH_OP;
 	const minOpacity = LOW_OP * 2;
 	const maxOpacity = 100; //HIGH_OP;
+	let defaultSat = 0.8;
+	let defaultOp = 0.9;
+	let defaultLineOp = 0.5;
 
 	const getOpFromRate = (x: number) => x * (maxOpacity - minOpacity) + minOpacity;
 	const getSatFromRate = (x: number) => x * (maxSaturation - minSaturation) + minSaturation;
@@ -29,25 +32,25 @@
 
 	let svgEl: SVGSVGElement;
 	let styleEl: SVGStyleElement | null = null;
-	let infoPath: string[] = [];
+	let infoPath: number[] = [];
 	let mounted = false;
 	let fontSize = 2.3;
 	let hovered = '0';
-	let hoveredParent = 0;
+	let hoveredParent: number | undefined = undefined;
 	let toDomains = false;
 
 	let isSpec = true;
 	let flatOut = {};
 	$: parents = toDomains ? domains : getFieldArr();
 	$: getParent = toDomains ? getDomain : getFieldColorOrder;
-	$: {
-		if (styleEl != undefined && flatOut != undefined && mounted) {
-			styleEl.textContent = getClassStyles(flatOut, hovered, -1, 0, 0.2);
-		}
-	}
+	$: setClassStyles(styleEl, flatOut, mounted, hovered, hoveredParent);
 
 	function classNamer(s: string) {
 		return `subfield-circle-${s}`;
+	}
+
+	function flashClassNamer(s: string) {
+		return `subfield-flash-${s}`;
 	}
 
 	function getFieldColorOrder(sf: string) {
@@ -69,10 +72,15 @@
 		return getColor(colInd / (parents.length - 1));
 	}
 
+	function getParentColorArr(i: number) {
+		let colInd = toDomains ? i - 1 : i - 1;
+		return getColorArr(colInd / (parents.length - 1));
+	}
+
 	function getFieldArr() {
 		const fieldsOut = [];
 		for (let i = 0; i < fields.length; i++) {
-			fieldsOut[fieldOrderMap[i]] = fields[i][0];
+			fieldsOut[fieldOrderMap[i] as number] = fields[i][0];
 		}
 		return fieldsOut;
 	}
@@ -80,39 +88,46 @@
 	function getClassStyles(
 		levels: tt.LevelT,
 		highlighted: string,
-		highlightedQ: number,
-		nBreakPoints: number,
+		highlightedParent: number | undefined,
 		pullerRate: number
 	) {
 		if (Object.values(levels).length == 0) return '';
-		const { linScaler, newBreakPoints } = tf.getFlatRescaler(levels, nBreakPoints, pullerRate);
+		const { linScaler } = tf.getFlatRescaler(levels, 0, pullerRate);
 		let scaler = (w: number) => {
 			let sat = getSatFromRate(linScaler(w));
 			let size = getSizeFromRate(linScaler(w));
-			return { sat, hl: false, size };
+			return { sat, size };
 		};
-		if (nBreakPoints > 0) {
-			scaler = (w: number) => {
-				let oI = 0;
-				for (let i = 1; i <= nBreakPoints; i++) {
-					if (w >= newBreakPoints[i]) oI++;
-				}
-				let size = getSizeFromRate(oI / nBreakPoints);
-				return { sat: getSatFromRate(oI / nBreakPoints), hl: oI == highlightedQ, color: size };
-			};
-		}
 		const sLines = [];
 		for (const [c, { w }] of Object.entries(levels)) {
 			let isHighlighted = c == highlighted;
-			let { sat, hl, size } = scaler(w);
-			isHighlighted = isHighlighted || hl;
-			let line = `r: ${size.toFixed(2)}px; filter: saturate(${sat});`;
-			if (isHighlighted) {
-				// line += `stroke-width: 1.5;`;
+			if (hoveredParent != undefined) {
+				isHighlighted = getParent(c) == highlightedParent;
 			}
+			let { sat, size } = scaler(w);
+			isHighlighted = isHighlighted;
+			let line = `r: ${size.toFixed(2)}px;`;
+			let flashLine = `r: ${size.toFixed(2)}px; fill-opacity: ${sat}`;
+			if (isHighlighted) {
+				line += `stroke-width: 0.3; stroke: var(--color-text)`;
+			}
+			//
 			sLines.push(`circle.${classNamer(c)} {${line}}`);
+			sLines.push(`circle.${flashClassNamer(c)} {${flashLine}}`);
 		}
 		return sLines.join('\n');
+	}
+
+	function setClassStyles(
+		styleEl: SVGStyleElement | null,
+		flatOut: tt.LevelT | undefined,
+		mounted: boolean,
+		hovered: string,
+		hoveredParent: number | undefined
+	) {
+		if (styleEl != undefined && flatOut != undefined && mounted) {
+			styleEl.textContent = getClassStyles(flatOut, hovered, hoveredParent, 0.2);
+		}
 	}
 
 	onMount(() => {
@@ -123,14 +138,20 @@
 	});
 
 	const SF_SEM_MAP: Record<tt.RootType, Record<string, string>> = {
-		countries: {},
+		countries: {
+			'subfields-true': 'of papers published by authors working in',
+			'subfields-false': 'of papers citing works of authors working in'
+		},
 		institutions: {
 			'subfields-true': 'of papers published by authors at',
 			'subfields-false': 'of papers citing works of authors at'
 		},
-		authors: { 'subfields-true': 'of papers published by' },
+		authors: {
+			'subfields-true': 'of papers published by',
+			'subfields-false': 'of papers citing papers by'
+		},
 		sources: { 'subfields-true': 'of papers published in' },
-		subfields: {}
+		subfields: { 'subfields-false': 'of papers citing papers about' }
 	};
 
 	function subfieldSemantify(rootType: tt.RootType, bd: string) {
@@ -156,72 +177,106 @@
 	<!-- svelte-ignore a11y-mouse-events-have-key-events -->
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-	<svg
-		bind:this={svgEl}
-		viewBox="-40 -10 180 120"
-		style="--fs: {fontSize}px; --r: {minSize * 0.35}px; --op: {(minOpacity * 0.5) /
-			100}; --sat: {minSaturation * 0.8}"
-	>
-		{#each edges as [s, t, w]}
-			<line
-				x1={nodes[s][0]}
-				y1={nodes[s][1]}
-				x2={nodes[t][0]}
-				y2={nodes[t][1]}
-				stroke="black"
-				stroke-width="0.1"
-			/>
-		{/each}
-		{#each parents.entries() as [i, parent]}
-			{#if parent.length > 0}
-				<g
-					transform="translate(0, {i * fontSize * 1.2})"
+	<div class="concept-map-container">
+		<div class="concept-map-parents">
+			{#each parents.entries() as [i, parent]}
+				<span
+					class="hover-s"
 					on:mouseover={() => (hoveredParent = i)}
+					on:mouseleave={() => (hoveredParent = undefined)}
 					role="none"
+					style="background-color:rgba({getParentColorArr(i)}, 0.4);">{parent}</span
 				>
-					<rect x="-5" y={-fontSize * 0.77} height={fontSize} width="3" fill={getParentColor(i)} />
-					<text x="-6" text-anchor="end">{parent}</text>
-				</g>
-			{/if}
-		{/each}
-		{#each Object.entries(nodes) as [sfi, [cx, cy]]}
-			<circle
-				{cx}
-				{cy}
-				class={classNamer(sfi)}
-				role="region"
-				fill={getParentColor(getParent(sfi))}
-				on:mouseover={() => {
-					hovered = sfi;
-					infoPath = [sfi];
-				}}
-				stroke-width="0.2"
-				stroke={getParent(sfi) == hoveredParent ? 'white' : 'none'}
-			/>
-		{/each}
-	</svg>
+			{/each}
+		</div>
+		<svg
+			bind:this={svgEl}
+			viewBox="-8 -8 146 116"
+			style="--op: {defaultOp}; --lop: {defaultLineOp}; --sat: {defaultSat}"
+		>
+			<defs>
+				<radialGradient id="glowGradient" cx="50%" cy="50%" r="50%">
+					<stop offset="0%" stop-color="white" stop-opacity="1" />
+					<stop offset="100%" stop-color="white" stop-opacity="0" />
+				</radialGradient>
+			</defs>
+			{#each edges as [s, t, w]}
+				<line
+					x1={nodes[s][0]}
+					y1={nodes[s][1]}
+					x2={nodes[t][0]}
+					y2={nodes[t][1]}
+					stroke="black"
+					stroke-width="0.1"
+				/>
+			{/each}
+			{#each Object.entries(nodes) as [sfi, [cx, cy]]}
+				<circle
+					{cx}
+					{cy}
+					class={classNamer(sfi)}
+					role="region"
+					fill={getParentColor(getParent(sfi))}
+					on:mouseover={() => {
+						hovered = sfi;
+						infoPath = [sfi];
+					}}
+					r={minSize * 0.4}
+				/>
+				<circle
+					{cx}
+					{cy}
+					class="{flashClassNamer(sfi)} nopointer"
+					r="0"
+					fill="url(#glowGradient)"
+				/>
+			{/each}
+		</svg>
+	</div>
 </FlatOutFrame>
 
 <style>
 	svg {
-		width: 100%;
-		height: 800px;
-	}
-
-	text {
-		font-size: var(--fs);
+		max-height: 80svh;
+		flex: 9 9 750px;
 	}
 
 	line {
-		opacity: var(--op);
+		opacity: var(--lop);
 	}
 
 	circle {
-		r: var(--r);
-		filter: saturation(var(--sat));
+		filter: contrast(var(--sat));
+		opacity: var(--op);
+		transition: all 800ms;
+	}
+
+	.nopointer {
+		pointer-events: none;
 	}
 
 	.parent-head {
 		height: 30px;
+	}
+
+	.concept-map-container {
+		display: flex;
+		flex-wrap: wrap-reverse;
+	}
+
+	.concept-map-parents {
+		flex: 3 1 300px;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		justify-content: space-between;
+		align-items: center;
+	}
+
+	.concept-map-parents > span {
+		padding: 3px;
+		cursor: default;
+		flex: 1 1 auto;
+		text-align: center;
 	}
 </style>
