@@ -337,6 +337,12 @@ impl InitEmpty for Condvar {
     }
 }
 
+impl<T> InitEmpty for VarBox<T> {
+    fn init_empty() -> Self {
+        Self(Vec::new().into_boxed_slice())
+    }
+}
+
 impl<T> InitEmpty for BinaryHeap<T>
 where
     T: Ord,
@@ -506,7 +512,7 @@ empty_coll!(Vec<T>; T, BTreeSet<T>; T, HashMap<K, V>; K-V, VecDeque<T>; T);
 
 empty_wrap!(Mutex<T>, Arc<T>);
 
-use crate::{var_size_attributes::VaST, VarSizedAttributeElement};
+use crate::{var_size_attributes::VaST, VarBox, VarSizedAttributeElement};
 
 uint_impl!(u8, u16, u32, u64, u128, usize);
 num_impl!(u8, u16, u32, u64, u128, f32, f64, usize);
