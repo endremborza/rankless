@@ -92,7 +92,8 @@ export function idFromBd(bd: tt.BreakdownSpec): string {
 }
 
 export function treeBeUrl(root: string, conf: tt.FullTreeConfig, shallow: undefined | number = undefined): string {
-	let url = `${root}/trees/${conf.rootType}/${conf.semanticId}?tid=${conf.treeId}&year=${conf.year}`;
+	let urlFriendlySemId = conf.semanticId.replace("/", "%2F");
+	let url = `${root}/trees/${conf.rootType}/${urlFriendlySemId}?tid=${conf.treeId}&year=${conf.year}`;
 	if (shallow != undefined) {
 		url += `&shallow=${shallow}`
 	}

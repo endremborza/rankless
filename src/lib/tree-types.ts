@@ -50,7 +50,7 @@ export type Paper = {
 	year: number; name: string; doi: string; citations: number; yearlyCites: number[]
 };
 
-export type RootType = 'authors' | 'institutions' | 'sources' | 'countries' | 'subfields';
+export type RootType = 'authors' | 'institutions' | 'sources' | 'countries' | 'subfields' | 'hit-papers';
 export type EntityType = RootType | 'works' | 'topics' | 'qs';
 export type SearchResult = {
 	name: string;

@@ -126,24 +126,26 @@
 <div id="tops">
 	<div id="init-list" class="marged">
 		{#each data.tops.entries() as [i, entityTop]}
-			<h3>{prettifyRoot(entityTop.name)}</h3>
-			{#each entityTop.entities.slice(0, 3).entries() as [j, ent]}
-				<a
-					href={tf.entToLink({ ...ent, rootType: entityTop.name })}
-					on:mouseover={() => {
-						selectedInds = [i, j];
-					}}
-					on:mouseleave={() => {
-						selectedInds = [-1, -1];
-					}}
-					on:focus={() => {
-						selectedInds = [i, j];
-					}}
-					class={selectedInds[0] == i && selectedInds[1] == j ? 'focused' : ''}
-				>
-					{ent.name}
-				</a>
-			{/each}
+			{#if entityTop.entities.length > 0}
+				<h3>{prettifyRoot(entityTop.name)}</h3>
+				{#each entityTop.entities.slice(0, 3).entries() as [j, ent]}
+					<a
+						href={tf.entToLink({ ...ent, rootType: entityTop.name })}
+						on:mouseover={() => {
+							selectedInds = [i, j];
+						}}
+						on:mouseleave={() => {
+							selectedInds = [-1, -1];
+						}}
+						on:focus={() => {
+							selectedInds = [i, j];
+						}}
+						class={selectedInds[0] == i && selectedInds[1] == j ? 'focused' : ''}
+					>
+						{ent.name}
+					</a>
+				{/each}
+			{/if}
 		{/each}
 	</div>
 	<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} id="preview" class="marged">

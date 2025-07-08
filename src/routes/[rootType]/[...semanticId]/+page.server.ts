@@ -20,6 +20,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 		error(404, 'Not found');
 	}
 	let semanticId: string = params.semanticId;
+	console.log(semanticId)
 
 	const treeSpecs = await lf.loadSpecs();
 	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
@@ -41,7 +42,8 @@ export const load: PageServerLoad = async ({ params, url }) => {
 		redirect(301, link);
 	}
 
-	const view: tt.View = await fetch(`${BE_URL}/views/${rootType}/${semanticId}`)
+	let urlFriendlySemanticId = semanticId.replace("/", "%2F");
+	const view: tt.View = await fetch(`${BE_URL}/views/${rootType}/${urlFriendlySemanticId}`)
 		.then((res) => res.json())
 		.then((view) => view)
 		.catch(() => error(404, 'Not found'));
@@ -296,7 +298,8 @@ function getSemanticRels(
 		institutions: `In recent decades, authors affiliated with ${rootName} have published ${paperText}, which have received a total of ${citeText}`,
 		countries: `In recent decades scholars affiliated with institutions in ${rootName} have published ${paperText}, which have received a total of ${citeText}`,
 		subfields: `${paperText} covering ${rootName} have received a total of ${citeText} since ${COMPLETE_YEAR}`,
-		sources: `The ${paperText} published in ${rootName} in the last decades have received a total of ${citeText}`
+		sources: `The ${paperText} published in ${rootName} in the last decades have received a total of ${citeText}`,
+		'hit-papers': `The paper ${rootName} received a total of ${citeText}`
 	};
 	return {
 		prefix: prefixes[rootType],
@@ -321,7 +324,9 @@ function sentenceJoiner(parts: string[]) {
 			out.push(parts[i] + '.');
 		}
 	}
-	out.push(parts[parts.length - 1] + '.');
+	if (parts.length > 0) {
+		out.push(parts[parts.length - 1] + '.');
+	}
 	return out.join(' ');
 }
 

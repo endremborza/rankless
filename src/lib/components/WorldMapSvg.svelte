@@ -191,7 +191,8 @@
 		subfields: {
 			'countries-true': 'where authors publish papers about',
 			'countries-false': 'where authors cite papers about'
-		}
+		},
+		'hit-papers': { 'countries-false': 'where authors are citing' }
 	};
 
 	function countrySemantify(rootType: tt.RootType, bd: string) {

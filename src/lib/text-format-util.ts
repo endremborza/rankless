@@ -99,7 +99,7 @@ export function getStylesForWords(
 }
 
 export function semantify(s: string, rootType: RootType, bds: string[], depth: number) {
-	let map = SEM_MAP[rootType];
+	let map = SEM_MAP[rootType] as any;
 	for (let i = 0; i < depth; i++) {
 		if (map == undefined) {
 			return s;
@@ -212,6 +212,10 @@ export const SEMANTIC_CONF = {
 	subfields: {
 		prefix: '💡',
 		start: 'Papers covering'
+	},
+	'hit-papers': {
+		prefix: '📃',
+		start: 'The Paper'
 	}
 };
 

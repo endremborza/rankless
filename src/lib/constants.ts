@@ -15,7 +15,8 @@ export const ROOT_TYPES: RootType[] = [
 	'institutions',
 	'sources',
 	'countries',
-	'subfields'
+	'subfields',
+	'hit-papers',
 ];
 
 export const ENTITY_TYPES: EntityType[] = ['topics', 'works', 'qs', ...ROOT_TYPES];

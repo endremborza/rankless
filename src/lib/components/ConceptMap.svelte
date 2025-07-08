@@ -151,7 +151,8 @@
 			'subfields-false': 'of papers citing papers by'
 		},
 		sources: { 'subfields-true': 'of papers published in' },
-		subfields: { 'subfields-false': 'of papers citing papers about' }
+		subfields: { 'subfields-false': 'of papers citing papers about' },
+		'hit-papers': { 'subfields-false': 'of papers citing' }
 	};
 
 	function subfieldSemantify(rootType: tt.RootType, bd: string) {
