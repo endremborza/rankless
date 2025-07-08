@@ -138,6 +138,11 @@ select {
 	cursor: pointer;
 }
 
+.hover-xs {
+	font-size: min(0.85rem, 1.5vw);
+}
+
+
 .hover-s {
 	font-size: min(0.85rem, 2.2vw);
 }
