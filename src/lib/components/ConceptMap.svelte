@@ -18,8 +18,9 @@
 
 	const minSize = 1.1;
 	const maxSize = 2.2;
+	const nullSize = 0.8;
 	const minSaturation = 0.95;
-	const maxSaturation = 0;
+	const maxSaturation = 0.2;
 	const minOpacity = LOW_OP * 2;
 	const maxOpacity = 100;
 	let defaultSat = 0.8;
@@ -222,14 +223,14 @@
 						hovered = sfi;
 						infoPath = [sfi];
 					}}
-					r={minSize * 0.7}
+					r={nullSize}
 				/>
 				<circle
 					{cx}
 					{cy}
 					class="{flashClassNamer(sfi)} nopointer"
 					stroke="none"
-					r={minSize * 0.7 * 0.9}
+					r={nullSize * 0.9}
 					fill="var(--text-bg)"
 				/>
 			{/each}
