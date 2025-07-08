@@ -485,11 +485,31 @@ const SEM_MAP = {
 		'countries-false': {
 			children: {
 				'subfields-false': {
-					children: { 'topics-false': { semantic: 'specifically' } },
+					children: { 'topics-false': { semantic: SPEC } },
 					semantic: 'working on'
 				}
 			},
 			semantic: 'are cited by authors working in'
+		},
+	},
+	'hit-papers': {
+		'subfields-false': {
+			children: {
+				'sources-false': {
+					children: { 'topics-false': { semantic: 'covering' } },
+					semantic: 'published in'
+				}
+			},
+			semantic: 'is cited by papers on'
+		},
+		'countries-false': {
+			children: {
+				'subfields-false': {
+					children: { 'topics-false': { semantic: SPEC } },
+					semantic: 'working on'
+				}
+			},
+			semantic: 'is cited by authors working in'
 		},
 	}
 };
