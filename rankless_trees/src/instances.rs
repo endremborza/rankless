@@ -4,9 +4,9 @@ use crate::{
     components::{
         AuthorBestiePapers, AuthorBesties, CiteSubSourceTop, CitingCoInstSuToByRef,
         CitingCoSuToByRef, CitingSourceCoSuByRef, CitingSuByRef, CountryBesties, CountryCiters,
-        CountryInstsPost, FullRefCountryInstSubfieldByRef, InstBesties, IntX, PostRefIterWrap,
-        QedInf, RefCountryByRef, RefSuByRef, RefSubCiSubTByRef, SourceSubfieldCiCoByRef,
-        SourceWCoiByRef, StackBasis, StackFr, SubfieldCountryInstByRef,
+        CountryInstsPost, FullRefCountryInstSubfieldByRef, FullRefSourceCountryInstByRef,
+        InstBesties, IntX, PostRefIterWrap, QedInf, RefCountryByRef, RefSuByRef, RefSubCiSubTByRef,
+        SourceSubfieldCiCoByRef, SourceWCoiByRef, StackBasis, StackFr, SubfieldCountryInstByRef,
         SubfieldCountryInstSourceByRef, SubfieldCountryInstSubfieldByRef,
         SubfieldRefTopicCountryInst, SubfieldWCoiByRef, WorkingAuthors,
     },
@@ -22,6 +22,7 @@ use rankless_rs::{
     agg_tree::{AggTreeBase, ReinstateFrom, Updater},
     common::{NumberedEntity, NET},
     gen::a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Works},
+    gen::derive_links3::HitPapers,
 };
 
 use dmove::{Entity, InitEmpty, UnsignedNumber, ET};
@@ -561,8 +562,6 @@ mod source_trees {
 
 #[derive_tree_getter(Subfields)]
 mod subfield_trees {
-    use crate::components::{FullRefSourceCountryInstByRef, PostRefIterWrap};
-
     use super::*;
 
     pub type Tree1<'a> = SubfieldRefTopicCountryInst<'a>;
@@ -570,6 +569,14 @@ mod subfield_trees {
     pub type Tree3<'a> = PostRefIterWrap<'a, Subfields, CitingSuByRef<'a>>;
     pub type Tree4<'a> = PostRefIterWrap<'a, Subfields, RefCountryByRef<'a>>;
     pub type Tree5<'a> = PostRefIterWrap<'a, Subfields, CitingCoSuToByRef<'a>>;
+}
+
+#[derive_tree_getter(HitPapers)]
+mod hit_paper_trees {
+    use super::*;
+
+    pub type Tree1<'a> = PostRefIterWrap<'a, HitPapers, CitingCoSuToByRef<'a>>;
+    pub type Tree2<'a> = PostRefIterWrap<'a, HitPapers, CiteSubSourceTop<'a>>;
 }
 
 pub mod test_tools {

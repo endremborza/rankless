@@ -80,6 +80,8 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     let mut hit_names = vec!["Unknown".to_string()]; //TODO: 0 id is unknown, but all this needing to map to
                                                      //u64 is unnecessary here
     let mut hit_dois = vec!["".to_string()];
+    let mut hit_ccounts = vec![0];
+    let mut hit_wids = vec![vec![].into_boxed_slice()];
     let this_year = YearInterface::parse(FINAL_YEAR);
     let hit_papers = name_interface.enumerate().filter_map(|(wid, name)| {
         if w_years[wid] >= this_year {
@@ -96,6 +98,9 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         {
             hit_names.push(name);
             hit_dois.push(doi_interface.0[wid].to_string());
+            hit_ccounts.push(wcc.to_usize());
+            //TODO: unnecessary but low cost - hit_papers contains the exact same info
+            hit_wids.push(vec![wid as ET<Works>].into_boxed_slice());
             Some(wid as BigId)
         } else {
             None
@@ -104,6 +109,11 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     starc.add_iter_owned::<Data64MappedEntityBuilder, _, _>(hit_papers, Some("hit-papers"));
     starc.add_iter_owned::<VarAttBuilder, _, _>(hit_names.into_iter(), Some("hit-papers-names"));
     starc.add_iter_owned::<VarAttBuilder, _, _>(hit_dois.into_iter(), Some("hit-papers-dois"));
+    starc.add_iter_owned::<VarAttBuilder, _, _>(hit_wids.into_iter(), Some("hit-papers-wids"));
+    starc.add_iter_owned::<DowncastingBuilder, _, _>(
+        hit_ccounts.into_iter(),
+        Some("hit-papers-cite-counts"),
+    );
     starc.write_code()?;
     Ok(())
 }

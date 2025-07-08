@@ -6,14 +6,17 @@ use dmove::{
 };
 
 use crate::{
-    common::{HitWorkMarker, MainWorkMarker},
+    common::{EmptyAttributeEntity, HitWorkMarker, MainWorkMarker},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         derive_links2::WorkCitingCounts,
-        derive_links3::HitPapers,
+        derive_links3::{
+            HitPapers, HitPapersCiteCounts, HitPapersDois, HitPapersNames, HitPapersWids,
+        },
     },
     steps::derive_links3::work_count,
-    QuickestBox, QuickestNumbered, ReadIter, Stowage,
+    CiteCountMarker, NameExtensionMarker, NameMarker, QuickestBox, QuickestNumbered, ReadIter,
+    SemanticIdMarker, Stowage,
 };
 
 fn sorted_hit_papers<E>(
@@ -45,6 +48,26 @@ fn sorted_hit_papers<E>(
         });
     parc.0
         .declare_iter::<VarAttBuilder, _, _, E, HitWorkMarker>(hits, &format!("{}-hits", E::NAME));
+}
+
+impl MarkedAttribute<NameMarker> for HitPapers {
+    type AttributeEntity = HitPapersNames;
+}
+
+impl MarkedAttribute<SemanticIdMarker> for HitPapers {
+    type AttributeEntity = HitPapersDois;
+}
+
+impl MarkedAttribute<CiteCountMarker> for HitPapers {
+    type AttributeEntity = HitPapersCiteCounts;
+}
+
+impl MarkedAttribute<MainWorkMarker> for HitPapers {
+    type AttributeEntity = HitPapersWids;
+}
+
+impl MarkedAttribute<NameExtensionMarker> for HitPapers {
+    type AttributeEntity = EmptyAttributeEntity<String>;
 }
 
 pub fn main(stowage: Stowage) -> io::Result<()> {

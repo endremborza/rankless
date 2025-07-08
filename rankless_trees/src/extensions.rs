@@ -2,6 +2,7 @@ use dmove::Entity;
 use rankless_rs::{
     common::init_empty_slice,
     gen::a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields},
+    gen::derive_links3::HitPapers,
 };
 
 use crate::interfacing::{Getters, RootInterfaceable, RootInterfaces};
@@ -21,6 +22,7 @@ impl DistinctionText for Countries {}
 impl DistinctionText for Subfields {}
 impl DistinctionText for Sources {}
 impl DistinctionText for Authors {}
+impl DistinctionText for HitPapers {}
 
 impl DistinctionText for Institutions {
     fn get_distinction_text_arr(

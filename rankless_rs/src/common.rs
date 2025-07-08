@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Display};
 use std::io::{prelude::*, BufWriter};
+use std::marker::PhantomData;
 use std::ops::Range;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::{
@@ -52,10 +53,14 @@ pub struct InstRelMarker;
 pub struct Top3PaperSfMarker;
 pub struct Top3CitingSfMarker;
 pub struct Top3PaperTopicMarker;
-pub struct Top3AuthorMarker;
+pub struct Top5AuthorMarker;
 pub struct Top3CitingTopicMarker;
 pub struct Top3JournalMarker;
 pub struct Top3AffCountryMarker;
+
+pub struct EmptyAttributeEntity<T> {
+    p: PhantomData<T>,
+}
 
 #[macro_export]
 macro_rules! add_parsed_id_traits {
@@ -421,6 +426,17 @@ where
     }
 }
 
+impl<T, BeMarker> MarkedBackendLoader<BeMarker> for EmptyAttributeEntity<T>
+where
+    BeMarker: BackendSelector<Self>,
+    BeMarker::BE: InitEmpty,
+{
+    type BE = BeMarker::BE;
+    fn load(_: &Stowage) -> Self::BE {
+        Self::BE::init_empty()
+    }
+}
+
 impl<E> BackendSelector<E> for QuickestNumbered
 where
     E: MainEntity,
@@ -504,6 +520,23 @@ impl<T: DeserializeOwned> Iterator for ObjIter<T> {
             return None;
         }
     }
+}
+
+impl<T> Entity for EmptyAttributeEntity<T> {
+    const NAME: &str = "nothing";
+    const N: usize = 0;
+    type T = T;
+}
+
+impl<T> VariableSizeAttribute for EmptyAttributeEntity<T>
+where
+    T: VarSizedAttributeElement,
+{
+    type SizeType = u8;
+}
+
+impl<T> MappableEntity for EmptyAttributeEntity<T> {
+    type KeyType = usize;
 }
 
 pub fn oa_id_parse(id: &str) -> u64 {

@@ -21,10 +21,11 @@ use tqdm::{Iter, Tqdm};
 
 use crate::{
     common::{
-        init_empty_slice, BeS, CitSubfieldsArrayMarker, InstRelMarker, MainWorkMarker,
-        QuickAttPair, QuickMap, RefSubfieldsArrayMarker, Top3AffCountryMarker, Top3AuthorMarker,
-        Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader,
-        YearlyCitationsMarker, YearlyPapersMarker,
+        init_empty_slice, BeS, CitSubfieldsArrayMarker, EmptyAttributeEntity, HitWorkMarker,
+        InstRelMarker, MainWorkMarker, QuickAttPair, QuickMap, RefSubfieldsArrayMarker,
+        Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker,
+        Top3PaperTopicMarker, Top5AuthorMarker, WorkLoader, YearlyCitationsMarker,
+        YearlyPapersMarker,
     },
     env_consts::{FINAL_YEAR, START_YEAR},
     gen::{
@@ -55,12 +56,16 @@ pub const ERA_SIZE: usize = 11;
 pub const MAX_YEAR: usize = (FINAL_YEAR - START_YEAR) as usize;
 pub const MIN_YEAR: usize = MAX_YEAR - ERA_SIZE + 1;
 
+pub type EraRec = [u32; ERA_SIZE];
+pub type TopNRec<E, const N: usize> = [(u32, ET<E>); N];
+pub type Top3Rec<E> = TopNRec<E, 3>;
+pub type Top5Rec<E> = TopNRec<E, 5>;
+
 type YT = ET<Years>;
 type IT = ET<Institutions>;
 type SfDistRec<E> = [ET<MAA<E, WorkCountMarker>>; Subfields::N];
 type Top3RelExtender<E, SE> = TopNRelExtender<3, E, SE, HashMap<ET<E>, u32>>;
 type Top5HRelExtender<E, SE> = TopNRelExtender<5, E, SE, HashMap<ET<E>, Vec<u32>>>;
-pub type EraRec = [u32; ERA_SIZE];
 
 #[derive(Debug, ByteFixArrayInterface)]
 pub struct InstRelation {
@@ -112,7 +117,7 @@ where
     ET<E>: UnsignedNumber,
     Prep: TopPrepper<E>,
 {
-    vec: Vec<[(u32, E::T); N]>,
+    vec: Vec<TopNRec<E, N>>,
     prep: Prep,
     seid: SE::T,
 }
@@ -379,7 +384,7 @@ where
         stowage.ditf::<Top3PaperSfMarker, E, _>(self.top3_paper_sfs.vec, "top-paper-subfields");
         stowage.ditf::<Top3CitingSfMarker, E, _>(self.top3_citing_sfs.vec, "top-citing-subfields");
         stowage.ditf::<Top3PaperTopicMarker, E, _>(self.top3_paper_topics.vec, "top-paper-topics");
-        stowage.ditf::<Top3AuthorMarker, E, _>(self.top5_authors.vec, "top-paper-authors");
+        stowage.ditf::<Top5AuthorMarker, E, _>(self.top5_authors.vec, "top-paper-authors");
         stowage.ditf::<Top3JournalMarker, E, _>(self.top3_journals.vec, "top-journals");
         stowage
             .ditf::<Top3AffCountryMarker, E, _>(self.top3_aff_countries.vec, "top-aff-countries");
@@ -493,6 +498,7 @@ impl CiteDeriver {
 
     fn hit_paper_atts(&self) {
         let mut cy_counts = init_empty_slice::<HitPapers, Box<[u32]>>();
+        let mut cy_eras = init_empty_slice::<HitPapers, EraRec>();
         self.stowage
             .get_entity_interface::<HitPapers, QuickestNumbered>()
             .0
@@ -501,6 +507,7 @@ impl CiteDeriver {
                 let wu = wid.to_usize();
                 let wyear = self.backends.year[wu];
                 let mut v = vec![0; (1 + FINAL_YEAR - YearInterface::reverse(wyear)).to_usize()];
+                let mut era = EraRec::init_empty();
                 self.backends
                     .wciting
                     .get(&wu)
@@ -511,10 +518,14 @@ impl CiteDeriver {
                         if cyear >= wyear {
                             v[(cyear - wyear).to_usize()] += 1;
                         }
+                        inc_year(&mut era, cyear);
                     });
 
+                cy_eras[hwid.to_usize()] = era;
                 cy_counts[hwid.to_usize()] = v.into_boxed_slice();
             });
+        self.stowage
+            .ditf::<YearlyCitationsMarker, HitPapers, _>(cy_eras.into_vec(), "era");
         self.stowage.add_iter_owned::<VarAttBuilder, _, _>(
             cy_counts.to_vec().into_iter(),
             Some("hit-paper-yearly-citations"),
@@ -699,6 +710,30 @@ impl IRelAdder for Authors {
         o
     }
 }
+
+macro_rules! mark_empty {
+    ($marked:ident, $($marker:ident => $marker_type:ty),*) =>
+    {
+        $(
+            impl MarkedAttribute<$marker> for $marked {
+                type AttributeEntity = EmptyAttributeEntity<$marker_type>;
+            }
+        )*
+    };
+}
+
+mark_empty!(
+    HitPapers,
+    WorkCountMarker => u8,
+    YearlyPapersMarker => EraRec,
+    HitWorkMarker => Box<[ET<HitPapers>]>,
+    Top3JournalMarker => Top3Rec<Sources>,
+    Top5AuthorMarker => Top5Rec<Authors>,
+    Top3AffCountryMarker => Top3Rec<Countries>,
+    Top3PaperTopicMarker => Top3Rec<Topics>,
+    Top3CitingSfMarker => Top3Rec<Subfields>,
+    Top3PaperSfMarker => Top3Rec<Subfields>
+);
 
 pub fn main(stowage: Stowage) -> io::Result<()> {
     let mut cd = CiteDeriver::new(stowage);

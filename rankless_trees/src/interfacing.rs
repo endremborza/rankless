@@ -6,10 +6,10 @@ use crate::{
 };
 use rankless_rs::{
     common::{
-        init_empty_slice, BeS, HitWorkMarker, InstRelMarker, MainEntity, MainWorkMarker,
-        MarkedBackendLoader, NumberedEntity, QuickAttPair, QuickMap, QuickestBox, QuickestVBox,
-        Stowage, Top3AffCountryMarker, Top3AuthorMarker, Top3CitingSfMarker, Top3JournalMarker,
-        Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader, YearlyCitationsMarker,
+        init_empty_slice, BeS, HitWorkMarker, MainEntity, MainWorkMarker, MarkedBackendLoader,
+        NumberedEntity, QuickAttPair, QuickMap, QuickestBox, QuickestVBox, Stowage,
+        Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker,
+        Top3PaperTopicMarker, Top5AuthorMarker, WorkLoader, YearlyCitationsMarker,
         YearlyPapersMarker, NET,
     },
     gen::{
@@ -28,7 +28,7 @@ use rankless_rs::{
     steps::{
         a1_entity_mapping::YearInterface,
         derive_links1::{CountryInsts, WorkPeriods},
-        derive_links5::{EraRec, InstRelation, N_RELS},
+        derive_links5::{EraRec, Top3Rec, Top5Rec},
     },
     CiteCountMarker, NameExtensionMarker, NameMarker, QuickestNumbered, SemanticIdMarker,
     WorkCountMarker,
@@ -37,8 +37,7 @@ use rankless_rs::{
 use dmove::{
     BackendLoading, BigId, ByteArrayInterface, ByteFixArrayInterface, CompactEntity, Entity,
     EntityImmutableRefMapperBackend, Locators, MappableEntity, MarkedAttribute, NamespacedEntity,
-    UnsignedNumber, VaST, VarAttBuilder, VarBox, VarSizedAttributeElement, VariableSizeAttribute,
-    VattArrPair, ET, MAA,
+    UnsignedNumber, VaST, VarAttBuilder, VarBox, VarSizedAttributeElement, VattArrPair, ET, MAA,
 };
 use hashbrown::HashMap;
 use rand::Rng;
@@ -48,8 +47,6 @@ const SPEC_CORR_RATE: f64 = 0.45;
 type VB<E> = BeS<QuickAttPair, E>;
 type FB<E> = BeS<QuickestBox, E>;
 type MB<E> = BeS<QuickMap, E>;
-type TopRec<E> = [(u32, ET<E>); 3];
-type TopRec5<E> = [(u32, ET<E>); 5];
 
 pub struct Getters {
     ifs: Interfaces,
@@ -193,12 +190,12 @@ macro_rules! make_ent_interfaces {
         {
             pub fn new(stowage: &Stowage) -> Self {
                 Self {
-                    $($f_key: <E as StringAtt<$f_mark>>::load(stowage)),*,
-                    $($r_key: <E as NumAtt<$r_mark>>::load(stowage)),*
+                    $($f_key: <E as VarAtt<$f_mark>>::load(stowage)),*,
+                    $($r_key: <E as FixAtt<$r_mark>>::load(stowage)),*
                     $(, $fix_key:  <E as FixAtt<$fix_mark>>::load(stowage))*
                     $(, $var_key:  <E as VarAtt<$var_mark>>::load(stowage))*
                     $(, $float_key:  <E as FloatAtt<$float_mark>>::load(stowage))*
-                    $(,$oa_key: reverse_id::<E>(stowage))*
+                    $(, $oa_key: reverse_id::<E>(stowage))*
                 }
             }
         }
@@ -228,7 +225,8 @@ make_interfaces!(
     iworks > Institutions,
     aworks > Authors,
     soworks > Sources,
-    sfworks > Subfields;
+    sfworks > Subfields,
+    hit_wids > HitPapers;
     year => WorkYears,
     top_source => WorkTopSource,
     wperiod => WorkPeriods,
@@ -266,14 +264,14 @@ make_ent_interfaces!(
     hit_works - HitWorkMarker = Box<[ET<HitPapers>]>;
     yearly_papers - YearlyPapersMarker | EraRec,
     yearly_cites - YearlyCitationsMarker | EraRec,
-    top_journals - Top3JournalMarker | TopRec<Sources>,
-    top_authors - Top3AuthorMarker | TopRec5<Authors>,
-    top_aff_countries - Top3AffCountryMarker | TopRec<Countries>,
-    top_paper_topic - Top3PaperTopicMarker | TopRec<Topics>,
-    top_citing_sfc - Top3CitingSfMarker | TopRec<Subfields>,
-    top_paper_sfc - Top3PaperSfMarker | TopRec<Subfields>,
-    inst_rels - InstRelMarker | [InstRelation; N_RELS];;
+    top_journals - Top3JournalMarker | Top3Rec<Sources>,
+    top_authors - Top5AuthorMarker | Top5Rec<Authors>,
+    top_aff_countries - Top3AffCountryMarker | Top3Rec<Countries>,
+    top_paper_topic - Top3PaperTopicMarker | Top3Rec<Topics>,
+    top_citing_sfc - Top3CitingSfMarker | Top3Rec<Subfields>,
+    top_paper_sfc - Top3PaperSfMarker | Top3Rec<Subfields>;;
     oa_id; MainEntity, NamespacedEntity
+    // inst_rels - InstRelMarker | [InstRelation; N_RELS];;
     // ref_sfc : RefSubfieldsConcentrationMarker,
     // cit_sfc : CitSubfieldsConcentrationMarker
 
@@ -286,18 +284,13 @@ make_ent_interfaces!(
     ccounts -> CiteCountMarker;;;;;
 );
 
-pub trait StringAtt<Mark>: MarkedAttribute<Mark> {
-    fn load(stowage: &Stowage) -> VarBox<String>;
-}
+pub trait StringAtt<Mark>: MarkedAttribute<Mark> + VarAtt<Mark, VT = String> {}
 
-pub trait NumAtt<Mark>: MarkedAttribute<Mark> {
+pub trait NumAtt<Mark>: MarkedAttribute<Mark> + FixAtt<Mark, FT = Self::Num> {
     type Num: UnsignedNumber;
-    fn load(stowage: &Stowage) -> Box<[Self::Num]>;
 }
 
-pub trait FloatAtt<Mark>: MarkedAttribute<Mark> {
-    fn load(stowage: &Stowage) -> Box<[f64]>;
-}
+pub trait FloatAtt<Mark>: FixAtt<Mark, FT = f64> + MarkedAttribute<Mark> {}
 
 pub trait FixAtt<Mark>: MarkedAttribute<Mark> {
     type FT: ByteFixArrayInterface;
@@ -402,43 +395,21 @@ impl Getters {
     }
 }
 
-impl<T, Mark> StringAtt<Mark> for T
-where
-    T: MarkedAttribute<Mark>,
-    MAA<T, Mark>:
-        CompactEntity + Entity<T = String> + MarkedBackendLoader<QuickestVBox, BE = VarBox<String>>,
-{
-    fn load(stowage: &Stowage) -> VarBox<String> {
-        stowage.get_marked_interface::<Self, Mark, QuickestVBox>()
-    }
-}
+impl<T, Mark> StringAtt<Mark> for T where T: VarAtt<Mark, VT = String> {}
+impl<T, Mark> FloatAtt<Mark> for T where T: FixAtt<Mark, FT = f64> {}
 
 impl<T, Mark> NumAtt<Mark> for T
 where
-    T: MarkedAttribute<Mark>,
-    MAA<T, Mark>: NamespacedEntity + CompactEntity,
+    T: FixAtt<Mark, FT = ET<MAA<Self, Mark>>>,
     ET<MAA<T, Mark>>: UnsignedNumber,
 {
     type Num = ET<MAA<Self, Mark>>;
-    fn load(stowage: &Stowage) -> Box<[Self::Num]> {
-        stowage.get_marked_interface::<Self, Mark, QuickestBox>()
-    }
-}
-
-impl<T, Mark> FloatAtt<Mark> for T
-where
-    T: MarkedAttribute<Mark>,
-    MAA<T, Mark>: NamespacedEntity + CompactEntity + Entity<T = f64>,
-{
-    fn load(stowage: &Stowage) -> Box<[f64]> {
-        stowage.get_marked_interface::<Self, Mark, QuickestBox>()
-    }
 }
 
 impl<T, Mark> FixAtt<Mark> for T
 where
     T: MarkedAttribute<Mark>,
-    MAA<T, Mark>: NamespacedEntity + CompactEntity,
+    MAA<T, Mark>: CompactEntity + MarkedBackendLoader<QuickestBox, BE = Box<[ET<MAA<T, Mark>>]>>,
     ET<MAA<T, Mark>>: ByteFixArrayInterface,
 {
     type FT = ET<MAA<Self, Mark>>;
@@ -450,7 +421,7 @@ where
 impl<T, Mark> VarAtt<Mark> for T
 where
     T: MarkedAttribute<Mark>,
-    MAA<T, Mark>: NamespacedEntity + CompactEntity + VariableSizeAttribute,
+    MAA<T, Mark>: CompactEntity + MarkedBackendLoader<QuickestVBox, BE = VarBox<ET<MAA<T, Mark>>>>,
     ET<MAA<T, Mark>>: ByteArrayInterface + VarSizedAttributeElement,
 {
     type VT = ET<MAA<Self, Mark>>;
@@ -462,6 +433,7 @@ where
 impl MetaMapGetter for Sources {}
 impl MetaMapGetter for Subfields {}
 impl MetaMapGetter for Countries {}
+impl MetaMapGetter for HitPapers {}
 
 impl MetaMapGetter for Institutions {
     fn get_meta(id: usize, gets: &Getters) -> Option<HashMap<&'static str, String>> {
