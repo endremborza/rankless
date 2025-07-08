@@ -7,8 +7,8 @@ use crate::{
     csv_writers::{institutions, works},
     data_consts::CC_MAP,
     gen::a1_entity_mapping::{
-        AreaFields, Authors, Authorships, Cities, Countries, Domains, Fields, Institutions, Sources,
-        Subfields, Topics, Works,
+        AreaFields, Authors, Authorships, Cities, Countries, Domains, Fields, Institutions,
+        Sources, Subfields, Topics, Works,
     },
     oa_structs::{
         post::{
@@ -35,6 +35,7 @@ use std::{
 };
 use tqdm::Iter;
 
+pub const DOI_PREFIX_LEN: usize = 16;
 const MIN_TOPIC_SCORE: f64 = 0.7;
 const MIN_RATE: f64 = 0.8;
 const MIN_LEN: usize = 10;
@@ -511,7 +512,7 @@ impl Worker<Work> for WorkAttWriter {
             Some(wi) => wi.to_usize(),
             None => return,
         };
-        if let Some(doi) = input.doi {
+        if let Some(doi) = input.get_att() {
             self.wdois.lock().unwrap()[w_ind] = doi;
         }
 
@@ -716,10 +717,9 @@ impl AttGetter<String, NameExtensionMarker> for Institution {
 
 impl AttGetter<String, DoiMarker> for Work {
     fn get_att(&self) -> Option<String> {
-        const DL: usize = 16;
         if let Some(doi) = &self.doi {
-            if doi.len() > DL {
-                return Some(doi[DL..].to_string());
+            if doi.len() > DOI_PREFIX_LEN {
+                return Some(doi[DOI_PREFIX_LEN..].to_string());
             }
         }
         None
