@@ -188,7 +188,7 @@
 		<div class="concept-map-parents">
 			{#each parents.entries() as [i, parent]}
 				<span
-					class="hover-s"
+					class="hover-xs"
 					on:mouseover={() => (hoveredParent = i)}
 					on:mouseleave={() => (hoveredParent = undefined)}
 					role="none"
@@ -240,7 +240,7 @@
 
 <style>
 	svg {
-		max-height: 80svh;
+		max-height: 70svh;
 		flex: 9 9 750px;
 	}
 
@@ -269,10 +269,10 @@
 	}
 
 	.concept-map-parents {
-		flex: 3 1 300px;
+		flex: 2 1 300px;
 		display: flex;
 		flex-wrap: wrap;
-		gap: 8px;
+		gap: 7px;
 		justify-content: space-between;
 		align-items: center;
 	}
