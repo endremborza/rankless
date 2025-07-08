@@ -33,6 +33,7 @@ use muwo_search::SearchEngine;
 use rankless_rs::{
     common::{MainEntity, NET},
     gen::a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
+    gen::derive_links3::HitPapers,
     steps::{
         a1_entity_mapping::{Qs, RawYear, YearInterface, Years},
         derive_links5::{EraRec, InstRelation},
@@ -56,16 +57,24 @@ const MAX_SLICE: usize = 40_000;
 const CACHEABLE_FROM: u32 = 10_000;
 const N_THREADS: usize = 16;
 const UPPER_LIMIT: u32 = u32::MAX;
-const ETYPE_ENC: [&str; 6] = [
+const ETYPE_ENC: [&str; 7] = [
     Institutions::NAME,
     Authors::NAME,
     Subfields::NAME,
     Countries::NAME,
     Sources::NAME,
     Topics::NAME,
+    HitPapers::NAME,
 ];
 
-type InstTrm = TreeRunManager<(Institutions, Authors, Subfields, Countries, Sources)>;
+type InstTrm = TreeRunManager<(
+    Institutions,
+    Authors,
+    Subfields,
+    Countries,
+    Sources,
+    HitPapers,
+)>;
 type Coords = [f64; 2];
 type NameStateMap = HashMap<&'static str, NameState>;
 type StatesT = State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>, Arc<InstTrm>)>;
@@ -229,6 +238,15 @@ macro_rules! i_fil {
 
 i_fil!(Countries, Subfields);
 
+impl PrepFilter for HitPapers {
+    fn filter_sr(_sr: &SearchResult, _gets: &Getters, _entif: &RootInterfaces<Self>) -> bool {
+        true
+    }
+    fn is_top(_sr: &SearchResult) -> bool {
+        false
+    }
+}
+
 impl PrepFilter for Authors {
     fn filter_sr(sr: &SearchResult, _gets: &Getters, entif: &RootInterfaces<Self>) -> bool {
         let max_yearly_pcount = *entif.yearly_papers[sr.dm_id].iter().max().unwrap_or(&0);
@@ -298,12 +316,17 @@ impl SearchResult {
     where
         E: RootInterfaceable + MetaMapGetter,
     {
+        let papers = if entif.wcounts.len() > i {
+            entif.wcounts[i].to_usize()
+        } else {
+            1
+        } as u32;
         Self {
             full_name: format!("{name} {ext}").trim().to_string(),
             name,
             semantic_id,
             distinct_text,
-            papers: entif.wcounts[i].to_usize() as u32,
+            papers,
             citations: entif.ccounts[i].to_usize() as u32,
             oa_id: entif.oa_id[i],
             meta: E::get_meta(i, gets),
@@ -322,10 +345,14 @@ impl ResultExtension {
             let i = res.dm_id;
 
             let mut sy_ind = 0;
-            for (yi, ycount) in entif.yearly_papers[i].iter().enumerate() {
-                if (sy_ind == 0) & (*ycount > 0) {
-                    sy_ind = yi;
-                    break;
+            let mut yearly_papers = EraRec::init_empty();
+            if let Some(ypi) = entif.yearly_papers.get(i) {
+                yearly_papers = ypi.clone();
+                for (yi, ycount) in ypi.into_iter().enumerate() {
+                    if (sy_ind == 0) & (*ycount > 0) {
+                        sy_ind = yi;
+                        break;
+                    }
                 }
             }
             // let get_rem = |arr: &Box<[EraRec]>| arr[i].iter().skip(sy_ind).map(|e| *e).collect();
@@ -335,7 +362,7 @@ impl ResultExtension {
             out.push(Self {
                 start_year: YearInterface::reverse(sy_ind as ET<Years>),
                 yearly_cites: entif.yearly_cites[i].clone(),
-                yearly_papers: entif.yearly_papers[i].clone(),
+                yearly_papers,
             })
         }
 
@@ -353,21 +380,35 @@ impl PreAttResultExtension {
             .map(|res| {
                 let i = res.dm_id;
                 let mut prime_relations = Vec::new();
-                add_to_relations::<Subfields, _>(&entif.top_paper_sfc[i], &mut prime_relations, 0);
-                add_to_relations::<Subfields, _>(&entif.top_citing_sfc[i], &mut prime_relations, 1);
-                add_to_relations::<Topics, _>(&entif.top_paper_topic[i], &mut prime_relations, 2);
-                add_to_relations::<Countries, _>(
-                    &entif.top_aff_countries[i],
-                    &mut prime_relations,
-                    3,
-                );
-                add_to_relations::<Sources, _>(&entif.top_journals[i], &mut prime_relations, 4);
-                add_to_relations::<Authors, _>(&entif.top_authors[i], &mut prime_relations, 5);
                 let mut hit_papers = Vec::new();
-                if let Some(hits) = entif.hit_works.0.get(i) {
-                    hits.iter()
-                        .take(MAX_HITS)
-                        .for_each(|e| hit_papers.push(e.to_usize()));
+                if E::NAME != HitPapers::NAME {
+                    add_to_relations::<Subfields, _>(
+                        &entif.top_paper_sfc[i],
+                        &mut prime_relations,
+                        0,
+                    );
+                    add_to_relations::<Subfields, _>(
+                        &entif.top_citing_sfc[i],
+                        &mut prime_relations,
+                        1,
+                    );
+                    add_to_relations::<Topics, _>(
+                        &entif.top_paper_topic[i],
+                        &mut prime_relations,
+                        2,
+                    );
+                    add_to_relations::<Countries, _>(
+                        &entif.top_aff_countries[i],
+                        &mut prime_relations,
+                        3,
+                    );
+                    add_to_relations::<Sources, _>(&entif.top_journals[i], &mut prime_relations, 4);
+                    add_to_relations::<Authors, _>(&entif.top_authors[i], &mut prime_relations, 5);
+                    if let Some(hits) = entif.hit_works.0.get(i) {
+                        hits.iter()
+                            .take(MAX_HITS)
+                            .for_each(|e| hit_papers.push(e.to_usize()));
+                    }
                 }
                 Self {
                     prime_relations: prime_relations.into(),
@@ -461,8 +502,9 @@ impl NameState {
         let now = std::time::Instant::now();
         let engine = SearchEngine::new(responses.iter().map(|e| e.full_name.clone()));
         println!(
-            "search engine for {} in {}s",
+            "search engine for {} (n={}) in {}s",
             E::NAME,
+            responses.len(),
             now.elapsed().as_secs()
         );
         let mut semantic_id_map = HashMap::new();
@@ -521,19 +563,24 @@ impl NameState {
         E: RootInterfaceable + PrepFilter + DistinctionText + MetaMapGetter,
     {
         let dist_txt = <E as DistinctionText>::get_distinction_text_arr(entif, gets);
+        let ext_txt = &entif.name_exts.0;
         let mut responses: Vec<SearchResult> = entif
             .names
             .0
             .iter()
-            .zip(entif.name_exts.0.iter())
             .zip(entif.sem_ids.0.iter())
             .zip(dist_txt.to_vec().into_iter())
             .enumerate()
-            .map(|(i, (((name, ext), semantic_id), dist_txt))| {
+            .map(|(i, ((name, semantic_id), dist_txt))| {
+                let ext = if ext_txt.len() > i {
+                    ext_txt[i].to_string()
+                } else {
+                    "".to_string()
+                };
                 SearchResult::new(
                     i,
                     name.to_string(),
-                    ext.to_string(),
+                    ext,
                     semantic_id.to_string(),
                     dist_txt,
                     entif,
@@ -608,7 +655,7 @@ fn get_rest(
     {
         print_mem_use("pre thread starts");
         let arg_tup = (gets.clone(), mux_satts.clone(), cv_pair.clone());
-        let ei_ns_kvs = para_multi_gen_run!(get_state_tr_ed_kv, Institutions, Authors, Subfields, Countries, Sources; arg_tup);
+        let ei_ns_kvs = para_multi_gen_run!(get_state_tr_ed_kv, Institutions, Authors, Subfields, Countries, Sources, HitPapers; arg_tup);
         let ccount = gets.total_cite_count();
         set_and_notify(cv_pair, Some(ccount));
         let arg_tup_n = (gets.clone(), mux_satts.clone(), ccount.clone());
@@ -774,7 +821,8 @@ async fn tree_get(
     let mut tq = tree_q.0;
     let (ns_map, _, tm) = states.0;
     if let Some(nstate) = ns_map.get(root_type.as_str()) {
-        if let Some(sval) = nstate.semantic_id_map.get(&semantic_id) {
+        let psid = parse_semantic_id(semantic_id);
+        if let Some(sval) = nstate.semantic_id_map.get(&psid) {
             let ncite = nstate.responses[sval.result_id].citations;
             tq.cacheable = Some(ncite >= CACHEABLE_FROM);
             let resp = Json(tm.get_single_resp(tq, &root_type, sval.dm_id));
@@ -818,7 +866,8 @@ async fn view_get(
     let tm = states.0 .2;
     let mut out = None;
     if let Some(state) = states.0 .0.get(etype.as_str()) {
-        if let Some(sem_val) = state.semantic_id_map.get(&semantic_id) {
+        let psid = parse_semantic_id(semantic_id);
+        if let Some(sem_val) = state.semantic_id_map.get(&psid) {
             let i = sem_val.result_id;
             let srs = &state.responses[i];
             let ext = &state.exts[i];
@@ -912,6 +961,10 @@ fn get_query_arr(res: &SearchResult, state: &NameState) -> [f64; 2] {
 fn static_router<O: Serialize>(o: &O) -> Router {
     let arc: Arc<str> = Arc::from(serde_json::to_string(o).unwrap().as_str());
     Router::new().route("/", get(state_get)).with_state(arc)
+}
+
+fn parse_semantic_id(id: String) -> String {
+    id.replace("%2F", "/")
 }
 
 fn tree_from_iter(v: Vec<[f64; 2]>) -> KdTree<KDItem> {

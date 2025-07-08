@@ -421,7 +421,7 @@ pub trait RunManagerSub {
 }
 
 // make this a derive trait for some struct
-impl_subs!(5);
+impl_subs!(6);
 impl_subs!(2);
 
 impl<T> TreeRunManager<T>
