@@ -152,7 +152,7 @@ export function parseLinkWithParams(params: URLSearchParams, rootType: tt.RootTy
 }
 
 export function getDefaultYear(rt: tt.RootType) {
-	if (['authors', 'sources', 'institutions'].includes(rt)) {
+	if (['authors', 'sources', 'institutions', 'hit-papers'].includes(rt)) {
 		return COMPLETE_YEAR
 	}
 	return 2020
