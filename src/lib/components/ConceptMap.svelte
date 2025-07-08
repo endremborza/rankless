@@ -6,7 +6,7 @@
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
-	import { HIGH_OP, LOW_OP } from '$lib/constants';
+	import { LOW_OP } from '$lib/constants';
 	import { onMount } from 'svelte';
 	import FlatOutFrame from './FlatOutFrame.svelte';
 
@@ -16,15 +16,16 @@
 	export let conf: tt.FullTreeConfig;
 	export let treeSpecs: tt.TreeSpecs;
 
-	const minSize = 0.8;
-	const maxSize = 2.1;
-	const minSaturation = 0.2;
-	const maxSaturation = 1; //HIGH_OP;
+	const minSize = 1.1;
+	const maxSize = 2.2;
+	const minSaturation = 0.95;
+	const maxSaturation = 0;
 	const minOpacity = LOW_OP * 2;
-	const maxOpacity = 100; //HIGH_OP;
+	const maxOpacity = 100;
 	let defaultSat = 0.8;
-	let defaultOp = 0.9;
+	let defaultOp = 1;
 	let defaultLineOp = 0.5;
+	let nBreakPoints = 2;
 
 	const getOpFromRate = (x: number) => x * (maxOpacity - minOpacity) + minOpacity;
 	const getSatFromRate = (x: number) => x * (maxSaturation - minSaturation) + minSaturation;
@@ -34,7 +35,6 @@
 	let styleEl: SVGStyleElement | null = null;
 	let infoPath: number[] = [];
 	let mounted = false;
-	let fontSize = 2.3;
 	let hovered = '0';
 	let hoveredParent: number | undefined = undefined;
 	let toDomains = false;
@@ -92,10 +92,15 @@
 		pullerRate: number
 	) {
 		if (Object.values(levels).length == 0) return '';
-		const { linScaler } = tf.getFlatRescaler(levels, 0, pullerRate);
+		const { linScaler, newBreakPoints } = tf.getFlatRescaler(levels, nBreakPoints, pullerRate);
+
 		let scaler = (w: number) => {
-			let sat = getSatFromRate(linScaler(w));
 			let size = getSizeFromRate(linScaler(w));
+			let oI = 0;
+			for (let i = 1; i <= nBreakPoints; i++) {
+				if (w >= newBreakPoints[i]) oI++;
+			}
+			let sat = getSatFromRate(oI / nBreakPoints);
 			return { sat, size };
 		};
 		const sLines = [];
@@ -105,11 +110,11 @@
 				isHighlighted = getParent(c) == highlightedParent;
 			}
 			let { sat, size } = scaler(w);
-			isHighlighted = isHighlighted;
+
 			let line = `r: ${size.toFixed(2)}px;`;
-			let flashLine = `r: ${size.toFixed(2)}px; fill-opacity: ${sat}`;
+			let flashLine = `r: ${(size * 0.9).toFixed(2)}px; fill-opacity: ${sat};`;
 			if (isHighlighted) {
-				line += `stroke-width: 0.3; stroke: var(--color-text)`;
+				line += `stroke-width: 0.5px; stroke: var(--color-text);`;
 			}
 			//
 			sLines.push(`circle.${classNamer(c)} {${line}}`);
@@ -195,12 +200,6 @@
 			viewBox="-8 -8 146 116"
 			style="--op: {defaultOp}; --lop: {defaultLineOp}; --sat: {defaultSat}"
 		>
-			<defs>
-				<radialGradient id="glowGradient" cx="50%" cy="50%" r="50%">
-					<stop offset="0%" stop-color="white" stop-opacity="1" />
-					<stop offset="100%" stop-color="white" stop-opacity="0" />
-				</radialGradient>
-			</defs>
 			{#each edges as [s, t, w]}
 				<line
 					x1={nodes[s][0]}
@@ -218,18 +217,20 @@
 					class={classNamer(sfi)}
 					role="region"
 					fill={getParentColor(getParent(sfi))}
+					stroke={getParentColor(getParent(sfi))}
 					on:mouseover={() => {
 						hovered = sfi;
 						infoPath = [sfi];
 					}}
-					r={minSize * 0.4}
+					r={minSize * 0.7}
 				/>
 				<circle
 					{cx}
 					{cy}
 					class="{flashClassNamer(sfi)} nopointer"
-					r="0"
-					fill="url(#glowGradient)"
+					stroke="none"
+					r={minSize * 0.7 * 0.9}
+					fill="var(--text-bg)"
 				/>
 			{/each}
 		</svg>
@@ -250,6 +251,7 @@
 		filter: contrast(var(--sat));
 		opacity: var(--op);
 		transition: all 800ms;
+		stroke-width: 0.2;
 	}
 
 	.nopointer {
