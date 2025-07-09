@@ -49,7 +49,7 @@ rm-prof:
 	rm default_*.profraw
 	rm ./*/default_*.profraw
 
-extend_csvs bm live_monitoring report sitemap_validation:
+extend_csvs bm live_monitoring report sitemap_validation lib_data_generation:
 	python3 -m pyscripts.$@
 
 pull_live_certs sync_fe_to_alpha sync_fe_to_live bump_v bump_v_minor:
