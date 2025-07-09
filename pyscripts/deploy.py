@@ -45,7 +45,7 @@ LARGE_STORAGE_GB = 300
 LARGE_FE_PROCS = 12
 DEFAULT_RS_PORT = 3038
 BUN_PORT_START = 3000
-FE_RESTART_WAIT = 20  # secs
+FE_RESTART_WAIT = 10  # secs
 
 
 NGINX_AVDIR, NGINX_ENDIR = [f"/etc/nginx/sites-{s}" for s in ["available", "enabled"]]
@@ -582,7 +582,7 @@ upstream {BE_UPSTREAM} {{
         self.build_js()
         for fes in self.fe_services:
             fes.restart()
-            time.sleep(FE_RESTART_WAIT / 3)
+            time.sleep(FE_RESTART_WAIT / 4)
 
     def reload_systemctl(self):
         self.ssh.prun("sudo systemctl daemon-reload")
@@ -792,7 +792,7 @@ def promote_alpha_to_live():
     tpr.setup_fe_service(LIVE_DOMAIN, bun=True, procs=LARGE_FE_PROCS)
     tpr.update_env()
     tpr.update_fe()
-    tpr.ssh.prun(f"sudo rm {NGINX_ENDIR}/{ALPHA_DOMAIN}")
+    tpr.ssh.prun(f"sudo rm -f {NGINX_ENDIR}/{ALPHA_DOMAIN}")
     tpr.setup_nginx(cert=False)
     tpr.add_domain_fw(FW_DOMAIN, cert=False)
     tpr.restart_nginx()
