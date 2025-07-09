@@ -41,6 +41,8 @@
 	let hoveredParent: number | undefined = undefined;
 	let toDomains = false;
 
+	let hoveredOverCircle = false;
+	let showPaper = false;
 	let isSpec = true;
 	let flatOut = {};
 	$: parents = toDomains ? domains : getFieldArr();
@@ -194,6 +196,7 @@
 	{backupNames}
 	bind:flatOut
 	bind:isSpec
+	bind:showPaper
 	{infoPath}
 >
 	<!-- svelte-ignore a11y-mouse-events-have-key-events -->
@@ -211,10 +214,16 @@
 				>
 			{/each}
 		</div>
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<svg
 			bind:this={svgEl}
 			viewBox="-8 -8 146 116"
 			style="--op: {defaultOp}; --lop: {defaultLineOp}; --sat: {defaultSat}"
+			on:click={() => {
+				if (!hoveredOverCircle) {
+					if (showPaper) showPaper = false;
+				}
+			}}
 		>
 			{#each edges as [s, t, w]}
 				<line
@@ -235,8 +244,17 @@
 					fill={getParentColor(getParent(sfi))}
 					stroke={getParentColor(getParent(sfi))}
 					on:mouseover={() => {
-						hovered = sfi;
-						infoPath = [sfi];
+						hoveredOverCircle = true;
+						if (!showPaper) {
+							hovered = sfi;
+							infoPath = [sfi];
+						}
+					}}
+					on:mouseleave={() => {
+						hoveredOverCircle = false;
+					}}
+					on:click={() => {
+						showPaper = true;
 					}}
 					r={nullSize}
 					stroke-width="0.2"
