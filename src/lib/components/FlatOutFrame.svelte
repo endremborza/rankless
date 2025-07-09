@@ -23,6 +23,7 @@
 			? conf.treeId
 			: indsByEntityType[l1Type][0];
 	export let backupNames: Record<number, string> = {};
+	export let showPaper = false;
 
 	let mounted = false;
 	let selectedBreakdowns = tf.getDefaultBreakdowns(treeSpecs.specs[conf.rootType][treeId]);
@@ -117,6 +118,7 @@
 			{rootId}
 			attributeLabels={resp.atts}
 			{backupNames}
+			bind:showPaper
 		/>
 	{/if}
 </div>
