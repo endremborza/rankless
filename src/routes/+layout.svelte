@@ -11,7 +11,7 @@
 	import { LATEST_YEAR, ROOT_TYPES } from '$lib/constants';
 	import { prettifyRoot } from '$lib/text-format-util';
 	import TextedLogo from '$lib/components/TextedLogo.svelte';
-	let options: RootType[] = ROOT_TYPES;
+	let options: RootType[] = ROOT_TYPES.filter((e) => e != 'hit-papers');
 	let cat: RootType = options[0];
 
 	let runner: number;
@@ -70,7 +70,7 @@
 	//typewriter
 	let speed = 80;
 	let stopAtEnd = 480;
-	let texts = ROOT_TYPES.map(prettifyRoot);
+	let texts = options.map(prettifyRoot);
 	let wordInd = 0;
 	let text: string = texts[wordInd];
 	$: basePlaceholder = 'Explore ' + text;
