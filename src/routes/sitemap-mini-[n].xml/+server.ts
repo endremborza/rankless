@@ -19,7 +19,7 @@ export const GET: RequestHandler = async ({ params }) => {
 		r.json().then((entities) => {
 			let out: { url: string; name: string }[] = [];
 			entities.forEach((e: { count: number; name: string }) => {
-				if (e.count > start) {
+				if (e.count > start && e.name != 'hit-papers') {
 					let url = `${BE_URL}/slice/${e.name}/${start}/${end}`;
 					out.push({ url, name: e.name });
 				}
