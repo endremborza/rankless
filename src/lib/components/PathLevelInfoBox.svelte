@@ -111,6 +111,7 @@
 
 	$: pathNodes = getNodes(path || [], rootNode);
 	$: leaf = pathNodes[pathNodes.length - 1];
+	$: expanded = showPaper && (leaf.sourceCount || 0) > 0;
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -120,14 +121,14 @@
 	id="plibox-container"
 	role="none"
 	tabindex="-1"
-	style="height: {initHeight * (showPaper ? 4 : 1)}px"
+	style="height: {initHeight * (expanded ? 4 : 1)}px"
 	on:click={() => {
 		showPaper = !showPaper;
 	}}
 >
 	{#if path != undefined}
-		<div class="growing" style="height: {initHeight * (showPaper ? 3 : 0)}px;">
-			{#if showPaper}
+		<div class="growing" style="height: {initHeight * (expanded ? 3 : 0)}px;">
+			{#if expanded}
 				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} />
 			{/if}
 		</div>
