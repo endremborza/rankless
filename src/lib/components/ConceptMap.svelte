@@ -244,8 +244,8 @@
 					fill={getParentColor(getParent(sfi))}
 					stroke={getParentColor(getParent(sfi))}
 					on:mouseover={() => {
-						hoveredOverCircle = true;
 						if (!showPaper) {
+							hoveredOverCircle = true;
 							hovered = sfi;
 							infoPath = [sfi];
 						}
