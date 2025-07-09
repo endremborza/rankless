@@ -6,6 +6,7 @@ export const GET: RequestHandler = async () => {
 	let max_pages: { name: string, count: number }[] = await fetch(`${BE_URL}/counts`).then((r) => r.json());
 	let innards = [];
 	for (const { name, count } of max_pages) {
+		if (name == 'hit-papers') continue;
 		let max_page = Math.floor(count / ENTITY_SITEMAP_STEP_SIZE);
 		for (let i = 0; i <= max_page; i++) {
 			innards.push(`-entity-${name}-${i + 1}`);
