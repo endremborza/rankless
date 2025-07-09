@@ -25,12 +25,13 @@
 	const maxOpacity = 100;
 	let defaultSat = 0.8;
 	let defaultOp = 1;
-	let defaultLineOp = 0.5;
+	let defaultLineOp = 0.35;
 	let nBreakPoints = 2;
 
 	const getOpFromRate = (x: number) => x * (maxOpacity - minOpacity) + minOpacity;
 	const getSatFromRate = (x: number) => x * (maxSaturation - minSaturation) + minSaturation;
 	const getSizeFromRate = (x: number) => x * (maxSize - minSize) + minSize;
+	const backupNames = getMap(subfields);
 
 	let svgEl: SVGSVGElement;
 	let styleEl: SVGStyleElement | null = null;
@@ -44,7 +45,15 @@
 	let flatOut = {};
 	$: parents = toDomains ? domains : getFieldArr();
 	$: getParent = toDomains ? getDomain : getFieldColorOrder;
-	$: setClassStyles(styleEl, flatOut, mounted, hovered, hoveredParent);
+	$: setClassStyles(styleEl, flatOut, mounted, hovered, hoveredParent, backupNames);
+
+	function getMap(ents: [string, number][]) {
+		let out = {};
+		for (let i = 0; i < ents.length; i++) {
+			out[i] = ents[i][0];
+		}
+		return out;
+	}
 
 	function classNamer(s: string) {
 		return `subfield-circle-${s}`;
@@ -90,7 +99,8 @@
 		levels: tt.LevelT,
 		highlighted: string,
 		highlightedParent: number | undefined,
-		pullerRate: number
+		pullerRate: number,
+		backups: Record<number, string>
 	) {
 		if (Object.values(levels).length == 0) return '';
 		const { linScaler, newBreakPoints } = tf.getFlatRescaler(levels, nBreakPoints, pullerRate);
@@ -105,21 +115,24 @@
 			return { sat, size };
 		};
 		const sLines = [];
-		for (const [c, { w }] of Object.entries(levels)) {
-			let isHighlighted = c == highlighted;
+		for (const key of Object.keys(backups)) {
+			let isHighlighted = key == highlighted;
 			if (hoveredParent != undefined) {
-				isHighlighted = getParent(c) == highlightedParent;
+				isHighlighted = getParent(key) == highlightedParent;
 			}
-			let { sat, size } = scaler(w);
-
-			let line = `r: ${size.toFixed(2)}px;`;
-			let flashLine = `r: ${(size * 0.9).toFixed(2)}px; fill-opacity: ${sat};`;
+			let line = '';
+			let flashLine = '';
+			let wDic = levels[key];
+			if (wDic != undefined) {
+				let { sat, size } = scaler(wDic.w);
+				line += `r: ${size.toFixed(2)}px;`;
+				flashLine += `r: ${(size * 0.9).toFixed(2)}px; fill-opacity: ${sat};`;
+			}
 			if (isHighlighted) {
-				line += `stroke-width: 0.5px; stroke: var(--color-text);`;
+				line += `stroke-width: 0.8px; stroke: var(--color-text);`;
 			}
-			//
-			sLines.push(`circle.${classNamer(c)} {${line}}`);
-			sLines.push(`circle.${flashClassNamer(c)} {${flashLine}}`);
+			sLines.push(`circle.${classNamer(key)} {${line}}`);
+			sLines.push(`circle.${flashClassNamer(key)} {${flashLine}}`);
 		}
 		return sLines.join('\n');
 	}
@@ -129,10 +142,11 @@
 		flatOut: tt.LevelT | undefined,
 		mounted: boolean,
 		hovered: string,
-		hoveredParent: number | undefined
+		hoveredParent: number | undefined,
+		backups: Record<number, string>
 	) {
 		if (styleEl != undefined && flatOut != undefined && mounted) {
-			styleEl.textContent = getClassStyles(flatOut, hovered, hoveredParent, 0.2);
+			styleEl.textContent = getClassStyles(flatOut, hovered, hoveredParent, 0.2, backups);
 		}
 	}
 
@@ -177,6 +191,7 @@
 	{indsByEntityType}
 	{conf}
 	{treeSpecs}
+	{backupNames}
 	bind:flatOut
 	bind:isSpec
 	{infoPath}
@@ -224,6 +239,7 @@
 						infoPath = [sfi];
 					}}
 					r={nullSize}
+					stroke-width="0.2"
 				/>
 				<circle
 					{cx}
@@ -252,7 +268,6 @@
 		filter: contrast(var(--sat));
 		opacity: var(--op);
 		transition: all 800ms;
-		stroke-width: 0.2;
 	}
 
 	.nopointer {

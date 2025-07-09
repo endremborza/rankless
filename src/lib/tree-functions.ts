@@ -12,6 +12,7 @@ export const DEFAULT_CONTROL_SPEC: tt.ControlSpec = {
 	sizeBase: 'specialization'
 };
 export const MAX_COUNT_FLAT = 300;
+export const UNKNOWN_NAME = 'Unknown';
 
 type LevelNodeDescription = { path: tt.PathInTree; node: tt.ResponseNode; derivedWeight: number };
 
@@ -518,12 +519,11 @@ export function getChildName(
 }
 
 export function nameById(labels: tt.AttributeLabels, atype: tt.EntityType, id: number) {
-	const DEFAULT = 'Unknown';
 	let emap = labels[atype];
 	if (emap === undefined) {
-		return DEFAULT;
+		return UNKNOWN_NAME;
 	}
-	return emap[id]?.name || DEFAULT;
+	return emap[id]?.name || UNKNOWN_NAME;
 }
 
 export function getEntityKind(path: tt.PathInTree, treeSpec: tt.TreeSpec) {

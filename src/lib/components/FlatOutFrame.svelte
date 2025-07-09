@@ -22,6 +22,7 @@
 		treeSpecs.specs[conf.rootType][conf.treeId].breakdowns[0].attributeType == l1Type
 			? conf.treeId
 			: indsByEntityType[l1Type][0];
+	export let backupNames: Record<number, string> = {};
 
 	let mounted = false;
 	let selectedBreakdowns = tf.getDefaultBreakdowns(treeSpecs.specs[conf.rootType][treeId]);
@@ -115,6 +116,7 @@
 			treeSpec={currentTreeSpec}
 			{rootId}
 			attributeLabels={resp.atts}
+			{backupNames}
 		/>
 	{/if}
 </div>

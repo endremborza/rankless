@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { AttributeLabels, PathInTree, TreeSpec, ResponseNode } from '$lib/tree-types';
-	import { nameById } from '$lib/tree-functions';
+	import { nameById, UNKNOWN_NAME } from '$lib/tree-functions';
 	import { formatNumber, pluralize } from '$lib/text-format-util';
 	import { getSpecMetricObject, type SpecInfo } from '$lib/metric-calculation';
 	import WorkElem from './WorkElem.svelte';
@@ -13,6 +13,7 @@
 	export let attributeLabels: AttributeLabels;
 	export let rootNode: ResponseNode;
 	export let showPaper: boolean = false;
+	export let backupNames: Record<number, string> = {};
 
 	let instId: number | undefined;
 	let citeText = '';
@@ -60,6 +61,10 @@
 				break;
 			}
 			let name = nameById(attributeLabels, entityKind, childId);
+			if (name == UNKNOWN_NAME) {
+				let backupName = backupNames[childId];
+				if (backupName != undefined) name = backupName;
+			}
 			if (!bd.sourceSide) {
 				citeRestricts.push(name);
 			}
@@ -138,7 +143,7 @@
 				}}
 				class="hover-m"
 			>
-				{#if path.length > 0}
+				{#if path.length > 0 && (leaf.linkCount || 0) > 0}
 					{getDesc(leaf.spec.specMetric)} Specialization
 				{/if}
 			</p>
@@ -149,13 +154,11 @@
 				</span>
 			{/if}
 			<p class="hover-m">
-				{formatNumber(leaf.linkCount || 0, 0)}
-
-				{#if path.length > 0}
+				{#if path.length > 0 && (leaf.linkCount || 0) > 0}
 					({(leaf.spec.nodeRate * 100).toFixed(2)}%)
 				{/if}
-				citation{#if leaf.linkCount > 1}s{/if},
-				{formatNumber(leaf.sourceCount || 0, 0)} paper{#if leaf.sourceCount > 1}s{/if}
+				{pluralize('citation', leaf.linkCount || 0)}
+				{pluralize('paper', leaf.sourceCount || 0)}
 			</p>
 		</div>
 	{/if}
