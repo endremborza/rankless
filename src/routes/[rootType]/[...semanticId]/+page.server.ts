@@ -20,7 +20,6 @@ export const load: PageServerLoad = async ({ params, url }) => {
 		error(404, 'Not found');
 	}
 	let semanticId: string = params.semanticId;
-	console.log(semanticId)
 
 	const treeSpecs = await lf.loadSpecs();
 	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
