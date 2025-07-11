@@ -53,9 +53,13 @@ if __name__ == "__main__":
         try:
             with multiprocessing.Pool(1) as pool:
                 try:
-                    res = pool.map_async(validate, [1]).get(timeout=6)
-                except Exception as e:
-                    err_w("Rankless Failed Validation", e)
+                    pool.map_async(validate, [1]).get(timeout=6)
+                except Exception as e1:
+                    print("missed 6sec timeout")
+                    try:
+                        pool.map_async(validate, [1]).get(timeout=15)
+                    except Exception as e:
+                        err_w("Rankless Failed Validation", e)
                 try:
                     ltpr = pool.map_async(get_running_tpr, [True]).get(timeout=10)[0]
                 except Exception as e:

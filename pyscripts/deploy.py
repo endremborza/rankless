@@ -281,6 +281,7 @@ class Transper:
             f"mkdir -p {self.data_dir} {self.deploy_dir} {self.systemd_dir} {self.be_cache_dir} {self.fe_cache_dir}"
         )
         for cd in [self.be_cache_dir, self.fe_cache_dir]:
+            # TODO: this still is not enough, need to move this
             self.ssh.run(f"sudo chown -R www-data:www-data {cd}")
         self.be_service = ServiceMan(be_service_name, sshc)
         self.fe_services = []

@@ -7,13 +7,27 @@ from lxml import etree
 from tqdm import tqdm
 
 ROOT = "https://www.rankless.org"
-ROOT = "https://alpha.rankless.org"
+# ROOT = "https://alpha.rankless.org"
 # ROOT = "http://127.0.0.1:5173"
 
-indices = ["", "-mini", "-entities"]
-indices = ["-mini", "-entities"]
+indices = [
+    "",
+    "-mini",
+    "-entities",
+]
 
 urls = [f"{ROOT}/sitemap-index{suff}.xml" for suff in indices]
+
+
+def url_to_elems(url):
+    resp = requests.get(url)
+    msg = f"[FAIL] Could not fetch sitemap index (status {resp.status_code if resp else 'N/A'})"
+    assert resp.ok, msg
+    try:
+        return elems(resp.content)
+    except Exception as e:
+        print("Failed parse", url)
+        raise e
 
 
 def elems(content):
@@ -25,16 +39,9 @@ def elems(content):
 def main():
     rand_sample = []
     for url in urls:
-        index_resp = requests.get(url)
-        assert (
-            index_resp.ok
-        ), f"[FAIL] Could not fetch sitemap index (status {index_resp.status_code if index_resp else 'N/A'})"
-
         lens = []
-        for sitemap_url in tqdm(elems(index_resp.content), desc=url):
-            resp = requests.get(sitemap_url)
-            assert resp.ok, sitemap_url
-            sitemap_subs = elems(resp.content)
+        for sitemap_url in tqdm(url_to_elems(url), desc=url):
+            sitemap_subs = url_to_elems(sitemap_url)
             rand_sample.append(random.choice(sitemap_subs))
             lens.append(f"{sitemap_url} -> {len(sitemap_subs)}")
             time.sleep(0.5)
