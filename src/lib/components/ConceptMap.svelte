@@ -195,7 +195,6 @@
 	{conf}
 	{treeSpecs}
 	{backupNames}
-	treeId={defaultTreeId}
 	bind:flatOut
 	bind:isSpec
 	bind:showPaper
