@@ -41,15 +41,13 @@ export const load: PageServerLoad = async ({ params, url }) => {
 		redirect(301, link);
 	}
 
-	let urlFriendlySemanticId = semanticId.replace("/", "%2F");
-	const view: tt.View = await fetch(`${BE_URL}/views/${rootType}/${urlFriendlySemanticId}`)
+	const view: tt.View = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => res.json())
 		.then((view) => view)
 		.catch(() => error(404, 'Not found'));
 	if (view == undefined) {
 		error(404, 'Not found');
 	}
-
 
 	const treeResp: tt.TreeResponse = await fetch(tf.treeBeUrl(BE_URL, conf, 1))
 		.then((res) => res.json())
@@ -59,8 +57,10 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	}
 	const { tree, atts, shallowed } = treeResp;
 
+	let svgLinkBase = `/pic/${rootType}/${semanticId}/breakdown.svg`
 	let sp = url.searchParams.toString();
-	let svgLink = getExternalUrl(`/pic/${rootType}/${semanticId}/breakdown.svg?${sp}`);
+	if (sp.length > 0) svgLinkBase += `?${sp}`;
+	let svgLink = getExternalUrl(svgLinkBase);
 
 	let paperText = pluralize('paper', view.papers);
 	let citeText = pluralize('indexed citation', view.citations);

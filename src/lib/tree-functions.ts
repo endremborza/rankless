@@ -92,8 +92,17 @@ export function idFromBd(bd: tt.BreakdownSpec): string {
 	return `${bd.attributeType}-${bd.sourceSide}`;
 }
 
+export function urlFriendlify(s: string) {
+	return s.replace("/", "%2F")
+}
+
+export function viewBeUrl(root: string, conf: tt.FullTreeConfig): string {
+	let urlFriendlySemId = urlFriendlify(conf.semanticId);
+	return `${root}/views/${conf.rootType}/${urlFriendlySemId}`
+}
+
 export function treeBeUrl(root: string, conf: tt.FullTreeConfig, shallow: undefined | number = undefined): string {
-	let urlFriendlySemId = conf.semanticId.replace("/", "%2F");
+	let urlFriendlySemId = urlFriendlify(conf.semanticId.replace("/", "%2F"));
 	let url = `${root}/trees/${conf.rootType}/${urlFriendlySemId}?tid=${conf.treeId}&year=${conf.year}`;
 	if (shallow != undefined) {
 		url += `&shallow=${shallow}`

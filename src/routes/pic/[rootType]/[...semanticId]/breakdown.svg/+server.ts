@@ -26,7 +26,6 @@ export const GET: RequestHandler = async ({ params, url }) => {
 			if (i == visibleLevelCount - 1) topOffset += svgD1 / 2;
 		}
 	}
-
 	let rootType = params.rootType as tt.RootType;
 	let semanticId = params.semanticId;
 	const treeSpecs: tt.TreeSpecs = await loadSpecs();
@@ -35,7 +34,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	const { tree, atts } = await fetch(tf.treeBeUrl(BE_URL, conf, 1))
 		.then((res) => res.json())
 		.then((resp) => resp);
-	const view = await fetch(`${BE_URL}/views/${rootType}/${semanticId}`)
+	const view = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => res.json())
 		.then((view) => view);
 	let rootName = view.name;
@@ -63,11 +62,12 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	let props = { selectionState, levelOutSpecs, visibleTreeInfo, attributeLabels, rootName };
 	// let component = new TreeSvg({ target: new ShadowRoot() });
 	const { html } = TreeSvg.render(props);
+	let urlFriendlySemId = tf.urlFriendlify(conf.semanticId)
 
 	return new Response(html, {
 		headers: {
 			'Content-Type': 'image/svg+xml',
-			'Content-Disposition': 'inline;filename=image.svg'
+			'Content-Disposition': `inline;filename=${urlFriendlySemId}-breakdown.svg`
 		}
 	});
 };
