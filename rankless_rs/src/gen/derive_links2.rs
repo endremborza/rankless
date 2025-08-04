@@ -30,7 +30,7 @@ impl Entity for AuthorWorks { type T = Box<[u32]>; const N: usize = 55617; const
 
 impl MappableEntity for AuthorWorks { type KeyType = usize; }
 
-impl VariableSizeAttribute for AuthorWorks { type SizeType = u16; }
+impl VariableSizeAttribute for AuthorWorks { type SizeType = u16; type LocType = u32; }
 
 impl NamespacedEntity for AuthorWorks { const NS: & str = "derive_links2"; }
 
@@ -42,7 +42,7 @@ impl Entity for SubfieldWorks { type T = Box<[u32]>; const N: usize = 254; const
 
 impl MappableEntity for SubfieldWorks { type KeyType = usize; }
 
-impl VariableSizeAttribute for SubfieldWorks { type SizeType = u16; }
+impl VariableSizeAttribute for SubfieldWorks { type SizeType = u16; type LocType = u32; }
 
 impl NamespacedEntity for SubfieldWorks { const NS: & str = "derive_links2"; }
 
@@ -54,7 +54,7 @@ impl Entity for InstitutionWorks { type T = Box<[u32]>; const N: usize = 4645; c
 
 impl MappableEntity for InstitutionWorks { type KeyType = usize; }
 
-impl VariableSizeAttribute for InstitutionWorks { type SizeType = u16; }
+impl VariableSizeAttribute for InstitutionWorks { type SizeType = u16; type LocType = u32; }
 
 impl NamespacedEntity for InstitutionWorks { const NS: & str = "derive_links2"; }
 
@@ -66,7 +66,7 @@ impl Entity for WorkCountries { type T = Box<[u8]>; const N: usize = 215072; con
 
 impl MappableEntity for WorkCountries { type KeyType = usize; }
 
-impl VariableSizeAttribute for WorkCountries { type SizeType = u8; }
+impl VariableSizeAttribute for WorkCountries { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for WorkCountries { const NS: & str = "derive_links2"; }
 

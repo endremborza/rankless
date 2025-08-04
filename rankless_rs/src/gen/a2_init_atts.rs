@@ -90,7 +90,7 @@ impl Entity for AuthorshipInstitutions { type T = Box<[u16]>; const N: usize = 1
 
 impl MappableEntity for AuthorshipInstitutions { type KeyType = usize; }
 
-impl VariableSizeAttribute for AuthorshipInstitutions { type SizeType = u8; }
+impl VariableSizeAttribute for AuthorshipInstitutions { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for AuthorshipInstitutions { const NS: & str = "a2_init_atts"; }
 
@@ -98,7 +98,7 @@ impl Entity for WorkAuthorships { type T = Box<[u32]>; const N: usize = 215072; 
 
 impl MappableEntity for WorkAuthorships { type KeyType = usize; }
 
-impl VariableSizeAttribute for WorkAuthorships { type SizeType = u8; }
+impl VariableSizeAttribute for WorkAuthorships { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for WorkAuthorships { const NS: & str = "a2_init_atts"; }
 
@@ -120,7 +120,7 @@ impl Entity for WorksNames { type T = String; const N: usize = 215072; const NAM
 
 impl MappableEntity for WorksNames { type KeyType = usize; }
 
-impl VariableSizeAttribute for WorksNames { type SizeType = u16; }
+impl VariableSizeAttribute for WorksNames { type SizeType = u16; type LocType = u32; }
 
 impl NamespacedEntity for WorksNames { const NS: & str = "a2_init_atts"; }
 
@@ -130,7 +130,7 @@ impl Entity for WorkDois { type T = String; const N: usize = 215072; const NAME:
 
 impl MappableEntity for WorkDois { type KeyType = usize; }
 
-impl VariableSizeAttribute for WorkDois { type SizeType = u8; }
+impl VariableSizeAttribute for WorkDois { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for WorkDois { const NS: & str = "a2_init_atts"; }
 
@@ -140,7 +140,7 @@ impl Entity for CountriesNames { type T = String; const N: usize = 173; const NA
 
 impl MappableEntity for CountriesNames { type KeyType = usize; }
 
-impl VariableSizeAttribute for CountriesNames { type SizeType = u8; }
+impl VariableSizeAttribute for CountriesNames { type SizeType = u8; type LocType = u16; }
 
 impl NamespacedEntity for CountriesNames { const NS: & str = "a2_init_atts"; }
 
@@ -150,7 +150,7 @@ impl Entity for CitiesNames { type T = String; const N: usize = 2734; const NAME
 
 impl MappableEntity for CitiesNames { type KeyType = usize; }
 
-impl VariableSizeAttribute for CitiesNames { type SizeType = u8; }
+impl VariableSizeAttribute for CitiesNames { type SizeType = u8; type LocType = u16; }
 
 impl NamespacedEntity for CitiesNames { const NS: & str = "a2_init_atts"; }
 
@@ -160,7 +160,7 @@ impl Entity for InstitutionsNames { type T = String; const N: usize = 4645; cons
 
 impl MappableEntity for InstitutionsNames { type KeyType = usize; }
 
-impl VariableSizeAttribute for InstitutionsNames { type SizeType = u8; }
+impl VariableSizeAttribute for InstitutionsNames { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for InstitutionsNames { const NS: & str = "a2_init_atts"; }
 
@@ -200,7 +200,7 @@ impl Entity for AuthorsNames { type T = String; const N: usize = 55617; const NA
 
 impl MappableEntity for AuthorsNames { type KeyType = usize; }
 
-impl VariableSizeAttribute for AuthorsNames { type SizeType = u8; }
+impl VariableSizeAttribute for AuthorsNames { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for AuthorsNames { const NS: & str = "a2_init_atts"; }
 
@@ -210,7 +210,7 @@ impl Entity for AuthorWikiSlugs { type T = String; const N: usize = 55617; const
 
 impl MappableEntity for AuthorWikiSlugs { type KeyType = usize; }
 
-impl VariableSizeAttribute for AuthorWikiSlugs { type SizeType = u8; }
+impl VariableSizeAttribute for AuthorWikiSlugs { type SizeType = u8; type LocType = u8; }
 
 impl NamespacedEntity for AuthorWikiSlugs { const NS: & str = "a2_init_atts"; }
 
@@ -236,7 +236,7 @@ impl Entity for DomainsNames { type T = String; const N: usize = 6; const NAME: 
 
 impl MappableEntity for DomainsNames { type KeyType = usize; }
 
-impl VariableSizeAttribute for DomainsNames { type SizeType = u8; }
+impl VariableSizeAttribute for DomainsNames { type SizeType = u8; type LocType = u8; }
 
 impl NamespacedEntity for DomainsNames { const NS: & str = "a2_init_atts"; }
 
@@ -246,7 +246,7 @@ impl Entity for FieldsNames { type T = String; const N: usize = 28; const NAME: 
 
 impl MappableEntity for FieldsNames { type KeyType = usize; }
 
-impl VariableSizeAttribute for FieldsNames { type SizeType = u8; }
+impl VariableSizeAttribute for FieldsNames { type SizeType = u8; type LocType = u16; }
 
 impl NamespacedEntity for FieldsNames { const NS: & str = "a2_init_atts"; }
 
@@ -256,7 +256,7 @@ impl Entity for SubfieldsNames { type T = String; const N: usize = 254; const NA
 
 impl MappableEntity for SubfieldsNames { type KeyType = usize; }
 
-impl VariableSizeAttribute for SubfieldsNames { type SizeType = u8; }
+impl VariableSizeAttribute for SubfieldsNames { type SizeType = u8; type LocType = u16; }
 
 impl NamespacedEntity for SubfieldsNames { const NS: & str = "a2_init_atts"; }
 
@@ -266,7 +266,7 @@ impl Entity for SourcesNames { type T = String; const N: usize = 2958; const NAM
 
 impl MappableEntity for SourcesNames { type KeyType = usize; }
 
-impl VariableSizeAttribute for SourcesNames { type SizeType = u8; }
+impl VariableSizeAttribute for SourcesNames { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for SourcesNames { const NS: & str = "a2_init_atts"; }
 
@@ -276,7 +276,7 @@ impl Entity for TopicsNames { type T = String; const N: usize = 4518; const NAME
 
 impl MappableEntity for TopicsNames { type KeyType = usize; }
 
-impl VariableSizeAttribute for TopicsNames { type SizeType = u8; }
+impl VariableSizeAttribute for TopicsNames { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for TopicsNames { const NS: & str = "a2_init_atts"; }
 
@@ -286,7 +286,7 @@ impl Entity for InstitutionsNameExts { type T = String; const N: usize = 4645; c
 
 impl MappableEntity for InstitutionsNameExts { type KeyType = usize; }
 
-impl VariableSizeAttribute for InstitutionsNameExts { type SizeType = u8; }
+impl VariableSizeAttribute for InstitutionsNameExts { type SizeType = u8; type LocType = u16; }
 
 impl NamespacedEntity for InstitutionsNameExts { const NS: & str = "a2_init_atts"; }
 
@@ -296,7 +296,7 @@ impl Entity for SourcesNameExts { type T = String; const N: usize = 2958; const 
 
 impl MappableEntity for SourcesNameExts { type KeyType = usize; }
 
-impl VariableSizeAttribute for SourcesNameExts { type SizeType = u16; }
+impl VariableSizeAttribute for SourcesNameExts { type SizeType = u16; type LocType = u16; }
 
 impl NamespacedEntity for SourcesNameExts { const NS: & str = "a2_init_atts"; }
 
@@ -306,7 +306,7 @@ impl Entity for SubfieldsWikipedia { type T = String; const N: usize = 254; cons
 
 impl MappableEntity for SubfieldsWikipedia { type KeyType = usize; }
 
-impl VariableSizeAttribute for SubfieldsWikipedia { type SizeType = u8; }
+impl VariableSizeAttribute for SubfieldsWikipedia { type SizeType = u8; type LocType = u16; }
 
 impl NamespacedEntity for SubfieldsWikipedia { const NS: & str = "a2_init_atts"; }
 
@@ -314,7 +314,7 @@ impl Entity for TopicsWikipedia { type T = String; const N: usize = 4518; const 
 
 impl MappableEntity for TopicsWikipedia { type KeyType = usize; }
 
-impl VariableSizeAttribute for TopicsWikipedia { type SizeType = u8; }
+impl VariableSizeAttribute for TopicsWikipedia { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for TopicsWikipedia { const NS: & str = "a2_init_atts"; }
 
@@ -322,7 +322,7 @@ impl Entity for AuthorsNameExts { type T = String; const N: usize = 55616; const
 
 impl MappableEntity for AuthorsNameExts { type KeyType = usize; }
 
-impl VariableSizeAttribute for AuthorsNameExts { type SizeType = u8; }
+impl VariableSizeAttribute for AuthorsNameExts { type SizeType = u8; type LocType = u8; }
 
 impl NamespacedEntity for AuthorsNameExts { const NS: & str = "a2_init_atts"; }
 
@@ -332,7 +332,7 @@ impl Entity for CountriesNameExts { type T = String; const N: usize = 172; const
 
 impl MappableEntity for CountriesNameExts { type KeyType = usize; }
 
-impl VariableSizeAttribute for CountriesNameExts { type SizeType = u8; }
+impl VariableSizeAttribute for CountriesNameExts { type SizeType = u8; type LocType = u8; }
 
 impl NamespacedEntity for CountriesNameExts { const NS: & str = "a2_init_atts"; }
 
@@ -342,7 +342,7 @@ impl Entity for SubfieldsNameExts { type T = String; const N: usize = 253; const
 
 impl MappableEntity for SubfieldsNameExts { type KeyType = usize; }
 
-impl VariableSizeAttribute for SubfieldsNameExts { type SizeType = u8; }
+impl VariableSizeAttribute for SubfieldsNameExts { type SizeType = u8; type LocType = u8; }
 
 impl NamespacedEntity for SubfieldsNameExts { const NS: & str = "a2_init_atts"; }
 
@@ -390,7 +390,7 @@ impl Entity for SourceAreaFields { type T = Box<[u8]>; const N: usize = 2958; co
 
 impl MappableEntity for SourceAreaFields { type KeyType = usize; }
 
-impl VariableSizeAttribute for SourceAreaFields { type SizeType = u8; }
+impl VariableSizeAttribute for SourceAreaFields { type SizeType = u8; type LocType = u8; }
 
 impl NamespacedEntity for SourceAreaFields { const NS: & str = "a2_init_atts"; }
 
@@ -400,7 +400,7 @@ impl Entity for WorkReferences { type T = Box<[u32]>; const N: usize = 215072; c
 
 impl MappableEntity for WorkReferences { type KeyType = usize; }
 
-impl VariableSizeAttribute for WorkReferences { type SizeType = u8; }
+impl VariableSizeAttribute for WorkReferences { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for WorkReferences { const NS: & str = "a2_init_atts"; }
 
@@ -410,7 +410,7 @@ impl Entity for WorkSources { type T = Box<[u16]>; const N: usize = 215072; cons
 
 impl MappableEntity for WorkSources { type KeyType = usize; }
 
-impl VariableSizeAttribute for WorkSources { type SizeType = u8; }
+impl VariableSizeAttribute for WorkSources { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for WorkSources { const NS: & str = "a2_init_atts"; }
 
@@ -420,7 +420,7 @@ impl Entity for WorkTopics { type T = Box<[u16]>; const N: usize = 215072; const
 
 impl MappableEntity for WorkTopics { type KeyType = usize; }
 
-impl VariableSizeAttribute for WorkTopics { type SizeType = u8; }
+impl VariableSizeAttribute for WorkTopics { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for WorkTopics { const NS: & str = "a2_init_atts"; }
 

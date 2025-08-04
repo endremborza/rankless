@@ -8,13 +8,13 @@ pub struct InstitutionsSemanticIds { }
 
 pub struct SourcesCitationsYearly { }
 
-pub struct SubfieldsPapersYearly { }
+pub struct CountriesSemanticIds { }
 
 pub struct HitPapersEra { }
 
-pub struct SubfieldsTopPaperTopics { }
+pub struct SubfieldsPapersYearly { }
 
-pub struct CountriesSemanticIds { }
+pub struct SubfieldsTopPaperTopics { }
 
 pub struct TopicsPapersYearly { }
 
@@ -288,7 +288,7 @@ impl Entity for HitPaperYearlyCitations { type T = Box<[u32]>; const N: usize = 
 
 impl MappableEntity for HitPaperYearlyCitations { type KeyType = usize; }
 
-impl VariableSizeAttribute for HitPaperYearlyCitations { type SizeType = u8; }
+impl VariableSizeAttribute for HitPaperYearlyCitations { type SizeType = u8; type LocType = u16; }
 
 impl NamespacedEntity for HitPaperYearlyCitations { const NS: & str = "derive_links5"; }
 
@@ -392,7 +392,7 @@ impl Entity for AuthorsSemanticIds { type T = String; const N: usize = 55617; co
 
 impl MappableEntity for AuthorsSemanticIds { type KeyType = usize; }
 
-impl VariableSizeAttribute for AuthorsSemanticIds { type SizeType = u8; }
+impl VariableSizeAttribute for AuthorsSemanticIds { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for AuthorsSemanticIds { const NS: & str = "derive_links5"; }
 
@@ -402,11 +402,41 @@ impl Entity for InstitutionsSemanticIds { type T = String; const N: usize = 4645
 
 impl MappableEntity for InstitutionsSemanticIds { type KeyType = usize; }
 
-impl VariableSizeAttribute for InstitutionsSemanticIds { type SizeType = u8; }
+impl VariableSizeAttribute for InstitutionsSemanticIds { type SizeType = u8; type LocType = u16; }
 
 impl NamespacedEntity for InstitutionsSemanticIds { const NS: & str = "derive_links5"; }
 
 impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_mapping::Institutions { type AttributeEntity = InstitutionsSemanticIds; }
+
+impl Entity for SourcesSemanticIds { type T = String; const N: usize = 2958; const NAME: & str = "sources-semantic-ids"; }
+
+impl MappableEntity for SourcesSemanticIds { type KeyType = usize; }
+
+impl VariableSizeAttribute for SourcesSemanticIds { type SizeType = u8; type LocType = u32; }
+
+impl NamespacedEntity for SourcesSemanticIds { const NS: & str = "derive_links5"; }
+
+impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_mapping::Sources { type AttributeEntity = SourcesSemanticIds; }
+
+impl Entity for SubfieldsSemanticIds { type T = String; const N: usize = 254; const NAME: & str = "subfields-semantic-ids"; }
+
+impl MappableEntity for SubfieldsSemanticIds { type KeyType = usize; }
+
+impl VariableSizeAttribute for SubfieldsSemanticIds { type SizeType = u8; type LocType = u16; }
+
+impl NamespacedEntity for SubfieldsSemanticIds { const NS: & str = "derive_links5"; }
+
+impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_mapping::Subfields { type AttributeEntity = SubfieldsSemanticIds; }
+
+impl Entity for CountriesSemanticIds { type T = String; const N: usize = 173; const NAME: & str = "countries-semantic-ids"; }
+
+impl MappableEntity for CountriesSemanticIds { type KeyType = usize; }
+
+impl VariableSizeAttribute for CountriesSemanticIds { type SizeType = u8; type LocType = u16; }
+
+impl NamespacedEntity for CountriesSemanticIds { const NS: & str = "derive_links5"; }
+
+impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_mapping::Countries { type AttributeEntity = CountriesSemanticIds; }
 
 impl Entity for SubfieldsCiteCount { type T = u32; const N: usize = 254; const NAME: & str = "subfields-cite-count"; }
 
@@ -503,36 +533,6 @@ impl MappableEntity for SubfieldsRelInsts { type KeyType = usize; }
 impl NamespacedEntity for SubfieldsRelInsts { const NS: & str = "derive_links5"; }
 
 impl MarkedAttribute<crate::common::InstRelMarker> for crate::gen::a1_entity_mapping::Subfields { type AttributeEntity = SubfieldsRelInsts; }
-
-impl Entity for SourcesSemanticIds { type T = String; const N: usize = 2958; const NAME: & str = "sources-semantic-ids"; }
-
-impl MappableEntity for SourcesSemanticIds { type KeyType = usize; }
-
-impl VariableSizeAttribute for SourcesSemanticIds { type SizeType = u8; }
-
-impl NamespacedEntity for SourcesSemanticIds { const NS: & str = "derive_links5"; }
-
-impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_mapping::Sources { type AttributeEntity = SourcesSemanticIds; }
-
-impl Entity for SubfieldsSemanticIds { type T = String; const N: usize = 254; const NAME: & str = "subfields-semantic-ids"; }
-
-impl MappableEntity for SubfieldsSemanticIds { type KeyType = usize; }
-
-impl VariableSizeAttribute for SubfieldsSemanticIds { type SizeType = u8; }
-
-impl NamespacedEntity for SubfieldsSemanticIds { const NS: & str = "derive_links5"; }
-
-impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_mapping::Subfields { type AttributeEntity = SubfieldsSemanticIds; }
-
-impl Entity for CountriesSemanticIds { type T = String; const N: usize = 173; const NAME: & str = "countries-semantic-ids"; }
-
-impl MappableEntity for CountriesSemanticIds { type KeyType = usize; }
-
-impl VariableSizeAttribute for CountriesSemanticIds { type SizeType = u8; }
-
-impl NamespacedEntity for CountriesSemanticIds { const NS: & str = "derive_links5"; }
-
-impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_mapping::Countries { type AttributeEntity = CountriesSemanticIds; }
 
 impl Entity for TopicsCiteCount { type T = u16; const N: usize = 4518; const NAME: & str = "topics-cite-count"; }
 

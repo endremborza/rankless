@@ -30,13 +30,13 @@ impl Entity for Domains { type T = u8; const N: usize = 5; const NAME: & str = "
 
 impl MappableEntity for Domains { type KeyType = u64; }
 
-impl NamespacedEntity for Domains { const NS: & str = "a1_entity_mapping"; }
-
 impl Entity for Fields { type T = u8; const N: usize = 27; const NAME: & str = "fields"; }
 
 impl MappableEntity for Fields { type KeyType = u64; }
 
 impl NamespacedEntity for Fields { const NS: & str = "a1_entity_mapping"; }
+
+impl NamespacedEntity for Domains { const NS: & str = "a1_entity_mapping"; }
 
 impl Entity for Subfields { type T = u8; const N: usize = 253; const NAME: & str = "subfields"; }
 

@@ -38,14 +38,6 @@ impl NamespacedEntity for TopicsWorkCount { const NS: & str = "derive_links3"; }
 
 impl MarkedAttribute<crate::common::WorkCountMarker> for crate::gen::a1_entity_mapping::Topics { type AttributeEntity = TopicsWorkCount; }
 
-impl Entity for InstitutionsWorkCount { type T = u16; const N: usize = 4645; const NAME: & str = "institutions-work-count"; }
-
-impl MappableEntity for InstitutionsWorkCount { type KeyType = usize; }
-
-impl NamespacedEntity for InstitutionsWorkCount { const NS: & str = "derive_links3"; }
-
-impl MarkedAttribute<crate::common::WorkCountMarker> for crate::gen::a1_entity_mapping::Institutions { type AttributeEntity = InstitutionsWorkCount; }
-
 impl Entity for SourcesWorkCount { type T = u32; const N: usize = 2958; const NAME: & str = "sources-work-count"; }
 
 impl MappableEntity for SourcesWorkCount { type KeyType = usize; }
@@ -53,6 +45,14 @@ impl MappableEntity for SourcesWorkCount { type KeyType = usize; }
 impl NamespacedEntity for SourcesWorkCount { const NS: & str = "derive_links3"; }
 
 impl MarkedAttribute<crate::common::WorkCountMarker> for crate::gen::a1_entity_mapping::Sources { type AttributeEntity = SourcesWorkCount; }
+
+impl Entity for InstitutionsWorkCount { type T = u16; const N: usize = 4645; const NAME: & str = "institutions-work-count"; }
+
+impl MappableEntity for InstitutionsWorkCount { type KeyType = usize; }
+
+impl NamespacedEntity for InstitutionsWorkCount { const NS: & str = "derive_links3"; }
+
+impl MarkedAttribute<crate::common::WorkCountMarker> for crate::gen::a1_entity_mapping::Institutions { type AttributeEntity = InstitutionsWorkCount; }
 
 impl Entity for AuthorsWorkCount { type T = u16; const N: usize = 55617; const NAME: & str = "authors-work-count"; }
 
@@ -66,7 +66,7 @@ impl Entity for CountryWorks { type T = Box<[u32]>; const N: usize = 173; const 
 
 impl MappableEntity for CountryWorks { type KeyType = usize; }
 
-impl VariableSizeAttribute for CountryWorks { type SizeType = u32; }
+impl VariableSizeAttribute for CountryWorks { type SizeType = u32; type LocType = u32; }
 
 impl NamespacedEntity for CountryWorks { const NS: & str = "derive_links3"; }
 
@@ -84,7 +84,7 @@ impl Entity for HitPapersNames { type T = String; const N: usize = 628; const NA
 
 impl MappableEntity for HitPapersNames { type KeyType = usize; }
 
-impl VariableSizeAttribute for HitPapersNames { type SizeType = u16; }
+impl VariableSizeAttribute for HitPapersNames { type SizeType = u16; type LocType = u16; }
 
 impl NamespacedEntity for HitPapersNames { const NS: & str = "derive_links3"; }
 
@@ -92,7 +92,7 @@ impl Entity for HitPapersDois { type T = String; const N: usize = 628; const NAM
 
 impl MappableEntity for HitPapersDois { type KeyType = usize; }
 
-impl VariableSizeAttribute for HitPapersDois { type SizeType = u8; }
+impl VariableSizeAttribute for HitPapersDois { type SizeType = u8; type LocType = u16; }
 
 impl NamespacedEntity for HitPapersDois { const NS: & str = "derive_links3"; }
 
@@ -100,7 +100,7 @@ impl Entity for HitPapersWids { type T = Box<[u32]>; const N: usize = 628; const
 
 impl MappableEntity for HitPapersWids { type KeyType = usize; }
 
-impl VariableSizeAttribute for HitPapersWids { type SizeType = u8; }
+impl VariableSizeAttribute for HitPapersWids { type SizeType = u8; type LocType = u16; }
 
 impl NamespacedEntity for HitPapersWids { const NS: & str = "derive_links3"; }
 
