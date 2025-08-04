@@ -40,7 +40,8 @@
 	let hovered = '0';
 	let hoveredParent: number | undefined = undefined;
 	let toDomains = false;
-	let defaultTreeId = 9; //TODO: anny change can cock this up
+	let defaultTreeId = indsByEntityType.subfields.includes(9) ? 9 : indsByEntityType.subfields[0];
+	//TODO: anny change can cock this up
 
 	let hoveredOverCircle = false;
 	let showPaper = false;
@@ -195,6 +196,7 @@
 	{conf}
 	{treeSpecs}
 	{backupNames}
+	treeId={defaultTreeId}
 	bind:flatOut
 	bind:isSpec
 	bind:showPaper
