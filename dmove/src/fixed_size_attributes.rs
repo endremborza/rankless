@@ -169,7 +169,7 @@ where
 
 fn casted_write<T>(name: &str, arr: Vec<usize>, builder: &MainBuilder) -> io::Result<()>
 where
-    T: UnsignedNumber + ByteFixArrayInterface,
+    T: UnsignedNumber,
 {
     let mut file = File::create(builder.parent_root.join(name)).unwrap();
     for us in arr.into_iter() {

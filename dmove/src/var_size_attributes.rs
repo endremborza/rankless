@@ -1,4 +1,5 @@
 use std::{
+    any::type_name,
     fs::{create_dir_all, File},
     io::{BufReader, Read, Seek, Write},
     marker::PhantomData,
@@ -9,8 +10,8 @@ use std::{
 
 use crate::{
     common::{
-        get_type_name, BackendLoading, ByteArrayInterface, ByteFixArrayInterface, Entity,
-        EntityImmutableRefMapperBackend, MainBuilder, MetaIntegrator, UnsignedNumber,
+        downcast_fun, get_type_name, BackendLoading, ByteArrayInterface, ByteFixArrayInterface,
+        Entity, EntityImmutableRefMapperBackend, MainBuilder, MetaIntegrator, UnsignedNumber,
         VariableSizeAttribute, VariableSizeAttributeTraitMeta, ET, MAX_BUF, MAX_NUMBUF,
     },
     CompactEntity, EntityMutableMapperBackend,
@@ -24,6 +25,7 @@ pub struct VarAttBuilder {
     files: VattFilePair,
     sizes: Vec<usize>,
     max_size: usize,
+    sum_elems: usize,
     name: String,
 }
 
@@ -48,17 +50,16 @@ where
     p: PhantomData<E>,
 }
 
-pub type VattReadingMap<E> = VattReadingMapGen<E, Locators<E, u64>>;
-pub type VattReadingRefMap<'a, E> = VattReadingMapGen<E, &'a Locators<E, u64>>;
-pub type VattReadingArcMap<E> = VattReadingMapGen<E, Arc<Locators<E, u64>>>;
+pub type VattReadingMap<E> = VattReadingMapGen<E, Locators<E>>;
+pub type VattReadingRefMap<'a, E> = VattReadingMapGen<E, &'a Locators<E>>;
+pub type VattReadingArcMap<E> = VattReadingMapGen<E, Arc<Locators<E>>>;
 
-pub struct VattArrPair<E, LT>
+pub struct VattArrPair<E>
 where
     E: VariableSizeAttribute,
     <E as Entity>::T: VarSizedAttributeElement,
-    LT: UnsignedNumber,
 {
-    locators: Locators<E, LT>,
+    locators: Locators<E>,
     arr: Box<[VaST<E>]>,
 }
 
@@ -83,13 +84,12 @@ where
     numbers: I,
 }
 
-pub struct Locators<E, LocType>
+pub struct Locators<E>
 where
     E: VariableSizeAttribute,
     <E as Entity>::T: VarSizedAttributeElement,
-    LocType: UnsignedNumber,
 {
-    divided_locs: Box<[LocType]>, //needs to be large enough for end of file
+    divided_locs: Box<[E::LocType]>,
     divided_sizes: Box<[E::SizeType]>,
 }
 
@@ -200,11 +200,10 @@ where
     }
 }
 
-impl<E, LT> Locators<E, LT>
+impl<E> Locators<E>
 where
     E: VariableSizeAttribute,
     E::T: VarSizedAttributeElement,
-    LT: UnsignedNumber,
 {
     fn from_file<R>(counts: &mut R) -> Self
     where
@@ -219,7 +218,7 @@ where
         while let Ok(_) = counts.read_exact(size_slice) {
             let size = E::SizeType::from_fbytes(size_slice);
             locators_size.push(size);
-            locators_loc.push(LT::from_usize(seek));
+            locators_loc.push(E::LocType::from_usize(seek));
             seek += size.to_usize();
         }
         Self {
@@ -229,11 +228,10 @@ where
     }
 }
 
-impl<E, LT> VattArrPair<E, LT>
+impl<E> VattArrPair<E>
 where
     E: VariableSizeAttribute,
     ET<E>: VarSizedAttributeElement,
-    LT: UnsignedNumber,
 {
     const BL: usize = VaST::<E>::S;
     pub fn get(&self, k: &usize) -> Option<&[VaST<E>]> {
@@ -262,7 +260,7 @@ where
         let mut divided_sizes = Vec::new();
         let mut divided_locs = Vec::new();
         for b in value.0 {
-            divided_locs.push(LT::from_usize(arr.len()));
+            divided_locs.push(E::LocType::from_usize(arr.len()));
             divided_sizes.push(E::SizeType::from_usize(b.len()));
             for e in b {
                 arr.push(e);
@@ -304,6 +302,7 @@ where
             files,
             sizes: Vec::new(),
             max_size: 0,
+            sum_elems: 0,
             name: name.to_string(),
         }
     }
@@ -315,6 +314,7 @@ where
         if current_size > self.max_size {
             self.max_size = current_size
         }
+        self.sum_elems += current_size;
         self.sizes.push(current_size);
     }
     fn post(self, builder: &mut MainBuilder) {
@@ -323,18 +323,20 @@ where
         // let n = S::N;
         // assert_eq!(sizes.len(), n);
         let n = self.sizes.len();
-
         let number_writer = NumberWriter {
             file: self.files.counts,
             numbers: self.sizes.into_iter(),
         };
         let size_scale = number_writer.write_minimal(self.max_size);
+        let se = self.sum_elems;
+        let loc_scale = downcast_fun!(type_name, se,);
         let camel_name = builder.add_simple_etrait(&self.name, &get_type_name::<T>(), n, true);
         builder
             .meta_elems
             .push(VariableSizeAttributeTraitMeta::meta(
                 &camel_name,
                 &size_scale,
+                &loc_scale,
             ));
     }
 }
@@ -359,18 +361,17 @@ where
     }
 }
 
-impl<E, LT> BackendLoading<E> for VattArrPair<E, LT>
+impl<E> BackendLoading<E> for VattArrPair<E>
 where
     E: VariableSizeAttribute,
     <E as Entity>::T: VarSizedAttributeElement,
-    LT: UnsignedNumber,
 {
     fn load_backend(path: &PathBuf) -> Self {
         let parent_dir = path.join(E::NAME);
         let file_pair = VattFilePair::open(&parent_dir);
         let mut count_br = BufReader::new(file_pair.counts);
         let mut target_br = BufReader::new(file_pair.targets);
-        let locators = Locators::<E, LT>::from_file(&mut count_br);
+        let locators = Locators::<E>::from_file(&mut count_br);
         let elem_size: usize = size_of::<<E::T as VarSizedAttributeElement>::SubType>();
         let cap_b = std::fs::metadata(parent_dir.join("targets"))
             .unwrap()
@@ -383,7 +384,7 @@ where
             v.push(E::subtype_from_buf(bufr))
         }
 
-        let loclsize = locators.divided_locs.len() * size_of::<LT>() / 1_000_000;
+        let loclsize = locators.divided_locs.len() * size_of::<E::LocType>() / 1_000_000;
         let locssize = locators.divided_sizes.len() * size_of::<E::SizeType>() / 1_000_000;
         let locsum = loclsize + locssize;
         let arrsum = v.len() * elem_size / 1_000_000;
@@ -409,7 +410,7 @@ where
         let buf = [0; MAX_BUF];
 
         Self {
-            locators: Locators::<E, u64>::from_file(&mut file_pair.counts),
+            locators: Locators::<E>::from_file(&mut file_pair.counts),
             file_pair,
             buf,
             p: PhantomData,
@@ -417,11 +418,10 @@ where
     }
 }
 
-impl<E, LT> BackendLoading<E> for Locators<E, LT>
+impl<E> BackendLoading<E> for Locators<E>
 where
     E: VariableSizeAttribute,
     E::T: VarSizedAttributeElement,
-    LT: UnsignedNumber,
 {
     fn load_backend(path: &PathBuf) -> Self {
         let mut file_pair = VattFilePair::open(&path.join(E::NAME));
@@ -471,7 +471,7 @@ where
     }
 }
 
-impl<E> LocationFinder<E> for Locators<E, u64>
+impl<E> LocationFinder<E> for Locators<E>
 where
     E: VariableSizeAttribute,
     ET<E>: VarSizedAttributeElement,
@@ -487,7 +487,7 @@ where
         }
         let divided_seek = &self.divided_locs[*k];
         let divided_size = &self.divided_sizes[*k];
-        let full_seek = divided_seek * (E::T::DIVISOR as u64);
+        let full_seek = (divided_seek.to_usize() * E::T::DIVISOR) as u64;
         file_pair
             .targets
             .seek(std::io::SeekFrom::Start(full_seek))
