@@ -66,7 +66,7 @@ impl MarkedBackendLoader<QuickestVBox> for CountryInsts {
 }
 
 impl MarkedBackendLoader<QuickAttPair> for CountryInsts {
-    type BE = VattArrPair<Self, u32>;
+    type BE = VattArrPair<Self>;
     fn load(stowage: &Stowage) -> Self::BE {
         let boxes = <Self as MarkedBackendLoader<QuickestVBox>>::load(stowage);
         Self::BE::from_boxes(boxes)
@@ -95,6 +95,7 @@ impl MappableEntity for CountryInsts {
 
 impl VariableSizeAttribute for CountryInsts {
     type SizeType = u32;
+    type LocType = u32;
 }
 
 pub fn invert_read_multi_link_to_work<L>(stowage: &Stowage, name: &str)
