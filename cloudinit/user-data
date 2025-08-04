@@ -1,0 +1,18 @@
+
+#cloud-config
+hostname: testvm
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups: users, admin
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDPAkNQsKOU8GiTcik2eDOVaKxYAbmvCSHCNpfaEuMl9BtkH7bcIKC51vnL5GJZU6j89GSrMHi1J4flUCKMEhJNaBzCQ+NwabZ9MZtL/Qj5uq/NX3ASHHXNJqyefUWl0ddhibuwnNUBxe064M49nwHkBCDRmglyI+F1BFtAJPwTsV5NaX6V4QWWRvW+JicDeNWxtpoGFNg2qbdigVJMb//QP7lNT4kPTn+S70KXfttdKDtnMi3OoWsR9L0X3iwp09YV8X5Q4eGpm/Qdw8qlVpLnNEH/dMHbGKL0+/VkzV06zDgqpfhrUU00dDu5NYpd2cRQZz0QFxp23dXltGDemT43fyS7DG1/qQte0F1eXr9i/2p0ywdX1fwE+XEGrsy+O5OTbF9aCKB//OqQuZREsd8clnczTuQCHQbpQIy8qLgGJZMbPDz+3PR0mzkXvSEYKCiQsQxSSVIOynuMOlR9lAU+3/XWcNGYoL2l/iyHHe7/vpXvg0QyLwp/0/m1gs0N4Cs= borza@legion5
+
+runcmd:
+  - systemctl enable nginx
+growpart:
+  mode: auto
+  devices: ['/']
+  ignore_growroot_disabled: false
+resize_rootfs: true
