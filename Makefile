@@ -49,10 +49,10 @@ rm-prof:
 	rm default_*.profraw
 	rm ./*/default_*.profraw
 
-extend_csvs bm live_monitoring report sitemap_validation lib_data_generation:
+extend_csvs bm live_monitoring report sitemap_validation lib_data_generation alpha_test:
 	python3 -m pyscripts.$@
 
-pull_live_certs sync_fe_to_alpha sync_fe_to_live bump_v bump_v_minor:
+pull_live_certs sync_fe_to_alpha sync_fe_to_live sync_fe_to_local setup_local_test bump_v bump_v_minor:
 	python3 -c "from pyscripts.deploy import $@;$@()"
 
 set-full:

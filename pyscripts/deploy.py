@@ -17,8 +17,19 @@ SERIVCE_DIR = ".config/systemd/user"
 SSL_ETC_DIR = "/etc/letsencrypt/live"
 LOCAL_SSL_TAR = "ssl_dir.tar.gz"
 AMI_IMG_CSV = "ami-imgs.csv"
+TEST_BRANCH = "mini-subset"
 
 MAIN_DOMAIN = "rankless.org"
+
+APTS = [
+    "curl",
+    "unzip",
+    "certbot",
+    "build-essential",
+    "python3-certbot-nginx",
+    "nginx",
+    "btop",
+]
 
 
 def subd(sub):
@@ -44,29 +55,32 @@ LARGE_INSTANCE_TYPE = BIG16
 LARGE_STORAGE_GB = 300
 LARGE_FE_PROCS = 12
 DEFAULT_RS_PORT = 3038
-BUN_PORT_START = 3000
-FE_RESTART_WAIT = 10  # secs
 
-
-NGINX_AVDIR, NGINX_ENDIR = [f"/etc/nginx/sites-{s}" for s in ["available", "enabled"]]
-
-be_service_name = "rankless-backend.service"
-fe_service_template_name = "rankless-frontend@.service"
-tunnel_service_name = "rankless-tunnel.service"
-
-be_service_frame = """
-[Unit]
-Description=Rankless Backend
-
-[Service]
-LimitNOFILE=65534
-ExecStart={}/target/release/rankless-server {}
+SERVICE_SUFFIX = """
 Restart=always
 RestartSec=15
 
 [Install]
-WantedBy=default.target
-"""
+WantedBy=default.target"""
+
+FE_BUILD_NAMES = ["blue", "green"]
+FE_BUILD_PORTS_STARTS = [4000, 4200]
+NGINX_AVDIR, NGINX_ENDIR = [f"/etc/nginx/sites-{s}" for s in ["available", "enabled"]]
+UPSTREAM_ETC_FNAME = "app_upstreams"
+
+be_service_name = "rankless-backend.service"
+tunnel_service_name = "rankless-tunnel.service"
+fe_service_template_frame = "rankless-frontend-{}@.service"
+
+be_service_frame = (
+    """[Unit]
+Description=Rankless Backend
+
+[Service]
+LimitNOFILE=65534
+ExecStart={}/target/release/rankless-server {}"""
+    + SERVICE_SUFFIX
+)
 
 local_tmp_home = Path("/tmp/rls-services")
 local_service_path = local_tmp_home / SERIVCE_DIR
@@ -109,7 +123,7 @@ class UpstreamConf:
     fe_ports: list[int]
     ip: str = "127.0.0.1"
     be_port: int = DEFAULT_RS_PORT
-    fe_timeout: int = FE_RESTART_WAIT
+    fe_timeout: int = 1
     suffix: str = ""
 
     def be_server(self):
@@ -117,11 +131,24 @@ class UpstreamConf:
         return self.sconf(self.be_port)
 
     def fe_servers(self):
-        self.suffix = f" max_fails=1 fail_timeout={self.fe_timeout}s"
+        # self.suffix = f" max_fails=1 fail_timeout={self.fe_timeout}s"
         return map(self.sconf, self.fe_ports)
 
     def sconf(self, port):
         return f"server {self.ip}:{port}{self.suffix};"
+
+
+@dataclass
+class FrontendServiceConf:
+    start_port: int
+    n_procs: int
+    suffix: str
+
+    def template_fname(self):
+        return fe_service_template_frame.format(self.suffix)
+
+    def build_dir(self):
+        return f"built-{self.suffix}"
 
 
 def get_ip_alloc(live: bool):
@@ -190,16 +217,22 @@ def get_new_inst(vol_size: int, itype: str, img: str = ubuntu24_image_id, ext=Fa
 
 
 class SSHrer:
-    def __init__(self, host, user=None, key_path=None, reset=False):
+    def __init__(self, host, user=None, key_path=None, reset=False, port=None):
         if reset:
             hp = Path.home() / ".ssh" / "known_hosts"
-            subprocess.check_output(["ssh-keygen", "-f", hp.as_posix(), "-R", host])
+            phost = host if port is None else f"[{host}]:{port}"
+            subprocess.check_output(["ssh-keygen", "-f", hp.as_posix(), "-R", phost])
         self.basis = ["ssh", "-o", "StrictHostKeyChecking=no"]
         self.key_extend = []
         self.rsync_basis = ["rsync", "-rav", "-z"]
         if key_path:
             self.key_extend.extend(["-i", key_path])
-            self.rsync_basis.extend(["-e", f"ssh -i {key_path}"])
+        self.rsync_basis.extend(
+            ["-e", f"ssh -i {key_path or '~/.ssh/id_rsa'} -p {port or 22}"]
+        )
+        if port:
+            self.basis.extend(["-p", str(port)])
+            # self.rsync_basis.append(f"--port={port}")
         self.basis.extend(self.key_extend)
         self.full_host = host if user is None else f"{user}@{host}"
         self.basis.append(self.full_host)
@@ -214,6 +247,7 @@ class SSHrer:
             raise e
 
     def prun(self, comm):
+        print("running", comm)
         print(self.run(comm))
 
     def rsync(self, src, target, excludes=[]):
@@ -274,18 +308,15 @@ class Transper:
         self.deploy_dir = self.inst_home + "/rankless-deploy"
         self.data_dir = self.inst_home + "/rankless-data"
         self.systemd_dir = f"{self.inst_home}/{SERIVCE_DIR}/"
-        cache_dir = f"{self.inst_home}/nginx-cache"
-        self.be_cache_dir = f"{cache_dir}/be"
-        self.fe_cache_dir = f"{cache_dir}/fe"
-        self.ssh.run(
-            f"mkdir -p {self.data_dir} {self.deploy_dir} {self.systemd_dir} {self.be_cache_dir} {self.fe_cache_dir}"
-        )
+        cache_dir = f"/var/cache"
+        self.be_cache_dir = f"{cache_dir}/rankless-be"
+        self.fe_cache_dir = f"{cache_dir}/rankless-fe"
+        self.ssh.run(f"mkdir -p {self.data_dir} {self.deploy_dir} {self.systemd_dir}")
         for cd in [self.be_cache_dir, self.fe_cache_dir]:
-            # TODO: this still is not enough, need to move this
+            self.ssh.run(f"sudo mkdir -p {cd}")
             self.ssh.run(f"sudo chown -R www-data:www-data {cd}")
         self.be_service = ServiceMan(be_service_name, sshc)
-        self.fe_services = []
-        self.fill_fe_services()
+        self.sync_txt("test", "___test", self.inst_home)
 
     def get_node_v(self):
         return self.ssh.run("source .nvm/nvm.sh;nvm version").strip()
@@ -303,7 +334,7 @@ class Transper:
     def setup(self, backend=True, bun=False):
         self.ssh.prun("sudo apt update")
         self.ssh.prun(
-            "sudo apt install unzip certbot build-essential python3-certbot-nginx nginx -y"
+            f"sudo DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt install {' '.join(APTS)} -y"
         )
         if backend:
             self.ssh.prun(
@@ -323,7 +354,7 @@ class Transper:
         if existed:
             past_blob = p.read_bytes()
         p.write_text(txt)
-        self.ssh.prsync(p, dir)
+        self.ssh.prsync(p.as_posix(), dir)
         p.unlink()
         if existed:
             p.write_bytes(past_blob)
@@ -337,50 +368,69 @@ class Transper:
         self.be_service.enable()
         self.be_service.start()
 
-    def setup_fe_service(
-        self, inst_domain: str, first_port=BUN_PORT_START, procs=10, bun=False
-    ):
-        if bun:
-            comm = "%h/.bun/bin/bun run build/"
-        else:
-            node_version = self.get_node_v()
-            comm = f"%h/.nvm/versions/node/{node_version}/bin/node build"
-        fe_service_txt = f"""
-[Unit]
-Description=Rankless Frontend %i
-After=network.target
+    def setup_fe_services(self, inst_domain: str, bun=False, procs: int = 2):
+        confs = [
+            FrontendServiceConf(sport, procs, suff)
+            for sport, suff in zip(FE_BUILD_PORTS_STARTS, FE_BUILD_NAMES)
+        ]
+        for conf in confs:
+            if bun:
+                comm = f"%h/.bun/bin/bun run {conf.build_dir()}/"
+            else:
+                node_version = self.get_node_v()
+                comm = (
+                    f"%h/.nvm/versions/node/{node_version}/bin/node {conf.build_dir()}"
+                )
+            fe_service_txt = (
+                f"""[Unit]
+    Description=Rankless Frontend {conf.suffix} %i
+    After=network.target
 
-[Service]
-WorkingDirectory={self.deploy_dir}
-Environment=ORIGIN=https://{inst_domain} PORT=%i
-ExecStart={comm}
-Restart=always
-RestartSec=15
+    [Service]
+    WorkingDirectory={self.deploy_dir}
+    Environment=ORIGIN=https://{inst_domain} PORT=%i
+    ExecStart={comm}"""
+                + SERVICE_SUFFIX
+            )
+            self.sync_service(fe_service_txt, conf.template_fname())
+            for service in self._iter_conf_services(conf):
+                service.enable()
+                service.stop()
+        self.reload_systemctl()
 
-[Install]
-WantedBy=default.target
-"""
-        self.sync_service(fe_service_txt, fe_service_template_name)
-        for i in range(procs):
-            sman = self.fes_from_port(first_port + i)
-            sman.enable()
-            self.fe_services.append(sman)
-
-    def fes_from_port(self, port):
-        return ServiceMan(fe_service_template_name.replace("@", f"@{port}"), self.ssh)
-
-    def get_fe_ports(self):
-        fe_rex = re.compile(fe_service_template_name.replace("@", r"@(\d+)"))
-        return list(map(int, fe_rex.findall(self.ssh.run("systemctl --user"))))
-
-    def fill_fe_services(self):
-        self.fe_services = [self.fes_from_port(p) for p in self.get_fe_ports()]
+    def get_fe_systems(self):
+        fe_rex = fe_service_template_frame.format("([a-z]+)").replace("@", r"@(\d+)")
+        out = []
+        for name, port in sorted(
+            re.findall(fe_rex, self.ssh.run(f"ls {SERIVCE_DIR}/default.target.wants/"))
+        ):
+            if len(out) == 0 or out[-1][0] != name:
+                out.append((name, [int(port)]))
+            else:
+                out[-1][1].append(int(port))
+        print(out)
+        confiter = [
+            FrontendServiceConf(ports[0], len(ports), name) for name, ports in out
+        ]
+        active_start_port = 0
+        try:
+            usconf = self.ssh.run(f"cat {NGINX_AVDIR}/{UPSTREAM_ETC_FNAME}")
+            upnext = False
+            for line in usconf.split("\n"):
+                if upnext:
+                    found = re.findall(r"server \d+\.\d+\.\d+\.\d+\:(\d+)", line)
+                    active_start_port = int(found[0])
+                    break
+                if FE_UPSTREAM in line:
+                    upnext = True
+        except:
+            pass
+        return sorted(confiter, key=lambda c: c.start_port == active_start_port)
 
     def get_domain(self):
-        return re.findall(
-            "ORIGIN=https://(.*) ",
-            self.ssh.run(f"cat ~/{SERIVCE_DIR}/{fe_service_template_name}"),
-        )[0]
+        fname_wc = fe_service_template_frame.format("*")
+        cato = self.ssh.run(f"cat ~/{SERIVCE_DIR}/{fname_wc}")
+        return re.findall("ORIGIN=https://(.*) ", cato)[0]
 
     def get_backend_domain(self):
         domain = self.get_domain()
@@ -395,10 +445,7 @@ WantedBy=default.target
             inst_domain = self.get_domain()
         if cert:
             self.get_cert(inst_domain)
-        ports = self.get_fe_ports()
-        assert ports
-        self.nginx_add_upstreams([UpstreamConf(ports)])
-        self.ssh.prun(f"mkdir -p {self.fe_cache_dir} {self.be_cache_dir}")
+        self._add_upstreams_from_conf(self.get_fe_systems()[1])
         server_prefix = f"""
     listen 443 ssl;
 
@@ -524,7 +571,6 @@ server {{
             self.get_cert(domain_to_fw)
 
     def nginx_add_upstreams(self, upstreams: list[UpstreamConf]):
-        us_etc_name = "app_upstreams"
         fe_servers = []
         be_servers = []
         for conf in upstreams:
@@ -542,7 +588,7 @@ upstream {BE_UPSTREAM} {{
      {be_conf}
 }}
 """
-        self._send_nginx_conf(conf_txt, us_etc_name)
+        self._send_nginx_conf(conf_txt, UPSTREAM_ETC_FNAME)
 
     def restart_nginx(self):
         self._nginx_run(["reload", "restart", "status"])
@@ -554,23 +600,24 @@ upstream {BE_UPSTREAM} {{
         for subdir in tqdm(data_subdirs):
             self.ssh.rsync(f"{local_data_root}/{subdir}", self.data_dir, ignores)
 
-    def setup_code(self):
+    def setup_code(self, branch=None):
+        self.ssh.prun(f"rm -rf {self.deploy_dir}")
         self.ssh.prun(
             f"git clone https://github.com/endremborza/rankless {self.deploy_dir}"
         )
+        if branch:
+            self._depcomm(f"git checkout {branch}")
         self.update_env()
 
     def sync_code(self):
-        self.ssh.prun(f"cd {self.deploy_dir} && git pull")
+        self._depcomm("git pull")
         self.update_env()
 
     def build_js(self):
-        self.ssh.prun(
-            f"cd {self.deploy_dir};source ~/.profile;source ~/.nvm/nvm.sh;npm install;npm run build"
-        )
+        self._depcomm("source ~/.nvm/nvm.sh;npm install;npm run build")
 
     def build_rs(self):
-        self.ssh.prun(f"cd {self.deploy_dir};source ~/.profile;cargo build --release")
+        self._depcomm("cargo build --release")
 
     def update_env(self):
         domain = self.get_domain()
@@ -581,9 +628,17 @@ upstream {BE_UPSTREAM} {{
     def update_fe(self):
         self.sync_code()
         self.build_js()
-        for fes in self.fe_services:
-            fes.restart()
-            time.sleep(FE_RESTART_WAIT / 4)
+        stage_conf, live_conf = self.get_fe_systems()
+        self._depcomm(f"cp -r build {stage_conf.build_dir()}")
+        for service in self._iter_conf_services(stage_conf):
+            service.restart()
+        while self._validate_fe(stage_conf):
+            pass
+        self._add_upstreams_from_conf(stage_conf)
+        self.reload_nginx()
+        self.ssh.prun(f"sudo rm -rf {self.fe_cache_dir}/*")
+        for service in self._iter_conf_services(live_conf):
+            service.stop()
 
     def reload_systemctl(self):
         self.ssh.prun("sudo systemctl daemon-reload")
@@ -654,6 +709,30 @@ upstream {BE_UPSTREAM} {{
             .loc[lambda df: df["t"] > (df["t"].max() - dt.timedelta(minutes=minutes))]
         )
 
+    def _depcomm(self, comm: str):
+        self.ssh.prun(f"cd {self.deploy_dir};source ~/.profile;{comm}")
+
+    def _get_fe_service(self, conf: FrontendServiceConf, port):
+        return ServiceMan(conf.template_fname().replace("@", f"@{port}"), self.ssh)
+
+    def _validate_fe(self, conf: FrontendServiceConf):
+        time.sleep(0.5)
+        for i in range(conf.n_procs):
+            port = conf.start_port + i
+            try:
+                self.ssh.prun(f"curl localhost:{port}")
+            except:
+                return True
+        return False
+
+    def _add_upstreams_from_conf(self, conf: FrontendServiceConf):
+        ports = [conf.start_port + i for i in range(conf.n_procs)]
+        self.nginx_add_upstreams([UpstreamConf(ports)])
+
+    def _iter_conf_services(self, conf: FrontendServiceConf):
+        for i in range(conf.n_procs):
+            yield self._get_fe_service(conf, conf.start_port + i)
+
     def _nginx_run(self, comms):
         self.ssh.prun("sudo nginx -t")
         self.reload_systemctl()
@@ -680,15 +759,21 @@ def sync_fe_to_alpha():
     get_running_tpr(False).update_fe()
 
 
+def sync_fe_to_local():
+    _local_tpr().update_fe()
+
+
 def sync_fe_to_live():
     get_running_tpr(True).update_fe()
 
 
-def full_setup_from_nothing(tpr: Transper, domain, procn: int, backend=True, bun=True):
+def full_setup_from_nothing(
+    tpr: Transper, domain, procn: int, backend=True, bun=True, branch=None
+):
     tpr.setup(backend=backend, bun=bun)
     tpr.validate(backend=backend)
-    tpr.setup_fe_service(domain, bun=bun, procs=procn)
-    tpr.setup_code()
+    tpr.setup_fe_services(domain, bun=bun, procs=procn)
+    tpr.setup_code(branch)
     tpr.update_fe()
     if backend:
         tpr.build_rs()
@@ -702,6 +787,7 @@ def full_setup_from_nothing(tpr: Transper, domain, procn: int, backend=True, bun
             pass
     tpr.push_certs()
     tpr.setup_nginx(cert=False)
+    tpr.restart_nginx()
 
 
 def new_small_alpha():
@@ -762,6 +848,14 @@ def horizontal_instances(n):
     return ips
 
 
+def setup_local_test():
+    tpr = _local_tpr()
+    branch = (
+        subprocess.check_output(["git", "branch", "--show-current"]).decode().strip()
+    )
+    full_setup_from_nothing(tpr, ALPHA_DOMAIN, 3, True, branch=branch)
+
+
 def bump_v(i=2):
     vns = _last_vns()
     vns[i] += 1
@@ -790,7 +884,7 @@ def promote_alpha_to_live():
     alpha_inst = get_running_inst(False)
     assert alpha_inst is not None
     tpr = get_tpr(alpha_inst)
-    tpr.setup_fe_service(LIVE_DOMAIN, bun=True, procs=LARGE_FE_PROCS)
+    tpr.setup_fe_services(LIVE_DOMAIN, bun=True, procs=LARGE_FE_PROCS)
     tpr.update_env()
     tpr.update_fe()
     tpr.ssh.prun(f"sudo rm -f {NGINX_ENDIR}/{ALPHA_DOMAIN}")
@@ -814,6 +908,10 @@ def tryfloat(s):
         return float(s)
     except:
         return float("nan")
+
+
+def _local_tpr():
+    return Transper(SSHrer("127.0.0.1", "ubuntu", reset=True, port=2223))
 
 
 def _last_img():

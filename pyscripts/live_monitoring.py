@@ -9,13 +9,11 @@ from email.mime.text import MIMEText
 
 import requests
 
-from .deploy import get_running_tpr
+from .deploy import LIVE_DOMAIN, get_running_tpr
 
 EMAIL_ADDRESS = os.environ["GMAIL_ADDR"]
 EMAIL_PASSWORD = os.environ["GMAIL_APP_PW"]
 TO_EMAIL = EMAIL_ADDRESS
-
-url = "https://www.rankless.org/"
 
 
 def val_url(url):
@@ -26,7 +24,7 @@ def val_url(url):
     return r
 
 
-def validate(n=1):
+def validate(n=1, url=f"https://{LIVE_DOMAIN}/"):
     r = val_url(url)
     links = re.findall(r'href="\.\/([a-z]+?\/.+?)"', r.text)
     assert len(links) > 0, "no links found"
