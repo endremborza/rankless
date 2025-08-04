@@ -470,7 +470,7 @@ where
     E: CompactEntity + VariableSizeAttribute,
     E::T: VarSizedAttributeElement,
 {
-    type BE = VattArrPair<E, u32>;
+    type BE = VattArrPair<E>;
 }
 
 impl<E> BackendSelector<E> for VarFile
@@ -533,6 +533,7 @@ where
     T: VarSizedAttributeElement,
 {
     type SizeType = u8;
+    type LocType = u8;
 }
 
 impl<T> MappableEntity for EmptyAttributeEntity<T> {

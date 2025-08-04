@@ -87,6 +87,7 @@ where
     Self::T: VarSizedAttributeElement,
 {
     type SizeType: UnsignedNumber;
+    type LocType: UnsignedNumber;
     // type LargestBuffer;
     // const LARGEST: usize;
     // on non inmemory thing: have type for offset (with divisor divided)
