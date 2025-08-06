@@ -73,7 +73,7 @@
 		<div id="about">
 			<h2>About</h2>
 			<div>
-				{data.aboutParagraph.prefix}.
+				{@html data.aboutParagraph.prefix}.
 				{@html data.aboutParagraph.postText}
 			</div>
 		</div>

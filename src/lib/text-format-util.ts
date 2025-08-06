@@ -192,6 +192,83 @@ function lineLen(words: string[]) {
 	return words.reduce((x, y) => x + y.length + 1, 0) - 1;
 }
 
+
+export function getNetworkText(rootType: RootType, rootName: string, isSpec: boolean, sourceSide: boolean) {
+	let edgeExp = 'Nodes represent fields, and links connect fields that are likely to share authors.'
+	let midPrefix = 'specialitarion of'
+	if (!isSpec && sourceSide) {
+		midPrefix = 'number of'
+	} else if (isSpec && !sourceSide) {
+		midPrefix = 'specialization of papers citing the'
+	} else if (!isSpec && !sourceSide) {
+		midPrefix = 'fields of papers citing the'
+	}
+
+
+	let nwPrefix = `This network shows the ${midPrefix} paper`
+	return {
+		authors: `${nwPrefix}s produced by ${rootName}. ${edgeExp} The network helps show where ${rootName} may publish in the future.`,
+		countries: `${nwPrefix}s produced by authors working at instutions in ${rootName}. ${edgeExp} The network helps show where authors in ${rootName} may publish in the future.`,
+		institutions: `${nwPrefix}s produced by authors working at ${rootName} at the time of publishing. ${edgeExp}`,
+		sources: `${nwPrefix}s published in ${rootName}. ${edgeExp}`,
+		'hit-papers': `${nwPrefix} ${rootName}. ${edgeExp}`,
+		subfields: `${nwPrefix}s covering ${rootName}. ${edgeExp}`,
+	}[rootType]
+}
+
+
+export function getMapText(rootType: RootType, rootName: string, isSpec: boolean, sourceSide: boolean) {
+	let specExplIn = sourceSide ? "country's share of papers is larger" : 'country cites a body of work more'
+	let specExpl = `(in this measure of specialization, numbers larger than one indicate the ${specExplIn} than expected)`
+	let midPrefix = ''
+	if (!isSpec && sourceSide) {
+		midPrefix = 'It shows the number of citations received by papers published by authors in each country. '
+	} else if (isSpec && !sourceSide) {
+		midPrefix = ''
+	} else if (!isSpec && !sourceSide) {
+		midPrefix = 'It shows the number of citations coming from papers published by authors in each country. '
+	}
+	let geoNoun = sourceSide ? 'distribution' : 'impact'
+	let geoPrefix = `This map shows the geographic ${geoNoun} of`
+	let specPref = isSpec ? 'This is a graph' : 'You can also switch the map to show a measure'
+	let rootPref = rootSemanticPrefix(rootType, sourceSide)
+	let fullSpecSuffix = ` ${midPrefix}${specPref} of specialization, which compares the number of ${rootPref} ${rootName} with the expected number based on the size of the country's research output ${specExpl}`
+
+	return {
+		authors: `${geoPrefix} ${rootName}'s research.`,
+		countries: `${geoPrefix} research produced by institutions in ${rootName}.`,
+		institutions: `${geoPrefix} research produced by authors working at ${rootName}.`,
+		sources: `${geoPrefix} research published in ${rootName}.`,
+		subfields: `${geoPrefix} research in ${rootName}.`,
+		'hit-papers': `${geoPrefix} ${rootName}.`,
+	}[rootType] + fullSpecSuffix
+}
+
+function rootSemanticPrefix(rootType: RootType, sourceSide: boolean) {
+	let citePref = 'citations received by'
+	if (sourceSide) {
+		return {
+			authors: 'papers authored by',
+			countries: 'papers written in collaboration with authors working at',
+			institutions: 'papers written in collaboration with authors working at',
+			sources: 'papers published in',
+			'hit-papers': 'the paper',
+			subfields: 'papers about',
+		}[rootType]
+	} else {
+		return citePref + {
+			authors: '',
+			countries: ' papers from institutions in',
+			institutions: ' papers by authors at',
+			sources: ' papers published in',
+			'hit-papers': '',
+			subfields: ' papers about',
+		}[rootType]
+	}
+
+}
+
+
 export const SEMANTIC_CONF = {
 	authors: {
 		prefix: '👤',

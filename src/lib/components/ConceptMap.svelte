@@ -3,6 +3,7 @@
 	import { subfields, fields, domains } from '$lib/assets/data/field-hierarchy.json';
 	import fieldOrderMap from '$lib/assets/data/fields-ordered.json';
 	import { getColor, getColorArr } from '$lib/style-util';
+	import { getNetworkText } from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
@@ -40,13 +41,14 @@
 	let hovered = '0';
 	let hoveredParent: number | undefined = undefined;
 	let toDomains = false;
-	let defaultTreeId = indsByEntityType.subfields.includes(9) ? 9 : indsByEntityType.subfields[0];
+	let treeId = indsByEntityType.subfields.includes(9) ? 9 : indsByEntityType.subfields[0];
 	//TODO: anny change can cock this up
 
 	let hoveredOverCircle = false;
 	let showPaper = false;
 	let isSpec = true;
 	let flatOut = {};
+	$: sourceSide = treeSpecs.specs[conf.rootType][treeId].breakdowns[0].sourceSide;
 	$: parents = toDomains ? domains : getFieldArr();
 	$: getParent = toDomains ? getDomain : getFieldColorOrder;
 	$: setClassStyles(styleEl, flatOut, mounted, hovered, hoveredParent, backupNames);
@@ -196,7 +198,7 @@
 	{conf}
 	{treeSpecs}
 	{backupNames}
-	treeId={defaultTreeId}
+	bind:treeId
 	bind:flatOut
 	bind:isSpec
 	bind:showPaper
@@ -274,6 +276,10 @@
 		</svg>
 	</div>
 </FlatOutFrame>
+
+<p>
+	{getNetworkText(conf.rootType, rootName, isSpec, sourceSide)}
+</p>
 
 <style>
 	svg {

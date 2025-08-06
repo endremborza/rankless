@@ -128,17 +128,18 @@ function toDecorated(r: tt.RelatedEntity): DecoratedRelated {
 	};
 }
 
-function getSemantifyers(rootName: string, rootType: tt.RootType): [RelTypes, Semantifyer][] {
+function getSemantifyers(rootName: string, rootType: tt.RootType, paperText: number, citeText: number): [RelTypes, Semantifyer][] {
 	if (rootType == 'authors') {
 		return [
 			[
 				'paper-fields',
-				semFunMaker('This includes ', (r) => `${pluralize('paper', r.score)} in ${r.link}`)
+				semFunMaker(`According to data from OpenAlex, ${rootName} has authored ${paperText} receiving a total of ${citeText} (citations by other indexed papers that have themselves been cited), including `,
+					(r) => `${pluralize('paper', r.score)} in ${r.link}`)
 			],
 			[
 				'paper-topics',
 				semFunMaker(
-					'The topics of these papers are ',
+					`Recurrent topics in ${rootName}’s work include `,
 					(r) => `${r.bold} (${pluralize('paper', r.score)})`
 				)
 			],
@@ -149,7 +150,7 @@ function getSemantifyers(rootName: string, rootType: tt.RootType): [RelTypes, Se
 					(r) => `${r.name} (${pluralize('paper', r.score)})`
 				)
 			],
-			['collab-nation', semFunMaker('and collaborates with scholars based in ', (r) => r.link)],
+			['collab-nation', semFunMaker(`${rootName} collaborates with scholars based in `, (r) => r.link)],
 			['paper-authors', semFunMaker(`${rootName}'s co-authors include `, (r) => r.link)],
 			[
 				'paper-journals',
@@ -279,7 +280,7 @@ function getSemanticRels(
 	paperText: string,
 	citeText: string
 ): tt.AboutPara {
-	let semantifyers = getSemantifyers(rootName, rootType);
+	let semantifyers = getSemantifyers(rootName, rootType, paperText, citeText);
 	let relationsMap = Object.fromEntries(
 		REL_TYPES.map((e) => [e as RelTypes, [] as tt.RelatedEntity[]])
 	) as Record<RelTypes, tt.RelatedEntity[]>;
@@ -292,8 +293,9 @@ function getSemanticRels(
 	}
 
 	let postText = sentenceJoiner(out);
+	const relFieldLinks = semFunMaker("", (r) => (r.link))(relationsMap['paper-fields']);
 	let prefixes: Record<tt.RootType, string> = {
-		authors: `${rootName} has authored ${paperText} that have received a total of ${citeText}`,
+		authors: `${rootName} is a scholar working on ${relFieldLinks}`,
 		institutions: `In recent decades, authors affiliated with ${rootName} have published ${paperText}, which have received a total of ${citeText}`,
 		countries: `In recent decades scholars affiliated with institutions in ${rootName} have published ${paperText}, which have received a total of ${citeText}`,
 		subfields: `${paperText} covering ${rootName} have received a total of ${citeText} since ${COMPLETE_YEAR}`,

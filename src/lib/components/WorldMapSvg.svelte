@@ -7,7 +7,7 @@
 	import countryPaths from '$lib/assets/data/country-svg-paths.json';
 	// import countryBoxes from '$lib/assets/data/country-svg-boxes.json';
 	import { getColor, getColorArr } from '$lib/style-util';
-	import { formatNumber } from '$lib/text-format-util';
+	import { formatNumber, getMapText } from '$lib/text-format-util';
 	import { HIGH_OP, LOW_OP } from '$lib/constants';
 	import FlatOutFrame from './FlatOutFrame.svelte';
 
@@ -49,7 +49,7 @@
 
 	$: isRefSide = treeSpecs.specs[conf.rootType][treeId]?.breakdowns[0].sourceSide;
 	$: weightText = isSpec
-		? 'Revealed comparative advantage'
+		? 'Specialization' //'Revealed comparative advantage'
 		: isRefSide
 		? 'Total citations of papers'
 		: 'Citations';
@@ -215,6 +215,7 @@
 	bind:flatOut
 	bind:treeId
 	bind:resp
+	bind:isSpec
 	{infoPath}
 >
 	<svg bind:this={svgEl} viewBox="{xMin} {yMin} {mapWidth} {mapHeight}">
@@ -278,6 +279,10 @@
 		<div id="w-text">{weightText}</div>
 	</div>
 </FlatOutFrame>
+
+<p>
+	{getMapText(conf.rootType, rootName, isSpec, isRefSide)}
+</p>
 
 <style>
 	svg {
