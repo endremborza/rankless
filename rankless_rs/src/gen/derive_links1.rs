@@ -16,7 +16,7 @@ impl Entity for WorksCiting { type T = Box<[u32]>; const N: usize = 74155121; co
 
 impl MappableEntity for WorksCiting { type KeyType = usize; }
 
-impl VariableSizeAttribute for WorksCiting { type SizeType = u32; }
+impl VariableSizeAttribute for WorksCiting { type SizeType = u32; type LocType = u32; }
 
 impl NamespacedEntity for WorksCiting { const NS: & str = "derive_links1"; }
 
@@ -28,7 +28,7 @@ impl Entity for TopicWorks { type T = Box<[u32]>; const N: usize = 4518; const N
 
 impl MappableEntity for TopicWorks { type KeyType = usize; }
 
-impl VariableSizeAttribute for TopicWorks { type SizeType = u32; }
+impl VariableSizeAttribute for TopicWorks { type SizeType = u32; type LocType = u32; }
 
 impl NamespacedEntity for TopicWorks { const NS: & str = "derive_links1"; }
 
@@ -40,7 +40,7 @@ impl Entity for SourceWorks { type T = Box<[u32]>; const N: usize = 39668; const
 
 impl MappableEntity for SourceWorks { type KeyType = usize; }
 
-impl VariableSizeAttribute for SourceWorks { type SizeType = u32; }
+impl VariableSizeAttribute for SourceWorks { type SizeType = u32; type LocType = u32; }
 
 impl NamespacedEntity for SourceWorks { const NS: & str = "derive_links1"; }
 
@@ -52,7 +52,7 @@ impl Entity for WorkSubfields { type T = Box<[u8]>; const N: usize = 74155121; c
 
 impl MappableEntity for WorkSubfields { type KeyType = usize; }
 
-impl VariableSizeAttribute for WorkSubfields { type SizeType = u8; }
+impl VariableSizeAttribute for WorkSubfields { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for WorkSubfields { const NS: & str = "derive_links1"; }
 
@@ -62,7 +62,7 @@ impl Entity for WorkAuthors { type T = Box<[u32]>; const N: usize = 74155121; co
 
 impl MappableEntity for WorkAuthors { type KeyType = usize; }
 
-impl VariableSizeAttribute for WorkAuthors { type SizeType = u8; }
+impl VariableSizeAttribute for WorkAuthors { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for WorkAuthors { const NS: & str = "derive_links1"; }
 
@@ -72,7 +72,7 @@ impl Entity for WorkInstitutions { type T = Box<[u16]>; const N: usize = 7415512
 
 impl MappableEntity for WorkInstitutions { type KeyType = usize; }
 
-impl VariableSizeAttribute for WorkInstitutions { type SizeType = u8; }
+impl VariableSizeAttribute for WorkInstitutions { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for WorkInstitutions { const NS: & str = "derive_links1"; }
 

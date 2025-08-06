@@ -288,7 +288,7 @@ impl Entity for HitPaperYearlyCitations { type T = Box<[u32]>; const N: usize = 
 
 impl MappableEntity for HitPaperYearlyCitations { type KeyType = usize; }
 
-impl VariableSizeAttribute for HitPaperYearlyCitations { type SizeType = u8; }
+impl VariableSizeAttribute for HitPaperYearlyCitations { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for HitPaperYearlyCitations { const NS: & str = "derive_links5"; }
 
@@ -296,7 +296,7 @@ impl Entity for AuthorsSemanticIds { type T = String; const N: usize = 3973688; 
 
 impl MappableEntity for AuthorsSemanticIds { type KeyType = usize; }
 
-impl VariableSizeAttribute for AuthorsSemanticIds { type SizeType = u8; }
+impl VariableSizeAttribute for AuthorsSemanticIds { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for AuthorsSemanticIds { const NS: & str = "derive_links5"; }
 
@@ -306,7 +306,7 @@ impl Entity for InstitutionsSemanticIds { type T = String; const N: usize = 3005
 
 impl MappableEntity for InstitutionsSemanticIds { type KeyType = usize; }
 
-impl VariableSizeAttribute for InstitutionsSemanticIds { type SizeType = u8; }
+impl VariableSizeAttribute for InstitutionsSemanticIds { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for InstitutionsSemanticIds { const NS: & str = "derive_links5"; }
 
@@ -316,7 +316,7 @@ impl Entity for SourcesSemanticIds { type T = String; const N: usize = 39668; co
 
 impl MappableEntity for SourcesSemanticIds { type KeyType = usize; }
 
-impl VariableSizeAttribute for SourcesSemanticIds { type SizeType = u16; }
+impl VariableSizeAttribute for SourcesSemanticIds { type SizeType = u16; type LocType = u32; }
 
 impl NamespacedEntity for SourcesSemanticIds { const NS: & str = "derive_links5"; }
 
@@ -326,7 +326,7 @@ impl Entity for SubfieldsSemanticIds { type T = String; const N: usize = 254; co
 
 impl MappableEntity for SubfieldsSemanticIds { type KeyType = usize; }
 
-impl VariableSizeAttribute for SubfieldsSemanticIds { type SizeType = u8; }
+impl VariableSizeAttribute for SubfieldsSemanticIds { type SizeType = u8; type LocType = u16; }
 
 impl NamespacedEntity for SubfieldsSemanticIds { const NS: & str = "derive_links5"; }
 
@@ -336,7 +336,7 @@ impl Entity for CountriesSemanticIds { type T = String; const N: usize = 230; co
 
 impl MappableEntity for CountriesSemanticIds { type KeyType = usize; }
 
-impl VariableSizeAttribute for CountriesSemanticIds { type SizeType = u8; }
+impl VariableSizeAttribute for CountriesSemanticIds { type SizeType = u8; type LocType = u16; }
 
 impl NamespacedEntity for CountriesSemanticIds { const NS: & str = "derive_links5"; }
 

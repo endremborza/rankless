@@ -26,7 +26,7 @@ impl Entity for CountriesHits { type T = Box<[u32]>; const N: usize = 230; const
 
 impl MappableEntity for CountriesHits { type KeyType = usize; }
 
-impl VariableSizeAttribute for CountriesHits { type SizeType = u16; }
+impl VariableSizeAttribute for CountriesHits { type SizeType = u16; type LocType = u32; }
 
 impl NamespacedEntity for CountriesHits { const NS: & str = "derive_links4"; }
 
@@ -36,7 +36,7 @@ impl Entity for InstitutionsHits { type T = Box<[u32]>; const N: usize = 30057; 
 
 impl MappableEntity for InstitutionsHits { type KeyType = usize; }
 
-impl VariableSizeAttribute for InstitutionsHits { type SizeType = u16; }
+impl VariableSizeAttribute for InstitutionsHits { type SizeType = u16; type LocType = u32; }
 
 impl NamespacedEntity for InstitutionsHits { const NS: & str = "derive_links4"; }
 
@@ -46,7 +46,7 @@ impl Entity for SubfieldsHits { type T = Box<[u32]>; const N: usize = 254; const
 
 impl MappableEntity for SubfieldsHits { type KeyType = usize; }
 
-impl VariableSizeAttribute for SubfieldsHits { type SizeType = u16; }
+impl VariableSizeAttribute for SubfieldsHits { type SizeType = u16; type LocType = u32; }
 
 impl NamespacedEntity for SubfieldsHits { const NS: & str = "derive_links4"; }
 
@@ -56,7 +56,7 @@ impl Entity for SourcesHits { type T = Box<[u32]>; const N: usize = 39668; const
 
 impl MappableEntity for SourcesHits { type KeyType = usize; }
 
-impl VariableSizeAttribute for SourcesHits { type SizeType = u16; }
+impl VariableSizeAttribute for SourcesHits { type SizeType = u16; type LocType = u32; }
 
 impl NamespacedEntity for SourcesHits { const NS: & str = "derive_links4"; }
 
@@ -66,7 +66,7 @@ impl Entity for TopicsHits { type T = Box<[u32]>; const N: usize = 4518; const N
 
 impl MappableEntity for TopicsHits { type KeyType = usize; }
 
-impl VariableSizeAttribute for TopicsHits { type SizeType = u16; }
+impl VariableSizeAttribute for TopicsHits { type SizeType = u16; type LocType = u32; }
 
 impl NamespacedEntity for TopicsHits { const NS: & str = "derive_links4"; }
 
@@ -76,7 +76,7 @@ impl Entity for AuthorsHits { type T = Box<[u32]>; const N: usize = 3973688; con
 
 impl MappableEntity for AuthorsHits { type KeyType = usize; }
 
-impl VariableSizeAttribute for AuthorsHits { type SizeType = u8; }
+impl VariableSizeAttribute for AuthorsHits { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for AuthorsHits { const NS: & str = "derive_links4"; }
 
