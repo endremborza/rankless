@@ -14,36 +14,6 @@ pub struct AggTreeBase<IdType, Node, Child> {
 
 pub struct MinHeap<T>(MaxHeap<Reverse<T>>);
 
-impl<T> MinHeap<T>
-where
-    T: Ord,
-{
-    pub fn new() -> Self {
-        Self(MaxHeap::new())
-    }
-
-    pub fn pop(&mut self) -> Option<T> {
-        if let Some(e) = self.0.pop() {
-            Some(e.0)
-        } else {
-            None
-        }
-    }
-
-    pub fn push(&mut self, e: T) {
-        self.0.push(Reverse(e))
-    }
-
-    pub fn from_iter<I>(iter: I) -> Self
-    where
-        I: Iterator<Item = T>,
-    {
-        let mut heap = Self::new();
-        iter.for_each(|e| heap.push(e));
-        heap
-    }
-}
-
 pub struct HeapIterator<SR: SortedRecord>
 where
     SR::FlatRecord: Ord,
@@ -75,6 +45,36 @@ pub trait Updater<C> {
 
 pub trait ReinstateFrom<T> {
     fn reinstate_from(&mut self, value: T);
+}
+
+impl<T> MinHeap<T>
+where
+    T: Ord,
+{
+    pub fn new() -> Self {
+        Self(MaxHeap::new())
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        if let Some(e) = self.0.pop() {
+            Some(e.0)
+        } else {
+            None
+        }
+    }
+
+    pub fn push(&mut self, e: T) {
+        self.0.push(Reverse(e))
+    }
+
+    pub fn from_iter<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = T>,
+    {
+        let mut heap = Self::new();
+        iter.for_each(|e| heap.push(e));
+        heap
+    }
 }
 
 impl<SR> From<MinHeap<SR::FlatRecord>> for Option<HeapIterator<SR>>
