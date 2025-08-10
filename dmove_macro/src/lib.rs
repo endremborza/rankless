@@ -361,7 +361,6 @@ pub fn def_srecs(ts: TokenStream) -> TokenStream {
 pub fn derive_tree_getter(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as syn::Item);
     let mut tree_types: Vec<String> = Vec::new();
-    // let derive_w_args: syn::Meta = parse_str(&format!("{MAKER}({attr})")).unwrap();
     let mod_name = match input {
         syn::Item::Mod(ref mut imp_syn) => {
             for item in imp_syn.content.as_mut().unwrap().1.iter_mut() {
@@ -372,7 +371,6 @@ pub fn derive_tree_getter(attr: TokenStream, item: TokenStream) -> TokenStream {
                     _ => (),
                 }
             }
-            // imp_syn.attrs;
             imp_syn.ident.clone()
         }
         _ => panic!("not an impl block"),
@@ -423,8 +421,7 @@ pub fn impl_stack_basees(ts: TokenStream) -> TokenStream {
     for i in 2..(n + 1) {
         imps.push(derive_stack_basis(i).to_string());
     }
-    let out = imps.join("\n\n\n");
-    // println!("{}", out);
+    let out = imps.join("\n\n");
     TokenStream::from_str(&out).unwrap()
 }
 
@@ -565,7 +562,6 @@ fn derive_stack_basis(n: usize) -> TokenStream {
     quote! {
         impl #all_gens_syn StackBasis for #ty_name #all_wheres
         {
-
             #sr_type
             #stack_type
             #bds_fn
