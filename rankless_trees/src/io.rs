@@ -45,14 +45,15 @@ pub type BoolCvp = AcTuple<Option<()>>;
 type BasisQuElem = (Option<AnyQuery>, ResCvp);
 type BasisCvp = AcTuple<VecDeque<BasisQuElem>>;
 
+#[derive(Clone)]
 pub struct TreeBasisState {
-    pub gets: Getters,
+    pub gets: Arc<Getters>,
     pub att_union: Arc<AttributeLabelUnion>,
-    pub im_cache: Mutex<CacheMap>,
+    pub im_cache: Arc<Mutex<CacheMap>>,
 }
 
 pub struct TreeRunManager<T> {
-    pub state: Arc<TreeBasisState>,
+    pub state: TreeBasisState,
     pub specs: TreeSpecs,
     thread_pool: Vec<JoinHandle<()>>,
     cv_pair: BasisCvp,
@@ -430,12 +431,12 @@ where
 {
     pub fn new(gets: Arc<Getters>, atts: Arc<AttributeLabelUnion>, n: usize) -> Arc<Self> {
         let specs = T::get_specs();
-        let mut state = TreeBasisState::new(Arc::into_inner(gets).expect("gets for state"), atts);
+        let mut state = TreeBasisState::new(gets, atts);
         state.fill_cache(&specs);
 
         Arc::new(
             Self {
-                state: Arc::new(state),
+                state,
                 thread_pool: Vec::new(),
                 specs,
                 cv_pair: BasisCvp::init_empty(),
@@ -564,12 +565,12 @@ where
 }
 
 impl TreeBasisState {
-    pub fn new(gets: Getters, att_union: Arc<AttributeLabelUnion>) -> Self {
+    pub fn new(gets: Arc<Getters>, att_union: Arc<AttributeLabelUnion>) -> Self {
         let im_map = HashMap::new();
         Self {
             gets,
             att_union,
-            im_cache: Mutex::new(im_map),
+            im_cache: Arc::new(Mutex::new(im_map)),
         }
     }
 
@@ -594,11 +595,7 @@ impl TreeBasisState {
     }
 
     pub fn fake() -> Self {
-        Self {
-            im_cache: Mutex::new(HashMap::new()),
-            gets: Getters::fake(),
-            att_union: Arc::new(HashMap::new()),
-        }
+        Self::new(Arc::new(Getters::fake()), Arc::new(HashMap::new()))
     }
 
     fn cache_dir(&self, fq: &FullTreeQuery) -> PathBuf {
