@@ -197,7 +197,7 @@
 		>
 		(CCL) is an interdisciplinary research laboratory with offices in Toulouse, France and Budapest,
 		Hungary. For more than a decade, CCL has advanced the state of the art in economic development, data
-		visualization, and applications of artificial intelligence. Previous data visaualization projects
+		visualization, and applications of artificial intelligence. Previous data visualization projects
 		by members of CCL include
 		<a href="https://oec.world/en" target="_blank">The Observatory of Economic Complexity</a>,
 		<a href="https://pantheon.world/" target="_blank">Pantheon</a>, and
