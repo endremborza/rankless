@@ -195,7 +195,7 @@ function lineLen(words: string[]) {
 
 export function getNetworkText(rootType: RootType, rootName: string, isSpec: boolean, sourceSide: boolean) {
 	let edgeExp = 'Nodes represent fields, and links connect fields that are likely to share authors.'
-	let midPrefix = 'specialitarion of'
+	let midPrefix = 'specialization of'
 	if (!isSpec && sourceSide) {
 		midPrefix = 'number of'
 	} else if (isSpec && !sourceSide) {
@@ -209,7 +209,7 @@ export function getNetworkText(rootType: RootType, rootName: string, isSpec: boo
 	return {
 		authors: `${nwPrefix}s produced by ${rootName}. ${edgeExp} The network helps show where ${rootName} may publish in the future.`,
 		countries: `${nwPrefix}s produced by authors working at instutions in ${rootName}. ${edgeExp} The network helps show where authors in ${rootName} may publish in the future.`,
-		institutions: `${nwPrefix}s produced by authors working at ${rootName} at the time of publishing. ${edgeExp}`,
+		institutions: `${nwPrefix}s affiliated with ${rootName} at the time of their publication. ${edgeExp}`,
 		sources: `${nwPrefix}s published in ${rootName}. ${edgeExp}`,
 		'hit-papers': `${nwPrefix} ${rootName}. ${edgeExp}`,
 		subfields: `${nwPrefix}s covering ${rootName}. ${edgeExp}`,
@@ -218,29 +218,29 @@ export function getNetworkText(rootType: RootType, rootName: string, isSpec: boo
 
 
 export function getMapText(rootType: RootType, rootName: string, isSpec: boolean, sourceSide: boolean) {
-	let specExplIn = sourceSide ? "country's share of papers is larger" : 'country cites a body of work more'
-	let specExpl = `(in this measure of specialization, numbers larger than one indicate the ${specExplIn} than expected)`
+	let specExplIn = sourceSide ? "country's share of papers is larger" : `country cites ${rootName} more`
+	let specExpl = `(numbers larger than one mean the ${specExplIn} than expected)`
 	let midPrefix = ''
 	if (!isSpec && sourceSide) {
-		midPrefix = 'It shows the number of citations received by papers published by authors in each country. '
+		midPrefix = 'It shows the number of citations received by papers published by authors working in each country. '
 	} else if (isSpec && !sourceSide) {
 		midPrefix = ''
 	} else if (!isSpec && !sourceSide) {
-		midPrefix = 'It shows the number of citations coming from papers published by authors in each country. '
+		midPrefix = 'It shows the number of citations coming from papers published by authors working in each country. '
 	}
-	let geoNoun = sourceSide ? 'distribution' : 'impact'
-	let geoPrefix = `This map shows the geographic ${geoNoun} of`
-	let specPref = isSpec ? 'This is a graph' : 'You can also switch the map to show a measure'
+	let [geoNoun, subject] = sourceSide ? ['distribution', 'papers'] : ['impact', 'citations']
+	let geoPrefix = `This map shows the geographic ${geoNoun} of `
+	let specPref = isSpec ? 'This is a graph of specialization, which compares' : 'You can also color the map by specialization and compare'
 	let rootPref = rootSemanticPrefix(rootType, sourceSide)
-	let fullSpecSuffix = ` ${midPrefix}${specPref} of specialization, which compares the number of ${rootPref} ${rootName} with the expected number based on the size of the country's research output ${specExpl}`
+	let fullSpecSuffix = ` ${midPrefix}${specPref} the number of ${rootPref} ${rootName} with the expected number of ${subject} based on a country's size and research output ${specExpl}.`
 
-	return {
-		authors: `${geoPrefix} ${rootName}'s research.`,
-		countries: `${geoPrefix} research produced by institutions in ${rootName}.`,
-		institutions: `${geoPrefix} research produced by authors working at ${rootName}.`,
-		sources: `${geoPrefix} research published in ${rootName}.`,
-		subfields: `${geoPrefix} research in ${rootName}.`,
-		'hit-papers': `${geoPrefix} ${rootName}.`,
+	return geoPrefix + {
+		authors: `${rootName}'s research.`,
+		countries: `research produced by institutions in ${rootName}.`,
+		institutions: `research produced by authors working at ${rootName}.`,
+		sources: `research published in ${rootName}.`,
+		subfields: `research in ${rootName}.`,
+		'hit-papers': `${rootName}.`,
 	}[rootType] + fullSpecSuffix
 }
 
@@ -259,7 +259,7 @@ function rootSemanticPrefix(rootType: RootType, sourceSide: boolean) {
 		return citePref + {
 			authors: '',
 			countries: ' papers from institutions in',
-			institutions: ' papers by authors at',
+			institutions: ' papers produced at',
 			sources: ' papers published in',
 			'hit-papers': '',
 			subfields: ' papers about',
