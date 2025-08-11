@@ -12,6 +12,7 @@
 	import HoverBlock from '$lib/components/HoverBlock.svelte';
 	import WorldMapSvg from '$lib/components/WorldMapSvg.svelte';
 	import ConceptMap from '$lib/components/ConceptMap.svelte';
+	import TimelineBars from '$lib/components/TimelineBars.svelte';
 	// import PaperRainbow from '$lib/components/PaperRainbow.svelte';
 
 	let innerHeight: number;
@@ -124,6 +125,16 @@
 			<WorldMapSvg
 				rootId={data.view.dmId}
 				{indsByEntityType}
+				rootName={data.view.name}
+				conf={data.conf}
+				treeSpecs={data.treeSpecs}
+			/>
+		</div>
+	{/if}
+	{#if data.conf.rootType == 'countries'}
+		<div class="shadowy padded marged world-map" id="world-map">
+			<TimelineBars
+				rootId={data.view.dmId}
 				rootName={data.view.name}
 				conf={data.conf}
 				treeSpecs={data.treeSpecs}
