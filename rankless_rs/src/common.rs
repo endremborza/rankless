@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::io::{prelude::*, BufWriter};
 use std::marker::PhantomData;
 use std::ops::Range;
@@ -19,13 +19,12 @@ use tqdm::{Iter, Tqdm};
 use dmove::{
     BackendLoading, BigId, CompactEntity, Entity, FixAttIterator, FixWriteSizeEntity, InitEmpty,
     LoadedIdMap, MainBuilder, MappableEntity, MarkedAttribute, MetaIntegrator, NamespacedEntity,
-    UnsignedNumber, VarAttIterator, VarBox, VarSizedAttributeElement, VariableSizeAttribute,
-    VattArrPair, VattReadingMap, ET, MAA,
+    NumericTypeEntity, UnsignedNumber, VarAttIterator, VarBox, VarSizedAttributeElement,
+    VariableSizeAttribute, VattArrPair, VattReadingMap, ET, MAA,
 };
 
 pub type StowReader = Reader<BufReader<GzDecoder<File>>>;
 pub type BeS<M, E> = <M as BackendSelector<E>>::BE;
-pub type NET<E> = <E as NumberedEntity>::T;
 
 type InIterator<T> = Tqdm<DeserializeRecordsIntoIter<BufReader<flate2::read::GzDecoder<File>>, T>>;
 
@@ -233,11 +232,7 @@ where
     }
 }
 
-pub trait NumberedEntity: MappableEntity<KeyType = BigId> {
-    type T: UnsignedNumber + DeserializeOwned + Serialize + Ord + Copy + Display;
-}
-
-pub trait MainEntity: NumberedEntity + Entity<T = NET<Self>> {}
+pub trait MainEntity: MappableEntity<KeyType = BigId> + NumericTypeEntity {}
 
 pathfields_fn!(PathCollection, entity_csvs, filter_steps, cache);
 
@@ -383,15 +378,12 @@ impl Stowage {
     }
 }
 
-impl<E> NumberedEntity for E
+impl<E> MainEntity for E
 where
-    E: MappableEntity<KeyType = BigId>,
+    E: MappableEntity<KeyType = BigId> + NumericTypeEntity,
     ET<E>: UnsignedNumber + Serialize + DeserializeOwned,
 {
-    type T = ET<E>;
 }
-
-impl<E> MainEntity for E where E: Entity<T = NET<E>> + NumberedEntity {}
 
 impl<T> ObjIter<T>
 where
@@ -441,7 +433,7 @@ impl<E> BackendSelector<E> for QuickestNumbered
 where
     E: MainEntity,
 {
-    type BE = LoadedIdMap<NET<E>>;
+    type BE = LoadedIdMap<ET<E>>;
 }
 
 impl<E> BackendSelector<E> for QuickMap

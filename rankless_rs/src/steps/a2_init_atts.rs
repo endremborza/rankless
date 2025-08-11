@@ -1,8 +1,8 @@
 use crate::{
     common::{
         field_id_parse, init_empty_slice, oa_id_parse, short_string_to_u64, BeS, DoiMarker,
-        MainEntity, NameExtensionMarker, NameMarker, NumberedEntity, ParsedId, QuickestNumbered,
-        Stowage, MAIN_NAME, NET,
+        MainEntity, NameExtensionMarker, NameMarker, ParsedId, QuickestNumbered, Stowage,
+        MAIN_NAME,
     },
     csv_writers::{institutions, works},
     data_consts::CC_MAP,
@@ -129,8 +129,8 @@ where
     I: Iterator<Item = IngestableAttType>,
 {
     fn parse(&self, att: Option<RawAtt>) -> Option<ParsedAtt>;
-    fn ingest(&self, res: ParsedAtt, ind: NET<Source>);
-    fn map_ind(&self, ind: Source::KeyType) -> Option<NET<Source>>;
+    fn ingest(&self, res: ParsedAtt, ind: ET<Source>);
+    fn map_ind(&self, ind: Source::KeyType) -> Option<ET<Source>>;
     fn ingest_result<F>(self, f: F)
     where
         F: Fn(I);
@@ -285,8 +285,7 @@ impl Stowage {
 
     fn add_theme_atts<E, F>(&mut self, ifs: &BeS<QuickestNumbered, E>, gatt: F)
     where
-        E: NumberedEntity<T = ET<E>>,
-        ET<E>: UnsignedNumber,
+        E: MainEntity,
         F: Fn(&str) -> BigId,
     {
         const IDS: &str = "ids";
@@ -414,7 +413,7 @@ impl Stowage {
         SIF: EntityImmutableMapperBackend<Source> + Sync,
         TIF: EntityImmutableMapperBackend<Target> + Sync,
     {
-        let obj_worker = GenObjAttWorker::<'_, Source, Target, Vec<NET<Target>>, SIF, TIF>::new(
+        let obj_worker = GenObjAttWorker::<'_, Source, Target, Vec<ET<Target>>, SIF, TIF>::new(
             source_interface,
             target_interface,
         );
@@ -838,11 +837,11 @@ where
         att
     }
 
-    fn ingest(&self, res: TargetType, ind: NET<Source>) {
+    fn ingest(&self, res: TargetType, ind: ET<Source>) {
         self.attribute_arr.lock().unwrap()[ind.to_usize()] = res;
     }
 
-    fn map_ind(&self, ind: Source::KeyType) -> Option<NET<Source>> {
+    fn map_ind(&self, ind: Source::KeyType) -> Option<ET<Source>> {
         self.self_interface.get_via_immut(&ind)
     }
     fn ingest_result<F>(self, f: F)
@@ -883,14 +882,14 @@ where
         }
     }
 
-    fn ingest(&self, res: Target::T, ind: NET<Source>) {
+    fn ingest(&self, res: Target::T, ind: ET<Source>) {
         StoredOfTarget::update(
             &mut self.data_worker.attribute_arr.lock().unwrap()[ind.to_usize()],
             res,
         )
     }
 
-    fn map_ind(&self, ind: Source::KeyType) -> Option<NET<Source>> {
+    fn map_ind(&self, ind: Source::KeyType) -> Option<ET<Source>> {
         self.data_worker.self_interface.get_via_immut(&ind)
     }
 
