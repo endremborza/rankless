@@ -629,6 +629,7 @@ upstream {BE_UPSTREAM} {{
         self.sync_code()
         self.build_js()
         stage_conf, live_conf = self.get_fe_systems()
+        self._depcomm(f"rm -rf {stage_conf.build_dir()}")
         self._depcomm(f"cp -r build {stage_conf.build_dir()}")
         for service in self._iter_conf_services(stage_conf):
             service.restart()
@@ -868,7 +869,12 @@ export const LAST_MOD = '{dt.date.today().isoformat()}';
 export const VERSION = '{next_v}';
 """
     Path(v_const_ts).write_text(const_v_txt)
-    subprocess.call(["git", "add", v_const_ts])
+    pack_json = Path("package.json")
+    ptxt = re.sub(
+        r'version": "\d+\.\d+\.\d+', f'version": "{next_v[1:]}', pack_json.read_text()
+    )
+    pack_json.write_text(ptxt)
+    subprocess.call(["git", "add", v_const_ts, pack_json.as_posix()])
     subprocess.call(["git", "commit", "-m", f"{next_v} consts"])
     subprocess.call(["git", "tag", next_v])
     subprocess.call(["git", "push", "origin", "tag", next_v])
