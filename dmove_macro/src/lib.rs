@@ -496,7 +496,7 @@ fn derive_stack_basis(n: usize) -> TokenStream {
     in_types.push("FoldingStackLeaf".to_string());
     let rev_stack_types = get_stack_type_elems(&in_types);
 
-    let net_wheres = cjoin((1..(n + 1)).map(|e| format!("E{e}: NumberedEntity")));
+    let net_wheres = cjoin((1..(n + 1)).map(|e| format!("E{e}: NumericTypeEntity")));
     let mut fsb_wheres = Vec::new();
     let mut fold_wheres = Vec::new();
     for (i, st) in rev_stack_types.iter().enumerate().take(n) {
