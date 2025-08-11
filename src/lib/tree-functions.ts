@@ -32,7 +32,8 @@ export function getDefaultLevelSpecs() {
 export function getTreeIndsByEntityType(specs: tt.TreeSpec[]): tt.IndsByEntityType {
 	let out = Object.fromEntries(ENTITY_TYPES.map((e) => [e, []])) as unknown as tt.IndsByEntityType;
 	for (let i = 0; i < specs.length; i++) {
-		out[specs[i].breakdowns[0].attributeType].push(i);
+		let aType = specs[i].breakdowns[0].attributeType;
+		if (ENTITY_TYPES.includes(aType)) out[aType].push(i);
 	}
 	return out;
 }
@@ -65,6 +66,11 @@ export function getBreakdownOptions(treeSpecs: tt.TreeSpecs, rootType: tt.RootTy
 	const entries = [];
 	for (let i = 0; i < entityTreeSpecs.length; i++) {
 		let v = entityTreeSpecs[i]
+		let valid = true;
+		for (let bd of v.breakdowns) {
+			if (!ENTITY_TYPES.includes(bd.attributeType)) valid = false;
+		}
+		if (!valid) continue;
 		if (v.breakdowns.length >= minD) entries.push([i, v] as [number, tt.TreeSpec]);
 	}
 	return fillBreakdownOptions(entries, maxD)
