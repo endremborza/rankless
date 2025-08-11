@@ -21,6 +21,7 @@ const PACK_NAME: &'static str = "dmove";
 
 pub type BigId = u64;
 pub type ET<E> = <E as Entity>::T;
+pub type NET<E> = <E as NumericAssociatedEntity>::NT;
 pub type MAA<T, M> = <T as MarkedAttribute<M>>::AttributeEntity;
 
 pub struct MainBuilder {
@@ -120,6 +121,27 @@ pub trait MarkedAttribute<Marker>: Entity {
 #[derive_meta_trait]
 pub trait CompactEntity: MappableEntity<KeyType = usize> {}
 
+pub trait NumericAssociatedEntity: Entity {
+    type NT: UnsignedNumber;
+}
+
+pub trait NumericTypeEntity: NumericAssociatedEntity + Entity<T = Self::NT> {}
+
+impl<E> NumericAssociatedEntity for E
+where
+    E: Entity,
+    E::T: UnsignedNumber,
+{
+    type NT = E::T;
+}
+
+impl<E> NumericTypeEntity for E
+where
+    E: Entity,
+    E::T: UnsignedNumber,
+{
+}
+
 impl<T> CompactEntity for T where T: MappableEntity<KeyType = usize> {}
 
 impl InitEmpty for () {
@@ -182,6 +204,8 @@ pub trait UnsignedNumber:
     + InitEmpty
     + Display
     + Debug
+    + Serialize
+    + DeserializeOwned
     + Add<Output = Self>
 {
     fn to_usize(&self) -> usize;
@@ -471,6 +495,7 @@ macro_rules! downcast_fun {
     };
 }
 pub(crate) use downcast_fun;
+use serde::{de::DeserializeOwned, Serialize};
 
 macro_rules! empty_num {
     ($($ty:ty),*) => {

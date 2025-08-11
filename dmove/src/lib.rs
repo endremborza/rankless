@@ -12,7 +12,8 @@ pub use common::{
     camel_case, BackendLoading, BigId, ByteArrayInterface, ByteFixArrayInterface, CompactEntity,
     Entity, EntityImmutableMapperBackend, EntityImmutableRefMapperBackend,
     EntityMutableMapperBackend, InitEmpty, Link, MainBuilder, MappableEntity, MarkedAttribute,
-    MetaIntegrator, NamespacedEntity, UnsignedNumber, VariableSizeAttribute, ET, MAA,
+    MetaIntegrator, NamespacedEntity, NumericAssociatedEntity, NumericTypeEntity, UnsignedNumber,
+    VariableSizeAttribute, ET, MAA, NET,
 };
 pub use discontinuous_entity_mapper::{DiscoMapEntityBuilder, UniqueMap};
 pub use fixed_size_attributes::{
