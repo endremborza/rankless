@@ -208,7 +208,7 @@ export function getNetworkText(rootType: RootType, rootName: string, isSpec: boo
 	let nwPrefix = `This network shows the ${midPrefix} paper`
 	return {
 		authors: `${nwPrefix}s produced by ${rootName}. ${edgeExp} The network helps show where ${rootName} may publish in the future.`,
-		countries: `${nwPrefix}s produced by authors working at instutions in ${rootName}. ${edgeExp} The network helps show where authors in ${rootName} may publish in the future.`,
+		countries: `${nwPrefix}s produced by authors working at institutions in ${rootName}. ${edgeExp} The network helps show where authors in ${rootName} may publish in the future.`,
 		institutions: `${nwPrefix}s affiliated with ${rootName} at the time of their publication. ${edgeExp}`,
 		sources: `${nwPrefix}s published in ${rootName}. ${edgeExp}`,
 		'hit-papers': `${nwPrefix} ${rootName}. ${edgeExp}`,
@@ -249,7 +249,7 @@ function rootSemanticPrefix(rootType: RootType, sourceSide: boolean) {
 	if (sourceSide) {
 		return {
 			authors: 'papers authored by',
-			countries: 'papers written in collaboration with authors working at',
+			countries: 'papers written in collaboration with authors working in',
 			institutions: 'papers written in collaboration with authors working at',
 			sources: 'papers published in',
 			'hit-papers': 'the paper',
