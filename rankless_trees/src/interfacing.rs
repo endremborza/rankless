@@ -7,10 +7,9 @@ use crate::{
 use rankless_rs::{
     common::{
         init_empty_slice, BeS, HitWorkMarker, MainEntity, MainWorkMarker, MarkedBackendLoader,
-        NumberedEntity, QuickAttPair, QuickMap, QuickestBox, QuickestVBox, Stowage,
-        Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker,
-        Top3PaperTopicMarker, Top5AuthorMarker, WorkLoader, YearlyCitationsMarker,
-        YearlyPapersMarker, NET,
+        QuickAttPair, QuickMap, QuickestBox, QuickestVBox, Stowage, Top3AffCountryMarker,
+        Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker, Top3PaperTopicMarker,
+        Top5AuthorMarker, WorkLoader, YearlyCitationsMarker, YearlyPapersMarker,
     },
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
@@ -155,7 +154,7 @@ macro_rules! make_interfaces {
         }
         $(
         impl WorksFromMemory for $e_t {
-            fn works_from_ram(gets: &Getters, id: NET<Self>) -> &[WT] {
+            fn works_from_ram(gets: &Getters, id: ET<Self>) -> &[WT] {
                 gets.$e_key(id)
             }
         }
@@ -302,8 +301,8 @@ pub trait VarAtt<Mark>: MarkedAttribute<Mark> {
     fn load(stowage: &Stowage) -> VarBox<Self::VT>;
 }
 
-pub trait WorksFromMemory: MarkedAttribute<MainWorkMarker> + NumberedEntity {
-    fn works_from_ram(gets: &Getters, id: NET<Self>) -> &[WT];
+pub trait WorksFromMemory: MarkedAttribute<MainWorkMarker> + MainEntity {
+    fn works_from_ram(gets: &Getters, id: ET<Self>) -> &[WT];
 }
 
 pub trait MetaMapGetter {

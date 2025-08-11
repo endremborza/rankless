@@ -1,14 +1,14 @@
 use std::{iter::Peekable, marker::PhantomData, slice::Iter};
 
-use dmove::{Entity, UnsignedNumber, ET};
+use dmove::{Entity, NumericTypeEntity, UnsignedNumber, ET, NET};
 use dmove_macro::impl_stack_basees;
 use rankless_rs::{
     agg_tree::{FoldingStackConsumer, ReinstateFrom, SortedRecord, Updater},
-    common::{NumberedEntity, NET},
+    common::MainEntity,
     gen::a1_entity_mapping::{
         Authors, Authorships, Countries, Institutions, Sources, Subfields, Topics, Works,
     },
-    steps::a1_entity_mapping::{Qs, N_PERS},
+    steps::a1_entity_mapping::{Qs, Years, N_PERS},
 };
 
 use crate::{
@@ -33,7 +33,7 @@ pub struct IntX<E: Entity, const N: usize, const S: bool>(E::T);
 
 pub struct PostRefIterWrap<'a, E, I>
 where
-    E: NumberedEntity,
+    E: NumericTypeEntity,
 {
     it: Option<I>,
     gets: &'a Getters,
@@ -252,7 +252,13 @@ pub struct QedInf<'a> {
     cit_wids: Peekable<Iter<'a, ET<Works>>>,
     cite_sfs: Option<Peekable<Iter<'a, ET<Subfields>>>>,
     cite_countries: Option<Iter<'a, ET<Countries>>>,
+    gets: &'a Getters,
+}
 
+pub struct TimelineDraftOne<'a> {
+    ref_year: ET<Years>,
+    ref_topics: Option<Iter<'a, ET<Topics>>>,
+    cit_wids: Peekable<Iter<'a, ET<Works>>>,
     gets: &'a Getters,
 }
 
@@ -341,6 +347,7 @@ where
 {
     type SB: StackBasis;
     const RWB_IS_SPEC: bool = true;
+    const UNPRUNABLE: bool = false;
     fn new(ref_wid: &'a WT, gets: &'a Getters) -> Self;
 }
 
@@ -361,11 +368,10 @@ where
         + From<NET<T::LevelEntity>>
         + ReinstateFrom<NET<T::LevelEntity>>
         + Updater<FoldingStackLeaf>,
-    T::LevelEntity: NumberedEntity,
 {
     type Stack = T::StackElement;
     type TopTree = Self::Stack;
-    type SortedRec = rankless_rs::agg_tree::SRecord3<NET<T::LevelEntity>, WT, WT>;
+    type SortedRec = rankless_rs::agg_tree::SRecord3<ET<T::LevelEntity>, WT, WT>;
     fn get_bds() -> Vec<BreakdownSpec> {
         vec![to_bds::<Self, _>()]
     }
@@ -382,7 +388,7 @@ impl_stack_basees!(5);
 
 impl<E, C, const N: usize, const S: bool> FoldStackBase<C> for IntX<E, N, S>
 where
-    E: NumberedEntity,
+    E: NumericTypeEntity,
     C: Collapsing,
 {
     type StackElement = IntXTree<E, C>;
@@ -393,7 +399,7 @@ where
 
 impl<E, C, const N: usize, const S: bool> FoldStackBase<C> for DisJ<E, N, S>
 where
-    E: NumberedEntity,
+    E: NumericTypeEntity,
     C: Collapsing,
 {
     type StackElement = DisJTree<E, C>;
@@ -780,6 +786,27 @@ impl<'a> RefWorkBasedIter<'a> for QedInf<'a> {
     }
 }
 
+impl<'a> RefWorkBasedIter<'a> for TimelineDraftOne<'a> {
+    type SB = (
+        // TODO:
+        // DisJ should work, just as well
+        // DisJ<Years, 0, true>,
+        // DisJ<Years, 0, false>,
+        IntX<Years, 0, true>,
+        IntX<Years, 0, false>,
+        IntX<Topics, 0, false>,
+    );
+    const UNPRUNABLE: bool = true;
+    fn new(ref_wid: &'a WT, gets: &'a Getters) -> Self {
+        Self {
+            gets,
+            ref_year: *gets.year(ref_wid),
+            cit_wids: gets.citing(*ref_wid).iter().peekable(),
+            ref_topics: Some(gets.wtopics(*ref_wid).iter()),
+        }
+    }
+}
+
 impl<'a> Iterator for SubfieldCountryInstByRef<'a> {
     type Item = RwbiItem<'a, Self>;
 
@@ -1106,9 +1133,22 @@ impl<'a> Iterator for QedInf<'a> {
     }
 }
 
+impl<'a> Iterator for TimelineDraftOne<'a> {
+    type Item = RwbiItem<'a, Self>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let cit_wid = reg_peek!(self.cit_wids);
+            let cit_year = self.gets.year(cit_wid);
+            let ref_topic = opt_next!(self.ref_topics, self.cit_wids, self.gets.wtopics(*cit_wid));
+            return Some((self.ref_year, *cit_year, *ref_topic, *cit_wid));
+        }
+    }
+}
+
 impl<'a, E, I> Iterator for PostRefIterWrap<'a, E, I>
 where
-    E: NumberedEntity + WorksFromMemory,
+    E: MainEntity + WorksFromMemory,
     I: RefWorkBasedIter<'a>,
     StackFr<I::SB>: ExtendedWithRefWid,
 {
@@ -1448,7 +1488,7 @@ impl<'a> Iterator for SubfieldRefTopicCountryInst<'a> {
 
 impl<'a, E, I> PartitioningIterator<'a> for PostRefIterWrap<'a, E, I>
 where
-    E: NumberedEntity + WorksFromMemory,
+    E: MainEntity + WorksFromMemory,
     I: RefWorkBasedIter<'a>,
     StackFr<I::SB>: ExtendedWithRefWid,
 {
@@ -1457,7 +1497,8 @@ where
     const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = I::RWB_IS_SPEC;
     const DEFAULT_PARTITION: u8 = 3; //2020
-    fn new(id: NET<E>, gets: &'a Getters) -> Self {
+    const UNPRUNABLE: bool = I::UNPRUNABLE;
+    fn new(id: ET<E>, gets: &'a Getters) -> Self {
         let refs_it = E::works_from_ram(&gets, id).iter().peekable();
         Self {
             gets,
@@ -1481,7 +1522,7 @@ where
     type StackBasis = SB;
     const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = false;
-    fn new(id: NET<Countries>, gets: &'a Getters) -> Self {
+    fn new(id: ET<Countries>, gets: &'a Getters) -> Self {
         let insts = gets.country_insts(id).iter().peekable();
         Self {
             gets,
@@ -1500,7 +1541,7 @@ impl<'a> PartitioningIterator<'a> for CountryBesties<'a> {
     );
     type Root = Countries;
     const PARTITIONS: usize = N_PERS;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+    fn new(id: ET<Self::Root>, gets: &'a Getters) -> Self {
         Self {
             gets,
             id,
@@ -1520,7 +1561,7 @@ impl<'a> PartitioningIterator<'a> for CountryCiters<'a> {
     );
     type Root = Countries;
     const PARTITIONS: usize = N_PERS;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+    fn new(id: ET<Self::Root>, gets: &'a Getters) -> Self {
         Self {
             gets,
             ref_wids: gets.cworks(id).iter().peekable(),
@@ -1540,7 +1581,7 @@ impl<'a> PartitioningIterator<'a> for AuthorBestiePapers<'a> {
     type Root = Authors;
     const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = false;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+    fn new(id: ET<Self::Root>, gets: &'a Getters) -> Self {
         Self {
             gets,
             id,
@@ -1561,7 +1602,7 @@ impl<'a> PartitioningIterator<'a> for AuthorBesties<'a> {
     type Root = Authors;
     const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = false;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+    fn new(id: ET<Self::Root>, gets: &'a Getters) -> Self {
         Self {
             gets,
             id,
@@ -1581,7 +1622,7 @@ impl<'a> PartitioningIterator<'a> for InstBesties<'a> {
     );
     type Root = Institutions;
     const PARTITIONS: usize = N_PERS;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+    fn new(id: ET<Self::Root>, gets: &'a Getters) -> Self {
         Self {
             gets,
             id,
@@ -1602,7 +1643,7 @@ impl<'a> PartitioningIterator<'a> for WorkingAuthors<'a> {
     type Root = Institutions;
     const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = false;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+    fn new(id: ET<Self::Root>, gets: &'a Getters) -> Self {
         Self {
             gets,
             id,
@@ -1622,7 +1663,7 @@ impl<'a> PartitioningIterator<'a> for SubfieldRefTopicCountryInst<'a> {
     );
     type Root = Subfields;
     const PARTITIONS: usize = N_PERS;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+    fn new(id: ET<Self::Root>, gets: &'a Getters) -> Self {
         Self {
             gets,
             id,

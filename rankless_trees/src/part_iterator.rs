@@ -24,12 +24,12 @@ use crate::{
 };
 use dmove::{
     para::{set_and_notify, wait_for_data, wait_for_data_with_taker},
-    ByteFixArrayInterface, Entity, InitEmpty, UnsignedNumber,
+    ByteFixArrayInterface, Entity, InitEmpty, NumericTypeEntity, UnsignedNumber, ET,
 };
 use hashbrown::{hash_map::Entry, HashMap};
 use rankless_rs::{
     agg_tree::{HeapIterator, MinHeap, SortedRecord, Updater},
-    common::{read_buf_path, write_buf_path, NumberedEntity, NET},
+    common::{read_buf_path, write_buf_path},
     steps::{
         a1_entity_mapping::{YearInterface, N_PERS, POSSIBLE_YEAR_FILTERS},
         derive_links1::WorkPeriods,
@@ -71,12 +71,13 @@ pub trait CompleteTreeMaker<'a>: Sized + PartitioningIterator<'a> {
 pub trait PartitioningIterator<'a>:
     Iterator<Item = (PartitionId, StackFr<Self::StackBasis>)> + Sized
 {
-    type Root: NumberedEntity;
+    type Root: NumericTypeEntity;
     type StackBasis: StackBasis;
     const PARTITIONS: usize;
     const IS_SPEC: bool = true;
     const DEFAULT_PARTITION: u8 = 0;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self;
+    const UNPRUNABLE: bool = false;
+    fn new(id: ET<Self::Root>, gets: &'a Getters) -> Self;
 
     fn get_spec() -> TreeSpec {
         let breakdowns = Self::StackBasis::get_bds();
@@ -243,7 +244,7 @@ where
 
     fn fill_calculate(&mut self) {
         let mut pids = Vec::new();
-        let et_id = NET::<TMK::Root>::from_usize(self.params.fq.ck.eid);
+        let et_id = ET::<TMK::Root>::from_usize(self.params.fq.ck.eid);
         if self.is_cacheable() {
             let full_path = self.params.state.full_cache_file_period(&self.params.fq, 0);
             create_dir_all(full_path.parent().unwrap()).unwrap();
@@ -297,7 +298,7 @@ where
         set_and_notify(bcvp, Some(()))
     }
 
-    fn fill_heaps(&self, et_id: &NET<TMK::Root>) -> [SrHeap<'a, TMK>; MAX_PARTITIONS] {
+    fn fill_heaps(&self, et_id: &ET<TMK::Root>) -> [SrHeap<'a, TMK>; MAX_PARTITIONS] {
         let mut heaps = [(); MAX_PARTITIONS].map(|_| SrHeap::<'a, TMK>::new());
         let now = std::time::Instant::now();
         let maker = TMK::new(*et_id, &self.params.state.gets);
@@ -317,7 +318,7 @@ where
     fn write_tmp_parts(&self) {
         let cache_root = tmp_part_cache_root(&self.params.fq.ck);
         let piter = TMK::new(
-            NET::<TMK::Root>::from_usize(self.params.fq.ck.eid),
+            ET::<TMK::Root>::from_usize(self.params.fq.ck.eid),
             &self.params.state.gets,
         );
         let mut writers: Vec<BufWriter<File>> = YearInterface::iter()
@@ -344,7 +345,7 @@ where
     }
 
     fn read_big_calculate(&mut self, pids: &mut Vec<u8>) {
-        let et_id = NET::<TMK::Root>::from_usize(self.params.fq.ck.eid);
+        let et_id = ET::<TMK::Root>::from_usize(self.params.fq.ck.eid);
         let cache_root = tmp_part_cache_root(&self.params.fq.ck);
         let mut buf: [u8; MAX_BUFSIZE] = [0; MAX_BUFSIZE];
         let mut ser_tree_o = None;
@@ -439,6 +440,9 @@ where
     }
 
     fn prune_tree(&self, full_tree: &BufSerTree) -> BufSerTree {
+        if TMK::UNPRUNABLE {
+            return full_tree.clone();
+        }
         let now = std::time::Instant::now();
         let bds = TMK::get_spec().breakdowns;
         let pruned_tree = prune(full_tree, &self.params.state.att_union, &bds);

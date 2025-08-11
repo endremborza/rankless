@@ -20,12 +20,11 @@ use crate::{
 use muwo_search::{ordered_calls, sorted_iters_to_arr, ExtendableArr, OrderedMapper};
 use rankless_rs::{
     agg_tree::{AggTreeBase, ReinstateFrom, Updater},
-    common::{NumberedEntity, NET},
     gen::a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Works},
     gen::derive_links3::HitPapers,
 };
 
-use dmove::{Entity, InitEmpty, UnsignedNumber, ET};
+use dmove::{Entity, InitEmpty, NumericTypeEntity, UnsignedNumber, ET};
 use dmove_macro::derive_tree_getter;
 use hashbrown::HashMap;
 
@@ -34,11 +33,13 @@ type CollT<T> = <T as Collapsing>::Collapsed;
 #[derive(PartialOrd, PartialEq)]
 pub struct WorkTree(pub AggTreeBase<WT, (), WT>);
 
-pub struct IntXTree<E: NumberedEntity, C: Collapsing>(AggTreeBase<NET<E>, PrepNode, CollT<C>>);
-pub struct DisJTree<E: NumberedEntity, C: Collapsing>(AggTreeBase<NET<E>, CollapsedNode, CollT<C>>);
+pub struct IntXTree<E: NumericTypeEntity, C: Collapsing>(AggTreeBase<ET<E>, PrepNode, CollT<C>>);
+pub struct DisJTree<E: NumericTypeEntity, C: Collapsing>(
+    AggTreeBase<ET<E>, CollapsedNode, CollT<C>>,
+);
 
-pub struct IddCollNode<E: NumberedEntity> {
-    id: NET<E>,
+pub struct IddCollNode<E: NumericTypeEntity> {
+    id: ET<E>,
     node: CollapsedNode,
 }
 
@@ -61,7 +62,7 @@ struct WVecMerger<'a> {
     node: CollapsedNode,
 }
 
-pub trait TreeGetter: NumberedEntity {
+pub trait TreeGetter: NumericTypeEntity {
     fn run_params(params: TreeMakingParams);
     fn get_specs() -> Vec<TreeSpec>;
 }
@@ -74,7 +75,7 @@ pub trait Collapsing {
 
 pub trait FoldStackBase<C> {
     type StackElement;
-    type LevelEntity: Entity;
+    type LevelEntity: NumericTypeEntity;
     const SPEC_DENOM_IND: usize;
     const SOURCE_SIDE: bool;
 }
@@ -194,10 +195,10 @@ impl From<WhyT> for WorkTree {
 impl<T, E, C> From<T> for DisJTree<E, C>
 where
     T: UnsignedNumber,
-    E: NumberedEntity<T = T>,
+    E: NumericTypeEntity<NT = T, T = T>,
     C: Collapsing,
 {
-    fn from(value: T) -> Self {
+    fn from(value: E::T) -> Self {
         Self(value.into())
     }
 }
@@ -205,7 +206,7 @@ where
 impl<T, E, C> From<T> for IntXTree<E, C>
 where
     T: UnsignedNumber,
-    E: NumberedEntity<T = T>,
+    E: NumericTypeEntity<NT = T, T = T>,
     C: Collapsing,
 {
     fn from(value: T) -> Self {
@@ -215,8 +216,8 @@ where
 
 impl<E, CE, GC> Into<BufSerTree> for DisJTree<E, IntXTree<CE, GC>>
 where
-    E: NumberedEntity,
-    CE: NumberedEntity,
+    E: NumericTypeEntity,
+    CE: NumericTypeEntity,
     GC: Collapsing + TopTree,
     DisJTree<CE, GC>: Into<BufSerTree>,
 {
@@ -235,8 +236,8 @@ where
 
 impl<E, CE> Into<BufSerTree> for DisJTree<E, IntXTree<CE, WorkTree>>
 where
-    E: NumberedEntity,
-    CE: NumberedEntity,
+    E: NumericTypeEntity,
+    CE: NumericTypeEntity,
 {
     fn into(self) -> BufSerTree {
         let children = Box::new(self.0.children.into());
@@ -249,7 +250,7 @@ where
 
 impl<E> Into<BufSerChildren> for Vec<IddCollNode<E>>
 where
-    E: NumberedEntity,
+    E: NumericTypeEntity,
 {
     fn into(self) -> BufSerChildren {
         let mut leaves = HashMap::new();
@@ -262,36 +263,36 @@ where
 
 impl<E, C> TopTree for IntXTree<E, C>
 where
-    E: NumberedEntity,
+    E: NumericTypeEntity,
     C: Collapsing,
 {
 }
 
 impl<E, C> TopTree for DisJTree<E, C>
 where
-    E: NumberedEntity,
+    E: NumericTypeEntity,
     C: Collapsing,
     Vec<CollT<C>>: Into<BufSerChildren>,
 {
 }
 
-impl<E, C> ReinstateFrom<NET<E>> for IntXTree<E, C>
+impl<E, C> ReinstateFrom<ET<E>> for IntXTree<E, C>
 where
-    E: NumberedEntity,
+    E: NumericTypeEntity,
     C: Collapsing,
 {
-    fn reinstate_from(&mut self, value: NET<E>) {
+    fn reinstate_from(&mut self, value: ET<E>) {
         self.0.id = value;
         self.0.node.reset();
     }
 }
 
-impl<E, C> ReinstateFrom<NET<E>> for DisJTree<E, C>
+impl<E, C> ReinstateFrom<ET<E>> for DisJTree<E, C>
 where
-    E: NumberedEntity,
+    E: NumericTypeEntity,
     C: Collapsing,
 {
-    fn reinstate_from(&mut self, value: NET<E>) {
+    fn reinstate_from(&mut self, value: ET<E>) {
         self.0.id = value;
     }
 }
@@ -337,7 +338,7 @@ impl InitEmpty for WorkWInd {
 
 impl<E> Updater<WorkTree> for IntXTree<E, WorkTree>
 where
-    E: NumberedEntity,
+    E: NumericTypeEntity,
 {
     fn update<T>(&mut self, other: &mut WorkTree, other_reinitiator: T)
     where
@@ -350,8 +351,8 @@ where
 
 impl<E, CE> Updater<IntXTree<CE, WorkTree>> for IntXTree<E, IntXTree<CE, WorkTree>>
 where
-    E: NumberedEntity,
-    CE: NumberedEntity,
+    E: NumericTypeEntity,
+    CE: NumericTypeEntity,
 {
     fn update<T>(&mut self, other: &mut IntXTree<CE, WorkTree>, other_reinitiator: T)
     where
@@ -368,8 +369,8 @@ where
 
 impl<E, CE, GC> Updater<IntXTree<CE, GC>> for IntXTree<E, IntXTree<CE, GC>>
 where
-    E: NumberedEntity,
-    CE: NumberedEntity,
+    E: NumericTypeEntity,
+    CE: NumericTypeEntity,
     GC: Collapsing + TopTree,
 {
     fn update<T>(&mut self, other: &mut IntXTree<CE, GC>, other_reinitiator: T)
@@ -389,8 +390,8 @@ where
 
 impl<CE, E> Updater<IntXTree<CE, WorkTree>> for DisJTree<E, IntXTree<CE, WorkTree>>
 where
-    E: NumberedEntity,
-    CE: NumberedEntity,
+    E: NumericTypeEntity,
+    CE: NumericTypeEntity,
 {
     fn update<T>(&mut self, other: &mut IntXTree<CE, WorkTree>, other_reinitiator: T)
     where
@@ -405,8 +406,8 @@ where
 
 impl<CE, E, GC> Updater<IntXTree<CE, GC>> for DisJTree<E, IntXTree<CE, GC>>
 where
-    E: NumberedEntity,
-    CE: NumberedEntity,
+    E: NumericTypeEntity,
+    CE: NumericTypeEntity,
     GC: Collapsing + TopTree,
 {
     fn update<T>(&mut self, other: &mut IntXTree<CE, GC>, other_reinitiator: T)
@@ -438,7 +439,7 @@ impl Collapsing for WorkTree {
 
 impl<E> Collapsing for IntXTree<E, WorkTree>
 where
-    E: NumberedEntity,
+    E: NumericTypeEntity,
 {
     type Collapsed = IddCollNode<E>;
     fn collapse(&mut self) -> Self::Collapsed {
@@ -451,7 +452,7 @@ where
 
 impl<E, C> Collapsing for IntXTree<E, C>
 where
-    E: NumberedEntity,
+    E: NumericTypeEntity,
     C: TopTree + Collapsing,
 {
     type Collapsed = DisJTree<E, C>;
@@ -467,7 +468,7 @@ where
 
 impl<E, C> Collapsing for DisJTree<E, C>
 where
-    E: NumberedEntity,
+    E: NumericTypeEntity,
     C: Collapsing,
 {
     type Collapsed = Self;
@@ -522,6 +523,8 @@ mod inst_trees {
 #[derive_tree_getter(Countries)]
 mod country_trees {
 
+    use crate::components::TimelineDraftOne;
+
     use super::*;
 
     pub type Tree1<'a> = CountryInstsPost<
@@ -548,6 +551,7 @@ mod country_trees {
     pub type Tree4<'a> = CountryCiters<'a>;
     pub type Tree5<'a> = PostRefIterWrap<'a, Countries, CitingSuByRef<'a>>;
     pub type Tree6<'a> = PostRefIterWrap<'a, Countries, RefSuByRef<'a>>;
+    pub type Tree7<'a> = PostRefIterWrap<'a, Countries, TimelineDraftOne<'a>>;
 }
 
 #[derive_tree_getter(Sources)]
