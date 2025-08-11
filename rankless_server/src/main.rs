@@ -31,7 +31,7 @@ use tokio::{net::TcpListener, sync::Notify};
 
 use muwo_search::SearchEngine;
 use rankless_rs::{
-    common::{MainEntity, NET},
+    common::MainEntity,
     gen::a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
     gen::derive_links3::HitPapers,
     steps::{
@@ -274,7 +274,7 @@ impl PrepFilter for Institutions {
 
 impl PrepFilter for Sources {
     fn filter_sr(sr: &SearchResult, gets: &Getters, _entif: &RootInterfaces<Self>) -> bool {
-        let id = NET::<Sources>::from_usize(sr.dm_id);
+        let id = ET::<Sources>::from_usize(sr.dm_id);
         let mut best_q = 5;
         for ty8 in YearInterface::iter() {
             let q = *gets.sqy(&(id, ty8));
