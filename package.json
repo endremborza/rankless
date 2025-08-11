@@ -1,6 +1,6 @@
 {
-	"name": "academic-impact-explorer",
-	"version": "1.1.1",
+	"name": "rankless",
+	"version": "2.5.2",
 	"private": true,
 	"scripts": {
 		"dev": "vite dev --host",
