@@ -41,13 +41,13 @@
 	let hovered = '0';
 	let hoveredParent: number | undefined = undefined;
 	let toDomains = false;
-	let treeId = indsByEntityType.subfields.includes(9) ? 9 : indsByEntityType.subfields[0];
 	//TODO: anny change can cock this up
 
 	let hoveredOverCircle = false;
 	let showPaper = false;
 	let isSpec = true;
 	let flatOut = {};
+	$: treeId = indsByEntityType.subfields.includes(9) ? 9 : indsByEntityType.subfields[0];
 	$: sourceSide = getSourceSide(treeSpecs, conf.rootType, treeId);
 	$: parents = toDomains ? domains : getFieldArr();
 	$: getParent = toDomains ? getDomain : getFieldColorOrder;

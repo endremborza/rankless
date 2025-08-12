@@ -44,7 +44,7 @@
 
 	let clicked = false;
 	let isSpec = false;
-	let treeId: number;
+	$: treeId = indsByEntityType.countries[0];
 	let flatOut = {};
 
 	$: isRefSide = treeSpecs.specs[conf.rootType][treeId]?.breakdowns[0].sourceSide;
