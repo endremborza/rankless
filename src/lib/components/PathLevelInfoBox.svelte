@@ -20,7 +20,9 @@
 
 	function getNodes(
 		path: PathInTree,
-		root: ResponseNode
+		root: ResponseNode,
+		attributeLabels: AttributeLabels,
+		treeSpec: TreeSpec
 	): {
 		name: string;
 		linkCount: number;
@@ -109,7 +111,7 @@
 
 	let hoverSpec = false;
 
-	$: pathNodes = getNodes(path || [], rootNode);
+	$: pathNodes = getNodes(path || [], rootNode, attributeLabels, treeSpec);
 	$: leaf = pathNodes[pathNodes.length - 1];
 	$: expanded = showPaper && (leaf.sourceCount || 0) > 0;
 </script>
