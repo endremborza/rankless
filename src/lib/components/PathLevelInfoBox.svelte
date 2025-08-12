@@ -126,7 +126,7 @@
 		showPaper = !showPaper;
 	}}
 >
-	{#if path != undefined}
+	{#if path != undefined && leaf != undefined}
 		<div class="growing" style="height: {initHeight * (expanded ? 3 : 0)}px;">
 			{#if expanded}
 				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} />
