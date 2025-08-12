@@ -48,10 +48,16 @@
 	let showPaper = false;
 	let isSpec = true;
 	let flatOut = {};
-	$: sourceSide = treeSpecs.specs[conf.rootType][treeId].breakdowns[0].sourceSide;
+	$: sourceSide = getSourceSide(treeSpecs, conf.rootType, treeId);
 	$: parents = toDomains ? domains : getFieldArr();
 	$: getParent = toDomains ? getDomain : getFieldColorOrder;
 	$: setClassStyles(styleEl, flatOut, mounted, hovered, hoveredParent, backupNames);
+
+	function getSourceSide(treeSpecs: tt.TreeSpecs, rootType: tt.RootType, treeId: number) {
+		let treeSpec = treeSpecs.specs[rootType][treeId];
+		if (treeSpec == undefined) return false;
+		return treeSpec.breakdowns[0].sourceSide;
+	}
 
 	function getMap(ents: [string, number][]) {
 		let out = {};
