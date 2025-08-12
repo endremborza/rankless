@@ -111,10 +111,13 @@
 	function updateL1(flatOut: undefined | tt.LevelT, resp: undefined | tt.TreeResponse) {
 		if (flatOut != undefined && resp != undefined) {
 			try {
-				let l1Kv = Object.entries(flatOut).map(([k, { w }]) => [
-					resp.atts['countries'][k].name,
-					{ w, id: k }
-				]);
+				let countryAtts = resp.atts.countries || {};
+				let l1Kv = [];
+				Object.entries(flatOut).map(([k, { w }]) => {
+					if (countryAtts[k] != undefined) {
+						l1Kv.push([countryAtts[k].name, { w, id: k }]);
+					}
+				});
 				countryLevels = Object.fromEntries(l1Kv);
 			} catch (error) {
 				console.log(error);
