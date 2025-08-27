@@ -105,7 +105,7 @@
 	}
 
 	.result-card:hover {
-		transform: translateY(-10px);
+		transform: scale(1.03);
 		background-color: var(--color-theme-lightgrey);
 		color: var(--color-theme-darkblue);
 		box-shadow: 3px 3px 13px var(--color-theme-shadow);
