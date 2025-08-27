@@ -55,6 +55,7 @@
 :root {
 	--text-bg: #ffffff;
 	--text-bg-2: var(--color-theme-white);
+	--text-bg-3: var(--color-theme-lightblue);
 	/* --text-bg: var(--color-theme-white); */
 	--hard-overlay: #ffffff90;
 	--color-text: var(--color-theme-darktext);
@@ -66,6 +67,7 @@
 	:root {
 		--text-bg: var(--color-theme-darkgrey);
 		--text-bg-2: var(--color-theme-darkgrey3);
+		--text-bg-3: var(--color-theme-darkblue);
 		--hard-overlay: #4f4f4f70;
 		--color-text: var(--color-theme-white);
 		--accent-text: var(--color-theme-pink);
