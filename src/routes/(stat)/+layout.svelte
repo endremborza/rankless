@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { base } from '$app/paths';
-	import TextedLogo from '$lib/components/TextedLogo.svelte';
-	import { APP_NAME, LATEST_YEAR } from '$lib/constants';
+	import { APP_NAME } from '$lib/constants';
 </script>
 
 <svelte:head>
