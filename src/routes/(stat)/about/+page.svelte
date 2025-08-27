@@ -343,7 +343,7 @@
 	#person-bar {
 		padding-top: 80px;
 		padding-bottom: 80px;
-		background-color: var(--color-theme-lightblue);
+		background-color: var(--text-bg-3);
 	}
 
 	#support-strip {
