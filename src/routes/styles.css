@@ -51,6 +51,7 @@
 	font-family: var(--font-body);
 	--unified-margin: min(min(27px, 2vw), 3.7svh);
 	--unified-padding: 18px;
+	--borad: 6px
 }
 :root {
 	--text-bg: #ffffff;
@@ -84,6 +85,10 @@ body {
 	background-color: var(--text-bg);
 }
 
+* {
+	box-sizing: border-box;
+}
+
 text {
 	fill: var(--color-text)
 }
@@ -101,6 +106,7 @@ a {
 a:hover {
 	color: var(--highlight-text);
 	text-shadow: 1px 0px 0px var(--color-theme-shadow);
+	/* text-decoration: underline; */
 	/* font-weight: bold; */
 }
 
@@ -120,7 +126,7 @@ select {
 }
 
 .shadowy {
-	border-radius: 6px;
+	border-radius: var(--borad);
 	box-shadow: 3px 3px 10px var(--color-theme-shadow);
 }
 

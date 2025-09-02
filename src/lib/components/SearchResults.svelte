@@ -4,10 +4,10 @@
 	import type { RootType, SearchResult } from '$lib/tree-types';
 	import { entToLink } from '$lib/tree-functions';
 	import { onMount } from 'svelte';
+	import { resultsHidden } from '$lib/stores';
 
 	export let searchTerm: string;
 	export let cat: RootType;
-	export let resultsHidden: boolean;
 
 	let mounted = false;
 	let delayedTerm = '';
@@ -46,10 +46,11 @@
 		mounted = true;
 	});
 
+	$: currentHidden = $resultsHidden;
 	$: getSearchResults(searchTerm, cat, mounted);
 </script>
 
-<div class="search-results" style="display: {resultsHidden ? 'none' : 'flex'};">
+<div class="search-results" style="display: {currentHidden ? 'none' : 'flex'};">
 	{#each searchResults as searchResult}
 		<a class="result-card shadowy padded" href={entToLink(searchResult)}>
 			<h3 style="font-size: {getHeaderFontSize(searchResult.name.length)};">
