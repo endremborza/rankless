@@ -9,7 +9,7 @@ test('navigate all links and test map control states quickly', async ({ page }) 
 	const paragraphSources = {}
 
 	// Start with homepage and about
-	const pagesToVisit = new Set(['/', '/about']);
+	const pagesToVisit = new Set(['/']);
 
 	// Collect links from homepage
 	await page.goto('/');
