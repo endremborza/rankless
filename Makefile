@@ -19,13 +19,10 @@ to-csv:
 filter: clean-filters clean-keys clean-cache
 	cargo run --release -p rankless-rs -- $@ $(OA_ROOT)
 
-tree-test:
-	cargo run --release -p rankless-rs -- $@ $(OA_ROOT)
-
 run-server:
 	cargo run --release -p rankless-server -- $(OA_ROOT) 
 
-cov-test:
+test-rs:
 	export CARGO_INCREMENTAL=0
 	export RUSTFLAGS="-Cinstrument-coverage"
 	export RUSTDOCFLAGS="-Cinstrument-coverage"
@@ -44,6 +41,13 @@ cov-test:
 
 	rm default_*.profraw
 	rm ./*/default_*.profraw
+
+test-js:
+	npm run test
+	cat paragraph_texts.txt | xxclip
+
+test: test-rs test-js
+	echo OK
 
 rm-prof:
 	rm default_*.profraw
