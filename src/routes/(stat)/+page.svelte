@@ -198,8 +198,7 @@
 	let prefixText = data.prefixText;
 	let selectionState: tt.BareNode = {};
 
-	let loader = reconstructLoader(data.treeSpecs, data.tops, data.treeRespCache);
-	if (data.cachedIdxs.length > 0) loader.setTree(...data.cachedIdxs[0]);
+	let loader = reconstructLoader(data);
 	let props = loader.getTreeSvgProps();
 
 	const ENTITY_CTA: Record<tt.RootType, undefined | { kicker: string; cta: string; desc: string }> =
@@ -232,13 +231,13 @@
 	let scrollY: number;
 	let spotWIdth: number;
 	function getViewBox(scrollY: number, i: number, elemW: number) {
-		let scRate = Math.min(scrollY / 1300, 1);
+		let scRate = Math.min((scrollY || 0) / 1300, 1);
 		let scAdd = scRate * 125;
 		let scScale = 1 - scRate * 0.2;
 		let [x0, y0, fullW, fullH] = [20 * scScale, 130 - scAdd, 230 * scScale, 51];
 		let headHeight = 20;
 		if (i == -1) return `${x0} ${y0} ${fullW} ${headHeight}`;
-		let rate = fullW / elemW;
+		let rate = fullW / (elemW || 1000);
 		const [pad, gap] = [26 * rate, 20 * rate];
 		let w = (fullW - 2 * pad - 3 * gap) / 4;
 		x0 = x0 + pad + i * (gap + w);

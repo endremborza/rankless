@@ -19,7 +19,6 @@ export async function loadSpecs(): Promise<tt.TreeSpecs> {
 		});
 }
 
-
 export async function loadTops(): Promise<tt.TopsResponse> { return fetch(`${BE_URL}/tops`).then((res) => res.json()); }
 
 
@@ -30,8 +29,7 @@ export class TopTreeLoader {
 	prefixText: string;
 	conf: tt.FullTreeConfig | undefined;
 	treeResp: tt.TreeResponse | undefined;
-	treeRespCache: Record<string, tt.TreeResponse>
-	cachedIdxs: [number, number][];
+	treeRespCache: Record<string, tt.TreeResponse>;
 
 	constructor(tops: tt.TopsResponse, treeSpecs: tt.TreeSpecs) {
 		this.tops = tops;
@@ -41,7 +39,6 @@ export class TopTreeLoader {
 		this.conf = undefined;
 		this.treeResp = undefined;
 		this.treeRespCache = {}
-		this.cachedIdxs = []
 	}
 
 	async setTree(ri: number, rj: number) {
@@ -62,9 +59,10 @@ export class TopTreeLoader {
 			wide: false
 		};
 		let url = tf.treeBeUrl(BE_URL, this.conf, 1)
+		console.log('setting', i, j, url)
 		if (this.treeRespCache[url] == undefined) {
+			console.log('loading', url)
 			this.treeRespCache[url] = await fetch(url).then((res) => res.json());
-			this.cachedIdxs.push([i, j]);
 		}
 		this.treeResp = this.treeRespCache[url]
 	}
@@ -74,7 +72,7 @@ export class TopTreeLoader {
 	}
 
 	getTreeSvgProps() {
-		while (this.conf == undefined || this.treeResp == undefined) this.setRandTree();
+		if (this.conf == undefined || this.treeResp == undefined) return;
 		const { tree, atts } = this.treeResp;
 		let rootType = this.conf.rootType as tt.RootType;
 		let treeSpec: tt.TreeSpec = this.treeSpecs.specs[rootType][this.conf.treeId];
@@ -90,8 +88,21 @@ export async function getTopTreeLoader(): Promise<TopTreeLoader> {
 	return loader
 }
 
-export function reconstructLoader(treeSpecs: tt.TreeSpecs, tops: tt.TopsResponse, cache: Record<string, tt.TreeResponse>): TopTreeLoader {
-	const loader = new TopTreeLoader(tops, treeSpecs);
-	loader.treeRespCache = cache
+export function reconstructLoader(data: {
+	tops: tt.TopsResponse,
+	treeSpecs: tt.TreeSpecs,
+	rootName: string,
+	prefixText: string,
+	conf: tt.FullTreeConfig | undefined,
+	treeResp: tt.TreeResponse | undefined,
+	treeRespCache: Record<string, tt.TreeResponse>
+}
+): TopTreeLoader {
+	const loader = new TopTreeLoader(data.tops, data.treeSpecs);
+	loader.rootName = data.rootName;
+	loader.prefixText = data.prefixText;
+	loader.conf = data.conf;
+	loader.treeResp = data.treeResp;
+	loader.treeRespCache = data.treeRespCache;
 	return loader
 }
