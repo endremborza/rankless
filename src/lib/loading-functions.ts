@@ -59,9 +59,7 @@ export class TopTreeLoader {
 			wide: false
 		};
 		let url = tf.treeBeUrl(BE_URL, this.conf, 1)
-		console.log('setting', i, j, url)
 		if (this.treeRespCache[url] == undefined) {
-			console.log('loading', url)
 			this.treeRespCache[url] = await fetch(url).then((res) => res.json());
 		}
 		this.treeResp = this.treeRespCache[url]
