@@ -22,9 +22,11 @@
 	import SpecConcrete2 from '$lib/components/SpecConcrete2.svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { APP_NAME, COMPLETE_YEAR } from '$lib/constants';
+	import { APP_NAME, COMPLETE_YEAR, ROOT_TYPES } from '$lib/constants';
 	import TreeSvg from '$lib/components/TreeSvg.svelte';
 	import { resultsHidden } from '$lib/stores';
+	import { prettifyRoot } from '$lib/text-format-util.js';
+	import TypeWriter from '$lib/components/TypeWriter.svelte';
 
 	let selectedId: string | undefined = undefined;
 
@@ -231,13 +233,13 @@
 	let scrollY: number;
 	let spotWIdth: number;
 	function getViewBox(scrollY: number, i: number, elemW: number) {
-		let scRate = Math.min((scrollY || 0) / 1300, 1);
+		let scRate = Math.min(scrollY / 1300, 1);
 		let scAdd = scRate * 125;
 		let scScale = 1 - scRate * 0.2;
 		let [x0, y0, fullW, fullH] = [20 * scScale, 130 - scAdd, 230 * scScale, 51];
 		let headHeight = 20;
 		if (i == -1) return `${x0} ${y0} ${fullW} ${headHeight}`;
-		let rate = fullW / (elemW || 1000);
+		let rate = fullW / elemW;
 		const [pad, gap] = [26 * rate, 20 * rate];
 		let w = (fullW - 2 * pad - 3 * gap) / 4;
 		x0 = x0 + pad + i * (gap + w);
@@ -245,6 +247,8 @@
 		return `${x0} ${y0} ${w} ${fullH - pad - headHeight}`;
 	}
 	const [bgWidth, bgOffset, bgHeight] = [300, 200, 300];
+	let options: string[] = ROOT_TYPES.filter((e) => e != 'hit-papers');
+	let texts = options.map(prettifyRoot);
 </script>
 
 <svelte:head>
@@ -256,16 +260,6 @@
 	{@html fullLd}
 </svelte:head>
 <svelte:window bind:scrollY />
-
-<header class="header">
-	<div class="header-inner padded">
-		<nav>
-			<a href="#how">How it works</a>
-			<a href="#spotlights">Spotlights</a>
-			<a href="#team">Team</a>
-		</nav>
-	</div>
-</header>
 
 <section class="hero">
 	<div class="container hero-inner">
@@ -280,8 +274,8 @@
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
 				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<!-- svelte-ignore a11y-missing-attribute -->
-				<a class="button" on:click={() => resultsHidden.set(false)} rel="noopener"
-					>Explore Rankless</a
+				<a class="button primary" on:click={() => resultsHidden.set(false)} rel="noopener"
+					>🔍 Explore <TypeWriter {texts} /></a
 				>
 				<a class="button secondary" href="#spotlights">See examples</a>
 			</div>
@@ -319,7 +313,7 @@
 <section id="spotlights">
 	<div class="container">
 		<h2>Spotlights</h2>
-		<p class="lede">
+		<p class="lede spotlead">
 			Jump straight into examples across institutions, countries, journals, and scholars.
 		</p>
 		<div class="spotlight" bind:clientWidth={spotWIdth}>
@@ -367,7 +361,7 @@
 
 <section id="how">
 	<div class="container">
-		<h2>How Rankless works</h2>
+		<h2>How does Rankless work?</h2>
 		<p class="lede">
 			Under the hood, Rankless combines open bibliographic data, network science, and interactive
 			design to surface context that rankings miss.
@@ -423,7 +417,7 @@
 			geography, collaboration, and time. Use it to make better-informed decisions - whether you’re
 			a student, researcher, policymaker, or funder.
 		</p>
-		<p class="btxt">
+		<p>
 			Rankless is an experimental data visualization project that allows users to explore the impact
 			of thousands of universities. It is built on the idea that universities generate impact that
 			is specific to a geography and to certain topics, and that rankings obscure that impact by
@@ -436,7 +430,7 @@
 
 <section id="team">
 	<div class="container">
-		<h2>Who’s behind it</h2>
+		<h2>Who’s behind it?</h2>
 		<p class="lede">
 			Rankless is created by the Center for Collective Learning (CCL) at Corvinus University of
 			Budapest, with a small, multidisciplinary team.
@@ -503,7 +497,7 @@
 	<div class="container">
 		<h1>Frequently Asked Questions</h1>
 		<div id="faq-head">
-			<div class="btxt">
+			<div>
 				<p>
 					Questions and answers about data sources used, update frequency, filtering, impact
 					measurement, extensions and visualization.
@@ -610,31 +604,6 @@
 		margin: 0 auto;
 	}
 
-	.header {
-		position: sticky;
-		top: 0;
-		width: 100%;
-		z-index: 5;
-		display: flex;
-		justify-content: center;
-	}
-
-	.header-inner {
-		backdrop-filter: blur(10px);
-		background: rgba(var(--color-range-25), 0.3);
-		border: solid var(--color-theme-darkblue) 2px;
-		border-top: none;
-		border-bottom-right-radius: var(--borad);
-		border-bottom-left-radius: var(--borad);
-		padding-top: var(--unified-margin);
-		max-width: 66vw;
-	}
-
-	nav {
-		display: flex;
-		gap: 30px;
-	}
-
 	.hero-inner {
 		display: grid;
 		grid-template-columns: 1.1fr 0.9fr;
@@ -672,6 +641,9 @@
 		box-shadow: 0 10px 30px rgba(var(--color-range-25), 0.3);
 		cursor: pointer;
 	}
+	.button.primary {
+		width: 260px;
+	}
 	.button.secondary {
 		color: var(--color-text);
 		background: transparent;
@@ -688,9 +660,16 @@
 		letter-spacing: -0.01em;
 		margin: 0 0 10px 0;
 	}
+
+	p {
+		text-align: justify;
+	}
 	.lede {
 		font-weight: 600;
 		font-size: 1.2rem;
+	}
+	.spotlead {
+		text-align: center;
 	}
 	.grid {
 		display: grid;
@@ -737,7 +716,7 @@
 		color: var(--muted);
 		font-size: 14px;
 		font-weight: 400;
-		text-align: justify;
+		text-align: left;
 	}
 
 	.portrait {
@@ -814,16 +793,6 @@
 		margin-bottom: 40px;
 	}
 
-	.btxty {
-		font-weight: 400;
-		text-align: justify;
-		padding-left: 35px;
-		padding-right: 35px;
-		margin-top: 100px;
-		margin-bottom: 60px;
-		/* color: var(--color-theme-darkgrey); */
-	}
-
 	.logo-strip {
 		justify-content: center;
 		display: flex;
@@ -838,11 +807,12 @@
 		font-size: 1.7rem;
 	}
 
-	@media (max-width: 768px) {
-		.btxt {
-			text-align: left;
+	@container (min-width: 400px) {
+		p {
+			text-align: justify;
 		}
 	}
+
 	@media (max-width: 1300px) {
 		section {
 			margin-left: var(--unified-margin);
