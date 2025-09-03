@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	export let speed = 150;
-	export let stopAtEnd = 300;
+	export let speed = 80;
+	export let stopAtEnd = 480;
 	export let texts = ['one', 'two', 'hundred'];
 	export let wordInd = 0;
 
