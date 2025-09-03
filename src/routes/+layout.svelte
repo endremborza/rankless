@@ -16,8 +16,8 @@
 	let options: RootType[] = ROOT_TYPES.filter((e) => e != 'hit-papers');
 	let cat: RootType = options[0];
 
-	let runner: number;
 	let mounted = false;
+	let runner: number;
 
 	function init(el: HTMLInputElement) {
 		el.focus();
@@ -32,10 +32,6 @@
 
 	function onFocus() {
 		resultsHidden.set(false);
-	}
-
-	function toggleOpen() {
-		slimOpened = !slimOpened;
 	}
 
 	onMount(() => {
