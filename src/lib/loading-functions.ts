@@ -41,20 +41,15 @@ export class TopTreeLoader {
 		this.treeRespCache = {}
 	}
 
-	async setTree(ri: number, rj: number) {
-		let i = ri % this.tops.length
-		let jLen = this.tops[i].entities.length
-		if (jLen == 0) return
-		let j = rj % jLen;
+	async setTree(i: number, j: number, treeId: number) {
 		let rootType = this.tops[i].name as tt.RootType;
 		this.rootName = this.tops[i].entities[j].name;
 		this.prefixText = SEMANTIC_CONF[rootType]?.start || '';
 		const year = tf.getDefaultYear(rootType);
-		const treeCount = this.treeSpecs.specs[rootType].length;
 		this.conf = {
 			semanticId: this.tops[i].entities[j].semanticId,
 			year,
-			treeId: Math.floor(Math.random() * treeCount),
+			treeId,
 			rootType,
 			wide: false
 		};
@@ -66,7 +61,14 @@ export class TopTreeLoader {
 	}
 
 	setRandTree() {
-		return this.setTree(randN(this.tops.length), randN(10000))
+		let i = randN(this.tops.length);
+		let jLen = this.tops[i].entities.length
+		let j = randN(jLen)
+		let rootType = this.tops[i].name as tt.RootType;
+		const treeCount = this.treeSpecs.specs[rootType].length;
+		let tid = randN(treeCount)
+		while (this.treeSpecs.specs[rootType][tid].breakdowns.length < 2) { j = randN(treeCount) }
+		return this.setTree(i, j, tid)
 	}
 
 	getTreeSvgProps() {
