@@ -246,7 +246,7 @@
 		y0 = y0 + pad + headHeight;
 		return `${x0} ${y0} ${w} ${fullH - pad - headHeight}`;
 	}
-	const [bgWidth, bgOffset, bgHeight] = [300, 200, 300];
+	const [bgWidth, bgOffset, bgHeight] = [300, 120, 300];
 	let options: string[] = ROOT_TYPES.filter((e) => e != 'hit-papers');
 	let texts = options.map(prettifyRoot);
 </script>
@@ -266,7 +266,7 @@
 		<div>
 			<h1>Explore academic impact - without flattening it into a rank.</h1>
 			<p>
-				Rankless maps the global flow of ideas across universities, journals, scholars, and
+				Rankless visualizes the global flow of ideas across universities, journals, scholars, and
 				countries - revealing who influences whom, where knowledge travels, and which topics bind
 				the world together.
 			</p>
