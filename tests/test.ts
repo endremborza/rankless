@@ -86,6 +86,6 @@ async function collectParagraphs(page, paragraphTexts, url: string, paragraphSou
 
 test('index page has expected h1', async ({ page }) => {
 	await page.goto('/');
-	await expect(page.getByText('institutions')).toBeVisible();
+	await expect(page.getByText('Spotlights')).toBeVisible();
 });
 
