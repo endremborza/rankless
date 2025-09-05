@@ -43,6 +43,7 @@ export class TopTreeLoader {
 
 	async setTree(i: number, j: number, treeId: number) {
 		let rootType = this.tops[i].name as tt.RootType;
+		console.log(i, j, treeId, rootType, this.tops[i].entities.length)
 		this.rootName = this.tops[i].entities[j].name;
 		this.prefixText = SEMANTIC_CONF[rootType]?.start || '';
 		const year = tf.getDefaultYear(rootType);
@@ -62,12 +63,13 @@ export class TopTreeLoader {
 
 	setRandTree() {
 		let i = randN(this.tops.length);
+		while (this.tops[i].entities.length == 0) { i = randN(this.tops.length) }
 		let jLen = this.tops[i].entities.length
 		let j = randN(jLen)
 		let rootType = this.tops[i].name as tt.RootType;
 		const treeCount = this.treeSpecs.specs[rootType].length;
 		let tid = randN(treeCount)
-		while (this.treeSpecs.specs[rootType][tid].breakdowns.length < 2) { j = randN(treeCount) }
+		while (this.treeSpecs.specs[rootType][tid].breakdowns.length < 2) { tid = randN(treeCount) }
 		return this.setTree(i, j, tid)
 	}
 
