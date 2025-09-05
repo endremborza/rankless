@@ -1,8 +1,9 @@
 <script lang="ts">
 	import './styles.css';
-	import { base } from '$app/paths';
 	import SearchLogo from '$lib/components/SearchLogo.svelte';
 	import SearchResults from '$lib/components/SearchResults.svelte';
+	import TextedLogo from '$lib/components/TextedLogo.svelte';
+	import PathLogo from '$lib/components/PathLogo.svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { slide } from 'svelte/transition';
@@ -10,30 +11,27 @@
 	import type { RootType } from '$lib/tree-types';
 	import { LATEST_YEAR, ROOT_TYPES } from '$lib/constants';
 	import { prettifyRoot } from '$lib/text-format-util';
-	import TextedLogo from '$lib/components/TextedLogo.svelte';
+	import { resultsHidden } from '$lib/stores';
+
 	let options: RootType[] = ROOT_TYPES.filter((e) => e != 'hit-papers');
 	let cat: RootType = options[0];
 
-	let runner: number;
 	let mounted = false;
+	let runner: number;
 
 	function init(el: HTMLInputElement) {
 		el.focus();
 	}
 
 	function focusSelect(e: FocusEvent) {
-		resultsHidden = false;
+		resultsHidden.set(false);
 		if (e.target != undefined) {
 			(e.target as HTMLTextAreaElement).select();
 		}
 	}
 
 	function onFocus() {
-		resultsHidden = false;
-	}
-
-	function toggleOpen() {
-		slimOpened = !slimOpened;
+		resultsHidden.set(false);
 	}
 
 	onMount(() => {
@@ -42,18 +40,17 @@
 	});
 	afterNavigate(() => {
 		slimOpened = false;
-		resultsHidden = true;
+		resultsHidden.set(true);
 	});
 
 	let slimOpened = false;
 	let hideSearchButton = false;
-	let resultsHidden = true;
 
 	let searchTerm = '';
 
 	function keyBind(key: { key: string }) {
 		if (key.key == 'Escape') {
-			resultsHidden = true;
+			resultsHidden.set(true);
 		}
 	}
 
@@ -100,8 +97,9 @@
 		}
 	}
 
-	$: placeholder = resultsHidden ? '' : basePlaceholder;
-	$: setNoScroll(resultsHidden);
+	$: currenHidden = $resultsHidden;
+	$: placeholder = currenHidden ? '' : basePlaceholder;
+	$: setNoScroll(currenHidden);
 </script>
 
 <svelte:head>
@@ -115,30 +113,20 @@
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <div id="main-fix">
-	{#if resultsHidden}
-		<div id="head-l" class="head-side-elem shadowy" on:click={toggleOpen}>
-			<svg id="slim-stripes" viewBox="-2 -2 22 22">
-				{#each [3, 9, 15] as sp}
-					<path d="M1,{sp}h16" stroke="var(--color-theme-darkgrey)" stroke-width="1.5px" />
-				{/each}
+	{#if $resultsHidden}
+		<a href="/" id="head-l" class="head-side-elem shadowy">
+			<svg viewBox="0 0 20 20">
+				<PathLogo />
 			</svg>
-			{#if slimOpened}
-				<div transition:slide={{ duration: 200, axis: 'y' }}>
-					<div transition:slide={{ duration: 400, delay: 200, axis: 'x' }} id="slim-drop">
-						<a href={`${base}/`}>Home</a>
-						<a href={`${base}/about`}>About</a>
-					</div>
-				</div>
-			{/if}
-		</div>
+		</a>
 	{:else}
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<span id="result-closer" class="marged" on:click={() => (resultsHidden = true)}>&#10006;</span>
+		<span id="result-closer" class="marged" on:click={() => resultsHidden.set(true)}>&#10006;</span>
 	{/if}
 	{#if !hideSearchButton}
 		<div class="head-side-elem shadowy" id="head-r" on:click={onFocus}>
-			{#if !resultsHidden}
+			{#if !$resultsHidden}
 				<input
 					in:slide={{ duration: 300, axis: 'x' }}
 					bind:value={searchTerm}
@@ -176,7 +164,7 @@
 			{/if}
 		</div>
 	{/if}
-	<SearchResults {resultsHidden} {searchTerm} {cat} />
+	<SearchResults {searchTerm} {cat} />
 	<div
 		id="main-content"
 		on:click={() => {
@@ -188,7 +176,7 @@
 	<div id="main-foot">
 		<TextedLogo pad={0} size={30} />
 		<span>{LATEST_YEAR}</span>
-		<div id="foot-r"><a href="/about#contact">Contact</a></div>
+		<div id="foot-r"><a href="/#contact">Contact</a></div>
 	</div>
 </div>
 
@@ -222,10 +210,8 @@
 	}
 
 	#main-fix {
-		padding-top: 60px;
 		display: flex;
 		flex-flow: column;
-		box-sizing: border-box;
 		min-height: 100dvh;
 	}
 
@@ -240,23 +226,6 @@
 		padding-top: 1px;
 		border-top: solid var(--color-theme-darkblue) 7px;
 		z-index: 25;
-	}
-
-	#slim-stripes {
-		cursor: pointer;
-		z-index: 10;
-	}
-
-	#slim-drop {
-		display: flex;
-		flex-direction: column;
-		justify-content: space-around;
-		padding: 9px;
-	}
-
-	#slim-drop > a {
-		color: var(--color-theme-darkgrey);
-		padding: 3px;
 	}
 
 	#search-logo {
@@ -328,6 +297,7 @@
 		z-index: 1;
 		height: min(50px, 3svh);
 	}
+
 	#foot-r > a {
 		color: var(--color-theme-darkgrey);
 	}

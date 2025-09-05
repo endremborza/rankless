@@ -9,7 +9,7 @@ test('navigate all links and test map control states quickly', async ({ page }) 
 	const paragraphSources = {}
 
 	// Start with homepage and about
-	const pagesToVisit = new Set(['/', '/about']);
+	const pagesToVisit = new Set(['/']);
 
 	// Collect links from homepage
 	await page.goto('/');
@@ -86,6 +86,6 @@ async function collectParagraphs(page, paragraphTexts, url: string, paragraphSou
 
 test('index page has expected h1', async ({ page }) => {
 	await page.goto('/');
-	await expect(page.getByText('institutions')).toBeVisible();
+	await expect(page.getByText('Spotlights')).toBeVisible();
 });
 

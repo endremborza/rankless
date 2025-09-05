@@ -115,7 +115,7 @@
 		background: #ffffff70;
 		backdrop-filter: blur(10px);
 		-webkit-backdrop-filter: blur(10px);
-		border-radius: 3px;
+		border-radius: var(--borad);
 	}
 
 	.sel-clicky > span {

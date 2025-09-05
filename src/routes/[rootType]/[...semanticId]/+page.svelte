@@ -66,7 +66,7 @@
 			<div>
 				<span>{data.paperText}</span>
 				and
-				<span><a href="/about#indexed-citation" target="blank_">{data.citeText}</a></span>
+				<span><a href="/#indexed-citation" target="blank_">{data.citeText}</a></span>
 				<HoverI bind:hoverToggle={showIndexedCiteText} />.
 			</div>
 		</div>
