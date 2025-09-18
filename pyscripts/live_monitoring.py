@@ -9,11 +9,12 @@ from email.mime.text import MIMEText
 
 import requests
 
-from .deploy import LIVE_DOMAIN, get_running_tpr
+from .deploy import LIVE_DOMAIN
 
 EMAIL_ADDRESS = os.environ["GMAIL_ADDR"]
 EMAIL_PASSWORD = os.environ["GMAIL_APP_PW"]
 TO_EMAIL = EMAIL_ADDRESS
+IP = "63.177.45.140"
 
 
 def val_url(url):
@@ -58,39 +59,25 @@ if __name__ == "__main__":
                         pool.map_async(validate, [1]).get(timeout=15)
                     except Exception as e:
                         err_w("Rankless Failed Validation", e)
-                try:
-                    ltpr = pool.map_async(get_running_tpr, [True]).get(timeout=10)[0]
-                except Exception as e:
-                    err_w("Rankless ssh error", e)
-                    time.sleep(10)
-                    continue
             try:
-                rem_bytes, full_pct = ltpr.get_storage_stats()
+                status_dic = requests.get(f"http://{IP}:5566/status").json()
             except:
-                warn("Error getting ssh info", "")
+                warn("Error getting status json", "")
                 continue
+            full_pct = status_dic["fs_use_pct"]
             if full_pct >= 97:
                 warn("Rankless filling", f"getting full {full_pct}")
                 time.sleep(20)
                 continue
-            nfiles = None
-            for _ in range(5):
-                try:
-                    nfiles = ltpr.get_backend_open_files_df().shape[0]
-                    break
-                except:
-                    pass
-            if nfiles is None:
-                warn("Rankless no backend", "nfiles not found")
-                time.sleep(60)
-            elif nfiles > 120:
+            nfiles = status_dic["open_files"]
+            if nfiles > 120:
                 warn("Rankless too many open files", str(nfiles))
                 time.sleep(60)
             if not started:
                 started = True
                 warn(
                     "Rankless monitoring",
-                    f"just started {rem_bytes / 1e6} at {full_pct}% full {nfiles} open",
+                    f"just started at {full_pct}% full {nfiles} open",
                 )
         except Exception as e:
             err_w("Rankless Down", e)
