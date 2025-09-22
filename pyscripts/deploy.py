@@ -509,6 +509,16 @@ server {{
    server_name {inst_domain};
    return 301 https://$server_name$request_uri;
 }}
+
+server {{
+    listen 5566;
+
+    location /status {{
+        default_type application/json;
+        alias /tmp/status_cache.json;
+    }}
+}}
+
         """
         self._send_nginx_conf(nginx_conf, inst_domain)
 
