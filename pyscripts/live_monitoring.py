@@ -15,6 +15,9 @@ EMAIL_ADDRESS = os.environ["GMAIL_ADDR"]
 EMAIL_PASSWORD = os.environ["GMAIL_APP_PW"]
 TO_EMAIL = EMAIL_ADDRESS
 IP = "63.177.45.140"
+WARN_AT_FILES = 300
+WARN_AT_FULL = 92
+WARN_AT_RAM = 1.2
 
 
 def val_url(url):
@@ -70,8 +73,14 @@ if __name__ == "__main__":
                 time.sleep(20)
                 continue
             nfiles = status_dic["open_files"]
-            if nfiles > 120:
+            if nfiles > WARN_AT_FILES:
                 warn("Rankless too many open files", str(nfiles))
+                time.sleep(60)
+            if status_dic["fs_use_pct"] > WARN_AT_FULL:
+                warn("Rankless running out of space", str(status_dic))
+                time.sleep(60)
+            if status_dic["memory_free_gb"] < WARN_AT_RAM:
+                warn("Rankless running out of ram", str(status_dic))
                 time.sleep(60)
             if not started:
                 started = True
