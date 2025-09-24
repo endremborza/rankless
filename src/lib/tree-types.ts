@@ -11,6 +11,16 @@ export type InstRel = {
 	semId: string;
 	name: string;
 };
+
+
+export type RelTypes =
+	| 'paper-fields'
+	| 'citing-fields'
+	| 'paper-topics'
+	| 'collab-nation'
+	| 'paper-journals'
+	| 'paper-authors';
+
 export type View = {
 	name: string;
 	citations: number;
@@ -19,6 +29,7 @@ export type View = {
 	primeRelations: RelatedEntity[];
 	hitPapers: Paper[];
 	similars: SearchResult[];
+	authorNetwork: number[];
 	// sfCoords: [number, number];
 	instRels: InstRel[];
 	startYear: number;

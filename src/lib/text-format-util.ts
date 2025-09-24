@@ -1,5 +1,54 @@
 import type { RootType } from './tree-types';
 
+export class TypeWriterWordChanger {
+	speed: number;
+	stopAtEnd: number;
+	texts: string[];
+	wordInd: number;
+	text: string;
+	direction: number;
+	letterInd: number;
+	runner: number;
+
+
+	constructor(texts: string[]) {
+
+		this.speed = 80;
+		this.stopAtEnd = 480;
+		this.texts = texts;
+		this.wordInd = 0;
+		this.text = texts[this.wordInd];
+
+		this.letterInd = Math.floor(this.text.length / 2);
+		this.direction = +1;
+		this.runner = 0
+	}
+
+	changeText() {
+		if (this.wordInd == this.texts.length) {
+			this.wordInd = 0;
+		}
+		let word = this.texts[this.wordInd];
+		this.text = word.slice(0, this.letterInd);
+		if (this.letterInd == word.length) {
+			clearInterval(this.runner);
+			setTimeout(() => {
+				this.runner = setInterval(this.changeText, this.speed);
+			}, this.stopAtEnd);
+		}
+		this.letterInd += this.direction;
+		if (this.letterInd == word.length) {
+			this.direction = -1;
+		}
+		if (this.letterInd == 0) {
+			this.direction = 1;
+			this.wordInd = this.wordInd + 1;
+		}
+	}
+
+
+}
+
 export function isAsciiOnly(str: string) {
 	return /^[\x01-\x7F]+$/.test(str);
 }
