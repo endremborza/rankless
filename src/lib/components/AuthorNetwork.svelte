@@ -88,9 +88,9 @@
 					cy={positions[i].y}
 					rx={r * 2.4}
 					ry={r}
-					fill="white"
+					fill-opacity="0.8"
 					stroke="black"
-					stroke-width="1.5"
+					stroke-width="1.1"
 				/>
 				<BrokenFittedText
 					text={label}
@@ -114,5 +114,8 @@
 	}
 	select {
 		margin: 0.5rem 0;
+	}
+	ellipse {
+		fill: var(--text-bg-2);
 	}
 </style>
