@@ -53,7 +53,7 @@ pub struct InstRelMarker;
 pub struct Top3PaperSfMarker;
 pub struct Top3CitingSfMarker;
 pub struct Top3PaperTopicMarker;
-pub struct Top5AuthorMarker;
+pub struct Top15AuthorMarker;
 pub struct Top3CitingTopicMarker;
 pub struct Top3JournalMarker;
 pub struct Top3AffCountryMarker;

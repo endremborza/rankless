@@ -80,6 +80,9 @@ type NameStateMap = HashMap<&'static str, NameState>;
 type StatesT = State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>, Arc<InstTrm>)>;
 type StateKv = (&'static str, (NameState, TopResult, EntityDescription));
 
+const AN_N: usize = 25;
+type AuthorNetwork = [[u8; AN_N]; AN_N];
+
 #[derive(Deserialize)]
 struct BasicQ {
     q: Option<String>,
@@ -203,11 +206,14 @@ struct PostAttResultExtension {
     prime_relations: Vec<PostAttRelatedEntity>,
     #[serde(rename = "hitPapers")]
     hit_papers: Box<[PaperOut]>,
+    #[serde(rename = "authorNetwork")]
+    author_network: Option<AuthorNetwork>,
 }
 
 struct PreAttResultExtension {
-    pub prime_relations: Box<[PreAttRelatedEntity]>,
+    prime_relations: Box<[PreAttRelatedEntity]>,
     hit_papers: Box<[usize]>,
+    author_ids: Box<[usize]>,
 }
 
 struct KDItem {
@@ -371,7 +377,11 @@ impl ResultExtension {
 }
 
 impl PreAttResultExtension {
-    fn from_resps<E>(responses: &Box<[SearchResult]>, entif: &RootInterfaces<E>) -> Box<[Self]>
+    fn from_resps<E>(
+        responses: &Box<[SearchResult]>,
+        entif: &RootInterfaces<E>,
+        gets: &Getters,
+    ) -> Box<[Self]>
     where
         E: RootInterfaceable,
     {
@@ -381,6 +391,7 @@ impl PreAttResultExtension {
                 let i = res.dm_id;
                 let mut prime_relations = Vec::new();
                 let mut hit_papers = Vec::new();
+                let mut author_ids = Vec::new();
                 if E::NAME != HitPapers::NAME {
                     add_to_relations::<Subfields, _>(
                         &entif.top_paper_sfc[i],
@@ -403,7 +414,14 @@ impl PreAttResultExtension {
                         3,
                     );
                     add_to_relations::<Sources, _>(&entif.top_journals[i], &mut prime_relations, 4);
-                    add_to_relations::<Authors, _>(&entif.top_authors[i], &mut prime_relations, 5);
+                    add_to_relations::<Authors, _>(
+                        &entif.top_authors[i][0..5],
+                        &mut prime_relations,
+                        5,
+                    );
+                    entif.top_authors.iter().for_each(|(_, aid)| {
+                        author_ids.push(aid.to_usize());
+                    });
                     if let Some(hits) = entif.hit_works.0.get(i) {
                         hits.iter()
                             .take(MAX_HITS)
@@ -413,6 +431,7 @@ impl PreAttResultExtension {
                 Self {
                     prime_relations: prime_relations.into(),
                     hit_papers: hit_papers.into(),
+                    author_ids: author_ids.into_boxed_slice(),
                 }
             })
             .collect()
@@ -464,6 +483,7 @@ impl PreAttResultExtension {
         PostAttResultExtension {
             prime_relations,
             hit_papers,
+            author_network: None,
         }
     }
 }
@@ -548,7 +568,7 @@ impl NameState {
         Self {
             engine: engine.into(),
             exts: ResultExtension::from_resps(&responses, entif),
-            prep_exts: PreAttResultExtension::from_resps(&responses, entif),
+            prep_exts: PreAttResultExtension::from_resps(&responses, entif, gets),
             responses,
             semantic_id_map,
             oa_id_map,

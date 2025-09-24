@@ -1,4 +1,4 @@
-use std::{collections::BinaryHeap, sync::Arc};
+use std::{collections::BinaryHeap, ops::AddAssign, sync::Arc};
 
 use crate::{
     common::{init_empty_slice, MainWorkMarker},
@@ -6,8 +6,8 @@ use crate::{
     gen::{
         a1_entity_mapping::{Authors, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{WorkDois, WorkTopics, WorkYears, WorksNames},
-        derive_links1::WorkSubfields,
-        derive_links2::WorkCountries,
+        derive_links1::{WorkAuthors, WorkSubfields},
+        derive_links2::{AuthorWorks, WorkCountries},
     },
     steps::{
         a1_entity_mapping::{YearInterface, Years},
@@ -20,6 +20,7 @@ use dmove::{
     MarkedAttribute, NamespacedEntity, UnsignedNumber, VarAttBuilder, VariableSizeAttribute, ET,
     MAA,
 };
+use hashbrown::HashMap;
 
 const MIN_FOR_HIT: usize = 40;
 const TOP_TOPIC: usize = 20;
@@ -106,10 +107,35 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
             None
         }
     });
+
+    let w2amap = starc.get_entity_interface::<WorkAuthors, QuickestVBox>();
+    let coauthorships: Vec<Box<[(ET<Authors>, u8)]>> = starc
+        .get_entity_interface::<AuthorWorks, ReadIter>()
+        .enumerate()
+        .map(|(aid, aworks)| {
+            let mut coauthor_map = HashMap::<ET<Authors>, u8>::new();
+            IntoIterator::into_iter(aworks).for_each(|wid| {
+                w2amap.0[wid.to_usize()].iter().for_each(|c_aid| {
+                    if c_aid.to_usize() != aid {
+                        let entry = coauthor_map.entry(*c_aid).or_insert(0);
+                        if *entry <= 200 {
+                            entry.add_assign(1)
+                        }
+                    }
+                });
+            });
+            coauthor_map
+                .into_iter()
+                .collect::<Vec<(ET<Authors>, u8)>>()
+                .into_boxed_slice()
+        })
+        .collect();
+
     starc.add_iter_owned::<Data64MappedEntityBuilder, _, _>(hit_papers, Some("hit-papers"));
     starc.add_iter_owned::<VarAttBuilder, _, _>(hit_names.into_iter(), Some("hit-papers-names"));
     starc.add_iter_owned::<VarAttBuilder, _, _>(hit_dois.into_iter(), Some("hit-papers-dois"));
     starc.add_iter_owned::<VarAttBuilder, _, _>(hit_wids.into_iter(), Some("hit-papers-wids"));
+    starc.add_iter_owned::<VarAttBuilder, _, _>(coauthorships.into_iter(), Some("coauthors"));
     starc.add_iter_owned::<DowncastingBuilder, _, _>(
         hit_ccounts.into_iter(),
         Some("hit-papers-cite-counts"),
