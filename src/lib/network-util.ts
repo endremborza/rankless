@@ -33,6 +33,14 @@ export function radialWeightedLayout(nodes: string[], edgeWeights: number[], siz
 }
 
 
+export function getIndex(i: number, j: number, n) {
+	if (i === j) return -1;
+	if (i > j) [i, j] = [j, i];
+	return i * (n - 1) + j - 1; // i < j
+}
+
+
+
 export function forceDirectedLayoutOld(nodes: string[],
 	edgeWeights: number[],
 	size = 400,
@@ -69,7 +77,7 @@ export function forceDirectedLayoutOld(nodes: string[],
 		// attractive forces (edges)
 		for (let i = 0; i < n; i++) {
 			for (let j = i + 1; j < n; j++) {
-				const idx = i * n + j - 1;
+				const idx = getIndex(i, j, n);
 				const w = edgeWeights[idx] || 0;
 				if (w <= 0) continue;
 
@@ -116,8 +124,7 @@ export function forceDirectedLayout(
 	const k = Math.sqrt(area / n);
 
 	// start in a circle
-	let pos = circleLayout(nodes, size);
-
+	let pos = circleLayout(nodes, edgeWeights, size);
 	for (let iter = 0; iter < iterations; iter++) {
 		const disp = pos.map(() => ({ x: 0, y: 0 }));
 
@@ -138,10 +145,9 @@ export function forceDirectedLayout(
 		// attractive forces
 		for (let i = 0; i < n; i++) {
 			for (let j = i + 1; j < n; j++) {
-				const idx = i * n + j - 1;
+				const idx = getIndex(i, j, n);
 				const w = edgeWeights[idx] || 0;
 				if (w <= 0) continue;
-
 				let dx = pos[i].x - pos[j].x;
 				let dy = pos[i].y - pos[j].y;
 				let dist = Math.sqrt(dx * dx + dy * dy) + 0.01;

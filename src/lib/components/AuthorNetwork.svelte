@@ -1,5 +1,10 @@
 <script lang="ts">
-	import { circleLayout, radialWeightedLayout, forceDirectedLayout } from '$lib/network-util';
+	import {
+		circleLayout,
+		radialWeightedLayout,
+		forceDirectedLayout,
+		getIndex
+	} from '$lib/network-util';
 	import BrokenFittedText from './BrokenFittedText.svelte';
 
 	export let nodes: string[] = [];
@@ -7,14 +12,8 @@
 
 	$: n = nodes.length;
 
-	function getIndex(i: number, j: number) {
-		if (i === j) return -1;
-		if (i > j) [i, j] = [j, i];
-		return i * n + j - 1; // i < j
-	}
-
 	function getWeight(i: number, j: number) {
-		const idx = getIndex(i, j);
+		const idx = getIndex(i, j, n);
 		if (idx < 0 || idx >= edgeWeights.length) return 0;
 		return edgeWeights[idx] || 0;
 	}
@@ -100,6 +99,7 @@
 					y={positions[i].y + r * 0.62}
 					anchor="center"
 					bottomAligned={false}
+					allowRotation={false}
 				/>
 			</g>
 		{/each}
