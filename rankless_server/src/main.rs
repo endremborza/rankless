@@ -80,9 +80,6 @@ type NameStateMap = HashMap<&'static str, NameState>;
 type StatesT = State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>, Arc<InstTrm>)>;
 type StateKv = (&'static str, (NameState, TopResult, EntityDescription));
 
-const AN_N: usize = 25;
-type AuthorNetwork = [[u8; AN_N]; AN_N];
-
 #[derive(Deserialize)]
 struct BasicQ {
     q: Option<String>,
@@ -207,13 +204,13 @@ struct PostAttResultExtension {
     #[serde(rename = "hitPapers")]
     hit_papers: Box<[PaperOut]>,
     #[serde(rename = "authorNetwork")]
-    author_network: Option<AuthorNetwork>,
+    author_network: Box<[u8]>,
 }
 
 struct PreAttResultExtension {
     prime_relations: Box<[PreAttRelatedEntity]>,
     hit_papers: Box<[usize]>,
-    author_ids: Box<[usize]>,
+    author_network: Box<[u8]>,
 }
 
 struct KDItem {
@@ -391,7 +388,7 @@ impl PreAttResultExtension {
                 let i = res.dm_id;
                 let mut prime_relations = Vec::new();
                 let mut hit_papers = Vec::new();
-                let mut author_ids = Vec::new();
+                let mut author_collabs = Vec::new();
                 if E::NAME != HitPapers::NAME {
                     add_to_relations::<Subfields, _>(
                         &entif.top_paper_sfc[i],
@@ -414,14 +411,32 @@ impl PreAttResultExtension {
                         3,
                     );
                     add_to_relations::<Sources, _>(&entif.top_journals[i], &mut prime_relations, 4);
-                    add_to_relations::<Authors, _>(
-                        &entif.top_authors[i][0..5],
-                        &mut prime_relations,
-                        5,
-                    );
-                    entif.top_authors.iter().for_each(|(_, aid)| {
-                        author_ids.push(aid.to_usize());
-                    });
+                    let top_authors = entif.top_authors[i];
+                    add_to_relations::<Authors, _>(&top_authors, &mut prime_relations, 5);
+                    top_authors
+                        .iter()
+                        .take(top_authors.len() - 1)
+                        .enumerate()
+                        .for_each(|(si, (_, said))| {
+                            if *said == 0 {
+                                return;
+                            }
+                            let coll_nums = gets.coathors(*said);
+                            for ti in (si + 1)..top_authors.len() {
+                                let taid = top_authors[ti].1;
+                                if taid == 0 {
+                                    break;
+                                }
+                                let mut coll_num = 0;
+                                for (ctaid, n) in coll_nums {
+                                    if *ctaid == taid {
+                                        coll_num = *n;
+                                        break;
+                                    }
+                                }
+                                author_collabs.push(coll_num);
+                            }
+                        });
                     if let Some(hits) = entif.hit_works.0.get(i) {
                         hits.iter()
                             .take(MAX_HITS)
@@ -431,7 +446,7 @@ impl PreAttResultExtension {
                 Self {
                     prime_relations: prime_relations.into(),
                     hit_papers: hit_papers.into(),
-                    author_ids: author_ids.into_boxed_slice(),
+                    author_network: author_collabs.into_boxed_slice(),
                 }
             })
             .collect()
@@ -483,7 +498,7 @@ impl PreAttResultExtension {
         PostAttResultExtension {
             prime_relations,
             hit_papers,
-            author_network: None,
+            author_network: self.author_network.clone(),
         }
     }
 }
