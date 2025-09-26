@@ -1,13 +1,5 @@
 <script lang="ts">
-	import {
-		circleLayout,
-		radialWeightedLayout,
-		forceDirectedLayout,
-		cytoscapeLayout,
-		sigmaLayout,
-		getIndex
-	} from '$lib/network-util';
-	import BrokenFittedText from './BrokenFittedText.svelte';
+	import { circleLayout, radialWeightedLayout, cytoscapeLayout, getIndex } from '$lib/network-util';
 
 	export let nodes: string[] = [];
 	export let nodeIntensities: number[] = [];
@@ -42,7 +34,7 @@
 	let coolingFactor = 0.99;
 	let minTemp = 1;
 
-	let positions: {x: number; y: number}[] = [];
+	let positions: { x: number; y: number }[] = [];
 
 	let svgWidth: number;
 	let svgHeight: number;
@@ -50,9 +42,9 @@
 	const r = 14;
 	const marge = 0.09;
 	const height = 400;
+	const margify = (x: number) => x * (1 + 2 * marge);
 	$: width = (height * svgWidth) / svgHeight;
-	$: viewBox = `-${width * marge} -${height * marge} ${width * (1 + 2 * marge)} ${height * (1 + 2 * marge)
-		}`;
+	$: viewBox = `-${width * marge} -${height * marge} ${margify(width)} ${margify(height)}`;
 
 	$: options = {
 		height,
@@ -71,91 +63,83 @@
 	const layoutMap = {
 		circle: circleLayout,
 		radial: radialWeightedLayout,
-		force: forceDirectedLayout,
-		cytoscape: cytoscapeLayout,
-		sigma: sigmaLayout
+		cytoscape: cytoscapeLayout
 	};
 	const possFuns = Object.keys(layoutMap);
 	let actFun: (typeof possFuns)[number] = 'cytoscape';
-	$: posFun = layoutMap[actFun];
-	$: positions = posFun(nodes, edgeWeights, options);
+	$: positions = layoutMap[actFun](nodes, edgeWeights, options);
 </script>
 
 {#if n === 0}
-<div>No nodes</div>
+	<div>No nodes</div>
 {:else}
-<div>
-	<label>
-		Layout:
-		<select bind:value={actFun}>
-			{#each possFuns as name}
-			<option value={name}>{name}</option>
+	<div>
+		<label>
+			Layout:
+			<select bind:value={actFun}>
+				{#each possFuns as name}
+					<option value={name}>{name}</option>
+				{/each}
+			</select>
+		</label>
+	</div>
+	<div class="sliders">
+		<label>
+			Gravity: {gravity}
+			<input type="range" min="0" max="1" step="0.01" bind:value={gravity} />
+		</label>
+		<label>
+			Iterations: {numIter}
+			<input type="range" min="1" max="1000" step="1" bind:value={numIter} />
+		</label>
+		<label>
+			Initial Temperature: {initialTemp}
+			<input type="range" min="10" max="2000" step="1" bind:value={initialTemp} />
+		</label>
+		<label>
+			Cooling: {coolingFactor}
+			<input type="range" min="0" max="1" step=".01" bind:value={coolingFactor} />
+		</label>
+		<label>
+			Minimum Temperature: {minTemp}
+			<input type="range" min="1" max="1000" step="1" bind:value={minTemp} />
+		</label>
+	</div>
+
+	<div bind:clientWidth={svgWidth} bind:clientHeight={svgHeight} id="nw-container">
+		<svg {viewBox} role="img" aria-label="Author Network">
+			<!-- edges -->
+			{#each Array(n) as _, i}
+				{#each Array(n) as _, j}
+					{#if j > i && getWeight(i, j) > 0}
+						<line
+							x1={positions[i].x}
+							y1={positions[i].y}
+							x2={positions[j].x}
+							y2={positions[j].y}
+							stroke-width={Math.min(10, 1 + Math.sqrt(getWeight(i, j)))}
+							stroke-opacity={Math.max(
+								0.15,
+								Math.min(0.95, 0.15 + 0.12 * Math.log1p(getWeight(i, j)))
+							)}
+						/>
+					{/if}
+				{/each}
 			{/each}
-		</select>
-	</label>
-</div>
 
-<div class="sliders">
-	<label>
-		Ideal Edge Length: {idealEdgeLength}
-		<input type="range" min="10" max="500" step="10" bind:value={idealEdgeLength} />
-	</label>
-	<label>
-		Node Repulsion: {nodeRepulsion}
-		<input type="range" min="100" max="20000" step="100" bind:value={nodeRepulsion} />
-	</label>
-	<label>
-		Edge Elasticity: {edgeElasticity}
-		<input type="range" min="1" max="500" step="1" bind:value={edgeElasticity} />
-	</label>
-	<label>
-		Nesting Factor: {nestingFactor}
-		<input type="range" min="0.5" max="5" step="0.1" bind:value={nestingFactor} />
-	</label>
-	<label>
-		Gravity: {gravity}
-		<input type="range" min="0" max="1" step="0.01" bind:value={gravity} />
-	</label>
-	<label>
-		Iterations: {numIter}
-		<input type="range" min="1" max="1000" step="1" bind:value={numIter} />
-	</label>
-	<label>
-		Initial Temperature: {initialTemp}
-		<input type="range" min="10" max="2000" step="1" bind:value={initialTemp} />
-	</label>
-	<label>
-		Cooling: {coolingFactor}
-		<input type="range" min="0" max="1" step=".01" bind:value={coolingFactor} />
-	</label>
-	<label>
-		Minimum Temperature: {minTemp}
-		<input type="range" min="1" max="1000" step="1" bind:value={minTemp} />
-	</label>
-</div>
-
-<div bind:clientWidth={svgWidth} bind:clientHeight={svgHeight} id="nw-container">
-	<svg {viewBox} role="img" aria-label="Author Network">
-		<!-- edges -->
-		{#each Array(n) as _, i}
-		{#each Array(n) as _, j}
-		{#if j > i && getWeight(i, j) > 0}
-		<line x1={positions[i].x} y1={positions[i].y} x2={positions[j].x} y2={positions[j].y}
-			stroke-width={Math.min(10, 1 + Math.sqrt(getWeight(i, j)))} stroke-opacity={Math.max( 0.15,
-			Math.min(0.95, 0.15 + 0.12 * Math.log1p(getWeight(i, j))) )} />
-		{/if}
-		{/each}
-		{/each}
-
-		{#each nodes as label, i}
-		<g transform="translate({positions[i].x},{positions[i].y})">
-			<ellipse rx={r} ry={r} stroke-width={(nodeScales[i] || 1) * 1.8} stroke-opacity={nodeScales[i]
-				|| 1} />
-			<text text-anchor="middle" font-size={r} y={r * 0.2}> {lastWord(label)}</text>
-		</g>
-		{/each}
-	</svg>
-</div>
+			{#each nodes as label, i}
+				<g transform="translate({positions[i].x},{positions[i].y})">
+					<ellipse
+						rx={r}
+						ry={r}
+						stroke-width={(nodeScales[i] || 1) * 1.8}
+						stroke-opacity={nodeScales[i] || 1}
+					/>
+					<text text-anchor="middle" font-size={r} y={r * 0.2}> {lastWord(label)}</text>
+				</g>
+			{/each}
+		</svg>
+	</div>
 {/if}
 
 <style>

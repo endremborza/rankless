@@ -43,7 +43,7 @@ export class TopTreeLoader {
 
 	async setTree(i: number, j: number, treeId: number) {
 		let rootType = this.tops[i].name as tt.RootType;
-		console.log(i, j, treeId, rootType, this.tops[i].entities.length)
+		// console.log(i, j, treeId, rootType, this.tops[i].entities.length)
 		this.rootName = this.tops[i].entities[j].name;
 		this.prefixText = SEMANTIC_CONF[rootType]?.start || '';
 		const year = tf.getDefaultYear(rootType);

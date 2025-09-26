@@ -36,5 +36,9 @@
 		"typescript": "^5.0.0",
 		"vite": "^5.0.0"
 	},
-	"type": "module"
+	"type": "module",
+	"dependencies": {
+		"cytoscape": "^3.33.1",
+		"cytoscape-fcose": "^2.2.0"
+	}
 }
