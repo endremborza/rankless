@@ -59,13 +59,13 @@ pub const MIN_YEAR: usize = MAX_YEAR - ERA_SIZE + 1;
 pub type EraRec = [u32; ERA_SIZE];
 pub type TopNRec<E, const N: usize> = [(u32, ET<E>); N];
 pub type Top3Rec<E> = TopNRec<E, 3>;
-pub type Top15Rec<E> = TopNRec<E, 15>;
+pub type Top15Rec<E> = TopNRec<E, 25>;
 
 type YT = ET<Years>;
 type IT = ET<Institutions>;
 type SfDistRec<E> = [ET<MAA<E, WorkCountMarker>>; Subfields::N];
 type Top3RelExtender<E, SE> = TopNRelExtender<3, E, SE, HashMap<ET<E>, u32>>;
-type Top15HRelExtender<E, SE> = TopNRelExtender<15, E, SE, HashMap<ET<E>, Vec<u32>>>;
+type Top15HRelExtender<E, SE> = TopNRelExtender<25, E, SE, HashMap<ET<E>, f64>>;
 
 #[derive(Debug, ByteFixArrayInterface)]
 pub struct InstRelation {
@@ -336,9 +336,11 @@ where
         self.top3_journals.add(*bends.wtopsource.get(wu).unwrap());
         let wcs = bends.wciting.get(&wu).unwrap();
         let wlen = wcs.len();
-        for ship_id in bends.wships.get(&wu).unwrap() {
+        let coauths = bends.wships.get(&wu).unwrap();
+        let ccn = coauths.len() as f64;
+        for ship_id in coauths {
             self.top5_authors
-                .add((bends.shipa[ship_id.to_usize()], wlen));
+                .add((bends.shipa[ship_id.to_usize()], wlen as f64 / ccn));
         }
         for c_wid in wcs {
             for sf_id in bends.wsubfields.get(&c_wid.to_usize()).unwrap() {
@@ -637,19 +639,19 @@ where
     }
 }
 
-impl<E> TopPrepper<E> for HashMap<E::T, Vec<u32>>
+impl<E> TopPrepper<E> for HashMap<E::T, f64>
 where
     E: Entity,
     ET<E>: UnsignedNumber,
 {
-    type K = (ET<E>, usize);
+    type K = (ET<E>, f64);
     fn add(&mut self, k: Self::K) {
-        self.entry(k.0).or_insert(Vec::new()).push(k.1 as u32);
+        self.entry(k.0).or_insert(0.0).add_assign(k.1);
     }
 
     fn to_v(self) -> Vec<(usize, u32)> {
         self.into_iter()
-            .map(|mut e| (e.0.to_usize(), get_h_index_and_sort(&mut e.1)))
+            .map(|e| (e.0.to_usize(), e.1.round() as u32))
             .collect()
     }
 }
