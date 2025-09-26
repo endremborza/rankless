@@ -8,10 +8,10 @@
 	$: n = nodes.length;
 	$: nodeScales = scaledNodeScalars(nodeIntensities, nodes);
 
-	function getWeight(i: number, j: number) {
+	function getWeight(i: number, j: number, n: number, weights: number[]) {
 		const idx = getIndex(i, j, n);
-		if (idx < 0 || idx >= edgeWeights.length) return 0;
-		return edgeWeights[idx] || 0;
+		if (idx < 0 || idx >= weights.length) return 0;
+		return weights[idx] || 0;
 	}
 
 	function lastWord(word: string) {
@@ -111,16 +111,16 @@
 			<!-- edges -->
 			{#each Array(n) as _, i}
 				{#each Array(n) as _, j}
-					{#if j > i && getWeight(i, j) > 0}
+					{#if j > i && getWeight(i, j, n, edgeWeights) > 0}
 						<line
 							x1={positions[i].x}
 							y1={positions[i].y}
 							x2={positions[j].x}
 							y2={positions[j].y}
-							stroke-width={Math.min(10, 1 + Math.sqrt(getWeight(i, j)))}
+							stroke-width={Math.min(10, 1 + Math.sqrt(getWeight(i, j, n, edgeWeights)))}
 							stroke-opacity={Math.max(
 								0.15,
-								Math.min(0.95, 0.15 + 0.12 * Math.log1p(getWeight(i, j)))
+								Math.min(0.95, 0.15 + 0.12 * Math.log1p(getWeight(i, j, n, edgeWeights)))
 							)}
 						/>
 					{/if}
