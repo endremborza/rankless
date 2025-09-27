@@ -166,7 +166,7 @@
 		font-weight: 600;
 	}
 
-	label {
+	.sliders > label {
 		display: flex;
 		justify-content: space-between;
 		width: 520px;
