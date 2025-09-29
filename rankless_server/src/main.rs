@@ -411,25 +411,28 @@ impl PreAttResultExtension {
                         3,
                     );
                     add_to_relations::<Sources, _>(&entif.top_journals[i], &mut prime_relations, 4);
-                    let top_authors = entif.top_authors[i];
-                    add_to_relations::<Authors, _>(&top_authors, &mut prime_relations, 5);
-                    top_authors
+                    const TA_RTYPE: u8 = 5;
+                    add_to_relations::<Authors, _>(
+                        &entif.top_authors[i],
+                        &mut prime_relations,
+                        TA_RTYPE,
+                    );
+                    let author_dm_ids: Vec<u32> = prime_relations
                         .iter()
-                        .take(top_authors.len() - 1)
+                        .filter(|e| e.rel_type == TA_RTYPE)
+                        .map(|e| e.dm_id)
+                        .collect();
+                    author_dm_ids
+                        .iter()
+                        .take(author_dm_ids.len() - 1)
                         .enumerate()
-                        .for_each(|(si, (_, said))| {
-                            if *said == 0 {
-                                return;
-                            }
+                        .for_each(|(si, said)| {
                             let coll_nums = gets.coathors(*said);
-                            for ti in (si + 1)..top_authors.len() {
-                                let taid = top_authors[ti].1;
-                                if taid == 0 {
-                                    break;
-                                }
+                            for ti in (si + 1)..author_dm_ids.len() {
+                                let taid = author_dm_ids[ti];
                                 let mut coll_num = 0;
                                 for (ctaid, n) in coll_nums {
-                                    if *ctaid == taid {
+                                    if ctaid.to_usize() == taid.to_usize() {
                                         coll_num = *n;
                                         break;
                                     }
@@ -509,7 +512,6 @@ where
     T: UnsignedNumber,
 {
     arr.iter().for_each(|e| {
-        let eu = e.1.to_usize() as u32;
         let etype_id = ETYPE_ENC
             .iter()
             .enumerate()
@@ -517,10 +519,11 @@ where
             .next()
             .unwrap()
             .0 as u8;
-        if eu != 0 {
+        let dm_id = e.1.to_usize() as u32;
+        if dm_id != 0 {
             prels.push(PreAttRelatedEntity {
                 rel_type,
-                dm_id: eu,
+                dm_id,
                 etype_id,
                 score: e.0,
             })
