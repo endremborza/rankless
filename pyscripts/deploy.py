@@ -408,7 +408,6 @@ class Transper:
                 out.append((name, [int(port)]))
             else:
                 out[-1][1].append(int(port))
-        print(out)
         confiter = [
             FrontendServiceConf(ports[0], len(ports), name) for name, ports in out
         ]
@@ -651,6 +650,13 @@ upstream {BE_UPSTREAM} {{
         for service in self._iter_conf_services(live_conf):
             service.stop()
 
+    def rolling_restart_live_fe(self):
+        _stage_conf, live_conf = self.get_fe_systems()
+        for service in self._iter_conf_services(live_conf):
+            service.restart()
+            time.sleep(20)
+            service.status()
+
     def reload_systemctl(self):
         self.ssh.prun("sudo systemctl daemon-reload")
 
@@ -890,6 +896,10 @@ export const VERSION = '{next_v}';
     subprocess.call(["git", "push", "origin", "tag", next_v])
     # annoted, within the ancestors tags
     # git push --follow-tags
+
+
+def rolling_restart_live_fe():
+    get_running_tpr(True).rolling_restart_live_fe()
 
 
 def bump_v_minor():
