@@ -14,11 +14,18 @@ from ccl_science_data.gen import EntC
 from tqdm import tqdm
 
 test_sites = {
-    EntC.AUTHORS: ["cesar-a-hidalgo"],
-    EntC.SUBFIELDS: ["information-systems"],
-    EntC.COUNTRIES: ["hun"],
-    EntC.SOURCES: ["american-economic-review"],
-    EntC.INSTITUTIONS: ["budapesti-corvinus-egyetem"],  # "upenn"],
+    EntC.AUTHORS: ["cesar-a-hidalgo", "balazs-lengyel"],
+    EntC.SUBFIELDS: [
+        "information-systems",
+        "general-economics-econometrics-and-finance",
+    ],
+    EntC.COUNTRIES: ["hun", "swe", "chi"],
+    EntC.SOURCES: [
+        "american-economic-review",
+        "ann-neurol",
+        "papeis-avulsos-de-zoologia",
+    ],
+    EntC.INSTITUTIONS: ["budapesti-corvinus-egyetem", "mta-ok", "udec"],  # "upenn"],
 }
 
 do_sites = test_sites
@@ -38,11 +45,11 @@ def dump_bms():
         resp_df = pd.read_csv(bm_dir / "resps.csv.gz")
 
         agg_dic = (
-            resp_df.groupby("eid")[["size", "time"]]
-            .agg(["mean", "median", p99])
+            resp_df.groupby(["eid", "run"])
+            .agg({"time": ["mean", "median", p99], "size": "mean"})
             .melt(ignore_index=False)
             .reset_index()
-            .assign(id=lambda df: df.iloc[:, :3].apply("_".join, axis=1))
+            .assign(id=lambda df: df.iloc[:, :4].astype(str).apply("_".join, axis=1))
             .set_index("id")["value"]
             .to_dict()
         )
@@ -58,7 +65,7 @@ def dump_bms():
         ).assign(size=lambda df: df["size"].astype(int))
 
         recs.append(json.loads((bm_dir / "stats.json").read_text()) | agg_dic)
-    pd.DataFrame(recs).to_csv("bm-perf.csv")
+    pd.DataFrame(recs).to_csv("bm-perf.csv", index=None)
 
 
 if __name__ == "__main__":
@@ -71,24 +78,32 @@ if __name__ == "__main__":
     # subprocess.Popen(["make", "restart-service"]).wait()
     subprocess.Popen(["cargo", "build", "--release"]).wait()
 
+    running = False
     try:
-        requests.get(be_url + "/specs")
-        raise RuntimeError("backend is running")
+        requests.get(be_url + "/specs").json()
+        running = True
     except:
         pass
 
+    if running:
+        raise RuntimeError("backend is running")
+
+    logp = Path("bm.log")
+    logp.unlink(missing_ok=True)
+    log_h = logp.open("wb")
+
     p = subprocess.Popen(
         ["target/release/rankless-server", oa_root.as_posix()],
-        stdout=subprocess.PIPE,
+        stdout=log_h,
         stderr=subprocess.DEVNULL,
     )
-
     print("waiting for setup")
-    time.sleep(10)
+    time.sleep(2)
     pbar = tqdm()
     while True:
         try:
             specs = requests.get(be_url + "/specs")
+            assert specs.ok
         except:
             pbar.update()
             time.sleep(3)
@@ -97,37 +112,41 @@ if __name__ == "__main__":
         if specs.ok:
             break
         time.sleep(3)
-    pbar.close()
-
     proc = psutil.Process(p.pid)
     mem_info = proc.memory_info()
     rec = {"rss": mem_info.rss, "vms": mem_info.vms}
+    pbar.close()
+
     resp_recs = []
     rcounts = {k: len(v) for k, v in specs.json()["specs"].items()}
     totals = {k: c * len(do_sites.get(k, [])) for k, c in rcounts.items()}
 
-    for rt, counts in rcounts.items():
-        pbar = tqdm(desc=rt, total=totals[rt])
-        for sem_id in do_sites.get(rt, []):
-            for tid in range(counts):
-                resp = requests.get(f"{be_url}/trees/{rt}/{sem_id}?tid={tid}")
-                assert resp.ok, f"{be_url}/trees/{rt}/{sem_id}?tid={tid}"
-                resp_recs.append(
-                    {
-                        "time": resp.elapsed.total_seconds(),
-                        "size": len(resp.content),
-                        "sid": sem_id,
-                        "tid": tid,
-                        "eid": rt,
-                    }
-                )
-                pbar.update()
-        pbar.close()
+    for run_id in range(1, 3):
+        for rt, counts in rcounts.items():
+            pbar = tqdm(desc=rt, total=totals[rt])
+            for sem_id in do_sites.get(rt, []):
+                for tid in range(counts):
+                    url = f"{be_url}/trees/{rt}/{sem_id}?tid={tid}"
+                    resp = requests.get(url)
+                    assert resp.ok, url
+                    resp_recs.append(
+                        {
+                            "time": resp.elapsed.total_seconds(),
+                            "size": len(resp.content),
+                            "sid": sem_id,
+                            "tid": tid,
+                            "eid": rt,
+                            "run": run_id,
+                        }
+                    )
+                    pbar.update()
+            pbar.close()
     p.kill()
-    out, err = p.communicate()
-    setup = re.compile(r"set-up in (\d+)s").findall(out.decode())[0]
+    log_h.close()
+    logs = logp.read_text()
+    setup = re.compile(r"set-up in (\d+)s").findall(logs)[0]
     speed_recs = re.compile(r"([a-z]+)\((\d+)\:(\d+)/.*\)\: (.*) in (\d+)").findall(
-        out.decode()
+        logs
     )
     pd.DataFrame(speed_recs, columns=["et", "eid", "tid", "proc", "dur"]).to_csv(
         f"{rev_dir}/logs.csv.gz", index=False
