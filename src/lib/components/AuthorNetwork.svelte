@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { circleLayout, radialWeightedLayout, cytoscapeLayout, getIndex } from '$lib/network-util';
+	import { fade } from 'svelte/transition';
 
 	export let nodes: string[] = [];
 	export let nodeIntensities: number[] = [];
@@ -107,38 +108,40 @@
 	</div>
 
 	<div bind:clientWidth={svgWidth} bind:clientHeight={svgHeight} id="nw-container">
-		<svg {viewBox} role="img" aria-label="Author Network">
-			<!-- edges -->
-			{#each Array(n) as _, i}
-				{#each Array(n) as _, j}
-					{#if j > i && getWeight(i, j, n, edgeWeights) > 0}
-						<line
-							x1={positions[i].x}
-							y1={positions[i].y}
-							x2={positions[j].x}
-							y2={positions[j].y}
-							stroke-width={Math.min(10, 1 + Math.sqrt(getWeight(i, j, n, edgeWeights)))}
-							stroke-opacity={Math.max(
-								0.15,
-								Math.min(0.95, 0.15 + 0.12 * Math.log1p(getWeight(i, j, n, edgeWeights)))
-							)}
-						/>
-					{/if}
+		{#if svgWidth != undefined}
+			<svg {viewBox} role="img" aria-label="Author Network" transition:fade>
+				<!-- edges -->
+				{#each Array(n) as _, i}
+					{#each Array(n) as _, j}
+						{#if j > i && getWeight(i, j, n, edgeWeights) > 0}
+							<line
+								x1={positions[i].x}
+								y1={positions[i].y}
+								x2={positions[j].x}
+								y2={positions[j].y}
+								stroke-width={Math.min(10, 1 + Math.sqrt(getWeight(i, j, n, edgeWeights)))}
+								stroke-opacity={Math.max(
+									0.15,
+									Math.min(0.95, 0.15 + 0.12 * Math.log1p(getWeight(i, j, n, edgeWeights)))
+								)}
+							/>
+						{/if}
+					{/each}
 				{/each}
-			{/each}
 
-			{#each nodes as label, i}
-				<g transform="translate({positions[i].x},{positions[i].y})">
-					<ellipse
-						rx={r}
-						ry={r}
-						stroke-width={(nodeScales[i] || 1) * 1.8}
-						stroke-opacity={nodeScales[i] || 1}
-					/>
-					<text text-anchor="middle" font-size={r} y={r * 0.2}> {lastWord(label)}</text>
-				</g>
-			{/each}
-		</svg>
+				{#each nodes as label, i}
+					<g transform="translate({positions[i].x},{positions[i].y})">
+						<ellipse
+							rx={r}
+							ry={r}
+							stroke-width={(nodeScales[i] || 1) * 1.8}
+							stroke-opacity={nodeScales[i] || 1}
+						/>
+						<text text-anchor="middle" font-size={r} y={r * 0.2}> {lastWord(label)}</text>
+					</g>
+				{/each}
+			</svg>
+		{/if}
 	</div>
 {/if}
 
