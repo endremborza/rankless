@@ -55,20 +55,20 @@ if __name__ == "__main__":
         try:
             with multiprocessing.Pool(1) as pool:
                 try:
-                    pool.map_async(validate, [1]).get(timeout=6)
+                    pool.map_async(validate, [1]).get(timeout=10)
                 except Exception as e1:
                     print("missed 6sec timeout")
                     try:
-                        pool.map_async(validate, [1]).get(timeout=15)
+                        pool.map_async(validate, [1]).get(timeout=20)
                     except Exception as e:
                         err_w("Rankless Failed Validation", e)
             try:
                 status_dic = requests.get(f"http://{IP}:5566/status").json()
             except:
-                warn("Error getting status json", "")
+                warn("Rankless failed getting status json", "")
                 continue
             full_pct = status_dic["fs_use_pct"]
-            if full_pct >= 97:
+            if full_pct >= 97.5:
                 warn("Rankless filling", f"getting full {full_pct}")
                 time.sleep(20)
                 continue
