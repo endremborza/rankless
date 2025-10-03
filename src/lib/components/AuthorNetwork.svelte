@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { circleLayout, radialWeightedLayout, cytoscapeLayout, getIndex } from '$lib/network-util';
-	import { fade } from 'svelte/transition';
+	import { fade, scale } from 'svelte/transition';
 
 	export let nodes: string[] = [];
 	export let nodeIntensities: number[] = [];
@@ -63,49 +63,65 @@
 
 	const layoutMap = {
 		circle: circleLayout,
-		radial: radialWeightedLayout,
-		cytoscape: cytoscapeLayout
+		// radial: radialWeightedLayout,
+		force: cytoscapeLayout
 	};
 	const possFuns = Object.keys(layoutMap);
-	let actFun: (typeof possFuns)[number] = 'cytoscape';
+	let actFun: (typeof possFuns)[number] = 'force';
 	$: positions = layoutMap[actFun](nodes, edgeWeights, options);
+	let showControls = true;
 </script>
 
 {#if n === 0}
 	<div>No nodes</div>
 {:else}
-	<div>
-		<label>
-			Layout:
-			<select bind:value={actFun}>
-				{#each possFuns as name}
-					<option value={name}>{name}</option>
-				{/each}
-			</select>
-		</label>
-	</div>
-	<div class="sliders">
-		<label>
-			Gravity: {gravity}
-			<input type="range" min="0" max="1" step="0.01" bind:value={gravity} />
-		</label>
-		<label>
-			Iterations: {numIter}
-			<input type="range" min="1" max="1000" step="1" bind:value={numIter} />
-		</label>
-		<label>
-			Initial Temperature: {initialTemp}
-			<input type="range" min="10" max="2000" step="1" bind:value={initialTemp} />
-		</label>
-		<label>
-			Cooling: {coolingFactor}
-			<input type="range" min="0" max="1" step=".01" bind:value={coolingFactor} />
-		</label>
-		<label>
-			Minimum Temperature: {minTemp}
-			<input type="range" min="1" max="1000" step="1" bind:value={minTemp} />
-		</label>
-	</div>
+	{#if showControls}
+		<div class="nw-layout-control" transition:scale>
+			<div>
+				<label>
+					Layout:
+					<select bind:value={actFun}>
+						{#each possFuns as name}
+							<option value={name}>{name}</option>
+						{/each}
+					</select>
+				</label>
+			</div>
+			{#if actFun == 'force'}
+				<div class="sliders">
+					<label>
+						Gravity: {gravity}
+						<input type="range" min="0" max="1" step="0.01" bind:value={gravity} />
+					</label>
+					<label>
+						Iterations: {numIter}
+						<input type="range" min="1" max="1000" step="1" bind:value={numIter} />
+					</label>
+					<label>
+						Initial Temperature: {initialTemp}
+						<input type="range" min="10" max="2000" step="1" bind:value={initialTemp} />
+					</label>
+					<label>
+						Cooling: {coolingFactor}
+						<input type="range" min="0" max="1" step=".01" bind:value={coolingFactor} />
+					</label>
+					<label>
+						Minimum Temperature: {minTemp}
+						<input type="range" min="1" max="1000" step="1" bind:value={minTemp} />
+					</label>
+				</div>
+			{/if}
+		</div>
+		<button class="close-button" on:click={() => (showControls = false)}>&#10006;</button>
+	{:else}
+		<button
+			on:click={() => {
+				showControls = true;
+			}}
+		>
+			Controls</button
+		>
+	{/if}
 
 	<div bind:clientWidth={svgWidth} bind:clientHeight={svgHeight} id="nw-container">
 		{#if svgWidth != undefined}
