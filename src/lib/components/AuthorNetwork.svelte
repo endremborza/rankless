@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { circleLayout, radialWeightedLayout, cytoscapeLayout, getIndex } from '$lib/network-util';
-	import { fade, scale } from 'svelte/transition';
+	import { fade, fly, scale, slide } from 'svelte/transition';
 
 	export let nodes: string[] = [];
 	export let nodeIntensities: number[] = [];
@@ -40,11 +40,11 @@
 	let svgWidth: number;
 	let svgHeight: number;
 
-	const r = 14;
 	const marge = 0.09;
 	const height = 400;
 	const margify = (x: number) => x * (1 + 2 * marge);
 	$: width = (height * svgWidth) / svgHeight;
+	$: r = Math.min(14, width / 20);
 	$: viewBox = `-${width * marge} -${height * marge} ${margify(width)} ${margify(height)}`;
 
 	$: options = {
@@ -75,53 +75,49 @@
 {#if n === 0}
 	<div>No nodes</div>
 {:else}
-	{#if showControls}
-		<div class="nw-layout-control" transition:scale>
-			<div>
-				<label>
-					Layout:
-					<select bind:value={actFun}>
-						{#each possFuns as name}
-							<option value={name}>{name}</option>
-						{/each}
-					</select>
-				</label>
-			</div>
-			{#if actFun == 'force'}
-				<div class="sliders">
+	<div class="controls-wrapper">
+		<button class="toggle-button" on:click={() => (showControls = !showControls)}>
+			{showControls ? '✕ Close' : '⚙ Controls'}
+		</button>
+		<div class="panel {showControls ? 'open' : ''}">
+			<div class="panel-inner">
+				<div>
 					<label>
-						Gravity: {gravity}
-						<input type="range" min="0" max="1" step="0.01" bind:value={gravity} />
-					</label>
-					<label>
-						Iterations: {numIter}
-						<input type="range" min="1" max="1000" step="1" bind:value={numIter} />
-					</label>
-					<label>
-						Initial Temperature: {initialTemp}
-						<input type="range" min="10" max="2000" step="1" bind:value={initialTemp} />
-					</label>
-					<label>
-						Cooling: {coolingFactor}
-						<input type="range" min="0" max="1" step=".01" bind:value={coolingFactor} />
-					</label>
-					<label>
-						Minimum Temperature: {minTemp}
-						<input type="range" min="1" max="1000" step="1" bind:value={minTemp} />
+						Layout:
+						<select bind:value={actFun}>
+							{#each possFuns as name}
+								<option value={name}>{name}</option>
+							{/each}
+						</select>
 					</label>
 				</div>
-			{/if}
+				{#if actFun == 'force'}
+					<div class="sliders" transition:slide>
+						<label>
+							<span>Gravity: {gravity}</span>
+							<input type="range" min="0" max="1" step="0.01" bind:value={gravity} />
+						</label>
+						<label>
+							<span>Iterations: {numIter}</span>
+							<input type="range" min="1" max="1000" step="1" bind:value={numIter} />
+						</label>
+						<label>
+							<span>Initial Temp: {initialTemp}</span>
+							<input type="range" min="10" max="2000" step="1" bind:value={initialTemp} />
+						</label>
+						<label>
+							<span>Cooling: {coolingFactor}</span>
+							<input type="range" min="0" max="1" step=".01" bind:value={coolingFactor} />
+						</label>
+						<label>
+							<span>Min Temp: {minTemp}</span>
+							<input type="range" min="1" max="1000" step="1" bind:value={minTemp} />
+						</label>
+					</div>
+				{/if}
+			</div>
 		</div>
-		<button class="close-button" on:click={() => (showControls = false)}>&#10006;</button>
-	{:else}
-		<button
-			on:click={() => {
-				showControls = true;
-			}}
-		>
-			Controls</button
-		>
-	{/if}
+	</div>
 
 	<div bind:clientWidth={svgWidth} bind:clientHeight={svgHeight} id="nw-container">
 		{#if svgWidth != undefined}
@@ -167,10 +163,6 @@
 		height: 100%;
 	}
 
-	select {
-		margin: 0.5rem 0;
-	}
-
 	ellipse {
 		fill: var(--text-bg-2);
 		stroke: rgb(var(--color-range-20));
@@ -185,20 +177,79 @@
 		font-weight: 600;
 	}
 
+	#nw-container {
+		width: 100%;
+		height: 75svh;
+	}
+
+	:root {
+		--panel-bg: var(--text-bg, #fff);
+		--panel-fg: var(--color-text, #000);
+		--panel-border: var(--text-bg-2, #ccc);
+		--button-bg: var(--text-bg-3, #0077ff);
+		--button-fg: var(--highlight-text, #fff);
+	}
+
+	input[type='range'] {
+		width: 100%;
+		margin-top: 0.3rem;
+	}
+
 	.sliders > label {
 		display: flex;
-		justify-content: space-between;
-		width: 520px;
+		flex-direction: column;
+		font-size: 0.9rem;
+	}
+
+	.toggle-button {
+		background: var(--button-bg, #ccc);
+		color: var(--button-fg, #000);
+		border: none;
+		border-radius: var(--borad);
+		padding: 0.5rem 1rem;
+		cursor: pointer;
+		transition: opacity 0.2s ease;
+		margin-bottom: var(--unified-margin);
+	}
+	.toggle-button:hover {
+		opacity: 0.8;
+	}
+
+	.panel {
+		overflow: hidden;
+		max-height: 0;
+		opacity: 0;
+		transition: max-height 0.35s ease, opacity 0.25s ease;
+	}
+
+	.panel.open {
+		max-height: 800px; /* big enough to fit contents */
+		opacity: 1;
+	}
+
+	.panel-inner {
+		padding: 1rem 0;
+		background: var(--panel-bg, #fff);
+		color: var(--panel-fg, #000);
+		border: 1px solid var(--panel-border, #ccc);
+		border-radius: 0.75rem;
+		padding: 1rem;
 	}
 
 	.sliders {
 		display: flex;
-		gap: 20px;
-		flex-wrap: wrap;
+		flex-direction: column;
+		gap: 1rem;
+		margin-top: 1rem;
 	}
-
-	#nw-container {
-		width: 100%;
-		height: 75svh;
+	@media (min-width: 600px) {
+		.sliders {
+			flex-direction: row;
+			flex-wrap: wrap;
+			justify-content: space-evenly;
+		}
+		.sliders > label {
+			width: 240px;
+		}
 	}
 </style>
