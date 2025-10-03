@@ -191,6 +191,10 @@
 		}
 	}
 
+	#head-row {
+		margin-top: 80px;
+	}
+
 	#name-block {
 		flex: 8;
 	}
