@@ -472,7 +472,8 @@ impl PreAttResultExtension {
                     if let Some(_) = rstate.semantic_id_map.get(&att.semantic_id) {
                         semantic_id = att.semantic_id.clone();
                     } else {
-                        return None;
+                        semantic_id = "".to_string();
+                        // return None;
                     }
                 }
                 Some(PostAttRelatedEntity {
