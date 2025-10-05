@@ -89,9 +89,8 @@ type DecoratedRelated = {
 
 function semFunMaker(prefix: string, fun: (r: DecoratedRelated) => string) {
 	return (rels: tt.RelatedEntity[]) =>
-		prefix + commaAndjoin([...rels.map((r) => fun(toDecorated(r)))]);
+		prefix + commaAndjoin([...rels.slice(0, 10).map((r) => fun(toDecorated(r)))]);
 }
-
 
 function toDecorated(r: tt.RelatedEntity): DecoratedRelated {
 	let bold = `<b>${r.name}</b>`;
