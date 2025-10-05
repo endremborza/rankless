@@ -201,18 +201,22 @@
 
 	.nw-title {
 		display: flex;
+		gap: 12px;
 		flex-wrap: wrap;
 		justify-content: space-around;
+		margin-bottom: var(--unified-margin);
 	}
 
 	.nw-title > h3 {
 		flex: 1 1 11;
 		text-align: center;
+		vertical-align: middle;
+		margin: auto;
 	}
 
 	.nw-title > button {
 		flex: 0 1 1;
-		min-width: 75px;
+		width: 115px;
 	}
 
 	.sliders > label {
@@ -229,7 +233,6 @@
 		padding: 0.5rem 1rem;
 		cursor: pointer;
 		transition: opacity 0.2s ease;
-		margin-bottom: var(--unified-margin);
 	}
 	.toggle-button:hover {
 		opacity: 0.8;
