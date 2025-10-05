@@ -5,6 +5,7 @@
 	export let nodes: string[] = [];
 	export let nodeIntensities: number[] = [];
 	export let edgeWeights: number[] = [];
+	export let rootName: strin = 'Person';
 
 	$: n = nodes.length;
 	$: nodeScales = scaledNodeScalars(nodeIntensities, nodes);
@@ -69,16 +70,19 @@
 	const possFuns = Object.keys(layoutMap);
 	let actFun: (typeof possFuns)[number] = 'force';
 	$: positions = layoutMap[actFun](nodes, edgeWeights, options);
-	let showControls = true;
+	let showControls = false;
 </script>
 
 {#if n === 0}
 	<div>No nodes</div>
 {:else}
 	<div class="controls-wrapper">
-		<button class="toggle-button" on:click={() => (showControls = !showControls)}>
-			{showControls ? '✕ Close' : '⚙ Controls'}
-		</button>
+		<div class="nw-title">
+			<h3>Co-authorship network of notable co-authors of {rootName}</h3>
+			<button class="toggle-button" on:click={() => (showControls = !showControls)}>
+				{showControls ? '✕ Close' : '⚙ Controls'}
+			</button>
+		</div>
 		<div class="panel {showControls ? 'open' : ''}">
 			<div class="panel-inner">
 				<div>
@@ -195,6 +199,26 @@
 		margin-top: 0.3rem;
 	}
 
+	.nw-title {
+		display: flex;
+		gap: 12px;
+		flex-wrap: wrap;
+		justify-content: space-around;
+		margin-bottom: var(--unified-margin);
+	}
+
+	.nw-title > h3 {
+		flex: 1 1 11;
+		text-align: center;
+		vertical-align: middle;
+		margin: auto;
+	}
+
+	.nw-title > button {
+		flex: 0 1 1;
+		width: 115px;
+	}
+
 	.sliders > label {
 		display: flex;
 		flex-direction: column;
@@ -209,7 +233,6 @@
 		padding: 0.5rem 1rem;
 		cursor: pointer;
 		transition: opacity 0.2s ease;
-		margin-bottom: var(--unified-margin);
 	}
 	.toggle-button:hover {
 		opacity: 0.8;
