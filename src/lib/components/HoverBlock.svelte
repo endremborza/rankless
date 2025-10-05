@@ -8,9 +8,3 @@
 		<slot />
 	</div>
 {/if}
-
-<style>
-	div {
-		position: absolute;
-	}
-</style>
