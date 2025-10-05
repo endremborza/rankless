@@ -297,13 +297,13 @@ class ServiceMan:
 
 class Transper:
     def __init__(self, sshc: SSHrer):
-        for _ in range(10):
+        for _ in range(4):
             try:
                 sshc.run("echo working")
                 break
             except Exception as e:
                 print(e)
-                time.sleep(10)
+                time.sleep(5)
         self.ssh = sshc
         self.inst_home = sshc.run("pwd").strip()
         self.deploy_dir = self.inst_home + "/rankless-deploy"
