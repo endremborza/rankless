@@ -1,6 +1,8 @@
 <script lang="ts">
-	import { circleLayout, radialWeightedLayout, cytoscapeLayout, getIndex } from '$lib/network-util';
-	import { fade, fly, scale, slide } from 'svelte/transition';
+	import { circleLayout, cytoscapeLayout, getIndex } from '$lib/network-util';
+	import { fade, slide } from 'svelte/transition';
+	import HoverI from './HoverI.svelte';
+	import HoverBlock from './HoverBlock.svelte';
 
 	export let nodes: string[] = [];
 	export let nodeIntensities: number[] = [];
@@ -26,12 +28,18 @@
 		return weights.map((e) => e / (maxW * 1.2) + 0.2);
 	}
 
+	function getFontSize(label: string, r) {
+		if (lastWord(label).length > 10) return 0.6 * r;
+		if (lastWord(label).length > 6) return 0.8 * r;
+		return r;
+	}
+
 	let idealEdgeLength = 100;
 	let nodeRepulsion = 4000;
 	let edgeElasticity = 100;
 	let nestingFactor = 1.2;
 	let gravity = 0.05;
-	let numIter = 10;
+	let numIter = 100;
 	let initialTemp = 1000;
 	let coolingFactor = 0.99;
 	let minTemp = 1;
@@ -71,6 +79,7 @@
 	let actFun: (typeof possFuns)[number] = 'force';
 	$: positions = layoutMap[actFun](nodes, edgeWeights, options);
 	let showControls = false;
+	let showInfo = false;
 </script>
 
 {#if n === 0}
@@ -78,10 +87,20 @@
 {:else}
 	<div class="controls-wrapper">
 		<div class="nw-title">
-			<h3>Co-authorship network of notable co-authors of {rootName}</h3>
+			<h3>
+				Co-authorship network of notable co-authors of {rootName}
+				<HoverI bind:hoverToggle={showInfo} />
+			</h3>
 			<button class="toggle-button" on:click={() => (showControls = !showControls)}>
 				{showControls ? '✕ Close' : '⚙ Controls'}
 			</button>
+			<HoverBlock show={showInfo} style="width: 600px; max-width: 90%; top: 80px; left: 5%">
+				This figure shows the co-authorship network connecting the top 25 collaborators of {rootName}.
+				A scholar is included among the top collaborators of {rootName} based on the total number of
+				citations received by their joint publications. Edges between collaborators represent the number
+				of papers they have co-authored together. {rootName} is excluded from the visualization to improve
+				readability, since they are connected to all nodes in the network.
+			</HoverBlock>
 		</div>
 		<div class="panel {showControls ? 'open' : ''}">
 			<div class="panel-inner">
@@ -153,7 +172,9 @@
 							stroke-width={(nodeScales[i] || 1) * 1.8}
 							stroke-opacity={nodeScales[i] || 1}
 						/>
-						<text text-anchor="middle" font-size={r} y={r * 0.2}> {lastWord(label)}</text>
+						<text text-anchor="middle" font-size={getFontSize(label, r)} y={r * 0.2}>
+							{lastWord(label)}</text
+						>
 					</g>
 				{/each}
 			</svg>
@@ -179,6 +200,7 @@
 
 	text {
 		font-weight: 600;
+		border: solid black 1px;
 	}
 
 	#nw-container {
@@ -200,6 +222,7 @@
 	}
 
 	.nw-title {
+		position: relative;
 		display: flex;
 		gap: 12px;
 		flex-wrap: wrap;

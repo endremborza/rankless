@@ -8,6 +8,7 @@ export function getIndex(i: number, j: number, n: number) {
 export function circleLayout(nodes: string[], edgeWeights: number[], { height = 400, width = 400 }) {
 	const cx = width / 2;
 	const cy = height / 2;
+	let radius = Math.min(cy, cx) * 0.8
 	return nodes.map((_, i) => {
 		const angle = (i / nodes.length) * Math.PI * 2 - Math.PI / 2;
 		return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius };
