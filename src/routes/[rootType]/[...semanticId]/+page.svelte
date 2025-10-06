@@ -54,7 +54,7 @@
 	$: indsByEntityType = tf.getTreeIndsByEntityType(data.treeSpecs.specs[data.conf.rootType]);
 	$: showsCountry = indsByEntityType.countries.length > 0;
 	$: showsSubfields = indsByEntityType.subfields.length > 0;
-	let showAuthorNetwork = data.conf.rootType == 'authors';
+	$: showAuthorNetwork = data.conf.rootType == 'authors';
 	$: authorStats = getAuthorStats(data.view);
 </script>
 
