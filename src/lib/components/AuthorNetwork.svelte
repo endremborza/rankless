@@ -198,6 +198,12 @@
 		stroke: rgb(var(--color-range-40));
 	}
 
+	@media (prefers-color-scheme: dark) {
+		line {
+			stroke: rgb(var(--color-range-95));
+		}
+	}
+
 	text {
 		font-weight: 600;
 		border: solid black 1px;
