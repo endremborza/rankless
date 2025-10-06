@@ -88,7 +88,7 @@
 	<div class="controls-wrapper">
 		<div class="nw-title">
 			<h3>
-				Co-authorship network of notable co-authors of {rootName}
+				Co-authorship network of co-authors of {rootName}
 				<HoverI bind:hoverToggle={showInfo} />
 			</h3>
 			<button class="toggle-button" on:click={() => (showControls = !showControls)}>
