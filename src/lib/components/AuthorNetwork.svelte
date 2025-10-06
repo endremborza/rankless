@@ -154,10 +154,10 @@
 								y1={positions[i].y}
 								x2={positions[j].x}
 								y2={positions[j].y}
-								stroke-width={Math.min(10, 1 + Math.sqrt(getWeight(i, j, n, edgeWeights)))}
+								stroke-width={Math.min(r / 2, 1 + Math.sqrt(getWeight(i, j, n, edgeWeights)))}
 								stroke-opacity={Math.max(
-									0.15,
-									Math.min(0.95, 0.15 + 0.12 * Math.log1p(getWeight(i, j, n, edgeWeights)))
+									0.25,
+									Math.min(0.95, 0.25 + 0.15 * Math.log1p(getWeight(i, j, n, edgeWeights)))
 								)}
 							/>
 						{/if}
