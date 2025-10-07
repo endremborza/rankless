@@ -13,7 +13,8 @@ use axum::{
 };
 use dmove::{
     para::{set_and_notify, wait_for_data_copy, AcTuple},
-    para_multi_gen_run, Entity, InitEmpty, NamespacedEntity, UnsignedNumber, ET,
+    para_multi_gen_run, Entity, EntityMutableMapperBackend, InitEmpty, NamespacedEntity,
+    UnsignedNumber, ET,
 };
 use hashbrown::HashMap;
 use kd_tree::{KdPoint, KdTree};
@@ -46,7 +47,8 @@ use rankless_trees::{
         Getters, MetaMapGetter, NodeInterfaceable, NodeInterfaces, RootInterfaceable,
         RootInterfaces,
     },
-    io::{ShallowQ, ShallowTreesResponse, TreeQ, TreeResponse, TreeRunManager},
+    io::{ShallowQ, ShallowTreesResponse, TreeQ, TreeResponse, TreeRunManager, WT},
+    path_finder::{author_to_work_paths, RefTree},
     AttributeLabelUnion,
 };
 
@@ -164,6 +166,17 @@ struct PaperOut {
     citations: u32,
     #[serde(rename = "yearlyCites", skip_serializing_if = "Option::is_none")]
     yearly_cites: Option<Box<[u32]>>,
+}
+
+#[derive(Serialize, Clone)]
+struct PathToPaperResp {
+    paths: RefTree,
+    #[serde(rename = "relWorks")]
+    rel_works: Vec<WT>,
+    #[serde(rename = "nameMap")]
+    name_map: HashMap<WT, String>,
+    #[serde(rename = "doiMap")]
+    doi_map: HashMap<WT, String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -785,6 +798,7 @@ async fn main() {
         .route("/slice/:etype/:from/:to", get(slice_get))
         .route("/views/:etype/:semantic_id", get(view_get))
         .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))
+        .route("/path-to-paper/:asem/:doi", get(path_to_paper))
         .route("/trees/:root_type/:semantic_id", get(tree_get))
         .route("/shallows/:root_type", get(shallows_get))
         .with_state((ns_map_arc, satts, tree_manager.clone()));
@@ -946,6 +960,47 @@ async fn sem_id_get(
         }
     }
     Json([out])
+}
+
+async fn path_to_paper(
+    Path((author_sem_id, doi)): Path<(String, String)>,
+    states: StatesT,
+) -> Json<PathToPaperResp> {
+    let mut paths = RefTree::Leaf;
+    let mut rel_works = Vec::new();
+    let mut name_map: HashMap<WT, String> = HashMap::new();
+    let mut doi_map: HashMap<WT, String> = HashMap::new();
+    let astates = states.0 .0.get(Authors::NAME).unwrap();
+    let wstates = states.0 .0.get(HitPapers::NAME).unwrap();
+    let gets = &states.0 .2.state.gets;
+    let mut wnames = states.0 .2.get_file_handle();
+    let mut wdois = states.0 .2.get_dois_file_handle();
+    let wid_adder = |wid: WT| {
+        if !name_map.contains_key(&wid) {
+            if let Some(wname) = wnames.get_via_mut(&wid.to_usize()) {
+                name_map.insert(wid, wname);
+            }
+        }
+        if !doi_map.contains_key(&wid) {
+            if let Some(doi) = wdois.get_via_mut(&wid.to_usize()) {
+                doi_map.insert(wid, doi);
+            }
+        }
+    };
+    if let Some(aid_sv) = astates.semantic_id_map.get(&author_sem_id) {
+        if let Some(wid_sv) = wstates.semantic_id_map.get(&doi) {
+            let (rtree, aworks) =
+                author_to_work_paths(gets, wid_sv.dm_id, aid_sv.dm_id, 4, wid_adder);
+            rel_works = aworks;
+            paths = rtree;
+        }
+    }
+    Json(PathToPaperResp {
+        paths,
+        name_map,
+        doi_map,
+        rel_works,
+    })
 }
 
 async fn name_get(

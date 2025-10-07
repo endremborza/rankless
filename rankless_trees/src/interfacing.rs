@@ -17,8 +17,8 @@ use rankless_rs::{
         a2_init_atts::{
             AuthorRawCites, AuthorRawWorkCounts, AuthorWikiSlugs, AuthorshipAuthor,
             AuthorshipInstitutions, CitiesNames, CountryCodes, InstCities, InstCountries, InstLocs,
-            SourceYearQs, TopicSubfields, WorkAuthorships, WorkSources, WorkTopics, WorkYears,
-            WorksNames,
+            SourceYearQs, TopicSubfields, WorkAuthorships, WorkDois, WorkReferences, WorkSources,
+            WorkTopics, WorkYears, WorksNames,
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
         derive_links2::{WorkCitingCounts, WorkCountries, WorkTopSource},
@@ -52,6 +52,7 @@ pub struct Getters {
     ifs: Interfaces,
     pub stowage: Arc<Stowage>,
     pub wn_locators: Arc<Locators<WorksNames>>,
+    pub doi_locators: Arc<Locators<WorkDois>>,
     pub inst_oa: Box<[BigId]>,
     pub work_oa: Box<[BigId]>,
     pub hit_papers: Box<[BigId]>,
@@ -253,6 +254,7 @@ make_interfaces!(
     hit_names -> HitPapersNames,
     hit_dois -> HitPapersDois,
     hit_yearlies -> HitPaperYearlyCitations,
+    wor_refs -> WorkReferences,
     country_insts -> CountryInsts;
     sqy >> SourceYearQs
 );
@@ -350,11 +352,14 @@ impl Getters {
         let path = stowage.path_from_ns(WorksNames::NS);
         let wn_locators =
             <Locators<WorksNames> as BackendLoading<WorksNames>>::load_backend(&path).into();
+        let doi_locators =
+            <Locators<WorkDois> as BackendLoading<WorkDois>>::load_backend(&path).into();
         let ifs = Interfaces::new(stowage.clone());
         println!("loaded full Getters");
         Self {
             ifs,
             wn_locators,
+            doi_locators,
             stowage,
             inst_oa,
             work_oa,
@@ -381,6 +386,8 @@ impl Getters {
         let path = stowage.path_from_ns(WorksNames::NS);
         let wn_locators =
             <Locators<WorksNames> as BackendLoading<WorksNames>>::load_backend(&path).into();
+        let doi_locators =
+            <Locators<WorkDois> as BackendLoading<WorkDois>>::load_backend(&path).into();
         let mut ifs = Interfaces::fake();
         //TODO a hack for testing
         ifs.year = YearInterface::iter().collect();
@@ -388,6 +395,7 @@ impl Getters {
         Self {
             stowage: Arc::new(stowage),
             wn_locators,
+            doi_locators,
             ifs,
             inst_oa: Vec::new().into(),
             work_oa: (0..20000000).collect::<Vec<BigId>>().into(),

@@ -16,7 +16,10 @@ use serde::{Deserialize, Serialize};
 
 use rankless_rs::{
     env_consts::START_YEAR,
-    gen::{a1_entity_mapping::Works, a2_init_atts::WorksNames},
+    gen::{
+        a1_entity_mapping::Works,
+        a2_init_atts::{WorkDois, WorksNames},
+    },
     steps::{
         a1_entity_mapping::{N_PERS, POSSIBLE_YEAR_FILTERS, YBT},
         derive_links1::WorkPeriods,
@@ -507,6 +510,24 @@ where
         }
     }
 
+    pub fn get_file_handle(&self) -> ManFileHandle {
+        let parent = self
+            .state
+            .gets
+            .stowage
+            .path_from_ns(<WorksNames as NamespacedEntity>::NS);
+        VattReadingArcMap::<WorksNames>::from_locator(self.state.gets.wn_locators.clone(), &parent)
+    }
+
+    pub fn get_dois_file_handle(&self) -> VattReadingArcMap<WorkDois> {
+        let parent = self
+            .state
+            .gets
+            .stowage
+            .path_from_ns(<WorkDois as NamespacedEntity>::NS);
+        VattReadingArcMap::<WorkDois>::from_locator(self.state.gets.doi_locators.clone(), &parent)
+    }
+
     pub fn fake() -> Arc<Self> {
         let gets = Getters::fake();
         let atts = HashMap::new();
@@ -551,15 +572,6 @@ where
             data = cvar.wait(data).unwrap();
         }
         return data.pop_back().unwrap();
-    }
-
-    fn get_file_handle(&self) -> ManFileHandle {
-        let parent = self
-            .state
-            .gets
-            .stowage
-            .path_from_ns(<WorksNames as NamespacedEntity>::NS);
-        VattReadingArcMap::<WorksNames>::from_locator(self.state.gets.wn_locators.clone(), &parent)
     }
 }
 

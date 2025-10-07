@@ -21,6 +21,15 @@ export type RelTypes =
 	| 'paper-journals'
 	| 'paper-authors';
 
+export type RefTree = 'Leaf' | { Node: Record<number, RefTree> };
+
+export type PathResp = {
+	paths: RefTree;
+	doiMap: Record<number, string>;
+	nameMap: Record<number, string>;
+	relWorks: number[];
+};
+
 export type View = {
 	name: string;
 	citations: number;
