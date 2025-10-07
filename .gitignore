@@ -19,3 +19,4 @@ __pycache__
 /reports
 *.profraw
 *.img
+.ipynb_checkpoints
