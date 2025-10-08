@@ -99,7 +99,7 @@ export function idFromBd(bd: tt.BreakdownSpec): string {
 }
 
 export function urlFriendlify(s: string) {
-	return s.replace("/", "%2F")
+	return s.replaceAll("/", "%2F")
 }
 
 export function viewBeUrl(root: string, conf: tt.FullTreeConfig): string {
