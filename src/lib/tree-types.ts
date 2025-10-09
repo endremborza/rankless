@@ -23,8 +23,14 @@ export type RelTypes =
 
 export type RefTree = 'Leaf' | { Node: Record<number, RefTree> };
 
+export type PaperPaths = {
+	tree: RefTree,
+	doi: string,
+	title: string,
+}
+
 export type PathResp = {
-	paths: RefTree;
+	paths: PaperPaths[];
 	doiMap: Record<number, string>;
 	nameMap: Record<number, string>;
 	relWorks: number[];

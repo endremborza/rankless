@@ -1,6 +1,9 @@
 <script lang="ts">
-	import type { PathResp, RefTree } from '$lib/tree-types';
-	export let data: PathResp;
+	import type { RefTree } from '$lib/tree-types';
+	export let tree: RefTree;
+	export let nameMap: Record<number, string>;
+	export let doiMap: Record<number, string>;
+	export let relWorks: number[];
 
 	type Seen = Record<number, { level: number; parents: Set<number> }>;
 
@@ -26,63 +29,53 @@
 		return seen;
 	}
 	function getLevels(seen: Seen) {
-		let levels = [];
+		let levels: { k: number }[][] = [];
 		for (const [k, v] of Object.entries(seen)) {
 			let d = v.level;
 			if (levels[d] == undefined) levels[d] = [];
-			levels[d].push({ k });
+			levels[d].push({ k: parseInt(k) });
 		}
 		return levels;
 	}
-	function getClass(k: string, relWorks: number[], highlightSet: Set<number>) {
+	function getClass(k: number, relWorks: number[], highlightSet: Set<number>) {
 		let classes = [];
-		let ki = parseInt(k);
+		let ki = k;
 		if (relWorks.includes(ki)) classes.push('relevant');
 		if (highlightSet.has(ki)) classes.push('highlighted');
 		return classes.join(' ');
 	}
-	$: seen = getSeen(data.paths);
+	$: seen = getSeen(tree);
 	$: levels = getLevels(seen);
-	$: highlightSet = seen[highlighted]?.parents || new Set();
+	$: highlightSet = seen[highlighted || 0]?.parents || new Set();
 	let highlighted: undefined | number;
+	console.log(tree);
 </script>
 
 <!-- svelte-ignore a11y-mouse-events-have-key-events -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
-<div class="container">
-	{#if data.paths != 'Leaf'}
-		<h1>Paths</h1>
-		{#each levels as level}
-			<div class="level">
-				{#each level as { k }}
-					<div
-						class="paper {getClass(k, data.relWorks, highlightSet)}"
-						on:mouseover={() => {
-							highlighted = k;
-						}}
-						on:mouseleave={() => {
-							highlighted = undefined;
-						}}
-					>
-						{#if data.doiMap[k] != undefined}
-							<a href="https://doi.org/{data.doiMap[k]}">{data.nameMap[k]}</a>
-						{:else}
-							<span>{data.nameMap[k]}</span>
-						{/if}
-					</div>
-				{/each}
+{#each levels as level}
+	<div class="level">
+		{#each level as { k }}
+			<div
+				class="paper {getClass(k, relWorks, highlightSet)}"
+				on:mouseover={() => {
+					highlighted = k;
+				}}
+				on:mouseleave={() => {
+					highlighted = undefined;
+				}}
+			>
+				{#if doiMap[k] != undefined}
+					<a href="https://doi.org/{doiMap[k]}">{nameMap[k]}</a>
+				{:else}
+					<span>{nameMap[k]}</span>
+				{/if}
 			</div>
 		{/each}
-	{/if}
-</div>
+	</div>
+{/each}
 
 <style>
-	.container {
-		max-width: 1200px;
-		padding-top: 100px;
-		margin: auto;
-	}
-
 	.level {
 		margin-bottom: 20px;
 		box-sizing: border-box;

@@ -4,19 +4,25 @@
 	export let nameMap: Record<number, string>;
 	export let doiMap: Record<number, string>;
 	export let relWorks: number[];
+
+	function getClass(k, relWorks) {
+		return relWorks.includes(parseInt(k)) ? 'relevant' : 'irrelevant';
+	}
 </script>
 
 <ul>
 	{#each Object.entries(refTree.Node) as [k, v]}
 		<li>
-			<div class={relWorks.includes(parseInt(k)) ? 'irrelevant' : 'relevant'}>
-				{#if doiMap[k] != undefined}
-					<a href="https://doi.org/{doiMap[k]}">{nameMap[k]}</a>
-				{:else}
-					<span>{nameMap[k]}</span>
-				{/if}
-			</div>
-
+			{#if doiMap[k] != undefined}
+				<a href="https://doi.org/{doiMap[k]}" class={getClass(k, relWorks)}>{nameMap[k]}</a>
+			{:else}
+				<span class={getClass(k, relWorks)}>{nameMap[k]}</span>
+			{/if}
+			{k}
+			{relWorks.includes(parseInt(k))}
+			{#if relWorks.includes(parseInt(k))}
+				THIS
+			{/if}
 			{#if v != 'Leaf'}
 				<svelte:self refTree={v} {nameMap} {doiMap} {relWorks} />
 			{/if}
@@ -28,9 +34,10 @@
 	.relevant {
 		font-size: 1.2rem;
 		font-weight: 800;
+		padding: 4px;
 	}
 	.irrelevant {
 		font-size: 0.8rem;
-		font-weight: 800;
+		font-weight: 400;
 	}
 </style>
