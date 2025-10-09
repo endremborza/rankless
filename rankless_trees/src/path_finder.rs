@@ -50,17 +50,32 @@ pub fn author_to_work_paths<F>(
     widu: usize,
     aidu: usize,
     depth: usize,
-    mut wid_fun: F,
+    wid_fun: &mut F,
 ) -> (RefTree, Vec<WT>)
 where
     F: FnMut(WT),
 {
     let aid = aidu as ET<Authors>;
+    let wid = widu as WT;
     let aworks: HashSet<WT> = HashSet::from_iter(gets.aworks(aid).iter().map(|e| *e));
     let mut used_aworks: HashSet<WT> = HashSet::new();
+    let res = extend_used_aworks_get_results(gets, wid, depth, wid_fun, &aworks, &mut used_aworks);
+    (res, used_aworks.into_iter().collect())
+}
+
+pub fn extend_used_aworks_get_results<F>(
+    gets: &Getters,
+    wid: WT,
+    depth: usize,
+    wid_fun: &mut F,
+    aworks: &HashSet<WT>,
+    used_aworks: &mut HashSet<WT>,
+) -> RefTree
+where
+    F: FnMut(WT),
+{
     let ffun = |rwid: WT| aworks.contains(&rwid);
     let mut results = Vec::new();
-    let wid = widu as WT;
     find_paths(gets, &mut results, wid, depth, Vec::new(), &ffun);
     let mut ref_tree_map = HashMap::new();
     let mut inner_wid_fun = |wid: WT| {
@@ -72,10 +87,7 @@ where
     for path in &results {
         insert_path(&mut ref_tree_map, path, &mut inner_wid_fun);
     }
-    (
-        RefTree::Node(Box::from(ref_tree_map)),
-        used_aworks.into_iter().collect(),
-    )
+    RefTree::Node(Box::from(ref_tree_map))
 }
 
 fn insert_path<F>(map: &mut HashMap<WT, RefTree>, path: &[WT], f: &mut F)

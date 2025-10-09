@@ -170,7 +170,14 @@ struct PaperOut {
 
 #[derive(Serialize, Clone)]
 struct PathToPaperResp {
-    paths: RefTree,
+    tree: RefTree,
+    doi: String,
+    title: String,
+}
+
+#[derive(Serialize, Clone)]
+struct PathToPapersResp {
+    paths: Vec<PathToPaperResp>,
     #[serde(rename = "relWorks")]
     rel_works: Vec<WT>,
     #[serde(rename = "nameMap")]
@@ -371,10 +378,6 @@ impl ResultExtension {
                     }
                 }
             }
-            // let get_rem = |arr: &Box<[EraRec]>| arr[i].iter().skip(sy_ind).map(|e| *e).collect();
-            // let yearly_cites = get_rem(&entif.yearly_cites);
-            // let yearly_papers = get_rem(&entif.yearly_papers);
-
             out.push(Self {
                 start_year: YearInterface::reverse(sy_ind as ET<Years>),
                 yearly_cites: entif.yearly_cites[i].clone(),
@@ -798,7 +801,7 @@ async fn main() {
         .route("/slice/:etype/:from/:to", get(slice_get))
         .route("/views/:etype/:semantic_id", get(view_get))
         .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))
-        .route("/path-to-paper/:asem/:doi", get(path_to_paper))
+        .route("/path-to-paper/:asem/:taid/:is_author", get(path_to_papers))
         .route("/trees/:root_type/:semantic_id", get(tree_get))
         .route("/shallows/:root_type", get(shallows_get))
         .with_state((ns_map_arc, satts, tree_manager.clone()));
@@ -962,20 +965,22 @@ async fn sem_id_get(
     Json([out])
 }
 
-async fn path_to_paper(
-    Path((author_sem_id, doi)): Path<(String, String)>,
+async fn path_to_papers(
+    Path((author_sem_id, target_id, is_author)): Path<(String, String, bool)>,
     states: StatesT,
-) -> Json<PathToPaperResp> {
-    let mut paths = RefTree::Leaf;
+) -> Json<PathToPapersResp> {
+    const DEPTH: usize = 2;
+    let mut paths = Vec::new();
     let mut rel_works = Vec::new();
     let mut name_map: HashMap<WT, String> = HashMap::new();
     let mut doi_map: HashMap<WT, String> = HashMap::new();
     let astates = states.0 .0.get(Authors::NAME).unwrap();
-    let wstates = states.0 .0.get(HitPapers::NAME).unwrap();
+    let hp_states = states.0 .0.get(HitPapers::NAME).unwrap();
     let gets = &states.0 .2.state.gets;
     let mut wnames = states.0 .2.get_file_handle();
     let mut wdois = states.0 .2.get_dois_file_handle();
-    let wid_adder = |wid: WT| {
+    let mut wids = Vec::new();
+    let mut wid_adder = |wid: WT| {
         if !name_map.contains_key(&wid) {
             if let Some(wname) = wnames.get_via_mut(&wid.to_usize()) {
                 name_map.insert(wid, wname);
@@ -987,15 +992,32 @@ async fn path_to_paper(
             }
         }
     };
-    if let Some(aid_sv) = astates.semantic_id_map.get(&author_sem_id) {
-        if let Some(wid_sv) = wstates.semantic_id_map.get(&doi) {
-            let (rtree, aworks) =
-                author_to_work_paths(gets, wid_sv.dm_id, aid_sv.dm_id, 4, wid_adder);
+    let mut add_doi = |doi: String, aid: usize| {
+        if let Some(hp_sv) = hp_states.semantic_id_map.get(&doi) {
+            let wid = gets.hit_papers[hp_sv.dm_id].to_usize();
+            let (tree, aworks) = author_to_work_paths(gets, wid, aid, DEPTH, &mut wid_adder);
             rel_works = aworks;
-            paths = rtree;
+            let title = "".to_string();
+            paths.push(PathToPaperResp { tree, doi, title });
+            wids.push(wid);
+        }
+    };
+    if let Some(aid_sv) = astates.semantic_id_map.get(&author_sem_id) {
+        if is_author {
+            if let Some(taid_sv) = astates.semantic_id_map.get(&target_id) {
+                for hit_paper in astates.prep_exts[taid_sv.result_id].hit_papers.iter() {
+                    let doi = String::from_utf8(gets.hit_dois(*hit_paper).to_vec()).unwrap();
+                    add_doi(doi, aid_sv.dm_id);
+                }
+            }
+        } else {
+            add_doi(target_id, aid_sv.dm_id);
         }
     }
-    Json(PathToPaperResp {
+    for (wid, path) in wids.iter().zip(paths.iter_mut()) {
+        path.title = wnames.get_via_mut(wid).unwrap().to_string();
+    }
+    Json(PathToPapersResp {
         paths,
         name_map,
         doi_map,
