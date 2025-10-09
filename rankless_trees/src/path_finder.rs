@@ -25,7 +25,7 @@ fn find_paths<F>(
         if *refed_wid == wid {
             continue;
         }
-        if filter_fun(wid) {
+        if filter_fun(*refed_wid) {
             let mut new_line = so_far.clone();
             new_line.push(*refed_wid);
             results.push(new_line);
@@ -74,7 +74,7 @@ where
     }
     (
         RefTree::Node(Box::from(ref_tree_map)),
-        aworks.into_iter().collect(),
+        used_aworks.into_iter().collect(),
     )
 }
 
