@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type * as tt from '$lib/tree-types';
-	import * as tf from '$lib/tree-functions';
 	import { BE_REMOTE_URL } from '$lib/constants';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -11,7 +10,15 @@
 
 	let srcAid = data.srcAid;
 	let targetAid = data.targetAid;
-	let hits: tt.PathResp = { paths: [], doiMap: {}, nameMap: {}, relWorks: [] };
+	const emptyResp = {
+		paths: [],
+		doiMap: {},
+		nameMap: {},
+		relWorks: [],
+		srcName: '',
+		targetName: ''
+	};
+	let hits: tt.PathResp = emptyResp;
 
 	let srcResults: SearchResult[] = [];
 	let targetResults: SearchResult[] = [];
@@ -25,14 +32,13 @@
 	async function reloadPaths() {
 		if (!srcAid || !targetAid || srcAid === 'src' || targetAid === 'target') return;
 		goto(`/path-to-person/${srcAid}/${targetAid}`, { replaceState: true, noScroll: true });
-
 		const beBase = BE_REMOTE_URL;
 		const paToPeUrl = `${beBase}/path-to-paper/${srcAid}/${targetAid}/true`;
 		try {
 			hits = await fetch(paToPeUrl).then((r) => r.json());
 		} catch (e) {
 			console.error(e);
-			hits = { paths: [], doiMap: {}, nameMap: {}, relWorks: [] };
+			hits = emptyResp;
 		}
 	}
 
@@ -101,24 +107,42 @@
 		</div>
 	</div>
 
+	{#if hits.targetName != '' && hits.srcName != ''}
+		<h1>Citation Connections of Hit Papers by {hits.targetName} citing papers by {hits.srcName}</h1>
+		<span
+			>Papers authored by {hits.srcName} in the citation tree are
+			<span class="relevant">highlighted</span>. Hovering a paper, highlights which papers are
+			citing it the level above</span
+		>
+	{/if}
+
 	{#each hits.paths as hit}
 		{#if hit.tree != 'Leaf' && Object.keys(hit.tree.Node).length > 0}
-			<h2><a href="https://doi.org/{hit.doi}" target="_blank">{hit.title}</a></h2>
-			<RefTreeTable
-				tree={hit.tree}
-				relWorks={hits.relWorks}
-				doiMap={hits.doiMap}
-				nameMap={hits.nameMap}
-			/>
+			<div class="hit shadowy padded marged">
+				<h2><a href="https://doi.org/{hit.doi}" target="_blank">{hit.title}</a> ({hit.year})</h2>
+				<RefTreeTable
+					tree={hit.tree}
+					relWorks={hits.relWorks}
+					doiMap={hits.doiMap}
+					nameMap={hits.nameMap}
+				/>
+			</div>
 		{/if}
 	{/each}
 </div>
 
 <style>
+	h1 {
+		margin-bottom: 18px;
+	}
+
 	.container {
-		max-width: 800px;
+		max-width: 1200px;
 		padding-top: 80px;
 		margin: auto;
+	}
+	.hit > h2 {
+		margin-top: 0px;
 	}
 	.control {
 		display: flex;
@@ -152,5 +176,9 @@
 	}
 	.result:hover {
 		background: var(--text-bg-2);
+	}
+
+	.relevant {
+		background-color: var(--text-bg-3);
 	}
 </style>

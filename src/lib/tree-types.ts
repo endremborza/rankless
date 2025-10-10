@@ -27,6 +27,7 @@ export type PaperPaths = {
 	tree: RefTree,
 	doi: string,
 	title: string,
+	year: number,
 }
 
 export type PathResp = {
@@ -34,6 +35,8 @@ export type PathResp = {
 	doiMap: Record<number, string>;
 	nameMap: Record<number, string>;
 	relWorks: number[];
+	srcName: string;
+	targetName: string;
 };
 
 export type View = {

@@ -48,12 +48,18 @@
 	$: levels = getLevels(seen);
 	$: highlightSet = seen[highlighted || 0]?.parents || new Set();
 	let highlighted: undefined | number;
-	console.log(tree);
+	const levelDescs = [
+		'Directly Cited',
+		'Cited by Directly Cited',
+		'Cited by Above',
+		'Cited by Above'
+	];
 </script>
 
 <!-- svelte-ignore a11y-mouse-events-have-key-events -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
-{#each levels as level}
+{#each levels as level, i}
+	<h4>{levelDescs[i]}</h4>
 	<div class="level">
 		{#each level as { k }}
 			<div
@@ -83,7 +89,7 @@
 		flex-wrap: wrap;
 		gap: 6px;
 		padding: 4px;
-		border-bottom: solid pink 1px;
+		border-bottom: solid var(--highlight-text) 2px;
 	}
 
 	.paper {
