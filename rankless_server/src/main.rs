@@ -173,11 +173,16 @@ struct PathToPaperResp {
     tree: RefTree,
     doi: String,
     title: String,
+    year: RawYear,
 }
 
 #[derive(Serialize, Clone)]
 struct PathToPapersResp {
     paths: Vec<PathToPaperResp>,
+    #[serde(rename = "srcName")]
+    src_name: String,
+    #[serde(rename = "targetName")]
+    target_name: String,
     #[serde(rename = "relWorks")]
     rel_works: Vec<WT>,
     #[serde(rename = "nameMap")]
@@ -998,30 +1003,45 @@ async fn path_to_papers(
             let (tree, mut aworks) = author_to_work_paths(gets, wid, aid, DEPTH, &mut wid_adder);
             rel_works.append(&mut aworks);
             let title = "".to_string();
-            paths.push(PathToPaperResp { tree, doi, title });
+            paths.push(PathToPaperResp {
+                tree,
+                doi,
+                title,
+                year: 0,
+            });
             wids.push(wid);
         }
     };
+    let mut src_name = "".to_string();
+    let mut target_name = "".to_string();
     if let Some(aid_sv) = astates.semantic_id_map.get(&author_sem_id) {
+        src_name = astates.responses[aid_sv.result_id].name.to_string();
         if is_author {
             if let Some(taid_sv) = astates.semantic_id_map.get(&target_id) {
+                target_name = astates.responses[taid_sv.result_id].name.clone();
                 for hit_paper in astates.prep_exts[taid_sv.result_id].hit_papers.iter() {
                     let doi = String::from_utf8(gets.hit_dois(*hit_paper).to_vec()).unwrap();
                     add_doi(doi, aid_sv.dm_id);
                 }
             }
         } else {
-            add_doi(target_id, aid_sv.dm_id);
+            if let Some(hp_sv) = hp_states.semantic_id_map.get(&target_id) {
+                target_name = hp_states.responses[hp_sv.result_id].name.clone();
+                add_doi(target_id, aid_sv.dm_id);
+            }
         }
     }
     for (wid, path) in wids.iter().zip(paths.iter_mut()) {
         path.title = wnames.get_via_mut(wid).unwrap().to_string();
+        path.year = YearInterface::reverse(*gets.year(wid));
     }
     Json(PathToPapersResp {
         paths,
         name_map,
         doi_map,
         rel_works,
+        src_name,
+        target_name,
     })
 }
 
