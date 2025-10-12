@@ -63,7 +63,7 @@ if __name__ == "__main__":
                     except Exception as e:
                         err_w("Rankless Failed Validation", e)
             try:
-                status_dic = requests.get(f"http://{IP}:5566/status").json()
+                status_dic = requests.get(f"http://{IP}:5566/status", timeout=10).json()
             except:
                 warn("Rankless failed getting status json", "")
                 continue
