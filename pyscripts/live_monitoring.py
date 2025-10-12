@@ -52,12 +52,13 @@ def err_w(subject, e: Exception):
 if __name__ == "__main__":
     started = False
     while True:
+        if started:
+            time.sleep(30)
         try:
             with multiprocessing.Pool(1) as pool:
                 try:
                     pool.map_async(validate, [1]).get(timeout=10)
                 except Exception as e1:
-                    print("missed 6sec timeout")
                     try:
                         pool.map_async(validate, [1]).get(timeout=20)
                     except Exception as e:
@@ -70,24 +71,19 @@ if __name__ == "__main__":
             full_pct = status_dic["fs_use_pct"]
             if full_pct >= 97.5:
                 warn("Rankless filling", f"getting full {full_pct}")
-                time.sleep(20)
                 continue
             nfiles = status_dic["open_files"]
             if nfiles > WARN_AT_FILES:
                 warn("Rankless too many open files", str(nfiles))
-                time.sleep(60)
             if status_dic["fs_use_pct"] > WARN_AT_FULL:
                 warn("Rankless running out of space", str(status_dic))
-                time.sleep(60)
             if status_dic["memory_free_gb"] < WARN_AT_RAM:
                 warn("Rankless running out of ram", str(status_dic))
-                time.sleep(60)
             if not started:
                 started = True
                 warn(
                     "Rankless monitoring",
-                    f"just started at {full_pct}% full {nfiles} open",
+                    f"just started at {status_dic}",
                 )
         except Exception as e:
             err_w("Rankless Down", e)
-        time.sleep(20)
