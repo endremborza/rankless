@@ -4,6 +4,9 @@ from pathlib import Path
 import pandas as pd
 from ccl_science_data.common import EntC, GenReader, get_arr
 
+JS_FILE = "extern/NetTreePlus_02_Oct15_2025.csv.cyjs"
+# EDGE_WEIGHT_KEY = "pspace_proximity"
+EDGE_WEIGHT_KEY = "Column_3"
 asset_dir = Path("src/lib/assets/data")
 
 scales = [130, 100]
@@ -42,14 +45,14 @@ def get_edges(els, idmap):
         ed = e["data"]
         es.append(
             [idmap[ed[k]] for k in ["source", "target"]]
-            + [round(ed["pspace_proximity"] * 100, 2)]
+            + [round(ed[EDGE_WEIGHT_KEY] * 100, 2)]
         )
     return es
 
 
 if __name__ == "__main__":
     gr = GenReader()
-    d = json.loads(Path("extern/Net02prox.cyjs").read_text())
+    d = json.loads(Path(JS_FILE).read_text())
     els = d["elements"]
     idmap, locmap = get_maps(els, gr)
     edges = get_edges(els, idmap)
