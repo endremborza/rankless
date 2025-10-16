@@ -738,7 +738,9 @@ upstream {BE_UPSTREAM} {{
         for i in range(conf.n_procs):
             port = conf.start_port + i
             try:
-                self.ssh.prun(f"curl localhost:{port}")
+                self.ssh.prun(
+                    'curl -s -o /dev/null -w "%{http_code}" localhost:' + str(port)
+                )
             except:
                 return True
         return False
