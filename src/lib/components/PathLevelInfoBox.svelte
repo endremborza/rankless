@@ -101,6 +101,10 @@
 	$: pathNodes = getNodes(path || [], rootNode, attributeLabels, treeSpec);
 	$: leaf = pathNodes[pathNodes.length - 1];
 	$: expanded = showPaper && (leaf.sourceCount || 0) > 0;
+	$: citePrefix =
+		path.length > 0 && (leaf.linkCount || 0) > 0
+			? `(${(leaf.spec.nodeRate * 100).toFixed(2)}%) `
+			: '';
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -124,11 +128,9 @@
 				{/if}
 			</p>
 			<p class="hover-l">
-				{pluralize('citation', leaf.linkCount || 0)}
-				{#if path.length > 0 && (leaf.linkCount || 0) > 0}
-					({(leaf.spec.nodeRate * 100).toFixed(2)}%)
-				{/if} -
 				{pluralize('paper', leaf.sourceCount || 0)}
+				receiving
+				{pluralize(`${citePrefix}citation`, leaf.linkCount || 0)}
 			</p>
 		</div>
 		<div class="growing" style="height: {initHeight * (expanded ? 3 : 0)}px;">
