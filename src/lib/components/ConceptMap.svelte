@@ -15,8 +15,8 @@
 	export let conf: tt.FullTreeConfig;
 	export let treeSpecs: tt.TreeSpecs;
 
-	const minSize = 1.1;
-	const maxSize = 2.2;
+	const minSize = 1;
+	const maxSize = 2.3;
 	const nullSize = 0.8;
 	const minSaturation = 0.95;
 	const maxSaturation = 0.05;
@@ -32,8 +32,8 @@
 	type ParentSelect = [number | undefined, number | undefined];
 
 	const getSatFromRate = (x: number) =>
-		Math.pow(x, 0.5) * (maxSaturation - minSaturation) + minSaturation;
-	const getSizeFromRate = (x: number) => x * (maxSize - minSize) + minSize;
+		Math.pow(x, 0.85) * (maxSaturation - minSaturation) + minSaturation;
+	const getSizeFromRate = (x: number) => Math.pow(x, 0.65) * (maxSize - minSize) + minSize;
 	const backupNames = getMap(subfields);
 	const nodeKeys = Object.keys(backupNames);
 	const parents = getParentsObject();
