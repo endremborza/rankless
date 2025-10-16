@@ -127,7 +127,7 @@
 				{pluralize('citation', leaf.linkCount || 0)}
 				{#if path.length > 0 && (leaf.linkCount || 0) > 0}
 					({(leaf.spec.nodeRate * 100).toFixed(2)}%)
-				{/if}
+				{/if} -
 				{pluralize('paper', leaf.sourceCount || 0)}
 			</p>
 		</div>
@@ -162,13 +162,5 @@
 		align-items: center;
 		padding-left: var(--unified-padding);
 		padding-right: var(--unified-padding);
-	}
-
-	#spec-hover {
-		position: absolute;
-		top: 0px;
-		left: 0px;
-		padding: 15px;
-		background-color: var(--color-theme-darkgrey);
 	}
 </style>
