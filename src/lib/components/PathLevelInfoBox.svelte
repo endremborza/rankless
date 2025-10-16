@@ -98,8 +98,6 @@
 		return nodes;
 	}
 
-	let hoverSpec = false;
-
 	$: pathNodes = getNodes(path || [], rootNode, attributeLabels, treeSpec);
 	$: leaf = pathNodes[pathNodes.length - 1];
 	$: expanded = showPaper && (leaf.sourceCount || 0) > 0;
@@ -119,32 +117,17 @@
 >
 	{#if path != undefined && leaf != undefined}
 		<div id="box-container" style="height: {initHeight}px;">
-			<h2 class="hover-l">{leaf.name}</h2>
-			<p
-				on:mouseover={() => {
-					//debugging thing
-					hoverSpec = false;
-				}}
-				on:mouseleave={() => {
-					hoverSpec = false;
-				}}
-				class="hover-m"
-			>
+			<h2 class="hover-xl">{leaf.name}</h2>
+			<p class="hover-l">
 				{#if path.length > 0 && (leaf.linkCount || 0) > 0}
 					{getSpecDesc(leaf.spec.specMetric)} Specialization
 				{/if}
 			</p>
-			{#if hoverSpec}
-				<span id="spec-hover">
-					metric = {formatNumber(leaf.spec.specMetric, 3)}; base = {leaf.spec.baselineRate};
-					nodeRate = {leaf.spec.nodeRate}; childN={leaf.linkCount}
-				</span>
-			{/if}
-			<p class="hover-m">
+			<p class="hover-l">
+				{pluralize('citation', leaf.linkCount || 0)}
 				{#if path.length > 0 && (leaf.linkCount || 0) > 0}
 					({(leaf.spec.nodeRate * 100).toFixed(2)}%)
 				{/if}
-				{pluralize('citation', leaf.linkCount || 0)}
 				{pluralize('paper', leaf.sourceCount || 0)}
 			</p>
 		</div>
@@ -159,6 +142,7 @@
 <style>
 	p {
 		text-align: center;
+		font-weight: 600;
 	}
 
 	.growing {
