@@ -161,6 +161,14 @@
 <!-- 	<PaperRainbow papers={data.view.hitPapers} /> -->
 <!-- </div> -->
 <div id="similars" class="shadowy padded marged">
+	<p>
+		Rankless uses publication and citation data sourced from OpenAlex, an open and comprehensive
+		bibliographic database. While OpenAlex provides broad and valuable coverage of the global
+		research landscape, it—like all bibliographic datasets—has inherent limitations. These include
+		incomplete records, variations in author disambiguation, differences in journal indexing, and
+		delays in data updates. As a result, some metrics and network relationships displayed in
+		Rankless may not fully capture the entirety of a scholar’s output or impact.
+	</p>
 	<h3>Explore {prettifyRoot(data.conf.rootType)} with similar magnitude of impact</h3>
 	<div>
 		{#each data.view.similars as sim}
