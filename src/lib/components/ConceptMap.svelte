@@ -32,7 +32,7 @@
 	type ParentSelect = [number | undefined, number | undefined];
 
 	const getSatFromRate = (x: number) =>
-		Math.pow(x, 0.85) * (maxSaturation - minSaturation) + minSaturation;
+		Math.pow(x, 0.35) * (maxSaturation - minSaturation) + minSaturation;
 	const getSizeFromRate = (x: number) => Math.pow(x, 0.65) * (maxSize - minSize) + minSize;
 	const backupNames = getMap(subfields);
 	const nodeKeys = Object.keys(backupNames);
@@ -135,15 +135,14 @@
 	) {
 		if (Object.values(levels).length == 0) return '';
 		const { linScaler, newBreakPoints } = tf.getFlatRescaler(levels, nBreakPoints, pullerRate);
-		console.log(newBreakPoints);
-
 		let scaler = (w: number) => {
 			let size = getSizeFromRate(linScaler(w));
 			let oI = 0;
 			for (let i = 0; i < nBreakPoints; i++) {
 				if (w >= newBreakPoints[i]) oI++;
 			}
-			let sat = getSatFromRate(oI / nBreakPoints);
+			// let sat = getSatFromRate(oI / nBreakPoints);
+			let sat = getSatFromRate(linScaler(w));
 			return { sat, size };
 		};
 		const sLines = [];
