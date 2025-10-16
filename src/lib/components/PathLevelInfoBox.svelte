@@ -118,11 +118,6 @@
 	}}
 >
 	{#if path != undefined && leaf != undefined}
-		<div class="growing" style="height: {initHeight * (expanded ? 3 : 0)}px;">
-			{#if expanded}
-				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} {expandPrefix} />
-			{/if}
-		</div>
 		<div id="box-container" style="height: {initHeight}px;">
 			<h2 class="hover-l">{leaf.name}</h2>
 			<p
@@ -152,6 +147,11 @@
 				{pluralize('citation', leaf.linkCount || 0)}
 				{pluralize('paper', leaf.sourceCount || 0)}
 			</p>
+		</div>
+		<div class="growing" style="height: {initHeight * (expanded ? 3 : 0)}px;">
+			{#if expanded}
+				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} {expandPrefix} />
+			{/if}
 		</div>
 	{/if}
 </div>

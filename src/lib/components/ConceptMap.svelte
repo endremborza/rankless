@@ -60,6 +60,7 @@
 		return treeSpec.breakdowns[0].sourceSide;
 	}
 	function getExpandPrefix(path: number[]) {
+		return 'Top Paper';
 		if (path.length == 0) return 'Top Paper';
 		return backupNames[path[path.length - 1]] || 'Top Paper';
 	}
