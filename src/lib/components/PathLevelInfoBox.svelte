@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { AttributeLabels, PathInTree, TreeSpec, ResponseNode } from '$lib/tree-types';
 	import { nameById, UNKNOWN_NAME } from '$lib/tree-functions';
-	import { formatNumber, pluralize } from '$lib/text-format-util';
+	import { formatNumber, pluralize, getSpecDesc } from '$lib/text-format-util';
 	import { getSpecMetricObject, type SpecInfo } from '$lib/metric-calculation';
 	import WorkElem from './WorkElem.svelte';
 
@@ -98,18 +98,6 @@
 		return nodes;
 	}
 
-	function getDesc(rate: number) {
-		let desc = 'Average';
-		if (rate > 2.5) {
-			desc = 'Very High';
-		} else if (rate > 1.2) {
-			desc = 'High';
-		} else if (rate < 0.75) {
-			desc = 'Low';
-		}
-		return desc;
-	}
-
 	let hoverSpec = false;
 
 	$: pathNodes = getNodes(path || [], rootNode, attributeLabels, treeSpec);
@@ -148,7 +136,7 @@
 				class="hover-m"
 			>
 				{#if path.length > 0 && (leaf.linkCount || 0) > 0}
-					{getDesc(leaf.spec.specMetric)} Specialization
+					{getSpecDesc(leaf.spec.specMetric)} Specialization
 				{/if}
 			</p>
 			{#if hoverSpec}

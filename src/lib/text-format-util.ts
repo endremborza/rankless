@@ -176,6 +176,18 @@ export function prettifyRoot(rt: RootType): string {
 	return rt;
 }
 
+export function getSpecDesc(rate: number) {
+	let desc = 'Average';
+	if (rate > SPEC_BPS[2]) {
+		desc = 'Very High';
+	} else if (rate > SPEC_BPS[1]) {
+		desc = 'High';
+	} else if (rate < SPEC_BPS[0]) {
+		desc = 'Low';
+	}
+	return desc;
+}
+
 function formatTextToLinesOneWay(
 	words: string[],
 	width: number,
@@ -241,7 +253,6 @@ function lineLen(words: string[]) {
 	return words.reduce((x, y) => x + y.length + 1, 0) - 1;
 }
 
-
 export function getNetworkText(rootType: RootType, rootName: string, isSpec: boolean, sourceSide: boolean) {
 	let edgeExp = 'Nodes represent fields, and links connect fields that are likely to share authors.'
 	let midPrefix = 'specialization of'
@@ -264,7 +275,6 @@ export function getNetworkText(rootType: RootType, rootName: string, isSpec: boo
 		subfields: `${nwPrefix}s covering ${rootName}. ${edgeExp}`,
 	}[rootType]
 }
-
 
 export function getMapText(rootType: RootType, rootName: string, isSpec: boolean, sourceSide: boolean) {
 	let specExplIn = sourceSide ? "country's share of papers is larger" : `country cites ${rootName} more`
@@ -317,7 +327,6 @@ function rootSemanticPrefix(rootType: RootType, sourceSide: boolean) {
 
 }
 
-
 export const SEMANTIC_CONF = {
 	authors: {
 		prefix: '👤',
@@ -345,11 +354,10 @@ export const SEMANTIC_CONF = {
 	}
 };
 
+export const SPEC_BPS = [0.75, 1.2, 2.5];
 const SING_MAP: Record<string, string> = { countries: 'country' };
-
 const CO_FAL = 'are cited by authors working in';
 const SPEC = 'specifically';
-
 
 const SEM_MAP = {
 	authors: {

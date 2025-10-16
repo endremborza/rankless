@@ -2,7 +2,7 @@
 	import { nodes, edges } from '$lib/assets/data/concept-map.json';
 	import { subfields, fields, domains } from '$lib/assets/data/field-hierarchy.json';
 	import { getColor, getColorArr } from '$lib/style-util';
-	import { getNetworkText } from '$lib/text-format-util';
+	import { getNetworkText, SPEC_BPS } from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
@@ -135,14 +135,14 @@
 	) {
 		if (Object.values(levels).length == 0) return '';
 		const { linScaler, newBreakPoints } = tf.getFlatRescaler(levels, nBreakPoints, pullerRate);
+		const dynBreakPoints = isSpec ? SPEC_BPS : newBreakPoints;
 		let scaler = (w: number) => {
 			let size = getSizeFromRate(linScaler(w));
 			let oI = 0;
-			for (let i = 0; i < nBreakPoints; i++) {
-				if (w >= newBreakPoints[i]) oI++;
+			for (const bp of dynBreakPoints) {
+				if (w >= bp) oI++;
 			}
-			// let sat = getSatFromRate(oI / nBreakPoints);
-			let sat = getSatFromRate(linScaler(w));
+			let sat = getSatFromRate(oI / dynBreakPoints.length);
 			return { sat, size };
 		};
 		const sLines = [];
