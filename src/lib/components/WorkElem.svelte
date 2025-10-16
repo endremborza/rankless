@@ -123,7 +123,6 @@
 		<footnote class="hover-s">
 			{#if localCount > 0}*: author of {fullInstName} ({localCount}/{authors.length}){/if}
 		</footnote>
-		<hr />
 	</div>
 {/if}
 
