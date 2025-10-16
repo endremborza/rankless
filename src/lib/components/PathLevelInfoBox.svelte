@@ -14,6 +14,7 @@
 	export let rootNode: ResponseNode;
 	export let showPaper: boolean = false;
 	export let backupNames: Record<number, string> = {};
+	export let expandPrefix: string = 'Top Paper';
 
 	let instId: number | undefined;
 	let citeText = '';
@@ -131,7 +132,7 @@
 	{#if path != undefined && leaf != undefined}
 		<div class="growing" style="height: {initHeight * (expanded ? 3 : 0)}px;">
 			{#if expanded}
-				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} />
+				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} {expandPrefix} />
 			{/if}
 		</div>
 		<div id="box-container" style="height: {initHeight}px;">

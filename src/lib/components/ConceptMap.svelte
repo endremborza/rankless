@@ -1,13 +1,11 @@
 <script lang="ts">
 	import { nodes, edges } from '$lib/assets/data/concept-map.json';
 	import { subfields, fields, domains } from '$lib/assets/data/field-hierarchy.json';
-	import fieldOrderMap from '$lib/assets/data/fields-ordered.json';
 	import { getColor, getColorArr } from '$lib/style-util';
 	import { getNetworkText } from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
-	import { LOW_OP } from '$lib/constants';
 	import { onMount } from 'svelte';
 	import FlatOutFrame from './FlatOutFrame.svelte';
 
@@ -21,42 +19,49 @@
 	const maxSize = 2.2;
 	const nullSize = 0.8;
 	const minSaturation = 0.95;
-	const maxSaturation = 0.2;
-	const minOpacity = LOW_OP * 2;
-	const maxOpacity = 100;
+	const maxSaturation = 0.05;
 	let defaultSat = 0.8;
 	let defaultOp = 1;
 	let defaultLineOp = 0.35;
 	let nBreakPoints = 2;
 
-	const getOpFromRate = (x: number) => x * (maxOpacity - minOpacity) + minOpacity;
-	const getSatFromRate = (x: number) => x * (maxSaturation - minSaturation) + minSaturation;
+	type Hierarchy = Record<
+		number,
+		{ name: string; children: Record<number, { name: string; children: number[] }> }
+	>;
+	type ParentSelect = [number | undefined, number | undefined];
+
+	const getSatFromRate = (x: number) =>
+		Math.pow(x, 0.5) * (maxSaturation - minSaturation) + minSaturation;
 	const getSizeFromRate = (x: number) => x * (maxSize - minSize) + minSize;
 	const backupNames = getMap(subfields);
+	const nodeKeys = Object.keys(backupNames);
+	const parents = getParentsObject();
 
 	let svgEl: SVGSVGElement;
 	let styleEl: SVGStyleElement | null = null;
 	let infoPath: number[] = [];
 	let mounted = false;
 	let hovered = '0';
-	let hoveredParent: number | undefined = undefined;
-	let toDomains = false;
-	//TODO: anny change can cock this up
+	let hoveredParent: ParentSelect = [undefined, undefined];
 
 	let hoveredOverCircle = false;
 	let showPaper = false;
 	let isSpec = true;
 	let flatOut = {};
+
 	$: treeId = indsByEntityType.subfields.includes(9) ? 9 : indsByEntityType.subfields[0];
 	$: sourceSide = getSourceSide(treeSpecs, conf.rootType, treeId);
-	$: parents = toDomains ? domains : getFieldArr();
-	$: getParent = toDomains ? getDomain : getFieldColorOrder;
-	$: setClassStyles(styleEl, flatOut, mounted, hovered, hoveredParent, backupNames);
+	$: setClassStyles(styleEl, flatOut, mounted, hovered, hoveredParent);
 
 	function getSourceSide(treeSpecs: tt.TreeSpecs, rootType: tt.RootType, treeId: number) {
 		let treeSpec = treeSpecs.specs[rootType][treeId];
 		if (treeSpec == undefined) return false;
 		return treeSpec.breakdowns[0].sourceSide;
+	}
+	function getExpandPrefix(path: number[]) {
+		if (path.length == 0) return 'Top Paper';
+		return backupNames[path[path.length - 1]] || 'Top Paper';
 	}
 
 	function getMap(ents: [string, number][]) {
@@ -75,63 +80,75 @@
 		return `subfield-flash-${s}`;
 	}
 
-	function getFieldColorOrder(sf: string) {
-		return (fieldOrderMap[getField(sf)] || 0) as number;
+	function getDomainRate(domainId: number) {
+		return (domainId - 1) / (domains.length - 2);
 	}
 
-	function getField(sf: string) {
-		return subfields[parseInt(sf)][1] as number;
+	function isParentHovered(sfi: string, hoveredParent: ParentSelect) {
+		if (hoveredParent[0] == undefined) return false;
+		let [_, field, domain] = getHier(sfi);
+		if (hoveredParent[1] == undefined) return domain == hoveredParent[0];
+		return field == hoveredParent[1];
 	}
 
-	function getDomain(sf: string) {
-		let field = getField(sf);
-		let domain = fields[field][1];
-		return domain;
+	function getHier(sfi: string): [number, number, number] {
+		let sfin = parseInt(sfi);
+		let fieldId = subfields[sfin][1] as number;
+		let domainId = fields[fieldId][1] as number;
+		return [sfin, fieldId, domainId];
 	}
 
-	function getParentColor(i: number) {
-		let colInd = toDomains ? i - 1 : i - 1;
-		return getColor(colInd / (parents.length - 1));
+	function getNodeColor(sfi: string) {
+		return getColor(getDomainRate(getHier(sfi)[2]));
 	}
 
 	function getParentColorArr(i: number) {
-		let colInd = toDomains ? i - 1 : i - 1;
-		return getColorArr(colInd / (parents.length - 1));
+		return getColorArr(getDomainRate(i));
 	}
 
-	function getFieldArr() {
-		const fieldsOut = [];
-		for (let i = 0; i < fields.length; i++) {
-			fieldsOut[fieldOrderMap[i] as number] = fields[i][0];
+	function getParentsObject(): Hierarchy {
+		const out: Hierarchy = {};
+		for (let i = 0; i < domains.length; i++) {
+			let name = domains[i];
+			if (name.length == 0) continue;
+			out[i] = { name, children: {} };
 		}
-		return fieldsOut;
+		for (let i = 0; i < fields.length; i++) {
+			let [name, parent] = fields[i] as [string, number];
+			if (name.length == 0) continue;
+			out[parent].children[i] = { name, children: [] };
+		}
+		for (let i = 0; i < subfields.length; i++) {
+			let [name, parent] = subfields[i] as [string, number];
+			if (name.length == 0) continue;
+			let grandP = fields[parent][1] as number;
+			out[grandP].children[parent].children.push(i);
+		}
+		return out;
 	}
 
 	function getClassStyles(
 		levels: tt.LevelT,
 		highlighted: string,
-		highlightedParent: number | undefined,
-		pullerRate: number,
-		backups: Record<number, string>
+		highlightedParent: ParentSelect,
+		pullerRate: number
 	) {
 		if (Object.values(levels).length == 0) return '';
 		const { linScaler, newBreakPoints } = tf.getFlatRescaler(levels, nBreakPoints, pullerRate);
+		console.log(newBreakPoints);
 
 		let scaler = (w: number) => {
 			let size = getSizeFromRate(linScaler(w));
 			let oI = 0;
-			for (let i = 1; i <= nBreakPoints; i++) {
+			for (let i = 0; i < nBreakPoints; i++) {
 				if (w >= newBreakPoints[i]) oI++;
 			}
 			let sat = getSatFromRate(oI / nBreakPoints);
 			return { sat, size };
 		};
 		const sLines = [];
-		for (const key of Object.keys(backups)) {
-			let isHighlighted = key == highlighted;
-			if (hoveredParent != undefined) {
-				isHighlighted = getParent(key) == highlightedParent;
-			}
+		for (const key of nodeKeys) {
+			let isHighlighted = key == highlighted || isParentHovered(key, highlightedParent);
 			let line = '';
 			let flashLine = '';
 			let wDic = levels[key];
@@ -154,11 +171,10 @@
 		flatOut: tt.LevelT | undefined,
 		mounted: boolean,
 		hovered: string,
-		hoveredParent: number | undefined,
-		backups: Record<number, string>
+		hoveredParent: ParentSelect
 	) {
 		if (styleEl != undefined && flatOut != undefined && mounted) {
-			styleEl.textContent = getClassStyles(flatOut, hovered, hoveredParent, 0.2, backups);
+			styleEl.textContent = getClassStyles(flatOut, hovered, hoveredParent, 0.2);
 		}
 	}
 
@@ -209,19 +225,20 @@
 	bind:isSpec
 	bind:showPaper
 	{infoPath}
+	{getExpandPrefix}
 >
 	<!-- svelte-ignore a11y-mouse-events-have-key-events -->
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 	<div class="concept-map-container">
 		<div class="concept-map-parents">
-			{#each parents.entries() as [i, parent]}
+			{#each Object.entries(parents) as [i, parent]}
 				<span
 					class="hover-xs"
-					on:mouseover={() => (hoveredParent = i)}
-					on:mouseleave={() => (hoveredParent = undefined)}
+					on:mouseover={() => (hoveredParent = [i, undefined])}
+					on:mouseleave={() => (hoveredParent = [undefined, undefined])}
 					role="none"
-					style="background-color:rgba({getParentColorArr(i)}, 0.4);">{parent}</span
+					style="background-color:rgba({getParentColorArr(i)}, 0.4);">{parent.name}</span
 				>
 			{/each}
 		</div>
@@ -252,8 +269,8 @@
 					{cy}
 					class={classNamer(sfi)}
 					role="region"
-					fill={getParentColor(getParent(sfi))}
-					stroke={getParentColor(getParent(sfi))}
+					fill={getNodeColor(sfi)}
+					stroke={getNodeColor(sfi)}
 					on:mouseover={() => {
 						if (!showPaper) {
 							hoveredOverCircle = true;
@@ -317,7 +334,7 @@
 	}
 
 	.concept-map-parents {
-		flex: 2 1 300px;
+		flex: 2 1 100%;
 		display: flex;
 		flex-wrap: wrap;
 		gap: 7px;

@@ -3,12 +3,12 @@
 	import { onMount } from 'svelte';
 	import HoverI from './HoverI.svelte';
 	import HoverBlock from './HoverBlock.svelte';
-	// import AxesOfFocusReach from './AxesOfFocusReach.svelte';
 
 	export let workId: number;
 	export let citeText: string;
 	export let attributeLabels: AttributeLabels;
 	export let instId: number | undefined;
+	export let expandPrefix = 'Top Paper';
 
 	let title = '';
 	let doi = '';
@@ -75,7 +75,7 @@
 
 {#if title}
 	<div id="main" class="padded">
-		<h4 class="hover-l">Top Paper</h4>
+		<h4 class="hover-l">{expandPrefix}</h4>
 		<row>
 			<rowheader class="hover-m">Title:</rowheader>
 			<h3 class="hover-l"><a {href} target="_blank">{title}</a> ({y})</h3>

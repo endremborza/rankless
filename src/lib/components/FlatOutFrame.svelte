@@ -24,6 +24,7 @@
 			: indsByEntityType[l1Type][0];
 	export let backupNames: Record<number, string> = {};
 	export let showPaper = false;
+	export let getExpandPrefix: (p: number[]) => string = () => 'Top Paper';
 
 	let mounted = false;
 	let selectedBreakdowns = tf.getDefaultBreakdowns(treeSpecs.specs[conf.rootType][treeId]);
@@ -121,6 +122,7 @@
 			attributeLabels={resp.atts}
 			{backupNames}
 			bind:showPaper
+			expandPrefix={getExpandPrefix(infoPath)}
 		/>
 	{/if}
 </div>
