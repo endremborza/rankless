@@ -8,7 +8,6 @@
 	export let citeText: string;
 	export let attributeLabels: AttributeLabels;
 	export let instId: number | undefined;
-	export let expandPrefix = 'Top Paper';
 
 	let title = '';
 	let doi = '';

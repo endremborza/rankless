@@ -50,19 +50,18 @@
 	let isSpec = true;
 	let flatOut = {};
 
-	$: treeId = indsByEntityType.subfields.includes(9) ? 9 : indsByEntityType.subfields[0];
+	let treeId: number;
 	$: sourceSide = getSourceSide(treeSpecs, conf.rootType, treeId);
 	$: setClassStyles(styleEl, flatOut, mounted, hovered, hoveredParent);
+	$: updateTreeId(indsByEntityType);
 
 	function getSourceSide(treeSpecs: tt.TreeSpecs, rootType: tt.RootType, treeId: number) {
 		let treeSpec = treeSpecs.specs[rootType][treeId];
 		if (treeSpec == undefined) return false;
 		return treeSpec.breakdowns[0].sourceSide;
 	}
-	function getExpandPrefix(path: number[]) {
-		return 'Top Paper';
-		if (path.length == 0) return 'Top Paper';
-		return backupNames[path[path.length - 1]] || 'Top Paper';
+	function updateTreeId(inds: tt.IndsByEntityType) {
+		treeId = inds.subfields.includes(9) ? 9 : indsByEntityType.subfields[0];
 	}
 
 	function getMap(ents: [string, number][]) {
@@ -225,7 +224,6 @@
 	bind:isSpec
 	bind:showPaper
 	{infoPath}
-	{getExpandPrefix}
 >
 	<!-- svelte-ignore a11y-mouse-events-have-key-events -->
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
