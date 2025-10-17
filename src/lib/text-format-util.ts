@@ -603,7 +603,6 @@ const SEM_MAP = {
 			},
 			semantic: 'collaborate with authors in'
 		},
-
 		'countries-false': {
 			children: {
 				'subfields-false': {
