@@ -1515,7 +1515,7 @@ impl<'a> PartitioningIterator<'a> for CountryBesties<'a> {
 impl<'a> PartitioningIterator<'a> for CountryCiters<'a> {
     type StackBasis = (
         IntX<Countries, 0, false>,
-        IntX<Subfields, 1, true>,
+        IntX<Subfields, 1, false>,
         IntX<Institutions, 2, false>,
     );
     type Root = Countries;
