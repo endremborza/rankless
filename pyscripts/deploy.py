@@ -922,6 +922,7 @@ def promote_alpha_to_live():
     tpr.restart_nginx()
     time.sleep(10)
     associate_id(alpha_inst, True)
+    time.sleep(5)
     get_running_tpr(True).refresh_certs(FW_DOMAIN)
 
 
