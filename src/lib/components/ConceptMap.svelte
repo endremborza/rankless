@@ -2,7 +2,7 @@
 	import { nodes, edges } from '$lib/assets/data/concept-map.json';
 	import { subfields, fields, domains } from '$lib/assets/data/field-hierarchy.json';
 	import { getColor, getColorArr } from '$lib/style-util';
-	import { getNetworkText } from '$lib/text-format-util';
+	import { getNetworkText, SPEC_BPS } from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
@@ -15,8 +15,8 @@
 	export let conf: tt.FullTreeConfig;
 	export let treeSpecs: tt.TreeSpecs;
 
-	const minSize = 1.1;
-	const maxSize = 2.2;
+	const minSize = 1;
+	const maxSize = 2.3;
 	const nullSize = 0.8;
 	const minSaturation = 0.95;
 	const maxSaturation = 0.05;
@@ -32,8 +32,8 @@
 	type ParentSelect = [number | undefined, number | undefined];
 
 	const getSatFromRate = (x: number) =>
-		Math.pow(x, 0.5) * (maxSaturation - minSaturation) + minSaturation;
-	const getSizeFromRate = (x: number) => x * (maxSize - minSize) + minSize;
+		Math.pow(x, 0.35) * (maxSaturation - minSaturation) + minSaturation;
+	const getSizeFromRate = (x: number) => Math.pow(x, 0.65) * (maxSize - minSize) + minSize;
 	const backupNames = getMap(subfields);
 	const nodeKeys = Object.keys(backupNames);
 	const parents = getParentsObject();
@@ -50,18 +50,18 @@
 	let isSpec = true;
 	let flatOut = {};
 
-	$: treeId = indsByEntityType.subfields.includes(9) ? 9 : indsByEntityType.subfields[0];
+	let treeId: number;
 	$: sourceSide = getSourceSide(treeSpecs, conf.rootType, treeId);
 	$: setClassStyles(styleEl, flatOut, mounted, hovered, hoveredParent);
+	$: updateTreeId(indsByEntityType);
 
 	function getSourceSide(treeSpecs: tt.TreeSpecs, rootType: tt.RootType, treeId: number) {
 		let treeSpec = treeSpecs.specs[rootType][treeId];
 		if (treeSpec == undefined) return false;
 		return treeSpec.breakdowns[0].sourceSide;
 	}
-	function getExpandPrefix(path: number[]) {
-		if (path.length == 0) return 'Top Paper';
-		return backupNames[path[path.length - 1]] || 'Top Paper';
+	function updateTreeId(inds: tt.IndsByEntityType) {
+		treeId = inds.subfields.includes(9) ? 9 : indsByEntityType.subfields[0];
 	}
 
 	function getMap(ents: [string, number][]) {
@@ -135,15 +135,14 @@
 	) {
 		if (Object.values(levels).length == 0) return '';
 		const { linScaler, newBreakPoints } = tf.getFlatRescaler(levels, nBreakPoints, pullerRate);
-		console.log(newBreakPoints);
-
+		const dynBreakPoints = isSpec ? SPEC_BPS : newBreakPoints;
 		let scaler = (w: number) => {
 			let size = getSizeFromRate(linScaler(w));
 			let oI = 0;
-			for (let i = 0; i < nBreakPoints; i++) {
-				if (w >= newBreakPoints[i]) oI++;
+			for (const bp of dynBreakPoints) {
+				if (w >= bp) oI++;
 			}
-			let sat = getSatFromRate(oI / nBreakPoints);
+			let sat = getSatFromRate(oI / dynBreakPoints.length);
 			return { sat, size };
 		};
 		const sLines = [];
@@ -225,7 +224,6 @@
 	bind:isSpec
 	bind:showPaper
 	{infoPath}
-	{getExpandPrefix}
 >
 	<!-- svelte-ignore a11y-mouse-events-have-key-events -->
 	<!-- svelte-ignore a11y-click-events-have-key-events -->

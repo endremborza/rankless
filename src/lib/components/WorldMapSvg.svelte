@@ -44,7 +44,7 @@
 
 	let clicked = false;
 	let isSpec = false;
-	$: treeId = indsByEntityType.countries[0];
+	let treeId: number;
 	let flatOut = {};
 
 	$: isRefSide = treeSpecs.specs[conf.rootType][treeId]?.breakdowns[0].sourceSide;
@@ -55,12 +55,16 @@
 		: 'Citations';
 	$: updateL1(flatOut, resp);
 	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints, pullerRate);
+	$: updateTreeId(indsByEntityType);
 
 	const fixNameForPaths = (s: string) => (s == 'Türkiye' ? 'Turkey' : s);
 	const fixNameForData = (s: string) => (s == 'Turkey' ? 'Türkiye' : s);
 	const getColorRate = (r: number) => r * (maxColorRate - minColorRate) + minColorRate;
 	const getOpaRate = (r: number) => r * (maxOp - minOp) + minOp;
 
+	function updateTreeId(inds: tt.IndsByEntityType) {
+		treeId = inds.countries[0];
+	}
 	function classNamer(s: string) {
 		let sn = fixNameForPaths(s);
 		return `country-${sn.toLowerCase().replaceAll(' ', '-')}`;

@@ -8,7 +8,6 @@
 	export let citeText: string;
 	export let attributeLabels: AttributeLabels;
 	export let instId: number | undefined;
-	export let expandPrefix = 'Top Paper';
 
 	let title = '';
 	let doi = '';
@@ -75,14 +74,13 @@
 
 {#if title}
 	<div id="main" class="padded">
-		<h4 class="hover-l">{expandPrefix}</h4>
 		<row>
-			<rowheader class="hover-m">Title:</rowheader>
-			<h3 class="hover-l"><a {href} target="_blank">{title}</a> ({y})</h3>
+			<rowheader class="hover-s">Top Paper:</rowheader>
+			<h3 class="hover-m"><a {href} target="_blank">{title}</a> ({y})</h3>
 		</row>
 		{#if abstract}
 			<row>
-				<rowheader class="hover-m">Abstract:</rowheader>
+				<rowheader class="hover-s">Abstract:</rowheader>
 				<span class="hover-m">
 					{#if abstract.length > 80}
 						{abstract.slice(0, 80)}... <HoverI bind:hoverToggle={abstractDetails} />
@@ -97,7 +95,7 @@
 		{/if}
 		{#if authors.length > 0}
 			<row>
-				<rowheader class="hover-m">
+				<rowheader class="hover-s">
 					Author{authors.length > 1 ? 's' : ''}:
 				</rowheader>
 				<al class="hover-m">
@@ -115,21 +113,19 @@
 			</row>
 		{/if}
 		<row>
-			<rowheader class="hover-m">Citations: </rowheader>
+			<rowheader class="hover-s">Citations: </rowheader>
 			<span class="hover-m">
 				{citeText}
 			</span>
 		</row>
-		<footnote class="hover-s">
-			{#if localCount > 0}*: author of {fullInstName} ({localCount}/{authors.length}){/if}
+		<footnote class="hover-xs">
+			{#if localCount > 0}*: author {fullInstName} ({localCount}/{authors.length}){/if}
 		</footnote>
-		<hr />
 	</div>
 {/if}
 
 <style>
-	h3,
-	h4 {
+	h3 {
 		margin: 0px;
 	}
 
@@ -142,14 +138,6 @@
 		display: flex;
 		gap: 20px;
 		justify-content: space-between;
-	}
-
-	rowheader {
-		flex: 2;
-	}
-
-	hr {
-		width: 100%;
 	}
 
 	al {

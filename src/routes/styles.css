@@ -147,7 +147,7 @@ select {
 }
 
 .hover-xs {
-	font-size: min(0.85rem, 1.5vw);
+	font-size: min(0.75rem, 1.5vw);
 }
 
 
@@ -162,6 +162,12 @@ select {
 .hover-l {
 	font-size: min(1.1rem, 3vw);
 }
+
+
+.hover-xl {
+	font-size: min(1.3rem, 3.6vw);
+}
+
 
 .vert-zero {
 	height: 0px;

@@ -176,6 +176,18 @@ export function prettifyRoot(rt: RootType): string {
 	return rt;
 }
 
+export function getSpecDesc(rate: number) {
+	let desc = 'Average';
+	if (rate > SPEC_BPS[2]) {
+		desc = 'Very High';
+	} else if (rate > SPEC_BPS[1]) {
+		desc = 'High';
+	} else if (rate < SPEC_BPS[0]) {
+		desc = 'Low';
+	}
+	return desc;
+}
+
 function formatTextToLinesOneWay(
 	words: string[],
 	width: number,
@@ -241,30 +253,45 @@ function lineLen(words: string[]) {
 	return words.reduce((x, y) => x + y.length + 1, 0) - 1;
 }
 
-
-export function getNetworkText(rootType: RootType, rootName: string, isSpec: boolean, sourceSide: boolean) {
-	let edgeExp = 'Nodes represent fields, and links connect fields that are likely to share authors.'
-	let midPrefix = 'specialization of'
-	if (!isSpec && sourceSide) {
-		midPrefix = 'number of'
-	} else if (isSpec && !sourceSide) {
-		midPrefix = 'specialization of papers citing the'
-	} else if (!isSpec && !sourceSide) {
-		midPrefix = 'fields of papers citing the'
+function productionSemantics(rootType: RootType, rootName: string) {
+	let prefix = 'papers'
+	if (rootType == 'hit-papers') {
+		prefix = ''
 	}
-
-
-	let nwPrefix = `This network shows the ${midPrefix} paper`
 	return {
-		authors: `${nwPrefix}s produced by ${rootName}. ${edgeExp} The network helps show where ${rootName} may publish in the future.`,
-		countries: `${nwPrefix}s produced by authors working at institutions in ${rootName}. ${edgeExp} The network helps show where authors in ${rootName} may publish in the future.`,
-		institutions: `${nwPrefix}s affiliated with ${rootName} at the time of their publication. ${edgeExp}`,
-		sources: `${nwPrefix}s published in ${rootName}. ${edgeExp}`,
-		'hit-papers': `${nwPrefix} ${rootName}. ${edgeExp}`,
-		subfields: `${nwPrefix}s covering ${rootName}. ${edgeExp}`,
+		authors: `${prefix} produced by ${rootName}`,
+		countries: `${prefix} produced by authors working at institutions in ${rootName}`,
+		institutions: `${prefix} affiliated with ${rootName} at the time of their publication`,
+		sources: `${prefix} published in ${rootName}`,
+		'hit-papers': `${prefix} ${rootName}`,
+		subfields: `${prefix} covering ${rootName}`,
 	}[rootType]
+
+
 }
 
+export function getNetworkText(rootType: RootType, rootName: string, isSpec: boolean, sourceSide: boolean) {
+	let midNodeExp = 'that tend to cite the'
+	let midPrefix = 'impact of';
+	if (sourceSide) {
+		midNodeExp = 'of impactful'
+		midPrefix = 'distribution of'
+	}
+	let lines = [
+		`This network shows the ${midPrefix} ${productionSemantics(rootType, rootName)}.`,
+		'Nodes represent research fields, and links connect fields that are likely to share authors.',
+		`Colored nodes show fields ${midNodeExp} ${productionSemantics(rootType, rootName)}.`
+	];
+	if (rootType == 'authors') {
+		lines.push(`The network helps show where ${rootName} may publish in the future.`)
+	}
+	if (rootType == 'countries') {
+		lines.push(`The network helps show where authors in ${rootName} may publish in the future.`)
+	}
+	if (sourceSide)
+		lines.push('Since papers are assigned to multiple fields, the same paper can appear as cited in multiple nodes.');
+	return lines.join(' ')
+}
 
 export function getMapText(rootType: RootType, rootName: string, isSpec: boolean, sourceSide: boolean) {
 	let specExplIn = sourceSide ? "country's share of papers is larger" : `country cites ${rootName} more`
@@ -317,7 +344,6 @@ function rootSemanticPrefix(rootType: RootType, sourceSide: boolean) {
 
 }
 
-
 export const SEMANTIC_CONF = {
 	authors: {
 		prefix: '👤',
@@ -345,11 +371,10 @@ export const SEMANTIC_CONF = {
 	}
 };
 
+export const SPEC_BPS = [0.75, 1.2, 2.5];
 const SING_MAP: Record<string, string> = { countries: 'country' };
-
 const CO_FAL = 'are cited by authors working in';
 const SPEC = 'specifically';
-
 
 const SEM_MAP = {
 	authors: {
@@ -578,7 +603,6 @@ const SEM_MAP = {
 			},
 			semantic: 'collaborate with authors in'
 		},
-
 		'countries-false': {
 			children: {
 				'subfields-false': {
