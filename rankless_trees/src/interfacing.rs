@@ -15,7 +15,7 @@ use rankless_rs::{
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{
-            AuthorRawCites, AuthorRawWorkCounts, AuthorWikiSlugs, AuthorshipAuthor,
+            AuthorOrcids, AuthorRawCites, AuthorRawWorkCounts, AuthorWikiSlugs, AuthorshipAuthor,
             AuthorshipInstitutions, CitiesNames, CountryCodes, InstCities, InstCountries, InstLocs,
             SourceYearQs, TopicSubfields, WorkAuthorships, WorkSources, WorkTopics, WorkYears,
             WorksNames,
@@ -30,14 +30,15 @@ use rankless_rs::{
         derive_links1::{CountryInsts, WorkPeriods},
         derive_links5::{EraRec, Top15Rec, Top3Rec},
     },
-    CiteCountMarker, NameExtensionMarker, NameMarker, QuickestNumbered, SemanticIdMarker,
-    WorkCountMarker,
+    CiteCountMarker, NameExtensionMarker, NameMarker, QuickestNumbered, ReadFixIter,
+    SemanticIdMarker, WorkCountMarker,
 };
 
 use dmove::{
     BackendLoading, BigId, ByteArrayInterface, ByteFixArrayInterface, CompactEntity, Entity,
-    EntityImmutableRefMapperBackend, Locators, MappableEntity, MarkedAttribute, NamespacedEntity,
-    UnsignedNumber, VaST, VarAttBuilder, VarBox, VarSizedAttributeElement, VattArrPair, ET, MAA,
+    EntityImmutableRefMapperBackend, InitEmpty, Locators, MappableEntity, MarkedAttribute,
+    NamespacedEntity, UnsignedNumber, VaST, VarAttBuilder, VarBox, VarSizedAttributeElement,
+    VattArrPair, ET, MAA,
 };
 use hashbrown::HashMap;
 use rand::Rng;
@@ -55,6 +56,7 @@ pub struct Getters {
     pub inst_oa: Box<[BigId]>,
     pub work_oa: Box<[BigId]>,
     pub hit_papers: Box<[BigId]>,
+    pub orcid_map: HashMap<ET<AuthorOrcids>, usize>,
 }
 
 macro_rules! make_interfaces {
@@ -348,6 +350,16 @@ impl Getters {
         let work_oa = reverse_id::<Works>(&stowage);
         let hit_papers = reverse_id::<HitPapers>(&stowage);
         let path = stowage.path_from_ns(WorksNames::NS);
+        let mut orcid_map = HashMap::new();
+        let na_orcid: ET<AuthorOrcids> = <ET<AuthorOrcids> as InitEmpty>::init_empty();
+        stowage
+            .get_entity_interface::<AuthorOrcids, ReadFixIter>()
+            .enumerate()
+            .for_each(|(ai, orcid_id)| {
+                if orcid_id != na_orcid {
+                    orcid_map.insert(orcid_id, ai);
+                }
+            });
         let wn_locators =
             <Locators<WorksNames> as BackendLoading<WorksNames>>::load_backend(&path).into();
         let ifs = Interfaces::new(stowage.clone());
@@ -359,6 +371,7 @@ impl Getters {
             inst_oa,
             work_oa,
             hit_papers,
+            orcid_map,
         }
     }
 
@@ -392,6 +405,7 @@ impl Getters {
             inst_oa: Vec::new().into(),
             work_oa: (0..20000000).collect::<Vec<BigId>>().into(),
             hit_papers: Vec::new().into(),
+            orcid_map: HashMap::new(),
         }
     }
 }

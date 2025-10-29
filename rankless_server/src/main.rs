@@ -32,8 +32,11 @@ use tokio::{net::TcpListener, sync::Notify};
 use muwo_search::SearchEngine;
 use rankless_rs::{
     common::{MainEntity, NET},
-    gen::a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
-    gen::derive_links3::HitPapers,
+    gen::{
+        a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
+        a2_init_atts::AuthorOrcids,
+        derive_links3::HitPapers,
+    },
     steps::{
         a1_entity_mapping::{Qs, RawYear, YearInterface, Years},
         derive_links5::{EraRec, InstRelation},
@@ -135,6 +138,7 @@ struct NameState {
     vars: Box<Coords>,
     pub semantic_id_map: HashMap<String, SemVal>,
     pub oa_id_map: HashMap<usize, usize>,
+    pub dm_id_to_result_id: HashMap<usize, usize>,
     query_tree: KdTree<KDItem>,
 }
 
@@ -583,6 +587,8 @@ impl NameState {
         }
 
         let query_tree = tree_from_iter(kdt_base);
+        let dm_id_to_result_id =
+            HashMap::from_iter(responses.iter().enumerate().map(|(i, res)| (res.dm_id, i)));
 
         Self {
             engine: engine.into(),
@@ -592,6 +598,7 @@ impl NameState {
             semantic_id_map,
             oa_id_map,
             query_tree,
+            dm_id_to_result_id,
             means: means.into(),
             vars: vars.into(),
         }
@@ -785,6 +792,7 @@ async fn main() {
         .route("/slice/:etype/:from/:to", get(slice_get))
         .route("/views/:etype/:semantic_id", get(view_get))
         .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))
+        .route("/orcid/:orcid_id", get(orcid_get))
         .route("/trees/:root_type/:semantic_id", get(tree_get))
         .route("/shallows/:root_type", get(shallows_get))
         .with_state((ns_map_arc, satts, tree_manager.clone()));
@@ -946,6 +954,26 @@ async fn sem_id_get(
         }
     }
     Json([out])
+}
+
+async fn orcid_get(Path(orcid_id): Path<String>, states: StatesT) -> Json<Option<SearchResult>> {
+    let mut out = None;
+    let obytes: ET<AuthorOrcids> = orcid_id
+        .into_bytes()
+        .into_iter()
+        .collect::<Vec<u8>>()
+        .try_into()
+        .unwrap_or(<ET<AuthorOrcids> as InitEmpty>::init_empty());
+    if let Some(a_dm_id) = states.2.state.gets.orcid_map.get(&obytes) {
+        if let Some(nstate) = states.0 .0.get(Authors::NAME) {
+            if let Some(a_rid) = nstate.dm_id_to_result_id.get(a_dm_id) {
+                let s = nstate.responses[*a_rid].clone();
+                out = Some(s);
+            }
+        }
+    }
+
+    Json(out)
 }
 
 async fn name_get(
