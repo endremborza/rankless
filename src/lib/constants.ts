@@ -38,3 +38,8 @@ export const DEFAULT_LIMIT_N = 10;
 export const MAX_LEVEL_COUNT = 4;
 export const COMPLETE_YEAR = 1950;
 export const LATEST_YEAR = new Date().getFullYear();
+
+
+export const ORCID_REDIRECT_URI = `${PUBLIC_ORIGIN}/callback`
+export const ORCID_AUTH_URL = 'https://orcid.org/oauth/authorize'
+export const ORCID_TOKEN_URL = 'https://orcid.org/oauth/token'

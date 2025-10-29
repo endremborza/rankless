@@ -47,6 +47,8 @@ BE_UPSTREAM = "rankless_backend"
 
 BE_URL_VAR = "PUBLIC_BACKEND_URL"
 PUB_URL_VAR = "PUBLIC_ORIGIN"
+OA_ROOT_VAR = "OA_ROOT"
+ORCID_VARS = {k: os.environ[k] for k in ["ORCID_CLIENT_ID", "ORCID_CLIENT_SECRET"]}
 
 BIG16 = "c6a.4xlarge"
 BIG16 = "c6a.8xlarge"
@@ -87,7 +89,7 @@ local_tmp_home = Path("/tmp/rls-services")
 local_service_path = local_tmp_home / SERIVCE_DIR
 local_service_path.mkdir(exist_ok=True, parents=True)
 
-local_data_root = os.environ["OA_ROOT"]
+local_data_root = os.environ[OA_ROOT_VAR]
 data_subdirs = [
     "a1_entity_mapping",
     "a2_init_atts",
@@ -632,7 +634,8 @@ upstream {BE_UPSTREAM} {{
     def update_env(self):
         domain = self.get_domain()
         be_url = "https://" + self.get_backend_domain()
-        txt = f"{PUB_URL_VAR}=https://{domain}\n{BE_URL_VAR}={be_url}\nOA_ROOT={self.data_dir}"
+        txt = f"{PUB_URL_VAR}=https://{domain}\n{BE_URL_VAR}={be_url}\n{OA_ROOT_VAR}={self.data_dir}\n"
+        txt += "\n".join(f"{k}={v}" for k, v in ORCID_VARS.items())
         self.sync_txt(txt, ".env", self.deploy_dir)
 
     def update_fe(self):
