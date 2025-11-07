@@ -246,6 +246,7 @@ fn chunk_sort(a: Vec<u8>, size: &usize) -> Vec<u8> {
         let mid = (a.len() / *size) / 2 * size;
         let (a1, a2) = a.split_at(mid);
         return merge_chunks(
+            //TODO: super inefficient
             chunk_sort(a1.to_vec(), size),
             chunk_sort(a2.to_vec(), size),
             size,

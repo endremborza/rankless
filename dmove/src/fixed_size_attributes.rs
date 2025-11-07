@@ -11,8 +11,10 @@ use crate::{
         MetaIntegrator, MAX_FIXBUF,
     },
     BackendLoading, CompactEntity, EntityImmutableRefMapperBackend, EntityMutableMapperBackend,
-    UnsignedNumber,
+    UnsignedNumber, VarAttBuilder,
 };
+
+type DowncastablePrefixed = Box<[(bool, usize)]>;
 
 pub struct FixAttBuilder {
     file: File,
@@ -22,6 +24,12 @@ pub struct FixAttBuilder {
 
 pub struct DowncastingBuilder {
     arr: Vec<usize>,
+    max: usize,
+    name: String,
+}
+
+pub struct DowncastingPrefixedVarBuilder {
+    arr: Vec<DowncastablePrefixed>,
     max: usize,
     name: String,
 }
@@ -143,6 +151,32 @@ impl MetaIntegrator<usize> for DowncastingBuilder {
     }
 }
 
+impl MetaIntegrator<DowncastablePrefixed> for DowncastingPrefixedVarBuilder {
+    fn setup(_builder: &MainBuilder, name: &str) -> Self {
+        Self {
+            arr: Vec::new(),
+            max: 0,
+            name: name.to_string(),
+        }
+    }
+
+    fn add_elem(&mut self, e: &DowncastablePrefixed) {
+        for (_, sube) in e {
+            if *sube > self.max {
+                self.max = *sube;
+            }
+        }
+        self.arr.push(e.clone());
+    }
+    fn post(self, builder: &mut MainBuilder) {
+        //NOTE: everything needs to fit into memory
+        let n = self.max << 1;
+        let name = &self.name;
+        let arr = self.arr;
+        crate::common::downcast_fun!(casted_prefixer, n, name, arr, builder);
+    }
+}
+
 impl<E> EntityImmutableRefMapperBackend<E> for Box<[E::T]>
 where
     E: CompactEntity,
@@ -167,6 +201,10 @@ where
     }
 }
 
+pub fn reverse_prefixed_n(prefixed_n: usize) -> (bool, usize) {
+    ((prefixed_n & 1) == 1, prefixed_n >> 1)
+}
+
 fn casted_write<T>(name: &str, arr: Vec<usize>, builder: &MainBuilder) -> io::Result<()>
 where
     T: UnsignedNumber,
@@ -177,4 +215,23 @@ where
         file.write(&buf)?;
     }
     Ok(())
+}
+
+fn casted_prefixer<T>(name: &str, arr: Vec<DowncastablePrefixed>, builder: &mut MainBuilder)
+where
+    T: UnsignedNumber,
+{
+    let mut vatt_sub_builder = <VarAttBuilder as MetaIntegrator<Box<[T]>>>::setup(builder, name);
+    for raw_arr in arr.into_iter() {
+        let boarr: Vec<T> = raw_arr
+            .into_vec()
+            .into_iter()
+            .map(|(b, n)| T::from_usize((n << 1) + (b as usize)))
+            .collect();
+        <VarAttBuilder as MetaIntegrator<Box<[T]>>>::add_elem_owned(
+            &mut vatt_sub_builder,
+            boarr.into_boxed_slice(),
+        );
+    }
+    <VarAttBuilder as MetaIntegrator<Box<[T]>>>::post(vatt_sub_builder, builder)
 }
