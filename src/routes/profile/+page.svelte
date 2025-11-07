@@ -8,6 +8,8 @@
 
 	let papersResp: any = null;
 	let selectedStyle = 'APA';
+	let sortBy: 'year' | 'citations' = 'year';
+	let minCitations = 0;
 
 	onMount(() => {
 		if (data.searchResult) {
@@ -23,7 +25,6 @@
 		if (!authorIds || authorIds.length === 0) return '';
 		const names = authorIds.map((id) => authorNames[id] || id);
 
-		// Turn “Firstname Lastname” into “Lastname, F.”
 		const formatted = names.map((full) => {
 			const parts = full.split(' ');
 			const last = parts.pop();
@@ -69,6 +70,16 @@
 				return `${authors} (${year}). ${title}. *${journal}*${vol}${issue}${pages}. ${doi}`;
 		}
 	}
+
+	// Derived list: filtered + sorted
+	$: filteredAndSorted =
+		papersResp?.papers
+			.filter((p) => p.citations >= minCitations)
+			.sort((a, b) => {
+				if (sortBy === 'year') return b.year - a.year;
+				if (sortBy === 'citations') return b.citations - a.citations;
+				return 0;
+			}) ?? [];
 </script>
 
 <div class="container padded">
@@ -91,16 +102,42 @@
 			{#if papersResp}
 				<hr />
 				<h2>Your Publications</h2>
-				<label for="style">Citation style:</label>
-				<select id="style" bind:value={selectedStyle}>
-					<option value="APA">APA</option>
-					<option value="MLA">MLA</option>
-					<option value="Chicago">Chicago</option>
-				</select>
+
+				<div class="controls">
+					<div>
+						<label for="style">Citation style:</label>
+						<select id="style" bind:value={selectedStyle}>
+							<option value="APA">APA</option>
+							<option value="MLA">MLA</option>
+							<option value="Chicago">Chicago</option>
+						</select>
+					</div>
+
+					<div>
+						<label for="sort">Sort by:</label>
+						<select id="sort" bind:value={sortBy}>
+							<option value="year">Year (newest first)</option>
+							<option value="citations">Citations (most cited first)</option>
+						</select>
+					</div>
+
+					<div>
+						<label for="mincit">Min. citations:</label>
+						<input
+							id="mincit"
+							type="number"
+							bind:value={minCitations}
+							min="0"
+							style="width: 5em;"
+						/>
+					</div>
+				</div>
 
 				<ol class="citations">
-					{#each papersResp.papers as paper}
+					{#each filteredAndSorted as paper}
 						<li>{formatPaper(paper, selectedStyle)}</li>
+					{:else}
+						<li><em>No papers match the current filters.</em></li>
 					{/each}
 				</ol>
 			{/if}
@@ -119,11 +156,19 @@
 <style>
 	.container {
 		max-width: 800px;
-		padding-top: 110px;
 		margin: auto;
+		padding-top: 110px;
 	}
-	select {
-		margin: 0.5rem 0 1rem 0;
+	.controls {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 1rem;
+		align-items: center;
+		margin-bottom: 1rem;
+	}
+	select,
+	input {
+		margin-left: 0.3rem;
 	}
 	.citations {
 		line-height: 1.5;
