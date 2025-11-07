@@ -30,6 +30,32 @@ pub fn get_atts(
     atts
 }
 
+pub fn add_nonwork_label<'a, I, N>(
+    eids: I,
+    eatts: &mut HashMap<usize, AttributeLabelOut>,
+    etype: &str,
+    state: &TreeBasisState,
+) where
+    I: Iterator<Item = &'a N>,
+    N: UnsignedNumber + 'a,
+{
+    if let Some(u_eatts) = state.att_union.get(etype) {
+        if etype == Institutions::NAME {
+            eids.for_each(|k| {
+                let ku = k.to_usize();
+                eatts.insert(ku, oaify_inst(&u_eatts[ku], &state.gets, ku));
+            })
+        } else {
+            eids.for_each(|k| {
+                eatts.insert(k.to_usize(), to_none_alabel(&u_eatts[k.to_usize()]));
+            })
+        };
+    } else {
+        //Qs might not be here
+        // println!("WARNING: {etype} not found in attribute union");
+    }
+}
+
 fn ext_atts(
     atts: &mut AttributeLabels,
     tree: &BufSerTree,
@@ -54,12 +80,12 @@ fn add_leaves<'a, I>(
     leaves: I,
     eatts: &mut HashMap<usize, AttributeLabelOut>,
     work_map: &mut ManFileHandle,
-    at: &str,
+    etype: &str,
     state: &TreeBasisState,
 ) where
     I: Iterator<Item = &'a u32>,
 {
-    if at == Works::NAME {
+    if etype == Works::NAME {
         leaves.for_each(|k| {
             eatts.insert(
                 k.to_usize(),
@@ -72,21 +98,8 @@ fn add_leaves<'a, I>(
                 },
             );
         });
-        return;
-    }
-    if let Some(u_eatts) = state.att_union.get(at) {
-        if at == Institutions::NAME {
-            leaves.for_each(|k| {
-                let ku = k.to_usize();
-                eatts.insert(ku, oaify_inst(&u_eatts[k.to_usize()], &state.gets, ku));
-            })
-        } else {
-            leaves.for_each(|k| {
-                eatts.insert(k.to_usize(), to_none_alabel(&u_eatts[k.to_usize()]));
-            })
-        };
     } else {
-        // println!("WARNING: {at} not found in attribute union");
+        add_nonwork_label(leaves, eatts, etype, state);
     }
 }
 

@@ -13,7 +13,8 @@ use axum::{
 };
 use dmove::{
     para::{set_and_notify, wait_for_data_copy, AcTuple},
-    para_multi_gen_run, Entity, InitEmpty, NamespacedEntity, UnsignedNumber, ET,
+    para_multi_gen_run, reverse_prefixed_n, ByteArrayInterface, Entity, EntityMutableMapperBackend,
+    InitEmpty, NamespacedEntity, UnsignedNumber, VattReadingArcMap, ET,
 };
 use hashbrown::HashMap;
 use kd_tree::{KdPoint, KdTree};
@@ -34,7 +35,7 @@ use rankless_rs::{
     common::{MainEntity, NET},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
-        a2_init_atts::AuthorOrcids,
+        a2_init_atts::{AuthorOrcids, DiscardedAuthorsNames, WorkBiblios, WorkDois},
         derive_links3::HitPapers,
     },
     steps::{
@@ -45,11 +46,15 @@ use rankless_rs::{
 };
 use rankless_trees::{
     extensions::DistinctionText,
+    ids::add_nonwork_label,
     interfacing::{
         Getters, MetaMapGetter, NodeInterfaceable, NodeInterfaces, RootInterfaceable,
         RootInterfaces,
     },
-    io::{ShallowQ, ShallowTreesResponse, TreeQ, TreeResponse, TreeRunManager},
+    io::{
+        AttributeLabel, AttributeLabels, ManFileHandle, ShallowQ, ShallowTreesResponse, TreeQ,
+        TreeResponse, TreeRunManager,
+    },
     AttributeLabelUnion,
 };
 
@@ -166,12 +171,18 @@ struct PaperOut {
     name: String,
     doi: String,
     citations: u32,
+    source: usize,
+    authors: Vec<String>, //prefixed with filtered/discarded
     #[serde(rename = "yearlyCites", skip_serializing_if = "Option::is_none")]
     yearly_cites: Option<Box<[u32]>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    biblio: Option<ET<WorkBiblios>>,
 }
 
 #[derive(Serialize, Clone)]
 struct SearchResult {
+    //TODO: this is stored both here and in AttributeLabelUnion
+    //redundant memory usage
     name: String,
     #[serde(rename = "semanticId")]
     semantic_id: String,
@@ -209,6 +220,14 @@ struct PostAttResultExtension {
     hit_papers: Box<[PaperOut]>,
     #[serde(rename = "authorNetwork")]
     author_network: Box<[u8]>,
+}
+
+#[derive(Serialize, Clone)]
+struct PaperSetResp {
+    papers: Vec<PaperOut>,
+    paper_count: usize,
+    labels: AttributeLabels,
+    author_names: HashMap<String, String>,
 }
 
 struct PreAttResultExtension {
@@ -498,8 +517,11 @@ impl PreAttResultExtension {
                     year: YearInterface::reverse(*gets.year(&wid)),
                     name: String::from_utf8(gets.hit_names(*hwid).to_vec()).unwrap(),
                     doi: String::from_utf8(gets.hit_dois(*hwid).to_vec()).unwrap(),
-                    citations: *gets.wccount(&wid) as u32,
+                    citations: gets.wccount(wid) as u32,
                     yearly_cites: Some(gets.hit_yearlies(*hwid).into()),
+                    source: gets.top_source(&wid.to_usize()).to_usize(),
+                    biblio: None,
+                    authors: Vec::new(),
                 }
             })
             .collect();
@@ -795,6 +817,7 @@ async fn main() {
         .route("/orcid/:orcid_id", get(orcid_get))
         .route("/trees/:root_type/:semantic_id", get(tree_get))
         .route("/shallows/:root_type", get(shallows_get))
+        .route("/works/:etype/:semantic_id/:from", get(works_get))
         .with_state((ns_map_arc, satts, tree_manager.clone()));
 
     let count_api = static_router(&entity_descriptions);
@@ -997,6 +1020,109 @@ async fn name_get(
             HeaderMap::new(),
             (StatusCode::NOT_FOUND, "no such entity").into_response(),
         )
+    }
+}
+
+async fn works_get(
+    Path((etype, sem_id, pstart)): Path<(String, String, usize)>,
+    states: StatesT,
+) -> (HeaderMap, Response) {
+    const MAX_WORKS: usize = 400;
+    if let Some(state) = states.0 .0.get(etype.as_str()) {
+        let psid = parse_semantic_id(sem_id);
+        if let Some(sem_val) = state.semantic_id_map.get(&psid) {
+            if let Some(work_arr) = states.2.state.gets.works_of_entity(sem_val.dm_id, etype) {
+                if work_arr.len() > 0 {
+                    let mut satts = HashMap::new();
+                    let mut author_names = HashMap::new();
+                    let mut fhand = states.2.get_file_handle();
+                    let mut doi_hand = states.2.get_file_handle();
+                    let mut dan_hand = states.2.get_file_handle();
+                    let alabels = &states.2.state.att_union[Authors::NAME];
+                    let start = min(pstart, work_arr.len() - 1);
+                    let papers: Vec<PaperOut> = work_arr[start..]
+                        .iter()
+                        .take(MAX_WORKS)
+                        .map(|wid| {
+                            let po = paper_out(
+                                wid.to_usize(),
+                                &states.2.state.gets,
+                                &mut fhand,
+                                &mut doi_hand,
+                                &mut dan_hand,
+                                &mut author_names,
+                                alabels,
+                            );
+                            add_nonwork_label(
+                                [po.source as u32].iter(),
+                                &mut satts,
+                                Sources::NAME,
+                                &states.2.state,
+                            );
+                            po
+                        })
+                        .collect();
+                    let labels =
+                        HashMap::from_iter([(Sources::NAME.to_string(), satts)].into_iter());
+                    let resp = PaperSetResp {
+                        papers,
+                        paper_count: work_arr.len(),
+                        labels,
+                        author_names,
+                    };
+
+                    return (cache_header(60), Json(resp).into_response());
+                }
+            }
+        }
+    }
+    (
+        HeaderMap::new(),
+        (StatusCode::NOT_FOUND, "no such entity").into_response(),
+    )
+}
+
+fn paper_out(
+    wid: usize,
+    gets: &Getters,
+    handler: &mut ManFileHandle,
+    doi_handler: &mut VattReadingArcMap<WorkDois>,
+    disc_name_handler: &mut VattReadingArcMap<DiscardedAuthorsNames>,
+    anames: &mut HashMap<String, String>,
+    alabels: &Box<[AttributeLabel]>,
+) -> PaperOut {
+    let name = handler.get_via_mut(&wid).unwrap_or("Unknown".to_string());
+    let doi = doi_handler.get_via_mut(&wid).unwrap_or("".to_string());
+    //this is similarly to String with hit paper names not automatically remakes
+    //the var sized element from &[SubType]
+    let biblio = Some(<ET<WorkBiblios> as ByteArrayInterface>::from_bytes(
+        gets.wbiblios(wid),
+    ));
+    let mut authors = Vec::new();
+    for anyship in gets.wanyships(wid) {
+        let (is_filterd, ship_id) = reverse_prefixed_n(anyship.to_usize());
+        let (full_aid, aname) = if is_filterd {
+            let aid = gets.fshipa(&ship_id);
+            let full_aid = format!("F{aid}");
+            let aname = alabels[aid.to_usize()].name.clone();
+            (full_aid, aname)
+        } else {
+            let aid = gets.dshipa(&ship_id);
+            let name = disc_name_handler.get_via_mut(&aid.to_usize());
+            (format!("D{aid}"), name.unwrap_or("Unknown".to_string()))
+        };
+        authors.push(full_aid.clone());
+        anames.insert(full_aid, aname);
+    }
+    PaperOut {
+        year: YearInterface::reverse(*gets.year(&wid)),
+        name,
+        doi,
+        citations: gets.wccount(wid) as u32,
+        yearly_cites: None,
+        biblio,
+        source: gets.top_source(&wid).to_usize(),
+        authors,
     }
 }
 
