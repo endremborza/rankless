@@ -49,7 +49,7 @@ pub fn merge_box_into_sorted_vec<T>(left_vec: &mut Vec<T>, right_barr: &Box<[T]>
 where
     T: PartialOrd + Copy,
 {
-    merge_into_sorted_vec(left_vec, right_barr.clone().to_vec());
+    merge_into_sorted_vec(left_vec, right_barr.clone().into_vec());
 }
 
 pub fn merge_into_sorted_vec<T>(left_vec: &mut Vec<T>, mut right_vec: Vec<T>)
