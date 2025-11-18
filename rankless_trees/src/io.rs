@@ -465,8 +465,6 @@ where
     }
 
     pub fn get_shallows(&self, sq: ShallowQ, root_type: &String) -> Option<ShallowTreesResponse> {
-        return None;
-        //TODO
         let tq = TreeQ {
             year: sq.year,
             tid: sq.tid,
