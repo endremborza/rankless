@@ -444,7 +444,6 @@ impl Getters {
             Some(WorksNames::NAME),
         );
 
-        let path = stowage.path_from_ns(WorksNames::NS);
         let mut ifs = Interfaces::fake();
         //TODO a hack for testing
         ifs.year = YearInterface::iter().collect();
