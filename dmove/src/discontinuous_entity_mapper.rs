@@ -3,7 +3,6 @@ use std::fs::{self, File};
 use std::hash::Hash;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::marker::PhantomData;
-use std::ops::AddAssign;
 use std::path::PathBuf;
 
 use hashbrown::{HashMap, HashSet};
@@ -241,7 +240,7 @@ where
     }
 }
 
-pub fn chunk_sort(mut a: Vec<u8>, size: usize) -> Vec<u8> {
+pub fn chunk_sort(a: Vec<u8>, size: usize) -> Vec<u8> {
     let n = a.len();
     if n == 0 {
         return a;
