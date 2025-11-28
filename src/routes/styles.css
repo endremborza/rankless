@@ -116,6 +116,9 @@ select {
 	accent-color: var(--color-theme-darkblue);
 }
 
+g {
+	transition: transform 0.8s;
+}
 
 .hoverover {
 	position: absolute;
@@ -201,6 +204,13 @@ select {
 	margin-top: 30px;
 }
 
-g {
-	transition: transform 0.8s;
+.btn {
+	padding: .5rem .75rem;
+	border-radius: var(--borad);
+	border: none;
+	cursor: pointer;
+	font-weight: 600;
 }
+
+.btn.primary { background: var(--highlight-text); color: var(--text-bg); }
+
