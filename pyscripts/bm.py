@@ -1,4 +1,5 @@
 import datetime as dt
+import hashlib
 import json
 import re
 import subprocess
@@ -40,7 +41,7 @@ def p99(s):
 
 def dump_bms():
     recs = []
-    for bm_dir in Path("/tmp/dmove-bm").iterdir():
+    for bm_dir in Path(bm_root).iterdir():
         _log_df = pd.read_csv(bm_dir / "logs.csv.gz")
         resp_df = pd.read_csv(bm_dir / "resps.csv.gz")
 
@@ -129,10 +130,12 @@ if __name__ == "__main__":
                     url = f"{be_url}/trees/{rt}/{sem_id}?tid={tid}"
                     resp = requests.get(url)
                     assert resp.ok, url
+                    jsb = json.dumps(resp.json(), sort_keys=True).encode()
                     resp_recs.append(
                         {
                             "time": resp.elapsed.total_seconds(),
                             "size": len(resp.content),
+                            "md5": hashlib.md5(jsb).hexdigest(),
                             "sid": sem_id,
                             "tid": tid,
                             "eid": rt,

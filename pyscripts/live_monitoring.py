@@ -67,7 +67,6 @@ def log_result(e=None, msg=None):
     if e is None:
         global LAST_SUCCESS
         LAST_SUCCESS = time.time()
-        post_success()
     else:
         ERROR_DEQUE.append([dt.datetime.now().isoformat(), type(e).__name__, msg])
 
@@ -83,12 +82,12 @@ def get_success_dic():
 def read_records_and_warn():
     now = time.time()
     if (now - LAST_SUCCESS) < FAIL_SECONDS:
-        return
+        return post_success()
     latest_remote_success = max(
         [0, *[d.get("time", 0) for d in get_success_dic().values()]]
     )
     if (now - latest_remote_success) < FAIL_SECONDS:
-        return
+        return post_success()
     msg = "\n\n".join(" - ".join(e) for e in ERROR_DEQUE)
     warn("Rankless Failed Validation", msg)
 
@@ -100,11 +99,7 @@ def post_success():
                 FILE_CHANNEL_ADDR + "/upload",
                 headers={"token": FILE_CHANNEL_TOKEN, "filename": get_selfname()},
                 data=json.dumps(
-                    {
-                        "time": int(LAST_SUCCESS),
-                        "errs": [*ERROR_DEQUE],
-                        "datetime": dt.datetime.now().isoformat(),
-                    }
+                    {"time": int(LAST_SUCCESS), "errs": [*ERROR_DEQUE]}
                 ).encode(),
                 timeout=10,
             )
