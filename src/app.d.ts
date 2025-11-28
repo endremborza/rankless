@@ -3,10 +3,14 @@
 declare global {
 	namespace App {
 		// interface Error {}
+		interface Locals {
+			user: import('./lib/server/session').SessionUserData | null;
+			surveyShouldPrompt: boolean;
+		}
 		// interface Locals {}
 		// interface PageData {}
 		// interface Platform {}
 	}
 }
 
-export {};
+export { };

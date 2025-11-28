@@ -8,7 +8,7 @@ export function getSession(event: RequestEvent) {
 	return cookies[COOKIE_NAME] ? JSON.parse(cookies[COOKIE_NAME]) : null;
 }
 
-export function setSession(event: RequestEvent, data: any) {
+export function setSession(_event: RequestEvent, data: SessionUserData) {
 	return new Response(null, {
 		status: 302,
 		headers: {
@@ -34,4 +34,9 @@ export function clearSession() {
 			Location: '/'
 		}
 	});
+}
+
+export type SessionUserData = {
+	orcid: string;
+	name: string
 }

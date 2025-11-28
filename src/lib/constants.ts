@@ -10,6 +10,8 @@ export const ENTITY_SITEMAP_STEP_SIZE = 40000;
 export const BE_URL = 'http://127.0.0.1:3038/v1';
 export const BE_REMOTE_URL = `${PUBLIC_BACKEND_URL}/v1`;
 
+export const SURVEY_LOG_PATH = '/tmp/survey-logs.jsonl';
+
 export const ROOT_TYPES: RootType[] = [
 	'authors',
 	'institutions',
