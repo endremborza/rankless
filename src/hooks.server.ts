@@ -3,13 +3,6 @@ import { getSession } from '$lib/server/session';
 
 export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.user = getSession(event);
-	const path = event.url.pathname;
-
-	// Never show the survey on the survey page or under its API/actions
-	if (path.startsWith('/survey')) {
-		event.locals.surveyShouldPrompt = false;
-		return resolve(event);
-	}
 
 	const cookies = event.cookies;
 	const completed = cookies.get('survey_completed') === '1';

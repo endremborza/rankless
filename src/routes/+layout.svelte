@@ -13,6 +13,7 @@
 	import { LATEST_YEAR, ROOT_TYPES } from '$lib/constants';
 	import { prettifyRoot } from '$lib/text-format-util';
 	import { resultsHidden } from '$lib/stores';
+	import { page } from '$app/stores';
 
 	export let data: { surveyShouldPrompt: boolean };
 	let options: RootType[] = ROOT_TYPES.filter((e) => e != 'hit-papers');
@@ -102,6 +103,7 @@
 	$: currenHidden = $resultsHidden;
 	$: placeholder = currenHidden ? '' : basePlaceholder;
 	$: setNoScroll(currenHidden);
+	$: onSurveyPage = $page.url.pathname.startsWith('/survey');
 </script>
 
 <svelte:head>
@@ -182,7 +184,7 @@
 	</div>
 </div>
 
-{#if data.surveyShouldPrompt}
+{#if data.surveyShouldPrompt && !onSurveyPage}
 	<SurveyPrompt />
 {/if}
 
