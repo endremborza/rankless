@@ -11,5 +11,6 @@ export type SurveyRecord = {
 	payload: SurveySubmit | { reason?: string } | null;
 	userId: string | null;
 	ip: string | null;
+	fwIp: string | null;
 	timestamp: string;
 };

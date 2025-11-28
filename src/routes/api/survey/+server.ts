@@ -13,6 +13,7 @@ export const POST: RequestHandler = async ({ request, locals, getClientAddress, 
 			payload: { ...data, timestamp: new Date().toISOString() },
 			userId: locals.user?.orcid ?? null,
 			ip: getClientAddress?.() ?? null,
+			fwIp: request.headers.get('x-forwarded-for'),
 			timestamp: new Date().toISOString()
 		};
 
