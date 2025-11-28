@@ -4,6 +4,7 @@
 	import SearchResults from '$lib/components/SearchResults.svelte';
 	import TextedLogo from '$lib/components/TextedLogo.svelte';
 	import PathLogo from '$lib/components/PathLogo.svelte';
+	import SurveyPrompt from '$lib/components/SurveyPrompt.svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { slide } from 'svelte/transition';
@@ -13,6 +14,7 @@
 	import { prettifyRoot } from '$lib/text-format-util';
 	import { resultsHidden } from '$lib/stores';
 
+	export let data: { surveyShouldPrompt: boolean };
 	let options: RootType[] = ROOT_TYPES.filter((e) => e != 'hit-papers');
 	let cat: RootType = options[0];
 
@@ -179,6 +181,10 @@
 		<div id="foot-r"><a href="/#contact">Contact</a></div>
 	</div>
 </div>
+
+{#if data.surveyShouldPrompt}
+	<SurveyPrompt />
+{/if}
 
 <style>
 	svg {
