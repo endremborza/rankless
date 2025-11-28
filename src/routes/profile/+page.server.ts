@@ -3,6 +3,7 @@ import type { SearchResult } from '$lib/tree-types';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
+	//TODO simplify session management
 	if (!locals.user) {
 		// return {}
 		// throw new Response('Unauthorized', { status: 302, headers: { Location: '/' } });
