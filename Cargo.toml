@@ -9,6 +9,13 @@ members = [
 ]
 package = { version = "0.1.0", edition = "2021" }
 resolver = "2"
-# [profile.release]
+
+[profile.release]
 # debug = true
 # strip = false
+opt-level = 3
+codegen-units = 1
+lto = true
+
+[build]
+rustflags = ["-C", "target-cpu=native"]
