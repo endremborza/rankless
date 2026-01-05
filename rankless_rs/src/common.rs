@@ -378,7 +378,7 @@ impl Stowage {
         self.paths.entity_csvs.parent().unwrap().join(ns)
     }
 
-    pub fn mu_bu(&self) -> MutexGuard<MainBuilder> {
+    pub fn mu_bu(&self) -> MutexGuard<'_, MainBuilder> {
         self.builder.as_ref().unwrap().lock().unwrap()
     }
 }
