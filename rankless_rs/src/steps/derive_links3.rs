@@ -6,7 +6,7 @@ use crate::{
     gen::{
         a1_entity_mapping::{Authors, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{WorkDois, WorkTopics, WorkYears, WorksNames},
-        derive_links1::{WorkAuthors, WorkSubfields},
+        derive_links1::{WorkFilteredAuthors, WorkSubfields},
         derive_links2::{AuthorWorks, WorkCountries},
     },
     steps::{
@@ -108,7 +108,7 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         }
     });
 
-    let w2amap = starc.get_entity_interface::<WorkAuthors, QuickestVBox>();
+    let w2amap = starc.get_entity_interface::<WorkFilteredAuthors, QuickestVBox>();
     let coauthorships: Vec<Box<[(ET<Authors>, u8)]>> = starc
         .get_entity_interface::<AuthorWorks, ReadIter>()
         .enumerate()

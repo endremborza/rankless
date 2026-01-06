@@ -19,8 +19,8 @@ use tqdm::{Iter, Tqdm};
 use dmove::{
     BackendLoading, BigId, CompactEntity, Entity, FixAttIterator, FixWriteSizeEntity, InitEmpty,
     LoadedIdMap, MainBuilder, MappableEntity, MarkedAttribute, MetaIntegrator, NamespacedEntity,
-    UnsignedNumber, VarAttIterator, VarBox, VarSizedAttributeElement, VariableSizeAttribute,
-    VattArrPair, VattReadingMap, ET, MAA,
+    UnsignedNumber, VarAttBuilder, VarAttIterator, VarBox, VarSizedAttributeElement,
+    VariableSizeAttribute, VattArrPair, VattReadingMap, ET, MAA,
 };
 
 pub type StowReader = Reader<BufReader<GzDecoder<File>>>;
@@ -330,6 +330,23 @@ impl Stowage {
         let name = name_o.unwrap(); //TODO - temp
         B::add_iter_owned(&self.builder.as_ref().unwrap(), iter, &name);
         self.mu_bu().declare_ns(&name, &self.current_ns);
+    }
+
+    pub fn add_barr<B, T>(&self, barr: Box<[T]>, name: &str)
+    where
+        B: MetaIntegrator<T>,
+    {
+        self.add_iter_owned::<B, _, T>(barr.into_vec().into_iter(), Some(name));
+    }
+
+    pub fn add_barr_of_vecs<T>(&self, barr: Box<[Vec<T>]>, name: &str)
+    where
+        VarAttBuilder: MetaIntegrator<Box<[T]>>,
+    {
+        self.add_iter_owned::<VarAttBuilder, _, Box<[T]>>(
+            barr.into_vec().into_iter().map(|e| e.into_boxed_slice()),
+            Some(name),
+        );
     }
 
     pub fn declare_link<S: Entity, T: Entity>(&self, name: &str) {

@@ -3,7 +3,6 @@ use std::fs::{self, File};
 use std::hash::Hash;
 use std::io::{BufReader, Read, Seek, SeekFrom, Write};
 use std::marker::PhantomData;
-use std::ops::AddAssign;
 use std::path::PathBuf;
 
 use hashbrown::{HashMap, HashSet};
@@ -164,7 +163,7 @@ where
             }
         }
         full_record_vec.extend(&self.extensions);
-        let sorted_record_vec = chunk_sort(full_record_vec, &self.full_size);
+        let sorted_record_vec = chunk_sort(full_record_vec, self.full_size);
         File::create(&self.map_path)
             .unwrap()
             .write(&sorted_record_vec)
@@ -241,52 +240,29 @@ where
     }
 }
 
-fn chunk_sort(a: Vec<u8>, size: &usize) -> Vec<u8> {
-    if a.len() > *size {
-        let mid = (a.len() / *size) / 2 * size;
-        let (a1, a2) = a.split_at(mid);
-        return merge_chunks(
-            chunk_sort(a1.to_vec(), size),
-            chunk_sort(a2.to_vec(), size),
-            size,
-        );
+pub fn chunk_sort(a: Vec<u8>, size: usize) -> Vec<u8> {
+    let n = a.len();
+    if n == 0 {
+        return a;
     }
-    a
-}
+    let ok = n % size == 0;
+    assert!(ok, "n must be a multiple of size ({n} % {size} != 0)");
+    let k = n / size;
+    let mut idxs: Vec<usize> = (0..k).map(|i| i * size).collect();
+    idxs.sort_by(|&i, &j| a[i..i + size].cmp(&a[j..j + size]));
 
-fn merge_chunks(a1: Vec<u8>, a2: Vec<u8>, size: &usize) -> Vec<u8> {
-    if a1.len() == 0 {
-        return a2;
-    }
-    if a2.len() == 0 {
-        return a1;
-    }
-    let mut out = Vec::new();
-    let (mut li, mut ri): (usize, usize) = (0, 0);
-    let mut add = |i: &mut usize, a: &Vec<u8>| {
-        out.extend(a[*i..(*i + *size)].iter());
-        i.add_assign(*size);
-    };
-    'outer: while (li < a1.len()) || (ri < a2.len()) {
-        if li == a1.len() {
-            add(&mut ri, &a2);
-            continue;
+    let mut out = Vec::with_capacity(n);
+    let mut last_chunk: Option<&[u8]> = None;
+    for off in idxs {
+        let chunk = &a[off..off + size];
+        let should_write = match last_chunk {
+            None => true,
+            Some(prev) => prev != chunk,
+        };
+        if should_write {
+            out.extend_from_slice(chunk);
+            last_chunk = Some(chunk);
         }
-        if ri == a2.len() {
-            add(&mut li, &a1);
-            continue;
-        }
-        for ii in 0..*size {
-            if a1[li + ii] < a2[ri + ii] {
-                add(&mut li, &a1);
-                continue 'outer;
-            } else if a1[li + ii] > a2[ri + ii] {
-                add(&mut ri, &a2);
-                continue 'outer;
-            }
-        }
-        ri.add_assign(*size);
-        add(&mut li, &a1);
     }
     out
 }
@@ -302,15 +278,43 @@ mod chunk_test {
     #[test]
     fn ch_srt() {
         let a: Vec<u8> = vec![0, 1, 3, 10, 2, 5, 1, 20];
-        let sorted = chunk_sort(a, &2);
-        assert_eq!(sorted, vec![0, 1, 1, 20, 2, 5, 3, 10])
+        let sorted = chunk_sort(a, 2);
+        assert_eq!(sorted, vec![0, 1, 1, 20, 2, 5, 3, 10]);
     }
 
     #[test]
     fn ch_srt_eq() {
         let a: Vec<u8> = vec![0, 1, 0, 1];
-        let sorted = chunk_sort(a, &2);
-        assert_eq!(sorted, vec![0, 1])
+        let sorted = chunk_sort(a, 2);
+        assert_eq!(sorted, vec![0, 1]);
+    }
+
+    #[test]
+    fn test_merge_simple_equiv() {
+        let a: Vec<u8> = vec![1, 1, 2, 2];
+        let sorted = chunk_sort(a, 2);
+        assert_eq!(sorted, vec![1, 1, 2, 2]);
+    }
+
+    #[test]
+    fn test_chunk_sort_in_place_simple() {
+        let data = vec![3, 3, 1, 1, 2, 2];
+        let sorted = chunk_sort(data, 2);
+        assert_eq!(sorted, vec![1, 1, 2, 2, 3, 3]);
+    }
+
+    #[test]
+    fn test_chunk_sort_wrapper() {
+        let data = vec![9, 9, 8, 8, 7, 7, 6, 6, 5, 5];
+        let sorted = chunk_sort(data, 2);
+        assert_eq!(sorted, vec![5, 5, 6, 6, 7, 7, 8, 8, 9, 9]);
+    }
+
+    #[test]
+    fn test_dedup_equal_chunks() {
+        let data = vec![1, 1, 1, 1, 1, 1];
+        let sorted = chunk_sort(data, 2);
+        assert_eq!(sorted, vec![1, 1]);
     }
 }
 

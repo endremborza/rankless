@@ -49,7 +49,7 @@ add_id_traits!(
 
 add_strict_parsed_id_traits!(Institution, Work, NamedEntity);
 add_parsed_id_traits!(IdStruct);
-add_parent_parsed_id_traits!(ReferencedWork, WorkTopic);
+add_parent_parsed_id_traits!(ReferencedWork, WorkTopic, Biblio);
 
 impl<T: IdTrait> IdTrait for IdCountDecorated<T> {
     fn get_id(&self) -> String {
@@ -311,10 +311,10 @@ pub struct SummaryStats {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Biblio {
     pub parent_id: Option<String>,
-    volume: Option<String>,
-    issue: Option<String>,
-    first_page: Option<String>,
-    last_page: Option<String>,
+    pub volume: Option<String>,
+    pub issue: Option<String>,
+    pub first_page: Option<String>,
+    pub last_page: Option<String>,
 }
 
 // #[derive(Deserialize, Serialize, Debug)]

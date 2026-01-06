@@ -1,4 +1,4 @@
-use std::{io, sync::Arc, thread};
+use std::{io, ops::AddAssign, sync::Arc, thread};
 
 use hashbrown::HashSet;
 use serde::{de::DeserializeOwned, Deserialize};
@@ -149,17 +149,34 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         }));
     }
 
-    for en in vec![
-        works::C,
-        institutions::C,
-        sources::C,
-        // concepts::C,
-        topics::C,
-        authors::C,
-    ] {
+    for en in vec![works::C, institutions::C, sources::C, topics::C] {
         let sc = starc.clone();
         threads.push(thread::spawn(move || {
             ids_from_atts::<IdStruct, _>(&sc, en, en, |e| e.get_parsed_id());
+        }));
+    }
+
+    let author_filter = starc.get_last_filter(authors::C).unwrap();
+    {
+        let sc = starc.clone();
+        let filter = author_filter.clone();
+        threads.push(thread::spawn(move || {
+            let mut selected_authors = Vec::new();
+            let a_iter = sc
+                .read_csv_objs::<IdStruct>(authors::C, MAIN_NAME)
+                .filter_map(|e| {
+                    let pid = e.get_parsed_id();
+                    if filter.contains(&pid) {
+                        selected_authors.push(pid);
+                        return None;
+                    }
+                    Some(pid)
+                });
+            sc.add_iter_owned::<Data64MappedEntityBuilder, _, _>(a_iter, Some("discarded-authors"));
+            sc.add_iter_owned::<Data64MappedEntityBuilder, _, _>(
+                selected_authors.into_iter(),
+                Some(authors::C),
+            );
         }));
     }
 
@@ -177,14 +194,24 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
             .map(|e| short_string_to_u64(&e.city.unwrap_or("".to_string()))),
         None,
     );
-
-    //TODO: distinguish as no null value here (??)
-    //fix inderect authorships
-    let ship_n = iter_authorships(&starc).count();
+    let mut filt_ship_n = 0;
+    let mut disc_ship_n = 0;
+    for ship in iter_authorships(&starc) {
+        if let Some(raw_a_oaid) = ship.author_id {
+            if author_filter.contains(&oa_id_parse(&raw_a_oaid)) {
+                filt_ship_n.add_assign(1);
+            } else {
+                disc_ship_n.add_assign(1);
+            }
+        }
+    }
     threads.into_iter().for_each(|h| h.join().unwrap());
     starc
         .mu_bu()
-        .add_scaled_entity(works::atts::authorships, ship_n, true);
+        .add_scaled_entity("authorships-filtered-author", filt_ship_n, true);
+    starc
+        .mu_bu()
+        .add_scaled_entity("authorships-discarded-author", disc_ship_n, true);
     starc.mu_bu().add_scaled_entity("qs", 5, true);
     starc.write_code()?;
     Ok(())

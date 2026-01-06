@@ -23,10 +23,15 @@ use rankless_rs::{
     },
 };
 
-use dmove::{para::AcTuple, BigId, Entity, InitEmpty, NamespacedEntity, VattReadingArcMap, ET};
+use dmove::{
+    para::AcTuple, BigId, Entity, InitEmpty, NamespacedEntity, VarSizedAttributeElement,
+    VattReadingArcMap, ET,
+};
 
 use crate::{
-    instances::TreeGetter, interfacing::Getters, part_iterator::TreeMakingParams,
+    instances::TreeGetter,
+    interfacing::{Getters, LocatorsFromMemory},
+    part_iterator::TreeMakingParams,
     AttributeLabelUnion,
 };
 
@@ -460,8 +465,6 @@ where
     }
 
     pub fn get_shallows(&self, sq: ShallowQ, root_type: &String) -> Option<ShallowTreesResponse> {
-        return None;
-        //TODO
         let tq = TreeQ {
             year: sq.year,
             tid: sq.tid,
@@ -513,6 +516,23 @@ where
         Self::new(Arc::new(gets), atts.into(), 2)
     }
 
+    pub fn get_file_handle<E>(&self) -> VattReadingArcMap<E>
+    where
+        E: NamespacedEntity,
+        E: LocatorsFromMemory,
+        ET<E>: VarSizedAttributeElement,
+    {
+        let parent = self
+            .state
+            .gets
+            .stowage
+            .path_from_ns(<E as NamespacedEntity>::NS);
+        VattReadingArcMap::<E>::from_locator(
+            <E as LocatorsFromMemory>::locs_from_ram(&self.state.gets),
+            &parent,
+        )
+    }
+
     fn add_to_queue(&self, aq: Option<AnyQuery>, res_cvp: ResCvp) {
         let (lock, cvar) = &*self.cv_pair;
         let mut data = lock.lock().unwrap();
@@ -551,15 +571,6 @@ where
             data = cvar.wait(data).unwrap();
         }
         return data.pop_back().unwrap();
-    }
-
-    fn get_file_handle(&self) -> ManFileHandle {
-        let parent = self
-            .state
-            .gets
-            .stowage
-            .path_from_ns(<WorksNames as NamespacedEntity>::NS);
-        VattReadingArcMap::<WorksNames>::from_locator(self.state.gets.wn_locators.clone(), &parent)
     }
 }
 

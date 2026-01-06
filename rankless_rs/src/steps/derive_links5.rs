@@ -11,9 +11,9 @@ use std::{
 };
 
 use dmove::{
-    ByteFixArrayInterface, DowncastingBuilder, Entity, FixAttBuilder, InitEmpty, MarkedAttribute,
-    NamespacedEntity, UnsignedNumber, VarAttBuilder, VarAttIterator, VariableSizeAttribute,
-    VattArrPair, ET, MAA,
+    reverse_prefixed_n, ByteFixArrayInterface, DowncastingBuilder, Entity, FixAttBuilder,
+    InitEmpty, MarkedAttribute, NamespacedEntity, UnsignedNumber, VarAttBuilder, VarAttIterator,
+    VariableSizeAttribute, VattArrPair, ET, MAA,
 };
 use dmove_macro::ByteFixArrayInterface;
 use hashbrown::{HashMap, HashSet};
@@ -31,8 +31,9 @@ use crate::{
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{
-            AuthorshipAuthor, AuthorshipInstitutions, CountryCodes, CountryCodesThree,
-            InstCountries, SourceYearQs, WorkAuthorships, WorkSources, WorkTopics, WorkYears,
+            AuthorshipFilteredAuthor, CountryCodes, CountryCodesThree,
+            FilteredAuthorshipInstitutions, InstCountries, SourceYearQs, WorkAnyAuthorships,
+            WorkSources, WorkTopics, WorkYears,
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
         derive_links2::{WorkCountries, WorkTopSource},
@@ -132,14 +133,14 @@ make_interface_struct!(CDBackends,
     year => WorkYears,
     icountry => InstCountries,
     wtopsource => WorkTopSource,
-    shipa => AuthorshipAuthor;
+    ship_fa => AuthorshipFilteredAuthor;
     wsubfields -> WorkSubfields,
     wtopics -> WorkTopics,
     wcountries -> WorkCountries,
     wsources -> WorkSources,
     winsts -> WorkInstitutions,
-    wships -> WorkAuthorships,
-    ship_instss -> AuthorshipInstitutions;
+    w_aships -> WorkAnyAuthorships,
+    fship_insts -> FilteredAuthorshipInstitutions;
 );
 
 trait IRelAdder: Entity {
@@ -336,11 +337,14 @@ where
         self.top3_journals.add(*bends.wtopsource.get(wu).unwrap());
         let wcs = bends.wciting.get(&wu).unwrap();
         let wlen = wcs.len();
-        let coauths = bends.wships.get(&wu).unwrap();
-        let ccn = coauths.len() as f64;
-        for ship_id in coauths {
-            self.top5_authors
-                .add((bends.shipa[ship_id.to_usize()], wlen as f64 / ccn));
+        let coauthships = bends.w_aships.get(&wu).unwrap();
+        let ccn = coauthships.len() as f64;
+        for any_ship_id in coauthships {
+            let (is_filtered, ship_id) = reverse_prefixed_n(any_ship_id.to_usize());
+            if is_filtered {
+                self.top5_authors
+                    .add((bends.ship_fa[ship_id], wlen as f64 / ccn));
+            }
         }
         for c_wid in wcs {
             for sf_id in bends.wsubfields.get(&c_wid.to_usize()).unwrap() {
@@ -701,11 +705,13 @@ impl IRelAdder for Countries {
 impl IRelAdder for Authors {
     fn get_by_work(wu: usize, bends: &CDBackends, aid: ET<Self>) -> Vec<IT> {
         let mut o = Vec::new();
-        for ship in bends.wships.get(&wu).unwrap() {
-            let shu = ship.to_usize();
-            if bends.shipa[shu] == aid {
-                for iid in bends.ship_instss.get(&shu).unwrap() {
-                    o.push(*iid)
+        for ship_any in bends.w_aships.get(&wu).unwrap() {
+            let (is_filtered, ship_id) = reverse_prefixed_n(ship_any.to_usize());
+            if is_filtered {
+                if bends.ship_fa[ship_id] == aid {
+                    for iid in bends.fship_insts.get(&ship_id).unwrap() {
+                        o.push(*iid)
+                    }
                 }
             }
         }

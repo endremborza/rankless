@@ -174,8 +174,8 @@ class Benchmarker:
             )
         )
         sizes_df = pd.DataFrame(
-            re.findall(f"(\d+).*{oa_root}/(.*)", sizes.decode())
-            + re.findall("(\d+).*(cache/.*)", cache_sizes.decode())
+            re.findall(rf"(\d+).*{oa_root}/(.*)", sizes.decode())
+            + re.findall(r"(\d+).*(cache/.*)", cache_sizes.decode())
             + [[snap_size, "snapshot"]],
             columns=["size", "directory"],
         ).assign(size=lambda df: df["size"].astype(int))
