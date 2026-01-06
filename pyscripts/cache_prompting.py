@@ -4,6 +4,7 @@ from multiprocessing import Pool
 
 import pandas as pd
 import requests
+from requests.api import get
 from tqdm import tqdm
 
 addr = "http://127.0.0.1:3038"
@@ -62,17 +63,33 @@ def add_be_urls(df, year=1950):
     return df.assign(url=df.apply(urlify, axis=1))
 
 
-if __name__ == "__main__":
+def get_resdf(specs, step_size=100, max_n=25_000):
+    resdfs = []
+    for r in specs.keys():
+        for ss in tqdm(range(0, max_n, step_size), r):
+            rjs = requests.get(f"{addr}/v1/slice/{r}/{ss}/{ss+step_size}").json()
+            if len(rjs) == 0:
+                break
+            resdfs.append(
+                pd.DataFrame(rjs).assign(rt=r).drop("meta", axis=1, errors="ignore")
+            )
 
-    for i in tqdm(range(100)):
+    return pd.concat(resdfs).drop_duplicates()
+
+
+def get_specs_and_ys():
+    for _ in tqdm(range(100)):
         try:
             sd = requests.get(f"{addr}/v1/specs").json()
-            specs = sd["specs"]
-            ys = sd["yearBreaks"]
-            break
+            return sd["specs"], sd["yearBreaks"]
         except:
             time.sleep(15)
+    raise RuntimeError("no server")
 
+
+if __name__ == "__main__":
+
+    specs, ys = get_specs_and_ys()
     tid_df = pd.DataFrame(
         [
             {"rt": k, "tid": i, "bds": len(v["breakdowns"])}
@@ -81,19 +98,7 @@ if __name__ == "__main__":
         ]
     )
     rcounts = {r: len(v) for r, v in specs.items()}
-
-    step_size = 100
-    resdfs = []
-    for r, c in rcounts.items():
-        for ss in tqdm(range(0, 25_000, step_size), r):
-            rjs = requests.get(f"{addr}/v1/slice/{r}/{ss}/{ss+step_size}").json()
-            if len(rjs) == 0:
-                break
-            resdfs.append(
-                pd.DataFrame(rjs).assign(rt=r).drop("meta", axis=1, errors="ignore")
-            )
-
-    resdf = pd.concat(resdfs).drop_duplicates()
+    resdf = get_resdf(specs, 100)
     sample = (
         resdf.merge(tid_df)
         .sort_values(["citations", "bds"], ascending=False)
