@@ -8,35 +8,39 @@ pub struct DomainsNames { }
 
 pub struct InstLocs { }
 
+pub struct FilteredAuthorshipInstitutions { }
+
 pub struct AuthorsNames { }
 
 pub struct TopicsNames { }
 
 pub struct InstCountries { }
 
-pub struct WorkReferences { }
-
 pub struct TopicSubfields { }
 
-pub struct WorkAuthorships { }
+pub struct WorkReferences { }
+
+pub struct WorkAnyAuthorships { }
+
+pub struct WorkBiblios { }
 
 pub struct InstitutionsNames { }
 
 pub struct AuthorRawCites { }
 
-pub struct CountryCodesThree { }
-
 pub struct InstitutionsNameExts { }
+
+pub struct CountryCodesThree { }
 
 pub struct SubfieldsWikipedia { }
 
-pub struct InstCities { }
-
 pub struct FieldAncestors { }
 
-pub struct TopicsWikipedia { }
+pub struct InstCities { }
 
 pub struct InstRors { }
+
+pub struct TopicsWikipedia { }
 
 pub struct WorkDois { }
 
@@ -48,7 +52,15 @@ pub struct CountriesNames { }
 
 pub struct SourcesNameExts { }
 
+pub struct AuthorshipFilteredAuthor { }
+
+pub struct AuthorshipDiscardedAuthor { }
+
+pub struct DiscardedAuthorshipInstitutions { }
+
 pub struct AuthorWikiSlugs { }
+
+pub struct DiscardedAuthorsNames { }
 
 pub struct CitiesNames { }
 
@@ -66,47 +78,59 @@ pub struct SubfieldsNameExts { }
 
 pub struct AuthorsNameExts { }
 
-pub struct AuthorshipInstitutions { }
-
 pub struct CountryCodes { }
 
 pub struct SubfieldsNames { }
 
 pub struct SourceYearQs { }
 
-pub struct AuthorshipAuthor { }
-
 pub struct SourcesNames { }
 
 pub struct SourceAreaFields { }
 
-impl Entity for AuthorshipAuthor { type T = u32; const N: usize = 287769519; const NAME: & str = "authorship-author"; }
+impl Entity for AuthorshipFilteredAuthor { type T = u32; const N: usize = 191078698; const NAME: & str = "authorship-filtered-author"; }
 
-impl MappableEntity for AuthorshipAuthor { type KeyType = usize; }
+impl MappableEntity for AuthorshipFilteredAuthor { type KeyType = usize; }
 
-impl NamespacedEntity for AuthorshipAuthor { const NS: & str = "a2_init_atts"; }
+impl NamespacedEntity for AuthorshipFilteredAuthor { const NS: & str = "a2_init_atts"; }
 
-impl Entity for AuthorshipInstitutions { type T = Box<[u16]>; const N: usize = 287769519; const NAME: & str = "authorship-institutions"; }
+impl Entity for AuthorshipDiscardedAuthor { type T = u32; const N: usize = 96690822; const NAME: & str = "authorship-discarded-author"; }
 
-impl MappableEntity for AuthorshipInstitutions { type KeyType = usize; }
+impl MappableEntity for AuthorshipDiscardedAuthor { type KeyType = usize; }
 
-impl VariableSizeAttribute for AuthorshipInstitutions { type SizeType = u8; type LocType = u32; }
+impl NamespacedEntity for AuthorshipDiscardedAuthor { const NS: & str = "a2_init_atts"; }
 
-impl NamespacedEntity for AuthorshipInstitutions { const NS: & str = "a2_init_atts"; }
+impl Entity for FilteredAuthorshipInstitutions { type T = Box<[u16]>; const N: usize = 191078698; const NAME: & str = "filtered-authorship-institutions"; }
 
-impl Entity for WorkAuthorships { type T = Box<[u32]>; const N: usize = 75090099; const NAME: & str = "work-authorships"; }
+impl MappableEntity for FilteredAuthorshipInstitutions { type KeyType = usize; }
 
-impl MappableEntity for WorkAuthorships { type KeyType = usize; }
+impl VariableSizeAttribute for FilteredAuthorshipInstitutions { type SizeType = u8; type LocType = u32; }
 
-impl VariableSizeAttribute for WorkAuthorships { type SizeType = u8; type LocType = u32; }
+impl NamespacedEntity for FilteredAuthorshipInstitutions { const NS: & str = "a2_init_atts"; }
 
-impl NamespacedEntity for WorkAuthorships { const NS: & str = "a2_init_atts"; }
+impl Entity for DiscardedAuthorshipInstitutions { type T = Box<[u16]>; const N: usize = 96690822; const NAME: & str = "discarded-authorship-institutions"; }
 
-impl Link for AuthorshipAuthor { type Source = crate::gen::a1_entity_mapping::Authorships; type Target = crate::gen::a1_entity_mapping::Authors; }
+impl MappableEntity for DiscardedAuthorshipInstitutions { type KeyType = usize; }
 
-impl Link for AuthorshipInstitutions { type Source = crate::gen::a1_entity_mapping::Authorships; type Target = crate::gen::a1_entity_mapping::Institutions; }
+impl VariableSizeAttribute for DiscardedAuthorshipInstitutions { type SizeType = u8; type LocType = u32; }
 
-impl Link for WorkAuthorships { type Source = crate::gen::a1_entity_mapping::Works; type Target = crate::gen::a1_entity_mapping::Authorships; }
+impl NamespacedEntity for DiscardedAuthorshipInstitutions { const NS: & str = "a2_init_atts"; }
+
+impl Entity for WorkAnyAuthorships { type T = Box<[u32]>; const N: usize = 75090099; const NAME: & str = "work-any-authorships"; }
+
+impl MappableEntity for WorkAnyAuthorships { type KeyType = usize; }
+
+impl VariableSizeAttribute for WorkAnyAuthorships { type SizeType = u8; type LocType = u32; }
+
+impl NamespacedEntity for WorkAnyAuthorships { const NS: & str = "a2_init_atts"; }
+
+impl Entity for WorkBiblios { type T = crate::biblo_var_att::BiblioInfo; const N: usize = 75090099; const NAME: & str = "work-biblios"; }
+
+impl MappableEntity for WorkBiblios { type KeyType = usize; }
+
+impl VariableSizeAttribute for WorkBiblios { type SizeType = u8; type LocType = u32; }
+
+impl NamespacedEntity for WorkBiblios { const NS: & str = "a2_init_atts"; }
 
 impl Entity for WorkYears { type T = u8; const N: usize = 75090099; const NAME: & str = "work-years"; }
 
@@ -195,6 +219,16 @@ impl Entity for InstCities { type T = u16; const N: usize = 30283; const NAME: &
 impl MappableEntity for InstCities { type KeyType = usize; }
 
 impl NamespacedEntity for InstCities { const NS: & str = "a2_init_atts"; }
+
+impl Entity for DiscardedAuthorsNames { type T = String; const N: usize = 100905485; const NAME: & str = "discarded-authors-names"; }
+
+impl MappableEntity for DiscardedAuthorsNames { type KeyType = usize; }
+
+impl VariableSizeAttribute for DiscardedAuthorsNames { type SizeType = u16; type LocType = u32; }
+
+impl NamespacedEntity for DiscardedAuthorsNames { const NS: & str = "a2_init_atts"; }
+
+impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mapping::DiscardedAuthors { type AttributeEntity = DiscardedAuthorsNames; }
 
 impl Entity for AuthorsNames { type T = String; const N: usize = 4037517; const NAME: & str = "authors-names"; }
 

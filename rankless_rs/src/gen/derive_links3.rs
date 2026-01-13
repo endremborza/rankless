@@ -32,6 +32,14 @@ impl NamespacedEntity for InstitutionsWorkCount { const NS: & str = "derive_link
 
 impl MarkedAttribute<crate::common::WorkCountMarker> for crate::gen::a1_entity_mapping::Institutions { type AttributeEntity = InstitutionsWorkCount; }
 
+impl Entity for SubfieldsWorkCount { type T = u32; const N: usize = 254; const NAME: & str = "subfields-work-count"; }
+
+impl MappableEntity for SubfieldsWorkCount { type KeyType = usize; }
+
+impl NamespacedEntity for SubfieldsWorkCount { const NS: & str = "derive_links3"; }
+
+impl MarkedAttribute<crate::common::WorkCountMarker> for crate::gen::a1_entity_mapping::Subfields { type AttributeEntity = SubfieldsWorkCount; }
+
 impl Entity for TopicsWorkCount { type T = u32; const N: usize = 4518; const NAME: & str = "topics-work-count"; }
 
 impl MappableEntity for TopicsWorkCount { type KeyType = usize; }
@@ -47,14 +55,6 @@ impl MappableEntity for SourcesWorkCount { type KeyType = usize; }
 impl NamespacedEntity for SourcesWorkCount { const NS: & str = "derive_links3"; }
 
 impl MarkedAttribute<crate::common::WorkCountMarker> for crate::gen::a1_entity_mapping::Sources { type AttributeEntity = SourcesWorkCount; }
-
-impl Entity for SubfieldsWorkCount { type T = u32; const N: usize = 254; const NAME: & str = "subfields-work-count"; }
-
-impl MappableEntity for SubfieldsWorkCount { type KeyType = usize; }
-
-impl NamespacedEntity for SubfieldsWorkCount { const NS: & str = "derive_links3"; }
-
-impl MarkedAttribute<crate::common::WorkCountMarker> for crate::gen::a1_entity_mapping::Subfields { type AttributeEntity = SubfieldsWorkCount; }
 
 impl Entity for AuthorsWorkCount { type T = u16; const N: usize = 4037517; const NAME: & str = "authors-work-count"; }
 

@@ -2,8 +2,6 @@ use dmove::{MarkedAttribute, Entity, Link, VariableSizeAttribute, MappableEntity
 
 pub struct SourceWorks { }
 
-pub struct WorkAuthors { }
-
 pub struct WorkInstitutions { }
 
 pub struct WorksCiting { }
@@ -11,6 +9,8 @@ pub struct WorksCiting { }
 pub struct TopicWorks { }
 
 pub struct WorkSubfields { }
+
+pub struct WorkFilteredAuthors { }
 
 impl Entity for WorksCiting { type T = Box<[u32]>; const N: usize = 75090099; const NAME: & str = "works-citing"; }
 
@@ -58,15 +58,13 @@ impl NamespacedEntity for WorkSubfields { const NS: & str = "derive_links1"; }
 
 impl Link for WorkSubfields { type Source = crate::gen::a1_entity_mapping::Works; type Target = crate::gen::a1_entity_mapping::Subfields; }
 
-impl Entity for WorkAuthors { type T = Box<[u32]>; const N: usize = 75090099; const NAME: & str = "work-authors"; }
+impl Entity for WorkFilteredAuthors { type T = Box<[u32]>; const N: usize = 75090099; const NAME: & str = "work-filtered-authors"; }
 
-impl MappableEntity for WorkAuthors { type KeyType = usize; }
+impl MappableEntity for WorkFilteredAuthors { type KeyType = usize; }
 
-impl VariableSizeAttribute for WorkAuthors { type SizeType = u8; type LocType = u32; }
+impl VariableSizeAttribute for WorkFilteredAuthors { type SizeType = u8; type LocType = u32; }
 
-impl NamespacedEntity for WorkAuthors { const NS: & str = "derive_links1"; }
-
-impl Link for WorkAuthors { type Source = crate::gen::a1_entity_mapping::Works; type Target = crate::gen::a1_entity_mapping::Authors; }
+impl NamespacedEntity for WorkFilteredAuthors { const NS: & str = "derive_links1"; }
 
 impl Entity for WorkInstitutions { type T = Box<[u16]>; const N: usize = 75090099; const NAME: & str = "work-institutions"; }
 
@@ -75,5 +73,7 @@ impl MappableEntity for WorkInstitutions { type KeyType = usize; }
 impl VariableSizeAttribute for WorkInstitutions { type SizeType = u8; type LocType = u32; }
 
 impl NamespacedEntity for WorkInstitutions { const NS: & str = "derive_links1"; }
+
+impl Link for WorkFilteredAuthors { type Source = crate::gen::a1_entity_mapping::Works; type Target = crate::gen::a1_entity_mapping::Authors; }
 
 impl Link for WorkInstitutions { type Source = crate::gen::a1_entity_mapping::Works; type Target = crate::gen::a1_entity_mapping::Institutions; }
