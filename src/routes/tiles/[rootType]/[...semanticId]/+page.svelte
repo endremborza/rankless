@@ -17,8 +17,68 @@
 	let innerWidth: number;
 	let innerHeight: number;
 
+	let openChildren: string[] = domains.slice(1);
+	let expandedChild: string | undefined = domains[1];
+
 	let vbWidth = 3000;
 	$: vbHeight = (innerHeight / innerWidth) * vbWidth;
+
+	let isPlaying = false;
+	let animationStep = 0;
+	let currentDomainIndex = 0;
+	const animationDomains = domains.filter((d) => d);
+	let timeoutId: ReturnType<typeof setTimeout>;
+
+	function animationLoop() {
+		if (!animationDomains.length) return;
+		const currentDomain = animationDomains[currentDomainIndex];
+
+		switch (animationStep) {
+			case 0: // set one open child
+				openChildren = [currentDomain];
+				expandedChild = undefined;
+				break;
+			case 1: // expand it
+				expandedChild = currentDomain;
+				break;
+			case 2: // collapse expanded
+				expandedChild = undefined;
+				break;
+			case 3: // clear open children, and move to next domain
+				openChildren = [];
+				currentDomainIndex = (currentDomainIndex + 1) % animationDomains.length;
+				break;
+		}
+
+		animationStep = (animationStep + 1) % 4;
+
+		if (isPlaying) {
+			timeoutId = setTimeout(animationLoop, 1500);
+		}
+	}
+
+	function play() {
+		if (isPlaying) return;
+		isPlaying = true;
+		animationStep = 0;
+		currentDomainIndex = 0;
+		openChildren = [];
+		expandedChild = undefined;
+		animationLoop();
+	}
+
+	function pause() {
+		isPlaying = false;
+		clearTimeout(timeoutId);
+	}
+
+	function togglePlayPause() {
+		if (isPlaying) {
+			pause();
+		} else {
+			play();
+		}
+	}
 
 	function getHier(sfi: string): [number, number, number] {
 		let sfin = parseInt(sfi);
@@ -72,7 +132,12 @@
 				if (resp.tree === undefined) return;
 				tree = treeToNamed(resp.tree, resp.atts);
 				console.log(tree);
+				play();
 			});
+
+		return () => {
+			pause();
+		};
 	});
 </script>
 
@@ -82,7 +147,7 @@
 
 <h1>{data.view.name}</h1>
 
-<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight}>
+<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} class="svg-container">
 	{#if tree}
 		<svg viewBox="0 0 {vbWidth} {vbHeight}">
 			<TileTreeMap
@@ -91,11 +156,41 @@
 				height={vbHeight}
 				open={true}
 				showText={true}
-				openChildren={domains}
-				expandedChild={domains[1]}
+				{openChildren}
+				{expandedChild}
 			/>
 		</svg>
 	{/if}
+</div>
+
+<div class="controls">
+	<table>
+		<thead>
+			<tr>
+				<th>Domain</th>
+				<th>Expanded</th>
+				<th>Open</th>
+			</tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td>All</td>
+				<td><input type="radio" bind:group={expandedChild} name="expanded" value={undefined} /></td>
+				<td />
+			</tr>
+			{#each domains.filter((d) => d) as domain}
+				<tr>
+					<td>{domain}</td>
+					<td>
+						<input type="radio" bind:group={expandedChild} name="expanded" value={domain} />
+					</td>
+					<td>
+						<input type="checkbox" bind:group={openChildren} value={domain} />
+					</td>
+				</tr>
+			{/each}
+		</tbody>
+	</table>
 </div>
 
 <style>
@@ -104,12 +199,44 @@
 		width: 100%;
 		text-align: center;
 	}
-	div {
+	.svg-container {
 		height: 80svh;
 	}
 	svg {
 		padding: 2%;
 		width: 100%;
 		height: 100%;
+	}
+
+	.controls {
+		display: flex;
+		justify-content: center;
+		padding: 20px;
+		border-top: 1px solid #ccc;
+	}
+
+	table {
+		width: 100%;
+		max-width: 600px;
+		border-collapse: collapse;
+	}
+
+	th,
+	td {
+		padding: 8px 12px;
+		text-align: left;
+		border-bottom: 1px solid #ddd;
+	}
+
+	td:nth-child(2),
+	td:nth-child(3),
+	th:nth-child(2),
+	th:nth-child(3) {
+		text-align: center;
+	}
+
+	input[type='radio'],
+	input[type='checkbox'] {
+		cursor: pointer;
 	}
 </style>
