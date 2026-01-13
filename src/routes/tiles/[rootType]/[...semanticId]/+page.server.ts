@@ -1,11 +1,8 @@
-import { error, redirect } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
-import * as lf from '$lib/loading-functions';
-import oldCountrySem from '$lib/assets/data/old-country-semantic-id-map.json';
-import alpha2CC from '$lib/assets/data/country-alpha-2-to-3.json';
-import { BE_URL, ROOT_TYPES } from '$lib/constants';
+import { BE_URL } from '$lib/constants';
 import { semIdResolver } from '$lib/route-functions';
 
 export const ssr = true;
