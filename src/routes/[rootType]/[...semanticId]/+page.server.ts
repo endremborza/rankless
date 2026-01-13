@@ -1,46 +1,16 @@
-import { error, redirect } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
-import * as lf from '$lib/loading-functions';
-import oldCountrySem from '$lib/assets/data/old-country-semantic-id-map.json';
-import alpha2CC from '$lib/assets/data/country-alpha-2-to-3.json';
 import { BE_URL, COMPLETE_YEAR, REL_TYPES, ROOT_TYPES } from '$lib/constants';
 import { pluralize, SEMANTIC_CONF } from '$lib/text-format-util';
-import { getExternalUrl } from '$lib/route-functions';
+import { getExternalUrl, semIdResolver } from '$lib/route-functions';
 
 
 export const ssr = true;
 
 export const load: PageServerLoad = async ({ params, url }) => {
-	let rootType: tt.RootType;
-	if (ROOT_TYPES.includes(params.rootType as tt.RootType)) {
-		rootType = params.rootType as tt.RootType;
-	} else {
-		error(404, 'Not found');
-	}
-	let semanticId: string = params.semanticId;
-
-	const treeSpecs = await lf.loadSpecs();
-	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
-	let conf: tt.FullTreeConfig = { semanticId, year: spec.year, treeId: spec.treeId, rootType, wide: false };
-	let newSemId: string | undefined = semanticId.toLowerCase();
-	if (rootType == 'countries') {
-		if (semanticId.length == 2) {
-			newSemId = alpha2CC[semanticId.toUpperCase()] || newSemId;
-		} else if (semanticId.length != 3) {
-			newSemId = oldCountrySem[semanticId.toLowerCase()];
-		}
-	}
-	if (newSemId == undefined) {
-		error(404, 'Not found');
-	}
-	if (semanticId != newSemId) {
-		let linkBase = tf.entToLink({ rootType, semanticId: newSemId });
-		let link = tf.decorBaseLink(linkBase, conf, spec.selectionState)
-		redirect(301, link);
-	}
-
+	let { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(params, url, "");
 	const view: tt.View = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => res.json())
 		.then((view) => view)
