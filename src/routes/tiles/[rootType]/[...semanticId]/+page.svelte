@@ -80,13 +80,13 @@
 		return [sfin, fieldId, domainId];
 	}
 
-	function treeToNamed(node: tt.ResponseNode, atts: tt.AttributeLabels): tt.NamedNode {
+	function treeToNamed(node: tt.OMap<{ w: number }>, atts: tt.AttributeLabels): tt.NamedNode {
 		const children: Record<string, tt.NamedNode> = {};
-		for (const [attId, child] of Object.entries(node.children || {})) {
+		for (const [attId, child] of Object.entries(node || {})) {
 			let [sfId, _, domainId] = getHier(attId);
 			const att = atts[l1Type][attId];
 			if (att === undefined) continue;
-			let node = { weight: child.linkCount, name: att.name };
+			let node = { weight: child.w, name: att.name };
 			let parentId = domainId;
 			if (children[parentId] == undefined) {
 				children[parentId] = { name: domains[domainId], weight: 0, children: {} };
@@ -106,8 +106,9 @@
 		let treeId = indsByEntityType[l1Type].includes(9) ? 9 : indsByEntityType[l1Type][0];
 
 		const specs = data.treeSpecs.specs[data.conf.rootType];
+		let spec: tt.TreeSpec;
 		for (let i = 0; i < specs.length; i++) {
-			const spec = specs[i];
+			spec = specs[i];
 			if (
 				spec.breakdowns.length > 0 &&
 				spec.breakdowns[0].attributeType === l1Type &&
@@ -123,7 +124,10 @@
 			.then((res) => res.json())
 			.then((resp: tt.TreeResponse) => {
 				if (resp.tree === undefined) return;
-				tree = treeToNamed(resp.tree, resp.atts);
+				let isSpec = $page.url.searchParams.has('spec');
+				let flatTree = tf.flatFromResp(resp, isSpec, spec);
+				if (flatTree === undefined) return;
+				tree = treeToNamed(flatTree, resp.atts);
 				if ($page.url.searchParams.has('animated')) {
 					play();
 				}
