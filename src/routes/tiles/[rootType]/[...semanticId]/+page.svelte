@@ -5,6 +5,7 @@
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 	import { BE_REMOTE_URL } from '$lib/constants';
+	import { page } from '$app/stores';
 
 	export let data: {
 		view: tt.View;
@@ -18,7 +19,7 @@
 	let innerHeight: number;
 
 	let openChildren: string[] = domains.slice(1);
-	let expandedChild: string | undefined = domains[1];
+	let expandedChild: string | undefined = undefined;
 
 	let vbWidth = 3000;
 	$: vbHeight = (innerHeight / innerWidth) * vbWidth;
@@ -53,7 +54,7 @@
 		animationStep = (animationStep + 1) % 4;
 
 		if (isPlaying) {
-			timeoutId = setTimeout(animationLoop, 1500);
+			timeoutId = setTimeout(animationLoop, 2400);
 		}
 	}
 
@@ -70,14 +71,6 @@
 	function pause() {
 		isPlaying = false;
 		clearTimeout(timeoutId);
-	}
-
-	function togglePlayPause() {
-		if (isPlaying) {
-			pause();
-		} else {
-			play();
-		}
 	}
 
 	function getHier(sfi: string): [number, number, number] {
@@ -131,8 +124,9 @@
 			.then((resp: tt.TreeResponse) => {
 				if (resp.tree === undefined) return;
 				tree = treeToNamed(resp.tree, resp.atts);
-				console.log(tree);
-				play();
+				if ($page.url.searchParams.has('animated')) {
+					play();
+				}
 			});
 
 		return () => {
@@ -156,41 +150,12 @@
 				height={vbHeight}
 				open={true}
 				showText={true}
+				transitionMs={800}
 				{openChildren}
 				{expandedChild}
 			/>
 		</svg>
 	{/if}
-</div>
-
-<div class="controls">
-	<table>
-		<thead>
-			<tr>
-				<th>Domain</th>
-				<th>Expanded</th>
-				<th>Open</th>
-			</tr>
-		</thead>
-		<tbody>
-			<tr>
-				<td>All</td>
-				<td><input type="radio" bind:group={expandedChild} name="expanded" value={undefined} /></td>
-				<td />
-			</tr>
-			{#each domains.filter((d) => d) as domain}
-				<tr>
-					<td>{domain}</td>
-					<td>
-						<input type="radio" bind:group={expandedChild} name="expanded" value={domain} />
-					</td>
-					<td>
-						<input type="checkbox" bind:group={openChildren} value={domain} />
-					</td>
-				</tr>
-			{/each}
-		</tbody>
-	</table>
 </div>
 
 <style>
