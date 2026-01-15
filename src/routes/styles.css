@@ -51,7 +51,7 @@
 	font-family: var(--font-body);
 	--unified-margin: min(min(27px, 2vw), 3.7svh);
 	--unified-padding: 18px;
-	--borad: 6px
+	--borad: 6px;
 }
 :root {
 	--text-bg: #ffffff;
@@ -62,6 +62,10 @@
 	--color-text: var(--color-theme-darktext);
 	--accent-text: var(--color-theme-darkgrey);
 	--highlight-text: var(--color-theme-darkblue);
+}
+
+:global(body.no-scroll) {
+	overflow: hidden;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -75,9 +79,8 @@
 		--highlight-text: var(--color-theme-yellow);
 	}
 }
- 
 
-html,
+  html,
 body {
 	height: 100%;
 	margin: 0px;
@@ -90,9 +93,8 @@ body {
 }
 
 text {
-	fill: var(--color-text)
+	fill: var(--color-text);
 }
-
 
 h1 {
 	margin: 0;
@@ -134,7 +136,7 @@ g {
 }
 
 .padded {
-	padding: var(--unified-padding)
+	padding: var(--unified-padding);
 }
 
 .ali {
@@ -142,7 +144,7 @@ g {
 }
 
 .marged {
-	margin: var(--unified-margin)
+	margin: var(--unified-margin);
 }
 
 .clickable {
@@ -152,7 +154,6 @@ g {
 .hover-xs {
 	font-size: min(0.75rem, 1.5vw);
 }
-
 
 .hover-s {
 	font-size: min(0.85rem, 2.2vw);
@@ -166,11 +167,9 @@ g {
 	font-size: min(1.1rem, 3vw);
 }
 
-
 .hover-xl {
 	font-size: min(1.3rem, 3.6vw);
 }
-
 
 .vert-zero {
 	height: 0px;
@@ -205,12 +204,14 @@ g {
 }
 
 .btn {
-	padding: .5rem .75rem;
+	padding: 0.5rem 0.75rem;
 	border-radius: var(--borad);
 	border: none;
 	cursor: pointer;
 	font-weight: 600;
 }
 
-.btn.primary { background: var(--highlight-text); color: var(--text-bg); }
-
+.btn.primary {
+	background: var(--highlight-text);
+	color: var(--text-bg);
+}

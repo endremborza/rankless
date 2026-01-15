@@ -83,7 +83,7 @@
 	function treeToNamed(node: tt.ResponseNode, atts: tt.AttributeLabels): tt.NamedNode {
 		const children: Record<string, tt.NamedNode> = {};
 		for (const [attId, child] of Object.entries(node.children || {})) {
-			let [sfId, fieldId, domainId] = getHier(attId);
+			let [sfId, _, domainId] = getHier(attId);
 			const att = atts[l1Type][attId];
 			if (att === undefined) continue;
 			let node = { weight: child.linkCount, name: att.name };
@@ -139,8 +139,6 @@
 	<title>Tiles | {data.view.name}</title>
 </svelte:head>
 
-<h1>{data.view.name}</h1>
-
 <div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} class="svg-container">
 	{#if tree}
 		<svg viewBox="0 0 {vbWidth} {vbHeight}">
@@ -159,49 +157,14 @@
 </div>
 
 <style>
-	h1 {
-		padding-top: 20px;
-		width: 100%;
-		text-align: center;
-	}
 	.svg-container {
-		height: 80svh;
+		height: 100svh;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 	svg {
-		padding: 2%;
-		width: 100%;
-		height: 100%;
-	}
-
-	.controls {
-		display: flex;
-		justify-content: center;
-		padding: 20px;
-		border-top: 1px solid #ccc;
-	}
-
-	table {
-		width: 100%;
-		max-width: 600px;
-		border-collapse: collapse;
-	}
-
-	th,
-	td {
-		padding: 8px 12px;
-		text-align: left;
-		border-bottom: 1px solid #ddd;
-	}
-
-	td:nth-child(2),
-	td:nth-child(3),
-	th:nth-child(2),
-	th:nth-child(3) {
-		text-align: center;
-	}
-
-	input[type='radio'],
-	input[type='checkbox'] {
-		cursor: pointer;
+		width: 98%;
+		height: 98%;
 	}
 </style>
