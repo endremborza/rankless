@@ -1,5 +1,54 @@
 import type { RootType } from './tree-types';
 
+export class TypeWriterWordChanger {
+	speed: number;
+	stopAtEnd: number;
+	texts: string[];
+	wordInd: number;
+	text: string;
+	direction: number;
+	letterInd: number;
+	runner: number;
+
+
+	constructor(texts: string[]) {
+
+		this.speed = 80;
+		this.stopAtEnd = 480;
+		this.texts = texts;
+		this.wordInd = 0;
+		this.text = texts[this.wordInd];
+
+		this.letterInd = Math.floor(this.text.length / 2);
+		this.direction = +1;
+		this.runner = 0
+	}
+
+	changeText() {
+		if (this.wordInd == this.texts.length) {
+			this.wordInd = 0;
+		}
+		let word = this.texts[this.wordInd];
+		this.text = word.slice(0, this.letterInd);
+		if (this.letterInd == word.length) {
+			clearInterval(this.runner);
+			setTimeout(() => {
+				this.runner = setInterval(this.changeText, this.speed);
+			}, this.stopAtEnd);
+		}
+		this.letterInd += this.direction;
+		if (this.letterInd == word.length) {
+			this.direction = -1;
+		}
+		if (this.letterInd == 0) {
+			this.direction = 1;
+			this.wordInd = this.wordInd + 1;
+		}
+	}
+
+
+}
+
 export function isAsciiOnly(str: string) {
 	return /^[\x01-\x7F]+$/.test(str);
 }
@@ -127,6 +176,18 @@ export function prettifyRoot(rt: RootType): string {
 	return rt;
 }
 
+export function getSpecDesc(rate: number) {
+	let desc = 'Average';
+	if (rate > SPEC_BPS[2]) {
+		desc = 'Very High';
+	} else if (rate > SPEC_BPS[1]) {
+		desc = 'High';
+	} else if (rate < SPEC_BPS[0]) {
+		desc = 'Low';
+	}
+	return desc;
+}
+
 function formatTextToLinesOneWay(
 	words: string[],
 	width: number,
@@ -192,55 +253,70 @@ function lineLen(words: string[]) {
 	return words.reduce((x, y) => x + y.length + 1, 0) - 1;
 }
 
-
-export function getNetworkText(rootType: RootType, rootName: string, isSpec: boolean, sourceSide: boolean) {
-	let edgeExp = 'Nodes represent fields, and links connect fields that are likely to share authors.'
-	let midPrefix = 'specialitarion of'
-	if (!isSpec && sourceSide) {
-		midPrefix = 'number of'
-	} else if (isSpec && !sourceSide) {
-		midPrefix = 'specialization of papers citing the'
-	} else if (!isSpec && !sourceSide) {
-		midPrefix = 'fields of papers citing the'
+function productionSemantics(rootType: RootType, rootName: string) {
+	let prefix = 'papers'
+	if (rootType == 'hit-papers') {
+		prefix = ''
 	}
-
-
-	let nwPrefix = `This network shows the ${midPrefix} paper`
 	return {
-		authors: `${nwPrefix}s produced by ${rootName}. ${edgeExp} The network helps show where ${rootName} may publish in the future.`,
-		countries: `${nwPrefix}s produced by authors working at instutions in ${rootName}. ${edgeExp} The network helps show where authors in ${rootName} may publish in the future.`,
-		institutions: `${nwPrefix}s produced by authors working at ${rootName} at the time of publishing. ${edgeExp}`,
-		sources: `${nwPrefix}s published in ${rootName}. ${edgeExp}`,
-		'hit-papers': `${nwPrefix} ${rootName}. ${edgeExp}`,
-		subfields: `${nwPrefix}s covering ${rootName}. ${edgeExp}`,
+		authors: `${prefix} produced by ${rootName}`,
+		countries: `${prefix} produced by authors working at institutions in ${rootName}`,
+		institutions: `${prefix} affiliated with ${rootName} at the time of their publication`,
+		sources: `${prefix} published in ${rootName}`,
+		'hit-papers': `${prefix} ${rootName}`,
+		subfields: `${prefix} covering ${rootName}`,
 	}[rootType]
+
+
 }
 
+export function getNetworkText(rootType: RootType, rootName: string, isSpec: boolean, sourceSide: boolean) {
+	let midNodeExp = 'that tend to cite the'
+	let midPrefix = 'impact of';
+	if (sourceSide) {
+		midNodeExp = 'of impactful'
+		midPrefix = 'distribution of'
+	}
+	let lines = [
+		`This network shows the ${midPrefix} ${productionSemantics(rootType, rootName)}.`,
+		'Nodes represent research fields, and links connect fields that are likely to share authors.',
+		`Colored nodes show fields ${midNodeExp} ${productionSemantics(rootType, rootName)}.`
+	];
+	if (rootType == 'authors') {
+		lines.push(`The network helps show where ${rootName} may publish in the future.`)
+	}
+	if (rootType == 'countries') {
+		lines.push(`The network helps show where authors in ${rootName} may publish in the future.`)
+	}
+	if (sourceSide)
+		lines.push('Since papers are assigned to multiple fields, the same paper can appear as cited in multiple nodes.');
+	return lines.join(' ')
+}
 
 export function getMapText(rootType: RootType, rootName: string, isSpec: boolean, sourceSide: boolean) {
-	let specExplIn = sourceSide ? "country's share of papers is larger" : 'country cites a body of work more'
-	let specExpl = `(in this measure of specialization, numbers larger than one indicate the ${specExplIn} than expected)`
+	let specExplIn = sourceSide ? "country's share of papers is larger" : `country cites ${rootName} more`
+	let specExpl = `(numbers larger than one mean the ${specExplIn} than expected)`
 	let midPrefix = ''
 	if (!isSpec && sourceSide) {
-		midPrefix = 'It shows the number of citations received by papers published by authors in each country. '
+		midPrefix = 'It shows the number of citations received by papers published by authors working in each country. '
 	} else if (isSpec && !sourceSide) {
 		midPrefix = ''
 	} else if (!isSpec && !sourceSide) {
-		midPrefix = 'It shows the number of citations coming from papers published by authors in each country. '
+		midPrefix = 'It shows the number of citations coming from papers published by authors working in each country. '
 	}
-	let geoNoun = sourceSide ? 'distribution' : 'impact'
-	let geoPrefix = `This map shows the geographic ${geoNoun} of`
-	let specPref = isSpec ? 'This is a graph' : 'You can also switch the map to show a measure'
+	let [geoNoun, subject] = sourceSide ? ['distribution', 'papers'] : ['impact', 'citations']
+	let geoPrefix = `This map shows the geographic ${geoNoun} of `
+	let specPref = isSpec ? 'This is a graph of specialization, which compares' : 'You can also color the map by specialization and compare'
 	let rootPref = rootSemanticPrefix(rootType, sourceSide)
-	let fullSpecSuffix = ` ${midPrefix}${specPref} of specialization, which compares the number of ${rootPref} ${rootName} with the expected number based on the size of the country's research output ${specExpl}`
+	let fullSpecSuffix = ` ${midPrefix}${specPref} the number of ${rootPref} ${rootName} with the expected number of ${subject} based on a country's size and research output ${specExpl}.`
 
-	return {
-		authors: `${geoPrefix} ${rootName}'s research.`,
-		countries: `${geoPrefix} research produced by institutions in ${rootName}.`,
-		institutions: `${geoPrefix} research produced by authors working at ${rootName}.`,
-		sources: `${geoPrefix} research published in ${rootName}.`,
-		subfields: `${geoPrefix} research in ${rootName}.`,
-		'hit-papers': `${geoPrefix} ${rootName}.`,
+	return geoPrefix + {
+		authors: `${rootName}'s research.`,
+		countries: `research produced by institutions in ${rootName}.`,
+		institutions: `research produced by authors working at ${rootName}.`,
+		sources: `research published in ${rootName}.`,
+		subfields: `research in ${rootName}.`,
+		'hit-papers': `${rootName}.`,
 	}[rootType] + fullSpecSuffix
 }
 
@@ -249,7 +325,7 @@ function rootSemanticPrefix(rootType: RootType, sourceSide: boolean) {
 	if (sourceSide) {
 		return {
 			authors: 'papers authored by',
-			countries: 'papers written in collaboration with authors working at',
+			countries: 'papers written in collaboration with authors working in',
 			institutions: 'papers written in collaboration with authors working at',
 			sources: 'papers published in',
 			'hit-papers': 'the paper',
@@ -259,7 +335,7 @@ function rootSemanticPrefix(rootType: RootType, sourceSide: boolean) {
 		return citePref + {
 			authors: '',
 			countries: ' papers from institutions in',
-			institutions: ' papers by authors at',
+			institutions: ' papers produced at',
 			sources: ' papers published in',
 			'hit-papers': '',
 			subfields: ' papers about',
@@ -267,7 +343,6 @@ function rootSemanticPrefix(rootType: RootType, sourceSide: boolean) {
 	}
 
 }
-
 
 export const SEMANTIC_CONF = {
 	authors: {
@@ -296,11 +371,10 @@ export const SEMANTIC_CONF = {
 	}
 };
 
+export const SPEC_BPS = [0.75, 1.2, 2.5];
 const SING_MAP: Record<string, string> = { countries: 'country' };
-
 const CO_FAL = 'are cited by authors working in';
 const SPEC = 'specifically';
-
 
 const SEM_MAP = {
 	authors: {
@@ -529,7 +603,6 @@ const SEM_MAP = {
 			},
 			semantic: 'collaborate with authors in'
 		},
-
 		'countries-false': {
 			children: {
 				'subfields-false': {

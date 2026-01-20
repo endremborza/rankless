@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { APP_NAME } from '$lib/constants';
+	import { APP_NAME, REL_TYPES } from '$lib/constants';
 	import { prettifyRoot } from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
@@ -12,7 +12,11 @@
 	import HoverBlock from '$lib/components/HoverBlock.svelte';
 	import WorldMapSvg from '$lib/components/WorldMapSvg.svelte';
 	import ConceptMap from '$lib/components/ConceptMap.svelte';
+<<<<<<< HEAD:src/routes/[rootType]/[...semanticId]/+page.svelte
 	import TimelineBars from '$lib/components/TimelineBars.svelte';
+=======
+	import AuthorNetwork from '$lib/components/AuthorNetwork.svelte';
+>>>>>>> rankless-main:src/routes/(stat)/[rootType]/[...semanticId]/+page.svelte
 	// import PaperRainbow from '$lib/components/PaperRainbow.svelte';
 
 	let innerHeight: number;
@@ -37,10 +41,25 @@
 	let showIndexedCiteText = false;
 	let ticksHeight: number;
 
+	function getAuthorStats(view: tt.View) {
+		let authorNames = [];
+		let authorScores = [];
+
+		for (const rel of view.primeRelations) {
+			if (REL_TYPES[rel.relType] == 'paper-authors') {
+				authorNames.push(rel.name);
+				authorScores.push(rel.score);
+			}
+		}
+		return { authorNames, authorScores, edgeWeights: view.authorNetwork };
+	}
+
 	//resp might remain 0, so we need to alert the country map
 	$: indsByEntityType = tf.getTreeIndsByEntityType(data.treeSpecs.specs[data.conf.rootType]);
 	$: showsCountry = indsByEntityType.countries.length > 0;
 	$: showsSubfields = indsByEntityType.subfields.length > 0;
+	$: showAuthorNetwork = data.conf.rootType == 'authors';
+	$: authorStats = getAuthorStats(data.view);
 </script>
 
 <svelte:head>
@@ -67,7 +86,7 @@
 			<div>
 				<span>{data.paperText}</span>
 				and
-				<span><a href="/about#indexed-citation" target="blank_">{data.citeText}</a></span>
+				<span><a href="/#indexed-citation" target="blank_">{data.citeText}</a></span>
 				<HoverI bind:hoverToggle={showIndexedCiteText} />.
 			</div>
 		</div>
@@ -91,6 +110,16 @@
 	</div>
 </div>
 <div class="comp-basis">
+	{#if showAuthorNetwork}
+		<div class="shadowy padded marged" id="author-network">
+			<AuthorNetwork
+				nodes={authorStats.authorNames}
+				edgeWeights={authorStats.edgeWeights}
+				nodeIntensities={authorStats.authorScores}
+				rootName={data.view.name}
+			/>
+		</div>
+	{/if}
 	<div class="shadowy padded marged">
 		<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} id="tree">
 			<FullQc
@@ -110,7 +139,7 @@
 		</div>
 	</div>
 	{#if showsSubfields}
-		<div class="shadowy padded marged concept-map" id="research-space">
+		<div class="shadowy padded marged" id="research-space">
 			<ConceptMap
 				rootId={data.view.dmId}
 				{indsByEntityType}
@@ -121,7 +150,7 @@
 		</div>
 	{/if}
 	{#if showsCountry}
-		<div class="shadowy padded marged world-map" id="world-map">
+		<div class="shadowy padded marged" id="world-map">
 			<WorldMapSvg
 				rootId={data.view.dmId}
 				{indsByEntityType}
@@ -146,6 +175,14 @@
 <!-- 	<PaperRainbow papers={data.view.hitPapers} /> -->
 <!-- </div> -->
 <div id="similars" class="shadowy padded marged">
+	<p>
+		Rankless uses publication and citation data sourced from OpenAlex, an open and comprehensive
+		bibliographic database. While OpenAlex provides broad and valuable coverage of the global
+		research landscape, it—like all bibliographic datasets—has inherent limitations. These include
+		incomplete records, variations in author disambiguation, differences in journal indexing, and
+		delays in data updates. As a result, some metrics and network relationships displayed in
+		Rankless may not fully capture the entirety of a scholar’s output or impact.
+	</p>
 	<h3>Explore {prettifyRoot(data.conf.rootType)} with similar magnitude of impact</h3>
 	<div>
 		{#each data.view.similars as sim}
@@ -175,6 +212,10 @@
 			align-items: stretch;
 			gap: 40px;
 		}
+	}
+
+	#head-row {
+		margin-top: 80px;
 	}
 
 	#name-block {
@@ -216,7 +257,7 @@
 		background: rgba(var(--color-range-15), 0.1);
 	}
 
-	.world-map {
+	#world-map {
 		display: flex;
 		flex-direction: column;
 		justify-content: center;

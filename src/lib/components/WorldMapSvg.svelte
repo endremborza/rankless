@@ -55,12 +55,16 @@
 		: 'Citations';
 	$: updateL1(flatOut, resp);
 	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints, pullerRate);
+	$: updateTreeId(indsByEntityType);
 
 	const fixNameForPaths = (s: string) => (s == 'Türkiye' ? 'Turkey' : s);
 	const fixNameForData = (s: string) => (s == 'Turkey' ? 'Türkiye' : s);
 	const getColorRate = (r: number) => r * (maxColorRate - minColorRate) + minColorRate;
 	const getOpaRate = (r: number) => r * (maxOp - minOp) + minOp;
 
+	function updateTreeId(inds: tt.IndsByEntityType) {
+		treeId = inds.countries[0];
+	}
 	function classNamer(s: string) {
 		let sn = fixNameForPaths(s);
 		return `country-${sn.toLowerCase().replaceAll(' ', '-')}`;
@@ -111,10 +115,13 @@
 	function updateL1(flatOut: undefined | tt.LevelT, resp: undefined | tt.TreeResponse) {
 		if (flatOut != undefined && resp != undefined) {
 			try {
-				let l1Kv = Object.entries(flatOut).map(([k, { w }]) => [
-					resp.atts['countries'][k].name,
-					{ w, id: k }
-				]);
+				let countryAtts = resp.atts.countries || {};
+				let l1Kv = [];
+				Object.entries(flatOut).map(([k, { w }]) => {
+					if (countryAtts[k] != undefined) {
+						l1Kv.push([countryAtts[k].name, { w, id: k }]);
+					}
+				});
 				countryLevels = Object.fromEntries(l1Kv);
 			} catch (error) {
 				console.log(error);

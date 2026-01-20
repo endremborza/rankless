@@ -47,8 +47,11 @@ BE_UPSTREAM = "rankless_backend"
 
 BE_URL_VAR = "PUBLIC_BACKEND_URL"
 PUB_URL_VAR = "PUBLIC_ORIGIN"
+OA_ROOT_VAR = "OA_ROOT"
+ORCID_VARS = {k: os.environ[k] for k in ["ORCID_CLIENT_ID", "ORCID_CLIENT_SECRET"]}
 
 BIG16 = "c6a.4xlarge"
+BIG16 = "c6a.8xlarge"
 SMALL = "c6a.large"
 
 LARGE_INSTANCE_TYPE = BIG16
@@ -86,7 +89,7 @@ local_tmp_home = Path("/tmp/rls-services")
 local_service_path = local_tmp_home / SERIVCE_DIR
 local_service_path.mkdir(exist_ok=True, parents=True)
 
-local_data_root = os.environ["OA_ROOT"]
+local_data_root = os.environ[OA_ROOT_VAR]
 data_subdirs = [
     "a1_entity_mapping",
     "a2_init_atts",
@@ -110,6 +113,25 @@ key_name = os.environ["RL_KEY_ID"]
 key_path = os.environ["RL_KEY_PATH"]
 
 ubuntu24_image_id = "ami-0f67ca03a667867bb"
+
+line_rex = re.compile(
+    r'(.*?) \-.*\-.*\[(.*)\].*"([A-Z]+) (.*?)" (\d\d\d) (\d+) "(.*)" "(.*)"rt=(.*) uct="(.*)" uht="(.*)" urt="(.*)"'
+)
+
+line_cols = [
+    "addr",
+    "time",
+    "r",
+    "p",
+    "code",
+    "size",
+    "referrer",
+    "agent",
+    "rt",
+    "uct",
+    "uht",
+    "urt",
+]
 
 
 @dataclass
@@ -296,13 +318,13 @@ class ServiceMan:
 
 class Transper:
     def __init__(self, sshc: SSHrer):
-        for _ in range(10):
+        for _ in range(4):
             try:
                 sshc.run("echo working")
                 break
             except Exception as e:
                 print(e)
-                time.sleep(10)
+                time.sleep(5)
         self.ssh = sshc
         self.inst_home = sshc.run("pwd").strip()
         self.deploy_dir = self.inst_home + "/rankless-deploy"
@@ -408,7 +430,6 @@ class Transper:
                 out.append((name, [int(port)]))
             else:
                 out[-1][1].append(int(port))
-        print(out)
         confiter = [
             FrontendServiceConf(ports[0], len(ports), name) for name, ports in out
         ]
@@ -509,6 +530,16 @@ server {{
    server_name {inst_domain};
    return 301 https://$server_name$request_uri;
 }}
+
+server {{
+    listen 5566;
+
+    location /status {{
+        default_type application/json;
+        alias /tmp/status_cache.json;
+    }}
+}}
+
         """
         self._send_nginx_conf(nginx_conf, inst_domain)
 
@@ -622,13 +653,15 @@ upstream {BE_UPSTREAM} {{
     def update_env(self):
         domain = self.get_domain()
         be_url = "https://" + self.get_backend_domain()
-        txt = f"{PUB_URL_VAR}=https://{domain}\n{BE_URL_VAR}={be_url}\nOA_ROOT={self.data_dir}"
+        txt = f"{PUB_URL_VAR}=https://{domain}\n{BE_URL_VAR}={be_url}\n{OA_ROOT_VAR}={self.data_dir}\n"
+        txt += "\n".join(f"{k}={v}" for k, v in ORCID_VARS.items())
         self.sync_txt(txt, ".env", self.deploy_dir)
 
     def update_fe(self):
         self.sync_code()
         self.build_js()
         stage_conf, live_conf = self.get_fe_systems()
+        self._depcomm(f"rm -rf {stage_conf.build_dir()}")
         self._depcomm(f"cp -r build {stage_conf.build_dir()}")
         for service in self._iter_conf_services(stage_conf):
             service.restart()
@@ -639,6 +672,13 @@ upstream {BE_UPSTREAM} {{
         self.ssh.prun(f"sudo rm -rf {self.fe_cache_dir}/*")
         for service in self._iter_conf_services(live_conf):
             service.stop()
+
+    def rolling_restart_live_fe(self):
+        _stage_conf, live_conf = self.get_fe_systems()
+        for service in self._iter_conf_services(live_conf):
+            service.restart()
+            time.sleep(20)
+            service.status()
 
     def reload_systemctl(self):
         self.ssh.prun("sudo systemctl daemon-reload")
@@ -673,23 +713,6 @@ upstream {BE_UPSTREAM} {{
         return rem_bytes, full_pct
 
     def get_nginx_logs_df(self, minutes=3, n=10_000):
-        line_rex = re.compile(
-            r'(.*?) \-.*\-.*\[(.*)\].*"([A-Z]+) (.*?)" (\d\d\d) (\d+) "(.*)" "(.*)"rt=(.*) uct="(.*)" uht="(.*)" urt="(.*)"'
-        )
-        line_cols = [
-            "addr",
-            "time",
-            "r",
-            "p",
-            "code",
-            "size",
-            "referrer",
-            "agent",
-            "rt",
-            "uct",
-            "uht",
-            "urt",
-        ]
         logtail = self.ssh.run(f"tail -{n} /var/log/nginx/access.log")
         return (
             pd.DataFrame(
@@ -720,7 +743,9 @@ upstream {BE_UPSTREAM} {{
         for i in range(conf.n_procs):
             port = conf.start_port + i
             try:
-                self.ssh.prun(f"curl localhost:{port}")
+                self.ssh.prun(
+                    'curl -s -o /dev/null -w "%{http_code}" localhost:' + str(port)
+                )
             except:
                 return True
         return False
@@ -868,12 +893,21 @@ export const LAST_MOD = '{dt.date.today().isoformat()}';
 export const VERSION = '{next_v}';
 """
     Path(v_const_ts).write_text(const_v_txt)
-    subprocess.call(["git", "add", v_const_ts])
+    pack_json = Path("package.json")
+    ptxt = re.sub(
+        r'version": "\d+\.\d+\.\d+', f'version": "{next_v[1:]}', pack_json.read_text()
+    )
+    pack_json.write_text(ptxt)
+    subprocess.call(["git", "add", v_const_ts, pack_json.as_posix()])
     subprocess.call(["git", "commit", "-m", f"{next_v} consts"])
     subprocess.call(["git", "tag", next_v])
     subprocess.call(["git", "push", "origin", "tag", next_v])
     # annoted, within the ancestors tags
     # git push --follow-tags
+
+
+def rolling_restart_live_fe():
+    get_running_tpr(True).rolling_restart_live_fe()
 
 
 def bump_v_minor():
@@ -893,6 +927,7 @@ def promote_alpha_to_live():
     tpr.restart_nginx()
     time.sleep(10)
     associate_id(alpha_inst, True)
+    time.sleep(5)
     get_running_tpr(True).refresh_certs(FW_DOMAIN)
 
 

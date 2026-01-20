@@ -17,7 +17,8 @@ pub use common::{
 };
 pub use discontinuous_entity_mapper::{DiscoMapEntityBuilder, UniqueMap};
 pub use fixed_size_attributes::{
-    DowncastingBuilder, FixAttBuilder, FixAttIterator, FixWriteSizeEntity,
+    reverse_prefixed_n, DowncastingBuilder, DowncastingPrefixedVarBuilder, FixAttBuilder,
+    FixAttIterator, FixWriteSizeEntity,
 };
 pub use ingest_entity::{Data64MappedEntityBuilder, IdMap, LoadedIdMap};
 pub use var_size_attributes::{

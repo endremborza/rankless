@@ -7,7 +7,7 @@ use crate::{
     gen::{
         a1_entity_mapping::Works,
         a2_init_atts::{InstCountries, SourceYearQs, WorkSources, WorkYears},
-        derive_links1::{WorkAuthors, WorkInstitutions, WorkSubfields, WorksCiting},
+        derive_links1::{WorkFilteredAuthors, WorkInstitutions, WorkSubfields, WorksCiting},
     },
     steps::derive_links1::{collapse_links, invert_read_multi_link_to_work},
     CiteCountMarker, QuickestBox, ReadIter,
@@ -43,7 +43,7 @@ pub fn main(mut stowage: Stowage) -> io::Result<()> {
     });
     stowage.add_iter_owned::<FixAttBuilder, _, _>(iter, Some("work-top-source"));
 
-    invert_read_multi_link_to_work::<WorkAuthors>(&mut stowage, "author-works");
+    invert_read_multi_link_to_work::<WorkFilteredAuthors>(&mut stowage, "author-works");
     invert_read_multi_link_to_work::<WorkSubfields>(&mut stowage, "subfield-works");
     invert_read_multi_link_to_work::<WorkInstitutions>(&mut stowage, "institution-works");
     collapse_links::<WorkInstitutions, InstCountries>(&mut stowage, "work-countries");

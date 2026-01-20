@@ -52,13 +52,14 @@
 		}
 	}
 
-	function reloadResp(treeId: number, year: number, _rootId: number) {
+	function reloadResp(conf: tt.FullTreeConfig, treeId: number, year: number, _rootId: number) {
 		if (mounted == false) return;
 		let newConf: tt.FullTreeConfig = { ...conf, treeId, year, wide: true };
 		fetch(tf.treeBeUrl(BE_REMOTE_URL, newConf, 0)).then((res) => {
 			res
 				.json()
 				.then((jsv: tt.TreeResponse) => {
+					infoPath = [];
 					resp = jsv;
 				})
 				.catch((e) => {
@@ -67,20 +68,21 @@
 		});
 	}
 
-	function setNewFlout(resp: tt.TreeResponse | undefined, isSpec: boolean) {
-		let newFlout = tf.flatFromResp(resp, isSpec, currentTreeSpec);
+	function setNewFlout(resp: tt.TreeResponse | undefined, isSpec: boolean, treeSpec: tt.TreeSpec) {
+		if (treeSpec == undefined) return;
+		let newFlout = tf.flatFromResp(resp, isSpec, treeSpec);
 		if (newFlout != undefined) flatOut = newFlout;
 	}
 
 	onMount(() => {
 		mounted = true;
 		if (resp == undefined) {
-			reloadResp(treeId, year, rootId);
+			reloadResp(conf, treeId, year, rootId);
 		}
 	});
 	$: updateTreeId(selectedBreakdowns, levelOptions);
-	$: setNewFlout(resp, isSpec);
-	$: reloadResp(treeId, year, rootId);
+	$: setNewFlout(resp, isSpec, currentTreeSpec);
+	$: reloadResp(conf, treeId, year, rootId);
 	$: titleSuffix =
 		selectedBreakdowns != undefined ? semantifyer(conf.rootType, selectedBreakdowns[0]) : '';
 </script>

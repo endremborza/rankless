@@ -13,7 +13,8 @@ use axum::{
 };
 use dmove::{
     para::{set_and_notify, wait_for_data_copy, AcTuple},
-    para_multi_gen_run, Entity, InitEmpty, NamespacedEntity, UnsignedNumber, ET,
+    para_multi_gen_run, reverse_prefixed_n, ByteArrayInterface, Entity, EntityMutableMapperBackend,
+    InitEmpty, NamespacedEntity, UnsignedNumber, VattReadingArcMap, ET, NET,
 };
 use hashbrown::HashMap;
 use kd_tree::{KdPoint, KdTree};
@@ -32,8 +33,11 @@ use tokio::{net::TcpListener, sync::Notify};
 use muwo_search::SearchEngine;
 use rankless_rs::{
     common::MainEntity,
-    gen::a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
-    gen::derive_links3::HitPapers,
+    gen::{
+        a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
+        a2_init_atts::{AuthorOrcids, DiscardedAuthorsNames, WorkBiblios, WorkDois},
+        derive_links3::HitPapers,
+    },
     steps::{
         a1_entity_mapping::{Qs, RawYear, YearInterface, Years},
         derive_links5::{EraRec, InstRelation},
@@ -42,11 +46,15 @@ use rankless_rs::{
 };
 use rankless_trees::{
     extensions::DistinctionText,
+    ids::add_nonwork_label,
     interfacing::{
         Getters, MetaMapGetter, NodeInterfaceable, NodeInterfaces, RootInterfaceable,
         RootInterfaces,
     },
-    io::{ShallowQ, ShallowTreesResponse, TreeQ, TreeResponse, TreeRunManager},
+    io::{
+        AttributeLabel, AttributeLabels, ManFileHandle, ShallowQ, ShallowTreesResponse, TreeQ,
+        TreeResponse, TreeRunManager,
+    },
     AttributeLabelUnion,
 };
 
@@ -135,6 +143,7 @@ struct NameState {
     vars: Box<Coords>,
     pub semantic_id_map: HashMap<String, SemVal>,
     pub oa_id_map: HashMap<usize, usize>,
+    pub dm_id_to_result_id: HashMap<usize, usize>,
     query_tree: KdTree<KDItem>,
 }
 
@@ -162,12 +171,18 @@ struct PaperOut {
     name: String,
     doi: String,
     citations: u32,
+    source: usize,
+    authors: Vec<String>, //prefixed with filtered/discarded
     #[serde(rename = "yearlyCites", skip_serializing_if = "Option::is_none")]
     yearly_cites: Option<Box<[u32]>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    biblio: Option<ET<WorkBiblios>>,
 }
 
 #[derive(Serialize, Clone)]
 struct SearchResult {
+    //TODO: this is stored both here and in AttributeLabelUnion
+    //redundant memory usage
     name: String,
     #[serde(rename = "semanticId")]
     semantic_id: String,
@@ -203,11 +218,22 @@ struct PostAttResultExtension {
     prime_relations: Vec<PostAttRelatedEntity>,
     #[serde(rename = "hitPapers")]
     hit_papers: Box<[PaperOut]>,
+    #[serde(rename = "authorNetwork")]
+    author_network: Box<[u8]>,
+}
+
+#[derive(Serialize, Clone)]
+struct PaperSetResp {
+    papers: Vec<PaperOut>,
+    paper_count: usize,
+    labels: AttributeLabels,
+    author_names: HashMap<String, String>,
 }
 
 struct PreAttResultExtension {
-    pub prime_relations: Box<[PreAttRelatedEntity]>,
+    prime_relations: Box<[PreAttRelatedEntity]>,
     hit_papers: Box<[usize]>,
+    author_network: Box<[u8]>,
 }
 
 struct KDItem {
@@ -274,7 +300,7 @@ impl PrepFilter for Institutions {
 
 impl PrepFilter for Sources {
     fn filter_sr(sr: &SearchResult, gets: &Getters, _entif: &RootInterfaces<Self>) -> bool {
-        let id = ET::<Sources>::from_usize(sr.dm_id);
+        let id = NET::<Sources>::from_usize(sr.dm_id);
         let mut best_q = 5;
         for ty8 in YearInterface::iter() {
             let q = *gets.sqy(&(id, ty8));
@@ -371,7 +397,11 @@ impl ResultExtension {
 }
 
 impl PreAttResultExtension {
-    fn from_resps<E>(responses: &Box<[SearchResult]>, entif: &RootInterfaces<E>) -> Box<[Self]>
+    fn from_resps<E>(
+        responses: &Box<[SearchResult]>,
+        entif: &RootInterfaces<E>,
+        gets: &Getters,
+    ) -> Box<[Self]>
     where
         E: RootInterfaceable,
     {
@@ -381,6 +411,7 @@ impl PreAttResultExtension {
                 let i = res.dm_id;
                 let mut prime_relations = Vec::new();
                 let mut hit_papers = Vec::new();
+                let mut author_collabs = Vec::new();
                 if E::NAME != HitPapers::NAME {
                     add_to_relations::<Subfields, _>(
                         &entif.top_paper_sfc[i],
@@ -403,7 +434,35 @@ impl PreAttResultExtension {
                         3,
                     );
                     add_to_relations::<Sources, _>(&entif.top_journals[i], &mut prime_relations, 4);
-                    add_to_relations::<Authors, _>(&entif.top_authors[i], &mut prime_relations, 5);
+                    const TA_RTYPE: u8 = 5;
+                    add_to_relations::<Authors, _>(
+                        &entif.top_authors[i],
+                        &mut prime_relations,
+                        TA_RTYPE,
+                    );
+                    let author_dm_ids: Vec<u32> = prime_relations
+                        .iter()
+                        .filter(|e| e.rel_type == TA_RTYPE)
+                        .map(|e| e.dm_id)
+                        .collect();
+                    author_dm_ids
+                        .iter()
+                        .take(author_dm_ids.len() - 1)
+                        .enumerate()
+                        .for_each(|(si, said)| {
+                            let coll_nums = gets.coathors(*said);
+                            for ti in (si + 1)..author_dm_ids.len() {
+                                let taid = author_dm_ids[ti];
+                                let mut coll_num = 0;
+                                for (ctaid, n) in coll_nums {
+                                    if ctaid.to_usize() == taid.to_usize() {
+                                        coll_num = *n;
+                                        break;
+                                    }
+                                }
+                                author_collabs.push(coll_num);
+                            }
+                        });
                     if let Some(hits) = entif.hit_works.0.get(i) {
                         hits.iter()
                             .take(MAX_HITS)
@@ -413,6 +472,7 @@ impl PreAttResultExtension {
                 Self {
                     prime_relations: prime_relations.into(),
                     hit_papers: hit_papers.into(),
+                    author_network: author_collabs.into_boxed_slice(),
                 }
             })
             .collect()
@@ -435,7 +495,8 @@ impl PreAttResultExtension {
                     if let Some(_) = rstate.semantic_id_map.get(&att.semantic_id) {
                         semantic_id = att.semantic_id.clone();
                     } else {
-                        return None;
+                        semantic_id = "".to_string();
+                        // return None;
                     }
                 }
                 Some(PostAttRelatedEntity {
@@ -456,14 +517,18 @@ impl PreAttResultExtension {
                     year: YearInterface::reverse(*gets.year(&wid)),
                     name: String::from_utf8(gets.hit_names(*hwid).to_vec()).unwrap(),
                     doi: String::from_utf8(gets.hit_dois(*hwid).to_vec()).unwrap(),
-                    citations: *gets.wccount(&wid) as u32,
+                    citations: gets.wccount(wid) as u32,
                     yearly_cites: Some(gets.hit_yearlies(*hwid).into()),
+                    source: gets.top_source(&wid.to_usize()).to_usize(),
+                    biblio: None,
+                    authors: Vec::new(),
                 }
             })
             .collect();
         PostAttResultExtension {
             prime_relations,
             hit_papers,
+            author_network: self.author_network.clone(),
         }
     }
 }
@@ -474,7 +539,6 @@ where
     T: UnsignedNumber,
 {
     arr.iter().for_each(|e| {
-        let eu = e.1.to_usize() as u32;
         let etype_id = ETYPE_ENC
             .iter()
             .enumerate()
@@ -482,10 +546,11 @@ where
             .next()
             .unwrap()
             .0 as u8;
-        if eu != 0 {
+        let dm_id = e.1.to_usize() as u32;
+        if dm_id != 0 {
             prels.push(PreAttRelatedEntity {
                 rel_type,
-                dm_id: eu,
+                dm_id,
                 etype_id,
                 score: e.0,
             })
@@ -544,15 +609,18 @@ impl NameState {
         }
 
         let query_tree = tree_from_iter(kdt_base);
+        let dm_id_to_result_id =
+            HashMap::from_iter(responses.iter().enumerate().map(|(i, res)| (res.dm_id, i)));
 
         Self {
             engine: engine.into(),
             exts: ResultExtension::from_resps(&responses, entif),
-            prep_exts: PreAttResultExtension::from_resps(&responses, entif),
+            prep_exts: PreAttResultExtension::from_resps(&responses, entif, gets),
             responses,
             semantic_id_map,
             oa_id_map,
             query_tree,
+            dm_id_to_result_id,
             means: means.into(),
             vars: vars.into(),
         }
@@ -746,8 +814,10 @@ async fn main() {
         .route("/slice/:etype/:from/:to", get(slice_get))
         .route("/views/:etype/:semantic_id", get(view_get))
         .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))
+        .route("/orcid/:orcid_id", get(orcid_get))
         .route("/trees/:root_type/:semantic_id", get(tree_get))
         .route("/shallows/:root_type", get(shallows_get))
+        .route("/works/:etype/:semantic_id/:from", get(works_get))
         .with_state((ns_map_arc, satts, tree_manager.clone()));
 
     let count_api = static_router(&entity_descriptions);
@@ -909,6 +979,26 @@ async fn sem_id_get(
     Json([out])
 }
 
+async fn orcid_get(Path(orcid_id): Path<String>, states: StatesT) -> Json<Option<SearchResult>> {
+    let mut out = None;
+    let obytes: ET<AuthorOrcids> = orcid_id
+        .into_bytes()
+        .into_iter()
+        .collect::<Vec<u8>>()
+        .try_into()
+        .unwrap_or(<ET<AuthorOrcids> as InitEmpty>::init_empty());
+    if let Some(a_dm_id) = states.2.state.gets.orcid_map.get(&obytes) {
+        if let Some(nstate) = states.0 .0.get(Authors::NAME) {
+            if let Some(a_rid) = nstate.dm_id_to_result_id.get(a_dm_id) {
+                let s = nstate.responses[*a_rid].clone();
+                out = Some(s);
+            }
+        }
+    }
+
+    Json(out)
+}
+
 async fn name_get(
     Path(etype): Path<String>,
     q: Query<BasicQ>,
@@ -930,6 +1020,109 @@ async fn name_get(
             HeaderMap::new(),
             (StatusCode::NOT_FOUND, "no such entity").into_response(),
         )
+    }
+}
+
+async fn works_get(
+    Path((etype, sem_id, pstart)): Path<(String, String, usize)>,
+    states: StatesT,
+) -> (HeaderMap, Response) {
+    const MAX_WORKS: usize = 400;
+    if let Some(state) = states.0 .0.get(etype.as_str()) {
+        let psid = parse_semantic_id(sem_id);
+        if let Some(sem_val) = state.semantic_id_map.get(&psid) {
+            if let Some(work_arr) = states.2.state.gets.works_of_entity(sem_val.dm_id, etype) {
+                if work_arr.len() > 0 {
+                    let mut satts = HashMap::new();
+                    let mut author_names = HashMap::new();
+                    let mut fhand = states.2.get_file_handle();
+                    let mut doi_hand = states.2.get_file_handle();
+                    let mut dan_hand = states.2.get_file_handle();
+                    let alabels = &states.2.state.att_union[Authors::NAME];
+                    let start = min(pstart, work_arr.len() - 1);
+                    let papers: Vec<PaperOut> = work_arr[start..]
+                        .iter()
+                        .take(MAX_WORKS)
+                        .map(|wid| {
+                            let po = paper_out(
+                                wid.to_usize(),
+                                &states.2.state.gets,
+                                &mut fhand,
+                                &mut doi_hand,
+                                &mut dan_hand,
+                                &mut author_names,
+                                alabels,
+                            );
+                            add_nonwork_label(
+                                [po.source as u32].iter(),
+                                &mut satts,
+                                Sources::NAME,
+                                &states.2.state,
+                            );
+                            po
+                        })
+                        .collect();
+                    let labels =
+                        HashMap::from_iter([(Sources::NAME.to_string(), satts)].into_iter());
+                    let resp = PaperSetResp {
+                        papers,
+                        paper_count: work_arr.len(),
+                        labels,
+                        author_names,
+                    };
+
+                    return (cache_header(60), Json(resp).into_response());
+                }
+            }
+        }
+    }
+    (
+        HeaderMap::new(),
+        (StatusCode::NOT_FOUND, "no such entity").into_response(),
+    )
+}
+
+fn paper_out(
+    wid: usize,
+    gets: &Getters,
+    handler: &mut ManFileHandle,
+    doi_handler: &mut VattReadingArcMap<WorkDois>,
+    disc_name_handler: &mut VattReadingArcMap<DiscardedAuthorsNames>,
+    anames: &mut HashMap<String, String>,
+    alabels: &Box<[AttributeLabel]>,
+) -> PaperOut {
+    let name = handler.get_via_mut(&wid).unwrap_or("Unknown".to_string());
+    let doi = doi_handler.get_via_mut(&wid).unwrap_or("".to_string());
+    //this is similarly to String with hit paper names not automatically remakes
+    //the var sized element from &[SubType]
+    let biblio = Some(<ET<WorkBiblios> as ByteArrayInterface>::from_bytes(
+        gets.wbiblios(wid),
+    ));
+    let mut authors = Vec::new();
+    for anyship in gets.wanyships(wid) {
+        let (is_filterd, ship_id) = reverse_prefixed_n(anyship.to_usize());
+        let (full_aid, aname) = if is_filterd {
+            let aid = gets.fshipa(&ship_id);
+            let full_aid = format!("F{aid}");
+            let aname = alabels[aid.to_usize()].name.clone();
+            (full_aid, aname)
+        } else {
+            let aid = gets.dshipa(&ship_id);
+            let name = disc_name_handler.get_via_mut(&aid.to_usize());
+            (format!("D{aid}"), name.unwrap_or("Unknown".to_string()))
+        };
+        authors.push(full_aid.clone());
+        anames.insert(full_aid, aname);
+    }
+    PaperOut {
+        year: YearInterface::reverse(*gets.year(&wid)),
+        name,
+        doi,
+        citations: gets.wccount(wid) as u32,
+        yearly_cites: None,
+        biblio,
+        source: gets.top_source(&wid).to_usize(),
+        authors,
     }
 }
 

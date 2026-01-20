@@ -51,10 +51,12 @@
 	font-family: var(--font-body);
 	--unified-margin: min(min(27px, 2vw), 3.7svh);
 	--unified-padding: 18px;
+	--borad: 6px;
 }
 :root {
 	--text-bg: #ffffff;
 	--text-bg-2: var(--color-theme-white);
+	--text-bg-3: var(--color-theme-lightblue);
 	/* --text-bg: var(--color-theme-white); */
 	--hard-overlay: #ffffff90;
 	--color-text: var(--color-theme-darktext);
@@ -62,19 +64,23 @@
 	--highlight-text: var(--color-theme-darkblue);
 }
 
+:global(body.no-scroll) {
+	overflow: hidden;
+}
+
 @media (prefers-color-scheme: dark) {
 	:root {
 		--text-bg: var(--color-theme-darkgrey);
 		--text-bg-2: var(--color-theme-darkgrey3);
+		--text-bg-3: var(--color-theme-darkblue);
 		--hard-overlay: #4f4f4f70;
 		--color-text: var(--color-theme-white);
 		--accent-text: var(--color-theme-pink);
 		--highlight-text: var(--color-theme-yellow);
 	}
 }
- 
 
-html,
+  html,
 body {
 	height: 100%;
 	margin: 0px;
@@ -82,10 +88,13 @@ body {
 	background-color: var(--text-bg);
 }
 
-text {
-	fill: var(--color-text)
+* {
+	box-sizing: border-box;
 }
 
+text {
+	fill: var(--color-text);
+}
 
 h1 {
 	margin: 0;
@@ -99,6 +108,7 @@ a {
 a:hover {
 	color: var(--highlight-text);
 	text-shadow: 1px 0px 0px var(--color-theme-shadow);
+	/* text-decoration: underline; */
 	/* font-weight: bold; */
 }
 
@@ -108,6 +118,9 @@ select {
 	accent-color: var(--color-theme-darkblue);
 }
 
+g {
+	transition: transform 0.8s;
+}
 
 .hoverover {
 	position: absolute;
@@ -118,12 +131,12 @@ select {
 }
 
 .shadowy {
-	border-radius: 6px;
+	border-radius: var(--borad);
 	box-shadow: 3px 3px 10px var(--color-theme-shadow);
 }
 
 .padded {
-	padding: var(--unified-padding)
+	padding: var(--unified-padding);
 }
 
 .ali {
@@ -131,7 +144,7 @@ select {
 }
 
 .marged {
-	margin: var(--unified-margin)
+	margin: var(--unified-margin);
 }
 
 .clickable {
@@ -139,9 +152,8 @@ select {
 }
 
 .hover-xs {
-	font-size: min(0.85rem, 1.5vw);
+	font-size: min(0.75rem, 1.5vw);
 }
-
 
 .hover-s {
 	font-size: min(0.85rem, 2.2vw);
@@ -153,6 +165,10 @@ select {
 
 .hover-l {
 	font-size: min(1.1rem, 3vw);
+}
+
+.hover-xl {
+	font-size: min(1.3rem, 3.6vw);
 }
 
 .vert-zero {
@@ -187,6 +203,15 @@ select {
 	margin-top: 30px;
 }
 
-g {
-	transition: transform 0.8s;
+.btn {
+	padding: 0.5rem 0.75rem;
+	border-radius: var(--borad);
+	border: none;
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.btn.primary {
+	background: var(--highlight-text);
+	color: var(--text-bg);
 }

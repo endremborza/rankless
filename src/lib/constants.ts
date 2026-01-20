@@ -1,4 +1,4 @@
-import type { EntityType, RootType } from './tree-types';
+import type { EntityType, RelTypes, RootType } from './tree-types';
 import { PUBLIC_ORIGIN, PUBLIC_BACKEND_URL } from '$env/static/public';
 
 export const APP_NAME = 'Rankless';
@@ -10,6 +10,8 @@ export const ENTITY_SITEMAP_STEP_SIZE = 40000;
 export const BE_URL = 'http://127.0.0.1:3038/v1';
 export const BE_REMOTE_URL = `${PUBLIC_BACKEND_URL}/v1`;
 
+export const SURVEY_LOG_PATH = '/tmp/survey-logs.jsonl';
+
 export const ROOT_TYPES: RootType[] = [
 	'authors',
 	'institutions',
@@ -17,6 +19,15 @@ export const ROOT_TYPES: RootType[] = [
 	'countries',
 	'subfields',
 	'hit-papers',
+];
+
+export const REL_TYPES: RelTypes[] = [
+	'paper-fields',
+	'citing-fields',
+	'paper-topics',
+	'collab-nation',
+	'paper-journals',
+	'paper-authors'
 ];
 
 export const ENTITY_TYPES: EntityType[] = ['topics', 'works', 'qs', ...ROOT_TYPES];
@@ -29,3 +40,8 @@ export const DEFAULT_LIMIT_N = 10;
 export const MAX_LEVEL_COUNT = 4;
 export const COMPLETE_YEAR = 1950;
 export const LATEST_YEAR = new Date().getFullYear();
+
+
+export const ORCID_REDIRECT_URI = `${PUBLIC_ORIGIN}/callback`
+export const ORCID_AUTH_URL = 'https://orcid.org/oauth/authorize'
+export const ORCID_TOKEN_URL = 'https://orcid.org/oauth/token'

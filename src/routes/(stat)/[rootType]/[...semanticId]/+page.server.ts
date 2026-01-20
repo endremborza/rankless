@@ -1,46 +1,16 @@
-import { error, redirect } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
-import * as lf from '$lib/loading-functions';
-import oldCountrySem from '$lib/assets/data/old-country-semantic-id-map.json';
-import alpha2CC from '$lib/assets/data/country-alpha-2-to-3.json';
-import { BE_URL, COMPLETE_YEAR, ROOT_TYPES } from '$lib/constants';
+import { BE_URL, COMPLETE_YEAR, REL_TYPES, ROOT_TYPES } from '$lib/constants';
 import { pluralize, SEMANTIC_CONF } from '$lib/text-format-util';
-import { getExternalUrl } from '$lib/route-functions';
+import { getExternalUrl, semIdResolver } from '$lib/route-functions';
 
 
 export const ssr = true;
 
 export const load: PageServerLoad = async ({ params, url }) => {
-	let rootType: tt.RootType;
-	if (ROOT_TYPES.includes(params.rootType as tt.RootType)) {
-		rootType = params.rootType as tt.RootType;
-	} else {
-		error(404, 'Not found');
-	}
-	let semanticId: string = params.semanticId;
-
-	const treeSpecs = await lf.loadSpecs();
-	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
-	let conf: tt.FullTreeConfig = { semanticId, year: spec.year, treeId: spec.treeId, rootType, wide: false };
-	let newSemId: string | undefined = semanticId.toLowerCase();
-	if (rootType == 'countries') {
-		if (semanticId.length == 2) {
-			newSemId = alpha2CC[semanticId.toUpperCase()] || newSemId;
-		} else if (semanticId.length != 3) {
-			newSemId = oldCountrySem[semanticId.toLowerCase()];
-		}
-	}
-	if (newSemId == undefined) {
-		error(404, 'Not found');
-	}
-	if (semanticId != newSemId) {
-		let linkBase = tf.entToLink({ rootType, semanticId: newSemId });
-		let link = tf.decorBaseLink(linkBase, conf, spec.selectionState)
-		redirect(301, link);
-	}
-
+	let { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(params, url, "");
 	const view: tt.View = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => res.json())
 		.then((view) => view)
@@ -77,24 +47,6 @@ export const load: PageServerLoad = async ({ params, url }) => {
 };
 
 
-const REL_TYPES: RelTypes[] = [
-	'paper-fields',
-	'citing-fields',
-	'paper-topics',
-	'collab-nation',
-	'paper-journals',
-	'paper-authors'
-];
-
-
-type RelTypes =
-	| 'paper-fields'
-	| 'citing-fields'
-	| 'paper-topics'
-	| 'collab-nation'
-	| 'paper-journals'
-	| 'paper-authors';
-
 type Semantifyer = (rels: tt.RelatedEntity[]) => string;
 
 type DecoratedRelated = {
@@ -105,13 +57,10 @@ type DecoratedRelated = {
 };
 
 
-
-
 function semFunMaker(prefix: string, fun: (r: DecoratedRelated) => string) {
 	return (rels: tt.RelatedEntity[]) =>
-		prefix + commaAndjoin([...rels.map((r) => fun(toDecorated(r)))]);
+		prefix + commaAndjoin([...rels.slice(0, 10).map((r) => fun(toDecorated(r)))]);
 }
-
 
 function toDecorated(r: tt.RelatedEntity): DecoratedRelated {
 	let bold = `<b>${r.name}</b>`;
@@ -128,7 +77,7 @@ function toDecorated(r: tt.RelatedEntity): DecoratedRelated {
 	};
 }
 
-function getSemantifyers(rootName: string, rootType: tt.RootType, paperText: number, citeText: number): [RelTypes, Semantifyer][] {
+function getSemantifyers(rootName: string, rootType: tt.RootType, paperText: number, citeText: number): [tt.RelTypes, Semantifyer][] {
 	if (rootType == 'authors') {
 		return [
 			[
@@ -282,8 +231,8 @@ function getSemanticRels(
 ): tt.AboutPara {
 	let semantifyers = getSemantifyers(rootName, rootType, paperText, citeText);
 	let relationsMap = Object.fromEntries(
-		REL_TYPES.map((e) => [e as RelTypes, [] as tt.RelatedEntity[]])
-	) as Record<RelTypes, tt.RelatedEntity[]>;
+		REL_TYPES.map((e) => [e as tt.RelTypes, [] as tt.RelatedEntity[]])
+	) as Record<tt.RelTypes, tt.RelatedEntity[]>;
 	for (const rel of view.primeRelations) {
 		relationsMap[REL_TYPES[rel.relType]].push(rel);
 	}

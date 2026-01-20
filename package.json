@@ -1,6 +1,6 @@
 {
-	"name": "academic-impact-explorer",
-	"version": "1.1.1",
+	"name": "rankless",
+	"version": "2.6.1",
 	"private": true,
 	"scripts": {
 		"dev": "vite dev --host",
@@ -36,5 +36,9 @@
 		"typescript": "^5.0.0",
 		"vite": "^5.0.0"
 	},
-	"type": "module"
+	"type": "module",
+	"dependencies": {
+		"cytoscape": "^3.33.1",
+		"cytoscape-fcose": "^2.2.0"
+	}
 }

@@ -1,13 +1,15 @@
 use std::{iter::Peekable, marker::PhantomData, slice::Iter};
 
-use dmove::{Entity, NumericTypeEntity, UnsignedNumber, ET, NET};
+use dmove::{
+    reverse_prefixed_n, Entity, NumericTypeEntity, UnsignedNumber, VarSizedAttributeElement, ET,
+    NET,
+};
 use dmove_macro::impl_stack_basees;
 use rankless_rs::{
     agg_tree::{FoldingStackConsumer, ReinstateFrom, SortedRecord, Updater},
     common::MainEntity,
-    gen::a1_entity_mapping::{
-        Authors, Authorships, Countries, Institutions, Sources, Subfields, Topics, Works,
-    },
+    gen::a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
+    gen::a2_init_atts::WorkAnyAuthorships,
     steps::a1_entity_mapping::{Qs, Years, N_PERS},
 };
 
@@ -18,8 +20,7 @@ use crate::{
     part_iterator::PartitioningIterator,
 };
 
-const UNKNOWN_ID: usize = 0;
-
+type AnyShipElem = <ET<WorkAnyAuthorships> as VarSizedAttributeElement>::SubType;
 pub type StackFr<S> = <<S as StackBasis>::SortedRec as SortedRecord>::FlatRecord;
 pub type PartitionId = u8;
 
@@ -71,7 +72,7 @@ pub struct AuthorBesties<'a> {
     gets: &'a Getters,
     id: ET<Authors>,
     ref_wids: Peekable<Iter<'a, WT>>,
-    ref_ships: Option<Peekable<Iter<'a, ET<Authorships>>>>,
+    ref_ships: Option<Peekable<Iter<'a, AnyShipElem>>>,
     cit_insts: Option<Iter<'a, ET<Institutions>>>,
     cit_wids: Option<Peekable<Iter<'a, ET<Works>>>>,
 }
@@ -80,7 +81,7 @@ pub struct AuthorBestiePapers<'a> {
     gets: &'a Getters,
     id: ET<Authors>,
     ref_wids: Peekable<Iter<'a, WT>>,
-    ref_ships: Option<Peekable<Iter<'a, ET<Authorships>>>>,
+    ref_ships: Option<Peekable<Iter<'a, AnyShipElem>>>,
     cit_sfs: Option<Iter<'a, ET<Subfields>>>,
     cit_wids: Option<Peekable<Iter<'a, ET<Works>>>>,
 }
@@ -98,7 +99,7 @@ pub struct WorkingAuthors<'a> {
     gets: &'a Getters,
     id: ET<Institutions>,
     ref_wids: Peekable<Iter<'a, WT>>,
-    ref_ships: Option<Peekable<Iter<'a, ET<Authorships>>>>,
+    ref_ships: Option<Peekable<Iter<'a, AnyShipElem>>>,
     cit_insts: Option<Iter<'a, ET<Institutions>>>,
     cit_wids: Option<Peekable<Iter<'a, ET<Works>>>>,
 }
@@ -1289,8 +1290,15 @@ impl<'a> Iterator for AuthorBestiePapers<'a> {
             let ref_wid = reg_peek!(self.ref_wids);
             let ref_per = self.gets.wperiod(ref_wid);
 
-            let ref_ship = opt_peek!(self.ref_ships, self.ref_wids, self.gets.wships(*ref_wid));
-            let ref_author = self.gets.shipa(ref_ship);
+            let ref_any_ship =
+                opt_peek!(self.ref_ships, self.ref_wids, self.gets.wanyships(*ref_wid));
+            let (is_filtered, ref_ship_id_u) = reverse_prefixed_n(ref_any_ship.to_usize());
+            if !is_filtered {
+                self.ref_ships.as_mut().unwrap().next();
+                continue;
+            }
+
+            let ref_author = self.gets.fshipa(&ref_ship_id_u);
             if *ref_author == self.id {
                 self.ref_ships.as_mut().unwrap().next();
                 continue;
@@ -1326,8 +1334,15 @@ impl<'a> Iterator for AuthorBesties<'a> {
             let ref_wid = reg_peek!(self.ref_wids);
             let ref_per = self.gets.wperiod(ref_wid);
 
-            let ref_ship = opt_peek!(self.ref_ships, self.ref_wids, self.gets.wships(*ref_wid));
-            let ref_author = self.gets.shipa(ref_ship);
+            let ref_any_ship =
+                opt_peek!(self.ref_ships, self.ref_wids, self.gets.wanyships(*ref_wid));
+            let (is_filtered, ref_ship_id_u) = reverse_prefixed_n(ref_any_ship.to_usize());
+            if !is_filtered {
+                self.ref_ships.as_mut().unwrap().next();
+                continue;
+            }
+
+            let ref_author = self.gets.fshipa(&ref_ship_id_u);
             if *ref_author == self.id {
                 self.ref_ships.as_mut().unwrap().next();
                 continue;
@@ -1410,16 +1425,24 @@ impl<'a> Iterator for WorkingAuthors<'a> {
         loop {
             let ref_wid = reg_peek!(self.ref_wids);
             let ref_per = self.gets.wperiod(ref_wid);
-            let ref_ship = opt_peek!(self.ref_ships, self.ref_wids, self.gets.wships(*ref_wid));
-            let au_id = self.gets.shipa(ref_ship);
-            if (au_id.to_usize() == UNKNOWN_ID)
-                || self
-                    .gets
-                    .shipis(*ref_ship)
-                    .into_iter()
-                    .find(|e| **e == self.id)
-                    .is_none()
+            let ref_any_ship =
+                opt_peek!(self.ref_ships, self.ref_wids, self.gets.wanyships(*ref_wid));
+            let (is_filtered, ref_ship_id_u) = reverse_prefixed_n(ref_any_ship.to_usize());
+            if !is_filtered {
+                self.ref_ships.as_mut().unwrap().next();
+                continue;
+            }
+
+            let au_id = self.gets.fshipa(&ref_ship_id_u);
+            if self
+                .gets
+                .fshipis(ref_ship_id_u)
+                .into_iter()
+                .find(|e| **e == self.id)
+                .is_none()
             {
+                //author from insts
+                //filtered ships can be used, since authors are included in the tree
                 self.ref_ships.as_mut().unwrap().next();
                 continue;
             }
@@ -1556,7 +1579,7 @@ impl<'a> PartitioningIterator<'a> for CountryBesties<'a> {
 impl<'a> PartitioningIterator<'a> for CountryCiters<'a> {
     type StackBasis = (
         IntX<Countries, 0, false>,
-        IntX<Subfields, 1, true>,
+        IntX<Subfields, 1, false>,
         IntX<Institutions, 2, false>,
     );
     type Root = Countries;

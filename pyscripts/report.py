@@ -20,7 +20,7 @@ if __name__ == "__main__":
     rep_dpath = Path("reports", rep_dir)
     rep_dpath.mkdir(exist_ok=True, parents=True)
     ssh_id = "rankless-live"
-    tpr = Transper(SSHrer(ssh_id))
+    tpr = Transper(SSHrer(ssh_id, reset=True))
     hour_df = tpr.get_nginx_logs_df(60, 100_000)
     hn = hour_df.shape[0]
     err_df = hour_df.loc[lambda df: (df["code"] // 100) == 5]

@@ -1,3 +1,3 @@
 
-export const LAST_MOD = '2025-07-09';
-export const VERSION = 'v2.4.1';
+export const LAST_MOD = '2025-10-17';
+export const VERSION = 'v2.6.1';

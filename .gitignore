@@ -13,10 +13,11 @@ vite.config.ts.timestamp-*
 misc.py
 raw
 */images/raw/
-*ipynb*
 roots.json
 __pycache__
 *.tar.gz
 /reports
 *.profraw
 *.img
+.ipynb_checkpoints
+draft*.ipynb

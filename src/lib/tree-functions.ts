@@ -119,8 +119,12 @@ export function treeBeUrl(root: string, conf: tt.FullTreeConfig, shallow: undefi
 	return url
 }
 
+export function entToDirectedLink(e: { rootType: tt.RootType; semanticId: string }, dir: string): string {
+	return `${base}${dir}${getEntityPath(e.rootType, e.semanticId)}`;
+}
+
 export function entToLink(e: { rootType: tt.RootType; semanticId: string }): string {
-	return `${base}${getEntityPath(e.rootType, e.semanticId)}`;
+	return entToDirectedLink(e, "")
 }
 
 export function getEntityPath(rootType: tt.RootType, semanticId: string) {

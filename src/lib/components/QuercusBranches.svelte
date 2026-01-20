@@ -39,6 +39,7 @@
 	export let parentSideMargin = 0.8;
 	//export let childSideMargin = 3.8; TODO
 
+	export let showText = true;
 	export let heightMultiplier: number = 1.2;
 	export let widthMultiplier: number = 0.6;
 
@@ -192,7 +193,9 @@
 		fill="url('#path-grad-{vizInfo.strId}')"
 	/>
 
-	<BrokenFittedText text={childNode.name} {...textShape} {heightMultiplier} {widthMultiplier} />
+	{#if showText}
+		<BrokenFittedText text={childNode.name} {...textShape} {heightMultiplier} {widthMultiplier} />
+	{/if}
 
 	<!-- svelte-ignore a11y-mouse-events-have-key-events -->
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -228,6 +231,7 @@
 			{childrenInternalMargin}
 			{heightMultiplier}
 			{widthMultiplier}
+			{showText}
 			parentSideMargin={0}
 			on:ti
 		/>

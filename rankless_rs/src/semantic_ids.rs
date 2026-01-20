@@ -66,7 +66,7 @@ impl Stowage {
             for sid in id_ops[eid]
                 .clone()
                 .into_iter()
-                .chain(suffs.iter().map(|e| (for_suff.to_owned() + e)))
+                .chain(suffs.iter().map(|e| for_suff.to_owned() + e))
             {
                 if sem_set.ifnotin(sid, |e| ids[eid] = e) {
                     break;

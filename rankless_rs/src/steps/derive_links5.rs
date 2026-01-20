@@ -11,9 +11,9 @@ use std::{
 };
 
 use dmove::{
-    ByteFixArrayInterface, DowncastingBuilder, Entity, FixAttBuilder, InitEmpty, MarkedAttribute,
-    NamespacedEntity, UnsignedNumber, VarAttBuilder, VarAttIterator, VariableSizeAttribute,
-    VattArrPair, ET, MAA,
+    reverse_prefixed_n, ByteFixArrayInterface, DowncastingBuilder, Entity, FixAttBuilder,
+    InitEmpty, MarkedAttribute, NamespacedEntity, UnsignedNumber, VarAttBuilder, VarAttIterator,
+    VariableSizeAttribute, VattArrPair, ET, MAA,
 };
 use dmove_macro::ByteFixArrayInterface;
 use hashbrown::{HashMap, HashSet};
@@ -23,16 +23,17 @@ use crate::{
     common::{
         init_empty_slice, BeS, CitSubfieldsArrayMarker, EmptyAttributeEntity, HitWorkMarker,
         InstRelMarker, MainWorkMarker, QuickAttPair, QuickMap, RefSubfieldsArrayMarker,
-        Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker,
-        Top3PaperTopicMarker, Top5AuthorMarker, WorkLoader, YearlyCitationsMarker,
+        Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker,
+        Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader, YearlyCitationsMarker,
         YearlyPapersMarker,
     },
     env_consts::{FINAL_YEAR, START_YEAR},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{
-            AuthorshipAuthor, AuthorshipInstitutions, CountryCodes, CountryCodesThree,
-            InstCountries, SourceYearQs, WorkAuthorships, WorkSources, WorkTopics, WorkYears,
+            AuthorshipFilteredAuthor, CountryCodes, CountryCodesThree,
+            FilteredAuthorshipInstitutions, InstCountries, SourceYearQs, WorkAnyAuthorships,
+            WorkSources, WorkTopics, WorkYears,
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
         derive_links2::{WorkCountries, WorkTopSource},
@@ -59,13 +60,13 @@ pub const MIN_YEAR: usize = MAX_YEAR - ERA_SIZE + 1;
 pub type EraRec = [u32; ERA_SIZE];
 pub type TopNRec<E, const N: usize> = [(u32, ET<E>); N];
 pub type Top3Rec<E> = TopNRec<E, 3>;
-pub type Top5Rec<E> = TopNRec<E, 5>;
+pub type Top15Rec<E> = TopNRec<E, 25>;
 
 type YT = ET<Years>;
 type IT = ET<Institutions>;
 type SfDistRec<E> = [ET<MAA<E, WorkCountMarker>>; Subfields::N];
 type Top3RelExtender<E, SE> = TopNRelExtender<3, E, SE, HashMap<ET<E>, u32>>;
-type Top5HRelExtender<E, SE> = TopNRelExtender<5, E, SE, HashMap<ET<E>, Vec<u32>>>;
+type Top15HRelExtender<E, SE> = TopNRelExtender<25, E, SE, HashMap<ET<E>, f64>>;
 
 #[derive(Debug, ByteFixArrayInterface)]
 pub struct InstRelation {
@@ -89,7 +90,7 @@ where
     top3_citing_sfs: Top3RelExtender<Subfields, E>,
     top3_aff_countries: Top3RelExtender<Countries, E>,
     top3_journals: Top3RelExtender<Sources, E>,
-    top5_authors: Top5HRelExtender<Authors, E>,
+    top5_authors: Top15HRelExtender<Authors, E>,
     rels: Vec<[InstRelation; N_RELS]>,
     rel_map_rec: HashMap<ET<Institutions>, InstRelation>,
 }
@@ -132,14 +133,14 @@ make_interface_struct!(CDBackends,
     year => WorkYears,
     icountry => InstCountries,
     wtopsource => WorkTopSource,
-    shipa => AuthorshipAuthor;
+    ship_fa => AuthorshipFilteredAuthor;
     wsubfields -> WorkSubfields,
     wtopics -> WorkTopics,
     wcountries -> WorkCountries,
     wsources -> WorkSources,
     winsts -> WorkInstitutions,
-    wships -> WorkAuthorships,
-    ship_instss -> AuthorshipInstitutions;
+    w_aships -> WorkAnyAuthorships,
+    fship_insts -> FilteredAuthorshipInstitutions;
 );
 
 trait IRelAdder: Entity {
@@ -306,7 +307,7 @@ where
             top3_citing_sfs: Top3RelExtender::new(),
             top3_aff_countries: Top3RelExtender::new(),
             top3_journals: Top3RelExtender::new(),
-            top5_authors: Top5HRelExtender::new(),
+            top5_authors: Top15HRelExtender::new(),
             rels: Vec::new(),
             rel_map_rec: HashMap::new(),
         }
@@ -336,9 +337,14 @@ where
         self.top3_journals.add(*bends.wtopsource.get(wu).unwrap());
         let wcs = bends.wciting.get(&wu).unwrap();
         let wlen = wcs.len();
-        for ship_id in bends.wships.get(&wu).unwrap() {
-            self.top5_authors
-                .add((bends.shipa[ship_id.to_usize()], wlen));
+        let coauthships = bends.w_aships.get(&wu).unwrap();
+        let ccn = coauthships.len() as f64;
+        for any_ship_id in coauthships {
+            let (is_filtered, ship_id) = reverse_prefixed_n(any_ship_id.to_usize());
+            if is_filtered {
+                self.top5_authors
+                    .add((bends.ship_fa[ship_id], wlen as f64 / ccn));
+            }
         }
         for c_wid in wcs {
             for sf_id in bends.wsubfields.get(&c_wid.to_usize()).unwrap() {
@@ -384,7 +390,7 @@ where
         stowage.ditf::<Top3PaperSfMarker, E, _>(self.top3_paper_sfs.vec, "top-paper-subfields");
         stowage.ditf::<Top3CitingSfMarker, E, _>(self.top3_citing_sfs.vec, "top-citing-subfields");
         stowage.ditf::<Top3PaperTopicMarker, E, _>(self.top3_paper_topics.vec, "top-paper-topics");
-        stowage.ditf::<Top5AuthorMarker, E, _>(self.top5_authors.vec, "top-paper-authors");
+        stowage.ditf::<Top15AuthorMarker, E, _>(self.top5_authors.vec, "top-paper-authors");
         stowage.ditf::<Top3JournalMarker, E, _>(self.top3_journals.vec, "top-journals");
         stowage
             .ditf::<Top3AffCountryMarker, E, _>(self.top3_aff_countries.vec, "top-aff-countries");
@@ -637,19 +643,19 @@ where
     }
 }
 
-impl<E> TopPrepper<E> for HashMap<E::T, Vec<u32>>
+impl<E> TopPrepper<E> for HashMap<E::T, f64>
 where
     E: Entity,
     ET<E>: UnsignedNumber,
 {
-    type K = (ET<E>, usize);
+    type K = (ET<E>, f64);
     fn add(&mut self, k: Self::K) {
-        self.entry(k.0).or_insert(Vec::new()).push(k.1 as u32);
+        self.entry(k.0).or_insert(0.0).add_assign(k.1);
     }
 
     fn to_v(self) -> Vec<(usize, u32)> {
         self.into_iter()
-            .map(|mut e| (e.0.to_usize(), get_h_index_and_sort(&mut e.1)))
+            .map(|e| (e.0.to_usize(), e.1.round() as u32))
             .collect()
     }
 }
@@ -699,11 +705,13 @@ impl IRelAdder for Countries {
 impl IRelAdder for Authors {
     fn get_by_work(wu: usize, bends: &CDBackends, aid: ET<Self>) -> Vec<IT> {
         let mut o = Vec::new();
-        for ship in bends.wships.get(&wu).unwrap() {
-            let shu = ship.to_usize();
-            if bends.shipa[shu] == aid {
-                for iid in bends.ship_instss.get(&shu).unwrap() {
-                    o.push(*iid)
+        for ship_any in bends.w_aships.get(&wu).unwrap() {
+            let (is_filtered, ship_id) = reverse_prefixed_n(ship_any.to_usize());
+            if is_filtered {
+                if bends.ship_fa[ship_id] == aid {
+                    for iid in bends.fship_insts.get(&ship_id).unwrap() {
+                        o.push(*iid)
+                    }
                 }
             }
         }
@@ -728,7 +736,7 @@ mark_empty!(
     YearlyPapersMarker => EraRec,
     HitWorkMarker => Box<[ET<HitPapers>]>,
     Top3JournalMarker => Top3Rec<Sources>,
-    Top5AuthorMarker => Top5Rec<Authors>,
+    Top15AuthorMarker => Top15Rec<Authors>,
     Top3AffCountryMarker => Top3Rec<Countries>,
     Top3PaperTopicMarker => Top3Rec<Topics>,
     Top3CitingSfMarker => Top3Rec<Subfields>,

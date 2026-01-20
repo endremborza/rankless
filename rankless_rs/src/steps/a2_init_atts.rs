@@ -1,4 +1,5 @@
 use crate::{
+    biblo_var_att::BiblioInfo,
     common::{
         field_id_parse, init_empty_slice, oa_id_parse, short_string_to_u64, BeS, DoiMarker,
         MainEntity, NameExtensionMarker, NameMarker, ParsedId, QuickestNumbered, Stowage,
@@ -7,7 +8,7 @@ use crate::{
     csv_writers::{institutions, works},
     data_consts::CC_MAP,
     gen::a1_entity_mapping::{
-        AreaFields, Authors, Authorships, Cities, Countries, Domains, Fields, Institutions,
+        AreaFields, Authors, Cities, Countries, DiscardedAuthors, Domains, Fields, Institutions,
         Sources, Subfields, Topics, Works,
     },
     oa_structs::{
@@ -15,13 +16,13 @@ use crate::{
             read_post_str_arr, Author, Authorship, Field, IdSet, Institution, Location, Source,
             SubField, Topic,
         },
-        FieldLike, Geo, Named, NamedEntity, ReferencedWork, Work, WorkTopic,
+        Biblio, FieldLike, Geo, Named, NamedEntity, ReferencedWork, Work, WorkTopic,
     },
     steps::a1_entity_mapping::{iter_authorships, Qs, SourceArea, YearInterface, Years},
 };
 use dmove::{
-    para::Worker, BigId, DiscoMapEntityBuilder, DowncastingBuilder, Entity,
-    EntityImmutableMapperBackend, FixAttBuilder, InitEmpty, LoadedIdMap, MappableEntity,
+    para::Worker, BigId, DiscoMapEntityBuilder, DowncastingBuilder, DowncastingPrefixedVarBuilder,
+    Entity, EntityImmutableMapperBackend, FixAttBuilder, InitEmpty, LoadedIdMap, MappableEntity,
     MetaIntegrator, NamespacedEntity, UnsignedNumber, VarAttBuilder, ET,
 };
 use levenshtein::levenshtein;
@@ -36,6 +37,7 @@ use std::{
 use tqdm::Iter;
 
 pub const DOI_PREFIX_LEN: usize = 16;
+const ORCID_PREF: &str = "https://orcid.org/";
 const MIN_TOPIC_SCORE: f64 = 0.7;
 const MIN_RATE: f64 = 0.8;
 const MIN_LEN: usize = 10;
@@ -54,12 +56,23 @@ struct WikiId {
 }
 
 struct ShipRelWriter {
-    ship2a: Mutex<Box<[ET<Authors>]>>,
-    ship2is: Mutex<Box<[Vec<ET<Institutions>>]>>,
-    w2ships: Mutex<Box<[Vec<ET<Authorships>>]>>,
+    fship2a: Vec<usize>,
+    fship2is: Vec<Vec<ET<Institutions>>>,
+
+    dship2a: Vec<usize>,
+    dship2is: Vec<Vec<ET<Institutions>>>,
+
+    w2combined_ships: Box<[Vec<(bool, usize)>]>,
+
     winf: Arc<LoadedIdMap<ET<Works>>>,
-    ainf: Arc<LoadedIdMap<ET<Authors>>>,
-    iinf: Arc<LoadedIdMap<ET<Institutions>>>,
+    fainf: LoadedIdMap<ET<Authors>>,
+    dainf: LoadedIdMap<ET<DiscardedAuthors>>,
+    iinf: LoadedIdMap<ET<Institutions>>,
+}
+
+struct WorkBiblioWriter {
+    biblios: Mutex<Box<[BiblioInfo]>>,
+    winf: Arc<LoadedIdMap<ET<Works>>>,
 }
 
 struct WorkAttWriter {
@@ -229,14 +242,11 @@ impl Stowage {
         add_name_box::<Countries>(self, conames);
         add_name_box::<Cities>(self, cinames);
         add_name_box::<Institutions>(self, inames);
-        self.add_iter_owned::<FixAttBuilder, _, _>(ccs.to_vec().into_iter(), Some("country-codes"));
+        self.add_barr::<FixAttBuilder, _>(ccs, "country-codes");
         self.add_iter_owned::<FixAttBuilder, _, _>(cc3s.into_iter(), Some("country-codes-three"));
-        self.add_iter_owned::<FixAttBuilder, _, _>(locs.to_vec().into_iter(), Some("inst-locs"));
-        self.add_iter_owned::<FixAttBuilder, _, _>(rors.to_vec().into_iter(), Some("inst-rors"));
-        self.add_iter_owned::<FixAttBuilder, _, _>(
-            cities.to_vec().into_iter(),
-            Some("inst-cities"),
-        );
+        self.add_barr::<FixAttBuilder, _>(locs, "inst-locs");
+        self.add_barr::<FixAttBuilder, _>(rors, "inst-rors");
+        self.add_barr::<FixAttBuilder, _>(cities, "inst-cities");
 
         (iif, coif)
     }
@@ -245,42 +255,42 @@ impl Stowage {
         let aif = self.get_entity_interface::<Authors, QuickestNumbered>();
         let mut names = init_empty_slice::<Authors, String>();
         let mut wiki_slugs = init_empty_slice::<Authors, String>();
-        const ORCID_PREF: &str = "https://orcid.org/";
         let mut orcids = init_empty_slice::<Authors, [u8; 19]>();
         let mut raw_cites = init_empty_slice::<Authors, usize>();
         let mut raw_works = init_empty_slice::<Authors, usize>();
-        for aobj in self.read_csv_objs::<Author>(Authors::NAME, MAIN_NAME) {
-            if let Some(aidt) = aif.0.get(&aobj.get_parsed_id()) {
-                let aid = aidt.to_usize();
-                names[aid] = aobj.display_name.unwrap_or("".to_string());
-                assign_farr(aobj.orcid, ORCID_PREF, &mut orcids, aid);
-                raw_cites[aid] = aobj.cited_by_count.unwrap_or(0) as usize;
-                raw_works[aid] = aobj.works_count.unwrap_or(0) as usize;
-            }
-        }
+        let discarded_name_iter = self
+            .read_csv_objs::<Author>(Authors::NAME, MAIN_NAME)
+            .filter_map(|aobj| {
+                let pid = aobj.get_parsed_id();
+                let aname = aobj.display_name.unwrap_or("".to_string());
+                if let Some(aidt) = aif.0.get(&pid) {
+                    let aid = aidt.to_usize();
+                    names[aid] = aname;
+                    assign_farr(aobj.orcid, ORCID_PREF, &mut orcids, aid);
+                    raw_cites[aid] = aobj.cited_by_count.unwrap_or(0) as usize;
+                    raw_works[aid] = aobj.works_count.unwrap_or(0) as usize;
+                    None
+                } else {
+                    Some(aname)
+                }
+            });
 
         for wobj in self.read_csv_objs::<WikiId>(Authors::NAME, "wiki-slug") {
             if let Some(aidt) = aif.0.get(&wobj.oa_id) {
                 wiki_slugs[aidt.to_usize()] = wobj.slug;
             }
         }
+        let init_wu = vec!["Unknown".to_string()].into_iter();
+
+        self.declare_iter::<VarAttBuilder, _, _, DiscardedAuthors, NameMarker>(
+            init_wu.chain(discarded_name_iter),
+            &get_name_name::<DiscardedAuthors>(),
+        );
         add_name_box::<Authors>(self, names);
-        self.add_iter_owned::<VarAttBuilder, _, _>(
-            wiki_slugs.to_vec().into_iter(),
-            Some("author-wiki-slugs"),
-        );
-        self.add_iter_owned::<FixAttBuilder, _, _>(
-            orcids.to_vec().into_iter(),
-            Some("author-orcids"),
-        );
-        self.add_iter_owned::<DowncastingBuilder, _, _>(
-            raw_cites.to_vec().into_iter(),
-            Some("author-raw-cites"),
-        );
-        self.add_iter_owned::<DowncastingBuilder, _, _>(
-            raw_works.to_vec().into_iter(),
-            Some("author-raw-work-counts"),
-        );
+        self.add_barr::<VarAttBuilder, _>(wiki_slugs, "author-wiki-slugs");
+        self.add_barr::<FixAttBuilder, _>(orcids, "author-orcids");
+        self.add_barr::<DowncastingBuilder, _>(raw_cites, "author-raw-cites");
+        self.add_barr::<DowncastingBuilder, _>(raw_works, "author-raw-work-counts");
     }
 
     fn add_theme_atts<E, F>(&mut self, ifs: &BeS<QuickestNumbered, E>, gatt: F)
@@ -299,10 +309,7 @@ impl Stowage {
                 wids[id.to_usize()] = wid.replace(WPREF, "");
             }
         }
-        self.add_iter_owned::<VarAttBuilder, _, _>(
-            wids.to_vec().into_iter(),
-            Some(&format!("{}-wikipedia", E::NAME)),
-        );
+        self.add_barr::<VarAttBuilder, _>(wids, &format!("{}-wikipedia", E::NAME));
     }
 
     fn add_work_atts(&self, winf: Arc<LoadedIdMap<ET<Works>>>) -> LoadedIdMap<ET<Works>> {
@@ -316,9 +323,14 @@ impl Stowage {
         let winf: Arc<LoadedIdMap<ET<Works>>> = self
             .get_entity_interface::<Works, QuickestNumbered>()
             .into();
+        let mut ship_rel_writer = ShipRelWriter::new(winf.clone(), self);
+        for ship in iter_authorships(self) {
+            ship_rel_writer.proc_next(ship);
+        }
+        ship_rel_writer.post(self);
         {
-            ShipRelWriter::new(winf.clone(), self)
-                .para(iter_authorships(self).enumerate())
+            WorkBiblioWriter::new(winf.clone())
+                .para(self.read_csv_objs(Works::NAME, "biblio"))
                 .post(self);
         }
         Arc::into_inner(winf).unwrap()
@@ -468,40 +480,100 @@ impl WorkAttWriter {
 impl ShipRelWriter {
     fn new(winf: Arc<LoadedIdMap<ET<Works>>>, stowage: &Stowage) -> Self {
         Self {
-            ship2a: init_empty_slice::<Authorships, _>().into(),
-            ship2is: init_empty_slice::<Authorships, _>().into(),
-            w2ships: init_empty_slice::<Works, _>().into(),
+            fship2a: vec![0],
+            fship2is: vec![Vec::new()],
+            dship2a: vec![0],
+            dship2is: vec![Vec::new()],
+            w2combined_ships: init_empty_slice::<Works, _>(),
             winf,
-            ainf: stowage
-                .get_entity_interface::<Authors, QuickestNumbered>()
-                .into(),
-            iinf: stowage
-                .get_entity_interface::<Institutions, QuickestNumbered>()
-                .into(),
+            fainf: stowage.get_entity_interface::<Authors, QuickestNumbered>(),
+            dainf: stowage.get_entity_interface::<DiscardedAuthors, QuickestNumbered>(),
+            iinf: stowage.get_entity_interface::<Institutions, QuickestNumbered>(),
+        }
+    }
+
+    fn proc_next(&mut self, ship: Authorship) {
+        let w_ind = match self.winf.0.get(&ship.get_parsed_id()) {
+            Some(wi) => wi.to_usize(),
+            None => return,
+        };
+
+        let oa_aid = oa_id_parse(&ship.author_id.unwrap());
+        let ivec: Vec<ET<Institutions>> = ship
+            .institutions
+            .unwrap_or("".to_string())
+            .trim()
+            .split(";")
+            .filter(|e| e.len() > 1)
+            .filter_map(|e| self.iinf.0.get(&oa_id_parse(e)))
+            .map(|e| *e)
+            .collect();
+
+        let (aid, ship2a, ship2is, is_filered) = if let Some(faid) = self.fainf.0.get(&oa_aid) {
+            (faid.to_usize(), &mut self.fship2a, &mut self.fship2is, true)
+        } else {
+            let aid_u = if let Some(daid) = self.dainf.0.get(&oa_aid) {
+                daid.to_usize()
+            } else {
+                0
+            };
+            (aid_u, &mut self.dship2a, &mut self.dship2is, false)
+        };
+        let ship_ind = ship2a.len();
+        ship2a.push(aid);
+        ship2is.push(ivec);
+        self.w2combined_ships[w_ind].push((is_filered, ship_ind));
+    }
+
+    fn post(self, stowage: &Stowage) {
+        let faa_name = "authorship-filtered-author";
+        let daa_name = "authorship-discarded-author";
+        let fai_name = "filtered-authorship-institutions";
+
+        stowage.add_iter_owned::<FixAttBuilder, _, _>(
+            self.fship2a
+                .into_iter()
+                .map(|e| <ET<Authors> as UnsignedNumber>::from_usize(e)),
+            Some(faa_name),
+        );
+        stowage.add_iter_owned::<FixAttBuilder, _, _>(
+            self.dship2a
+                .into_iter()
+                .map(|e| <ET<DiscardedAuthors> as UnsignedNumber>::from_usize(e)),
+            Some(daa_name),
+        );
+
+        stowage.add_iter_owned::<VarAttBuilder, _, _>(
+            self.fship2is.into_iter().map(|v| v.into_boxed_slice()),
+            Some(fai_name),
+        );
+        stowage.add_iter_owned::<VarAttBuilder, _, _>(
+            self.dship2is.into_iter().map(|v| v.into_boxed_slice()),
+            Some("discarded-authorship-institutions"),
+        );
+        stowage.add_iter_owned::<DowncastingPrefixedVarBuilder, _, _>(
+            self.w2combined_ships
+                .into_vec()
+                .into_iter()
+                .map(|v| v.into_boxed_slice()),
+            Some("work-any-authorships"),
+        );
+    }
+}
+
+impl WorkBiblioWriter {
+    fn new(winf: Arc<LoadedIdMap<ET<Works>>>) -> Self {
+        Self {
+            biblios: init_empty_slice::<Works, _>().into(),
+            winf,
         }
     }
 
     fn post(self, stowage: &Stowage) {
-        let aa_name = "authorship-author";
-        let ai_name = "authorship-institutions";
-        let w2s_name = "work-authorships";
-        stowage
-            .add_iter_owned::<FixAttBuilder, _, _>(iter_mboxa(self.ship2a).tqdm(), Some(aa_name));
         stowage.add_iter_owned::<VarAttBuilder, _, _>(
-            iter_mboxa(self.ship2is)
-                .map(|v| v.into_boxed_slice())
-                .tqdm(),
-            Some(ai_name),
+            iter_mboxa(self.biblios).tqdm(),
+            Some("work-biblios"),
         );
-        stowage.add_iter_owned::<VarAttBuilder, _, _>(
-            iter_mboxa(self.w2ships)
-                .map(|v| v.into_boxed_slice())
-                .tqdm(),
-            Some(w2s_name),
-        );
-        stowage.declare_link::<Authorships, Authors>(aa_name);
-        stowage.declare_link::<Authorships, Institutions>(ai_name); //TODO: OneToMany
-        stowage.declare_link::<Works, Authorships>(w2s_name); //TODO: OneToMany
     }
 }
 
@@ -525,29 +597,15 @@ impl Worker<Work> for WorkAttWriter {
     }
 }
 
-impl Worker<(usize, Authorship)> for ShipRelWriter {
-    fn proc(&self, input: (usize, Authorship)) {
-        let (i, ship) = input;
-        let w_ind = match self.winf.0.get(&ship.get_parsed_id()) {
+impl Worker<Biblio> for WorkBiblioWriter {
+    fn proc(&self, bib: Biblio) {
+        let w_ind = match self.winf.0.get(&bib.get_parsed_id()) {
             Some(wi) => wi.to_usize(),
             None => return,
         };
-        self.w2ships.lock().unwrap()[w_ind].push(ET::<Authorships>::from_usize(i));
-
-        let aid_o = self.ainf.0.get(&oa_id_parse(&ship.author_id.unwrap()));
-        if let Some(aid) = aid_o {
-            self.ship2a.lock().unwrap()[i] = *aid;
-        }
-        for iid in ship
-            .institutions
-            .unwrap_or("".to_string())
-            .trim()
-            .split(";")
-            .filter(|e| e.len() > 1)
-        {
-            if let Some(piid) = self.iinf.0.get(&oa_id_parse(iid)) {
-                self.ship2is.lock().unwrap()[i].push(*piid);
-            }
+        let new_bib: BiblioInfo = bib.into();
+        if new_bib != BiblioInfo::init_empty() {
+            self.biblios.lock().unwrap()[w_ind] = new_bib;
         }
     }
 }
@@ -1040,7 +1098,7 @@ fn post_ext_name(in_str: &Option<String>) -> Option<String> {
 
 fn add_name_box<E: Entity>(stowage: &Stowage, names: Box<[String]>) {
     stowage.declare_iter::<VarAttBuilder, _, _, E, NameMarker>(
-        names.to_vec().into_iter(),
+        names.into_vec().into_iter(),
         &get_name_name::<E>(),
     );
 }

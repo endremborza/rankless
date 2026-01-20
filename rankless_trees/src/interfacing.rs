@@ -7,36 +7,38 @@ use crate::{
 use rankless_rs::{
     common::{
         init_empty_slice, BeS, HitWorkMarker, MainEntity, MainWorkMarker, MarkedBackendLoader,
-        QuickAttPair, QuickMap, QuickestBox, QuickestVBox, Stowage, Top3AffCountryMarker,
-        Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker, Top3PaperTopicMarker,
-        Top5AuthorMarker, WorkLoader, YearlyCitationsMarker, YearlyPapersMarker,
+        QuickAttPair, QuickMap, QuickestBox, QuickestVBox, Stowage, Top15AuthorMarker,
+        Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker,
+        Top3PaperTopicMarker, WorkLoader, YearlyCitationsMarker, YearlyPapersMarker,
     },
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{
-            AuthorRawCites, AuthorRawWorkCounts, AuthorWikiSlugs, AuthorshipAuthor,
-            AuthorshipInstitutions, CitiesNames, CountryCodes, InstCities, InstCountries, InstLocs,
-            SourceYearQs, TopicSubfields, WorkAuthorships, WorkSources, WorkTopics, WorkYears,
-            WorksNames,
+            AuthorOrcids, AuthorRawCites, AuthorRawWorkCounts, AuthorWikiSlugs,
+            AuthorshipDiscardedAuthor, AuthorshipFilteredAuthor, CitiesNames, CountryCodes,
+            DiscardedAuthorsNames, FilteredAuthorshipInstitutions, InstCities, InstCountries,
+            InstLocs, SourceYearQs, TopicSubfields, WorkAnyAuthorships, WorkBiblios, WorkDois,
+            WorkTopics, WorkYears, WorksNames,
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
-        derive_links2::{WorkCitingCounts, WorkCountries, WorkTopSource},
-        derive_links3::{HitPapers, HitPapersDois, HitPapersNames},
+        derive_links2::{WorkCountries, WorkTopSource},
+        derive_links3::{Coauthors, HitPapers, HitPapersDois, HitPapersNames},
         derive_links5::{HitPaperYearlyCitations, SourceStats},
     },
     steps::{
         a1_entity_mapping::YearInterface,
         derive_links1::{CountryInsts, WorkPeriods},
-        derive_links5::{EraRec, Top3Rec, Top5Rec},
+        derive_links5::{EraRec, Top15Rec, Top3Rec},
     },
-    CiteCountMarker, NameExtensionMarker, NameMarker, QuickestNumbered, SemanticIdMarker,
-    WorkCountMarker,
+    CiteCountMarker, NameExtensionMarker, NameMarker, QuickestNumbered, ReadFixIter,
+    SemanticIdMarker, WorkCountMarker,
 };
 
 use dmove::{
     BackendLoading, BigId, ByteArrayInterface, ByteFixArrayInterface, CompactEntity, Entity,
-    EntityImmutableRefMapperBackend, Locators, MappableEntity, MarkedAttribute, NamespacedEntity,
-    UnsignedNumber, VaST, VarAttBuilder, VarBox, VarSizedAttributeElement, VattArrPair, ET, MAA,
+    EntityImmutableRefMapperBackend, InitEmpty, Locators, MappableEntity, MarkedAttribute,
+    NamespacedEntity, UnsignedNumber, VaST, VarAttBuilder, VarBox, VarSizedAttributeElement,
+    VariableSizeAttribute, VattArrPair, ET, MAA,
 };
 use hashbrown::HashMap;
 use rand::Rng;
@@ -50,19 +52,20 @@ type MB<E> = BeS<QuickMap, E>;
 pub struct Getters {
     ifs: Interfaces,
     pub stowage: Arc<Stowage>,
-    pub wn_locators: Arc<Locators<WorksNames>>,
     pub inst_oa: Box<[BigId]>,
     pub work_oa: Box<[BigId]>,
     pub hit_papers: Box<[BigId]>,
+    pub orcid_map: HashMap<ET<AuthorOrcids>, usize>,
 }
 
 macro_rules! make_interfaces {
-    ($($e_key:ident > $e_t:ty),*;$($f_key:ident => $f_t:ty),*; $($v_key:ident -> $v_t:ty),*; $($m_key:ident >> $m_t:ty),*) => {
+    ($($e_key:ident > $e_t:ty),*;$($f_key:ident => $f_t:ty),*; $($v_key:ident -> $v_t:ty),*; $($loc_key:ident loc $loc_t:ty),*; $($m_key:ident >> $m_t:ty),*) => {
         struct Interfaces {
             $($e_key: VB<MAA<$e_t, MainWorkMarker>>,)*
             $($f_key: FB<$f_t>,)*
             $($v_key: VB<$v_t>,)*
             $($m_key: MB<$m_t>,)*
+            $($loc_key: Arc<Locators<$loc_t>>,)*
         }
 
         impl Interfaces {
@@ -92,11 +95,19 @@ macro_rules! make_interfaces {
                         stowage_clone.get_entity_interface::<$m_t, QuickMap>()
                     });
                 )*
+                $(
+                    let stowage_clone = Arc::clone(&stowage);
+                    let $loc_key = std::thread::spawn( move || {
+                        get_locator::<$loc_t>(&stowage_clone)
+                    });
+                )*
+
                 Self {
                     $($e_key: $e_key.join().expect("Thread panicked")),*,
                     $($f_key: $f_key.join().expect("Thread panicked")),*,
                     $($v_key: $v_key.join().expect("Thread panicked")),*,
                     $($m_key: $m_key.join().expect("Thread panicked")),*,
+                    $($loc_key: $loc_key.join().expect("Thread panicked")),*,
                 }
             }
 
@@ -105,6 +116,7 @@ macro_rules! make_interfaces {
                         $($f_key: Vec::new().into()),*,
                         $($e_key: VattArrPair::empty()),*,
                         $($v_key: VattArrPair::empty()),*,
+                        $($loc_key: Locators::<$loc_t>::empty().into()),*,
                         $($m_key: HashMap::new().into()),*
                     }
             }
@@ -151,11 +163,36 @@ macro_rules! make_interfaces {
                 }
             )*
 
+            $(
+                pub fn $loc_key<'a>(&'a self) -> Arc<Locators<$loc_t>> {
+                    self.ifs.$loc_key.clone()
+                }
+            )*
+
+            pub fn works_of_entity<'a>(&'a self, key: usize, etype: String) -> Option<&'a [WT]>  {
+                // This is super similar to WorksFromMemory but with a string parameter
+                $(
+                    if &etype == <$e_t as Entity>::NAME {
+                        return Some(self.ifs.$e_key.get(&key).expect(&format!("e: {} works, k: {}", <$e_t as Entity>::NAME, key)))
+                    }
+
+                )*
+                None
+            }
+
         }
         $(
         impl WorksFromMemory for $e_t {
             fn works_from_ram(gets: &Getters, id: ET<Self>) -> &[WT] {
                 gets.$e_key(id)
+            }
+        }
+        )*
+
+        $(
+        impl LocatorsFromMemory for $loc_t {
+            fn locs_from_ram(gets: &Getters) -> Arc<Locators<$loc_t>> {
+                gets.$loc_key()
             }
         }
         )*
@@ -235,23 +272,27 @@ make_interfaces!(
     icity => InstCities,
     iloc => InstLocs,
     ccodes => CountryCodes,
-    shipa => AuthorshipAuthor,
+    fshipa => AuthorshipFilteredAuthor,
+    dshipa => AuthorshipDiscardedAuthor,
     raw_cites => AuthorRawCites,
-    raw_works => AuthorRawWorkCounts,
-    wccount => WorkCitingCounts;
+    raw_works => AuthorRawWorkCounts;
     wtopics -> WorkTopics,
     wsubfields -> WorkSubfields,
     winsts -> WorkInstitutions,
-    wships -> WorkAuthorships,
-    wsources -> WorkSources,
+    wanyships -> WorkAnyAuthorships,
     wcountries -> WorkCountries,
-    shipis -> AuthorshipInstitutions,
+    wbiblios -> WorkBiblios,
+    fshipis -> FilteredAuthorshipInstitutions,
     cinames -> CitiesNames,
     aslugs -> AuthorWikiSlugs,
+    coathors -> Coauthors,
     hit_names -> HitPapersNames,
     hit_dois -> HitPapersDois,
     hit_yearlies -> HitPaperYearlyCitations,
     country_insts -> CountryInsts;
+    dan_locators loc DiscardedAuthorsNames,
+    doi_locators loc WorkDois,
+    wn_locators loc WorksNames;
     sqy >> SourceYearQs
 );
 
@@ -264,7 +305,7 @@ make_ent_interfaces!(
     yearly_papers - YearlyPapersMarker | EraRec,
     yearly_cites - YearlyCitationsMarker | EraRec,
     top_journals - Top3JournalMarker | Top3Rec<Sources>,
-    top_authors - Top5AuthorMarker | Top5Rec<Authors>,
+    top_authors - Top15AuthorMarker | Top15Rec<Authors>,
     top_aff_countries - Top3AffCountryMarker | Top3Rec<Countries>,
     top_paper_topic - Top3PaperTopicMarker | Top3Rec<Topics>,
     top_citing_sfc - Top3CitingSfMarker | Top3Rec<Subfields>,
@@ -305,6 +346,13 @@ pub trait WorksFromMemory: MarkedAttribute<MainWorkMarker> + MainEntity {
     fn works_from_ram(gets: &Getters, id: ET<Self>) -> &[WT];
 }
 
+pub trait LocatorsFromMemory: VariableSizeAttribute + Sized
+where
+    ET<Self>: VarSizedAttributeElement,
+{
+    fn locs_from_ram(gets: &Getters) -> Arc<Locators<Self>>;
+}
+
 pub trait MetaMapGetter {
     fn get_meta(_id: usize, _gets: &Getters) -> Option<HashMap<&'static str, String>> {
         None
@@ -337,26 +385,45 @@ where
 
 impl Getters {
     pub fn total_cite_count(&self) -> f64 {
-        let o: u32 = self.ifs.wccount.iter().map(|e| *e as u32).sum();
+        // let div: usize = <ET<WorksCiting> as VarSizedAttributeElement>::DIVISOR;
+        let o = self
+            .ifs
+            .citing
+            .locators
+            .divided_sizes
+            .iter()
+            .map(|e| e.to_usize())
+            .sum::<usize>() as u32;
         f64::from(o)
+    }
+
+    pub fn wccount(&self, wid: usize) -> usize {
+        self.ifs.citing.locators.divided_sizes[wid].to_usize()
     }
 
     pub fn new(stowage: Arc<Stowage>) -> Self {
         let inst_oa = reverse_id::<Institutions>(&stowage);
         let work_oa = reverse_id::<Works>(&stowage);
         let hit_papers = reverse_id::<HitPapers>(&stowage);
-        let path = stowage.path_from_ns(WorksNames::NS);
-        let wn_locators =
-            <Locators<WorksNames> as BackendLoading<WorksNames>>::load_backend(&path).into();
+        let mut orcid_map = HashMap::new();
+        let na_orcid: ET<AuthorOrcids> = <ET<AuthorOrcids> as InitEmpty>::init_empty();
+        stowage
+            .get_entity_interface::<AuthorOrcids, ReadFixIter>()
+            .enumerate()
+            .for_each(|(ai, orcid_id)| {
+                if orcid_id != na_orcid {
+                    orcid_map.insert(orcid_id, ai);
+                }
+            });
         let ifs = Interfaces::new(stowage.clone());
         println!("loaded full Getters");
         Self {
             ifs,
-            wn_locators,
             stowage,
             inst_oa,
             work_oa,
             hit_papers,
+            orcid_map,
         }
     }
 
@@ -376,22 +443,29 @@ impl Getters {
             Some(WorksNames::NAME),
         );
 
-        let path = stowage.path_from_ns(WorksNames::NS);
-        let wn_locators =
-            <Locators<WorksNames> as BackendLoading<WorksNames>>::load_backend(&path).into();
         let mut ifs = Interfaces::fake();
         //TODO a hack for testing
         ifs.year = YearInterface::iter().collect();
-
         Self {
             stowage: Arc::new(stowage),
-            wn_locators,
             ifs,
             inst_oa: Vec::new().into(),
             work_oa: (0..20000000).collect::<Vec<BigId>>().into(),
             hit_papers: Vec::new().into(),
+            orcid_map: HashMap::new(),
         }
     }
+}
+
+fn get_locator<E>(stowage: &Stowage) -> Arc<Locators<E>>
+where
+    Locators<E>: BackendLoading<E>,
+    E: NamespacedEntity,
+    E: VariableSizeAttribute,
+    ET<E>: VarSizedAttributeElement,
+{
+    let path = stowage.path_from_ns(E::NS);
+    return <Locators<E> as BackendLoading<E>>::load_backend(&path).into();
 }
 
 impl<T, Mark> StringAtt<Mark> for T where T: VarAtt<Mark, VT = String> {}
@@ -478,7 +552,7 @@ fn update_stats<E>(
     let numer_add = (full_cc / f64::from(E::N as u32)) * SPEC_CORR_RATE;
     let elevel = names
         .0
-        .to_vec()
+        .into_vec()
         .into_iter()
         .enumerate()
         .map(|(i, name)| {

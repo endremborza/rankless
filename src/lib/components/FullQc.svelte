@@ -22,6 +22,7 @@
 	export let removeHighlightUnhover = true;
 	export let setUrl = true;
 	export let allowControls = true;
+	export let shoPathLevelInfo = true;
 	export let shallowed = false;
 	export let treeSpecs: tt.TreeSpecs;
 	export let selectionState: tt.BareNode = { children: {} };
@@ -404,17 +405,18 @@
 			{allowControls}
 		/>
 	{/each}
-	<PathLevelInfoBox
-		path={highlightedPath}
-		rootNode={completeTree}
-		initHeight={(10 / 100) * innerHeight}
-		{rootName}
-		treeSpec={currentTreeSpec}
-		rootId={highlightRoot}
-		{attributeLabels}
-		bind:showPaper
-	/>
-
+	{#if shoPathLevelInfo}
+		<PathLevelInfoBox
+			path={highlightedPath}
+			rootNode={completeTree}
+			initHeight={(10 / 100) * innerHeight}
+			{rootName}
+			treeSpec={currentTreeSpec}
+			rootId={highlightRoot}
+			{attributeLabels}
+			bind:showPaper
+		/>
+	{/if}
 	<HoverBlock
 		show={showSpecInfoHover}
 		style={dBasedStyle(

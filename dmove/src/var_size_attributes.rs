@@ -59,7 +59,7 @@ where
     E: VariableSizeAttribute,
     <E as Entity>::T: VarSizedAttributeElement,
 {
-    locators: Locators<E>,
+    pub locators: Locators<E>,
     arr: Box<[VaST<E>]>,
 }
 
@@ -90,7 +90,7 @@ where
     <E as Entity>::T: VarSizedAttributeElement,
 {
     divided_locs: Box<[E::LocType]>,
-    divided_sizes: Box<[E::SizeType]>,
+    pub divided_sizes: Box<[E::SizeType]>,
 }
 
 pub trait VarSizedAttributeElement: ByteArrayInterface {
@@ -224,6 +224,13 @@ where
         Self {
             divided_locs: locators_loc.into(),
             divided_sizes: locators_size.into(),
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            divided_sizes: Vec::new().into(),
+            divided_locs: Vec::new().into(),
         }
     }
 }

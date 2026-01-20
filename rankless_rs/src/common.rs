@@ -19,8 +19,8 @@ use tqdm::{Iter, Tqdm};
 use dmove::{
     BackendLoading, BigId, CompactEntity, Entity, FixAttIterator, FixWriteSizeEntity, InitEmpty,
     LoadedIdMap, MainBuilder, MappableEntity, MarkedAttribute, MetaIntegrator, NamespacedEntity,
-    NumericTypeEntity, UnsignedNumber, VarAttIterator, VarBox, VarSizedAttributeElement,
-    VariableSizeAttribute, VattArrPair, VattReadingMap, ET, MAA,
+    NumericTypeEntity, UnsignedNumber, VarAttBuilder, VarAttIterator, VarBox,
+    VarSizedAttributeElement, VariableSizeAttribute, VattArrPair, VattReadingMap, ET, MAA,
 };
 
 pub type StowReader = Reader<BufReader<GzDecoder<File>>>;
@@ -52,7 +52,7 @@ pub struct InstRelMarker;
 pub struct Top3PaperSfMarker;
 pub struct Top3CitingSfMarker;
 pub struct Top3PaperTopicMarker;
-pub struct Top5AuthorMarker;
+pub struct Top15AuthorMarker;
 pub struct Top3CitingTopicMarker;
 pub struct Top3JournalMarker;
 pub struct Top3AffCountryMarker;
@@ -327,6 +327,23 @@ impl Stowage {
         self.mu_bu().declare_ns(&name, &self.current_ns);
     }
 
+    pub fn add_barr<B, T>(&self, barr: Box<[T]>, name: &str)
+    where
+        B: MetaIntegrator<T>,
+    {
+        self.add_iter_owned::<B, _, T>(barr.into_vec().into_iter(), Some(name));
+    }
+
+    pub fn add_barr_of_vecs<T>(&self, barr: Box<[Vec<T>]>, name: &str)
+    where
+        VarAttBuilder: MetaIntegrator<Box<[T]>>,
+    {
+        self.add_iter_owned::<VarAttBuilder, _, Box<[T]>>(
+            barr.into_vec().into_iter().map(|e| e.into_boxed_slice()),
+            Some(name),
+        );
+    }
+
     pub fn declare_link<S: Entity, T: Entity>(&self, name: &str) {
         self.mu_bu().declare_link::<S, T>(name);
     }
@@ -373,7 +390,7 @@ impl Stowage {
         self.paths.entity_csvs.parent().unwrap().join(ns)
     }
 
-    pub fn mu_bu(&self) -> MutexGuard<MainBuilder> {
+    pub fn mu_bu(&self) -> MutexGuard<'_, MainBuilder> {
         self.builder.as_ref().unwrap().lock().unwrap()
     }
 }

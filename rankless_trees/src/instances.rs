@@ -592,7 +592,7 @@ pub mod test_tools {
 
     pub trait TestSB {
         type SB: StackBasis;
-        fn get_vec() -> Vec<StackFr<Self::SB>>;
+        fn get_vec(id: usize) -> Vec<StackFr<Self::SB>>;
         fn get_pid(_v: &StackFr<Self::SB>) -> PartitionId {
             0
         }
@@ -613,8 +613,8 @@ pub mod test_tools {
         type Root = Institutions;
         type StackBasis = TSB::SB;
         const PARTITIONS: usize = N_PERS;
-        fn new(_id: ET<Institutions>, _gets: &Getters) -> Self {
-            let viter = TSB::get_vec().into_iter();
+        fn new(id: ET<Institutions>, _gets: &Getters) -> Self {
+            let viter = TSB::get_vec(id.to_usize()).into_iter();
             Self { viter }
         }
     }
@@ -689,7 +689,7 @@ pub mod big_test_tree {
 
     impl TestSB for BigStack {
         type SB = BigStackFR;
-        fn get_vec() -> Vec<StackFr<Self::SB>> {
+        fn get_vec(_id: usize) -> Vec<StackFr<Self::SB>> {
             let id = 20;
             let mut vec = Vec::new();
             let mut rng = StdRng::seed_from_u64(42);
@@ -744,7 +744,7 @@ pub mod big_test_tree {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{JsSerChildren, ShallowQ, TreeRunManager};
+    use crate::io::{AttributeLabels, JsSerChildren, JsSerTree, ShallowQ, TreeRunManager};
     use dmove::{BigId, MappableEntity, NamespacedEntity};
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use rankless_rs::steps::{
@@ -788,31 +788,34 @@ mod tests {
         pub type Tree2 = Tither<SimpleStackBasis>;
         pub type Tree3 = Tither<SimpleStackBasis3>;
         pub type Tree4 = Tither<PartedStack>;
+        pub type Tree5 = Tither<RandomStackBasis>;
     }
 
     struct SimpleStackBasis;
-
     struct SimpleStackBasisL2;
-
     struct SimpleStackBasis3;
+    struct RandomStackBasis;
 
     impl TestSB for SimpleStackBasis {
+        //tid: 1
         type SB = SimpleStack;
-        fn get_vec() -> Vec<StackFr<Self::SB>> {
+        fn get_vec(_id: usize) -> Vec<StackFr<Self::SB>> {
             vec![(0, 10, 101), (1, 10, 100), (1, 11, 100)]
         }
     }
 
     impl TestSB for SimpleStackBasis3 {
+        //tid: 2
         type SB = SimpleStack;
-        fn get_vec() -> Vec<StackFr<Self::SB>> {
+        fn get_vec(_id: usize) -> Vec<StackFr<Self::SB>> {
             vec![(1, 0, 1), (0, 1, 0), (0, 0, 0)]
         }
     }
 
     impl TestSB for SimpleStackBasisL2 {
+        //tid: 0
         type SB = L2Stack;
-        fn get_vec() -> Vec<StackFr<Self::SB>> {
+        fn get_vec(_id: usize) -> Vec<StackFr<Self::SB>> {
             vec![
                 (30, 20, 10, 0),
                 (30, 20, 10, 1),
@@ -834,8 +837,9 @@ mod tests {
     }
 
     impl TestSB for PartedStack {
+        //tid: 3
         type SB = PartedStackFR;
-        fn get_vec() -> Vec<StackFr<Self::SB>> {
+        fn get_vec(_id: usize) -> Vec<StackFr<Self::SB>> {
             let mut vec = Vec::new();
             let mut rng = StdRng::seed_from_u64(742);
             for _ in 0..2_u32.pow(16) {
@@ -857,13 +861,25 @@ mod tests {
         }
     }
 
-    #[test]
-    fn to_tree1() {
-        let tstate = TreeRunManager::<(TestEntity, TestEntity)>::fake();
-        let name = TestEntity::NAME.to_string();
-        let r = tstate.get_single_resp(test_q(0), &name, 0).unwrap();
-        println!("{}", to_string_pretty(&r).unwrap());
-        match &r.tree.children.deref() {
+    impl TestSB for RandomStackBasis {
+        //tid: 4
+        type SB = SimpleStack;
+        fn get_vec(id: usize) -> Vec<StackFr<Self::SB>> {
+            let mut rng = StdRng::seed_from_u64(id as u64);
+            let n = 32;
+            (0..n)
+                .map(|_| {
+                    let e1: u32 = rng.gen();
+                    let e2: u32 = rng.gen();
+                    let e3: u32 = rng.gen();
+                    (e1 % 6, e2 % 6, e3 % 6)
+                })
+                .collect()
+        }
+    }
+
+    fn validate_tree_id0(tree: &JsSerTree) {
+        match tree.children.deref() {
             JsSerChildren::Nodes(nodes) => match &nodes[&30].children.deref() {
                 JsSerChildren::Leaves(leaves) => {
                     let lone = &leaves[&21];
@@ -875,7 +891,7 @@ mod tests {
             _ => panic!("wrong"),
         };
 
-        match &r.tree.children.deref() {
+        match tree.children.deref() {
             JsSerChildren::Nodes(nodes) => match &nodes[&31].children.deref() {
                 JsSerChildren::Leaves(leaves) => {
                     let lone = &leaves[&20];
@@ -886,11 +902,36 @@ mod tests {
             },
             _ => panic!("wrong"),
         };
+        validate_tree_id0_node(tree);
+    }
+    fn validate_tree_id0_node(tree: &JsSerTree) {
+        assert_eq!(tree.node.source_count, 5);
+        assert_eq!(tree.node.link_count, 12);
+        assert_eq!(tree.node.top_source, Some(13));
+        assert_eq!(tree.node.top_cite_count, 4);
+    }
 
-        assert_eq!(r.tree.node.source_count, 5);
-        assert_eq!(r.tree.node.link_count, 12);
-        assert_eq!(r.tree.node.top_source, Some(13));
-        assert_eq!(r.tree.node.top_cite_count, 4);
+    fn validate_tree_id1(tree: &JsSerTree) {
+        assert_eq!(tree.node.source_count, 2);
+        assert_eq!(tree.node.link_count, 3);
+    }
+
+    fn validate_atts_id1(atts: &AttributeLabels) {
+        assert_eq!(atts.keys().len(), 2); //added the key of root entity
+    }
+
+    fn validate_tree_id2(tree: &JsSerTree) {
+        assert_eq!(tree.node.source_count, 2);
+        assert_eq!(tree.node.link_count, 3);
+    }
+
+    #[test]
+    fn to_tree1() {
+        let tstate = TreeRunManager::<(TestEntity, TestEntity)>::fake();
+        let name = TestEntity::NAME.to_string();
+        let r = tstate.get_single_resp(test_q(0), &name, 0).unwrap();
+        println!("{}", to_string_pretty(&r).unwrap());
+        validate_tree_id0(&r.tree);
         Arc::into_inner(tstate).unwrap().join();
     }
 
@@ -900,14 +941,15 @@ mod tests {
         let name = TestEntity::NAME.to_string();
         let r = tstate.get_single_resp(test_q(1), &name, 0).unwrap();
         println!("{}", to_string_pretty(&r).unwrap());
-        val_res2(&r);
+        validate_tree_id1(&r.tree);
+        validate_atts_id1(&r.atts);
         let rcached = tstate.get_single_resp(test_q(1), &name, 0).unwrap();
-        val_res2(&rcached);
+        validate_tree_id1(&rcached.tree);
+        validate_atts_id1(&rcached.atts);
 
         let r = tstate.get_single_resp(test_q(2), &name, 0).unwrap();
         println!("{}", to_string_pretty(&r).unwrap());
-        assert_eq!(r.tree.node.source_count, 2);
-        assert_eq!(r.tree.node.link_count, 3);
+        validate_tree_id2(&r.tree);
 
         Arc::into_inner(tstate).unwrap().join();
     }
@@ -916,7 +958,7 @@ mod tests {
     fn to_multiple_trees1() {
         let tstate = TreeRunManager::<(TestEntity, TestEntity)>::fake();
         let name = TestEntity::NAME.to_string();
-        let q0 = test_q(0);
+        let q0 = test_q(4);
         let sq = ShallowQ {
             ids: vec![0, 1, 2],
             year: q0.year,
@@ -926,17 +968,17 @@ mod tests {
         };
         let multi_r = tstate.get_shallows(sq, &name).unwrap();
         println!("{}", to_string_pretty(&multi_r).unwrap());
-        let tree2 = multi_r.trees.get(&2).unwrap();
-        assert_eq!(tree2.node.source_count, 2);
-        assert_eq!(tree2.node.link_count, 3);
+        for ((k, lc), ts) in (0..3)
+            .zip(vec![22, 24, 21].into_iter())
+            .zip(vec![2, 2, 5].into_iter())
+        {
+            let tree = multi_r.trees.get(&k).unwrap();
+            assert_eq!(tree.node.link_count, lc);
+            assert_eq!(tree.node.top_source, Some(ts));
+            assert_eq!(tree.node.source_count, 6);
+        }
 
         Arc::into_inner(tstate).unwrap().join();
-    }
-
-    fn val_res2(r: &TreeResponse) {
-        assert_eq!(r.tree.node.source_count, 2);
-        assert_eq!(r.tree.node.link_count, 3);
-        assert_eq!(r.atts.keys().len(), 2); //added the key of root entity
     }
 
     #[test]

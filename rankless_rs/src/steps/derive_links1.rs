@@ -6,19 +6,21 @@ use crate::{
         QuickestBox, QuickestVBox, ReadIter, Stowage,
     },
     gen::{
-        a1_entity_mapping::{Countries, Institutions, Works},
+        a1_entity_mapping::{Authors, Countries, Institutions, Works},
         a2_init_atts::{
-            AuthorshipAuthor, AuthorshipInstitutions, InstCountries, TopicSubfields,
-            WorkAuthorships, WorkReferences, WorkSources, WorkTopics, WorkYears,
+            AuthorshipFilteredAuthor, DiscardedAuthorshipInstitutions,
+            FilteredAuthorshipInstitutions, InstCountries, TopicSubfields, WorkAnyAuthorships,
+            WorkReferences, WorkSources, WorkTopics, WorkYears,
         },
     },
     ReadFixIter,
 };
 
 use dmove::{
-    BackendLoading, ByteArrayInterface, ByteFixArrayInterface, CompactEntity, Entity,
-    EntityImmutableRefMapperBackend, Link, MappableEntity, NamespacedEntity, UnsignedNumber,
-    VarAttBuilder, VarSizedAttributeElement, VariableSizeAttribute, VattArrPair, ET,
+    reverse_prefixed_n, BackendLoading, ByteArrayInterface, ByteFixArrayInterface, CompactEntity,
+    Entity, EntityImmutableRefMapperBackend, Link, MappableEntity, NamespacedEntity,
+    UnsignedNumber, VarAttBuilder, VarSizedAttributeElement, VariableSizeAttribute, VattArrPair,
+    ET,
 };
 
 use super::a1_entity_mapping::{YearInterface, N_PERS, POSSIBLE_YEAR_FILTERS};
@@ -58,7 +60,7 @@ impl MarkedBackendLoader<QuickestVBox> for CountryInsts {
             c_insts[cid.to_usize()].push(<Institutions as Entity>::T::from_usize(iid));
         });
         c_insts
-            .to_vec()
+            .into_vec()
             .into_iter()
             .map(|e| e.into_boxed_slice())
             .collect()
@@ -143,14 +145,11 @@ where
 pub fn collapse_links<Link1, Link2>(stowage: &mut Stowage, name: &str)
 where
     Link1: Link + NamespacedEntity + VariableSizeAttribute,
-    Link2: Link
-        + Entity<T = <<Link2 as Link>::Target as Entity>::T>
-        + NamespacedEntity
-        + CompactEntity,
-    <Link1 as Entity>::T: ByteArrayInterface + VarSizedAttributeElement,
-    <<Link1 as Link>::Target as Entity>::T: UnsignedNumber,
-    <<Link2 as Link>::Target as Entity>::T: PartialEq + UnsignedNumber,
-    BeS<ReadIter, Link1>: Iterator<Item = Box<[<<Link1 as Link>::Target as Entity>::T]>>,
+    Link2: Link + Entity<T = ET<Link2::Target>> + NamespacedEntity + CompactEntity,
+    ET<Link1>: ByteArrayInterface + VarSizedAttributeElement,
+    ET<Link1::Target>: UnsignedNumber,
+    ET<Link2::Target>: UnsignedNumber,
+    BeS<ReadIter, Link1>: Iterator<Item = Box<[ET<Link1::Target>]>>,
 {
     let cloj = |ends: &mut Vec<Link2::T>, fw_target: &Link2::T| {
         if !ends.contains(fw_target) {
@@ -163,15 +162,15 @@ where
 pub fn collapse_links_mtarget<Link1, Link2>(stowage: &mut Stowage, name: &str)
 where
     Link1: Link + NamespacedEntity + VariableSizeAttribute,
-    Link2: Entity<T = Box<[<Link2::Target as Entity>::T]>>
+    Link2: Entity<T = Box<[ET<Link2::Target>]>>
         + NamespacedEntity
         + CompactEntity
         + VariableSizeAttribute
         + Link,
-    <Link1 as Entity>::T: ByteArrayInterface + VarSizedAttributeElement,
-    <<Link1 as Link>::Target as Entity>::T: UnsignedNumber,
-    <<Link2 as Link>::Target as Entity>::T: PartialEq + UnsignedNumber,
-    BeS<ReadIter, Link1>: Iterator<Item = Box<[<<Link1 as Link>::Target as Entity>::T]>>,
+    ET<Link1>: ByteArrayInterface + VarSizedAttributeElement,
+    ET<Link1::Target>: UnsignedNumber,
+    ET<Link2::Target>: UnsignedNumber,
+    BeS<ReadIter, Link1>: Iterator<Item = Box<[ET<Link1::Target>]>>,
 {
     let cloj = |ends: &mut Vec<<Link2::Target as Entity>::T>, fw_targets: &Link2::T| {
         for fw_target in fw_targets {
@@ -189,11 +188,44 @@ pub fn main(mut stowage: Stowage) -> io::Result<()> {
     invert_read_multi_link_to_work::<WorkSources>(&mut stowage, "source-works");
 
     collapse_links::<WorkTopics, TopicSubfields>(&mut stowage, "work-subfields");
-    collapse_links::<WorkAuthorships, AuthorshipAuthor>(&mut stowage, "work-authors");
-    collapse_links_mtarget::<WorkAuthorships, AuthorshipInstitutions>(
-        &mut stowage,
-        "work-institutions",
-    );
+
+    let ship_fats = stowage.get_entity_interface::<AuthorshipFilteredAuthor, QuickestBox>();
+    let fship_is = stowage.get_entity_interface::<FilteredAuthorshipInstitutions, QuickestVBox>();
+    let dship_is = stowage.get_entity_interface::<DiscardedAuthorshipInstitutions, QuickestVBox>();
+
+    let mut w_fauthors = init_empty_slice::<Works, Vec<ET<Authors>>>();
+    let mut w_allinsts = init_empty_slice::<Works, Vec<ET<Institutions>>>();
+
+    for (wid, w_any_ships) in stowage
+        .get_entity_interface::<WorkAnyAuthorships, ReadIter>()
+        .enumerate()
+    {
+        for anyship_id in w_any_ships.iter() {
+            let (is_fileterd, ship_id) = reverse_prefixed_n(anyship_id.to_usize());
+            let iis = if is_fileterd {
+                let aid = ship_fats[ship_id];
+                if !w_fauthors[wid].contains(&aid) {
+                    w_fauthors[wid].push(aid);
+                }
+
+                &fship_is.0[ship_id]
+            } else {
+                &dship_is.0[ship_id]
+            };
+            for iid in iis {
+                if !w_allinsts[wid].contains(iid) {
+                    w_allinsts[wid].push(*iid);
+                }
+            }
+        }
+    }
+
+    let wfa_name = "work-filtered-authors";
+    let w2i_name = "work-institutions";
+    stowage.add_barr_of_vecs(w_fauthors, wfa_name);
+    stowage.add_barr_of_vecs(w_allinsts, w2i_name);
+    stowage.declare_link::<Works, Authors>(wfa_name);
+    stowage.declare_link::<Works, Institutions>(w2i_name);
     stowage.write_code()?;
     Ok(())
 }
@@ -203,11 +235,11 @@ where
     Link1: Link + NamespacedEntity + VariableSizeAttribute,
     Link2: Link + NamespacedEntity + CompactEntity,
     IfMarker: BackendSelector<Link2>,
-    F: Fn(&mut Vec<<<Link2 as Link>::Target as Entity>::T>, &<Link2 as Entity>::T),
+    F: Fn(&mut Vec<ET<Link2::Target>>, &<Link2 as Entity>::T),
     Link1::T: ByteArrayInterface + VarSizedAttributeElement,
-    <Link1::Target as Entity>::T: UnsignedNumber,
-    <<Link2 as Link>::Target as Entity>::T: ByteFixArrayInterface,
-    BeS<ReadIter, Link1>: Iterator<Item = Box<[<<Link1 as Link>::Target as Entity>::T]>>,
+    ET<Link1::Target>: UnsignedNumber,
+    ET<Link2::Target>: ByteFixArrayInterface,
+    BeS<ReadIter, Link1>: Iterator<Item = Box<[ET<Link1::Target>]>>,
     <IfMarker as BackendSelector<Link2>>::BE:
         EntityImmutableRefMapperBackend<Link2> + BackendLoading<Link2>,
 {

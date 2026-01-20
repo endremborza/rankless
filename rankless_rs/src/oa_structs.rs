@@ -49,7 +49,7 @@ add_id_traits!(
 
 add_strict_parsed_id_traits!(Institution, Work, NamedEntity);
 add_parsed_id_traits!(IdStruct);
-add_parent_parsed_id_traits!(ReferencedWork, WorkTopic);
+add_parent_parsed_id_traits!(ReferencedWork, WorkTopic, Biblio);
 
 impl<T: IdTrait> IdTrait for IdCountDecorated<T> {
     fn get_id(&self) -> String {
@@ -311,19 +311,19 @@ pub struct SummaryStats {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Biblio {
     pub parent_id: Option<String>,
-    volume: Option<String>,
-    issue: Option<String>,
-    first_page: Option<String>,
-    last_page: Option<String>,
+    pub volume: Option<String>,
+    pub issue: Option<String>,
+    pub first_page: Option<String>,
+    pub last_page: Option<String>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct WorkConcept {
-    pub parent_id: Option<String>,
-    #[serde(rename = "id")]
-    pub concept_id: Option<String>,
-    pub score: Option<f64>,
-}
+// #[derive(Deserialize, Serialize, Debug)]
+// pub struct WorkConcept {
+//     pub parent_id: Option<String>,
+//     #[serde(rename = "id")]
+//     pub concept_id: Option<String>,
+//     pub score: Option<f64>,
+// }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct WorkTopic {
@@ -333,15 +333,15 @@ pub struct WorkTopic {
     pub score: Option<f64>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct Mesh {
-    pub parent_id: Option<String>,
-    descriptor_ui: Option<String>,
-    descriptor_name: Option<String>,
-    qualifier_ui: Option<String>,
-    qualifier_name: Option<String>,
-    is_major_topic: Option<bool>,
-}
+// #[derive(Deserialize, Serialize, Debug)]
+// pub struct Mesh {
+//     pub parent_id: Option<String>,
+//     descriptor_ui: Option<String>,
+//     descriptor_name: Option<String>,
+//     qualifier_ui: Option<String>,
+//     qualifier_name: Option<String>,
+//     is_major_topic: Option<bool>,
+// }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct OpenAccess {
@@ -357,11 +357,11 @@ pub struct ReferencedWork {
     pub referenced_work_id: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub struct RelatedWork {
-    pub parent_id: Option<String>,
-    related_work_id: String,
-}
+// #[derive(Deserialize, Serialize, Debug)]
+// pub struct RelatedWork {
+//     pub parent_id: Option<String>,
+//     related_work_id: String,
+// }
 
 impl ParsedId for FieldLike {
     fn get_parsed_id(&self) -> BigId {
@@ -406,14 +406,14 @@ impl From<String> for ReferencedWork {
     }
 }
 
-impl From<String> for RelatedWork {
-    fn from(value: String) -> Self {
-        Self {
-            related_work_id: value,
-            parent_id: None,
-        }
-    }
-}
+// impl From<String> for RelatedWork {
+//     fn from(value: String) -> Self {
+//         Self {
+//             related_work_id: value,
+//             parent_id: None,
+//         }
+//     }
+// }
 
 fn default_empty<T>() -> Option<Vec<T>> {
     Some(Vec::new())
