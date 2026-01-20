@@ -20,4 +20,4 @@ __pycache__
 *.profraw
 *.img
 .ipynb_checkpoints
-draft.ipynb
+draft*.ipynb
