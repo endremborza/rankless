@@ -114,6 +114,25 @@ key_path = os.environ["RL_KEY_PATH"]
 
 ubuntu24_image_id = "ami-0f67ca03a667867bb"
 
+line_rex = re.compile(
+    r'(.*?) \-.*\-.*\[(.*)\].*"([A-Z]+) (.*?)" (\d\d\d) (\d+) "(.*)" "(.*)"rt=(.*) uct="(.*)" uht="(.*)" urt="(.*)"'
+)
+
+line_cols = [
+    "addr",
+    "time",
+    "r",
+    "p",
+    "code",
+    "size",
+    "referrer",
+    "agent",
+    "rt",
+    "uct",
+    "uht",
+    "urt",
+]
+
 
 @dataclass
 class IpAlloc:
@@ -694,23 +713,6 @@ upstream {BE_UPSTREAM} {{
         return rem_bytes, full_pct
 
     def get_nginx_logs_df(self, minutes=3, n=10_000):
-        line_rex = re.compile(
-            r'(.*?) \-.*\-.*\[(.*)\].*"([A-Z]+) (.*?)" (\d\d\d) (\d+) "(.*)" "(.*)"rt=(.*) uct="(.*)" uht="(.*)" urt="(.*)"'
-        )
-        line_cols = [
-            "addr",
-            "time",
-            "r",
-            "p",
-            "code",
-            "size",
-            "referrer",
-            "agent",
-            "rt",
-            "uct",
-            "uht",
-            "urt",
-        ]
         logtail = self.ssh.run(f"tail -{n} /var/log/nginx/access.log")
         return (
             pd.DataFrame(
