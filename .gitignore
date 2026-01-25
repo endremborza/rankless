@@ -21,3 +21,4 @@ __pycache__
 *.img
 .ipynb_checkpoints
 draft*.ipynb
+notebooks/draft*
