@@ -83,7 +83,7 @@ pub struct IdSet {
     umls_aui: Option<String>,
     #[serde(default, deserialize_with = "deserialize_json_array")]
     umls_cui: Option<String>,
-    mag: Option<i64>,
+    // mag: Option<String>,
     issn_l: Option<String>,
     #[serde(default, deserialize_with = "deserialize_json_array")]
     issn: Option<String>,
