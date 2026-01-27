@@ -34,7 +34,7 @@ export async function getLinks(start: number, end: number): Promise<{ url: strin
 	);
 }
 
-export async function getMaxPage(stepSize): Promise<number> {
+export async function getMaxPage(stepSize: number): Promise<number> {
 	return fetch(`${BE_URL}/counts`).then((r) =>
 		r.json().then((entities) => {
 			let max = 0;
