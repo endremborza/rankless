@@ -1,12 +1,8 @@
-import { BE_URL } from '$lib/constants';
-import type { RootType, SearchResult } from '$lib/tree-types';
 import type { RequestHandler } from './$types';
 import { getEntityPath } from '$lib/tree-functions';
 import { getSitemapResponse } from '$lib/route-functions';
+import { getLinks, respsFromLinks } from '$lib/sitemap-functions';
 
-function isAsciiOnly(str: string) {
-	return /^[\x01-\x7F]+$/.test(str);
-}
 
 const STEP_SIZE = 200;
 
@@ -15,34 +11,8 @@ export const GET: RequestHandler = async ({ params }) => {
 	let start = n * STEP_SIZE;
 	let end = (n + 1) * STEP_SIZE;
 
-	let links = await fetch(`${BE_URL}/counts`).then((r) =>
-		r.json().then((entities) => {
-			let out: { url: string; name: string }[] = [];
-			entities.forEach((e: { count: number; name: string }) => {
-				if (e.count > start && e.name != 'hit-papers') {
-					let url = `${BE_URL}/slice/${e.name}/${start}/${end}`;
-					out.push({ url, name: e.name });
-				}
-			});
-			return out;
-		})
-	);
-
-	let resps: SearchResult[] = [];
-
-	for (let i = 0; i < links.length; i++) {
-		let rootType = links[i].name as RootType;
-		await fetch(links[i].url).then((r) =>
-			r.json().then((l) => {
-				l.forEach(
-					(e: SearchResult) => {
-						if (isAsciiOnly(e.semanticId)) {
-							resps.push({ ...e, rootType });
-						}
-					})
-			})
-		);
-	}
+	let links = await getLinks(start, end);
+	let resps = await respsFromLinks(links);
 	let paths = resps.map((e) => getEntityPath(e.rootType, e.semanticId));
 	return getSitemapResponse(paths);
 };
