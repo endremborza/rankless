@@ -92,6 +92,7 @@ macro_rules! create_complex_writers {
                 fn write_line(&mut self, line: &str) {
                     #[allow(unused_mut)]
                     let mut outer: Decorated = deserialize_verbose(line);
+                    if outer.get_id() == String::new() { return }
 
                     $(let $rest_key = &mut self.$rest_key;)*
                     $(sub_multi_write!(outer, $rest_key, $rest_key);)*
@@ -190,9 +191,7 @@ fn fill_with_files(path: &Path, v: &mut Vec<PathBuf>, extension: &str) -> io::Re
 
 fn deserialize_verbose<T: DeserializeOwned>(s: &str) -> T {
     let deserializer = &mut serde_json::Deserializer::from_str(s);
-
     let result: Result<T, _> = serde_path_to_error::deserialize(deserializer);
-
     match result {
         Ok(r) => return r,
         Err(err) => {

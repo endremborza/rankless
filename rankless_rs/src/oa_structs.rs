@@ -254,6 +254,7 @@ pub struct Source {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Work {
+    #[serde(default = "String::new")]
     id: String,
     pub doi: Option<String>,
     title: Option<String>,
@@ -278,7 +279,11 @@ pub struct Work {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Location {
     pub parent_id: Option<String>,
-    #[serde(deserialize_with = "deserialize_hash_field", rename = "source")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_hash_field",
+        rename = "source"
+    )]
     pub source_id: Option<String>,
     landing_page_url: Option<String>,
     pdf_url: Option<String>,
@@ -437,7 +442,7 @@ where
 {
     let h_maps_o = Option::<Vec<IdStruct>>::deserialize(deserializer)?;
     if let Some(h_maps) = h_maps_o {
-        let ids: Vec<String> = h_maps.iter().map(|e| e.id.clone().unwrap()).collect();
+        let ids: Vec<String> = h_maps.iter().filter_map(|e| e.id.clone()).collect();
         return Ok(Some(ids.join(";")));
     }
     return Ok(None);
