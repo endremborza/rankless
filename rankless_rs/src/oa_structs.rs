@@ -309,8 +309,8 @@ pub struct SummaryStats {
     pub parent_id: Option<String>,
     pub h_index: u32,
     pub i10_index: u32,
-    pub works_count: u32,
-    pub cited_by_count: u64,
+    pub works_count: Option<u32>,
+    pub cited_by_count: Option<u64>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
