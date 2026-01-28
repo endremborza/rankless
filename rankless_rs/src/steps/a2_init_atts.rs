@@ -499,8 +499,8 @@ impl ShipRelWriter {
     }
 
     fn proc_next(&mut self, ship: Authorship) {
-        let w_ind = match self.winf.0.get(&ship.get_parsed_id().unwrap()) {
-            Some(wi) => wi.to_usize(),
+        let w_ind = match get_wind(&ship, &self.winf) {
+            Some(wpi) => wpi,
             None => return,
         };
 
@@ -585,11 +585,8 @@ impl WorkBiblioWriter {
 
 impl Worker<Work> for WorkAttWriter {
     fn proc(&self, input: Work) {
-        let w_ind = match input.get_parsed_id() {
-            Some(wpi) => match self.winf.0.get(&wpi) {
-                Some(wi) => wi.to_usize(),
-                None => return,
-            },
+        let w_ind = match get_wind(&input, &self.winf) {
+            Some(wpi) => wpi,
             None => return,
         };
 
@@ -609,8 +606,8 @@ impl Worker<Work> for WorkAttWriter {
 
 impl Worker<Biblio> for WorkBiblioWriter {
     fn proc(&self, bib: Biblio) {
-        let w_ind = match self.winf.0.get(&bib.get_parsed_id().unwrap()) {
-            Some(wi) => wi.to_usize(),
+        let w_ind = match get_wind(&bib, &self.winf) {
+            Some(wpi) => wpi,
             None => return,
         };
         let new_bib: BiblioInfo = bib.into();
@@ -1128,5 +1125,12 @@ fn assign_farr<const S: usize>(
             .collect::<Vec<u8>>()
             .try_into()
             .unwrap();
+    }
+}
+
+fn get_wind<T: ParsedId>(obj: &T, winf: &LoadedIdMap<ET<Works>>) -> Option<usize> {
+    match winf.0.get(&obj.get_parsed_id().unwrap()) {
+        Some(wi) => Some(wi.to_usize()),
+        None => None,
     }
 }
