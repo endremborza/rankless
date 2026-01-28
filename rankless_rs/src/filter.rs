@@ -4,7 +4,7 @@ use hashbrown::{HashMap, HashSet};
 use serde::{de::DeserializeOwned, Deserialize};
 
 use crate::{
-    common::{oa_id_parse, ParsedId, Stowage, MAIN_NAME},
+    common::{oa_id_parse_opt, ParsedId, Stowage, MAIN_NAME},
     csv_writers::{authors, institutions, sources, works},
     env_consts::{
         FINAL_YEAR, MIN_AUTHOR_CITE_COUNT, MIN_AUTHOR_WORK_COUNT, MIN_PAPERS_FOR_INST,
@@ -126,18 +126,21 @@ fn single_filter(stowage: &Stowage, step_id: u8) -> io::Result<()> {
 fn author_filter(stowage: &Stowage, step_id: u8) -> io::Result<()> {
     let pre_filter = stowage.get_last_filter(authors::C).unwrap();
     filter_write::<Author, _>(stowage, step_id, authors::C, |o| {
-        let aid = o.get_parsed_id();
-        FIX_AUTHORS.contains(&aid)
-            | (pre_filter.contains(&aid)
-                & (o.cited_by_count.unwrap_or(0) >= MIN_AUTHOR_CITE_COUNT.into())
-                & (o.works_count.unwrap_or(0) >= MIN_AUTHOR_WORK_COUNT.into()))
+        if let Some(aid) = o.get_parsed_id() {
+            FIX_AUTHORS.contains(&aid)
+                | (pre_filter.contains(&aid)
+                    & (o.cited_by_count.unwrap_or(0) >= MIN_AUTHOR_CITE_COUNT.into())
+                    & (o.works_count.unwrap_or(0) >= MIN_AUTHOR_WORK_COUNT.into()))
+        } else {
+            false
+        }
     })
 }
 
 fn inst_filter(stowage: &Stowage, step_id: u8) -> io::Result<()> {
     let pre_filter = stowage.get_last_filter(institutions::C).unwrap();
     filter_write::<Institution, _>(stowage, step_id, institutions::C, |o| {
-        let iid = o.get_parsed_id();
+        let iid = o.get_parsed_id().expect(&o.display_name);
         !FORCE_DROP_INSTS.contains(&iid) && pre_filter.contains(&iid)
     })
 }
@@ -158,7 +161,7 @@ where
         stowage
             .read_csv_objs::<T>(entity_type, MAIN_NAME)
             .filter(|o| closure(&o))
-            .map(|o| o.get_parsed_id()),
+            .filter_map(|o| o.get_parsed_id()),
     )
 }
 
@@ -189,18 +192,21 @@ where
 
     for rec in stowage.read_csv_objs::<T>(T::ENTITY_C, T::ENTITY_ATT) {
         'endloop: for ends in rec.iter_edges().into_iter() {
-            let [source_key, target_key] = ends.map(|e| oa_id_parse(&e));
-            for (seto, key) in [(&source_set_o, &source_key), (&target_set_o, &target_key)] {
-                if let Some(set) = seto {
-                    if !set.contains(key) {
-                        //prefiltered out;
-                        continue 'endloop;
+            if let (Some(source_key), Some(target_key)) =
+                (oa_id_parse_opt(&ends[0]), oa_id_parse_opt(&ends[1]))
+            {
+                for (seto, key) in [(&source_set_o, &source_key), (&target_set_o, &target_key)] {
+                    if let Some(set) = seto {
+                        if !set.contains(key) {
+                            //prefiltered out;
+                            continue 'endloop;
+                        }
                     }
                 }
-            }
-            let set_entry = source_map.entry(source_key).or_insert_with(HashSet::new);
-            if T::FILTER_TARGETS | (set_entry.len() < T::MIN) | T::HAS_MAX {
-                set_entry.insert(target_key);
+                let set_entry = source_map.entry(source_key).or_insert_with(HashSet::new);
+                if T::FILTER_TARGETS | (set_entry.len() < T::MIN) | T::HAS_MAX {
+                    set_entry.insert(target_key);
+                }
             }
         }
     }

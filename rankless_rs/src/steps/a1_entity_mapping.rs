@@ -6,7 +6,7 @@ use serde::{de::DeserializeOwned, Deserialize};
 use crate::{
     add_parsed_id_traits,
     common::{
-        field_id_parse, oa_id_parse, short_string_to_u64, BackendSelector, MarkedBackendLoader,
+        field_id_parse, oa_id_parse_opt, short_string_to_u64, BackendSelector, MarkedBackendLoader,
         ObjIter, ParsedId, Stowage, MAIN_NAME,
     },
     csv_writers::{authors, domains, fields, institutions, sources, subfields, topics, works},
@@ -81,8 +81,10 @@ impl Iterator for ShipIterator {
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(ship) = self.raw_iter.next() {
-            if self.work_filter.contains(&ship.get_parsed_id()) {
-                return Some(ship);
+            if let Some(wid) = ship.get_parsed_id() {
+                if self.work_filter.contains(&wid) {
+                    return Some(ship);
+                }
             }
         }
         None
@@ -145,7 +147,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     for sw in vec![fields::C, subfields::C, domains::C] {
         let sc = starc.clone();
         threads.push(thread::spawn(move || {
-            ids_from_atts::<IdStruct, _>(&sc, sw, sw, |e| field_id_parse(&e.id.unwrap()));
+            ids_from_atts::<IdStruct, _>(&sc, sw, sw, |e| Some(field_id_parse(&e.id.unwrap())));
         }));
     }
 
@@ -165,12 +167,15 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
             let a_iter = sc
                 .read_csv_objs::<IdStruct>(authors::C, MAIN_NAME)
                 .filter_map(|e| {
-                    let pid = e.get_parsed_id();
-                    if filter.contains(&pid) {
-                        selected_authors.push(pid);
-                        return None;
+                    if let Some(pid) = e.get_parsed_id() {
+                        if filter.contains(&pid) {
+                            selected_authors.push(pid);
+                            return None;
+                        }
+                        Some(pid)
+                    } else {
+                        None
                     }
-                    Some(pid)
                 });
             sc.add_iter_owned::<Data64MappedEntityBuilder, _, _>(a_iter, Some("discarded-authors"));
             sc.add_iter_owned::<Data64MappedEntityBuilder, _, _>(
@@ -180,10 +185,11 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         }));
     }
 
-    ids_from_atts::<SourceArea, _>(&starc, "area-fields", sources::C, |e| e.raw_area_id());
-
+    ids_from_atts::<SourceArea, _>(&starc, "area-fields", sources::C, |e| Some(e.raw_area_id()));
     ids_from_atts::<Institution, _>(&starc, "countries", institutions::C, |e| {
-        short_string_to_u64(&e.country_code.unwrap_or("".to_string()))
+        Some(short_string_to_u64(
+            &e.country_code.unwrap_or("".to_string()),
+        ))
     });
 
     entities_from_iter(
@@ -198,7 +204,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let mut disc_ship_n = 0;
     for ship in iter_authorships(&starc) {
         if let Some(raw_a_oaid) = ship.author_id {
-            if author_filter.contains(&oa_id_parse(&raw_a_oaid)) {
+            if author_filter.contains(&oa_id_parse_opt(&raw_a_oaid).unwrap()) {
                 filt_ship_n.add_assign(1);
             } else {
                 disc_ship_n.add_assign(1);
@@ -224,14 +230,14 @@ pub fn iter_authorships(stowage: &Stowage) -> ShipIterator {
 fn ids_from_atts<T, F>(stowage: &Stowage, out_name: &str, parent_entity: &str, closure: F)
 where
     T: DeserializeOwned,
-    F: Fn(T) -> BigId,
+    F: Fn(T) -> Option<BigId>,
 {
     entities_from_iter(
         stowage,
         out_name,
         stowage
             .read_csv_objs::<T>(parent_entity, MAIN_NAME)
-            .map(closure),
+            .filter_map(closure),
         stowage.get_last_filter(out_name),
     )
 }

@@ -3,7 +3,7 @@ use serde_json::Value;
 
 use crate::{
     add_parent_parsed_id_traits, add_parsed_id_traits, add_strict_parsed_id_traits,
-    common::{field_id_parse, oa_id_parse, short_string_to_u64, ParsedId},
+    common::{field_id_parse, oa_id_parse_opt, short_string_to_u64, ParsedId},
 };
 
 use dmove::BigId;
@@ -369,14 +369,16 @@ pub struct ReferencedWork {
 // }
 
 impl ParsedId for FieldLike {
-    fn get_parsed_id(&self) -> BigId {
-        field_id_parse(&self.id)
+    fn get_parsed_id(&self) -> Option<BigId> {
+        Some(field_id_parse(&self.id))
     }
 }
 
 impl ParsedId for Geo {
-    fn get_parsed_id(&self) -> BigId {
-        short_string_to_u64(&self.country_code.clone().unwrap_or("".to_string()))
+    fn get_parsed_id(&self) -> Option<BigId> {
+        Some(short_string_to_u64(
+            &self.country_code.clone().unwrap_or("".to_string()),
+        ))
     }
 }
 
@@ -482,8 +484,8 @@ where
 pub mod post {
     use crate::{add_parent_parsed_id_traits, add_strict_parsed_id_traits};
 
-    use super::{oa_id_parse, BigId, Deserialize, IdTrait, ParsedId};
-    use crate::common::field_id_parse;
+    use super::{BigId, Deserialize, IdTrait, ParsedId};
+    use crate::common::{field_id_parse, oa_id_parse_opt};
 
     #[derive(Deserialize, Debug)]
     pub struct Authorship {
@@ -579,14 +581,14 @@ pub mod post {
     add_strict_parsed_id_traits!(Author, Topic, Institution, Source);
 
     impl ParsedId for SubField {
-        fn get_parsed_id(&self) -> BigId {
-            field_id_parse(&self.id)
+        fn get_parsed_id(&self) -> Option<BigId> {
+            Some(field_id_parse(&self.id))
         }
     }
 
     impl ParsedId for Field {
-        fn get_parsed_id(&self) -> BigId {
-            field_id_parse(&self.id)
+        fn get_parsed_id(&self) -> Option<BigId> {
+            Some(field_id_parse(&self.id))
         }
     }
 

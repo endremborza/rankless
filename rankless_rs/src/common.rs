@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Display};
 use std::io::{prelude::*, BufWriter};
 use std::marker::PhantomData;
+use std::num::ParseIntError;
 use std::ops::Range;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::{
@@ -66,8 +67,8 @@ pub struct EmptyAttributeEntity<T> {
 macro_rules! add_parsed_id_traits {
     ($($struct:ident),*) => {
         $(impl ParsedId for $struct {
-            fn get_parsed_id(&self) -> BigId {
-                oa_id_parse(self.id.as_ref().unwrap())
+            fn get_parsed_id(&self) -> Option<BigId> {
+                oa_id_parse_opt(self.id.as_ref().unwrap())
             }
         }
         )*
@@ -78,8 +79,8 @@ macro_rules! add_parsed_id_traits {
 macro_rules! add_strict_parsed_id_traits {
     ($($struct:ident),*) => {
         $(impl ParsedId for $struct {
-            fn get_parsed_id(&self) -> BigId {
-                oa_id_parse(&self.id)
+            fn get_parsed_id(&self) -> Option<BigId> {
+                oa_id_parse_opt(&self.id)
             }
         }
         )*
@@ -91,8 +92,8 @@ macro_rules! add_parent_parsed_id_traits {
     ($($struct:ident),*) => {
         $(
         impl ParsedId for $struct {
-            fn get_parsed_id(&self) -> BigId {
-                oa_id_parse(self.parent_id.as_ref().unwrap())
+            fn get_parsed_id(&self) -> Option<BigId> {
+                oa_id_parse_opt(self.parent_id.as_ref().unwrap())
             }
         }
         )*
@@ -242,7 +243,7 @@ pub trait MainEntity: NumberedEntity + Entity<T = NET<Self>> {}
 pathfields_fn!(PathCollection, entity_csvs, filter_steps, cache);
 
 pub trait ParsedId {
-    fn get_parsed_id(&self) -> BigId;
+    fn get_parsed_id(&self) -> Option<BigId>;
 }
 
 impl Stowage {
@@ -557,8 +558,19 @@ impl<T> MappableEntity for EmptyAttributeEntity<T> {
     type KeyType = usize;
 }
 
-pub fn oa_id_parse(id: &str) -> u64 {
-    id[(ID_PREFIX.len() + 1)..].parse::<u64>().expect(id)
+pub fn oa_id_parse_res(id: &str) -> Result<BigId, ParseIntError> {
+    id[(ID_PREFIX.len() + 1)..].parse::<u64>()
+}
+
+pub fn oa_id_parse_opt(id: &str) -> Option<BigId> {
+    match oa_id_parse_res(id) {
+        Ok(i) => Some(i),
+        Err(_) => None,
+    }
+}
+
+pub fn oa_id_parse(id: &str) -> BigId {
+    oa_id_parse_res(id).expect(id)
 }
 
 pub fn field_id_parse(id: &str) -> u64 {

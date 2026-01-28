@@ -1,9 +1,9 @@
 use crate::{
     biblo_var_att::BiblioInfo,
     common::{
-        field_id_parse, init_empty_slice, oa_id_parse, short_string_to_u64, BeS, DoiMarker,
-        MainEntity, NameExtensionMarker, NameMarker, NumberedEntity, ParsedId, QuickestNumbered,
-        Stowage, MAIN_NAME, NET,
+        field_id_parse, init_empty_slice, oa_id_parse, oa_id_parse_opt, short_string_to_u64, BeS,
+        DoiMarker, MainEntity, NameExtensionMarker, NameMarker, NumberedEntity, ParsedId,
+        QuickestNumbered, Stowage, MAIN_NAME, NET,
     },
     csv_writers::{institutions, works},
     data_consts::CC_MAP,
@@ -167,7 +167,7 @@ impl Stowage {
         let source_q_kv_iter = self
             .read_csv_objs::<SourceQ>(Sources::NAME, Qs::NAME)
             .filter_map(|yq| {
-                let source_oa_id = yq.get_parsed_id();
+                let source_oa_id = yq.get_parsed_id().unwrap();
                 if let Some(sid) = sources_interface.get_via_immut(&source_oa_id) {
                     let year = years_interface.get_via_immut(&yq.publication_year).unwrap();
                     let key = (sid, year);
@@ -202,7 +202,7 @@ impl Stowage {
         for cgeo in self.read_csv_objs::<Geo>(Institutions::NAME, institutions::atts::geo) {
             let rcid = short_string_to_u64(cgeo.city.as_ref().unwrap_or(&"".to_string()));
             let cid = cif.0.get(&rcid).unwrap();
-            let rcoid = cgeo.get_parsed_id();
+            let rcoid = cgeo.get_parsed_id().unwrap();
             let coid = coif.0.get(&rcoid).unwrap();
             if *coid > 0 {
                 ccs[coid.to_usize()] = rcoid.to_le_bytes()[..2].try_into().unwrap();
@@ -222,10 +222,12 @@ impl Stowage {
         let mut inames = init_empty_slice::<Institutions, String>();
         let mut rors = init_empty_slice::<Institutions, [u8; 9]>();
         for iobj in self.read_csv_objs::<Institution>(Institutions::NAME, MAIN_NAME) {
-            if let Some(iid) = iif.0.get(&iobj.get_parsed_id()) {
-                let iid_u = iid.to_usize();
-                inames[iid_u] = iobj.display_name;
-                assign_farr(iobj.ror, ROR_PREFIX, &mut rors, iid_u);
+            if let Some(iid_o) = iobj.get_parsed_id() {
+                if let Some(iid) = iif.0.get(&iid_o) {
+                    let iid_u = iid.to_usize();
+                    inames[iid_u] = iobj.display_name;
+                    assign_farr(iobj.ror, ROR_PREFIX, &mut rors, iid_u);
+                }
             }
         }
         let cc3s = ccs
@@ -261,17 +263,20 @@ impl Stowage {
         let discarded_name_iter = self
             .read_csv_objs::<Author>(Authors::NAME, MAIN_NAME)
             .filter_map(|aobj| {
-                let pid = aobj.get_parsed_id();
-                let aname = aobj.display_name.unwrap_or("".to_string());
-                if let Some(aidt) = aif.0.get(&pid) {
-                    let aid = aidt.to_usize();
-                    names[aid] = aname;
-                    assign_farr(aobj.orcid, ORCID_PREF, &mut orcids, aid);
-                    raw_cites[aid] = aobj.cited_by_count.unwrap_or(0) as usize;
-                    raw_works[aid] = aobj.works_count.unwrap_or(0) as usize;
-                    None
+                if let Some(pid) = aobj.get_parsed_id() {
+                    let aname = aobj.display_name.unwrap_or("".to_string());
+                    if let Some(aidt) = aif.0.get(&pid) {
+                        let aid = aidt.to_usize();
+                        names[aid] = aname;
+                        assign_farr(aobj.orcid, ORCID_PREF, &mut orcids, aid);
+                        raw_cites[aid] = aobj.cited_by_count.unwrap_or(0) as usize;
+                        raw_works[aid] = aobj.works_count.unwrap_or(0) as usize;
+                        None
+                    } else {
+                        Some(aname)
+                    }
                 } else {
-                    Some(aname)
+                    None
                 }
             });
 
@@ -494,7 +499,7 @@ impl ShipRelWriter {
     }
 
     fn proc_next(&mut self, ship: Authorship) {
-        let w_ind = match self.winf.0.get(&ship.get_parsed_id()) {
+        let w_ind = match self.winf.0.get(&ship.get_parsed_id().unwrap()) {
             Some(wi) => wi.to_usize(),
             None => return,
         };
@@ -580,10 +585,14 @@ impl WorkBiblioWriter {
 
 impl Worker<Work> for WorkAttWriter {
     fn proc(&self, input: Work) {
-        let w_ind = match self.winf.0.get(&input.get_parsed_id()) {
-            Some(wi) => wi.to_usize(),
+        let w_ind = match input.get_parsed_id() {
+            Some(wpi) => match self.winf.0.get(&wpi) {
+                Some(wi) => wi.to_usize(),
+                None => return,
+            },
             None => return,
         };
+
         if let Some(doi) = input.get_att() {
             self.wdois.lock().unwrap()[w_ind] = doi;
         }
@@ -600,7 +609,7 @@ impl Worker<Work> for WorkAttWriter {
 
 impl Worker<Biblio> for WorkBiblioWriter {
     fn proc(&self, bib: Biblio) {
-        let w_ind = match self.winf.0.get(&bib.get_parsed_id()) {
+        let w_ind = match self.winf.0.get(&bib.get_parsed_id().unwrap()) {
             Some(wi) => wi.to_usize(),
             None => return,
         };
@@ -746,8 +755,8 @@ impl<T> StorableMarker<T> for Vec<T> {
 }
 
 impl ParsedId for SourceQ {
-    fn get_parsed_id(&self) -> BigId {
-        self.id
+    fn get_parsed_id(&self) -> Option<BigId> {
+        Some(self.id)
     }
 }
 
@@ -832,7 +841,7 @@ impl ObjAttGetter<Subfields> for Topic {
 impl ObjAttGetter<Topics> for WorkTopic {
     fn get_obj_att(&self) -> Option<<Topics as MappableEntity>::KeyType> {
         if self.score.unwrap_or(0.0) > MIN_TOPIC_SCORE {
-            return Some(oa_id_parse(self.topic_id.as_ref().unwrap()));
+            return oa_id_parse_opt(self.topic_id.as_ref().unwrap());
         }
         None
     }
@@ -849,7 +858,7 @@ impl ObjAttGetter<Countries> for Institution {
 
 impl ObjAttGetter<Works> for ReferencedWork {
     fn get_obj_att(&self) -> Option<<Works as MappableEntity>::KeyType> {
-        Some(oa_id_parse(&self.referenced_work_id))
+        oa_id_parse_opt(&self.referenced_work_id)
     }
 }
 
@@ -862,7 +871,7 @@ impl ObjAttGetter<AreaFields> for SourceArea {
 impl ObjAttGetter<Sources> for Location {
     fn get_obj_att(&self) -> Option<<Works as MappableEntity>::KeyType> {
         if let Some(sid) = &self.source_id {
-            Some(oa_id_parse(&sid))
+            oa_id_parse_opt(&sid)
         } else {
             None
         }
@@ -995,12 +1004,13 @@ where
     I: Iterator<Item = IngestableAttType>,
 {
     fn proc(&self, input: CsvObj) {
-        let in_id = input.get_parsed_id();
-        if let (Some(att), Some(ind)) = (
-            self.worker.parse(input.get_att()),
-            self.worker.map_ind(in_id),
-        ) {
-            self.worker.ingest(att, ind);
+        if let Some(in_id) = input.get_parsed_id() {
+            if let (Some(att), Some(ind)) = (
+                self.worker.parse(input.get_att()),
+                self.worker.map_ind(in_id),
+            ) {
+                self.worker.ingest(att, ind);
+            }
         }
     }
 }

@@ -41,9 +41,10 @@ impl Stowage {
         let mut id_ops = init_empty_slice::<E, Vec<String>>();
         let interface = self.get_entity_interface::<E, QuickestNumbered>();
         for o in self.read_csv_objs::<E::CsvObj>(E::NAME, MAIN_NAME) {
-            let oid = o.get_parsed_id();
-            if let Some(eid) = interface.0.get(&oid) {
-                id_ops[eid.to_usize()] = o.get_names();
+            if let Some(oid) = o.get_parsed_id() {
+                if let Some(eid) = interface.0.get(&oid) {
+                    id_ops[eid.to_usize()] = o.get_names();
+                }
             }
         }
         let wcounts = self.get_entity_interface::<MAA<E, WorkCountMarker>, ReadFixIter>();
