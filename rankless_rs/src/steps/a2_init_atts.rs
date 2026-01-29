@@ -504,7 +504,6 @@ impl ShipRelWriter {
             None => return,
         };
 
-        let oa_aid = oa_id_parse(&ship.author_id.unwrap());
         let ivec: Vec<ET<Institutions>> = ship
             .institutions
             .unwrap_or("".to_string())
@@ -516,20 +515,30 @@ impl ShipRelWriter {
             .map(|e| *e)
             .collect();
 
-        let (aid, ship2a, ship2is, is_filered) = if let Some(faid) = self.fainf.0.get(&oa_aid) {
-            (faid.to_usize(), &mut self.fship2a, &mut self.fship2is, true)
+        let mut is_filtered = false;
+        let aid = match &ship.author_id {
+            Some(aid_str) => match oa_id_parse_opt(&aid_str) {
+                Some(oa_aid) => match self.fainf.0.get(&oa_aid) {
+                    Some(faid) => {
+                        is_filtered = true;
+                        faid.to_usize()
+                    }
+                    None => self.dainf.0.get(&oa_aid).unwrap_or(&0).to_usize(),
+                },
+                None => 0,
+            },
+            None => 0,
+        };
+
+        let (ship2a, ship2is) = if is_filtered {
+            (&mut self.fship2a, &mut self.fship2is)
         } else {
-            let aid_u = if let Some(daid) = self.dainf.0.get(&oa_aid) {
-                daid.to_usize()
-            } else {
-                0
-            };
-            (aid_u, &mut self.dship2a, &mut self.dship2is, false)
+            (&mut self.dship2a, &mut self.dship2is)
         };
         let ship_ind = ship2a.len();
         ship2a.push(aid);
         ship2is.push(ivec);
-        self.w2combined_ships[w_ind].push((is_filered, ship_ind));
+        self.w2combined_ships[w_ind].push((is_filtered, ship_ind));
     }
 
     fn post(self, stowage: &Stowage) {
@@ -1129,9 +1138,9 @@ fn assign_farr<const S: usize>(
     }
 }
 
-fn get_wind<T: ParsedId>(obj: &T, winf: &LoadedIdMap<ET<Works>>) -> Option<usize> {
-    match winf.0.get(&obj.get_parsed_id().unwrap()) {
-        Some(wi) => Some(wi.to_usize()),
+fn get_wind<T: ParsedId, U: UnsignedNumber>(obj: &T, inf: &LoadedIdMap<U>) -> Option<usize> {
+    match inf.0.get(&obj.get_parsed_id().unwrap()) {
+        Some(i) => Some(i.to_usize()),
         None => None,
     }
 }
