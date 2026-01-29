@@ -511,7 +511,8 @@ impl ShipRelWriter {
             .trim()
             .split(";")
             .filter(|e| e.len() > 1)
-            .filter_map(|e| self.iinf.0.get(&oa_id_parse(e)))
+            .filter_map(|e| oa_id_parse_opt(e))
+            .filter_map(|e| self.iinf.0.get(&e))
             .map(|e| *e)
             .collect();
 
