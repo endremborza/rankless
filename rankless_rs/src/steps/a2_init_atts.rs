@@ -1139,8 +1139,11 @@ fn assign_farr<const S: usize>(
 }
 
 fn get_wind<T: ParsedId, U: UnsignedNumber>(obj: &T, inf: &LoadedIdMap<U>) -> Option<usize> {
-    match inf.0.get(&obj.get_parsed_id().unwrap()) {
-        Some(i) => Some(i.to_usize()),
+    match obj.get_parsed_id() {
+        Some(opi) => match inf.0.get(&opi) {
+            Some(i) => Some(i.to_usize()),
+            None => None,
+        },
         None => None,
     }
 }
