@@ -32,7 +32,7 @@ impl NamespacedEntity for CountriesHits { const NS: & str = "derive_links4"; }
 
 impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_mapping::Countries { type AttributeEntity = CountriesHits; }
 
-impl Entity for InstitutionsHits { type T = Box<[u32]>; const N: usize = 30283; const NAME: & str = "institutions-hits"; }
+impl Entity for InstitutionsHits { type T = Box<[u32]>; const N: usize = 31616; const NAME: & str = "institutions-hits"; }
 
 impl MappableEntity for InstitutionsHits { type KeyType = usize; }
 
@@ -42,7 +42,7 @@ impl NamespacedEntity for InstitutionsHits { const NS: & str = "derive_links4"; 
 
 impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_mapping::Institutions { type AttributeEntity = InstitutionsHits; }
 
-impl Entity for SourcesHits { type T = Box<[u32]>; const N: usize = 40060; const NAME: & str = "sources-hits"; }
+impl Entity for SourcesHits { type T = Box<[u32]>; const N: usize = 40734; const NAME: & str = "sources-hits"; }
 
 impl MappableEntity for SourcesHits { type KeyType = usize; }
 
@@ -72,7 +72,7 @@ impl NamespacedEntity for TopicsHits { const NS: & str = "derive_links4"; }
 
 impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_mapping::Topics { type AttributeEntity = TopicsHits; }
 
-impl Entity for AuthorsHits { type T = Box<[u32]>; const N: usize = 4037517; const NAME: & str = "authors-hits"; }
+impl Entity for AuthorsHits { type T = Box<[u32]>; const N: usize = 4143928; const NAME: & str = "authors-hits"; }
 
 impl MappableEntity for AuthorsHits { type KeyType = usize; }
 

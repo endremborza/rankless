@@ -30,17 +30,17 @@ pub struct Topics { }
 
 pub struct DiscardedAuthors { }
 
-impl Entity for Domains { type T = u8; const N: usize = 5; const NAME: & str = "domains"; }
-
-impl MappableEntity for Domains { type KeyType = u64; }
-
-impl NamespacedEntity for Domains { const NS: & str = "a1_entity_mapping"; }
-
 impl Entity for Fields { type T = u8; const N: usize = 27; const NAME: & str = "fields"; }
 
 impl MappableEntity for Fields { type KeyType = u64; }
 
 impl NamespacedEntity for Fields { const NS: & str = "a1_entity_mapping"; }
+
+impl Entity for Domains { type T = u8; const N: usize = 5; const NAME: & str = "domains"; }
+
+impl MappableEntity for Domains { type KeyType = u64; }
+
+impl NamespacedEntity for Domains { const NS: & str = "a1_entity_mapping"; }
 
 impl Entity for Subfields { type T = u8; const N: usize = 253; const NAME: & str = "subfields"; }
 
@@ -54,13 +54,13 @@ impl MappableEntity for Topics { type KeyType = u64; }
 
 impl NamespacedEntity for Topics { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for Institutions { type T = u16; const N: usize = 30282; const NAME: & str = "institutions"; }
+impl Entity for Institutions { type T = u16; const N: usize = 31615; const NAME: & str = "institutions"; }
 
 impl MappableEntity for Institutions { type KeyType = u64; }
 
 impl NamespacedEntity for Institutions { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for Sources { type T = u16; const N: usize = 40059; const NAME: & str = "sources"; }
+impl Entity for Sources { type T = u16; const N: usize = 40733; const NAME: & str = "sources"; }
 
 impl MappableEntity for Sources { type KeyType = u64; }
 
@@ -78,35 +78,35 @@ impl MappableEntity for Countries { type KeyType = u64; }
 
 impl NamespacedEntity for Countries { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for Cities { type T = u16; const N: usize = 14804; const NAME: & str = "cities"; }
+impl Entity for Cities { type T = u16; const N: usize = 13566; const NAME: & str = "cities"; }
 
 impl MappableEntity for Cities { type KeyType = u64; }
 
 impl NamespacedEntity for Cities { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for DiscardedAuthors { type T = u32; const N: usize = 100905485; const NAME: & str = "discarded-authors"; }
+impl Entity for DiscardedAuthors { type T = u32; const N: usize = 101956267; const NAME: & str = "discarded-authors"; }
 
 impl MappableEntity for DiscardedAuthors { type KeyType = u64; }
 
 impl NamespacedEntity for DiscardedAuthors { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for Authors { type T = u32; const N: usize = 4037516; const NAME: & str = "authors"; }
+impl Entity for Authors { type T = u32; const N: usize = 4143927; const NAME: & str = "authors"; }
 
 impl MappableEntity for Authors { type KeyType = u64; }
 
 impl NamespacedEntity for Authors { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for Works { type T = u32; const N: usize = 75090098; const NAME: & str = "works"; }
+impl Entity for Works { type T = u32; const N: usize = 78324802; const NAME: & str = "works"; }
 
 impl MappableEntity for Works { type KeyType = u64; }
 
 impl NamespacedEntity for Works { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for AuthorshipsFilteredAuthor { type T = u32; const N: usize = 191078697; const NAME: & str = "authorships-filtered-author"; }
+impl Entity for AuthorshipsFilteredAuthor { type T = u32; const N: usize = 195879669; const NAME: & str = "authorships-filtered-author"; }
 
 impl MappableEntity for AuthorshipsFilteredAuthor { type KeyType = usize; }
 
-impl Entity for AuthorshipsDiscardedAuthor { type T = u32; const N: usize = 96690821; const NAME: & str = "authorships-discarded-author"; }
+impl Entity for AuthorshipsDiscardedAuthor { type T = u32; const N: usize = 99853768; const NAME: & str = "authorships-discarded-author"; }
 
 impl MappableEntity for AuthorshipsDiscardedAuthor { type KeyType = usize; }
 
