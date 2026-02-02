@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { XMLValidator } from 'fast-xml-parser';
 
 const sitemapRoutes = [
 	'/sitemap.xml',
@@ -17,6 +18,11 @@ for (const route of sitemapRoutes) {
 		expect(response?.headers()['content-type']).toContain('application/xml');
 		const body = await response?.text();
 		expect(body).toBeTruthy();
-		expect(body?.startsWith('<?xml')).toBe(true);
+
+		const validationResult = XMLValidator.validate(body);
+		if (validationResult !== true) {
+			console.error(`XML validation failed for ${route}:`, validationResult.err);
+		}
+		expect(validationResult).toBe(true);
 	});
 }
