@@ -76,7 +76,7 @@ where
     fn load_backend(path: &PathBuf) -> Self {
         let mut out = Vec::with_capacity(E::N + 1);
         let fp = path.join(E::NAME);
-        let mut br = BufReader::new(File::open(&fp).expect(fp.to_str().unwrap_or("???")));
+        let mut br = BufReader::new(File::open(&fp).expect(fp.to_str().unwrap()));
         // let size: usize = std::mem::size_of::<E::T>();
         // const SIZE: usize = std::mem::size_of::<<Self as Entity>::T>();
         let size: usize = E::WS;
@@ -93,7 +93,8 @@ where
     E: FixWriteSizeEntity,
 {
     fn load_backend(path: &PathBuf) -> Self {
-        let file = File::open(path.join(E::NAME)).unwrap();
+        let full_path = path.join(E::NAME);
+        let file = File::open(&full_path).expect(full_path.to_str().unwrap());
         Self {
             file,
             buf: [0; MAX_FIXBUF],
@@ -107,7 +108,8 @@ where
     T: ByteFixArrayInterface,
 {
     fn setup(builder: &MainBuilder, name: &str) -> Self {
-        let file = File::create(builder.parent_root.join(name)).unwrap();
+        let full_path = builder.parent_root.join(name);
+        let file = File::create(&full_path).expect(full_path.to_str().unwrap());
         Self {
             n: 0,
             file,
@@ -209,7 +211,8 @@ fn casted_write<T>(name: &str, arr: Vec<usize>, builder: &MainBuilder) -> io::Re
 where
     T: UnsignedNumber,
 {
-    let mut file = File::create(builder.parent_root.join(name)).unwrap();
+    let full_path = builder.parent_root.join(name);
+    let mut file = File::create(&full_path).expect(full_path.to_str().unwrap());
     for us in arr.into_iter() {
         let buf = T::from_usize(us).to_fbytes();
         file.write(&buf)?;
