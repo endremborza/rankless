@@ -340,8 +340,6 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 7px;
-		padding: 10px;
-		background: #f9f9f9;
 	}
 
 	.concept-map-legend > span {
