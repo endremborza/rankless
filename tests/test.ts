@@ -7,11 +7,8 @@ test('navigate all links and test map control states quickly', async ({ page }) 
 	const visitedPages = new Set();
 	const paragraphTexts = new Set();
 	const paragraphSources = {}
-
-	// Start with homepage and about
 	const pagesToVisit = new Set(['/']);
 
-	// Collect links from homepage
 	await page.goto('/');
 	const links = await page.$$eval('a[href]', anchors =>
 		anchors
@@ -19,16 +16,12 @@ test('navigate all links and test map control states quickly', async ({ page }) 
 			.filter(h => h && h.startsWith('/') && !h.startsWith('//'))
 	);
 	links.forEach(l => pagesToVisit.add(l));
-
-	// Process each page
 	for (const url of pagesToVisit) {
 		if (visitedPages.has(url)) continue;
 		visitedPages.add(url);
-
 		await page.goto(url);
 
 		const mapBlocks = await page.$$('#map-control-block');
-
 		if (mapBlocks.length === 0) {
 			await collectParagraphs(page, paragraphTexts, url, paragraphSources);
 			continue;
@@ -49,7 +42,6 @@ test('navigate all links and test map control states quickly', async ({ page }) 
 				if (dropdown && val) {
 					await dropdown.selectOption(val);
 				}
-
 				for (const state of checkboxStates) {
 					if (checkbox) {
 						const isChecked = await checkbox.isChecked();
@@ -66,8 +58,6 @@ test('navigate all links and test map control states quickly', async ({ page }) 
 			}
 		}
 	}
-
-	// Write unique texts to file
 	fs.writeFileSync('paragraph_texts.txt', Array.from(paragraphTexts).join('\n\n'));
 });
 
