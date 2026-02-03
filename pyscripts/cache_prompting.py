@@ -4,26 +4,27 @@ from multiprocessing import Pool
 
 import pandas as pd
 import requests
-from requests.api import get
 from tqdm import tqdm
 
 addr = "http://127.0.0.1:3038"
 limit = 100_000
 year = 1950
 
+# do_big_prep = True
 do_big_prep = False
+# do_big_read = True
 do_big_read = False
 do_rest = True
 
+big_limit = 120_000_000
 # 120G
-big_limit = 200_000_000
-# big_limit = 120_000_000
+# big_limit = 200_000_000
 
 bins = [0, 1_500_000, 3_500_000, 12_000_000, big_limit]
 proc_counts = [16, 8, 4, 1]
 # 120G
-bins = [0, 5_000_000, 10_000_000, 30_000_000, big_limit]
-proc_counts = [20, 10, 5, 1]
+# bins = [0, 5_000_000, 10_000_000, 30_000_000, big_limit]
+# proc_counts = [20, 10, 5, 1]
 
 
 def parse_resp(resp):
@@ -34,11 +35,10 @@ def resp_pipe(url):
     for i in range(15):
         try:
             resp = requests.get(url)
-            break
+            return parse_resp(resp)
         except:
             print(f"failed {url}")
             time.sleep(600)
-    return parse_resp(resp)
 
 
 def para_extend(urls, nprocs, extendable):
@@ -116,15 +116,16 @@ if __name__ == "__main__":
     resps = []
     if do_big_read:
         para_extend([url + "&big_read=true" for url in big_urls], 1, resps)
+        _ = list(map(resp_pipe, tqdm(big_urls)))
 
-    for gid, gdf in tqdm(
-        urled_sample.assign(
-            ccut=lambda df: pd.cut(df["citations"], bins, labels=proc_counts)
-        )
-        .loc[lambda df: df["ccut"].notna()]
-        .groupby("ccut", observed=True)
-    ):
-        suburls = gdf.sample(frac=1.0)["url"].tolist()
-        para_extend(suburls, gid, resps)
-
-    # _ = list(map(resp_pipe, tqdm(big_urls)))
+    if do_rest:
+        for gid, gdf in tqdm(
+            urled_sample.assign(
+                ccut=lambda df: pd.cut(df["citations"], bins, labels=proc_counts)
+            )
+            .loc[lambda df: df["ccut"].notna()]
+            .groupby("ccut", observed=True)
+        ):
+            suburls = gdf.sample(frac=1.0)["url"].tolist()
+            para_extend(suburls, gid, resps)
+        _ = list(map(resp_pipe, urled_sample["url"].tolist()))
