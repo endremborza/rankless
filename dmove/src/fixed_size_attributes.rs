@@ -77,8 +77,6 @@ where
         let mut out = Vec::with_capacity(E::N + 1);
         let fp = path.join(E::NAME);
         let mut br = BufReader::new(File::open(&fp).expect(fp.to_str().unwrap()));
-        // let size: usize = std::mem::size_of::<E::T>();
-        // const SIZE: usize = std::mem::size_of::<<Self as Entity>::T>();
         let size: usize = E::WS;
         let mut buf: [u8; MAX_FIXBUF] = [0; MAX_FIXBUF];
         while let Ok(_) = br.read_exact(&mut buf[..size]) {
