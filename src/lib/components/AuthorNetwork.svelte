@@ -184,6 +184,13 @@
 		--panel-border: var(--text-bg-2, #ccc);
 		--button-bg: var(--text-bg-3, #0077ff);
 		--button-fg: var(--highlight-text, #fff);
+		--edge-color: rgb(var(--color-range-40));
+	}
+
+	@media (prefers-color-scheme: dark) {
+		:root {
+			--edge-color: rgb(var(--color-range-95));
+		}
 	}
 
 	h3 {
@@ -202,7 +209,7 @@
 	}
 
 	line {
-		stroke: rgb(var(--color-range-40));
+		stroke: var(--edge-color);
 	}
 
 	@media (prefers-color-scheme: dark) {
@@ -281,6 +288,6 @@
 	}
 
 	.edgecolor {
-		color: rgb(var(--color-range-40));
+		color: var(--edge-color);
 	}
 </style>
