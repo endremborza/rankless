@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { APP_NAME, REL_TYPES } from '$lib/constants';
-	import { prettifyRoot } from '$lib/text-format-util';
+	import {APP_NAME, REL_TYPES} from '$lib/constants';
+	import {prettifyRoot} from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
@@ -47,7 +47,7 @@
 				authorScores.push(rel.score);
 			}
 		}
-		return { authorNames, authorScores, edgeWeights: view.authorNetwork };
+		return {authorNames, authorScores, edgeWeights: view.authorNetwork};
 	}
 
 	//resp might remain 0, so we need to alert the country map
@@ -70,10 +70,7 @@
 
 <div id="head-row" class="shadowy padded marged">
 	<div id="name-block">
-		<HoverBlock
-			show={showIndexedCiteText}
-			style={'top: 20svh; left:20vw; width: 60vw;max-width: 550px'}
-		>
+		<HoverBlock show={showIndexedCiteText} style={'top: 20svh; left:20vw; width: 60vw;max-width: 550px'}>
 			Citations made by non-retracted papers categorized as "article", "book", or "review" that have
 			received at least one citation.
 		</HoverBlock>
@@ -97,64 +94,37 @@
 	<div id="era">
 		<h2>In The Last Decade</h2>
 		<div bind:clientHeight={ticksHeight}>
-			<YearTicks
-				bottomStacks={data.view.yearlyPapers}
-				topStacks={data.view.yearlyCites}
-				fullHeight={ticksHeight}
-			/>
+			<YearTicks bottomStacks={data.view.yearlyPapers} topStacks={data.view.yearlyCites}
+				fullHeight={ticksHeight} />
 		</div>
 	</div>
 </div>
 <div class="comp-basis">
 	{#if showAuthorNetwork}
-		<div class="shadowy padded marged" id="author-network">
-			<AuthorNetwork
-				nodes={authorStats.authorNames}
-				edgeWeights={authorStats.edgeWeights}
-				nodeIntensities={authorStats.authorScores}
-				rootName={data.view.name}
-			/>
-		</div>
+	<div class="shadowy padded marged heighted" id="author-network">
+		<AuthorNetwork nodes={authorStats.authorNames} edgeWeights={authorStats.edgeWeights}
+			nodeIntensities={authorStats.authorScores} rootName={data.view.name} />
+	</div>
 	{/if}
-	<div class="shadowy padded marged">
-		<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} id="tree">
-			<FullQc
-				rootName={data.view.name}
-				prefixText={data.prefixText}
-				selectedQcRootId={data.view.dmId}
-				conf={data.conf}
-				selectionState={data.selectionState}
-				treeSpecs={data.treeSpecs}
-				removeHighlightUnhover={false}
-				attributeLabels={data.atts}
-				completeTree={data.tree}
-				{innerHeight}
-				{innerWidth}
-				shallowed={data.shallowed}
-			/>
+	<div class="shadowy padded marged" id="tree">
+		<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} id="tree-fixer">
+			<FullQc rootName={data.view.name} prefixText={data.prefixText} selectedQcRootId={data.view.dmId}
+				conf={data.conf} selectionState={data.selectionState} treeSpecs={data.treeSpecs}
+				removeHighlightUnhover={false} attributeLabels={data.atts} completeTree={data.tree}
+				{innerHeight} {innerWidth} shallowed={data.shallowed} />
 		</div>
 	</div>
 	{#if showsSubfields}
-		<div class="shadowy padded marged" id="research-space">
-			<ConceptMap
-				rootId={data.view.dmId}
-				{indsByEntityType}
-				rootName={data.view.name}
-				conf={data.conf}
-				treeSpecs={data.treeSpecs}
-			/>
-		</div>
+	<div class="shadowy padded marged heighted" id="research-space">
+		<ConceptMap rootId={data.view.dmId} {indsByEntityType} rootName={data.view.name} conf={data.conf}
+			treeSpecs={data.treeSpecs} />
+	</div>
 	{/if}
 	{#if showsCountry}
-		<div class="shadowy padded marged" id="world-map">
-			<WorldMapSvg
-				rootId={data.view.dmId}
-				{indsByEntityType}
-				rootName={data.view.name}
-				conf={data.conf}
-				treeSpecs={data.treeSpecs}
-			/>
-		</div>
+	<div class="shadowy padded marged heighted" id="world-map">
+		<WorldMapSvg rootId={data.view.dmId} {indsByEntityType} rootName={data.view.name} conf={data.conf}
+			treeSpecs={data.treeSpecs} />
+	</div>
 	{/if}
 </div>
 <!-- <div class="shadowy padded marged"> -->
@@ -172,21 +142,48 @@
 	<h3>Explore {prettifyRoot(data.conf.rootType)} with similar magnitude of impact</h3>
 	<div>
 		{#each data.view.similars as sim}
-			<span>
-				<RandTreeLink
-					semanticId={sim.semanticId}
-					name={sim.name}
-					rootType={data.conf.rootType}
-					treeSpecs={data.treeSpecs}
-				/>
-			</span>
+		<span>
+			<RandTreeLink semanticId={sim.semanticId} name={sim.name} rootType={data.conf.rootType}
+				treeSpecs={data.treeSpecs} />
+		</span>
 		{/each}
 	</div>
 </div>
 
 <style>
+	.comp-basis {
+		display: grid;
+		grid-template-columns: 1fr;
+	}
+
+	@media (min-width: 600px) {
+		.heighted {
+			height: 85svh;
+		}
+	}
+
+	@media (min-aspect-ratio: 4 / 3) {
+
+		/* Enable two columns only if both panels exist */
+		.comp-basis:has(#author-network):has(#research-space) {
+			grid-template-columns: 1fr 1fr;
+		}
+
+		/* Place author network top-left */
+		.comp-basis:has(#author-network):has(#research-space) #author-network {
+			grid-column: 1;
+			grid-row: 1;
+		}
+
+		/* Place concept map top-right */
+		.comp-basis:has(#author-network):has(#research-space) #research-space {
+			grid-column: 2;
+			grid-row: 1;
+		}
+	}
+
 	@media (max-width: 800px) {
-		#era > div {
+		#era>div {
 			width: 100%;
 		}
 	}
@@ -212,19 +209,30 @@
 		flex: 4;
 	}
 
-	#era > div {
+	#era>div {
 		aspect-ratio: 2.5;
 	}
 
 	#tree {
-		height: 100svh;
+		grid-column: 1 / -1;
+	}
+
+	#tree-fixer {
+		height: 85svh;
+	}
+
+	#world-map {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
 	}
 
 	#similars {
 		margin-bottom: 40px;
 	}
 
-	#similars > div {
+	#similars>div {
 		width: 100%;
 		padding-top: 28px;
 		padding-bottom: 48px;
@@ -235,18 +243,11 @@
 		gap: 40px;
 	}
 
-	#similars > div > span {
+	#similars>div>span {
 		min-width: 180px;
 		flex: 1 0 21%;
 		padding: 6px;
 		border-bottom: solid var(--color-theme-blue) 3px;
 		background: rgba(var(--color-range-15), 0.1);
-	}
-
-	#world-map {
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		height: 100%;
 	}
 </style>

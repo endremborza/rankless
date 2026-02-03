@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { nodes, edges } from '$lib/assets/data/concept-map.json';
-	import { subfields, fields, domains } from '$lib/assets/data/field-hierarchy.json';
-	import { getColor, getColorArr } from '$lib/style-util';
-	import { getNetworkText, SPEC_BPS } from '$lib/text-format-util';
+	import {nodes, edges} from '$lib/assets/data/concept-map.json';
+	import {subfields, fields, domains} from '$lib/assets/data/field-hierarchy.json';
+	import {getColor, getColorArr} from '$lib/style-util';
+	import {getNetworkText, SPEC_BPS} from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
-	import { onMount } from 'svelte';
+	import {onMount} from 'svelte';
 	import FlatOutFrame from './FlatOutFrame.svelte';
 
 	export let rootName = '';
@@ -27,7 +27,7 @@
 
 	type Hierarchy = Record<
 		number,
-		{ name: string; children: Record<number, { name: string; children: number[] }> }
+		{name: string; children: Record<number, {name: string; children: number[]}>}
 	>;
 	type ParentSelect = [number | undefined, number | undefined];
 
@@ -111,12 +111,12 @@
 		for (let i = 0; i < domains.length; i++) {
 			let name = domains[i];
 			if (name.length == 0) continue;
-			out[i] = { name, children: {} };
+			out[i] = {name, children: {}};
 		}
 		for (let i = 0; i < fields.length; i++) {
 			let [name, parent] = fields[i] as [string, number];
 			if (name.length == 0) continue;
-			out[parent].children[i] = { name, children: [] };
+			out[parent].children[i] = {name, children: []};
 		}
 		for (let i = 0; i < subfields.length; i++) {
 			let [name, parent] = subfields[i] as [string, number];
@@ -134,7 +134,7 @@
 		pullerRate: number
 	) {
 		if (Object.values(levels).length == 0) return '';
-		const { linScaler, newBreakPoints } = tf.getFlatRescaler(levels, nBreakPoints, pullerRate);
+		const {linScaler, newBreakPoints} = tf.getFlatRescaler(levels, nBreakPoints, pullerRate);
 		const dynBreakPoints = isSpec ? SPEC_BPS : newBreakPoints;
 		let scaler = (w: number) => {
 			let size = getSizeFromRate(linScaler(w));
@@ -143,7 +143,7 @@
 				if (w >= bp) oI++;
 			}
 			let sat = getSatFromRate(oI / dynBreakPoints.length);
-			return { sat, size };
+			return {sat, size};
 		};
 		const sLines = [];
 		for (const key of nodeKeys) {
@@ -152,7 +152,7 @@
 			let flashLine = '';
 			let wDic = levels[key];
 			if (wDic != undefined) {
-				let { sat, size } = scaler(wDic.w);
+				let {sat, size} = scaler(wDic.w);
 				line += `r: ${size.toFixed(2)}px;`;
 				flashLine += `r: ${(size * 0.9).toFixed(2)}px; fill-opacity: ${sat};`;
 			}
@@ -197,9 +197,9 @@
 			'subfields-true': 'of papers published by',
 			'subfields-false': 'of papers citing papers by'
 		},
-		sources: { 'subfields-true': 'of papers published in' },
-		subfields: { 'subfields-false': 'of papers citing papers about' },
-		'hit-papers': { 'subfields-false': 'of papers citing' }
+		sources: {'subfields-true': 'of papers published in'},
+		subfields: {'subfields-false': 'of papers citing papers about'},
+		'hit-papers': {'subfields-false': 'of papers citing'}
 	};
 
 	function subfieldSemantify(rootType: tt.RootType, bd: string) {
@@ -209,103 +209,67 @@
 	}
 </script>
 
-<FlatOutFrame
-	titlePrefix="Fields"
-	l1Type="subfields"
-	semantifyer={subfieldSemantify}
-	{rootName}
-	{rootId}
-	{indsByEntityType}
-	{conf}
-	{treeSpecs}
-	{backupNames}
-	bind:treeId
-	bind:flatOut
-	bind:isSpec
-	bind:showPaper
-	{infoPath}
->
-	<!-- svelte-ignore a11y-mouse-events-have-key-events -->
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-	<div class="concept-map-container">
-		<div class="concept-map-parents">
-			{#each Object.entries(parents) as [i, parent]}
-				<span
-					class="hover-xs"
-					on:mouseover={() => (hoveredParent = [i, undefined])}
+<div class="outer-concept-container">
+	<FlatOutFrame titlePrefix="Fields" l1Type="subfields" semantifyer={subfieldSemantify} {rootName} {rootId}
+		{indsByEntityType} {conf} {treeSpecs} {backupNames} bind:treeId bind:flatOut bind:isSpec bind:showPaper
+		{infoPath}>
+		<!-- svelte-ignore a11y-mouse-events-have-key-events -->
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+		<div class="concept-map-container">
+			<div class="concept-map-parents">
+				{#each Object.entries(parents) as [i, parent]}
+				<span class="hover-xs" on:mouseover={()=> (hoveredParent = [i, undefined])}
 					on:mouseleave={() => (hoveredParent = [undefined, undefined])}
 					role="none"
-					style="background-color:rgba({getParentColorArr(i)}, 0.4);">{parent.name}</span
-				>
-			{/each}
-		</div>
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<svg
-			bind:this={svgEl}
-			viewBox="-8 -8 146 116"
-			style="--op: {defaultOp}; --lop: {defaultLineOp}; --sat: {defaultSat}"
-			on:click={() => {
+					style="background-color:rgba({getParentColorArr(i)}, 0.4);">{parent.name}</span>
+				{/each}
+			</div>
+			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<svg bind:this={svgEl} viewBox="-8 -8 146 116"
+				style="--op: {defaultOp}; --lop: {defaultLineOp}; --sat: {defaultSat}" on:click={()=> {
 				if (!hoveredOverCircle) {
-					if (showPaper) showPaper = false;
+				if (showPaper) showPaper = false;
 				}
-			}}
-		>
-			{#each edges as [s, t, w]}
-				<line
-					x1={nodes[s][0]}
-					y1={nodes[s][1]}
-					x2={nodes[t][0]}
-					y2={nodes[t][1]}
-					stroke="black"
-					stroke-width="0.1"
-				/>
-			{/each}
-			{#each Object.entries(nodes) as [sfi, [cx, cy]]}
-				<circle
-					{cx}
-					{cy}
-					class={classNamer(sfi)}
-					role="region"
-					fill={getNodeColor(sfi)}
-					stroke={getNodeColor(sfi)}
-					on:mouseover={() => {
-						if (!showPaper) {
-							hoveredOverCircle = true;
-							hovered = sfi;
-							infoPath = [sfi];
-						}
+				}}
+				>
+				{#each edges as [s, t, w]}
+				<line x1={nodes[s][0]} y1={nodes[s][1]} x2={nodes[t][0]} y2={nodes[t][1]} stroke="black"
+					stroke-width="0.1" />
+				{/each}
+				{#each Object.entries(nodes) as [sfi, [cx, cy]]}
+				<circle {cx} {cy} class={classNamer(sfi)} role="region" fill={getNodeColor(sfi)}
+					stroke={getNodeColor(sfi)} on:mouseover={()=> {
+					if (!showPaper) {
+					hoveredOverCircle = true;
+					hovered = sfi;
+					infoPath = [sfi];
+					}
 					}}
 					on:mouseleave={() => {
-						hoveredOverCircle = false;
+					hoveredOverCircle = false;
 					}}
 					on:click={() => {
-						showPaper = true;
+					showPaper = true;
 					}}
 					r={nullSize}
 					stroke-width="0.2"
-				/>
-				<circle
-					{cx}
-					{cy}
-					class="{flashClassNamer(sfi)} nopointer"
-					stroke="none"
-					r={nullSize * 0.9}
-					fill="var(--text-bg)"
-				/>
-			{/each}
-		</svg>
-	</div>
-</FlatOutFrame>
-
-<p>
-	{getNetworkText(conf.rootType, rootName, isSpec, sourceSide)}
-</p>
+					/>
+					<circle {cx} {cy} class="{flashClassNamer(sfi)} nopointer" stroke="none"
+						r={nullSize * 0.9} fill="var(--text-bg)" />
+					{/each}
+			</svg>
+		</div>
+	</FlatOutFrame>
+	<p class="text-s">
+		{getNetworkText(conf.rootType, rootName, isSpec, sourceSide)}
+	</p>
+</div>
 
 <style>
 	svg {
-		max-height: 70svh;
 		flex: 9 9 750px;
+		max-height: 50svh;
 	}
 
 	line {
@@ -316,6 +280,12 @@
 		filter: contrast(var(--sat));
 		opacity: var(--op);
 		transition: all 800ms;
+	}
+
+	.outer-concept-container {
+		height: 100%;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.nopointer {
@@ -340,7 +310,7 @@
 		align-items: center;
 	}
 
-	.concept-map-parents > span {
+	.concept-map-parents>span {
 		padding: 3px;
 		cursor: default;
 		flex: 1 1 auto;
