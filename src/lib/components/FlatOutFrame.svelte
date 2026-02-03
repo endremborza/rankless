@@ -24,6 +24,8 @@
 			: indsByEntityType[l1Type][0];
 	export let backupNames: Record<number, string> = {};
 	export let showPaper = false;
+	export let paperHeight = 90;
+	export let paperPad = 10;
 
 	let mounted = false;
 	let selectedBreakdowns = tf.getDefaultBreakdowns(treeSpecs.specs[conf.rootType][treeId]);
@@ -87,42 +89,49 @@
 		selectedBreakdowns != undefined ? semantifyer(conf.rootType, selectedBreakdowns[0]) : '';
 </script>
 
-<h3>{titlePrefix} {titleSuffix} {rootName}</h3>
+<div class="full-frame" style="--ph-height: {paperHeight + 2 * paperPad}px">
+	<div class="frame-top-half">
+		<h3>{titlePrefix} {titleSuffix} {rootName}</h3>
 
-<span id="map-control-block">
-	{#if Object.keys(levelOptions).length > 1}
-		<select bind:value={selectedBreakdowns[0]} class="sel-base" aria-label="Breakdown selection">
-			{#each Object.keys(levelOptions) as bd}
-				<option value={bd}>
-					{semantifyer(conf.rootType, bd)}
-				</option>
-			{/each}
-		</select>
-	{/if}
-	Since
-	<select bind:value={year} aria-label="Since year"
-		>{#each treeSpecs.yearBreaks as y}
-			<option>{y}</option>
-		{/each}
-	</select>
-	<input type="checkbox" bind:checked={isSpec} /> Specialization
-</span>
-<slot />
-
-<div id="map-hover">
-	{#if resp != undefined}
-		<PathLevelInfoBox
-			path={infoPath}
-			rootNode={resp.tree}
-			initHeight={120}
-			{rootName}
-			treeSpec={currentTreeSpec}
-			{rootId}
-			attributeLabels={resp.atts}
-			{backupNames}
-			bind:showPaper
-		/>
-	{/if}
+		<div class="control-block">
+			{#if Object.keys(levelOptions).length > 1}
+				<select
+					bind:value={selectedBreakdowns[0]}
+					class="sel-base"
+					aria-label="Breakdown selection"
+				>
+					{#each Object.keys(levelOptions) as bd}
+						<option value={bd}>
+							{semantifyer(conf.rootType, bd)}
+						</option>
+					{/each}
+				</select>
+			{/if}
+			Since
+			<select bind:value={year} aria-label="Since year"
+				>{#each treeSpecs.yearBreaks as y}
+					<option>{y}</option>
+				{/each}
+			</select>
+			<input type="checkbox" bind:checked={isSpec} /> Specialization
+		</div>
+		<slot />
+	</div>
+	<div class="paper-hover">
+		{#if resp != undefined}
+			<PathLevelInfoBox
+				path={infoPath}
+				rootNode={resp.tree}
+				initHeight={paperHeight}
+				{rootName}
+				treeSpec={currentTreeSpec}
+				{rootId}
+				attributeLabels={resp.atts}
+				{backupNames}
+				bind:showPaper
+			/>
+		{/if}
+	</div>
 </div>
 
 <style>
@@ -130,13 +139,24 @@
 		text-align: center;
 	}
 
-	#map-hover {
-		position: relative;
-		height: 160px;
-		width: 100%;
+	.full-frame {
+		height: 100%;
 	}
 
-	#map-control-block {
+	.frame-top-half {
+		display: flex;
+		flex-direction: column;
+		justify-content: space-between;
+		height: calc(100% - var(--ph-height));
+	}
+
+	.paper-hover {
+		position: relative;
+		width: 100%;
+		height: var(--ph-height);
+	}
+
+	.control-block {
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--unified-padding);

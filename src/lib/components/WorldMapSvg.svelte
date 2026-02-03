@@ -1,14 +1,14 @@
 <script lang="ts">
-	import {onMount} from 'svelte';
+	import { onMount } from 'svelte';
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 
 	import countryPaths from '$lib/assets/data/country-svg-paths.json';
 	// import countryBoxes from '$lib/assets/data/country-svg-boxes.json';
-	import {getColor, getColorArr} from '$lib/style-util';
-	import {formatNumber, getMapText} from '$lib/text-format-util';
-	import {HIGH_OP, LOW_OP} from '$lib/constants';
+	import { getColor, getColorArr } from '$lib/style-util';
+	import { formatNumber, getMapText } from '$lib/text-format-util';
+	import { HIGH_OP, LOW_OP } from '$lib/constants';
 	import FlatOutFrame from './FlatOutFrame.svelte';
 
 	export let rootName = '';
@@ -51,8 +51,8 @@
 	$: weightText = isSpec
 		? 'Specialization' //'Revealed comparative advantage'
 		: isRefSide
-			? 'Total citations of papers'
-			: 'Citations';
+		? 'Total citations of papers'
+		: 'Citations';
 	$: updateL1(flatOut, resp);
 	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints, pullerRate);
 	$: updateTreeId(indsByEntityType);
@@ -78,13 +78,13 @@
 		pullerRate: number
 	) {
 		if (Object.values(levels).length == 0) return '';
-		const {linScaler, newBreakPoints, locMinw, locMaxw} = tf.getFlatRescaler(
+		const { linScaler, newBreakPoints, locMinw, locMaxw } = tf.getFlatRescaler(
 			levels,
 			nBreakPoints,
 			pullerRate
 		);
 		let scaler = (w: number) => {
-			return {op: getOpaRate(linScaler(w)), hl: false, color: getColorRate(linScaler(w))};
+			return { op: getOpaRate(linScaler(w)), hl: false, color: getColorRate(linScaler(w)) };
 		};
 		if (nBreakPoints > 0) {
 			scaler = (w: number) => {
@@ -93,13 +93,13 @@
 					if (w >= newBreakPoints[i]) oI++;
 				}
 				let color = getColorRate(oI / nBreakPoints);
-				return {op: getOpaRate(oI / nBreakPoints), hl: oI == highlightedQ, color};
+				return { op: getOpaRate(oI / nBreakPoints), hl: oI == highlightedQ, color };
 			};
 		}
 		const sLines = [];
-		for (const [c, {w}] of Object.entries(levels)) {
+		for (const [c, { w }] of Object.entries(levels)) {
 			let isHighlighted = c == highlighted;
-			let {op, hl, color} = scaler(w);
+			let { op, hl, color } = scaler(w);
 			let lineColor = getColor(color);
 			isHighlighted = isHighlighted || hl;
 			let line = `fill: ${lineColor}; fill-opacity: ${op / 100};`;
@@ -117,9 +117,9 @@
 			try {
 				let countryAtts = resp.atts.countries || {};
 				let l1Kv = [];
-				Object.entries(flatOut).map(([k, {w}]) => {
+				Object.entries(flatOut).map(([k, { w }]) => {
 					if (countryAtts[k] != undefined) {
-						l1Kv.push([countryAtts[k].name, {w, id: k}]);
+						l1Kv.push([countryAtts[k].name, { w, id: k }]);
 					}
 				});
 				countryLevels = Object.fromEntries(l1Kv);
@@ -193,13 +193,13 @@
 			'countries-true': 'collaborating with scholars at',
 			'countries-false': 'citing scholars working at'
 		},
-		authors: {'countries-false': 'citing papers authored by'},
-		sources: {'countries-true': 'where authors publish in'},
+		authors: { 'countries-false': 'citing papers authored by' },
+		sources: { 'countries-true': 'where authors publish in' },
 		subfields: {
 			'countries-true': 'where authors publish papers about',
 			'countries-false': 'where authors cite papers about'
 		},
-		'hit-papers': {'countries-false': 'where authors are citing'}
+		'hit-papers': { 'countries-false': 'where authors are citing' }
 	};
 
 	function countrySemantify(rootType: tt.RootType, bd: string) {
@@ -209,72 +209,142 @@
 	}
 </script>
 
-<FlatOutFrame titlePrefix="Countries" l1Type="countries" semantifyer={countrySemantify} {rootName} {rootId}
-	{indsByEntityType} {conf} {treeSpecs} year={treeSpecs.yearBreaks[0]} bind:flatOut bind:treeId bind:resp
-	bind:isSpec {infoPath}>
-	<svg bind:this={svgEl} viewBox="{xMin} {yMin} {mapWidth} {mapHeight}">
-		<!-- svelte-ignore a11y-mouse-events-have-key-events -->
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-		{#each Object.entries(countryPaths) as [cc, cpaths]}
-		{#each cpaths as d}
-		<path {d} stroke-width="1" stroke="black" class={classNamer(cc)} role="region"
-			on:mouseover={setHover(cc)} on:mouseleave={setHover('')} on:click={()=> {
-			clicked = !clicked;
-			setHover(cc)();
-			}}
-			/>
+<FlatOutFrame
+	titlePrefix="Countries"
+	l1Type="countries"
+	semantifyer={countrySemantify}
+	{rootName}
+	{rootId}
+	{indsByEntityType}
+	{conf}
+	{treeSpecs}
+	year={treeSpecs.yearBreaks[0]}
+	bind:flatOut
+	bind:treeId
+	bind:resp
+	bind:isSpec
+	{infoPath}
+>
+	<div class="world-map-container">
+		<svg bind:this={svgEl} viewBox="{xMin} {yMin} {mapWidth} {mapHeight}">
+			<!-- svelte-ignore a11y-mouse-events-have-key-events -->
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+			{#each Object.entries(countryPaths) as [cc, cpaths]}
+				{#each cpaths as d}
+					<path
+						{d}
+						stroke-width="1"
+						stroke="black"
+						class={classNamer(cc)}
+						role="region"
+						on:mouseover={setHover(cc)}
+						on:mouseleave={setHover('')}
+						on:click={() => {
+							clicked = !clicked;
+							setHover(cc)();
+						}}
+					/>
+				{/each}
 			{/each}
-			{/each}
-	</svg>
-
-	<div id="map-label-container" style="--grad: {getGradient()}">
-		{#if nBreakPoints > 0}
-		<!-- svelte-ignore a11y-mouse-events-have-key-events -->
-		<div class="label-bp-container">
-			{#each breakPoints as bp, i}
-			<div class="label-bp-box" style="background-color: rgba({getColorArr(
-							getColorRate(i / nBreakPoints)
-						)}, {getOpaRate(i / nBreakPoints) / 100}); color: {getOpaRate(i / nBreakPoints) < 50
-							? 'var(--color-text)'
-							: 'var(--color-theme-white)'}" role="region" on:mouseover={()=> {
-				highlightedQ = i;
-				}}
-				on:mouseleave={() => {
-				highlightedQ = -1;
-				}}
-				>
-				<span>{formatNumber(bp)}</span> <span>-</span>
-				<span>{formatNumber(bpEnd(breakPoints, i))}</span>
-			</div>
-			{/each}
+		</svg>
+		<div class="world-map-labels" style="--grad: {getGradient()}">
+			{#if nBreakPoints > 0}
+				<!-- svelte-ignore a11y-mouse-events-have-key-events -->
+				<div class="label-bp-container">
+					{#each breakPoints as bp, i}
+						<div
+							class="label-bp-box"
+							style="background-color: rgba({getColorArr(
+								getColorRate(i / nBreakPoints)
+							)}, {getOpaRate(i / nBreakPoints) / 100}); color: {getOpaRate(i / nBreakPoints) < 50
+								? 'var(--color-text)'
+								: 'var(--color-theme-white)'}"
+							role="region"
+							on:mouseover={() => {
+								highlightedQ = i;
+							}}
+							on:mouseleave={() => {
+								highlightedQ = -1;
+							}}
+						>
+							<span>{formatNumber(bp)}</span> <span>-</span>
+							<span>{formatNumber(bpEnd(breakPoints, i))}</span>
+						</div>
+					{/each}
+				</div>
+			{:else}
+				<div>{formatNumber(minw || 0)}</div>
+				<div class="label-gradient-box">
+					{#if highlightedRate != undefined}
+						<div id="w-tick" style="--loff: {highlightedRate * 100}%" />{/if}
+				</div>
+				<div>{formatNumber(maxw || 0)}</div>
+			{/if}
+			<div id="w-text">{weightText}</div>
 		</div>
-		{:else}
-		<div>{formatNumber(minw || 0)}</div>
-		<div class="label-gradient-box">
-			{#if highlightedRate != undefined}
-			<div id="w-tick" style="--loff: {highlightedRate * 100}%" />{/if}
-		</div>
-		<div>{formatNumber(maxw || 0)}</div>
-		{/if}
-		<div id="w-text">{weightText}</div>
 	</div>
 </FlatOutFrame>
 
-<p class="text-s">
+<p class="text-s bottext">
 	{getMapText(conf.rootType, rootName, isSpec, isRefSide)}
 </p>
 
 <style>
-	svg {
-		max-height: 65svh;
-	}
-
 	path {
 		fill: none;
 		fill-opacity: 0;
 		stroke: var(--color-text);
 		transition: all 800ms;
+	}
+
+	.world-map-container {
+		display: flex;
+		flex-direction: column;
+		width: 100%;
+		height: 100%;
+	}
+
+	.world-map-container > svg {
+		flex: 1 1 0;
+		min-height: 0;
+		height: 100%;
+		width: 100%;
+		display: block;
+	}
+
+	@media (max-width: 599px) {
+		.world-map-container > svg {
+			min-height: 50vw;
+		}
+	}
+
+	@media (min-width: 600px) {
+		.bottext {
+			height: 115px;
+		}
+	}
+
+	@media (min-width: 1000px) {
+		.bottext {
+			height: 60px;
+		}
+	}
+
+	.world-map-labels {
+		display: flex;
+		gap: var(--unified-padding);
+		justify-content: center;
+		flex-wrap: wrap;
+	}
+
+	.concept-map-legend {
+		flex: 0 0 auto;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 7px;
+		padding: 10px;
+		background: #f9f9f9;
 	}
 
 	.label-bp-box {
@@ -314,12 +384,5 @@
 		position: relative;
 		left: var(--loff);
 		z-index: 20;
-	}
-
-	#map-label-container {
-		display: flex;
-		gap: var(--unified-padding);
-		justify-content: center;
-		flex-wrap: wrap;
 	}
 </style>

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import {circleLayout, cytoscapeLayout, getIndex} from '$lib/network-util';
-	import {fade, slide} from 'svelte/transition';
+	import { circleLayout, cytoscapeLayout, getIndex } from '$lib/network-util';
+	import { fade, slide } from 'svelte/transition';
 
 	export let nodes: string[] = [];
 	export let nodeIntensities: number[] = [];
@@ -42,7 +42,7 @@
 	let coolingFactor = 0.99;
 	let minTemp = 1;
 
-	let positions: {x: number; y: number}[] = [];
+	let positions: { x: number; y: number }[] = [];
 
 	let svgWidth: number;
 	let svgHeight: number;
@@ -80,92 +80,101 @@
 </script>
 
 {#if n === 0}
-<div>No nodes</div>
+	<div>No nodes</div>
 {:else}
-<div class="outer-wrapper">
 	<h3>
 		Co-authorship network of co-authors of {rootName}
 	</h3>
 	<div bind:clientWidth={svgWidth} bind:clientHeight={svgHeight} class="nw-container">
 		{#if svgWidth != undefined}
-		<svg {viewBox} role="img" aria-label="Author Network" transition:fade>
-			{#each Array(n) as _, i}
-			{#each Array(n) as _, j}
-			{#if j > i && getWeight(i, j, n, edgeWeights) > 0}
-			<line x1={positions[i].x} y1={positions[i].y} x2={positions[j].x} y2={positions[j].y}
-				stroke-width={Math.min(r / 2, 1 + Math.sqrt(getWeight(i, j, n, edgeWeights)))}
-				stroke-opacity={Math.max( 0.25, Math.min(0.95, 0.25 + 0.15 * Math.log1p(getWeight(i, j,
-				n, edgeWeights))) )} />
-			{/if}
-			{/each}
-			{/each}
+			<svg {viewBox} role="img" aria-label="Author Network" transition:fade>
+				{#each Array(n) as _, i}
+					{#each Array(n) as _, j}
+						{#if j > i && getWeight(i, j, n, edgeWeights) > 0}
+							<line
+								x1={positions[i].x}
+								y1={positions[i].y}
+								x2={positions[j].x}
+								y2={positions[j].y}
+								stroke-width={Math.min(r / 2, 1 + Math.sqrt(getWeight(i, j, n, edgeWeights)))}
+								stroke-opacity={Math.max(
+									0.25,
+									Math.min(0.95, 0.25 + 0.15 * Math.log1p(getWeight(i, j, n, edgeWeights)))
+								)}
+							/>
+						{/if}
+					{/each}
+				{/each}
 
-			{#each nodes as label, i}
-			<g transform="translate({positions[i].x},{positions[i].y})">
-				<ellipse rx={r} ry={r} stroke-width={(nodeScales[i] || 1) * 1.8}
-					stroke-opacity={nodeScales[i] || 1} />
-				<text text-anchor="middle" font-size={getFontSize(label, r)} y={r * 0.2}>
-					{lastWord(label)}</text>
-			</g>
-			{/each}
-		</svg>
+				{#each nodes as label, i}
+					<g transform="translate({positions[i].x},{positions[i].y})">
+						<ellipse
+							rx={r}
+							ry={r}
+							stroke-width={(nodeScales[i] || 1) * 1.8}
+							stroke-opacity={nodeScales[i] || 1}
+						/>
+						<text text-anchor="middle" font-size={getFontSize(label, r)} y={r * 0.2}>
+							{lastWord(label)}</text
+						>
+					</g>
+				{/each}
+			</svg>
 		{/if}
 	</div>
-
 	<div class="legend-wrapper">
-		<button class="toggle-button" on:click={()=> (showControls = !showControls)}>
+		<button class="toggle-button" on:click={() => (showControls = !showControls)}>
 			{showControls ? '✕ Close' : '⚙ Controls'}
 		</button>
 		{#if !showControls}
-		<p class="text-s">
-			This figure shows the co-authorship network connecting the top 25 collaborators of {rootName}.
-			A scholar is included among the top collaborators of {rootName} based on the total number of
-			citations received by their joint publications. <b class="edgecolor">Widths of edges</b>
-			represent the number of papers authors have co-authored together.
-			<b class="nodecolor">Node borders</b>
-			signify the number of papers an author published with {rootName}. {rootName} is excluded from
-			the visualization to improve readability, since they are connected to all nodes in the network.
-		</p>
+			<p class="text-s">
+				This figure shows the co-authorship network connecting the top 25 collaborators of {rootName}.
+				A scholar is included among the top collaborators of {rootName} based on the total number of
+				citations received by their joint publications. <b class="edgecolor">Widths of edges</b>
+				represent the number of papers authors have co-authored together.
+				<b class="nodecolor">Node borders</b>
+				signify the number of papers an author published with {rootName}. {rootName} is excluded from
+				the visualization to improve readability, since they are connected to all nodes in the network.
+			</p>
 		{:else}
-		<div class="panel-inner">
-			<div>
-				<label>
-					Layout:
-					<select bind:value={actFun}>
-						{#each possFuns as name}
-						<option value={name}>{name}</option>
-						{/each}
-					</select>
-				</label>
+			<div class="panel-inner">
+				<div>
+					<label>
+						Layout:
+						<select bind:value={actFun}>
+							{#each possFuns as name}
+								<option value={name}>{name}</option>
+							{/each}
+						</select>
+					</label>
+				</div>
+				{#if actFun == 'force'}
+					<div class="sliders" transition:slide>
+						<label>
+							<span class="text-s">Gravity: {gravity}</span>
+							<input type="range" min="0" max="1" step="0.01" bind:value={gravity} />
+						</label>
+						<label>
+							<span class="text-s">Iterations: {numIter}</span>
+							<input type="range" min="1" max="1000" step="1" bind:value={numIter} />
+						</label>
+						<label>
+							<span class="text-s">Initial Temp: {initialTemp}</span>
+							<input type="range" min="10" max="2000" step="1" bind:value={initialTemp} />
+						</label>
+						<label>
+							<span class="text-s">Cooling: {coolingFactor}</span>
+							<input type="range" min="0" max="1" step=".01" bind:value={coolingFactor} />
+						</label>
+						<label>
+							<span class="text-s">Min Temp: {minTemp}</span>
+							<input type="range" min="1" max="1000" step="1" bind:value={minTemp} />
+						</label>
+					</div>
+				{/if}
 			</div>
-			{#if actFun == 'force'}
-			<div class="sliders" transition:slide>
-				<label>
-					<span class="text-s">Gravity: {gravity}</span>
-					<input type="range" min="0" max="1" step="0.01" bind:value={gravity} />
-				</label>
-				<label>
-					<span class="text-s">Iterations: {numIter}</span>
-					<input type="range" min="1" max="1000" step="1" bind:value={numIter} />
-				</label>
-				<label>
-					<span class="text-s">Initial Temp: {initialTemp}</span>
-					<input type="range" min="10" max="2000" step="1" bind:value={initialTemp} />
-				</label>
-				<label>
-					<span class="text-s">Cooling: {coolingFactor}</span>
-					<input type="range" min="0" max="1" step=".01" bind:value={coolingFactor} />
-				</label>
-				<label>
-					<span class="text-s">Min Temp: {minTemp}</span>
-					<input type="range" min="1" max="1000" step="1" bind:value={minTemp} />
-				</label>
-			</div>
-			{/if}
-		</div>
 		{/if}
 	</div>
-</div>
 {/if}
 
 <style>
@@ -179,7 +188,6 @@
 
 	h3 {
 		text-align: center;
-		vertical-align: middle;
 	}
 
 	svg {
@@ -213,16 +221,9 @@
 		margin-top: 0.3rem;
 	}
 
-	.outer-wrapper {
-		display: flex;
-		flex-direction: column;
-		justify-content: space-between;
-		height: 100%;
-	}
-
 	.nw-container {
 		width: 100%;
-		height: 50svh;
+		height: 40svh;
 	}
 
 	.legend-wrapper {
@@ -264,13 +265,13 @@
 		justify-content: space-evenly;
 	}
 
-	.sliders>label {
+	.sliders > label {
 		display: flex;
 		flex-direction: column;
 	}
 
 	@media (min-width: 600px) {
-		.sliders>label {
+		.sliders > label {
 			width: 240px;
 		}
 	}
