@@ -171,6 +171,10 @@ g {
 	font-size: min(1.3rem, 3.6vw);
 }
 
+.text-s {
+	font-size: min(0.85rem, 3vw);
+}
+
 .vert-zero {
 	height: 0px;
 	display: flex;
