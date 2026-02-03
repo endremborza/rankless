@@ -109,7 +109,7 @@
 <div id="main-fix">
 	{#if $resultsHidden}
 		<a href="/" id="head-l" class="head-side-elem shadowy">
-			<svg viewBox="0 0 20 20">
+			<svg class="corner-img" viewBox="0 0 20 20">
 				<PathLogo />
 			</svg>
 		</a>
@@ -149,6 +149,7 @@
 			{:else}
 				<svg
 					id="search-logo"
+					class="corner-img"
 					viewBox="-10 -10 60 50"
 					fill="none"
 					xmlns="http://www.w3.org/2000/svg"
@@ -179,7 +180,7 @@
 {/if}
 
 <style>
-	svg {
+	.corner-img {
 		--svg-size: min(min(30px, 5.5vw), 3.8svh);
 		width: var(--svg-size);
 		height: var(--svg-size);
