@@ -21,7 +21,7 @@
 		font-size: 0.7rem;
 		font-weight: 400;
 		border: 1px solid var(--color-text);
-		display: flex;
+		display: inline-flex;
 		justify-content: center;
 		align-items: center;
 		cursor: pointer;
