@@ -195,6 +195,7 @@
 
 	h3 {
 		text-align: center;
+		width: 100%;
 	}
 
 	svg {
@@ -212,12 +213,6 @@
 		stroke: var(--edge-color);
 	}
 
-	@media (prefers-color-scheme: dark) {
-		line {
-			stroke: rgb(var(--color-range-95));
-		}
-	}
-
 	text {
 		font-weight: 600;
 		border: solid black 1px;
@@ -229,16 +224,16 @@
 	}
 
 	.nw-container {
-		width: 100%;
-		height: 40svh;
+		flex: 10 1 700px;
+		height: min(80svh, 105vw);
 	}
 
 	.legend-wrapper {
+		flex: 2 1 300px;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: space-between;
-		min-height: 20svh;
 	}
 
 	.toggle-button {

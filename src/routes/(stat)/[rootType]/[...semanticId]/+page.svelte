@@ -192,29 +192,21 @@
 
 	.heighted {
 		display: flex;
-		flex-direction: column;
 		justify-content: space-between;
+		align-items: center;
+		flex-wrap: wrap;
 	}
 
-	@media (min-width: 600px) {
-		.heighted {
-			height: 85svh;
-		}
-	}
-
-	@media (min-aspect-ratio: 4 / 3) {
-		/* Enable two columns only if both panels exist */
+	@media (min-aspect-ratio: 3 / 1) and (min-height: 1200px) {
 		.comp-basis:has(#author-network):has(#research-space) {
 			grid-template-columns: 1fr 1fr;
 		}
 
-		/* Place author network top-left */
 		.comp-basis:has(#author-network):has(#research-space) #author-network {
 			grid-column: 1;
 			grid-row: 1;
 		}
 
-		/* Place concept map top-right */
 		.comp-basis:has(#author-network):has(#research-space) #research-space {
 			grid-column: 2;
 			grid-row: 1;

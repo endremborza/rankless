@@ -4,26 +4,34 @@
 
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <!-- svelte-ignore a11y-mouse-events-have-key-events -->
-<span
+<div
 	id="spec-info-hover"
 	on:mouseover={() => {
 		hoverToggle = true;
 	}}
 	on:mouseleave={() => {
 		hoverToggle = false;
-	}}>i</span
+	}}
 >
+	<span> i </span>
+</div>
 
 <style>
 	#spec-info-hover {
 		font-size: 0.7rem;
 		font-weight: 400;
 		border: 1px solid var(--color-text);
-		padding: 4px;
-		padding-left: 8px;
-		padding-right: 8px;
-		border-radius: 1rem;
+		display: inline-flex;
+		justify-content: center;
+		align-items: center;
 		cursor: pointer;
+		border-radius: 1rem;
+		height: 1.5rem;
+		width: 1.5rem;
+	}
+
+	#spec-info-hover > span {
+		pointer-events: none;
 	}
 
 	#spec-info-hover:hover {

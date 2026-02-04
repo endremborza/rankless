@@ -17,6 +17,10 @@
 	export let conf: tt.FullTreeConfig;
 	export let treeSpecs: tt.TreeSpecs;
 
+	const OPA_SF = 'opa';
+	const FILL_SF = 'fill';
+	const PW_SF = 'pw';
+
 	let resp: tt.TreeResponse | undefined;
 	let countryLevels: tt.LevelT = {};
 	let highlighted = '';
@@ -57,17 +61,17 @@
 	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints, pullerRate);
 	$: updateTreeId(indsByEntityType);
 
-	const fixNameForPaths = (s: string) => (s == 'Türkiye' ? 'Turkey' : s);
-	const fixNameForData = (s: string) => (s == 'Turkey' ? 'Türkiye' : s);
+	const fixNameForPaths = (s: string) => s; //(s == 'Türkiye' ? 'Turkey' : s);
+	const fixNameForData = (s: string) => s; //(s == 'Turkey' ? 'Türkiye' : s);
 	const getColorRate = (r: number) => r * (maxColorRate - minColorRate) + minColorRate;
 	const getOpaRate = (r: number) => r * (maxOp - minOp) + minOp;
 
 	function updateTreeId(inds: tt.IndsByEntityType) {
 		treeId = inds.countries[0];
 	}
-	function classNamer(s: string) {
+	function varNamer(s: string, suffix: string) {
 		let sn = fixNameForPaths(s);
-		return `country-${sn.toLowerCase().replaceAll(' ', '-')}`;
+		return `--${sn.toLowerCase().replaceAll(' ', '-')}-${suffix}`;
 	}
 
 	function getClassStyles(
@@ -102,14 +106,14 @@
 			let { op, hl, color } = scaler(w);
 			let lineColor = getColor(color);
 			isHighlighted = isHighlighted || hl;
-			let line = `fill: ${lineColor}; fill-opacity: ${op / 100};`;
+			sLines.push(`${varNamer(c, FILL_SF)}: ${lineColor};`);
+			sLines.push(`${varNamer(c, OPA_SF)}: ${op / 100};`);
 			if (isHighlighted) {
-				line += `stroke-width: 4.5;`;
+				sLines.push(`${varNamer(c, PW_SF)}: 4.5;`);
 			}
-			sLines.push(`path.${classNamer(c)} {${line}}`);
 		}
 		[minw, maxw, breakPoints] = [locMinw || 0, locMaxw || 1, newBreakPoints];
-		return sLines.join('\n');
+		return `:root{ ${sLines.join('\n')} }`;
 	}
 
 	function updateL1(flatOut: undefined | tt.LevelT, resp: undefined | tt.TreeResponse) {
@@ -124,7 +128,7 @@
 				});
 				countryLevels = Object.fromEntries(l1Kv);
 			} catch (error) {
-				console.log(error);
+				console.log('flatOutUpdateFailed', error);
 			}
 		}
 	}
@@ -207,6 +211,14 @@
 		if (oBase == undefined) return '';
 		return oBase[bd] || '';
 	}
+	function getDefaultPathStyle(cc: string) {
+		let lines = [
+			`fill: var(${varNamer(cc, FILL_SF)}, none)`,
+			`fill-opacity: var(${varNamer(cc, OPA_SF)}, 0);`,
+			`stroke-width: var(${varNamer(cc, PW_SF)}, 1);`
+		];
+		return lines.join(';');
+	}
 </script>
 
 <FlatOutFrame
@@ -218,6 +230,7 @@
 	{indsByEntityType}
 	{conf}
 	{treeSpecs}
+	bottomText={getMapText(conf.rootType, rootName, isSpec, isRefSide)}
 	year={treeSpecs.yearBreaks[0]}
 	bind:flatOut
 	bind:treeId
@@ -234,9 +247,9 @@
 				{#each cpaths as d}
 					<path
 						{d}
+						style={getDefaultPathStyle(cc)}
 						stroke-width="1"
 						stroke="black"
-						class={classNamer(cc)}
 						role="region"
 						on:mouseover={setHover(cc)}
 						on:mouseleave={setHover('')}
@@ -286,14 +299,8 @@
 	</div>
 </FlatOutFrame>
 
-<p class="text-s bottext">
-	{getMapText(conf.rootType, rootName, isSpec, isRefSide)}
-</p>
-
 <style>
 	path {
-		fill: none;
-		fill-opacity: 0;
 		stroke: var(--color-text);
 		transition: all 800ms;
 	}
@@ -313,38 +320,11 @@
 		display: block;
 	}
 
-	@media (max-width: 599px) {
-		.world-map-container > svg {
-			min-height: 50vw;
-		}
-	}
-
-	@media (min-width: 600px) {
-		.bottext {
-			height: 115px;
-		}
-	}
-
-	@media (min-width: 1000px) {
-		.bottext {
-			height: 60px;
-		}
-	}
-
 	.world-map-labels {
 		display: flex;
 		gap: var(--unified-padding);
 		justify-content: center;
 		flex-wrap: wrap;
-	}
-
-	.concept-map-legend {
-		flex: 0 0 auto;
-		display: flex;
-		flex-wrap: wrap;
-		gap: 7px;
-		padding: 10px;
-		background: #f9f9f9;
 	}
 
 	.label-bp-box {

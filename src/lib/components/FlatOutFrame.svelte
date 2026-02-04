@@ -26,6 +26,7 @@
 	export let showPaper = false;
 	export let paperHeight = 90;
 	export let paperPad = 10;
+	export let bottomText = '';
 
 	let mounted = false;
 	let selectedBreakdowns = tf.getDefaultBreakdowns(treeSpecs.specs[conf.rootType][treeId]);
@@ -92,7 +93,6 @@
 <div class="full-frame" style="--ph-height: {paperHeight + 2 * paperPad}px">
 	<div class="frame-top-half">
 		<h3>{titlePrefix} {titleSuffix} {rootName}</h3>
-
 		<div class="control-block">
 			{#if Object.keys(levelOptions).length > 1}
 				<select
@@ -132,6 +132,10 @@
 			/>
 		{/if}
 	</div>
+
+	<p class="text-s">
+		{bottomText}
+	</p>
 </div>
 
 <style>
@@ -147,7 +151,7 @@
 		display: flex;
 		flex-direction: column;
 		justify-content: space-between;
-		height: calc(100% - var(--ph-height));
+		height: calc(90svh - var(--ph-height));
 	}
 
 	.paper-hover {
