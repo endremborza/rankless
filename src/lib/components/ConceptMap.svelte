@@ -219,6 +219,7 @@
 	{conf}
 	{treeSpecs}
 	{backupNames}
+	bottomText={getNetworkText(conf.rootType, rootName, isSpec, sourceSide)}
 	bind:treeId
 	bind:flatOut
 	bind:isSpec
@@ -297,9 +298,6 @@
 		</div>
 	</div>
 </FlatOutFrame>
-<p class="text-s botp">
-	{getNetworkText(conf.rootType, rootName, isSpec, sourceSide)}
-</p>
 
 <style>
 	line {
@@ -347,9 +345,5 @@
 		cursor: default;
 		flex: 1 1 auto;
 		text-align: center;
-	}
-
-	.botp {
-		vertical-align: bottom;
 	}
 </style>

@@ -230,6 +230,7 @@
 	{indsByEntityType}
 	{conf}
 	{treeSpecs}
+	bottomText={getMapText(conf.rootType, rootName, isSpec, isRefSide)}
 	year={treeSpecs.yearBreaks[0]}
 	bind:flatOut
 	bind:treeId
@@ -298,10 +299,6 @@
 	</div>
 </FlatOutFrame>
 
-<p class="text-s bottext">
-	{getMapText(conf.rootType, rootName, isSpec, isRefSide)}
-</p>
-
 <style>
 	path {
 		stroke: var(--color-text);
@@ -321,24 +318,6 @@
 		height: 100%;
 		width: 100%;
 		display: block;
-	}
-
-	@media (max-width: 599px) {
-		.world-map-container > svg {
-			min-height: 50vw;
-		}
-	}
-
-	@media (min-width: 600px) {
-		.bottext {
-			height: 115px;
-		}
-	}
-
-	@media (min-width: 1000px) {
-		.bottext {
-			height: 60px;
-		}
 	}
 
 	.world-map-labels {
