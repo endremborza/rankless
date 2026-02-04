@@ -61,8 +61,8 @@
 	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints, pullerRate);
 	$: updateTreeId(indsByEntityType);
 
-	const fixNameForPaths = (s: string) => (s == 'Türkiye' ? 'Turkey' : s);
-	const fixNameForData = (s: string) => (s == 'Turkey' ? 'Türkiye' : s);
+	const fixNameForPaths = (s: string) => s; //(s == 'Türkiye' ? 'Turkey' : s);
+	const fixNameForData = (s: string) => s; //(s == 'Turkey' ? 'Türkiye' : s);
 	const getColorRate = (r: number) => r * (maxColorRate - minColorRate) + minColorRate;
 	const getOpaRate = (r: number) => r * (maxOp - minOp) + minOp;
 
