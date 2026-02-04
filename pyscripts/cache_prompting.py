@@ -1,3 +1,4 @@
+import sys
 import time
 from datetime import datetime
 from multiprocessing import Pool
@@ -10,11 +11,6 @@ addr = "http://127.0.0.1:3038"
 limit = 100_000
 year = 1950
 
-# do_big_prep = True
-do_big_prep = False
-# do_big_read = True
-do_big_read = False
-do_rest = True
 
 big_limit = 120_000_000
 # 120G
@@ -32,7 +28,7 @@ def parse_resp(resp):
 
 
 def resp_pipe(url):
-    for i in range(15):
+    for _ in range(15):
         try:
             resp = requests.get(url)
             return parse_resp(resp)
@@ -87,7 +83,16 @@ def get_specs_and_ys():
     raise RuntimeError("no server")
 
 
+def validate(urls):
+    list(map(resp_pipe, tqdm(urls)))
+
+
 if __name__ == "__main__":
+
+    do_big_prep = "cache_big_prep" in sys.argv
+    do_big_read = "cache_big_read" in sys.argv
+    do_rest = "cache_do_rest" in sys.argv
+    validate_all = "cache_validate_all" in sys.argv
 
     specs, ys = get_specs_and_ys()
     tid_df = pd.DataFrame(
@@ -116,7 +121,7 @@ if __name__ == "__main__":
     resps = []
     if do_big_read:
         para_extend([url + "&big_read=true" for url in big_urls], 1, resps)
-        _ = list(map(resp_pipe, tqdm(big_urls)))
+        validate(big_urls)
 
     if do_rest:
         for gid, gdf in tqdm(
@@ -128,4 +133,8 @@ if __name__ == "__main__":
         ):
             suburls = gdf.sample(frac=1.0)["url"].tolist()
             para_extend(suburls, gid, resps)
-        _ = list(map(resp_pipe, urled_sample["url"].tolist()))
+        validate(urled_sample["url"])
+
+    if validate_all:
+        all_urls = big_urls + urled_sample["url"].tolist()
+        validate(all_urls)
