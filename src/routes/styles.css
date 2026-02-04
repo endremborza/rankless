@@ -130,6 +130,10 @@ g {
 	z-index: 13;
 }
 
+.transparent {
+	pointer-events: none;
+}
+
 .shadowy {
 	border-radius: var(--borad);
 	box-shadow: 3px 3px 10px var(--color-theme-shadow);

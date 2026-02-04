@@ -4,7 +4,7 @@
 </script>
 
 {#if show}
-	<div class="hoverover padded shadowy" {style}>
+	<div class="hoverover padded shadowy transparent" {style}>
 		<slot />
 	</div>
 {/if}
