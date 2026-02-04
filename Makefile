@@ -57,7 +57,7 @@ extend_csvs lib_data_generation bm live_monitoring report sitemap_validation alp
 	python3 -m pyscripts.$@
 
 
-cache_big_prep cache_big_read cache_do_rest cache_validate_all:
+cache_big_prep cache_big_read cache_do_rest cache_validate_all cache_validate_bigs:
 	python3 -m pyscripts.cache_prompting $@
 
 pull_live_certs sync_fe_to_alpha sync_fe_to_live sync_fe_to_local setup_local_test bump_v bump_v_minor rolling_restart_live_fe:

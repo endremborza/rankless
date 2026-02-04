@@ -93,6 +93,7 @@ if __name__ == "__main__":
     do_big_read = "cache_big_read" in sys.argv
     do_rest = "cache_do_rest" in sys.argv
     validate_all = "cache_validate_all" in sys.argv
+    validate_big = "cache_validate_bigs" in sys.argv
 
     specs, ys = get_specs_and_ys()
     tid_df = pd.DataFrame(
@@ -121,6 +122,8 @@ if __name__ == "__main__":
     resps = []
     if do_big_read:
         para_extend([url + "&big_read=true" for url in big_urls], 1, resps)
+
+    if validate_big:
         validate(big_urls)
 
     if do_rest:
