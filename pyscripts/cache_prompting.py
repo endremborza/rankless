@@ -12,14 +12,10 @@ limit = 100_000
 year = 1950
 
 
-big_limit = 120_000_000
-# 120G
-# big_limit = 200_000_000
-
-bins = [0, 1_500_000, 3_500_000, 12_000_000, big_limit]
+big_limit = 50_000_000 * 4  # (cites * depth)
+bins = [0, 1_500_00 * 4, 3_500_000 * 4, 12_000_000 * 4, big_limit]
 proc_counts = [16, 8, 4, 1]
 # 120G
-# bins = [0, 5_000_000, 10_000_000, 30_000_000, big_limit]
 # proc_counts = [20, 10, 5, 1]
 
 
@@ -108,12 +104,13 @@ if __name__ == "__main__":
     sample = (
         resdf.merge(tid_df)
         .sort_values(["citations", "bds"], ascending=False)
+        .assign(cut_basis=lambda df: df["citations"] * df["bds"])
         .loc[lambda df: df["citations"] >= limit, :]
         .rename(columns={"dm_id": "index"})
     )
 
     urled_sample = sample.pipe(add_be_urls, year)
-    big_urls = urled_sample.loc[lambda df: df["citations"] > big_limit, "url"].tolist()
+    big_urls = urled_sample.loc[lambda df: df["cut_basis"] > big_limit, "url"].tolist()
 
     pexres = []
     if do_big_prep:
@@ -129,7 +126,7 @@ if __name__ == "__main__":
     if do_rest:
         for gid, gdf in tqdm(
             urled_sample.assign(
-                ccut=lambda df: pd.cut(df["citations"], bins, labels=proc_counts)
+                ccut=lambda df: pd.cut(df["cut_basis"], bins, labels=proc_counts)
             )
             .loc[lambda df: df["ccut"].notna()]
             .groupby("ccut", observed=True)
