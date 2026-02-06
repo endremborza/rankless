@@ -34,7 +34,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 
 	let paperText = pluralize('paper', view.papers);
 	let citeText = pluralize('indexed citation', view.citations);
-	let aboutParagraph = getSemanticRels(view, view.name, rootType, paperText, citeText);
+	let aboutParagraph = getSemanticRels(view, view.name, rootType, paperText, citeText, semanticId);
 
 	let prefixText = SEMANTIC_CONF[rootType]?.start || '';
 	let metaDescriptions = `Breaking down the academic impact of ${prefixText.toLowerCase()} ${view.name} - ( ${paperText}, ${citeText} )`;
@@ -212,14 +212,17 @@ function getSemantifyers(rootName: string, rootType: tt.RootType, paperText: num
 	return [];
 }
 
-function extendPostText(rootType: tt.RootType, view: tt.View, postText: string) {
+function getFootText(rootType: tt.RootType, view: tt.View, semanticId: string) {
 	if (rootType == 'authors') {
 		let slug = (view.meta || {}).wikiSlug || '';
 		if (slug.length > 0) {
-			return postText + `<br/> You can learn more about the impact of ${view.name} by visiting their  <a href="https://pantheon.world/profile/person/${slug}" target="_blank">Pantheon page</a>`
+			return `You can learn more about the impact of ${view.name} by visiting their  <a href="https://pantheon.world/profile/person/${slug}" target="_blank" class="ali">Pantheon page</a>.`
 		}
+	} else if (rootType == 'countries') {
+		let oecLink = `https://oec.world/en/profile/country/${semanticId}`
+		return `You can explore the trade impact of ${view.name}, by visiting their  <a href="${oecLink}" target="_blank" class="ali">OEC page</a>.`
 	}
-	return postText
+	return ''
 }
 
 function getSemanticRels(
@@ -227,7 +230,8 @@ function getSemanticRels(
 	rootName: string,
 	rootType: tt.RootType,
 	paperText: string,
-	citeText: string
+	citeText: string,
+	semanticId: string,
 ): tt.AboutPara {
 	let semantifyers = getSemantifyers(rootName, rootType, paperText, citeText);
 	let relationsMap = Object.fromEntries(
@@ -253,8 +257,9 @@ function getSemanticRels(
 	};
 	return {
 		prefix: prefixes[rootType],
-		postText: extendPostText(rootType, view, postText),
-		topRels: getTopRels(view)
+		postText,
+		topRels: getTopRels(view),
+		footText: getFootText(rootType, view, semanticId)
 	};
 }
 

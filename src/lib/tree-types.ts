@@ -77,6 +77,7 @@ export type AboutPara = {
 	prefix: string;
 	postText: string;
 	topRels: SubbedRel[];
+	footText: string,
 }
 
 export type TreeResponse = { tree: ResponseNode; atts: AttributeLabels, shallowed: boolean };

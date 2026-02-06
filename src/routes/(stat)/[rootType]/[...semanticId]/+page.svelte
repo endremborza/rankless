@@ -169,6 +169,7 @@
 		delays in data updates. As a result, some metrics and network relationships displayed in
 		Rankless may not fully capture the entirety of a scholar’s output or impact.
 	</p>
+	{#if data.aboutParagraph.footText.length > 0}<p>{@html data.aboutParagraph.footText}</p> {/if}
 	<h3>Explore {prettifyRoot(data.conf.rootType)} with similar magnitude of impact</h3>
 	<div>
 		{#each data.view.similars as sim}
