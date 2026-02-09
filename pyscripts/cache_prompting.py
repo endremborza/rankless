@@ -133,8 +133,7 @@ if __name__ == "__main__":
         ):
             suburls = gdf.sample(frac=1.0)["url"].tolist()
             para_extend(suburls, gid, resps)
-        validate(urled_sample["url"])
+        validate(urled_sample.loc[lambda df: df["cut_basis"] <= big_limit, "url"])
 
     if validate_all:
-        all_urls = big_urls + urled_sample["url"].tolist()
-        validate(all_urls)
+        validate(urled_sample["url"].tolist())
