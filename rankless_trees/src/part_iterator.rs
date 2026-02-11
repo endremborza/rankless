@@ -13,7 +13,7 @@ use std::{
 use crate::{
     components::{PartitionId, StackBasis, StackFr},
     ids::get_atts,
-    instances::{CollT, Collapsing, FoldStackBase, TopTree},
+    instances::{CollT, Collapsing, FoldStackBase},
     interfacing::Getters,
     io::{
         AnyQuery, AnyResponse, BoolCvp, BufSerTree, CacheKey, CacheMap, CacheValue,
@@ -75,7 +75,7 @@ pub struct TreeMakingParams<'a> {
 }
 
 pub trait CompleteTreeMaker<'a>: Sized + PartitioningIterator<'a> {
-    type CT: Collapsing + TopTree;
+    type CT: Collapsing;
     type SR: SortedRecord;
 }
 
@@ -516,7 +516,7 @@ where
 impl<'a, T> CompleteTreeMaker<'a> for T
 where
     T: PartitioningIterator<'a>,
-    <T::StackBasis as StackBasis>::TopTree: Collapsing + TopTree,
+    <T::StackBasis as StackBasis>::TopTree: Collapsing,
     <T::StackBasis as StackBasis>::SortedRec: SortedRecord,
 {
     type CT = <T::StackBasis as StackBasis>::TopTree;
