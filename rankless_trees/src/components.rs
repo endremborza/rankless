@@ -11,15 +11,18 @@ use rankless_rs::{
 };
 
 use crate::{
-    instances::{Collapsing, DisJTree, FoldStackBase, IntXTree, WorkTree},
+    instances::{Collapsing, DisJTree, FoldStackBase, IntXTree, NotLeafNode, WorkTree},
     interfacing::{Getters, WorksFromMemory},
     io::{BreakdownSpec, WT},
-    part_iterator::PartitioningIterator,
+    part_iterator::{NetRoot, PartitioningIterator},
 };
 
 type AnyShipElem = <ET<WorkAnyAuthorships> as VarSizedAttributeElement>::SubType;
 pub type StackFr<S> = <<S as StackBasis>::SortedRec as SortedRecord>::FlatRecord;
 pub type PartitionId = u8;
+
+pub type MinIntX<E> = IntX<E, 0, true>;
+pub type MinDisJ<E> = DisJ<E, 0, true>;
 
 type ExtendedFr<'a, I> = (PartitionId, StackFr<<I as RefWorkBasedIter<'a>>::SB>);
 type ExtItem<'a, I> = <ExtendedFr<'a, I> as ExtendWithInst>::To;
@@ -29,20 +32,17 @@ type FoldingStackLeaf = WorkTree;
 pub struct DisJ<E: Entity, const N: usize, const S: bool>(E::T);
 pub struct IntX<E: Entity, const N: usize, const S: bool>(E::T);
 
-pub struct PostRefIterWrap<'a, E, I>
-where
-    E: NumberedEntity,
-{
+pub struct PostRefIterWrap<'a, R, I> {
     it: Option<I>,
     gets: &'a Getters,
     refs_it: Peekable<Iter<'a, WT>>,
-    p: PhantomData<E>,
+    p: PhantomData<R>,
 }
 
 //specific roots
 
 pub struct CountryInstsPost<'a, I, SB> {
-    pr_it: Option<PostRefIterWrap<'a, Institutions, I>>,
+    pr_it: Option<PostRefIterWrap<'a, MinIntX<Institutions>, I>>,
     gets: &'a Getters,
     insts: Peekable<Iter<'a, ET<Institutions>>>,
     p: PhantomData<SB>,
@@ -322,7 +322,7 @@ macro_rules! reg_next {
 pub trait StackBasis {
     type Stack;
     type SortedRec: SortedRecord;
-    type TopTree;
+    type TopTree: Collapsing + NotLeafNode;
 
     fn get_bds() -> Vec<BreakdownSpec>;
 
@@ -352,14 +352,16 @@ pub trait ExtendWithInst {
     fn extend(self, value: ET<Institutions>) -> (PartitionId, Self::To);
 }
 
+// for the final level
+// this is what gets generated below for (DisJ, IntX)... and a up to n depth
 impl<T> StackBasis for T
 where
     T: FoldStackBase<FoldingStackLeaf>,
     T::StackElement: Collapsing
+        + NotLeafNode
         + From<NET<T::LevelEntity>>
         + ReinstateFrom<NET<T::LevelEntity>>
         + Updater<FoldingStackLeaf>,
-    T::LevelEntity: NumberedEntity,
 {
     type Stack = T::StackElement;
     type TopTree = Self::Stack;
@@ -382,6 +384,7 @@ impl<E, C, const N: usize, const S: bool> FoldStackBase<C> for IntX<E, N, S>
 where
     E: NumberedEntity,
     C: Collapsing,
+    IntXTree<E, C>: Collapsing,
 {
     type StackElement = IntXTree<E, C>;
     type LevelEntity = E;
@@ -762,7 +765,7 @@ impl<'a> RefWorkBasedIter<'a> for RefSubSourceTop<'a> {
 
 impl<'a> RefWorkBasedIter<'a> for QedInf<'a> {
     type SB = (
-        IntX<Qs, 0, true>,
+        DisJ<Qs, 0, true>,
         IntX<Sources, 0, true>,
         IntX<Subfields, 2, false>,
         IntX<Countries, 3, false>,
@@ -1104,9 +1107,10 @@ impl<'a> Iterator for QedInf<'a> {
     }
 }
 
-impl<'a, E, I> Iterator for PostRefIterWrap<'a, E, I>
+impl<'a, R, I> Iterator for PostRefIterWrap<'a, R, I>
 where
-    E: NumberedEntity + WorksFromMemory,
+    R: FoldStackBase<<I::SB as StackBasis>::TopTree>,
+    R::LevelEntity: WorksFromMemory,
     I: RefWorkBasedIter<'a>,
     StackFr<I::SB>: ExtendedWithRefWid,
 {
@@ -1466,19 +1470,21 @@ impl<'a> Iterator for SubfieldRefTopicCountryInst<'a> {
     }
 }
 
-impl<'a, E, I> PartitioningIterator<'a> for PostRefIterWrap<'a, E, I>
+impl<'a, R, I> PartitioningIterator<'a> for PostRefIterWrap<'a, R, I>
 where
-    E: NumberedEntity + WorksFromMemory,
+    R: FoldStackBase<<I::SB as StackBasis>::TopTree>,
+    R::LevelEntity: WorksFromMemory,
+    R::StackElement: Collapsing,
     I: RefWorkBasedIter<'a>,
     StackFr<I::SB>: ExtendedWithRefWid,
 {
-    type Root = E;
+    type Root = R;
     type StackBasis = I::SB;
     const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = I::RWB_IS_SPEC;
     const DEFAULT_PARTITION: u8 = 3; //2020
-    fn new(id: NET<E>, gets: &'a Getters) -> Self {
-        let refs_it = E::works_from_ram(&gets, id).iter().peekable();
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
+        let refs_it = R::LevelEntity::works_from_ram(&gets, id).iter().peekable();
         Self {
             gets,
             refs_it,
@@ -1497,7 +1503,7 @@ where
     (PartitionId, StackFr<I::SB>): ExtendWithInst,
     ExtendedFr<'a, I>: ExtendWithInst,
 {
-    type Root = Countries;
+    type Root = MinIntX<Countries>;
     type StackBasis = SB;
     const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = false;
@@ -1518,9 +1524,9 @@ impl<'a> PartitioningIterator<'a> for CountryBesties<'a> {
         IntX<Institutions, 0, true>,
         IntX<Subfields, 1, true>,
     );
-    type Root = Countries;
+    type Root = MinIntX<Countries>;
     const PARTITIONS: usize = N_PERS;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
         Self {
             gets,
             id,
@@ -1538,9 +1544,9 @@ impl<'a> PartitioningIterator<'a> for CountryCiters<'a> {
         IntX<Subfields, 1, false>,
         IntX<Institutions, 2, false>,
     );
-    type Root = Countries;
+    type Root = MinIntX<Countries>;
     const PARTITIONS: usize = N_PERS;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
         Self {
             gets,
             ref_wids: gets.cworks(id).iter().peekable(),
@@ -1557,10 +1563,10 @@ impl<'a> PartitioningIterator<'a> for AuthorBestiePapers<'a> {
         IntX<Works, 0, true>,
         IntX<Subfields, 2, false>,
     );
-    type Root = Authors;
+    type Root = MinIntX<Authors>;
     const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = false;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
         Self {
             gets,
             id,
@@ -1578,10 +1584,10 @@ impl<'a> PartitioningIterator<'a> for AuthorBesties<'a> {
         IntX<Countries, 1, false>,
         IntX<Institutions, 1, false>,
     );
-    type Root = Authors;
+    type Root = MinIntX<Authors>;
     const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = false;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
         Self {
             gets,
             id,
@@ -1599,9 +1605,9 @@ impl<'a> PartitioningIterator<'a> for InstBesties<'a> {
         IntX<Subfields, 1, true>,
         IntX<Institutions, 0, true>,
     );
-    type Root = Institutions;
+    type Root = MinIntX<Institutions>;
     const PARTITIONS: usize = N_PERS;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
         Self {
             gets,
             id,
@@ -1619,10 +1625,10 @@ impl<'a> PartitioningIterator<'a> for WorkingAuthors<'a> {
         IntX<Countries, 1, false>,
         IntX<Institutions, 1, false>,
     );
-    type Root = Institutions;
+    type Root = MinIntX<Institutions>;
     const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = false;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
         Self {
             gets,
             id,
@@ -1640,9 +1646,9 @@ impl<'a> PartitioningIterator<'a> for SubfieldRefTopicCountryInst<'a> {
         IntX<Countries, 1, true>,
         IntX<Institutions, 1, true>,
     );
-    type Root = Subfields;
+    type Root = MinIntX<Subfields>;
     const PARTITIONS: usize = N_PERS;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self {
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
         Self {
             gets,
             id,

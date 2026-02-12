@@ -5,9 +5,9 @@ use crate::{
         AuthorBestiePapers, AuthorBesties, CiteSubSourceTop, CitingCoInstSuToByRef,
         CitingCoSuToByRef, CitingSourceCoSuByRef, CitingSuByRef, CountryBesties, CountryCiters,
         CountryInstsPost, FullRefCountryInstSubfieldByRef, FullRefSourceCountryInstByRef,
-        InstBesties, IntX, PostRefIterWrap, QedInf, RefCountryByRef, RefSuByRef, RefSubCiSubTByRef,
-        SourceSubfieldCiCoByRef, SourceWCoiByRef, StackBasis, StackFr, SubfieldCountryInstByRef,
-        SubfieldCountryInstSourceByRef, SubfieldCountryInstSubfieldByRef,
+        InstBesties, IntX, MinDisJ, MinIntX, PostRefIterWrap, QedInf, RefCountryByRef, RefSuByRef,
+        RefSubCiSubTByRef, SourceSubfieldCiCoByRef, SourceWCoiByRef, StackBasis, StackFr,
+        SubfieldCountryInstByRef, SubfieldCountryInstSourceByRef, SubfieldCountryInstSubfieldByRef,
         SubfieldRefTopicCountryInst, SubfieldWCoiByRef, WorkingAuthors,
     },
     interfacing::Getters,
@@ -29,7 +29,7 @@ use dmove::{Entity, InitEmpty, UnsignedNumber, ET};
 use dmove_macro::derive_tree_getter;
 use hashbrown::HashMap;
 
-type CollT<T> = <T as Collapsing>::Collapsed;
+pub type CollT<T> = <T as Collapsing>::Collapsed;
 
 #[derive(PartialOrd, PartialEq)]
 pub struct WorkTree(pub AggTreeBase<WT, (), WT>);
@@ -73,13 +73,15 @@ pub trait Collapsing {
 }
 
 pub trait FoldStackBase<C> {
-    type StackElement;
-    type LevelEntity: Entity;
+    type StackElement: Collapsing + From<NET<Self::LevelEntity>>;
+    type LevelEntity: NumberedEntity;
     const SPEC_DENOM_IND: usize;
     const SOURCE_SIDE: bool;
 }
 
-pub trait TopTree {}
+// this basically is just a signal that its not a worktree
+// to avoid recursive bound checking
+pub trait NotLeafNode {}
 
 impl WVecPair {
     fn new() -> Self {
@@ -213,30 +215,31 @@ where
     }
 }
 
-impl<E, CE, GC> Into<BufSerTree> for DisJTree<E, IntXTree<CE, GC>>
+impl<E, C> Into<u32> for &DisJTree<E, C>
 where
     E: NumberedEntity,
-    CE: NumberedEntity,
-    GC: Collapsing + TopTree,
-    DisJTree<CE, GC>: Into<BufSerTree>,
+    C: Collapsing,
 {
-    fn into(self) -> BufSerTree {
-        let mut map = HashMap::new();
-        for child in self.0.children {
-            map.insert(child.0.id.to_usize() as u32, child.into());
-        }
-        let children = Box::new(BufSerChildren::Nodes(map));
-        BufSerTree {
-            node: self.0.node,
-            children,
-        }
+    fn into(self) -> u32 {
+        self.0.id.to_usize() as u32
     }
 }
 
-impl<E, CE> Into<BufSerTree> for DisJTree<E, IntXTree<CE, WorkTree>>
+impl<E, C> Into<u32> for IntXTree<E, C>
 where
     E: NumberedEntity,
-    CE: NumberedEntity,
+    C: Collapsing,
+{
+    fn into(self) -> u32 {
+        self.0.id.to_usize() as u32
+    }
+}
+
+impl<E, C> Into<BufSerTree> for DisJTree<E, C>
+where
+    E: NumberedEntity,
+    C: Collapsing,
+    Vec<CollT<C>>: Into<BufSerChildren>,
 {
     fn into(self) -> BufSerTree {
         let children = Box::new(self.0.children.into());
@@ -244,6 +247,140 @@ where
             node: self.0.node,
             children,
         }
+    }
+}
+
+// TODO: macro this - necessary to avoid infinite recursive trait bound checking
+// 5 deep
+impl<E, CE, CCE, CCCE, CCCCE> Into<BufSerChildren>
+    for Vec<DisJTree<E, DisJTree<CE, DisJTree<CCE, DisJTree<CCCE, IntXTree<CCCCE, WorkTree>>>>>>
+where
+    E: NumberedEntity,
+    CE: NumberedEntity,
+    CCE: NumberedEntity,
+    CCCE: NumberedEntity,
+    CCCCE: NumberedEntity,
+{
+    fn into(self) -> BufSerChildren {
+        children_from_vec(self)
+    }
+}
+
+impl<E, CE, CCE, CCCE, CCCCE> Into<BufSerChildren>
+    for Vec<DisJTree<E, DisJTree<CE, DisJTree<CCE, IntXTree<CCCE, IntXTree<CCCCE, WorkTree>>>>>>
+where
+    E: NumberedEntity,
+    CE: NumberedEntity,
+    CCE: NumberedEntity,
+    CCCE: NumberedEntity,
+    CCCCE: NumberedEntity,
+{
+    fn into(self) -> BufSerChildren {
+        children_from_vec(self)
+    }
+}
+
+impl<E, CE, CCE, CCCE, CCCCE> Into<BufSerChildren>
+    for Vec<DisJTree<E, DisJTree<CE, IntXTree<CCE, IntXTree<CCCE, IntXTree<CCCCE, WorkTree>>>>>>
+where
+    E: NumberedEntity,
+    CE: NumberedEntity,
+    CCE: NumberedEntity,
+    CCCE: NumberedEntity,
+    CCCCE: NumberedEntity,
+{
+    fn into(self) -> BufSerChildren {
+        children_from_vec(self)
+    }
+}
+
+impl<E, CE, CCE, CCCE, CCCCE> Into<BufSerChildren>
+    for Vec<DisJTree<E, IntXTree<CE, IntXTree<CCE, IntXTree<CCCE, IntXTree<CCCCE, WorkTree>>>>>>
+where
+    E: NumberedEntity,
+    CE: NumberedEntity,
+    CCE: NumberedEntity,
+    CCCE: NumberedEntity,
+    CCCCE: NumberedEntity,
+{
+    fn into(self) -> BufSerChildren {
+        children_from_vec(self)
+    }
+}
+
+// 4 deep
+impl<E, CE, CCE, CCCE> Into<BufSerChildren>
+    for Vec<DisJTree<E, DisJTree<CE, DisJTree<CCE, IntXTree<CCCE, WorkTree>>>>>
+where
+    E: NumberedEntity,
+    CE: NumberedEntity,
+    CCE: NumberedEntity,
+    CCCE: NumberedEntity,
+{
+    fn into(self) -> BufSerChildren {
+        children_from_vec(self)
+    }
+}
+
+impl<E, CE, CCE, CCCE> Into<BufSerChildren>
+    for Vec<DisJTree<E, DisJTree<CE, IntXTree<CCE, IntXTree<CCCE, WorkTree>>>>>
+where
+    E: NumberedEntity,
+    CE: NumberedEntity,
+    CCE: NumberedEntity,
+    CCCE: NumberedEntity,
+{
+    fn into(self) -> BufSerChildren {
+        children_from_vec(self)
+    }
+}
+
+impl<E, CE, CCE, CCCE> Into<BufSerChildren>
+    for Vec<DisJTree<E, IntXTree<CE, IntXTree<CCE, IntXTree<CCCE, WorkTree>>>>>
+where
+    E: NumberedEntity,
+    CE: NumberedEntity,
+    CCE: NumberedEntity,
+    CCCE: NumberedEntity,
+{
+    fn into(self) -> BufSerChildren {
+        children_from_vec(self)
+    }
+}
+
+//3 deep
+
+impl<E, CE, CCE> Into<BufSerChildren> for Vec<DisJTree<E, DisJTree<CE, IntXTree<CCE, WorkTree>>>>
+where
+    E: NumberedEntity,
+    CE: NumberedEntity,
+    CCE: NumberedEntity,
+{
+    fn into(self) -> BufSerChildren {
+        children_from_vec(self)
+    }
+}
+
+impl<E, CE, CCE> Into<BufSerChildren> for Vec<DisJTree<E, IntXTree<CE, IntXTree<CCE, WorkTree>>>>
+where
+    E: NumberedEntity,
+    CE: NumberedEntity,
+    CCE: NumberedEntity,
+{
+    fn into(self) -> BufSerChildren {
+        children_from_vec(self)
+    }
+}
+
+//2 deep
+
+impl<E, CE> Into<BufSerChildren> for Vec<DisJTree<E, IntXTree<CE, WorkTree>>>
+where
+    E: NumberedEntity,
+    CE: NumberedEntity,
+{
+    fn into(self) -> BufSerChildren {
+        childern_from_flat_vec(self)
     }
 }
 
@@ -260,14 +397,57 @@ where
     }
 }
 
-impl<E, C> TopTree for IntXTree<E, C>
+fn children_from_vec<E, C>(v: Vec<DisJTree<E, C>>) -> BufSerChildren
+where
+    E: NumberedEntity,
+    C: Collapsing,
+    for<'a> &'a CollT<C>: Into<u32>,
+    CollT<C>: Into<BufSerTree>,
+{
+    let mut tree_map = HashMap::new();
+    for djt in v {
+        let mut map = HashMap::new();
+        let k = (&djt).into();
+        for child in djt.0.children {
+            let ik = (&child).into();
+            map.insert(ik, child.into());
+        }
+        let children = Box::new(BufSerChildren::Nodes(map));
+        let tree = BufSerTree {
+            node: djt.0.node,
+            children,
+        };
+        tree_map.insert(k, tree);
+    }
+    BufSerChildren::Nodes(tree_map)
+}
+
+fn childern_from_flat_vec<E, C>(v: Vec<DisJTree<E, C>>) -> BufSerChildren
+where
+    E: NumberedEntity,
+    C: Collapsing,
+    Vec<CollT<C>>: Into<BufSerChildren>,
+{
+    let mut tree_map = HashMap::new();
+    for djt in v {
+        let k = (&djt).into();
+        let tree = BufSerTree {
+            node: djt.0.node,
+            children: Box::new(djt.0.children.into()),
+        };
+        tree_map.insert(k, tree);
+    }
+    BufSerChildren::Nodes(tree_map)
+}
+
+impl<E, C> NotLeafNode for IntXTree<E, C>
 where
     E: NumberedEntity,
     C: Collapsing,
 {
 }
 
-impl<E, C> TopTree for DisJTree<E, C>
+impl<E, C> NotLeafNode for DisJTree<E, C>
 where
     E: NumberedEntity,
     C: Collapsing,
@@ -370,7 +550,7 @@ impl<E, CE, GC> Updater<IntXTree<CE, GC>> for IntXTree<E, IntXTree<CE, GC>>
 where
     E: NumberedEntity,
     CE: NumberedEntity,
-    GC: Collapsing + TopTree,
+    GC: Collapsing + NotLeafNode,
 {
     fn update<T>(&mut self, other: &mut IntXTree<CE, GC>, other_reinitiator: T)
     where
@@ -407,7 +587,7 @@ impl<CE, E, GC> Updater<IntXTree<CE, GC>> for DisJTree<E, IntXTree<CE, GC>>
 where
     E: NumberedEntity,
     CE: NumberedEntity,
-    GC: Collapsing + TopTree,
+    GC: Collapsing + NotLeafNode,
 {
     fn update<T>(&mut self, other: &mut IntXTree<CE, GC>, other_reinitiator: T)
     where
@@ -416,6 +596,23 @@ where
         let node = other.collapse();
         other.reinstate_from(other_reinitiator);
         self.0.node.ingest_disjunct(&node.0.node); //this little .0 is the diff
+        self.0.children.push(node);
+    }
+}
+
+impl<CE, E, GC> Updater<DisJTree<CE, GC>> for DisJTree<E, DisJTree<CE, GC>>
+where
+    E: NumberedEntity,
+    CE: NumberedEntity,
+    GC: Collapsing,
+{
+    fn update<T>(&mut self, other: &mut DisJTree<CE, GC>, other_reinitiator: T)
+    where
+        DisJTree<CE, GC>: ReinstateFrom<T>,
+    {
+        let node = other.collapse();
+        other.reinstate_from(other_reinitiator);
+        self.0.node.ingest_disjunct(&node.0.node);
         self.0.children.push(node);
     }
 }
@@ -452,7 +649,7 @@ where
 impl<E, C> Collapsing for IntXTree<E, C>
 where
     E: NumberedEntity,
-    C: TopTree + Collapsing,
+    C: NotLeafNode + Collapsing,
 {
     type Collapsed = DisJTree<E, C>;
     fn collapse(&mut self) -> Self::Collapsed {
@@ -491,32 +688,36 @@ impl<C> FoldStackBase<C> for WorkTree {
 
 #[derive_tree_getter(Authors)]
 mod author_trees {
+
     use super::*;
-    pub type Tree1<'a> = PostRefIterWrap<'a, Authors, SourceWCoiByRef<'a>>;
-    pub type Tree2<'a> = PostRefIterWrap<'a, Authors, CitingCoSuToByRef<'a>>;
-    pub type Tree3<'a> = PostRefIterWrap<'a, Authors, SubfieldCountryInstSubfieldByRef<'a>>;
-    pub type Tree4<'a> = PostRefIterWrap<'a, Authors, SubfieldWCoiByRef<'a>>;
-    pub type Tree5<'a> = PostRefIterWrap<'a, Authors, RefSubCiSubTByRef<'a>>;
-    pub type Tree6<'a> = PostRefIterWrap<'a, Authors, CitingCoInstSuToByRef<'a>>;
-    pub type Tree7<'a> = PostRefIterWrap<'a, Authors, SourceSubfieldCiCoByRef<'a>>;
+    pub type Tree1<'a> = PostRefIterWrap<'a, MinDisJ<Authors>, SourceWCoiByRef<'a>>;
+    pub type Tree2<'a> = PostRefIterWrap<'a, MinIntX<Authors>, CitingCoSuToByRef<'a>>;
+    pub type Tree3<'a> =
+        PostRefIterWrap<'a, MinIntX<Authors>, SubfieldCountryInstSubfieldByRef<'a>>;
+    pub type Tree4<'a> = PostRefIterWrap<'a, MinIntX<Authors>, SubfieldWCoiByRef<'a>>;
+    pub type Tree5<'a> = PostRefIterWrap<'a, MinIntX<Authors>, RefSubCiSubTByRef<'a>>;
+    pub type Tree6<'a> = PostRefIterWrap<'a, MinIntX<Authors>, CitingCoInstSuToByRef<'a>>;
+    pub type Tree7<'a> = PostRefIterWrap<'a, MinDisJ<Authors>, SourceSubfieldCiCoByRef<'a>>;
     pub type Tree8<'a> = AuthorBestiePapers<'a>;
     pub type Tree9<'a> = AuthorBesties<'a>;
-    pub type Tree10<'a> = PostRefIterWrap<'a, Authors, CitingSuByRef<'a>>;
+    pub type Tree10<'a> = PostRefIterWrap<'a, MinIntX<Authors>, CitingSuByRef<'a>>;
 }
 
 #[derive_tree_getter(Institutions)]
 mod inst_trees {
     use super::*;
 
-    pub type Tree1<'a> = PostRefIterWrap<'a, Institutions, RefSubCiSubTByRef<'a>>;
-    pub type Tree2<'a> = PostRefIterWrap<'a, Institutions, CiteSubSourceTop<'a>>;
+    pub type Tree1<'a> = PostRefIterWrap<'a, MinIntX<Institutions>, RefSubCiSubTByRef<'a>>;
+    pub type Tree2<'a> = PostRefIterWrap<'a, MinIntX<Institutions>, CiteSubSourceTop<'a>>;
     pub type Tree3<'a> = WorkingAuthors<'a>;
-    pub type Tree4<'a> = PostRefIterWrap<'a, Institutions, CitingSourceCoSuByRef<'a>>;
-    pub type Tree5<'a> = PostRefIterWrap<'a, Institutions, QedInf<'a>>;
-    pub type Tree6<'a> = PostRefIterWrap<'a, Institutions, CitingCoInstSuToByRef<'a>>;
+    pub type Tree4<'a> = PostRefIterWrap<'a, MinIntX<Institutions>, CitingSourceCoSuByRef<'a>>;
+    pub type Tree5<'a> = PostRefIterWrap<'a, MinDisJ<Institutions>, QedInf<'a>>;
+    pub type Tree6<'a> = PostRefIterWrap<'a, MinIntX<Institutions>, CitingCoInstSuToByRef<'a>>;
     pub type Tree7<'a> = InstBesties<'a>;
-    pub type Tree8<'a> = PostRefIterWrap<'a, Institutions, SubfieldCountryInstSubfieldByRef<'a>>;
-    pub type Tree9<'a> = PostRefIterWrap<'a, Institutions, SubfieldCountryInstSourceByRef<'a>>;
+    pub type Tree8<'a> =
+        PostRefIterWrap<'a, MinIntX<Institutions>, SubfieldCountryInstSubfieldByRef<'a>>;
+    pub type Tree9<'a> =
+        PostRefIterWrap<'a, MinIntX<Institutions>, SubfieldCountryInstSourceByRef<'a>>;
 }
 
 #[derive_tree_getter(Countries)]
@@ -546,8 +747,8 @@ mod country_trees {
         ),
     >;
     pub type Tree4<'a> = CountryCiters<'a>;
-    pub type Tree5<'a> = PostRefIterWrap<'a, Countries, CitingSuByRef<'a>>;
-    pub type Tree6<'a> = PostRefIterWrap<'a, Countries, RefSuByRef<'a>>;
+    pub type Tree5<'a> = PostRefIterWrap<'a, MinIntX<Countries>, CitingSuByRef<'a>>;
+    pub type Tree6<'a> = PostRefIterWrap<'a, MinIntX<Countries>, RefSuByRef<'a>>;
 }
 
 #[derive_tree_getter(Sources)]
@@ -555,9 +756,9 @@ mod source_trees {
 
     use super::*;
 
-    pub type Tree1<'a> = PostRefIterWrap<'a, Sources, SubfieldCountryInstSourceByRef<'a>>;
-    pub type Tree2<'a> = PostRefIterWrap<'a, Sources, FullRefCountryInstSubfieldByRef<'a>>;
-    pub type Tree3<'a> = PostRefIterWrap<'a, Sources, CitingSourceCoSuByRef<'a>>;
+    pub type Tree1<'a> = PostRefIterWrap<'a, MinIntX<Sources>, SubfieldCountryInstSourceByRef<'a>>;
+    pub type Tree2<'a> = PostRefIterWrap<'a, MinIntX<Sources>, FullRefCountryInstSubfieldByRef<'a>>;
+    pub type Tree3<'a> = PostRefIterWrap<'a, MinIntX<Sources>, CitingSourceCoSuByRef<'a>>;
 }
 
 #[derive_tree_getter(Subfields)]
@@ -565,18 +766,18 @@ mod subfield_trees {
     use super::*;
 
     pub type Tree1<'a> = SubfieldRefTopicCountryInst<'a>;
-    pub type Tree2<'a> = PostRefIterWrap<'a, Subfields, FullRefSourceCountryInstByRef<'a>>;
-    pub type Tree3<'a> = PostRefIterWrap<'a, Subfields, CitingSuByRef<'a>>;
-    pub type Tree4<'a> = PostRefIterWrap<'a, Subfields, RefCountryByRef<'a>>;
-    pub type Tree5<'a> = PostRefIterWrap<'a, Subfields, CitingCoSuToByRef<'a>>;
+    pub type Tree2<'a> = PostRefIterWrap<'a, MinDisJ<Subfields>, FullRefSourceCountryInstByRef<'a>>;
+    pub type Tree3<'a> = PostRefIterWrap<'a, MinIntX<Subfields>, CitingSuByRef<'a>>;
+    pub type Tree4<'a> = PostRefIterWrap<'a, MinIntX<Subfields>, RefCountryByRef<'a>>;
+    pub type Tree5<'a> = PostRefIterWrap<'a, MinIntX<Subfields>, CitingCoSuToByRef<'a>>;
 }
 
 #[derive_tree_getter(HitPapers)]
 mod hit_paper_trees {
     use super::*;
 
-    pub type Tree1<'a> = PostRefIterWrap<'a, HitPapers, CitingCoSuToByRef<'a>>;
-    pub type Tree2<'a> = PostRefIterWrap<'a, HitPapers, CiteSubSourceTop<'a>>;
+    pub type Tree1<'a> = PostRefIterWrap<'a, MinIntX<HitPapers>, CitingCoSuToByRef<'a>>;
+    pub type Tree2<'a> = PostRefIterWrap<'a, MinIntX<HitPapers>, CiteSubSourceTop<'a>>;
 }
 
 pub mod test_tools {
@@ -606,7 +807,7 @@ pub mod test_tools {
         TSB: TestSB,
         TSB::SB: StackBasis,
     {
-        type Root = Institutions;
+        type Root = MinIntX<Institutions>;
         type StackBasis = TSB::SB;
         const PARTITIONS: usize = N_PERS;
         fn new(id: ET<Institutions>, _gets: &Getters) -> Self {

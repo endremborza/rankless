@@ -13,7 +13,7 @@ use std::{
 use crate::{
     components::{PartitionId, StackBasis, StackFr},
     ids::get_atts,
-    instances::{Collapsing, DisJTree, IntXTree, TopTree},
+    instances::{CollT, Collapsing, FoldStackBase},
     interfacing::Getters,
     io::{
         AnyQuery, AnyResponse, BoolCvp, BufSerTree, CacheKey, CacheMap, CacheValue,
@@ -29,7 +29,7 @@ use dmove::{
 use hashbrown::{hash_map::Entry, HashMap};
 use rankless_rs::{
     agg_tree::{HeapIterator, MinHeap, SortedRecord, Updater},
-    common::{read_buf_path, write_buf_path, NumberedEntity, NET},
+    common::{read_buf_path, write_buf_path, NET},
     steps::{
         a1_entity_mapping::{YearInterface, N_PERS, POSSIBLE_YEAR_FILTERS},
         derive_links1::WorkPeriods,
@@ -40,6 +40,17 @@ use serde::Serialize;
 const MAX_PARTITIONS: usize = 16;
 const MAX_BUFSIZE: usize = 512;
 const SHALLOW_LIMIT: u64 = 50_000; // size (bytes) of file
+
+pub type NetRoot<'a, Pit> = NET<IteratorRootEtype<'a, Pit>>;
+
+pub type PartIteratorStackElement<'a, Pit> =
+    <<Pit as PartitioningIterator<'a>>::Root as FoldStackBase<
+        <<Pit as PartitioningIterator<'a>>::StackBasis as StackBasis>::TopTree,
+    >>::StackElement;
+
+pub type IteratorRootEtype<'a, Pit> = <<Pit as PartitioningIterator<'a>>::Root as FoldStackBase<
+    <<Pit as PartitioningIterator<'a>>::StackBasis as StackBasis>::TopTree,
+>>::LevelEntity;
 
 type SrHeap<'a, S> = MinHeap<StackFr<<S as PartitioningIterator<'a>>::StackBasis>>;
 
@@ -64,23 +75,24 @@ pub struct TreeMakingParams<'a> {
 }
 
 pub trait CompleteTreeMaker<'a>: Sized + PartitioningIterator<'a> {
-    type CT: Collapsing + TopTree;
+    type CT: Collapsing;
     type SR: SortedRecord;
 }
 
 pub trait PartitioningIterator<'a>:
     Iterator<Item = (PartitionId, StackFr<Self::StackBasis>)> + Sized
 {
-    type Root: NumberedEntity;
+    type Root: FoldStackBase<<Self::StackBasis as StackBasis>::TopTree>;
     type StackBasis: StackBasis;
     const PARTITIONS: usize;
     const IS_SPEC: bool = true;
     const DEFAULT_PARTITION: u8 = 0;
-    fn new(id: NET<Self::Root>, gets: &'a Getters) -> Self;
+
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self;
 
     fn get_spec() -> TreeSpec {
         let breakdowns = Self::StackBasis::get_bds();
-        let root_type = Self::Root::NAME.to_string();
+        let root_type = IteratorRootEtype::<Self>::NAME.to_string();
         TreeSpec {
             root_type,
             breakdowns,
@@ -158,8 +170,9 @@ impl<'a> TreeMakingParams<'a> {
     where
         TMK: CompleteTreeMaker<'a>,
         StackFr<TMK::StackBasis>: Ord + Clone + GetRefWork + ByteFixArrayInterface,
-        DisJTree<TMK::Root, TMK::CT>: Into<BufSerTree>,
-        IntXTree<TMK::Root, TMK::CT>: Updater<TMK::CT>,
+        TMK::Root: FoldStackBase<TMK::CT>,
+        PartIteratorStackElement<'a, TMK>: Updater<TMK::CT>,
+        CollT<PartIteratorStackElement<'a, TMK>>: Into<BufSerTree>,
         TMK::StackBasis: StackBasis<TopTree = TMK::CT, SortedRec = TMK::SR>,
     {
         TreeMakingRun {
@@ -174,8 +187,9 @@ impl<'a, TMK> TreeMakingRun<'a, TMK>
 where
     TMK: CompleteTreeMaker<'a>,
     StackFr<TMK::StackBasis>: Ord + Clone + GetRefWork + ByteFixArrayInterface,
-    DisJTree<TMK::Root, TMK::CT>: Into<BufSerTree>,
-    IntXTree<TMK::Root, TMK::CT>: Updater<TMK::CT>,
+    TMK::Root: FoldStackBase<TMK::CT>,
+    PartIteratorStackElement<'a, TMK>: Updater<TMK::CT>,
+    CollT<PartIteratorStackElement<'a, TMK>>: Into<BufSerTree>,
     TMK::StackBasis: StackBasis<TopTree = TMK::CT, SortedRec = TMK::SR>,
 {
     pub fn run(mut self) {
@@ -243,7 +257,7 @@ where
 
     fn fill_calculate(&mut self) {
         let mut pids = Vec::new();
-        let et_id = NET::<TMK::Root>::from_usize(self.params.fq.ck.eid);
+        let et_id = NET::<IteratorRootEtype<TMK>>::from_usize(self.params.fq.ck.eid);
         if self.is_cacheable() {
             let full_path = self.params.state.full_cache_file_period(&self.params.fq, 0);
             create_dir_all(full_path.parent().unwrap()).unwrap();
@@ -260,9 +274,11 @@ where
             let heaps = self.fill_heaps(&et_id);
             let now = std::time::Instant::now();
             let mut roots = Vec::new();
+            // This could be abstracted to StackBasis StackBasis::fold_into
+            // as this is just an additional collapsed level based on years
             heaps.into_iter().take(TMK::PARTITIONS).for_each(|heap| {
                 let hither_o: Option<HeapIterator<TMK::SR>> = heap.into();
-                let mut part_root: IntXTree<TMK::Root, TMK::CT> = et_id.into();
+                let mut part_root: PartIteratorStackElement<'a, TMK> = et_id.into();
                 match hither_o {
                     Some(hither) => TMK::StackBasis::fold_into(&mut part_root, hither),
                     None => self.log(format!(
@@ -297,7 +313,7 @@ where
         set_and_notify(bcvp, Some(()))
     }
 
-    fn fill_heaps(&self, et_id: &NET<TMK::Root>) -> [SrHeap<'a, TMK>; MAX_PARTITIONS] {
+    fn fill_heaps(&self, et_id: &NetRoot<'a, TMK>) -> [SrHeap<'a, TMK>; MAX_PARTITIONS] {
         let mut heaps = [(); MAX_PARTITIONS].map(|_| SrHeap::<'a, TMK>::new());
         let now = std::time::Instant::now();
         let maker = TMK::new(*et_id, &self.params.state.gets);
@@ -316,10 +332,8 @@ where
 
     fn write_tmp_parts(&self) {
         let cache_root = tmp_part_cache_root(&self.params.fq.ck);
-        let piter = TMK::new(
-            NET::<TMK::Root>::from_usize(self.params.fq.ck.eid),
-            &self.params.state.gets,
-        );
+        let id = NET::<IteratorRootEtype<TMK>>::from_usize(self.params.fq.ck.eid);
+        let piter = TMK::new(id, &self.params.state.gets);
         let mut writers: Vec<BufWriter<File>> = YearInterface::iter()
             .map(|yp| {
                 BufWriter::new(
@@ -344,7 +358,7 @@ where
     }
 
     fn read_big_calculate(&mut self, pids: &mut Vec<u8>) {
-        let et_id = NET::<TMK::Root>::from_usize(self.params.fq.ck.eid);
+        let et_id = NetRoot::<'a, TMK>::from_usize(self.params.fq.ck.eid);
         let cache_root = tmp_part_cache_root(&self.params.fq.ck);
         let mut buf: [u8; MAX_BUFSIZE] = [0; MAX_BUFSIZE];
         let mut ser_tree_o = None;
@@ -360,7 +374,7 @@ where
                 year_heap.push(fr);
             }
             let hither_o: Option<HeapIterator<TMK::SR>> = year_heap.into();
-            let mut part_root: IntXTree<TMK::Root, TMK::CT> = et_id.into();
+            let mut part_root: PartIteratorStackElement<'a, TMK> = et_id.into();
             match hither_o {
                 Some(hither) => TMK::StackBasis::fold_into(&mut part_root, hither),
                 None => self.log(format!("nothing read at y{y} from {cache_fp:?}")),
@@ -502,7 +516,7 @@ where
 impl<'a, T> CompleteTreeMaker<'a> for T
 where
     T: PartitioningIterator<'a>,
-    <T::StackBasis as StackBasis>::TopTree: Collapsing + TopTree,
+    <T::StackBasis as StackBasis>::TopTree: Collapsing,
     <T::StackBasis as StackBasis>::SortedRec: SortedRecord,
 {
     type CT = <T::StackBasis as StackBasis>::TopTree;

@@ -421,7 +421,9 @@ pub fn impl_stack_basees(ts: TokenStream) -> TokenStream {
     let n: usize = ts.to_string().parse().unwrap();
     let mut imps = Vec::new();
     for i in 2..(n + 1) {
-        imps.push(derive_stack_basis(i).to_string());
+        for disj_at_start in 0..(i - 1) {
+            imps.push(derive_stack_basis(i, disj_at_start).to_string());
+        }
     }
     let out = imps.join("\n\n\n");
     // println!("{}", out);
@@ -485,8 +487,14 @@ pub fn derive_farr(item: TokenStream) -> TokenStream {
     panic!("not struct def");
 }
 
-fn derive_stack_basis(n: usize) -> TokenStream {
-    let mut in_types = (1..(n + 1)).map(get_gen_basis).collect::<Vec<String>>();
+fn derive_stack_basis(n: usize, disj_at_start: usize) -> TokenStream {
+    let mut in_types = Vec::new();
+    for i in 1..(disj_at_start + 1) {
+        in_types.push(get_gen_basis("DisJ", i));
+    }
+    for i in (disj_at_start + 1)..(n + 1) {
+        in_types.push(get_gen_basis("IntX", i));
+    }
     let all_gens = format!("<{}>", cjoin((1..(n + 1)).map(get_gen_set)));
     let all_gens_syn: syn::Generics = parse_str(&all_gens).unwrap();
 
@@ -509,7 +517,7 @@ fn derive_stack_basis(n: usize) -> TokenStream {
         let ei = n - i + 1;
         let child = &rev_stack_types[i - 1];
         fold_wheres.push(format!(
-            "{st}: From<NET<E{ei}>> + ReinstateFrom<NET<E{ei}>> + Updater<{child}>"
+            "{st}: From<NET<E{ei}>> + ReinstateFrom<NET<E{ei}>> + Updater<{child}> + NotLeafNode"
         ))
     }
 
@@ -580,8 +588,8 @@ fn get_gen_set(i: usize) -> String {
     format!("E{i}, const N{i}: usize, const S{i}: bool")
 }
 
-fn get_gen_basis(i: usize) -> String {
-    format!("IntX<E{i}, N{i}, S{i}>")
+fn get_gen_basis(prefix: &str, i: usize) -> String {
+    format!("{prefix}<E{i}, N{i}, S{i}>")
 }
 
 fn get_stack_type_elems(in_types: &Vec<String>) -> Vec<String> {
