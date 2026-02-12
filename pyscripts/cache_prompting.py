@@ -1,3 +1,6 @@
+import hashlib
+import json
+import re
 import sys
 import time
 from datetime import datetime
@@ -8,47 +11,103 @@ import requests
 from tqdm import tqdm
 
 addr = "http://127.0.0.1:3038"
-limit = 100_000
 year = 1950
 
 
-big_limit = 50_000_000 * 4  # (cites * depth)
-bins = [0, 1_500_00 * 4, 3_500_000 * 4, 12_000_000 * 4, big_limit]
-proc_counts = [16, 8, 4, 1]
-# 120G
-# proc_counts = [20, 10, 5, 1]
+class BatchRequester:
+    def __init__(self, min_citations=100_000, big_limit=80_000_000 * 4) -> None:
+        self.big_limit = big_limit
+        self.ext_dic = {}
+        specs, _ = get_specs_and_ys()
+        tid_df = pd.DataFrame(
+            [
+                {"rt": k, "tid": i, "bds": len(v["breakdowns"])}
+                for k, ss in specs.items()
+                for i, v in enumerate(ss)
+            ]
+        )
+        resdf = get_resdf(specs, 100)
+        self.urled_sample = (
+            resdf.merge(tid_df)
+            .sort_values(["citations", "bds"], ascending=False)
+            .assign(cut_basis=lambda df: df["citations"] * df["bds"])
+            .loc[lambda df: df["citations"] >= min_citations, :]
+            .rename(columns={"dm_id": "index"})
+            .pipe(add_be_urls, year)
+        )
+
+        self.big_urls = self.urled_sample.loc[
+            lambda df: df["cut_basis"] > big_limit, "url"
+        ].tolist()
+        self.resps = []
+
+    def do_rest(
+        self,
+        bins=[0, 1_500_00 * 4, 3_500_000 * 4, 12_000_000 * 4],
+        proc_counts=[16, 8, 4, 1],
+        sampling_kwargs={"frac": 1.0},
+    ):
+        for gid, gdf in tqdm(
+            self.urled_sample.assign(
+                ccut=lambda df: pd.cut(
+                    df["cut_basis"], [*bins, self.big_limit], labels=proc_counts
+                )
+            )
+            .loc[lambda df: df["ccut"].notna()]
+            .groupby("ccut", observed=True)
+        ):
+            suburls = gdf.sample(**sampling_kwargs)["url"].tolist()
+            self._run(suburls, gid)
+
+    def do_big_prep(self):
+        self._run([url + "&big_prep=true" for url in self.big_urls], 12)
+
+    def do_big_read(self):
+        self._run([url + "&big_read=true" for url in self.big_urls], 1)
+
+    def set_ext_dic(self, d):
+        self.ext_dic = d
+
+    def _run(self, urls, nprocs):
+        if nprocs == 1:
+            for url in tqdm(urls):
+                self.resps.append(resp_pipe(url) | self.ext_dic)
+        else:
+            print(f"starting {len(urls)} with {nprocs} procs at {datetime.now()}")
+            s = time.time()
+            pool = Pool(nprocs)
+            self.resps.extend([d | self.ext_dic for d in pool.map(resp_pipe, urls)])
+            pool.terminate()
+            pool.join()
+            print(f"done in {round((time.time() - s) / 60 / 60, 2)} hours")
 
 
-def parse_resp(resp):
-    return (resp.status_code, resp.elapsed.total_seconds(), len(resp.content), resp.url)
+def urlify(s):
+    return f"{addr}/v1/trees/{s['rt']}/{s['semanticId']}?tid={s['tid']}&year={year}"
+
+
+def parse_url(url):
+    resp = requests.get(url)
+    jsb = json.dumps(resp.json(), sort_keys=True).encode()
+    rt, sid, tid = re.findall(r"trees/(.*)/(.*)\?tid=(\d+)", url)[0]
+    return {
+        "time": resp.elapsed.total_seconds(),
+        "size": len(resp.content),
+        "md5": hashlib.md5(jsb).hexdigest(),
+        "sid": sid,
+        "tid": tid,
+        "eid": rt,
+    }
 
 
 def resp_pipe(url):
     for _ in range(15):
         try:
-            resp = requests.get(url)
-            return parse_resp(resp)
+            return parse_url(url)
         except:
             print(f"failed {url}")
             time.sleep(600)
-
-
-def para_extend(urls, nprocs, extendable):
-    if nprocs == 1:
-        for url in tqdm(urls):
-            extendable.append(resp_pipe(url))
-    else:
-        print(f"starting {len(urls)} with {nprocs} procs at {datetime.now()}")
-        s = time.time()
-        pool = Pool(nprocs)
-        extendable.extend(pool.map(resp_pipe, urls))
-        pool.terminate()
-        pool.join()
-        print(f"done in {round((time.time() - s) / 60 / 60, 2)} hours")
-
-
-def urlify(s):
-    return f"{addr}/v1/trees/{s['rt']}/{s['semanticId']}?tid={s['tid']}&year={year}"
+    return {"fail": url}
 
 
 def add_be_urls(df, year=1950):
@@ -91,49 +150,21 @@ if __name__ == "__main__":
     validate_all = "cache_validate_all" in sys.argv
     validate_big = "cache_validate_bigs" in sys.argv
 
-    specs, ys = get_specs_and_ys()
-    tid_df = pd.DataFrame(
-        [
-            {"rt": k, "tid": i, "bds": len(v["breakdowns"])}
-            for k, ss in specs.items()
-            for i, v in enumerate(ss)
-        ]
-    )
-    rcounts = {r: len(v) for r, v in specs.items()}
-    resdf = get_resdf(specs, 100)
-    sample = (
-        resdf.merge(tid_df)
-        .sort_values(["citations", "bds"], ascending=False)
-        .assign(cut_basis=lambda df: df["citations"] * df["bds"])
-        .loc[lambda df: df["citations"] >= limit, :]
-        .rename(columns={"dm_id": "index"})
-    )
+    runner = BatchRequester()
 
-    urled_sample = sample.pipe(add_be_urls, year)
-    big_urls = urled_sample.loc[lambda df: df["cut_basis"] > big_limit, "url"].tolist()
-
-    pexres = []
     if do_big_prep:
-        para_extend([url + "&big_prep=true" for url in big_urls], 12, pexres)
+        runner.do_big_prep()
 
-    resps = []
     if do_big_read:
-        para_extend([url + "&big_read=true" for url in big_urls], 1, resps)
+        runner.do_big_read()
 
     if validate_big:
-        validate(big_urls)
+        validate(runner.big_urls)
 
     if do_rest:
-        for gid, gdf in tqdm(
-            urled_sample.assign(
-                ccut=lambda df: pd.cut(df["cut_basis"], bins, labels=proc_counts)
-            )
-            .loc[lambda df: df["ccut"].notna()]
-            .groupby("ccut", observed=True)
-        ):
-            suburls = gdf.sample(frac=1.0)["url"].tolist()
-            para_extend(suburls, gid, resps)
-        validate(urled_sample.loc[lambda df: df["cut_basis"] <= big_limit, "url"])
+        validate(
+            runner.urled_sample.loc[lambda df: df["cut_basis"] <= big_limit, "url"]
+        )
 
     if validate_all:
-        validate(urled_sample["url"].tolist())
+        validate(runner.urled_sample["url"].tolist())
