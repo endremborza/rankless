@@ -25,6 +25,14 @@
 	let defaultLineOp = 0.35;
 	let nBreakPoints = 2;
 
+	const ORDERED_DOMAINS = [
+		'Physical Sciences',
+		'Health Sciences',
+		'Life Sciences',
+		'Social Sciences'
+	]; //domains needs to remap to this to keep colors in conventional order
+	const DOMAIN_ID_MAP = getDomainIdMap();
+
 	type Hierarchy = Record<
 		number,
 		{ name: string; children: Record<number, { name: string; children: number[] }> }
@@ -94,7 +102,7 @@
 	function getHier(sfi: string): [number, number, number] {
 		let sfin = parseInt(sfi);
 		let fieldId = subfields[sfin][1] as number;
-		let domainId = fields[fieldId][1] as number;
+		let domainId = domainIdRemapper(fields[fieldId][1] as number);
 		return [sfin, fieldId, domainId];
 	}
 
@@ -106,22 +114,38 @@
 		return getColorArr(getDomainRate(i));
 	}
 
+	function getDomainIdMap() {
+		let out: Record<number, number> = {};
+		for (let i = 0; i < domains.length; i++) {
+			let loadedName = domains[i];
+			let staticId = ORDERED_DOMAINS.indexOf(loadedName) + 1;
+			out[i] = staticId;
+		}
+		return out;
+	}
+
+	function domainIdRemapper(loadedId: number) {
+		return DOMAIN_ID_MAP[loadedId];
+	}
+
 	function getParentsObject(): Hierarchy {
 		const out: Hierarchy = {};
 		for (let i = 0; i < domains.length; i++) {
 			let name = domains[i];
 			if (name.length == 0) continue;
-			out[i] = { name, children: {} };
+			let remappedId = domainIdRemapper(i);
+			out[remappedId] = { name, children: {} };
 		}
 		for (let i = 0; i < fields.length; i++) {
-			let [name, parent] = fields[i] as [string, number];
+			let [name, domainId] = fields[i] as [string, number];
 			if (name.length == 0) continue;
+			let parent = domainIdRemapper(domainId);
 			out[parent].children[i] = { name, children: [] };
 		}
 		for (let i = 0; i < subfields.length; i++) {
 			let [name, parent] = subfields[i] as [string, number];
 			if (name.length == 0) continue;
-			let grandP = fields[parent][1] as number;
+			let grandP = domainIdRemapper(fields[parent][1] as number);
 			out[grandP].children[parent].children.push(i);
 		}
 		return out;
