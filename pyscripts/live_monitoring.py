@@ -67,7 +67,9 @@ def log_result(e=None, msg=None):
     if e is None:
         global LAST_SUCCESS
         LAST_SUCCESS = time.time()
+        print("success set to ", LAST_SUCCESS)
     else:
+        print("adding error ", type(e).__name__, msg)
         ERROR_DEQUE.append([dt.datetime.now().isoformat(), type(e).__name__, msg])
 
 
@@ -114,6 +116,13 @@ if __name__ == "__main__":
         if started:
             read_records_and_warn()
             time.sleep(WAIT_SECONDS)
+        else:
+            started = True
+            warn(
+                "Rankless monitoring",
+                f"just started with\n{get_success_dic()}",
+            )
+            continue
         with multiprocessing.Pool(1) as pool:
             try:
                 pool.map_async(validate, [2]).get(timeout=15)
@@ -139,9 +148,3 @@ if __name__ == "__main__":
             warn("Rankless running out of space", str(status_dic))
         if status_dic["memory_free_gb"] < WARN_AT_RAM:
             warn("Rankless running out of ram", str(status_dic))
-        if not started:
-            started = True
-            warn(
-                "Rankless monitoring",
-                f"just started with\n{status_dic}\n{get_success_dic()}",
-            )
