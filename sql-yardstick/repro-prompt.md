@@ -5,10 +5,11 @@ Based on an SQL schema, that is loaded to a Postgres db, I need a python script,
 
 ### Request:
 
-A request has 2 parameters
+A request has 3 parameters
 
 
 root_type: `RootType` (the type of entity the response tree is for, )
+root_id: int
 breakdowns: `list[{node:NodeType, sourceSide:bool}]` (the breakdowns that result in the tree)
 
 where the types correspond to 
