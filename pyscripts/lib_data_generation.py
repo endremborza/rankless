@@ -114,8 +114,6 @@ if __name__ == "__main__":
         .fillna(0)
     )
 
-    ordered_fs = [adj_m.sum().idxmin()]
-    ordered_fs = [adj_m.sum().idxmax()]
     der = 1.1
     ordered_fs = [adj_m.sum().sort_values().pipe(lambda s: s.index[int(len(s) / der)])]
     while len(ordered_fs) < len(adj_m.columns):
