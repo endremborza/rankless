@@ -13,6 +13,11 @@ from tqdm import tqdm
 addr = "http://127.0.0.1:3038"
 year = 1950
 
+SIDC = "semanticId"
+RTC = "rt"
+TIDC = "tid"
+BDSC = "bds"
+
 
 class BatchRequester:
     def __init__(self, min_citations=100_000, big_limit=80_000_000 * 4) -> None:
@@ -21,7 +26,7 @@ class BatchRequester:
         specs, _ = get_specs_and_ys()
         tid_df = pd.DataFrame(
             [
-                {"rt": k, "tid": i, "bds": len(v["breakdowns"])}
+                {RTC: k, TIDC: i, BDSC: len(v["breakdowns"])}
                 for k, ss in specs.items()
                 for i, v in enumerate(ss)
             ]
@@ -29,9 +34,9 @@ class BatchRequester:
         resdf = get_resdf(specs, 100)
         self.urled_sample = (
             resdf.merge(tid_df)
-            .sort_values(["citations", "bds"], ascending=False)
-            .assign(cut_basis=lambda df: df["citations"] * df["bds"])
             .loc[lambda df: df["citations"] >= min_citations, :]
+            .assign(cut_basis=lambda df: df["citations"] * df["bds"])
+            .sort_values("cut_basis", ascending=False)
             .rename(columns={"dm_id": "index"})
             .pipe(add_be_urls, year)
         )
@@ -68,6 +73,11 @@ class BatchRequester:
     def set_ext_dic(self, d):
         self.ext_dic = d
 
+    def get_resps_df(self):
+        return pd.DataFrame(self.resps).merge(
+            self.urled_sample.loc[:, [RTC, SIDC, TIDC, BDSC, "citations", "cut_basis"]]
+        )
+
     def _run(self, urls, nprocs):
         if nprocs == 1:
             for url in tqdm(urls):
@@ -83,7 +93,7 @@ class BatchRequester:
 
 
 def urlify(s):
-    return f"{addr}/v1/trees/{s['rt']}/{s['semanticId']}?tid={s['tid']}&year={year}"
+    return f"{addr}/v1/trees/{s[RTC]}/{s[SIDC]}?tid={s[TIDC]}&year={year}"
 
 
 def parse_url(url):
@@ -94,9 +104,9 @@ def parse_url(url):
         "time": resp.elapsed.total_seconds(),
         "size": len(resp.content),
         "md5": hashlib.md5(jsb).hexdigest(),
-        "sid": sid,
-        "tid": tid,
-        "eid": rt,
+        SIDC: sid,
+        TIDC: int(tid),
+        RTC: rt,
     }
 
 
@@ -147,6 +157,7 @@ if __name__ == "__main__":
     do_big_prep = "cache_big_prep" in sys.argv
     do_big_read = "cache_big_read" in sys.argv
     do_rest = "cache_do_rest" in sys.argv
+
     validate_all = "cache_validate_all" in sys.argv
     validate_big = "cache_validate_bigs" in sys.argv
 
@@ -162,9 +173,7 @@ if __name__ == "__main__":
         validate(runner.big_urls)
 
     if do_rest:
-        validate(
-            runner.urled_sample.loc[lambda df: df["cut_basis"] <= big_limit, "url"]
-        )
+        runner.do_rest()
 
     if validate_all:
         validate(runner.urled_sample["url"].tolist())

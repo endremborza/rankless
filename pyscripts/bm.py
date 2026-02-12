@@ -46,8 +46,8 @@ class Benchmarker:
         self.popen: Optional[subprocess.Popen] = None
         self.log_p = self.dump_root / "bm.log"
         self.log_h: Optional[BufferedWriter] = None
+        self.resps_act_df: Optional[pd.DataFrame] = None
         self.memory_recs = []
-        self.resp_recs = []
 
         self.log_dfs = []
         self.resp_dfs = []
@@ -66,9 +66,8 @@ class Benchmarker:
             stdout=self.log_h,
             stderr=subprocess.DEVNULL,
         )
-        print("waiting for setup")
         time.sleep(2)
-        for _ in tqdm(range(500)):
+        for _ in tqdm(range(500), desc="setup"):
             try:
                 specs = requests.get(spec_url)
                 assert specs.ok
@@ -82,14 +81,15 @@ class Benchmarker:
         self.add_memory_rec("started")
 
     def run_requests(self):
-        requester = BatchRequester()
-        qs = [0.6, 0.75, 0.9]
+        requester = BatchRequester(min_citations=1000, big_limit=40_000_000 * 4)
+        qs = [0.5, 0.70, 0.85, 0.95]
         bins = [0, *[requester.urled_sample["cut_basis"].quantile(q) for q in qs]]
-        proc_counts = [8, 4, 2, 1]
+        proc_counts = [12, 8, 4, 2, 1]
+        n = 250
         for run_id in range(1, 3):
             requester.set_ext_dic({"run": run_id})
-            requester.do_rest(bins, proc_counts, {"random_state": 742, "n": 5})
-        self.resp_recs = requester.resps
+            requester.do_rest(bins, proc_counts, {"random_state": 742, "n": n})
+        self.resps_act_df = requester.get_resps_df()
         self.add_memory_rec("post-requests")
 
     def close(self):
@@ -102,6 +102,7 @@ class Benchmarker:
         self.log_h.close()
         logs = self.log_p.read_text()
         setup = re.compile(r"set-up in (\d+)s").findall(logs)[0]
+        # authors(48941:1/Some(1950)): got roots in 0ms
         speed_recs = re.compile(r"([a-z]+)\((\d+)\:(\d+)/.*\)\: (.*) in (\d+)").findall(
             logs
         )
@@ -118,11 +119,11 @@ class Benchmarker:
         for _df, l in [
             (
                 pd.DataFrame(
-                    speed_recs, columns=["et", "eid", "tid", "proc", "dur"]
+                    speed_recs, columns=["rt", "dmid", "tid", "proc", "dur"]
                 ).assign(dur=lambda df: df["dur"].astype(int)),
                 self.log_dfs,
             ),
-            (pd.DataFrame(self.resp_recs), self.resp_dfs),
+            (pd.DataFrame(self.resps_act_df), self.resp_dfs),
             (pd.DataFrame(self.memory_recs), self.mem_dfs),
             (
                 pd.DataFrame(
@@ -162,33 +163,17 @@ class Benchmarker:
         log_df = pd.concat(self.log_dfs)
         time_aggers = ["mean", "median", p99, "max"]
         agg_df = (
-            resp_df.groupby(["branch", "eid", "run"])
+            resp_df.groupby(["branch", "run", "rt"])
             .agg({"time": time_aggers, "size": time_aggers})
             .pipe(
                 lambda df: pd.concat(
                     [
-                        df.loc[:, "time"]
-                        .astype(float)
-                        .pipe(lambda df: df * 1000)
+                        df.loc[:, "time"].pipe(_sub_agger, 1000),
+                        df.loc[:, "size"].pipe(_sub_agger, 0.0001),
+                        log_df.groupby(["branch", "rt", "proc"])["dur"]
+                        .agg(time_aggers)
                         .reset_index()
-                        .assign(
-                            run=lambda _df: _df["run"].apply(
-                                lambda e: f"resp_time_run{e}"
-                            )
-                        ),
-                        df.loc[:, "size"]
-                        .astype(float)
-                        .pipe(lambda df: df / 1000)
-                        .reset_index()
-                        .assign(
-                            run=lambda _df: _df["run"].apply(
-                                lambda e: f"resp_size_run{e}"
-                            )
-                        ),
-                        log_df.groupby(["branch", "et", "proc"])["dur"]
-                        .agg(["mean", "median", "max", p99])
-                        .reset_index()
-                        .rename(columns={"et": "eid", "proc": "run"}),
+                        .rename(columns={"proc": "run"}),
                     ]
                 )
             )
@@ -210,13 +195,23 @@ class Benchmarker:
         self.memory_recs.append(rec)
 
 
+def _sub_agger(df: pd.DataFrame, mul):
+    return (
+        df.astype(float)
+        .pipe(lambda df: df * mul)
+        .reset_index()
+        .assign(run=lambda _df: _df["run"].apply(lambda e: f"resp_time_run{e}"))
+    )
+
+
 def p99(s):
     return np.quantile(s, 0.99)
 
 
 def _assert_no_running_be():
     try:
-        requests.get(spec_url).json()
+        resp = requests.get(spec_url).json()
+        assert resp.ok
         raise RuntimeError("backend is running")
     except:
         pass
