@@ -47,6 +47,7 @@
 		let instOaId = `https://openalex.org/I${instOaNum}`;
 		title = paperResp.title;
 		doi = paperResp.doi;
+		y = paperResp.year;
 		abstract = paperResp.abstract;
 		let outAuthors = [];
 		localCount = 0;
