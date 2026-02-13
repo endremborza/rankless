@@ -262,11 +262,10 @@
 	}
 
 	function selectNode(path: tt.PathInTree) {
-		//console.log(commLog.join(';'));
 		const leafId = path[path.length - 1];
 		let parentToChange = tf.getNodeByPath(path.slice(0, path.length - 1), selectionState);
 		if (parentToChange?.children === undefined) {
-			return;
+			return false;
 		}
 		let isSelected = Object.keys(parentToChange.children).includes(leafId.toString());
 		if (isSelected) {
@@ -280,6 +279,7 @@
 		}
 		showPaper = false;
 		selectionState = selectionState;
+		return !isSelected;
 	}
 
 	function handleInteraction(event: CustomEvent<tt.TreeInteractionEvent>) {
@@ -293,8 +293,9 @@
 		} else if (action == 'disarm') {
 			armingPath = null;
 		} else {
-			highlightedPath = path;
-			selectNode(path);
+			if (selectNode(path)) {
+				highlightedPath = path;
+			}
 		}
 	}
 
