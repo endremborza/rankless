@@ -5,6 +5,7 @@
 	import { getSpecMetricObject, type SpecInfo } from '$lib/metric-calculation';
 	import WorkElem from './WorkElem.svelte';
 	import LoadingCircle from './LoadingCircle.svelte';
+	import { getCachedPaper } from '$lib/stores';
 
 	export let path: PathInTree;
 	export let treeSpec: TreeSpec;
@@ -13,6 +14,7 @@
 	export let attributeLabels: AttributeLabels;
 	export let rootNode: ResponseNode;
 	export let showPaper: boolean = false;
+	export let hasSpaceForPaper: boolean = false;
 	export let backupNames: Record<number, string> = {};
 
 	export let armingPath: number[] | null = null;
@@ -100,8 +102,15 @@
 		return nodes;
 	}
 
+	function showIfAllowed(hasSpace: boolean, leaf) {
+		if (hasSpace && getCachedPaper(leaf?.topSourceId) != undefined) {
+			showPaper = true;
+		}
+	}
+
 	$: pathNodes = getNodes(path || [], rootNode, attributeLabels, treeSpec);
 	$: leaf = pathNodes[pathNodes.length - 1];
+	$: showIfAllowed(hasSpaceForPaper, leaf);
 	$: expanded = showPaper && (leaf.sourceCount || 0) > 0;
 	$: citePrefix =
 		path.length > 0 && (leaf.linkCount || 0) > 0

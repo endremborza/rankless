@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import HoverI from './HoverI.svelte';
 	import HoverBlock from './HoverBlock.svelte';
-	import { setContext, getContext } from 'svelte';
+	import { getCachedPaper, setCachedPaper } from '$lib/stores';
 
 	export let workId: number;
 	export let citeText: string;
@@ -18,7 +18,7 @@
 	let authors: { name: string; link: string; isOfInst: boolean }[] = [];
 	let localCount = 0;
 
-	let paperResp: OaPaperResp = getContext(workId);
+	let paperResp: OaPaperResp = getCachedPaper(workId);
 
 	function getInstInfo(labels: AttributeLabels, id: number | undefined): [AttributeLabel, number] {
 		let instAtts: AttributeLabel = { name: '', oaId: -1, specBaseline: 0 };
@@ -63,7 +63,6 @@
 			outAuthors.push({ name: aship.name, link: aship.link, isOfInst });
 		}
 		authors = outAuthors.sort((l, r) => Number(r.isOfInst) - Number(l.isOfInst));
-		setContext(workId, paperResp);
 	}
 
 	onMount(() => {
@@ -95,6 +94,7 @@
 					abstract,
 					authors
 				};
+				setCachedPaper(workId, paperResp);
 			});
 		});
 	});
