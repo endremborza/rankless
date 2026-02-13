@@ -293,6 +293,7 @@
 		} else if (action == 'disarm') {
 			armingPath = null;
 		} else {
+			highlightedPath = path;
 			selectNode(path);
 		}
 	}
