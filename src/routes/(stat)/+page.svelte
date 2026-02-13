@@ -191,8 +191,6 @@
 
 	export let data;
 
-	let innerWidth: number;
-	let innerHeight: number;
 	let selectedQcRootId = 0;
 	let treeResp: tt.TreeResponse = data.treeResp;
 	let conf: tt.FullTreeConfig = data.conf;
@@ -280,12 +278,7 @@
 				<a class="button secondary" href="#spotlights">See examples</a>
 			</div>
 		</div>
-		<div
-			bind:clientWidth={innerWidth}
-			bind:clientHeight={innerHeight}
-			id="preview"
-			class="marged hero-art"
-		>
+		<div id="preview" class="marged hero-art">
 			{#if treeResp != undefined && scrollY != undefined}
 				<a in:fade out:fade href={tf.entToLink(conf)}>
 					<FullQc
@@ -298,11 +291,8 @@
 						attributeLabels={treeResp.atts}
 						completeTree={treeResp.tree}
 						treeSpecs={data.treeSpecs}
-						removeHighlightUnhover={false}
 						setUrl={false}
 						allowControls={false}
-						{innerHeight}
-						{innerWidth}
 					/>
 				</a>
 			{/if}

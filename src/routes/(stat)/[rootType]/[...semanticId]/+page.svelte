@@ -15,9 +15,6 @@
 	import AuthorNetwork from '$lib/components/AuthorNetwork.svelte';
 	// import PaperRainbow from '$lib/components/PaperRainbow.svelte';
 
-	let innerHeight: number;
-	let innerWidth: number;
-
 	export let data: {
 		view: tt.View;
 		conf: tt.FullTreeConfig;
@@ -117,7 +114,7 @@
 		</div>
 	{/if}
 	<div class="shadowy padded marged" id="tree">
-		<div bind:clientWidth={innerWidth} bind:clientHeight={innerHeight} id="tree-fixer">
+		<div id="tree-fixer">
 			<FullQc
 				rootName={data.view.name}
 				prefixText={data.prefixText}
@@ -125,11 +122,8 @@
 				conf={data.conf}
 				selectionState={data.selectionState}
 				treeSpecs={data.treeSpecs}
-				removeHighlightUnhover={false}
 				attributeLabels={data.atts}
 				completeTree={data.tree}
-				{innerHeight}
-				{innerWidth}
 				shallowed={data.shallowed}
 			/>
 		</div>

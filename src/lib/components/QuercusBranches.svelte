@@ -1,13 +1,6 @@
 <script lang="ts">
 	import { fade } from 'svelte/transition';
-	import type {
-		EmbeddedNode,
-		TreeInfo,
-		OffsetInfo,
-		AttributeLabels,
-		BareNode,
-		LevelOutSpec
-	} from '$lib/tree-types';
+	import type { EmbeddedNode, TreeInfo, OffsetInfo, LevelOutSpec } from '$lib/tree-types';
 	import { getNodeByPath } from '$lib/tree-functions';
 	import BrokenFittedText from './BrokenFittedText.svelte';
 	import { getColor } from '$lib/style-util';
@@ -16,9 +9,7 @@
 	import { createEventDispatcher } from 'svelte';
 	import { HIGH_OP, LOW_OP } from '$lib/constants';
 
-	export let attributeLabels: AttributeLabels;
 	export let visibleTreeInfo: TreeInfo;
-	export let selectionState: BareNode;
 	export let levelOutSpecs: LevelOutSpec[] = [];
 	export let pathInCompleteTree: number[] = [];
 
@@ -42,6 +33,8 @@
 	export let showText = true;
 	export let heightMultiplier: number = 1.2;
 	export let widthMultiplier: number = 0.6;
+
+	export let hoverDelay: number = 800;
 
 	//only internally passed
 	export let d2Offset = (treeD2 - rootD2) / 2 + treeD2Offset;
@@ -78,6 +71,23 @@
 
 	$: divisibleChildSpace =
 		treeD2 - childBaseSize * nChildLevelNodes - childrenInternalMargin * (nChildLevelNodes - 1);
+
+	let timeout: ReturnType<typeof setTimeout>;
+
+	function handleEnter(path: number[], x: number, y: number) {
+		return () => {
+			treeInteract(dispatch, 'arm', path, x, y)();
+			timeout = setTimeout(() => {
+				treeInteract(dispatch, 'highlight', path, x, y)();
+				treeInteract(dispatch, 'disarm', [], 0, 0)();
+			}, hoverDelay);
+		};
+	}
+
+	function handleLeave() {
+		clearTimeout(timeout);
+		treeInteract(dispatch, 'disarm', [], 0, 0)();
+	}
 
 	function parseChild(childId: number, childNode: EmbeddedNode) {
 		const cachedProps = {
@@ -203,23 +213,15 @@
 	<rect
 		{...hoverShape}
 		fill-opacity="0"
-		on:mouseover={treeInteract(
-			dispatch,
-			'highlight',
-			cachedProps.pathInCompleteTree,
-			hoverShape.x,
-			hoverShape.y
-		)}
-		on:mouseleave={treeInteract(dispatch, 'de-highlight', cachedProps.pathInCompleteTree, 0, 0)}
+		on:mouseover={handleEnter(cachedProps.pathInCompleteTree, hoverShape.x, hoverShape.y)}
+		on:mouseleave={handleLeave}
 		on:click={treeInteract(dispatch, 'toggle-select', cachedProps.pathInCompleteTree, 0, 0)}
 	/>
 
 	{#if childNode.children}
 		<svelte:self
 			{...cachedProps}
-			{attributeLabels}
 			{visibleTreeInfo}
-			{selectionState}
 			{levelOutSpecs}
 			{treeD2}
 			{treeD2Offset}
@@ -232,6 +234,7 @@
 			{heightMultiplier}
 			{widthMultiplier}
 			{showText}
+			{hoverDelay}
 			parentSideMargin={0}
 			on:ti
 		/>

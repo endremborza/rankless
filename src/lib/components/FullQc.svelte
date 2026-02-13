@@ -19,7 +19,6 @@
 
 	export let rootName = '';
 	export let prefixText = '';
-	export let removeHighlightUnhover = true;
 	export let setUrl = true;
 	export let allowControls = true;
 	export let shoPathLevelInfo = true;
@@ -28,8 +27,6 @@
 	export let selectionState: tt.BareNode = { children: {} };
 	export let completeTree: tt.ResponseNode;
 	export let attributeLabels: tt.AttributeLabels;
-	export let innerHeight: number;
-	export let innerWidth: number;
 	export let currentTreeSpec: tt.TreeSpec = treeSpecs.specs[conf.rootType][conf.treeId];
 	export let selectedBreakdowns = tf.getDefaultBreakdowns(currentTreeSpec);
 	export let isGlobalSpecialization = currentTreeSpec.defaultIsSpec;
@@ -37,23 +34,28 @@
 	let mounted = false;
 	let showPaper = false;
 
+	let containerWidth: number;
+	let containerHeight: number;
+
 	let breakdownMatchLevel: number = currentTreeSpec.breakdowns.length;
 
-	let highlightedPath: tt.PathInTree = [];
+	let highlightedPath: tt.PathInTree = []; //TODO: investigate why this is how it is
 	let highlightRoot = selectedQcRootId;
 	let selectedPath: tt.PathInTree = [];
 	let expandControlInd: number | undefined;
+	let armingPath: tt.PathInTree | null = null;
+	let highlightDelay = 1000;
 
 	let defaultChildD1Rate = 0.3;
 
 	let svgD2 = 100;
 	let rootD2 = 25;
 	let d2Offset = (svgD2 - rootD2) / 3.3;
-	let sideBarD2 = 0;
-	let controlPad = 0;
 
-	let d1TopPadRate = 9;
-	let d1BottomPadRate = 20;
+	let sideBarD2 = 0;
+
+	let d1TopPadRate = 8;
+	let d1BottomPadRate = 8;
 	let headerRate = 11;
 	let overHangRate = 0.05;
 
@@ -90,9 +92,9 @@
 	});
 
 	$: childD1Rate = expandControlInd == undefined ? defaultChildD1Rate : 0.7;
-	$: svgD1 = (innerHeight / innerWidth) * svgD2;
-	$: d1ToPixels = (d1: number) => (d1 * innerHeight) / svgD1;
-	$: d2ToPixels = (d2: number) => (d2 * innerWidth) / svgD2;
+	$: svgD1 = (containerHeight / containerWidth) * svgD2;
+	$: d1ToPixels = (d1: number) => (d1 * containerHeight) / svgD1;
+	$: d2ToPixels = (d2: number) => (d2 * containerWidth) / svgD2;
 	$: dBasedStyle = getStyleMaker(d1ToPixels, d2ToPixels);
 	$: d1PadSize = (d1TopPadRate * svgD1) / 100;
 
@@ -286,14 +288,13 @@
 		if (action == 'highlight') {
 			highlightedPath = path;
 			showPaper = false;
-			return;
-		} else if (action == 'de-highlight') {
-			if (removeHighlightUnhover) {
-				highlightedPath = [];
-			}
-			return;
+		} else if (action == 'arm') {
+			armingPath = path;
+		} else if (action == 'disarm') {
+			armingPath = null;
+		} else {
+			selectNode(path);
 		}
-		selectNode(path);
 	}
 
 	function getStyleMaker(d1Parser: (n: number) => number, d2Parser: (n: number) => number) {
@@ -313,137 +314,147 @@
 	}
 </script>
 
-{#if !Object.values(svgShape).includes(NaN) && !Object.values(svgShape).some((e) => e === undefined)}
-	<svg
-		viewBox="{svgShape.x} {svgShape.y} {svgShape.width} {svgShape.height}"
-		xmlns="http://www.w3.org/2000/svg"
-	>
-		<QuercusBranches
-			branchReachBack={(svgD1 * headerRate) / 100}
-			d2Offset={d2Offset + sideBarD2}
-			{rootD2}
-			{attributeLabels}
-			{visibleTreeInfo}
-			{selectionState}
-			{levelOutSpecs}
-			treeD2={svgD2 - sideBarD2}
-			treeD2Offset={sideBarD2}
-			{childD1Rate}
-			{overHangRate}
-			childBaseSize={minimumChildWidth}
-			on:ti={handleInteraction}
-		/>
-		<rect id="qc-header" {...headerShape} rx="0.4" />
-
-		<BrokenFittedText
-			height={headerShape.height * 0.7}
-			width={headerShape.width * 0.8}
-			text={rootName || ''}
-			anchor={'center'}
-			bottomAligned={false}
-			x={headerShape.x + headerShape.width / 2}
-			y={headerShape.y + headerShape.height * 0.75}
-			allowRotation={false}
-		/>
-	</svg>
-
+<div class="full-qc-container">
 	<div
-		class="floater sentence-container"
-		style={dBasedStyle({ top: 0 }, { left: d2Offset, width: rootD2 }, { height: d1TopPadRate })}
+		class="figure-container"
+		bind:clientWidth={containerWidth}
+		bind:clientHeight={containerHeight}
 	>
-		<h3 id="sentence-starter">{prefixText}</h3>
-	</div>
-
-	{#if allowControls}
-		<div
-			class="floater"
-			style={dBasedStyle(
-				{ top: d1PadSize + headerShape.height * 0.5, height: 0 },
-				{ left: controlPad, width: d2Offset * 0.88 },
-				{}
-			)}
-		>
-			<NumberSlider bind:value={controlSpecs.globalLimit} min={1} max={maxOnOneLevel} />
-		</div>
-		<div
-			class="floater"
-			id="right-control"
-			style={dBasedStyle(
-				{ top: d1PadSize, height: headerShape.height },
-				{ right: controlPad, width: 100 - headerShape.width - d2Offset - controlPad },
-				{}
-			)}
-		>
-			<HeadControl
-				bind:hoverToggle={showSpecInfoHover}
-				bind:checked={isGlobalSpecialization}
-				text={'Specialization'}
-			/>
-			<HeadControl
-				bind:hoverToggle={showFilterHover}
-				interactText={false}
-				checked={false}
-				text={`since`}
+		{#if !Object.values(svgShape).includes(NaN) && !Object.values(svgShape).some((e) => e === undefined)}
+			<svg
+				viewBox="{svgShape.x} {svgShape.y} {svgShape.width} {svgShape.height}"
+				xmlns="http://www.w3.org/2000/svg"
 			>
-				<select bind:value={conf.year} aria-label="Since year"
-					>{#each treeSpecs.yearBreaks as y}
-						<option>{y}</option>
-					{/each}
-				</select>
-			</HeadControl>
+				<QuercusBranches
+					branchReachBack={(svgD1 * headerRate) / 100}
+					d2Offset={d2Offset + sideBarD2}
+					{rootD2}
+					{visibleTreeInfo}
+					{levelOutSpecs}
+					hoverDelay={highlightDelay}
+					treeD2={svgD2 - sideBarD2}
+					treeD2Offset={sideBarD2}
+					{childD1Rate}
+					{overHangRate}
+					childBaseSize={minimumChildWidth}
+					on:ti={handleInteraction}
+				/>
+				<rect id="qc-header" {...headerShape} rx="0.4" />
+
+				<BrokenFittedText
+					height={headerShape.height * 0.7}
+					width={headerShape.width * 0.8}
+					text={rootName || ''}
+					anchor={'center'}
+					bottomAligned={false}
+					x={headerShape.x + headerShape.width / 2}
+					y={headerShape.y + headerShape.height * 0.75}
+					allowRotation={false}
+				/>
+			</svg>
+
+			<div
+				class="floater sentence-container"
+				style={dBasedStyle({ top: 0 }, { left: d2Offset, width: rootD2 }, { height: d1TopPadRate })}
+			>
+				<h3>{prefixText}</h3>
+			</div>
+
+			{#if allowControls}
+				<div
+					class="floater"
+					style={dBasedStyle(
+						{ top: d1PadSize + headerShape.height * 0.5, height: 0 },
+						{ left: 0, width: d2Offset * 0.88 },
+						{}
+					)}
+				>
+					<NumberSlider bind:value={controlSpecs.globalLimit} min={1} max={maxOnOneLevel} />
+				</div>
+				<div
+					class="floater"
+					id="right-control"
+					style={dBasedStyle(
+						{ top: d1PadSize, height: headerShape.height },
+						{ right: 0, width: 100 - headerShape.width - d2Offset },
+						{}
+					)}
+				>
+					<HeadControl
+						bind:hoverToggle={showSpecInfoHover}
+						bind:checked={isGlobalSpecialization}
+						text={'Specialization'}
+					/>
+					<HeadControl
+						bind:hoverToggle={showFilterHover}
+						interactText={false}
+						checked={false}
+						text={`since`}
+					>
+						<select bind:value={conf.year} aria-label="Since year"
+							>{#each treeSpecs.yearBreaks as y}
+								<option>{y}</option>
+							{/each}
+						</select>
+					</HeadControl>
+				</div>
+			{/if}
+			{#each levelOutSpecs || [] as levelSpec, index}
+				<MidpathBar
+					{index}
+					{levelSpec}
+					d2OffsetCenter={d2Offset + rootD2 / 2}
+					bind:selectedBreakdowns
+					totalD1Offset={headerShape.height + d1PadSize}
+					{dBasedStyle}
+					rootType={conf.rootType}
+					{allowControls}
+				/>
+			{/each}
+			<HoverBlock
+				show={showSpecInfoHover}
+				style={dBasedStyle(
+					{ top: d1PadSize + headerShape.height },
+					{ left: d2Offset + headerShape.width * 0.2, width: headerShape.width * 1.6 },
+					{}
+				)}
+			>
+				Specialization is calculated using the expected prevelance of a country, source, or concept,
+				and comparing it to the one present in the current breakdown flow. If it is switched off,
+				the sheer volume of citations is considered.
+			</HoverBlock>
+
+			<HoverBlock
+				show={showFilterHover}
+				style={dBasedStyle(
+					{ top: d1PadSize + headerShape.height * 1.1 },
+					{ left: d2Offset + headerShape.width * 0.2, width: headerShape.width * 1.6 },
+					{}
+				)}
+			>
+				Filter the underlying dataset to papers published in or after {conf.year}. This includes {pluralize(
+					'paper',
+					completeTree.sourceCount
+				)} making up this tree, where all necessary information is available to create this breakdown.
+			</HoverBlock>
+		{/if}
+	</div>
+	{#if shoPathLevelInfo}
+		<div class="infobox-container">
+			<PathLevelInfoBox
+				path={highlightedPath}
+				rootNode={completeTree}
+				{rootName}
+				treeSpec={currentTreeSpec}
+				rootId={highlightRoot}
+				{attributeLabels}
+				delay={highlightDelay}
+				{armingPath}
+				bind:showPaper
+			/>
 		</div>
 	{/if}
-	{#each levelOutSpecs || [] as levelSpec, index}
-		<MidpathBar
-			{index}
-			{levelSpec}
-			d2OffsetCenter={d2Offset + rootD2 / 2}
-			bind:selectedBreakdowns
-			totalD1Offset={headerShape.height + d1PadSize}
-			{dBasedStyle}
-			rootType={conf.rootType}
-			{allowControls}
-		/>
-	{/each}
-	{#if shoPathLevelInfo}
-		<PathLevelInfoBox
-			path={highlightedPath}
-			rootNode={completeTree}
-			initHeight={(10 / 100) * innerHeight}
-			{rootName}
-			treeSpec={currentTreeSpec}
-			rootId={highlightRoot}
-			{attributeLabels}
-			bind:showPaper
-		/>
-	{/if}
-	<HoverBlock
-		show={showSpecInfoHover}
-		style={dBasedStyle(
-			{ top: d1PadSize + headerShape.height },
-			{ left: d2Offset + headerShape.width * 0.2, width: headerShape.width * 1.6 },
-			{}
-		)}
-	>
-		Specialization is calculated using the expected prevelance of a country, source, or concept, and
-		comparing it to the one present in the current breakdown flow. If it is switched off, the sheer
-		volume of citations is considered.
-	</HoverBlock>
-
-	<HoverBlock
-		show={showFilterHover}
-		style={dBasedStyle(
-			{ top: d1PadSize + headerShape.height * 1.1 },
-			{ left: d2Offset + headerShape.width * 0.2, width: headerShape.width * 1.6 },
-			{}
-		)}
-	>
-		Filter the underlying dataset to papers published in or after {conf.year}. This includes {pluralize(
-			'paper',
-			completeTree.sourceCount
-		)} making up this tree, where all necessary information is available to create this breakdown.
-	</HoverBlock>
-{/if}
+</div>
 
 <style>
 	#qc-header {
@@ -457,10 +468,6 @@
 		align-items: end;
 	}
 
-	#sentence-starter {
-		text-align: center;
-	}
-
 	.sentence-container {
 		display: flex;
 		justify-content: center;
@@ -471,8 +478,49 @@
 		position: absolute;
 	}
 
+	.full-qc-container {
+		display: flex;
+		gap: var(--unified-padding);
+		flex-direction: column;
+		width: 100%;
+		height: 100%;
+	}
+
+	.figure-container {
+		align-self: stretch;
+		flex: 10;
+		min-height: 0;
+	}
+
+	.infobox-container {
+		flex: 2;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: end;
+	}
+
+	@media (min-width: 900px) {
+		.full-qc-container {
+			flex-direction: row;
+		}
+
+		.infobox-container {
+			order: -1;
+			flex: 3 0 0;
+			justify-content: center;
+			max-width: 25%;
+			min-width: 25%;
+		}
+
+		.figure-container {
+			flex: 9 0 0;
+		}
+	}
+
 	svg {
 		width: 100%;
 		height: 100%;
+		display: block;
 	}
 </style>

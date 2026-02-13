@@ -127,7 +127,7 @@ export type EmbeddedNode = TreeGen<{
 
 export type OffsetInfo = { rank: number; weight: number };
 
-export type InteractionKind = 'toggle-select' | 'highlight' | 'de-highlight';
+export type InteractionKind = 'toggle-select' | 'highlight' | 'arm' | 'disarm';
 type SizeBaseKind = 'volume' | 'specialization';
 
 export type TreeInteractionEvent = {

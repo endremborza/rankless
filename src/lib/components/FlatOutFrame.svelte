@@ -122,7 +122,6 @@
 			<PathLevelInfoBox
 				path={infoPath}
 				rootNode={resp.tree}
-				initHeight={paperHeight}
 				{rootName}
 				treeSpec={currentTreeSpec}
 				{rootId}

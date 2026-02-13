@@ -85,9 +85,7 @@
 		{branchReachBack}
 		{d2Offset}
 		{rootD2}
-		{attributeLabels}
 		{visibleTreeInfo}
-		{selectionState}
 		{levelOutSpecs}
 		{treeD2}
 		{treeD2Offset}

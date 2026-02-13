@@ -1,19 +1,22 @@
 <script lang="ts">
 	import type { AttributeLabels, PathInTree, TreeSpec, ResponseNode } from '$lib/tree-types';
 	import { nameById, UNKNOWN_NAME } from '$lib/tree-functions';
-	import { formatNumber, pluralize, getSpecDesc } from '$lib/text-format-util';
+	import { pluralize, getSpecDesc } from '$lib/text-format-util';
 	import { getSpecMetricObject, type SpecInfo } from '$lib/metric-calculation';
 	import WorkElem from './WorkElem.svelte';
+	import LoadingCircle from './LoadingCircle.svelte';
 
 	export let path: PathInTree;
 	export let treeSpec: TreeSpec;
 	export let rootId: number;
-	export let initHeight: number;
 	export let rootName: string;
 	export let attributeLabels: AttributeLabels;
 	export let rootNode: ResponseNode;
 	export let showPaper: boolean = false;
 	export let backupNames: Record<number, string> = {};
+
+	export let armingPath: number[] | null = null;
+	export let delay = 1200;
 
 	let instId: number | undefined;
 	let citeText = '';
@@ -109,17 +112,18 @@
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-mouse-events-have-key-events -->
 <div
-	class="hoverover shadowy clickable growing"
-	id="plibox-container"
+	class="plibox-container shadowy clickable"
 	role="none"
 	tabindex="-1"
-	style="height: {initHeight * (expanded ? 4 : 1)}px"
 	on:click={() => {
-		showPaper = !showPaper;
+		showPaper = true;
 	}}
 >
+	<span class="load-indicator">
+		<LoadingCircle isArming={armingPath != null} {delay} />
+	</span>
 	{#if path != undefined && leaf != undefined}
-		<div id="box-container" style="height: {initHeight}px;">
+		<div class="pli-basics-container padded">
 			<h2 class="hover-xl">{leaf.name}</h2>
 			<p class="hover-l">
 				{#if path.length > 0 && (leaf.linkCount || 0) > 0}
@@ -132,9 +136,11 @@
 				{pluralize(`${citePrefix}citation`, leaf.linkCount || 0)}
 			</p>
 		</div>
-		<div class="growing" style="height: {initHeight * (expanded ? 3 : 0)}px;">
+		<div>
 			{#if expanded}
 				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} />
+			{:else}
+				<p><button>Find Top Paper</button></p>
 			{/if}
 		</div>
 	{/if}
@@ -144,24 +150,35 @@
 	p {
 		text-align: center;
 		font-weight: 600;
+		margin-bottom: 0px;
+		margin-top: 0px;
 	}
 
-	.growing {
-		transition: height 350ms ease-in-out;
-	}
-
-	#plibox-container {
+	.plibox-container {
+		position: relative;
 		width: 100%;
-		bottom: 0px;
+		height: 100%;
 	}
 
-	#box-container {
+	.pli-basics-container {
 		display: flex;
 		gap: var(--unified-padding);
 		flex-direction: row;
 		justify-content: space-between;
 		align-items: center;
-		padding-left: var(--unified-padding);
-		padding-right: var(--unified-padding);
+		width: 100%;
+	}
+	.load-indicator {
+		position: absolute;
+		top: var(--unified-padding);
+		right: var(--unified-padding);
+	}
+	@media (min-width: 900px) {
+		.pli-basics-container {
+			flex-direction: column;
+		}
+		h2 {
+			text-align: center;
+		}
 	}
 </style>
