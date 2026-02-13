@@ -152,7 +152,7 @@
 		</footnote>
 	</div>
 {:else}
-	<p>Loading...</p>
+	<div class="loading-sign"><h3>Loading...</h3></div>
 {/if}
 
 <style>
@@ -187,6 +187,12 @@
 	footnote {
 		width: 100%;
 		text-align: right;
+	}
+
+	.loading-sign {
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 
 	#main {
