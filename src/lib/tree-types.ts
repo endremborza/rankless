@@ -160,3 +160,11 @@ export type LevelOutSpec = {
 	isVisible: boolean;
 	levelOptions: string[];
 };
+
+export type OaPaperResp = {
+	title: string;
+	doi: string;
+	abstract: string;
+	year: number:
+	authors: { name: string; link: string; institutions: string[] }[] = [];
+};

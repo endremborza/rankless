@@ -1,8 +1,9 @@
 <script lang="ts">
-	import type { AttributeLabels, AttributeLabel } from '$lib/tree-types';
+	import type { AttributeLabels, AttributeLabel, OaPaperResp } from '$lib/tree-types';
 	import { onMount } from 'svelte';
 	import HoverI from './HoverI.svelte';
 	import HoverBlock from './HoverBlock.svelte';
+	import { setContext, getContext } from 'svelte';
 
 	export let workId: number;
 	export let citeText: string;
@@ -16,6 +17,8 @@
 	let y = 0;
 	let authors: { name: string; link: string; isOfInst: boolean }[] = [];
 	let localCount = 0;
+
+	let paperResp: OaPaperResp;
 
 	function getInstInfo(labels: AttributeLabels, id: number | undefined): [AttributeLabel, number] {
 		let instAtts: AttributeLabel = { name: '', oaId: -1, specBaseline: 0 };
@@ -34,41 +37,71 @@
 	$: [instAtts, instOaNum] = getInstInfo(attributeLabels, instId);
 	$: instName = instAtts.name || '';
 	$: fullInstName = instName.length > 50 ? 'affiliated' : `from ${instName}`;
-	let oaLink = `https://openalex.org/works/W${workId}`;
+	$: oaLink = `https://openalex.org/works/W${workId}`;
 	$: href = doi.length > 0 ? doi : oaLink;
+
+	$: parsePaperResp(paperResp);
+
+	function parsePaperResp(paperResp: OaPaperResp) {
+		if (paperResp == undefined) return;
+		let instOaId = `https://openalex.org/I${instOaNum}`;
+		title = paperResp.title;
+		doi = paperResp.doi;
+		abstract = paperResp.abstract;
+		let outAuthors = [];
+		localCount = 0;
+		for (let aship of paperResp.authors) {
+			let isOfInst = false;
+			for (let aff of aship.institutions || []) {
+				if (aff == instOaId) {
+					isOfInst = true;
+					localCount = localCount + 1;
+					break;
+				}
+			}
+			outAuthors.push({ name: aship.name, link: aship.link, isOfInst });
+		}
+		authors = outAuthors.sort((l, r) => Number(r.isOfInst) - Number(l.isOfInst));
+	}
 
 	onMount(() => {
 		if (workId == 0) return;
 		let oaUrl = `https://api.openalex.org/works/W${workId}?select=publication_year,title,doi,authorships,abstract_inverted_index`;
-		let instOaId = `https://openalex.org/I${instOaNum}`;
-		fetch(oaUrl).then((resp) => {
-			resp.json().then((o) => {
-				doi = o.doi || '';
-				y = o.publication_year;
-				let aWords = [];
-				for (const [word, idxs] of Object.entries(o.abstract_inverted_index || {})) {
-					for (const i of idxs) {
-						aWords[i] = word;
-					}
-				}
-				abstract = aWords.join(' ');
-				for (let aship of o.authorships) {
-					let isOfInst = false;
-					for (let aff of aship.institutions || []) {
-						if (aff.id == instOaId) {
-							isOfInst = true;
-							localCount = localCount + 1;
-							break;
+		let cachedPaper = getContext(workId);
+		if (cachedPaper != undefined) {
+			paperResp = cachedPaper;
+		} else {
+			fetch(oaUrl).then((resp) => {
+				resp.json().then((o) => {
+					let aWords = [];
+					for (const [word, idxs] of Object.entries(o.abstract_inverted_index || {})) {
+						for (const i of idxs) {
+							aWords[i] = word;
 						}
 					}
-					let lElems = aship.author.id.split('/');
-					let link = `/oa-id/${lElems[lElems.length - 1]}`;
-					authors.push({ name: aship.author.display_name, link, isOfInst });
-				}
-				authors = authors.sort((l, r) => Number(r.isOfInst) - Number(l.isOfInst));
-				title = o.title;
+					let abstract = aWords.join(' ');
+					let authors = [];
+					for (let aship of o.authorships) {
+						let isOfInst = false;
+						let institutions = [];
+						for (let aff of aship.institutions || []) {
+							institutions.push(aff.id);
+						}
+						let lElems = aship.author.id.split('/');
+						let link = `/oa-id/${lElems[lElems.length - 1]}`;
+						authors.push({ name: aship.author.display_name, link, institutions });
+					}
+					paperResp = {
+						title: o.title,
+						doi: o.doi || '',
+						year: o.publication_year,
+						abstract,
+						authors
+					};
+					setContext(workId, paperResp);
+				});
 			});
-		});
+		}
 	});
 </script>
 
