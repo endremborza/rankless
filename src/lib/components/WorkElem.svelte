@@ -18,7 +18,7 @@
 	let authors: { name: string; link: string; isOfInst: boolean }[] = [];
 	let localCount = 0;
 
-	let paperResp: OaPaperResp;
+	let paperResp: OaPaperResp = getContext(workId);
 
 	function getInstInfo(labels: AttributeLabels, id: number | undefined): [AttributeLabel, number] {
 		let instAtts: AttributeLabel = { name: '', oaId: -1, specBaseline: 0 };
@@ -62,46 +62,40 @@
 			outAuthors.push({ name: aship.name, link: aship.link, isOfInst });
 		}
 		authors = outAuthors.sort((l, r) => Number(r.isOfInst) - Number(l.isOfInst));
+		setContext(workId, paperResp);
 	}
 
 	onMount(() => {
-		if (workId == 0) return;
+		if (workId == 0 || paperResp != undefined) return;
 		let oaUrl = `https://api.openalex.org/works/W${workId}?select=publication_year,title,doi,authorships,abstract_inverted_index`;
-		let cachedPaper = getContext(workId);
-		if (cachedPaper != undefined) {
-			paperResp = cachedPaper;
-		} else {
-			fetch(oaUrl).then((resp) => {
-				resp.json().then((o) => {
-					let aWords = [];
-					for (const [word, idxs] of Object.entries(o.abstract_inverted_index || {})) {
-						for (const i of idxs) {
-							aWords[i] = word;
-						}
+		fetch(oaUrl).then((resp) => {
+			resp.json().then((o) => {
+				let aWords = [];
+				for (const [word, idxs] of Object.entries(o.abstract_inverted_index || {})) {
+					for (const i of idxs) {
+						aWords[i] = word;
 					}
-					let abstract = aWords.join(' ');
-					let authors = [];
-					for (let aship of o.authorships) {
-						let isOfInst = false;
-						let institutions = [];
-						for (let aff of aship.institutions || []) {
-							institutions.push(aff.id);
-						}
-						let lElems = aship.author.id.split('/');
-						let link = `/oa-id/${lElems[lElems.length - 1]}`;
-						authors.push({ name: aship.author.display_name, link, institutions });
+				}
+				let abstract = aWords.join(' ');
+				let authors = [];
+				for (let aship of o.authorships) {
+					let institutions = [];
+					for (let aff of aship.institutions || []) {
+						institutions.push(aff.id);
 					}
-					paperResp = {
-						title: o.title,
-						doi: o.doi || '',
-						year: o.publication_year,
-						abstract,
-						authors
-					};
-					setContext(workId, paperResp);
-				});
+					let lElems = aship.author.id.split('/');
+					let link = `/oa-id/${lElems[lElems.length - 1]}`;
+					authors.push({ name: aship.author.display_name, link, institutions });
+				}
+				paperResp = {
+					title: o.title,
+					doi: o.doi || '',
+					year: o.publication_year,
+					abstract,
+					authors
+				};
 			});
-		}
+		});
 	});
 </script>
 
