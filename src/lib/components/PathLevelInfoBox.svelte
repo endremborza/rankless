@@ -134,18 +134,18 @@
 	{#if path != undefined && leaf != undefined}
 		<div class="pli-basics-container padded">
 			<h2 class="hover-xl">{leaf.name}</h2>
-			<p class="hover-l">
+			<p class="hover-m">
 				{#if path.length > 0 && (leaf.linkCount || 0) > 0}
 					{getSpecDesc(leaf.spec.specMetric)} Specialization
 				{/if}
 			</p>
-			<p class="hover-l">
+			<p class="hover-m">
 				{pluralize('paper', leaf.sourceCount || 0)}
 				receiving
 				{pluralize(`${citePrefix}citation`, leaf.linkCount || 0)}
 			</p>
 		</div>
-		<div>
+		<div class="paper-container">
 			{#if expanded}
 				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} />
 			{:else}
@@ -158,30 +158,41 @@
 <style>
 	p {
 		text-align: center;
-		font-weight: 600;
-		margin-bottom: 0px;
-		margin-top: 0px;
+		margin: 0px;
+	}
+
+	h2 {
+		margin-bottom: calc(var(--unified-padding) / 2);
 	}
 
 	.plibox-container {
 		position: relative;
 		width: 100%;
 		height: 100%;
+		display: flex;
+		justify-content: space-between;
+		flex-direction: column;
 	}
 
 	.pli-basics-container {
 		display: flex;
-		gap: var(--unified-padding);
+		gap: calc(var(--unified-padding) / 2);
 		flex-direction: row;
 		justify-content: space-between;
 		align-items: center;
 		width: 100%;
 	}
+
+	.paper-container {
+		flex-grow: 1;
+	}
+
 	.load-indicator {
 		position: absolute;
 		top: var(--unified-padding);
 		right: var(--unified-padding);
 	}
+
 	@media (min-width: 900px) {
 		.pli-basics-container {
 			flex-direction: column;

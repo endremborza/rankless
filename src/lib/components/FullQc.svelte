@@ -451,6 +451,7 @@
 				delay={highlightDelay}
 				{armingPath}
 				bind:showPaper
+				hasSpaceForPaper={containerWidth > 600}
 			/>
 		</div>
 	{/if}

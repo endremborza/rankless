@@ -18,7 +18,9 @@
 	let authors: { name: string; link: string; isOfInst: boolean }[] = [];
 	let localCount = 0;
 
-	let paperResp: OaPaperResp = getCachedPaper(workId);
+	let paperResp: OaPaperResp | undefined;
+
+	$: paperResp = getCachedPaper(workId);
 
 	function getInstInfo(labels: AttributeLabels, id: number | undefined): [AttributeLabel, number] {
 		let instAtts: AttributeLabel = { name: '', oaId: -1, specBaseline: 0 };
@@ -103,12 +105,12 @@
 {#if title}
 	<div id="main" class="padded">
 		<row>
-			<rowheader>Top Paper:</rowheader>
-			<h3><a {href} target="_blank">{@html title}</a> ({y})</h3>
+			<h2 class="hover-xl">Top Paper:</h2>
+			<p class="hover-m"><a {href} target="_blank">{@html title} ({y})</a></p>
 		</row>
 		{#if abstract}
 			<row>
-				<rowheader>Abstract:</rowheader>
+				<h4>Abstract:</h4>
 				<span>
 					{#if abstract.length > 80}
 						{abstract.slice(0, 80)}... <HoverI bind:hoverToggle={abstractDetails} />
@@ -123,9 +125,9 @@
 		{/if}
 		{#if authors.length > 0}
 			<row>
-				<rowheader>
+				<h4>
 					Author{authors.length > 1 ? 's' : ''}:
-				</rowheader>
+				</h4>
 				<al>
 					{#each authors.slice(0, 3).entries() as [i, author]}
 						<a href={author.link} target="_blank"
@@ -141,11 +143,11 @@
 			</row>
 		{/if}
 		<row>
-			<rowheader>
+			<p>
 				{citeText}
-			</rowheader>
+			</p>
 		</row>
-		<footnote>
+		<footnote class="hover-xs">
 			{#if localCount > 0}*: author {fullInstName} ({localCount}/{authors.length}){/if}
 		</footnote>
 	</div>
@@ -154,18 +156,23 @@
 {/if}
 
 <style>
-	h3 {
-		margin: 0px;
-	}
-
 	a {
 		text-decoration: underline;
+	}
+
+	p a {
+		display: -webkit-box;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
 	}
 
 	row {
 		width: 100%;
 		display: flex;
 		justify-content: space-between;
+		align-items: center;
 	}
 
 	al {
@@ -174,7 +181,7 @@
 		justify-content: space-around;
 		align-items: space-around;
 		flex-wrap: wrap;
-		gap: var(--unified-padding);
+		gap: calc(var(--unified-padding) / 2);
 	}
 
 	footnote {
@@ -187,15 +194,16 @@
 		display: flex;
 		flex-direction: column;
 		justify-content: space-around;
-		align-items: start;
 		gap: var(--unified-padding);
+		align-items: stretch;
+		overflow: hidden;
 	}
 
 	@media (min-width: 900px) {
 		row {
 			flex-direction: column;
 		}
-		rowheader {
+		h3 {
 			text-align: center;
 		}
 	}
