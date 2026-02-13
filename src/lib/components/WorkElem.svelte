@@ -75,13 +75,13 @@
 {#if title}
 	<div id="main" class="padded">
 		<row>
-			<rowheader class="hover-s">Top Paper:</rowheader>
-			<h3 class="hover-m"><a {href} target="_blank">{title}</a> ({y})</h3>
+			<rowheader>Top Paper:</rowheader>
+			<h3><a {href} target="_blank">{@html title}</a> ({y})</h3>
 		</row>
 		{#if abstract}
 			<row>
-				<rowheader class="hover-s">Abstract:</rowheader>
-				<span class="hover-m">
+				<rowheader>Abstract:</rowheader>
+				<span>
 					{#if abstract.length > 80}
 						{abstract.slice(0, 80)}... <HoverI bind:hoverToggle={abstractDetails} />
 						<HoverBlock show={abstractDetails} style="bottom: 20px; right: 20px; width: 80%;"
@@ -95,10 +95,10 @@
 		{/if}
 		{#if authors.length > 0}
 			<row>
-				<rowheader class="hover-s">
+				<rowheader>
 					Author{authors.length > 1 ? 's' : ''}:
 				</rowheader>
-				<al class="hover-m">
+				<al>
 					{#each authors.slice(0, 3).entries() as [i, author]}
 						<a href={author.link} target="_blank"
 							>{author.name}{author.isOfInst ? '*' : ''}{i < Math.min(authors.length - 1, 2)
@@ -113,15 +113,16 @@
 			</row>
 		{/if}
 		<row>
-			<rowheader class="hover-s">Citations: </rowheader>
-			<span class="hover-m">
+			<rowheader>
 				{citeText}
-			</span>
+			</rowheader>
 		</row>
-		<footnote class="hover-xs">
+		<footnote>
 			{#if localCount > 0}*: author {fullInstName} ({localCount}/{authors.length}){/if}
 		</footnote>
 	</div>
+{:else}
+	<p>Loading...</p>
 {/if}
 
 <style>
@@ -136,7 +137,6 @@
 	row {
 		width: 100%;
 		display: flex;
-		gap: 20px;
 		justify-content: space-between;
 	}
 
@@ -144,11 +144,9 @@
 		display: flex;
 		flex-direction: row;
 		justify-content: space-around;
-		align-items: center;
-	}
-
-	al > a {
-		padding-left: 15px;
+		align-items: space-around;
+		flex-wrap: wrap;
+		gap: var(--unified-padding);
 	}
 
 	footnote {
@@ -162,5 +160,15 @@
 		flex-direction: column;
 		justify-content: space-around;
 		align-items: start;
+		gap: var(--unified-padding);
+	}
+
+	@media (min-width: 900px) {
+		row {
+			flex-direction: column;
+		}
+		rowheader {
+			text-align: center;
+		}
 	}
 </style>
