@@ -85,7 +85,7 @@
 		flex-wrap: wrap;
 		justify-content: center;
 		align-items: start;
-		padding-top: 180px;
+		padding-top: 120px;
 		gap: var(--unified-margin);
 	}
 
