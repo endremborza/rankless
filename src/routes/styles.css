@@ -228,6 +228,10 @@ g {
 	color: var(--text-bg);
 }
 
+.fof-container {
+	width: 100%;
+}
+
 .papered-figure-container {
 	display: flex;
 	gap: var(--unified-padding);
