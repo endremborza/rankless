@@ -5,7 +5,7 @@
 	import PathLogo from '$lib/components/PathLogo.svelte';
 	import SurveyPrompt from '$lib/components/SurveyPrompt.svelte';
 	import { afterNavigate } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { slide } from 'svelte/transition';
 
 	import type { RootType } from '$lib/tree-types';
@@ -37,10 +37,12 @@
 		}
 	}
 
-	function openSearchFor(opt: RootType) {
+	async function openSearchFor(opt: RootType) {
 		cat = opt;
 		resultsHidden.set(false);
 		dropdownOpen = false;
+		await tick();
+		document.getElementById('search-input')?.focus();
 	}
 
 	function toggleSearch() {
