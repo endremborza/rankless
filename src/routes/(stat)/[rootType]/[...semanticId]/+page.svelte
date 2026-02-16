@@ -222,7 +222,7 @@
 	}
 
 	#head-row {
-		margin-top: 80px;
+		margin-top: var(--unified-margin);
 	}
 
 	#name-block {

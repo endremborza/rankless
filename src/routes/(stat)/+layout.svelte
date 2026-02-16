@@ -18,7 +18,13 @@
 	let cat: RootType = options[0];
 
 	let mounted = false;
-	let runner: number;
+	let dropdownOpen = false;
+	// let innerWidth = 900;
+	let innerWidth: number;
+
+	$: visibleCount = innerWidth >= 600 ? options.length : innerWidth >= 500 ? 3 : 0;
+	$: visibleOptions = options.slice(0, visibleCount);
+	$: overflowOptions = options.slice(visibleCount);
 
 	function init(el: HTMLInputElement) {
 		el.focus();
@@ -31,27 +37,35 @@
 		}
 	}
 
-	function onFocus() {
+	function openSearchFor(opt: RootType) {
+		cat = opt;
 		resultsHidden.set(false);
+		dropdownOpen = false;
+	}
+
+	function toggleSearch() {
+		if ($resultsHidden) {
+			resultsHidden.set(false);
+		} else {
+			resultsHidden.set(true);
+		}
 	}
 
 	onMount(() => {
-		runner = setInterval(changeText, speed);
 		mounted = true;
 	});
+
 	afterNavigate(() => {
-		slimOpened = false;
+		dropdownOpen = false;
 		resultsHidden.set(true);
 	});
-
-	let slimOpened = false;
-	let hideSearchButton = false;
 
 	let searchTerm = '';
 
 	function keyBind(key: { key: string }) {
 		if (key.key == 'Escape') {
 			resultsHidden.set(true);
+			dropdownOpen = false;
 		}
 	}
 
@@ -65,107 +79,83 @@
 		}
 	}
 
-	//typewriter
-	let speed = 80;
-	let stopAtEnd = 480;
-	let texts = options.map(prettifyRoot);
-	let wordInd = 0;
-	let text: string = texts[wordInd];
-	$: basePlaceholder = 'Explore ' + text;
-
-	let letterInd = Math.floor(text.length / 2);
-	let direction = +1;
-
-	function changeText() {
-		if (wordInd == texts.length) {
-			wordInd = 0;
-		}
-		let word = texts[wordInd];
-		text = word.slice(0, letterInd);
-		if (letterInd == word.length) {
-			clearInterval(runner);
-			setTimeout(() => {
-				runner = setInterval(changeText, speed);
-			}, stopAtEnd);
-		}
-		letterInd += direction;
-		if (letterInd == word.length) {
-			direction = -1;
-		}
-		if (letterInd == 0) {
-			direction = 1;
-			wordInd = wordInd + 1;
-		}
-	}
-
 	$: currenHidden = $resultsHidden;
-	$: placeholder = currenHidden ? '' : basePlaceholder;
 	$: setNoScroll(currenHidden);
 </script>
 
-<svelte:window on:keydown={keyBind} />
+<svelte:window on:keydown={keyBind} bind:innerWidth />
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <div id="main-fix">
-	{#if $resultsHidden}
-		<a href="/" id="head-l" class="head-side-elem shadowy">
-			<svg class="corner-img" viewBox="0 0 20 20">
+	<header id="site-header">
+		<a href="/" class="header-logo" aria-label="Home">
+			<svg viewBox="0 0 20 20">
 				<PathLogo />
 			</svg>
 		</a>
-	{:else}
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<span id="result-closer" class="marged" on:click={() => resultsHidden.set(true)}>&#10006;</span>
-	{/if}
-	{#if !hideSearchButton}
-		<div class="head-side-elem shadowy" id="head-r" on:click={onFocus}>
-			{#if !$resultsHidden}
-				<input
-					in:slide={{ duration: 300, axis: 'x' }}
-					bind:value={searchTerm}
-					on:focus={focusSelect}
-					use:init
-					{placeholder}
-					type="text"
-					id="search-input"
-				/>
-				<div in:slide={{ duration: 200, delay: 250, axis: 'y' }}>
-					{#each options as opt}
-						<label>
-							<input
-								checked={cat === opt}
-								on:change={() => {
-									cat = opt;
-								}}
-								type="radio"
-								name="category"
-								value={opt}
-							/>
-							{prettifyRoot(opt)}
-						</label>
-					{/each}
-				</div>
-			{:else}
-				<svg
-					id="search-logo"
-					class="corner-img"
-					viewBox="-10 -10 60 50"
-					fill="none"
-					xmlns="http://www.w3.org/2000/svg"
+
+		<nav class="header-nav">
+			{#each visibleOptions as opt}
+				<button
+					class="nav-link"
+					class:active={!$resultsHidden && cat === opt}
+					on:click={() => openSearchFor(opt)}
 				>
+					{prettifyRoot(opt)}
+				</button>
+			{/each}
+
+			{#if overflowOptions.length > 0}
+				<div class="dropdown">
+					<button
+						class="nav-link dropdown-trigger"
+						class:active={!$resultsHidden && overflowOptions.includes(cat)}
+						on:click={() => (dropdownOpen = !dropdownOpen)}
+					>
+						{visibleCount === 0 ? 'Search' : 'More'} &#9662;
+					</button>
+					{#if dropdownOpen}
+						<div class="dropdown-menu" transition:slide={{ duration: 150, axis: 'y' }}>
+							{#each overflowOptions as opt}
+								<button
+									class="dropdown-item"
+									class:active={!$resultsHidden && cat === opt}
+									on:click={() => openSearchFor(opt)}
+								>
+									{prettifyRoot(opt)}
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/if}
+		</nav>
+
+		<button class="header-search" on:click={toggleSearch} aria-label="Toggle search">
+			{#if $resultsHidden}
+				<svg viewBox="-10 -10 60 50" fill="none" xmlns="http://www.w3.org/2000/svg">
 					<SearchLogo />
 				</svg>
+			{:else}
+				<span class="close-icon">&#10006;</span>
 			{/if}
+		</button>
+	</header>
+
+	{#if !$resultsHidden}
+		<div id="search-bar" transition:slide={{ duration: 200, axis: 'y' }}>
+			<input
+				bind:value={searchTerm}
+				on:focus={focusSelect}
+				use:init
+				type="text"
+				id="search-input"
+			/>
 		</div>
 	{/if}
+
 	<SearchResults {searchTerm} {cat} />
-	<div
-		id="main-content"
-		on:click={() => {
-			slimOpened = false;
-		}}
-	>
+	<div id="main-content" on:click={() => (dropdownOpen = false)}>
 		<slot />
 	</div>
 	<div id="main-foot">
@@ -180,98 +170,163 @@
 {/if}
 
 <style>
-	.corner-img {
-		--svg-size: min(min(30px, 5.5vw), 3.8svh);
-		width: var(--svg-size);
-		height: var(--svg-size);
+	#site-header {
+		position: sticky;
+		top: 0;
+		z-index: 25;
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 8px 3vw;
+		background-color: var(--color-theme-white);
+		border-bottom: solid var(--color-theme-darkblue) 3px;
 	}
 
-	label {
+	.header-logo {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+		margin-right: 12px;
+	}
+
+	.header-logo svg {
+		width: 28px;
+		height: 28px;
+	}
+
+	.header-nav {
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		flex: 1;
+	}
+
+	.nav-link {
+		background: none;
+		border: none;
+		font-family: inherit;
+		font-size: 0.9rem;
+		padding: 6px 10px;
+		cursor: pointer;
+		color: var(--color-theme-darkgrey);
+		border-radius: var(--borad);
+		transition: background-color 0.15s, color 0.15s;
+		white-space: nowrap;
+	}
+
+	.nav-link:hover {
+		background-color: var(--color-theme-lightblue);
 		color: var(--color-theme-darkblue);
 	}
 
-	.head-side-elem {
-		position: fixed;
-		top: 3px;
-		padding: 7px;
-		margin-left: var(--unified-margin);
-		margin-right: var(--unified-margin);
-		margin-top: 1.2svh;
-		border: solid var(--color-theme-darkblue) 2px;
-		cursor: pointer;
+	.nav-link.active {
+		color: var(--color-theme-darkblue);
+		font-weight: bold;
+	}
+
+	.dropdown {
+		position: relative;
+	}
+
+	.dropdown-menu {
+		position: absolute;
+		top: 100%;
+		left: 0;
 		background-color: var(--color-theme-white);
-		z-index: 10;
-		pointer-events: auto;
+		border: solid var(--color-theme-darkblue) 2px;
+		border-radius: var(--borad);
+		box-shadow: 2px 4px 12px var(--color-theme-shadow);
+		z-index: 20;
+		display: flex;
+		flex-direction: column;
+		min-width: 140px;
+		overflow: hidden;
+	}
+
+	.dropdown-item {
+		background: none;
+		border: none;
+		font-family: inherit;
+		font-size: 0.9rem;
+		padding: 8px 14px;
+		cursor: pointer;
+		color: var(--color-theme-darkgrey);
+		text-align: left;
+		white-space: nowrap;
+		transition: background-color 0.15s, color 0.15s;
+	}
+
+	.dropdown-item:hover {
+		background-color: var(--color-theme-lightblue);
+		color: var(--color-theme-darkblue);
+	}
+
+	.dropdown-item.active {
+		color: var(--color-theme-darkblue);
+		font-weight: bold;
+	}
+
+	.header-search {
+		background: none;
+		border: none;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		padding: 4px;
+		margin-left: auto;
+	}
+
+	.header-search svg {
+		width: 24px;
+		height: 24px;
+	}
+
+	.close-icon {
+		font-size: 22px;
+		line-height: 1;
+		color: var(--color-theme-darkgrey);
+		transition: color 0.15s;
+	}
+
+	.close-icon:hover {
+		color: var(--color-theme-darkblue);
+	}
+
+	#search-bar {
+		position: sticky;
+		top: 48px;
+		z-index: 24;
+		background-color: var(--color-theme-white);
+		padding: 8px 3vw;
+		border-bottom: solid var(--color-theme-darkblue) 1px;
+	}
+
+	#search-input {
+		width: 100%;
+		height: 35px;
+		border: none;
+		font-size: 22px;
+		font-style: italic;
+		font-family: inherit;
+		background: none;
+		text-indent: 8px;
+		box-sizing: border-box;
+	}
+
+	#search-input:hover {
+		background-color: rgba(171, 171, 171, 0.15);
+	}
+
+	#search-input:focus {
+		outline: none;
 	}
 
 	#main-fix {
 		display: flex;
 		flex-flow: column;
 		min-height: 100dvh;
-	}
-
-	#head-l {
-		left: 0px;
-		padding-bottom: 4px;
-		z-index: 15;
-	}
-
-	#head-r {
-		right: 0px;
-		padding-top: 1px;
-		border-top: solid var(--color-theme-darkblue) 7px;
-		z-index: 25;
-	}
-
-	#search-logo {
-		position: relative;
-		left: 0px;
-		top: 0px;
-		pointer-events: none;
-		z-index: 7;
-	}
-
-	#search-input {
-		width: 90vw;
-		height: 35px;
-		border: 0px;
-		font-size: 22px;
-		font-style: italic;
-		background: none;
-		z-index: 25;
-		text-indent: 25px;
-	}
-
-	#search-input:hover {
-		border-top-color: var(--color-theme-white);
-		background-color: rgba(171, 171, 171, 0.9);
-		color: white;
-	}
-
-	input#search-input:focus {
-		outline: none;
-	}
-
-	#result-closer {
-		transition: transform 0.2s ease;
-		position: fixed;
-		top: 0px;
-		left: 0px;
-		font-size: 37px;
-		text-align: center;
-		cursor: pointer;
-		z-index: 30;
-	}
-
-	@media (max-width: 1000px) {
-		#result-closer {
-			top: 100px;
-		}
-	}
-
-	#result-closer:hover {
-		font-size: 40px;
-		color: var(--color-theme-darkblue);
 	}
 
 	#main-content {
