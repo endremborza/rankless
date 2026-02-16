@@ -233,95 +233,99 @@
 	}
 </script>
 
-<FlatOutFrame
-	titlePrefix="Fields"
-	l1Type="subfields"
-	semantifyer={subfieldSemantify}
-	{rootName}
-	{rootId}
-	{indsByEntityType}
-	{conf}
-	{treeSpecs}
-	{backupNames}
-	bottomText={getNetworkText(conf.rootType, rootName, isSpec, sourceSide)}
-	bind:treeId
-	bind:flatOut
-	bind:isSpec
-	bind:showPaper
-	{infoPath}
->
-	<!-- svelte-ignore a11y-mouse-events-have-key-events -->
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-	<div class="concept-map-container">
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<svg
-			bind:this={svgEl}
-			viewBox="-8 -8 146 116"
-			style="--op: {defaultOp}; --lop: {defaultLineOp}; --sat: {defaultSat}"
-			on:click={() => {
-				if (!hoveredOverCircle) {
-					if (showPaper) showPaper = false;
-				}
-			}}
+<div class="fof-container">
+	<div class="wide-screen-heighted">
+		<FlatOutFrame
+			titlePrefix="Fields"
+			l1Type="subfields"
+			semantifyer={subfieldSemantify}
+			{rootName}
+			{rootId}
+			{indsByEntityType}
+			{conf}
+			{treeSpecs}
+			{backupNames}
+			bind:treeId
+			bind:flatOut
+			bind:isSpec
+			bind:showPaper
+			{infoPath}
 		>
-			{#each edges as [s, t, w]}
-				<line
-					x1={nodes[s][0]}
-					y1={nodes[s][1]}
-					x2={nodes[t][0]}
-					y2={nodes[t][1]}
-					stroke="black"
-					stroke-width="0.1"
-				/>
-			{/each}
-			{#each Object.entries(nodes) as [sfi, [cx, cy]]}
-				<circle
-					{cx}
-					{cy}
-					class={classNamer(sfi)}
-					role="region"
-					fill={getNodeColor(sfi)}
-					stroke={getNodeColor(sfi)}
-					on:mouseover={() => {
-						if (!showPaper) {
-							hoveredOverCircle = true;
-							hovered = sfi;
-							infoPath = [sfi];
+			<!-- svelte-ignore a11y-mouse-events-have-key-events -->
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+			<div class="concept-map-container">
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
+				<svg
+					bind:this={svgEl}
+					viewBox="-8 -8 146 116"
+					style="--op: {defaultOp}; --lop: {defaultLineOp}; --sat: {defaultSat}"
+					on:click={() => {
+						if (!hoveredOverCircle) {
+							if (showPaper) showPaper = false;
 						}
 					}}
-					on:mouseleave={() => {
-						hoveredOverCircle = false;
-					}}
-					on:click={() => {
-						showPaper = true;
-					}}
-					r={nullSize}
-					stroke-width="0.2"
-				/>
-				<circle
-					{cx}
-					{cy}
-					class="{flashClassNamer(sfi)} nopointer"
-					stroke="none"
-					r={nullSize * 0.9}
-					fill="var(--text-bg)"
-				/>
-			{/each}
-		</svg>
-		<div class="concept-map-legend">
-			{#each Object.entries(parents) as [i, parent]}
-				<span
-					class="hover-xs"
-					on:mouseover={() => (hoveredParent = [i, undefined])}
-					on:mouseleave={() => (hoveredParent = [undefined, undefined])}
-					role="none"
-					style="background-color:rgba({getParentColorArr(i)}, 0.4);">{parent.name}</span
 				>
-			{/each}
-		</div>
+					{#each edges as [s, t, w]}
+						<line
+							x1={nodes[s][0]}
+							y1={nodes[s][1]}
+							x2={nodes[t][0]}
+							y2={nodes[t][1]}
+							stroke="black"
+							stroke-width="0.1"
+						/>
+					{/each}
+					{#each Object.entries(nodes) as [sfi, [cx, cy]]}
+						<circle
+							{cx}
+							{cy}
+							class={classNamer(sfi)}
+							role="region"
+							fill={getNodeColor(sfi)}
+							stroke={getNodeColor(sfi)}
+							on:mouseover={() => {
+								if (!showPaper) {
+									hoveredOverCircle = true;
+									hovered = sfi;
+									infoPath = [sfi];
+								}
+							}}
+							on:mouseleave={() => {
+								hoveredOverCircle = false;
+							}}
+							on:click={() => {
+								showPaper = true;
+							}}
+							r={nullSize}
+							stroke-width="0.2"
+						/>
+						<circle
+							{cx}
+							{cy}
+							class="{flashClassNamer(sfi)} nopointer"
+							stroke="none"
+							r={nullSize * 0.9}
+							fill="var(--text-bg)"
+						/>
+					{/each}
+				</svg>
+				<div class="concept-map-legend">
+					{#each Object.entries(parents) as [i, parent]}
+						<span
+							class="hover-xs"
+							on:mouseover={() => (hoveredParent = [i, undefined])}
+							on:mouseleave={() => (hoveredParent = [undefined, undefined])}
+							role="none"
+							style="background-color:rgba({getParentColorArr(i)}, 0.4);">{parent.name}</span
+						>
+					{/each}
+				</div>
+			</div>
+		</FlatOutFrame>
 	</div>
-</FlatOutFrame>
+	<p class="text-s">{getNetworkText(conf.rootType, rootName, isSpec, sourceSide)}</p>
+</div>
 
 <style>
 	line {

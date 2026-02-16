@@ -316,7 +316,7 @@
 	}
 </script>
 
-<div class="full-qc-container">
+<div class="papered-figure-container">
 	<div
 		class="figure-container"
 		bind:clientWidth={containerWidth}
@@ -479,46 +479,6 @@
 
 	.floater {
 		position: absolute;
-	}
-
-	.full-qc-container {
-		display: flex;
-		gap: var(--unified-padding);
-		flex-direction: column;
-		width: 100%;
-		height: 100%;
-	}
-
-	.figure-container {
-		align-self: stretch;
-		flex: 10;
-		min-height: 0;
-	}
-
-	.infobox-container {
-		flex: 2;
-		min-height: 0;
-		display: flex;
-		flex-direction: column;
-		justify-content: end;
-	}
-
-	@media (min-width: 900px) {
-		.full-qc-container {
-			flex-direction: row;
-		}
-
-		.infobox-container {
-			order: -1;
-			flex: 3 0 0;
-			justify-content: center;
-			max-width: 25%;
-			min-width: 25%;
-		}
-
-		.figure-container {
-			flex: 9 0 0;
-		}
 	}
 
 	svg {

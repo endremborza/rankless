@@ -24,9 +24,6 @@
 			: indsByEntityType[l1Type][0];
 	export let backupNames: Record<number, string> = {};
 	export let showPaper = false;
-	export let paperHeight = 90;
-	export let paperPad = 10;
-	export let bottomText = '';
 
 	let mounted = false;
 	let selectedBreakdowns = tf.getDefaultBreakdowns(treeSpecs.specs[conf.rootType][treeId]);
@@ -90,8 +87,8 @@
 		selectedBreakdowns != undefined ? semantifyer(conf.rootType, selectedBreakdowns[0]) : '';
 </script>
 
-<div class="full-frame" style="--ph-height: {paperHeight + 2 * paperPad}px">
-	<div class="frame-top-half">
+<div class="papered-figure-container">
+	<div class="figure-container frame-top-half">
 		<h3>{titlePrefix} {titleSuffix} {rootName}</h3>
 		<div class="control-block">
 			{#if Object.keys(levelOptions).length > 1}
@@ -117,7 +114,7 @@
 		</div>
 		<slot />
 	</div>
-	<div class="paper-hover">
+	<div class="infobox-container">
 		{#if resp != undefined}
 			<PathLevelInfoBox
 				path={infoPath}
@@ -131,10 +128,6 @@
 			/>
 		{/if}
 	</div>
-
-	<p class="text-s">
-		{bottomText}
-	</p>
 </div>
 
 <style>
@@ -142,21 +135,10 @@
 		text-align: center;
 	}
 
-	.full-frame {
-		height: 100%;
-	}
-
 	.frame-top-half {
 		display: flex;
 		flex-direction: column;
 		justify-content: space-between;
-		height: calc(90svh - var(--ph-height));
-	}
-
-	.paper-hover {
-		position: relative;
-		width: 100%;
-		height: var(--ph-height);
 	}
 
 	.control-block {

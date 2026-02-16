@@ -221,83 +221,88 @@
 	}
 </script>
 
-<FlatOutFrame
-	titlePrefix="Countries"
-	l1Type="countries"
-	semantifyer={countrySemantify}
-	{rootName}
-	{rootId}
-	{indsByEntityType}
-	{conf}
-	{treeSpecs}
-	bottomText={getMapText(conf.rootType, rootName, isSpec, isRefSide)}
-	year={treeSpecs.yearBreaks[0]}
-	bind:flatOut
-	bind:treeId
-	bind:resp
-	bind:isSpec
-	{infoPath}
->
-	<div class="world-map-container">
-		<svg bind:this={svgEl} viewBox="{xMin} {yMin} {mapWidth} {mapHeight}">
-			<!-- svelte-ignore a11y-mouse-events-have-key-events -->
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-			{#each Object.entries(countryPaths) as [cc, cpaths]}
-				{#each cpaths as d}
-					<path
-						{d}
-						style={getDefaultPathStyle(cc)}
-						stroke-width="1"
-						stroke="black"
-						role="region"
-						on:mouseover={setHover(cc)}
-						on:mouseleave={setHover('')}
-						on:click={() => {
-							clicked = !clicked;
-							setHover(cc)();
-						}}
-					/>
-				{/each}
-			{/each}
-		</svg>
-		<div class="world-map-labels" style="--grad: {getGradient()}">
-			{#if nBreakPoints > 0}
-				<!-- svelte-ignore a11y-mouse-events-have-key-events -->
-				<div class="label-bp-container">
-					{#each breakPoints as bp, i}
-						<div
-							class="label-bp-box"
-							style="background-color: rgba({getColorArr(
-								getColorRate(i / nBreakPoints)
-							)}, {getOpaRate(i / nBreakPoints) / 100}); color: {getOpaRate(i / nBreakPoints) < 50
-								? 'var(--color-text)'
-								: 'var(--color-theme-white)'}"
-							role="region"
-							on:mouseover={() => {
-								highlightedQ = i;
-							}}
-							on:mouseleave={() => {
-								highlightedQ = -1;
-							}}
-						>
-							<span>{formatNumber(bp)}</span> <span>-</span>
-							<span>{formatNumber(bpEnd(breakPoints, i))}</span>
-						</div>
+<div class="fof-container">
+	<div class="wide-screen-heighted">
+		<FlatOutFrame
+			titlePrefix="Countries"
+			l1Type="countries"
+			semantifyer={countrySemantify}
+			{rootName}
+			{rootId}
+			{indsByEntityType}
+			{conf}
+			{treeSpecs}
+			year={treeSpecs.yearBreaks[0]}
+			bind:flatOut
+			bind:treeId
+			bind:resp
+			bind:isSpec
+			{infoPath}
+		>
+			<div class="world-map-container">
+				<svg bind:this={svgEl} viewBox="{xMin} {yMin} {mapWidth} {mapHeight}">
+					<!-- svelte-ignore a11y-mouse-events-have-key-events -->
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+					{#each Object.entries(countryPaths) as [cc, cpaths]}
+						{#each cpaths as d}
+							<path
+								{d}
+								style={getDefaultPathStyle(cc)}
+								stroke-width="1"
+								stroke="black"
+								role="region"
+								on:mouseover={setHover(cc)}
+								on:mouseleave={setHover('')}
+								on:click={() => {
+									clicked = !clicked;
+									setHover(cc)();
+								}}
+							/>
+						{/each}
 					{/each}
+				</svg>
+				<div class="world-map-labels" style="--grad: {getGradient()}">
+					{#if nBreakPoints > 0}
+						<!-- svelte-ignore a11y-mouse-events-have-key-events -->
+						<div class="label-bp-container">
+							{#each breakPoints as bp, i}
+								<div
+									class="label-bp-box"
+									style="background-color: rgba({getColorArr(
+										getColorRate(i / nBreakPoints)
+									)}, {getOpaRate(i / nBreakPoints) / 100}); color: {getOpaRate(i / nBreakPoints) <
+									50
+										? 'var(--color-text)'
+										: 'var(--color-theme-white)'}"
+									role="region"
+									on:mouseover={() => {
+										highlightedQ = i;
+									}}
+									on:mouseleave={() => {
+										highlightedQ = -1;
+									}}
+								>
+									<span>{formatNumber(bp)}</span> <span>-</span>
+									<span>{formatNumber(bpEnd(breakPoints, i))}</span>
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<div>{formatNumber(minw || 0)}</div>
+						<div class="label-gradient-box">
+							{#if highlightedRate != undefined}
+								<div id="w-tick" style="--loff: {highlightedRate * 100}%" />{/if}
+						</div>
+						<div>{formatNumber(maxw || 0)}</div>
+					{/if}
+					<div id="w-text">{weightText}</div>
 				</div>
-			{:else}
-				<div>{formatNumber(minw || 0)}</div>
-				<div class="label-gradient-box">
-					{#if highlightedRate != undefined}
-						<div id="w-tick" style="--loff: {highlightedRate * 100}%" />{/if}
-				</div>
-				<div>{formatNumber(maxw || 0)}</div>
-			{/if}
-			<div id="w-text">{weightText}</div>
-		</div>
+			</div>
+		</FlatOutFrame>
 	</div>
-</FlatOutFrame>
+	<p class="text-s">{getMapText(conf.rootType, rootName, isSpec, isRefSide)}</p>
+</div>
 
 <style>
 	path {
