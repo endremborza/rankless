@@ -55,6 +55,7 @@
 
 	let hoveredOverCircle = false;
 	let showPaper = false;
+	let fixedSelect = false;
 	let isSpec = true;
 	let flatOut = {};
 
@@ -262,7 +263,7 @@
 					style="--op: {defaultOp}; --lop: {defaultLineOp}; --sat: {defaultSat}"
 					on:click={() => {
 						if (!hoveredOverCircle) {
-							if (showPaper) showPaper = false;
+							fixedSelect = false;
 						}
 					}}
 				>
@@ -285,7 +286,7 @@
 							fill={getNodeColor(sfi)}
 							stroke={getNodeColor(sfi)}
 							on:mouseover={() => {
-								if (!showPaper) {
+								if (!fixedSelect) {
 									hoveredOverCircle = true;
 									hovered = sfi;
 									infoPath = [sfi];
@@ -295,6 +296,9 @@
 								hoveredOverCircle = false;
 							}}
 							on:click={() => {
+								fixedSelect = true;
+								hovered = sfi;
+								infoPath = [sfi];
 								showPaper = true;
 							}}
 							r={nullSize}
