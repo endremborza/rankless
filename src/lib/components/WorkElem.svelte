@@ -217,7 +217,7 @@
 		height: 100%;
 		display: flex;
 		flex-direction: column;
-		justify-content: space-between;
+		justify-content: center;
 		gap: calc(var(--unified-padding) / 2);
 		align-items: stretch;
 		overflow-y: auto;
