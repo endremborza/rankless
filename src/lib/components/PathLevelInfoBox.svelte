@@ -148,7 +148,7 @@
 		<div class="paper-container">
 			{#if expanded}
 				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} />
-			{:else}
+			{:else if (leaf.sourceCount || 0) > 0}
 				<p><button class="clickable">Find Top Paper</button></p>
 			{/if}
 		</div>
