@@ -325,6 +325,13 @@
 		display: block;
 	}
 
+	@media (max-width: 899px) {
+		.world-map-container {
+			aspect-ratio: 14 / 9;
+			max-height: 60svh;
+		}
+	}
+
 	.world-map-labels {
 		display: flex;
 		gap: var(--unified-padding);

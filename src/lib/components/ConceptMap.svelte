@@ -361,6 +361,13 @@
 		display: block;
 	}
 
+	@media (max-width: 899px) {
+		.concept-map-container {
+			aspect-ratio: 1 / 1;
+			max-height: 60svh;
+		}
+	}
+
 	.concept-map-legend {
 		flex: 0 0 auto;
 		display: flex;

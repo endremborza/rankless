@@ -114,19 +114,17 @@
 		</div>
 	{/if}
 	<div class="shadowy padded marged" id="tree">
-		<div id="tree-fixer">
-			<FullQc
-				rootName={data.view.name}
-				prefixText={data.prefixText}
-				selectedQcRootId={data.view.dmId}
-				conf={data.conf}
-				selectionState={data.selectionState}
-				treeSpecs={data.treeSpecs}
-				attributeLabels={data.atts}
-				completeTree={data.tree}
-				shallowed={data.shallowed}
-			/>
-		</div>
+		<FullQc
+			rootName={data.view.name}
+			prefixText={data.prefixText}
+			selectedQcRootId={data.view.dmId}
+			conf={data.conf}
+			selectionState={data.selectionState}
+			treeSpecs={data.treeSpecs}
+			attributeLabels={data.atts}
+			completeTree={data.tree}
+			shallowed={data.shallowed}
+		/>
 	</div>
 	{#if showsSubfields}
 		<div class="shadowy padded marged heighted" id="research-space">
@@ -241,16 +239,6 @@
 
 	#tree {
 		grid-column: 1 / -1;
-	}
-
-	#tree-fixer {
-		height: 85svh;
-	}
-
-	@media (max-width: 899px) {
-		#tree-fixer {
-			height: 95svh;
-		}
 	}
 
 	#world-map {

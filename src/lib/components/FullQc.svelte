@@ -318,7 +318,7 @@
 
 <div class="papered-figure-container">
 	<div
-		class="figure-container"
+		class="figure-container tree-fixer"
 		bind:clientWidth={containerWidth}
 		bind:clientHeight={containerHeight}
 	>
@@ -479,6 +479,16 @@
 
 	.floater {
 		position: absolute;
+	}
+
+	.tree-fixer {
+		height: 85svh;
+	}
+
+	@media (max-width: 899px) {
+		.tree-fixer {
+			height: 95svh;
+		}
 	}
 
 	svg {
