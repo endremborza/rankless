@@ -186,6 +186,7 @@
 
 	function loadNewQc(conf: tt.FullTreeConfig) {
 		showPaper = false;
+		highlightedPath = [];
 		if (!mounted) {
 			return;
 		}
