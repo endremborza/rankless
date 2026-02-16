@@ -241,7 +241,6 @@
 		breakdownOptions: tt.BreakdownOptions,
 		selectedBreakdowns: tt.SelectedBreakdowns
 	) {
-		showPaper = false;
 		if (selectedBreakdowns.length == 0) return;
 		let visibleLevelCount = 0;
 		for (let meta of (tree.meta || []).slice(1)) {
@@ -488,7 +487,8 @@
 
 	@media (max-width: 899px) {
 		.tree-fixer {
-			height: 95svh;
+			height: 75svh;
+			flex: none;
 		}
 	}
 
