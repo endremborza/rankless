@@ -23,6 +23,7 @@
 	export let allowControls = true;
 	export let shoPathLevelInfo = true;
 	export let shallowed = false;
+	export let fixHeight = true;
 	export let treeSpecs: tt.TreeSpecs;
 	export let selectionState: tt.BareNode = { children: {} };
 	export let completeTree: tt.ResponseNode;
@@ -318,7 +319,7 @@
 
 <div class="papered-figure-container">
 	<div
-		class="figure-container tree-fixer"
+		class="figure-container {fixHeight ? 'tree-fixer' : ''}"
 		bind:clientWidth={containerWidth}
 		bind:clientHeight={containerHeight}
 	>

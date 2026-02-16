@@ -287,6 +287,7 @@
 						{conf}
 						{prefixText}
 						{selectionState}
+						fixHeight={false}
 						shoPathLevelInfo={false}
 						attributeLabels={treeResp.atts}
 						completeTree={treeResp.tree}
