@@ -105,13 +105,13 @@
 {#if title}
 	<div id="main" class="padded">
 		<row>
-			<h2 class="hover-xl">Top Paper:</h2>
-			<p class="hover-m"><a {href} target="_blank">{@html title} ({y})</a></p>
+			<h2 class="hover-l">Top Paper:</h2>
+			<p class="hover-s"><a {href} target="_blank">{@html title} ({y})</a></p>
 		</row>
 		{#if abstract}
 			<row>
-				<h4>Abstract:</h4>
-				<span>
+				<h4 class="hover-m">Abstract:</h4>
+				<span class="hover-s">
 					{#if abstract.length > 80}
 						{abstract.slice(0, 80)}... <HoverI bind:hoverToggle={abstractDetails} />
 						<HoverBlock show={abstractDetails} style="bottom: 20px; right: 20px; width: 80%;"
@@ -125,10 +125,10 @@
 		{/if}
 		{#if authors.length > 0}
 			<row>
-				<h4>
+				<h4 class="hover-m">
 					Author{authors.length > 1 ? 's' : ''}:
 				</h4>
-				<al>
+				<al class="hover-s">
 					{#each authors.slice(0, 3).entries() as [i, author]}
 						<a href={author.link} target="_blank"
 							>{author.name}{author.isOfInst ? '*' : ''}{i < Math.min(authors.length - 1, 2)
@@ -143,7 +143,7 @@
 			</row>
 		{/if}
 		<row>
-			<p>
+			<p class="hover-s">
 				{citeText}
 			</p>
 		</row>
@@ -156,6 +156,11 @@
 {/if}
 
 <style>
+	h2,
+	h4 {
+		margin: calc(var(--unified-padding) / 2);
+	}
+
 	a {
 		text-decoration: underline;
 	}
@@ -171,7 +176,7 @@
 	row {
 		width: 100%;
 		display: flex;
-		justify-content: space-between;
+		flex-direction: column;
 		align-items: center;
 	}
 
@@ -179,7 +184,6 @@
 		display: flex;
 		flex-direction: row;
 		justify-content: space-around;
-		align-items: space-around;
 		flex-wrap: wrap;
 		gap: calc(var(--unified-padding) / 2);
 	}
@@ -199,18 +203,10 @@
 		height: 100%;
 		display: flex;
 		flex-direction: column;
-		justify-content: space-around;
-		gap: var(--unified-padding);
+		justify-content: space-between;
+		gap: calc(var(--unified-padding) / 2);
 		align-items: stretch;
-		overflow: hidden;
-	}
-
-	@media (min-width: 900px) {
-		row {
-			flex-direction: column;
-		}
-		h3 {
-			text-align: center;
-		}
+		overflow-y: auto;
+		padding-top: 0px;
 	}
 </style>

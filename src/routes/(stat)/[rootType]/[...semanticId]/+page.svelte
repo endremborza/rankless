@@ -247,6 +247,12 @@
 		height: 85svh;
 	}
 
+	@media (max-width: 899px) {
+		#tree-fixer {
+			height: 95svh;
+		}
+	}
+
 	#world-map {
 		grid-column: 1 / -1;
 		display: flex;

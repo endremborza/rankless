@@ -121,7 +121,7 @@
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-mouse-events-have-key-events -->
 <div
-	class="plibox-container shadowy clickable"
+	class="plibox-container shadowy {showPaper ? '' : 'clickable'}"
 	role="none"
 	tabindex="-1"
 	on:click={() => {
@@ -133,13 +133,13 @@
 	</span>
 	{#if path != undefined && leaf != undefined}
 		<div class="pli-basics-container padded">
-			<h2 class="hover-xl">{leaf.name}</h2>
-			<p class="hover-m">
+			<h2 class="hover-l">{leaf.name}</h2>
+			<p class="hover-s">
 				{#if path.length > 0 && (leaf.linkCount || 0) > 0}
 					{getSpecDesc(leaf.spec.specMetric)} Specialization
 				{/if}
 			</p>
-			<p class="hover-m">
+			<p class="hover-s">
 				{pluralize('paper', leaf.sourceCount || 0)}
 				receiving
 				{pluralize(`${citePrefix}citation`, leaf.linkCount || 0)}
@@ -149,7 +149,7 @@
 			{#if expanded}
 				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} />
 			{:else}
-				<p><button>Find Top Paper</button></p>
+				<p><button class="clickable">Find Top Paper</button></p>
 			{/if}
 		</div>
 	{/if}
@@ -163,6 +163,14 @@
 
 	h2 {
 		margin-bottom: calc(var(--unified-padding) / 2);
+		word-break: break-word;
+		overflow-wrap: break-word;
+		text-align: center;
+	}
+
+	button {
+		padding: 0.5rem;
+		margin: var(--unified-margin);
 	}
 
 	.plibox-container {
@@ -170,35 +178,30 @@
 		width: 100%;
 		height: 100%;
 		display: flex;
-		justify-content: space-between;
+		justify-content: start;
 		flex-direction: column;
+		gap: calc(var(--unified-padding) / 2);
+		overflow: hidden;
+		min-width: 0;
 	}
 
 	.pli-basics-container {
 		display: flex;
 		gap: calc(var(--unified-padding) / 2);
-		flex-direction: row;
-		justify-content: space-between;
+		flex-direction: column;
 		align-items: center;
 		width: 100%;
 	}
 
 	.paper-container {
-		flex-grow: 1;
+		flex: 1;
+		min-height: 0;
+		overflow: hidden;
 	}
 
 	.load-indicator {
 		position: absolute;
 		top: var(--unified-padding);
 		right: var(--unified-padding);
-	}
-
-	@media (min-width: 900px) {
-		.pli-basics-container {
-			flex-direction: column;
-		}
-		h2 {
-			text-align: center;
-		}
 	}
 </style>

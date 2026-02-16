@@ -194,7 +194,6 @@
 	}
 
 	h3 {
-		text-align: center;
 		width: 100%;
 	}
 
