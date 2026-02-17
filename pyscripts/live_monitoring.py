@@ -26,8 +26,8 @@ WARN_AT_FULL = 92
 WARN_AT_RAM = 1.2
 
 FAIL_SECONDS = 120
-WAIT_SECONDS = 20
-WAIT_POST_WARN = 60
+WAIT_SECONDS = 15
+WAIT_POST_WARN = 50
 
 LAST_SUCCESS = 0
 ERROR_DEQUE = deque(maxlen=8)
@@ -69,8 +69,8 @@ def log_result(e=None, msg=None):
         LAST_SUCCESS = time.time()
         print("success set to ", LAST_SUCCESS)
     else:
-        print("adding error ", type(e).__name__, msg)
         ERROR_DEQUE.append([dt.datetime.now().isoformat(), type(e).__name__, msg])
+        print("added error ", type(e).__name__, msg)
 
 
 def get_success_dic():
@@ -83,18 +83,22 @@ def get_success_dic():
 
 def read_records_and_warn():
     now = time.time()
+    print("reading records")
     if (now - LAST_SUCCESS) < FAIL_SECONDS:
         return post_success()
     latest_remote_success = max(
         [0, *[d.get("time", 0) for d in get_success_dic().values()]]
     )
+    print("reading remote records", latest_remote_success)
     if (now - latest_remote_success) < FAIL_SECONDS:
-        return post_success()
+        print("remote success")
+        return
     msg = "\n\n".join(" - ".join(e) for e in ERROR_DEQUE)
     warn("Rankless Failed Validation", msg)
 
 
 def post_success():
+    print("posting success")
     if FILE_CHANNEL_ADDR is not None:
         try:
             requests.post(
@@ -136,6 +140,7 @@ if __name__ == "__main__":
         try:
             status_dic = requests.get(f"http://{IP}:5566/status").json()
         except Exception as e:
+            print("failed status json")
             log_result(e, "status json")
             continue
 
