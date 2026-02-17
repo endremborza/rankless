@@ -1,4 +1,3 @@
-
 DROP MATERIALIZED VIEW IF EXISTS work_authors CASCADE;
 CREATE MATERIALIZED VIEW work_authors AS
 SELECT
@@ -40,5 +39,3 @@ CREATE INDEX ON citation_edges(citing_work);
 CREATE INDEX ON work_authors(work_id);
 CREATE INDEX ON work_subfields(work_id);
 CREATE INDEX ON work_sources(work_id);
-
-

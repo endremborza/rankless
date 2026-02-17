@@ -48,7 +48,7 @@ matched_df = pd.DataFrame(match_recs).merge(br.urled_sample)
 # %%
 
 
-for i, rec in matched_df.iterrows():
+for i, rec in matched_df.loc[lambda df: df["bds"] == 3].iterrows():
     pass
 
 url = rec["url"]
@@ -99,8 +99,11 @@ pd.DataFrame(flatten_child(rs_dic["tree"]["children"])).sort_values(
 
 # %%
 
-
 flask_resp.elapsed.total_seconds(), rs_resp.elapsed.total_seconds()
+
+# %%
+
+bds
 
 # %%
 

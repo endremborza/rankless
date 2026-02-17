@@ -109,10 +109,11 @@ def rows_to_tree(rows, breakdowns):
         current = root
 
         for i in range(len(breakdowns)):
-            key = row.get(f"level_{i}")
-            if key is None:
+            raw_key = row.get(f"level_{i}")
+            if raw_key is None:
                 continue
 
+            key = str(raw_key)
             if key not in current:
                 current[key] = {
                     "linkCount": 0,
@@ -122,7 +123,6 @@ def rows_to_tree(rows, breakdowns):
 
             current[key]["linkCount"] += row["linkcount"]
             current[key]["sourceCount"] += row["sourcecount"]
-
             current = current[key]["children"]
 
     return root
