@@ -48,7 +48,7 @@ BE_UPSTREAM = "rankless_backend"
 BE_URL_VAR = "PUBLIC_BACKEND_URL"
 PUB_URL_VAR = "PUBLIC_ORIGIN"
 OA_ROOT_VAR = "OA_ROOT"
-ORCID_VARS = {k: os.environ[k] for k in ["ORCID_CLIENT_ID", "ORCID_CLIENT_SECRET"]}
+ORCID_VARS = {k: os.environ.get(k) for k in ["ORCID_CLIENT_ID", "ORCID_CLIENT_SECRET"]}
 
 BIG16 = "c6a.4xlarge"
 BIG16 = "c6a.8xlarge"
