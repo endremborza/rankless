@@ -20,6 +20,7 @@
 	let localCount = 0;
 
 	let paperResp: OaPaperResp | undefined;
+	let mounted = false;
 
 	$: paperResp = getCachedPaper(workId);
 
@@ -44,6 +45,7 @@
 	$: errMsg = `Failed to load top paper from OpenAlex <a href="${oaLink}">link</a>`;
 	$: href = doi.length > 0 ? doi : oaLink;
 
+	$: updateByWorkId(workId);
 	$: parsePaperResp(paperResp);
 
 	function parsePaperResp(paperResp: OaPaperResp) {
@@ -68,9 +70,8 @@
 		}
 		authors = outAuthors.sort((l, r) => Number(r.isOfInst) - Number(l.isOfInst));
 	}
-
-	onMount(() => {
-		if (workId == 0 || paperResp != undefined) return;
+	function updateByWorkId(workId: number) {
+		if (!mounted || workId == 0 || paperResp != undefined) return;
 		let oaUrl = `https://api.openalex.org/works/W${workId}?select=publication_year,title,doi,authorships,abstract_inverted_index`;
 		fetch(oaUrl)
 			.then((resp) => {
@@ -110,6 +111,11 @@
 			.catch(() => {
 				placeholder = errMsg;
 			});
+	}
+
+	onMount(() => {
+		mounted = true;
+		updateByWorkId(workId);
 	});
 </script>
 
