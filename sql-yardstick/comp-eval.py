@@ -10,9 +10,11 @@ from dotenv import load_dotenv
 # Load project .env before ccl_science_data imports its own, so OA_ROOT etc. are correct.
 load_dotenv(override=True)
 
+import numpy as np
 import pandas as pd
 import requests
 from ccl_science_data.common import EntC, load_map
+from scipy.stats import spearmanr
 
 from pyscripts.cache_prompting import (
     RTC,
@@ -150,6 +152,15 @@ class CompResult:
     flask_time: float | None = None
     rs_time: float | None = None
     root_summary: str | None = None
+    flask_root: tuple[int, int] | None = None  # (linkCount, sourceCount)
+    rs_root: tuple[int, int] | None = None
+
+    @property
+    def root_match_ratio(self) -> float:
+        if self.flask_root is None or self.rs_root is None:
+            return 0.0
+        fl, rl = self.flask_root[0], self.rs_root[0]
+        return min(fl, rl) / max(fl, rl) if max(fl, rl) > 0 else 1.0
 
 
 class ReproEvaluator:
@@ -222,9 +233,11 @@ class ReproEvaluator:
             rs_dic = rs_resp.json()
 
             rs_tree = rs_dic["tree"]
+            flask_root = (flask_dic["linkCount"], flask_dic["sourceCount"])
+            rs_root = (rs_tree["linkCount"], rs_tree["sourceCount"])
             flask_root_ratio = (
-                f"flask_lc={flask_dic['linkCount']} rs_lc={rs_tree['linkCount']} "
-                f"flask_sc={flask_dic['sourceCount']} rs_sc={rs_tree['sourceCount']}"
+                f"flask_lc={flask_root[0]} rs_lc={rs_root[0]} "
+                f"flask_sc={flask_root[1]} rs_sc={rs_root[1]}"
             )
 
             yield CompResult(
@@ -234,6 +247,8 @@ class ReproEvaluator:
                 flask_resp.elapsed.total_seconds(),
                 rs_resp.elapsed.total_seconds(),
                 flask_root_ratio,
+                flask_root,
+                rs_root,
             )
 
 
@@ -241,9 +256,94 @@ inst_oa_ids = [
     78577930,
 ]
 
+def _aggregate_group(label: str, results: list[CompResult]):
+    valid = [cr for cr in results if cr.error is None and cr.diff_df is not None]
+    if not valid:
+        return
+
+    all_dfs = pd.concat([cr.diff_df for cr in valid])
+    matched = all_dfs.loc[(all_dfs["linkCount"] > 0) & (all_dfs["flask_linkCount"] > 0)]
+    n_total = len(all_dfs)
+    n_matched = len(matched)
+    n_flask_only = (all_dfs["linkCount"] == 0).sum()
+    n_rs_only = (all_dfs["flask_linkCount"] == 0).sum()
+
+    print(f"\n  [{label}] {len(valid)} comparisons")
+    print(f"  nodes: {n_total} total  {n_matched} matched  {n_flask_only} flask-only  {n_rs_only} rs-only")
+    if n_total > 0:
+        print(f"  node match rate: {n_matched / n_total:.1%}")
+
+    if n_matched > 0:
+        per_comp_corrs = {c: [] for c in keys}
+        per_comp_spearman = {c: [] for c in keys}
+        for cr in valid:
+            df = cr.diff_df
+            m = df.loc[(df["linkCount"] > 0) & (df["flask_linkCount"] > 0)]
+            if len(m) >= 3:
+                for c in keys:
+                    r = m[c].corr(m[f"flask_{c}"])
+                    if pd.notna(r):
+                        per_comp_corrs[c].append(r)
+                    sr, _ = spearmanr(m[c], m[f"flask_{c}"])
+                    if not np.isnan(sr):
+                        per_comp_spearman[c].append(sr)
+
+        for c in keys:
+            med = matched[f"{c}_relerr"].median()
+            mean = matched[f"{c}_relerr"].mean()
+            p90 = matched[f"{c}_relerr"].quantile(0.9)
+            pool_r = matched[c].corr(matched[f"flask_{c}"])
+            mean_r = pd.Series(per_comp_corrs[c]).mean() if per_comp_corrs[c] else float("nan")
+            pool_rho, _ = spearmanr(matched[c], matched[f"flask_{c}"])
+            mean_rho = pd.Series(per_comp_spearman[c]).mean() if per_comp_spearman[c] else float("nan")
+            print(
+                f"  {c}: med_err={med:.1%}  mean_err={mean:.1%}  p90={p90:.1%}"
+            )
+            print(
+                f"    pearson: pool={pool_r:.3f}  mean={mean_r:.3f}"
+                f"  spearman: pool={pool_rho:.3f}  mean={mean_rho:.3f}"
+            )
+
+    # root-level accuracy
+    root_lc_errs, root_sc_errs = [], []
+    for cr in valid:
+        if cr.flask_root and cr.rs_root:
+            fl, rl = cr.flask_root[0], cr.rs_root[0]
+            fs, rs = cr.flask_root[1], cr.rs_root[1]
+            if fl > 0:
+                root_lc_errs.append(abs(rl - fl) / fl)
+            if fs > 0:
+                root_sc_errs.append(abs(rs - fs) / fs)
+    if root_lc_errs:
+        print(f"  root linkCount err: med={pd.Series(root_lc_errs).median():.1%}  mean={pd.Series(root_lc_errs).mean():.1%}")
+        print(f"  root sourceCount err: med={pd.Series(root_sc_errs).median():.1%}  mean={pd.Series(root_sc_errs).mean():.1%}")
+
+
+def print_aggregate(results: list[CompResult]):
+    valid = [cr for cr in results if cr.error is None and cr.diff_df is not None]
+    if not valid:
+        print("\nno valid results to aggregate")
+        return
+
+    print("\n" + "=" * 49)
+    print("AGGREGATE RESULTS")
+    print(f"comparisons: {len(valid)} successful / {len(results)} total")
+
+    # Split by root match quality (>90% match = same dataset)
+    root_matched = [cr for cr in valid if cr.root_match_ratio > 0.9]
+    root_mismatched = [cr for cr in valid if cr.root_match_ratio <= 0.9]
+
+    if root_matched:
+        _aggregate_group(f"root-matched (n={len(root_matched)})", root_matched)
+    if root_mismatched:
+        _aggregate_group(f"root-mismatched (n={len(root_mismatched)}, different dataset)", root_mismatched)
+    _aggregate_group("all", valid)
+
+
 if __name__ == "__main__":
     comper = ReproEvaluator()
 
     comp_results = list(comper.iter_comparisons(EntC.INSTITUTIONS, inst_oa_ids))
     for cr in comp_results:
         print_result(cr)
+    print_aggregate(comp_results)
