@@ -380,10 +380,15 @@ def print_aggregate(results: list[CompResult]) -> dict:
     if not valid:
         print("\nno valid results to aggregate")
         return groups
+    time_diffs = [{"flask_time": cr.flask_time, "rs_time": cr.rs_time} for cr in valid]
+    td_df = pd.DataFrame(time_diffs).assign(
+        rate=lambda df: df["flask_time"] / df["rs_time"]
+    )
 
     print("\n" + "=" * 49)
     print("AGGREGATE RESULTS")
     print(f"comparisons: {len(valid)} successful / {len(results)} total")
+    print(f"times:\n{td_df.describe()}\n")
 
     root_matched = [cr for cr in valid if cr.root_match_ratio > 0.9]
     root_mismatched = [cr for cr in valid if cr.root_match_ratio <= 0.9]
@@ -503,29 +508,31 @@ def print_comparison(current_groups: dict, prev_snapshot: dict) -> None:
 if __name__ == "__main__":
 
     inst_oa_ids = [78577930]
-    comper = ReproEvaluator()
+    comper = ReproEvaluator(upper_bound=40_000 * 4)
     oa_maps = {
         k: {v: k2 for k2, v in load_map(k).items()}
         for k in comper.br.urled_sample[RTC].unique()
     }
-    bins = [0, 10_000 * 4]
-    labels = [1, 2]
+    bins = [0, 10_000 * 4, 20_000 * 4]
+    labels = [1, 2, 3]
 
     eid_map = {EntC.INSTITUTIONS: set(inst_oa_ids)}
-    for gid, gdf in comper.br.iter_gdfs(bins, labels):
-        for _, row in gdf.sample(20, random_state=742).iterrows():
-            etype = row[RTC]
-            if etype not in eid_map.keys():
-                eid_map[etype] = set()
-            dm_id = row["dmId"]
-            oa_id = oa_maps[etype][dm_id]
-            eid_map[etype].add(oa_id)
+    for _, gdf in comper.br.iter_gdfs(bins, labels):
+        for etype, egdf in gdf.groupby(RTC):
+            for _, row in egdf.sample(
+                min(3, egdf.shape[0]), random_state=742
+            ).iterrows():
+                if etype not in eid_map.keys():
+                    eid_map[etype] = set()
+                dm_id = row["dmId"]
+                oa_id = oa_maps[etype][dm_id]
+                eid_map[etype].add(oa_id)
 
     comp_results = []
     for etype, ids in eid_map.items():
         comp_results.extend(comper.iter_comparisons(etype, ids))
-    for cr in comp_results:
-        print_result(cr)
+    # for cr in comp_results:
+    # print_result(cr)
 
     groups = print_aggregate(comp_results)
 
