@@ -1,6 +1,8 @@
 import os
+from io import StringIO
 from pathlib import Path
 
+import numpy as np
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from sqlalchemy import create_engine, text
@@ -16,20 +18,66 @@ ROOT_MAP = {
     "subfields": ("work_subfields", "subfield"),
 }
 
-# table=None means the work id itself is the breakdown key (no join needed)
-# null_default: COALESCE sentinel so works with unknown values are still counted
+# dm_table: mapping table for OA→DM translation (None for works breakdown)
 NODE_MAP = {
-    "authors": {"table": "work_authors", "column": "author", "null_default": "0"},
-    "institutions": {"table": "work_authors", "column": "institution", "null_default": "0"},
-    "countries": {"table": "work_authors", "column": "country_code", "null_default": "'__'"},
-    "sources": {"table": "work_sources", "column": "source", "null_default": "0"},
-    "subfields": {"table": "work_subfields", "column": "subfield", "null_default": "0"},
-    "topics": {"table": "work_topics", "column": "topic", "null_default": "0"},
-    "works": {"table": None, "column": None, "null_default": None},
+    "authors": {"table": "work_authors", "column": "author", "dm_table": "dm_authors"},
+    "institutions": {"table": "work_authors", "column": "institution", "dm_table": "dm_institutions"},
+    "countries": {"table": "work_authors", "column": "country_code", "dm_table": "dm_countries"},
+    "sources": {"table": "work_sources", "column": "source", "dm_table": "dm_sources"},
+    "subfields": {"table": "work_subfields", "column": "subfield", "dm_table": "dm_subfields"},
+    "topics": {"table": "work_topics", "column": "topic", "dm_table": "dm_topics"},
+    "works": {"table": None, "column": None, "dm_table": "dm_works"},
 }
 
 app = Flask(__name__)
 engine = create_engine(os.environ["PG_CONSTR"])
+
+OA_ROOT = os.environ.get("OA_ROOT", "")
+MAPPING_DIR = Path(OA_ROOT, "a1_entity_mapping")
+
+# Entity types that use integer OA IDs
+INT_ENTITIES = ["authors", "institutions", "sources", "subfields", "topics", "works"]
+
+
+def id_to_cc(val: int) -> str:
+    chars = []
+    while val > 0:
+        chars.append(chr(val & 0xFF))
+        val >>= 8
+    return "".join(chars)
+
+
+def load_dm_mappings(conn):
+    for ent in INT_ENTITIES:
+        blob = Path(MAPPING_DIR, ent).read_bytes()
+        pairs = np.frombuffer(blob, dtype=np.dtype(np.uint64).newbyteorder(">")).reshape(-1, 2)
+        conn.execute(text(f"DROP TABLE IF EXISTS dm_{ent} CASCADE"))
+        conn.execute(text(f"CREATE TABLE dm_{ent} (oa_id BIGINT PRIMARY KEY, dm_id BIGINT)"))
+
+        buf = StringIO()
+        for oa, dm in pairs:
+            buf.write(f"{oa}\t{dm}\n")
+        buf.seek(0)
+        raw = conn.connection.driver_connection
+        with raw.cursor() as cur:
+            cur.copy_from(buf, f"dm_{ent}", columns=("oa_id", "dm_id"))
+
+    # Countries: mapping file uses cc_to_id encoded integers, PG has country_code text
+    blob = Path(MAPPING_DIR, "countries").read_bytes()
+    pairs = np.frombuffer(blob, dtype=np.dtype(np.uint64).newbyteorder(">")).reshape(-1, 2)
+    conn.execute(text("DROP TABLE IF EXISTS dm_countries CASCADE"))
+    conn.execute(text(
+        "CREATE TABLE dm_countries (country_code TEXT PRIMARY KEY, dm_id BIGINT)"
+    ))
+    buf = StringIO()
+    for cc_int, dm in pairs:
+        cc = id_to_cc(int(cc_int))
+        if cc:
+            buf.write(f"{cc}\t{dm}\n")
+    buf.seek(0)
+    raw = conn.connection.driver_connection
+    with raw.cursor() as cur:
+        cur.copy_from(buf, "dm_countries", columns=("country_code", "dm_id"))
 
 
 def build_root_query(root_type: str) -> str:
@@ -47,43 +95,67 @@ def build_root_query(root_type: str) -> str:
 
 
 def build_level_query(root_type: str, breakdowns: list, depth: int) -> str:
-    """
-    Build a query that groups the impact body by all breakdown keys from 0..depth
-    and returns COUNT(DISTINCT source_work) and COUNT(DISTINCT (source_work, citing_work)).
-
-    Running one query per depth level gives correct distinct counts at every node
-    because each level's counts come directly from the raw edge set, not from summing
-    children (which over-counts when works map to multiple breakdown keys).
-    """
     root_table, root_column = ROOT_MAP[root_type]
     select_parts = []
     join_parts = []
     group_parts = []
-    # Reuse JOIN aliases when the same (table, work_col) pair appears multiple times
-    # to avoid cross-product bugs (e.g., countries(C) + institutions(C) both from work_authors)
+    where_parts = []
     join_aliases: dict[tuple[str, str], str] = {}
+    dm_join_counter = 0
 
     for i in range(depth + 1):
         bd = breakdowns[i]
         mapping = NODE_MAP[bd["node"]]
         table = mapping["table"]
+        dm_table = mapping["dm_table"]
         work_col = "source_work" if bd["sourceSide"] else "citing_work"
 
         if table is None:
-            col_expr = f"impact.{work_col}"
+            # "works" breakdown: map work ID through dm_works
+            dm_alias = f"dm{dm_join_counter}"
+            dm_join_counter += 1
+            join_parts.append(
+                f"JOIN {dm_table} {dm_alias} ON {dm_alias}.oa_id = impact.{work_col}"
+            )
+            col_expr = f"{dm_alias}.dm_id"
         else:
             join_key = (table, work_col)
             if join_key not in join_aliases:
                 alias = f"lvl{i}"
                 join_aliases[join_key] = alias
                 join_parts.append(
-                    f"LEFT JOIN {table} {alias} ON {alias}.work_id = impact.{work_col}"
+                    f"JOIN {table} {alias} ON {alias}.work_id = impact.{work_col}"
                 )
             else:
                 alias = join_aliases[join_key]
+
             raw_col = f"{alias}.{mapping['column']}"
-            null_default = mapping["null_default"]
-            col_expr = f"COALESCE({raw_col}, {null_default})"
+            where_parts.append(f"{raw_col} IS NOT NULL")
+
+            # Source-side breakdown from root table: scope to root-affiliated rows
+            # Only when grouping by a different column than the root (e.g. authors
+            # of an institution) — not when grouping by the root column itself or
+            # peer columns like country_code
+            if (
+                bd["sourceSide"]
+                and table == root_table
+                and mapping["column"] != root_column
+                and mapping["column"] not in ("country_code",)
+            ):
+                where_parts.append(f"{alias}.{root_column} = :root_id")
+
+            # Join through DM mapping table
+            dm_alias = f"dm{dm_join_counter}"
+            dm_join_counter += 1
+            if bd["node"] == "countries":
+                join_parts.append(
+                    f"JOIN {dm_table} {dm_alias} ON {dm_alias}.country_code = {raw_col}"
+                )
+            else:
+                join_parts.append(
+                    f"JOIN {dm_table} {dm_alias} ON {dm_alias}.oa_id = {raw_col}"
+                )
+            col_expr = f"{dm_alias}.dm_id"
 
         select_parts.append(f"{col_expr} AS level_{i}")
         group_parts.append(col_expr)
@@ -91,6 +163,7 @@ def build_level_query(root_type: str, breakdowns: list, depth: int) -> str:
     joins = "\n    ".join(join_parts)
     selects = ", ".join(select_parts)
     groups = ", ".join(group_parts)
+    where_clause = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
 
     return f"""
     WITH root_works AS (
@@ -107,15 +180,12 @@ def build_level_query(root_type: str, breakdowns: list, depth: int) -> str:
         COUNT(DISTINCT (source_work, citing_work)) AS linkcount
     FROM impact
     {joins}
+    {where_clause}
     GROUP BY {groups}
     """
 
 
 def build_tree(level_results: list) -> dict:
-    """
-    Assemble a tree from per-depth query results. Each depth's rows carry
-    the counts for that level directly — no summation from children.
-    """
     tree: dict = {}
     n = len(level_results)
 
@@ -163,7 +233,8 @@ def impact():
 
 
 if __name__ == "__main__":
-    view_creator = Path("sql-yardstick/views.sql").read_text()
+    view_sql = Path("sql-yardstick/views.sql").read_text()
     with engine.begin() as conn:
-        conn.execute(text(view_creator))
+        conn.execute(text(view_sql))
+        load_dm_mappings(conn)
     app.run(debug=True)

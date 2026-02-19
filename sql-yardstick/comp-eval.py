@@ -13,7 +13,7 @@ load_dotenv(override=True)
 import numpy as np
 import pandas as pd
 import requests
-from ccl_science_data.common import EntC, load_map
+from ccl_science_data.common import EntC
 from scipy.stats import spearmanr
 
 from pyscripts.cache_prompting import (
@@ -31,10 +31,8 @@ flask_url = "http://localhost:5000/impact-tree"
 keys = ["linkCount", "sourceCount"]
 
 
-def get_diff_df(flask_dic, rs_dic, bd_etypes, oa_id_map):
-    flask_rows = flatten_child(
-        flask_dic["children"], etypes=bd_etypes, oa_id_map=oa_id_map
-    )
+def get_diff_df(flask_dic, rs_dic):
+    flask_rows = flatten_child(flask_dic["children"])
     rs_rows = flatten_child(rs_dic["tree"]["children"])
 
     flask_df = (
@@ -56,44 +54,14 @@ def get_diff_df(flask_dic, rs_dic, bd_etypes, oa_id_map):
     return df
 
 
-def cc_to_id(s: str):
-    if s is None or s == "None":
-        return 0
-    return sum([ord(c) * 0x100**i for i, c in enumerate(s)])
-
-
-def flatten_child(children: dict, prefix=[], etypes=None, oa_id_map=None):
+def flatten_child(children: dict, prefix=[]):
     out = []
-    next_etypes = None
-    et_dic = None
-    if etypes is not None and oa_id_map is not None and etypes[0] in oa_id_map:
-        next_etypes = etypes[1:]
-        et_dic = oa_id_map[etypes[0]]
-    elif etypes is not None:
-        next_etypes = etypes[1:]
     for k, v in children.items():
-        display_k = k
-        if et_dic is not None:
-            if etypes[0] == EntC.COUNTRIES:
-                kint = cc_to_id(k)
-            else:
-                kint = int(k)
-            try:
-                display_k = et_dic[kint]
-            except KeyError:
-                pass  # keep raw key if unmapped
         if "children" in v:
-            out.extend(
-                flatten_child(
-                    v["children"],
-                    [*prefix, display_k],
-                    next_etypes,
-                    oa_id_map=oa_id_map,
-                )
-            )
+            out.extend(flatten_child(v["children"], [*prefix, k]))
         out.append(
             {sk: v.get(sk) for sk in keys}
-            | {"path": "-".join(map(str, [*prefix, display_k]))}
+            | {"path": "-".join(map(str, [*prefix, k]))}
         )
     return out
 
@@ -165,18 +133,6 @@ class CompResult:
 
 class ReproEvaluator:
     def __init__(self) -> None:
-        self.oa_id_map = {
-            k: load_map(k)
-            for k in [
-                EntC.INSTITUTIONS,
-                EntC.COUNTRIES,
-                EntC.AUTHORS,
-                EntC.SOURCES,
-                EntC.SUBFIELDS,
-                EntC.TOPICS,
-            ]
-        }
-
         self.br = BatchRequester(min_citations=1000)
         self.specs, _ = get_specs_and_ys()
 
@@ -243,7 +199,7 @@ class ReproEvaluator:
             yield CompResult(
                 payload,
                 None,
-                get_diff_df(flask_dic, rs_dic, bd_etypes, self.oa_id_map),
+                get_diff_df(flask_dic, rs_dic),
                 flask_resp.elapsed.total_seconds(),
                 rs_resp.elapsed.total_seconds(),
                 flask_root_ratio,
