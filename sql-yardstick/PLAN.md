@@ -12,4 +12,4 @@ the relevant files:
 - `create-schema-load-db.py`: creates the schema and loads the data into a backend postgres database that is then used for reproduction
 - `schemas.yaml`: a manually edited file used in the previous file for schema creation
 
-when iterating on the problem, the flask server from `server.py` is running in debug mode, so file changes restart it, and postres is available with the data loaded into it.
+when iterating on the problem, the flask server from `server.py` is running in debug mode, so file changes restart it, and postres is available with the data loaded into it, with the Rust server also running so that comp-eval can be called.
