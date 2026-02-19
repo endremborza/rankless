@@ -93,15 +93,22 @@ def get_filt(ent):
         return None
 
 
-def do_fltering(df: pd.DataFrame, col, filt):
+def do_fltering(df: pd.DataFrame, col, filt, leave_zeroes=False):
     if filt is None:
         return df
+    if leave_zeroes:
+        return df.assign(**{col: np.where(df[col].isin(filt), df[col], 0)})
     return df.loc[df[col].isin(filt), :]
 
 
 # %%
-meta.drop_all(bind=engine)
+with engine.connect() as conn:
+    conn.execute(sa.text("DROP SCHEMA public CASCADE"))
+    conn.execute(sa.text("CREATE SCHEMA public"))
+    conn.commit()
+
 meta.reflect(bind=engine, views=True)
+
 
 schemas_ext = yaml.load(SCHEMA_PATH.read_bytes())
 
@@ -149,6 +156,9 @@ for ent in MAINS + FMAINS:
         if filt is not None:
             fdf = fdf.loc[fdf.index.isin(filt)]
         fdf.to_sql(ent, con, if_exists="append")
+    pd.DataFrame({IDC: [0], DN: ["Unknown"]}).to_sql(
+        ent, con, if_exists="append", index=False
+    )
     pk_constraints.append(add_index(ent))
     add_fk(ent)
 
@@ -161,14 +171,20 @@ for ent, sub in SUBS:
     for df in tqdm(iter_dfs(ent, sub, chunk=100_000), desc=name):
         fdf = df_fixer(df, name)
         for col, target in iter_fks(name):
-            fdf = do_fltering(fdf, col, filter_dic.get(target))
+            fdf = do_fltering(
+                fdf, col, filter_dic.get(target), leave_zeroes=sub == EntC.AUTHORSHIPS
+            )
         fdf = do_fltering(fdf, PARID, filter_dic.get(ent))
         if sub == EntC.AUTHORSHIPS:
-            fdf = parse_ships(fdf).loc[
-                lambda df: df[_ik].isin(filter_dic[EntC.INSTITUTIONS])
-            ]
+            fdf = parse_ships(fdf).assign(
+                **{
+                    _ik: lambda df: np.where(
+                        df[_ik].isin(filter_dic[EntC.INSTITUTIONS]), df[_ik], 0
+                    )
+                }
+            )
         cols = fdf.columns
-        fdf.to_sql(name, con, if_exists="append")
+        fdf.to_sql(name, con, if_exists="append", index=False)
     add_fk(name)
     if sub == EntC.AUTHORSHIPS:
         fk_constraints.append(get_fk(name, _ik, EntC.INSTITUTIONS))
@@ -181,9 +197,11 @@ with engine.begin() as conn:
 
 # %%
 
+engine = sa.create_engine(con)
+meta = sa.MetaData()
 meta.reflect(bind=engine, views=True)
 schema_in_sql = print_schema(meta)
-# Path(SCHEMA_PATH.parent / "schema.sql").write_text(schema_in_sql)
+Path(SCHEMA_PATH.parent / "schema.sql").write_text(schema_in_sql)
 print(schema_in_sql)
 
 # %%
@@ -191,21 +209,30 @@ print(schema_in_sql)
 
 def print_dump():
     schemas = {}
-
     for ent in MAINS:
         df = next(iter_dfs(ent, chunk=1000))
-
         # parse_id()
         schemas[ent] = {k: str(v) for k, v in df.dtypes.items()}
-
     for ent, sub in SUBS:
         df = next(iter_dfs(ent, sub, chunk=1000))
         schemas[f"{ent}-{sub}"] = {k: str(v) for k, v in df.dtypes.items()}
-
     schema_dump_path = Path("sql-yardstick/schemas-dump.yaml")
     schema_dump_path.write_text(yaml.dump(schemas))
 
 
 # %%
-pd.read_sql_query("SELECT * FROM INSTITUTIONS LIMIT 100", con=con)
-# 78577930
+columbia_id = 78577930
+inst_id = columbia_id
+# pd.read_sql_query(f"SELECT * FROM INSTITUTIONS WHERE id={inst_id} LIMIT 100", con=con)
+# pd.read_sql_query("SELECT * FROM INSTITUTIONS LIMIT 100", con=con)
+wids = pd.read_sql_query(
+    f'SELECT * FROM "works-authorships" WHERE institution={inst_id}', con=con
+)[PARID].unique()
+ship_df = pd.read_sql_query(
+    f'SELECT * FROM "works-authorships" wa LEFT JOIN "works-referenced_works" wr ON wr.referenced_work_id=wa.{PARID} WHERE institution={inst_id}',
+    con=con,
+)
+
+print(len(wids))
+print(ship_df.shape)
+ship_df.nunique().to_dict()

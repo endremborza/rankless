@@ -12,4 +12,9 @@ the relevant files:
 - `create-schema-load-db.py`: creates the schema and loads the data into a backend postgres database that is then used for reproduction
 - `schemas.yaml`: a manually edited file used in the previous file for schema creation
 
-when iterating on the problem, the flask server from `server.py` is running in debug mode, so file changes restart it, and postres is available with the data loaded into it, with the Rust server also running so that comp-eval can be called.
+when iterating on the problem, the flask server from `server.py` is running in debug mode, so file changes restart it, and postgres is available with the data loaded into it, with the Rust server also running so that comp-eval can be called.
+
+note that the Rust server filters the output of the trees to the largest and most unexpectedly large 15 or so before serving, but after it calculates the tree so the critical part of the evaluation comes on the intersecting paths. Note that this does not influence the collective numbers on the parent nodes.
+
+you can find the logs for the flask server in `/tmp/flask-server.log`
+

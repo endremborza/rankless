@@ -39,7 +39,6 @@ CREATE TABLE fields (
 	CONSTRAINT fields_domain_domains_fkey FOREIGN KEY(domain) REFERENCES domains (id)
 );
 CREATE TABLE "works-authorships" (
-	index BIGINT, 
 	parent_id BIGINT, 
 	author BIGINT, 
 	institution BIGINT, 
@@ -48,21 +47,18 @@ CREATE TABLE "works-authorships" (
 	CONSTRAINT "works-authorships_parent_id_works_fkey" FOREIGN KEY(parent_id) REFERENCES works (id)
 );
 CREATE TABLE "works-locations" (
-	index BIGINT, 
 	parent_id BIGINT, 
 	source BIGINT, 
 	CONSTRAINT "works-locations_parent_id_works_fkey" FOREIGN KEY(parent_id) REFERENCES works (id), 
 	CONSTRAINT "works-locations_source_sources_fkey" FOREIGN KEY(source) REFERENCES sources (id)
 );
 CREATE TABLE "works-referenced_works" (
-	index BIGINT, 
 	parent_id BIGINT, 
 	referenced_work_id BIGINT, 
 	CONSTRAINT "works-referenced_works_parent_id_works_fkey" FOREIGN KEY(parent_id) REFERENCES works (id), 
 	CONSTRAINT "works-referenced_works_referenced_work_id_works_fkey" FOREIGN KEY(referenced_work_id) REFERENCES works (id)
 );
 CREATE TABLE "works-topics" (
-	index BIGINT, 
 	parent_id BIGINT, 
 	id BIGINT, 
 	score DOUBLE PRECISION, 
