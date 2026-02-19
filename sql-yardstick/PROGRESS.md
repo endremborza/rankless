@@ -88,3 +88,38 @@ Comp-eval with root=Columbia (OA 78577930), 5 breakdown configurations:
 
 ### 4. sourceCount already excellent for matched nodes
 After the source-side root filtering fix, sourceCount median error dropped to **0.0%** for the root-matched case. The author-level source counts match perfectly between flask and RS (verified for all 28 RS authors: 25/28 have identical sourceCount, 3 have small differences due to multi-institution authorships).
+
+---
+
+## Session 3: authorship loading fix + comp-eval snapshot
+
+### Authorship fix (by user)
+Loading of `works-authorships` rows with missing authors or institutions was improved. Validation output from `create-schema-load-db.py`:
+```
+1259          ← unique Columbia papers in works-authorships
+(9612, 5)     ← rows in works-authorships LEFT JOIN works-referenced_works for Columbia
+{'parent_id': 4119, 'author': 170, 'institution': 1, 'referenced_work_id': 1027}
+```
+
+**Why 1259 ≠ 1027 (the 232-paper gap):**
+- `1259` = Columbia papers that have Columbia authorship in `works-authorships` (the potential source paper pool)
+- `1027` = Columbia papers that actually appear as `referenced_work_id` in `works-referenced_works`, i.e., are *cited* by some paper in the dataset
+- `232` = Columbia papers with authorship in the data but **no inbound citations** from any loaded work — they simply aren't cited by anything in the filtered dataset
+- This is expected: `citation_edges` is built from `works-referenced_works`, which only tracks citations *between works both present in the loaded dataset*. Columbia papers cited only by works not in the dataset won't appear as source_works.
+- The flask root `sourceCount` should now be ~1027 (papers that are cited) rather than the old 278 (before authorship fix)
+
+### comp-eval.py changes
+- Added `tid` field to `CompResult` for easier identification
+- Added `depth` and signed `relbias` columns to `diff_df`
+- Extracted `_compute_group_stats()` returning a serializable dict (used for both printing and saving)
+- Added `_print_group_stats()` which prints from that dict, including per-depth breakdown
+- Refactored `_aggregate_group()` to use both functions
+- Added signed bias (`bias=`) to `print_result` and aggregate output
+- Added `save_snapshot()` / `load_snapshot()` / `print_comparison()` — each run saves to `eval-snapshot.json` and shows a delta vs previous run
+
+### Next run (expected state after authorship fix)
+Run `python sql-yardstick/comp-eval.py` to establish new baseline. Expected changes vs previous:
+- Root linkCount for tid=2 may no longer be 1220/1220 (more Columbia papers are now loaded)
+- Root sourceCount may be ~1027 (up from 278)
+- Flask-only node count likely higher (more authors with valid Columbia affiliation)
+- Root match ratio for tid=2 may drop below 0.9 threshold if RS still uses 278 sources

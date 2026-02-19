@@ -229,7 +229,7 @@ wids = pd.read_sql_query(
     f'SELECT * FROM "works-authorships" WHERE institution={inst_id}', con=con
 )[PARID].unique()
 ship_df = pd.read_sql_query(
-    f'SELECT * FROM "works-authorships" wa LEFT JOIN "works-referenced_works" wr ON wr.referenced_work_id=wa.{PARID} WHERE institution={inst_id}',
+    f'SELECT wa.{PARID} AS refed, wr.{PARID} FROM "works-authorships" wa LEFT JOIN "works-referenced_works" wr ON wr.referenced_work_id=wa.{PARID} WHERE institution={inst_id}',
     con=con,
 )
 
