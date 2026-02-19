@@ -5,8 +5,6 @@ import yaml
 from ccl_science_data.common import *
 from tqdm import tqdm
 
-# %%
-
 MAINS = [
     EntC.WORKS,
     EntC.AUTHORS,
@@ -183,32 +181,31 @@ with engine.begin() as conn:
 
 # %%
 
+meta.reflect(bind=engine, views=True)
 schema_in_sql = print_schema(meta)
-Path(SCHEMA_PATH.parent / "schema.sql").write_text(schema_in_sql)
+# Path(SCHEMA_PATH.parent / "schema.sql").write_text(schema_in_sql)
 print(schema_in_sql)
 
 # %%
 
-schemas = {}
 
-for ent in MAINS:
-    df = next(iter_dfs(ent, chunk=1000))
+def print_dump():
+    schemas = {}
 
-    # parse_id()
-    schemas[ent] = {k: str(v) for k, v in df.dtypes.items()}
+    for ent in MAINS:
+        df = next(iter_dfs(ent, chunk=1000))
 
+        # parse_id()
+        schemas[ent] = {k: str(v) for k, v in df.dtypes.items()}
 
-for ent, sub in SUBS:
-    df = next(iter_dfs(ent, sub, chunk=1000))
-    schemas[f"{ent}-{sub}"] = {k: str(v) for k, v in df.dtypes.items()}
+    for ent, sub in SUBS:
+        df = next(iter_dfs(ent, sub, chunk=1000))
+        schemas[f"{ent}-{sub}"] = {k: str(v) for k, v in df.dtypes.items()}
 
-# %%
+    schema_dump_path = Path("sql-yardstick/schemas-dump.yaml")
+    schema_dump_path.write_text(yaml.dump(schemas))
 
-schema_dump_path = Path("sql-yardstick/schemas-dump.yaml")
-schema_dump_path.write_text(yaml.dump(schemas))
 
 # %%
 pd.read_sql_query("SELECT * FROM INSTITUTIONS LIMIT 100", con=con)
 # 78577930
-
-# %%
