@@ -1,8 +1,6 @@
 import os
-from io import StringIO
 from pathlib import Path
 
-import numpy as np
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from sqlalchemy import create_engine, text
@@ -18,66 +16,18 @@ ROOT_MAP = {
     "subfields": ("work_subfields", "subfield"),
 }
 
-# dm_table: mapping table for OA→DM translation (None for works breakdown)
 NODE_MAP = {
-    "authors": {"table": "work_authors", "column": "author", "dm_table": "dm_authors"},
-    "institutions": {"table": "work_authors", "column": "institution", "dm_table": "dm_institutions"},
-    "countries": {"table": "work_authors", "column": "country_code", "dm_table": "dm_countries"},
-    "sources": {"table": "work_sources", "column": "source", "dm_table": "dm_sources"},
-    "subfields": {"table": "work_subfields", "column": "subfield", "dm_table": "dm_subfields"},
-    "topics": {"table": "work_topics", "column": "topic", "dm_table": "dm_topics"},
-    "works": {"table": None, "column": None, "dm_table": "dm_works"},
+    "authors": {"table": "work_authors", "column": "author"},
+    "institutions": {"table": "work_authors", "column": "institution"},
+    "countries": {"table": "work_authors", "column": "country_code"},
+    "sources": {"table": "work_sources", "column": "source"},
+    "subfields": {"table": "work_subfields", "column": "subfield"},
+    "topics": {"table": "work_topics", "column": "topic"},
+    "works": {"table": None, "column": None},
 }
 
 app = Flask(__name__)
 engine = create_engine(os.environ["PG_CONSTR"])
-
-OA_ROOT = os.environ.get("OA_ROOT", "")
-MAPPING_DIR = Path(OA_ROOT, "a1_entity_mapping")
-
-# Entity types that use integer OA IDs
-INT_ENTITIES = ["authors", "institutions", "sources", "subfields", "topics", "works"]
-
-
-def id_to_cc(val: int) -> str:
-    chars = []
-    while val > 0:
-        chars.append(chr(val & 0xFF))
-        val >>= 8
-    return "".join(chars)
-
-
-def load_dm_mappings(conn):
-    for ent in INT_ENTITIES:
-        blob = Path(MAPPING_DIR, ent).read_bytes()
-        pairs = np.frombuffer(blob, dtype=np.dtype(np.uint64).newbyteorder(">")).reshape(-1, 2)
-        conn.execute(text(f"DROP TABLE IF EXISTS dm_{ent} CASCADE"))
-        conn.execute(text(f"CREATE TABLE dm_{ent} (oa_id BIGINT PRIMARY KEY, dm_id BIGINT)"))
-
-        buf = StringIO()
-        for oa, dm in pairs:
-            buf.write(f"{oa}\t{dm}\n")
-        buf.seek(0)
-        raw = conn.connection.driver_connection
-        with raw.cursor() as cur:
-            cur.copy_from(buf, f"dm_{ent}", columns=("oa_id", "dm_id"))
-
-    # Countries: mapping file uses cc_to_id encoded integers, PG has country_code text
-    blob = Path(MAPPING_DIR, "countries").read_bytes()
-    pairs = np.frombuffer(blob, dtype=np.dtype(np.uint64).newbyteorder(">")).reshape(-1, 2)
-    conn.execute(text("DROP TABLE IF EXISTS dm_countries CASCADE"))
-    conn.execute(text(
-        "CREATE TABLE dm_countries (country_code TEXT PRIMARY KEY, dm_id BIGINT)"
-    ))
-    buf = StringIO()
-    for cc_int, dm in pairs:
-        cc = id_to_cc(int(cc_int))
-        if cc:
-            buf.write(f"{cc}\t{dm}\n")
-    buf.seek(0)
-    raw = conn.connection.driver_connection
-    with raw.cursor() as cur:
-        cur.copy_from(buf, "dm_countries", columns=("country_code", "dm_id"))
 
 
 def build_root_query(root_type: str) -> str:
@@ -102,7 +52,7 @@ def build_root_query(root_type: str) -> str:
     SELECT
         COUNT(DISTINCT i.source_work) AS sourcecount,
         COUNT(DISTINCT (i.source_work, i.citing_work)) AS linkcount,
-        (SELECT dw.dm_id FROM top_source ts JOIN dm_works dw ON dw.oa_id = ts.source_work) AS top_source_id,
+        (SELECT ts.source_work FROM top_source ts) AS top_source_id,
         (SELECT ts.work_links FROM top_source ts) AS top_source_links
     FROM impact i
     """
@@ -115,23 +65,15 @@ def build_level_query(root_type: str, breakdowns: list, depth: int) -> str:
     group_parts = []
     where_parts = []
     join_aliases: dict[tuple[str, str], str] = {}
-    dm_join_counter = 0
 
     for i in range(depth + 1):
         bd = breakdowns[i]
         mapping = NODE_MAP[bd["node"]]
         table = mapping["table"]
-        dm_table = mapping["dm_table"]
         work_col = "source_work" if bd["sourceSide"] else "citing_work"
 
         if table is None:
-            # "works" breakdown: map work ID through dm_works
-            dm_alias = f"dm{dm_join_counter}"
-            dm_join_counter += 1
-            join_parts.append(
-                f"JOIN {dm_table} {dm_alias} ON {dm_alias}.oa_id = impact.{work_col}"
-            )
-            col_expr = f"{dm_alias}.dm_id"
+            col_expr = f"impact.{work_col}"
         else:
             join_key = (table, work_col)
             if join_key not in join_aliases:
@@ -143,13 +85,9 @@ def build_level_query(root_type: str, breakdowns: list, depth: int) -> str:
             else:
                 alias = join_aliases[join_key]
 
-            raw_col = f"{alias}.{mapping['column']}"
-            where_parts.append(f"{raw_col} IS NOT NULL")
+            col_expr = f"{alias}.{mapping['column']}"
+            where_parts.append(f"{col_expr} IS NOT NULL")
 
-            # Source-side breakdown from root table: scope to root-affiliated rows
-            # Only when grouping by a different column than the root (e.g. authors
-            # of an institution) — not when grouping by the root column itself or
-            # peer columns like country_code
             if (
                 bd["sourceSide"]
                 and table == root_table
@@ -157,19 +95,6 @@ def build_level_query(root_type: str, breakdowns: list, depth: int) -> str:
                 and mapping["column"] not in ("country_code",)
             ):
                 where_parts.append(f"{alias}.{root_column} = :root_id")
-
-            # Join through DM mapping table
-            dm_alias = f"dm{dm_join_counter}"
-            dm_join_counter += 1
-            if bd["node"] == "countries":
-                join_parts.append(
-                    f"JOIN {dm_table} {dm_alias} ON {dm_alias}.country_code = {raw_col}"
-                )
-            else:
-                join_parts.append(
-                    f"JOIN {dm_table} {dm_alias} ON {dm_alias}.oa_id = {raw_col}"
-                )
-            col_expr = f"{dm_alias}.dm_id"
 
         select_parts.append(f"{col_expr} AS level_{i}")
         group_parts.append(col_expr)
@@ -224,11 +149,10 @@ def build_level_query(root_type: str, breakdowns: list, depth: int) -> str:
     )
     SELECT
         g.*,
-        dw.dm_id AS top_source_id,
+        ts.top_source_work AS top_source_id,
         ts.top_source_links
     FROM grouped g
     JOIN top_source ts ON {join_condition}
-    JOIN dm_works dw ON dw.oa_id = ts.top_source_work
     """
 
 
@@ -287,5 +211,4 @@ if __name__ == "__main__":
     view_sql = Path("sql-yardstick/views.sql").read_text()
     with engine.begin() as conn:
         conn.execute(text(view_sql))
-        load_dm_mappings(conn)
     app.run(debug=True, host=os.environ.get("FLASK_HOST", "127.0.0.1"))

@@ -24,6 +24,7 @@ from pyscripts.cache_prompting import RTC, BatchRequester, get_specs_and_ys
 
 FLASK_URL = "http://localhost:5000/impact-tree"
 SNAPSHOT_PATH = Path(__file__).parent / "eval-snapshot.json"
+REPORT_PATH = Path(__file__).parent / "eval-report.md"
 PLOT_PATH = Path(__file__).parent / "timing-plot.png"
 METRICS = ["linkCount", "sourceCount"]
 SUPPORTED_ETYPES = {
@@ -36,6 +37,43 @@ SUPPORTED_ETYPES = {
     EntC.WORKS,
 }
 RELERR_MAX = 0.05
+
+
+# ── OA → DM mapping ─────────────────────────────────────────────────────────
+
+
+def _id_to_cc(val: int) -> str:
+    chars = []
+    while val > 0:
+        chars.append(chr(val & 0xFF))
+        val >>= 8
+    return "".join(chars)
+
+
+def build_oa_to_dm_maps() -> dict[str, dict[str, str]]:
+    maps: dict[str, dict[str, str]] = {}
+    for ent in SUPPORTED_ETYPES:
+        if ent == EntC.COUNTRIES:
+            raw = load_map(ent)
+            maps[ent] = {_id_to_cc(int(k)): str(v) for k, v in raw.items() if _id_to_cc(int(k))}
+        else:
+            maps[ent] = {str(k): str(v) for k, v in load_map(ent).items()}
+    return maps
+
+
+def translate_tree(children: dict, breakdowns: list[dict], maps: dict, depth: int = 0) -> dict:
+    if depth >= len(breakdowns):
+        return children
+    etype = breakdowns[depth]["attributeType"]
+    oa_to_dm = maps.get(etype, {})
+    translated = {}
+    for k, v in children.items():
+        dm_key = oa_to_dm.get(str(k), str(k))
+        new_v = dict(v)
+        if "children" in new_v:
+            new_v["children"] = translate_tree(new_v["children"], breakdowns, maps, depth + 1)
+        translated[dm_key] = new_v
+    return translated
 
 
 # ── tree / diff ───────────────────────────────────────────────────────────────
@@ -123,6 +161,7 @@ class CompResult:
 class ReproEvaluator:
     def __init__(self) -> None:
         self.specs, _ = get_specs_and_ys()
+        self.oa_dm_maps = build_oa_to_dm_maps()
 
     def iter_comparisons(self, df_to_comp: pd.DataFrame):
 
@@ -153,13 +192,17 @@ class ReproEvaluator:
                     flask_resp = requests.post(FLASK_URL, json=payload)
                     flask_resp.raise_for_status()
                     rs_resp = requests.get(url)
+                    flask_json = flask_resp.json()
+                    flask_json["children"] = translate_tree(
+                        flask_json["children"], bds, self.oa_dm_maps
+                    )
                     yield CompResult(
                         root_type=root_type,
                         bd_label=bd_label,
                         citation_count=ccount,
                         flask_time=flask_resp.elapsed.total_seconds(),
                         rs_time=rs_resp.elapsed.total_seconds(),
-                        diff_df=make_diff_df(flask_resp.json(), rs_resp.json()),
+                        diff_df=make_diff_df(flask_json, rs_resp.json()),
                     )
                 except Exception as e:
                     yield CompResult(
@@ -197,7 +240,7 @@ def build_summary_df(results: list[CompResult]) -> pd.DataFrame:
                 "relerr_lc": lc["relerr"],
                 "relerr_sc": sc["relerr"],
                 "n_missing": lc["n_missing"],
-                "ts_id_match_rate": ts["id_match_rate"],
+                "ts_id_match": ts["id_match_rate"],
                 "ts_link_relerr": ts["link_relerr"],
             }
         )
@@ -216,7 +259,7 @@ def build_grouped_df(summary_df: pd.DataFrame) -> pd.DataFrame:
             relerr_lc=("relerr_lc", "mean"),
             relerr_sc=("relerr_sc", "mean"),
             n_missing=("n_missing", "sum"),
-            ts_id_match_rate=("ts_id_match_rate", "mean"),
+            ts_id_match=("ts_id_match", "mean"),
             ts_link_relerr=("ts_link_relerr", "mean"),
         )
         .reset_index()
@@ -242,7 +285,7 @@ def build_totals(results: list[CompResult], summary_df: pd.DataFrame) -> dict:
         "mean_relerr_lc": float(summary_df["relerr_lc"].mean()),
         "mean_relerr_sc": float(summary_df["relerr_sc"].mean()),
         "total_n_missing": int(summary_df["n_missing"].sum()),
-        "mean_ts_id_match_rate": float(summary_df["ts_id_match_rate"].mean()),
+        "mean_ts_id_match": float(summary_df["ts_id_match"].mean()),
         "mean_ts_link_relerr": float(summary_df["ts_link_relerr"].mean()),
     }
 
@@ -266,7 +309,7 @@ def print_report(grouped_df: pd.DataFrame, totals: dict) -> None:
         "relerr_lc",
         "relerr_sc",
         "n_missing",
-        "ts_id_match_rate",
+        "ts_id_match",
         "ts_link_relerr",
     ]
     fmt = {
@@ -277,7 +320,7 @@ def print_report(grouped_df: pd.DataFrame, totals: dict) -> None:
         "pearson_sc": "{:.3f}".format,
         "relerr_lc": "{:.1%}".format,
         "relerr_sc": "{:.1%}".format,
-        "ts_id_match_rate": "{:.1%}".format,
+        "ts_id_match": "{:.1%}".format,
         "ts_link_relerr": "{:.1%}".format,
     }
     with pd.option_context("display.max_rows", 100, "display.max_colwidth", 60):
@@ -293,7 +336,7 @@ def print_report(grouped_df: pd.DataFrame, totals: dict) -> None:
             print(f"  {k}: {v:.1f}s")
         elif "pearson" in k:
             print(f"  {k}: {v:.3f}")
-        elif "match_rate" in k or "relerr" in k:
+        elif "match" in k or "relerr" in k:
             print(f"  {k}: {v:.1%}")
         else:
             print(f"  {k}: {v:.1f}")
@@ -368,10 +411,92 @@ def save_snapshot(grouped_df: pd.DataFrame, totals: dict) -> None:
     print(f"\nsnapshot saved → {SNAPSHOT_PATH}")
 
 
+# ── markdown report ──────────────────────────────────────────────────────────
+
+
+def _fmt_val(k: str, v) -> str:
+    if not isinstance(v, float):
+        return str(v)
+    if "time" in k and "ratio" not in k:
+        return f"{v:.1f}s"
+    if "pearson" in k:
+        return f"{v:.3f}"
+    if "match" in k or "relerr" in k:
+        return f"{v:.1%}"
+    if "ratio" in k:
+        return f"{v:.1f}x"
+    return f"{v:.2f}"
+
+
+def save_markdown(grouped_df: pd.DataFrame, totals: dict, results: list[CompResult]) -> None:
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    lines = [
+        f"# Reproduction Eval Report",
+        f"",
+        f"**{ts}** | {totals['n_comparisons']} comparisons, {totals['n_errors']} errors",
+        f"",
+        f"## Summary",
+        f"",
+        f"| Metric | Value |",
+        f"|--------|-------|",
+    ]
+    for k, v in totals.items():
+        lines.append(f"| {k} | {_fmt_val(k, v)} |")
+
+    lines += [
+        f"",
+        f"## By root type x breakdown",
+        f"",
+    ]
+
+    cols = [
+        ("root_type", "Root", None),
+        ("bd_label", "Breakdown", None),
+        ("n", "N", None),
+        ("time_rate", "PG/RS", lambda v: f"{v:.1f}x"),
+        ("pearson_lc", "r(LC)", lambda v: f"{v:.3f}"),
+        ("pearson_sc", "r(SC)", lambda v: f"{v:.3f}"),
+        ("relerr_lc", "err(LC)", lambda v: f"{v:.1%}"),
+        ("relerr_sc", "err(SC)", lambda v: f"{v:.1%}"),
+        ("n_missing", "Miss", None),
+        ("ts_id_match", "TopID%", lambda v: f"{v:.0%}"),
+        ("ts_link_relerr", "TopLnkErr", lambda v: f"{v:.1%}"),
+    ]
+    header = "| " + " | ".join(c[1] for c in cols) + " |"
+    sep = "| " + " | ".join("---" for _ in cols) + " |"
+    lines += [header, sep]
+
+    for _, row in grouped_df.iterrows():
+        cells = []
+        for key, _, fmt_fn in cols:
+            val = row[key]
+            if fmt_fn and pd.notna(val):
+                cells.append(fmt_fn(val))
+            elif pd.isna(val):
+                cells.append("-")
+            else:
+                cells.append(str(val))
+        lines.append("| " + " | ".join(cells) + " |")
+
+    lines += [
+        f"",
+        f"## Timing",
+        f"",
+        f"| Backend | Total (s) |",
+        f"|---------|-----------|",
+        f"| Flask (PG) | {totals['total_flask_time']:.1f} |",
+        f"| Rust | {totals['total_rs_time']:.1f} |",
+        f"| Ratio (PG/RS) | {totals['total_duration_ratio']:.1f}x |",
+        f"",
+    ]
+
+    REPORT_PATH.write_text("\n".join(lines) + "\n")
+    print(f"\nmarkdown report → {REPORT_PATH}")
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    # inst_oa_ids = [78577930]
     comper = ReproEvaluator()
     bins = [5_000, 10_000, 30_000, 100_000, 200_000][:2]
     e_per_g = 2
@@ -403,3 +528,4 @@ if __name__ == "__main__":
     print_report(grouped_df, totals)
     save_snapshot(grouped_df, totals)
     plot_timing(results, PLOT_PATH)
+    save_markdown(grouped_df, totals, results)
