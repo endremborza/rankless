@@ -509,8 +509,8 @@ def save_markdown(
 
 if __name__ == "__main__":
     comper = ReproEvaluator()
-    bins = [5_000, 10_000, 30_000, 100_000, 200_000][:2]
-    e_per_g = 2
+    bins = [5_000, 10_000, 30_000, 100_000, 200_000]
+    e_per_g = 4
     sample_df = BatchRequester(min_citations=bins[0]).urled_sample
     decorated_df = (
         pd.concat(
