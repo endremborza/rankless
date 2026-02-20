@@ -1,45 +1,52 @@
 # Reproduction Eval Report
 
-**2026-02-20 15:52** | 20 comparisons, 12 errors
+**2026-02-20 20:04** | 163 comparisons, 0 errors
 
 ## Summary
 
 | Metric | Value |
 |--------|-------|
-| n_comparisons | 20 |
-| n_errors | 12 |
-| total_flask_time | 38.3s |
-| total_rs_time | 0.6s |
-| total_duration_ratio | 62.6x |
-| mean_pearson_lc | 0.989 |
-| mean_pearson_sc | 0.986 |
-| mean_relerr_lc | 0.5% |
-| mean_relerr_sc | 0.4% |
-| total_n_missing | 33 |
-| mean_ts_id_match | 85.8% |
-| mean_ts_link_relerr | 0.3% |
+| n_comparisons | 163 |
+| n_errors | 0 |
+| total_flask_time | 1190.0s |
+| total_rs_time | 19.3s |
+| total_duration_ratio | 61.5x |
+| mean_pearson_lc | 0.997 |
+| mean_pearson_sc | 0.996 |
+| mean_relerr_lc | 0.3% |
+| mean_relerr_sc | 0.2% |
+| total_n_missing | 784 |
+| mean_ts_id_match | 83.7% |
+| mean_ts_link_relerr | 0.1% |
 
 ## By root type x breakdown
 
 | Root | Breakdown | N | PG/RS | r(LC) | r(SC) | err(LC) | err(SC) | Miss | TopID% | TopLnkErr |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| institutions | subfields-S;subfields-T;topics-T | 2 | 43.4x | 1.000 | 1.000 | 0.0% | 0.0% | 0 | 83% | 0.0% |
-| subfields | countries-S | 2 | 43.8x | 1.000 | 1.000 | 0.0% | 0.0% | 0 | 100% | 0.0% |
-| institutions | countries-T;institutions-T;subfields-T;topics-T | 2 | 82.2x | 1.000 | 1.000 | 0.0% | 0.0% | 0 | 72% | 0.0% |
-| subfields | countries-T;subfields-T;topics-T | 2 | 117.5x | 1.000 | 1.000 | 0.0% | 0.0% | 0 | 63% | 0.0% |
-| subfields | subfields-T | 2 | 15.1x | 1.000 | 1.000 | 0.0% | 0.0% | 0 | 89% | 0.0% |
-| institutions | subfields-S;countries-T;institutions-T;subfields-T | 2 | 47.5x | 1.000 | 1.000 | 0.1% | 0.1% | 14 | 81% | 0.0% |
-| sources | countries-S;institutions-S;subfields-S | 2 | 30.2x | 1.000 | 1.000 | 0.0% | 0.1% | 0 | 98% | 0.0% |
-| subfields | topics-S;countries-S;institutions-S | 2 | 62.6x | 1.000 | 1.000 | 0.4% | 0.4% | 9 | 95% | 0.0% |
-| institutions | countries-S;subfields-S;institutions-S | 2 | 54.2x | 0.938 | 0.916 | 0.4% | 0.4% | 0 | 97% | 0.1% |
-| institutions | subfields-S;countries-T;institutions-T;sources-T | 1 | 83.8x | 0.952 | 0.955 | 3.3% | 2.3% | 10 | 83% | 2.3% |
-| sources | subfields-S;countries-T;institutions-T;sources-T | 1 | 80.0x | 0.949 | 0.939 | 4.2% | 3.3% | 0 | 79% | 2.9% |
+| institutions | countries-T;institutions-T;subfields-T;topics-T | 13 | 75.9x | 1.000 | 1.000 | 0.0% | 0.0% | 0 | 63% | 0.0% |
+| countries | countries-T;subfields-T;institutions-T | 10 | 28.6x | 1.000 | 1.000 | 0.0% | 0.0% | 0 | 65% | 0.0% |
+| countries | subfields-T | 10 | 11.0x | 1.000 | 1.000 | 0.0% | 0.0% | 0 | 93% | 0.0% |
+| institutions | subfields-S;countries-T;institutions-T;subfields-T | 13 | 43.8x | 1.000 | 1.000 | 0.0% | 0.0% | 14 | 74% | 0.0% |
+| sources | countries-S;institutions-S;subfields-S | 7 | 153.0x | 1.000 | 1.000 | 0.0% | 0.0% | 0 | 98% | 0.0% |
+| subfields | countries-T;subfields-T;topics-T | 13 | 119.3x | 1.000 | 1.000 | 0.0% | 0.0% | 0 | 64% | 0.0% |
+| institutions | subfields-S;subfields-T;topics-T | 13 | 123.1x | 1.000 | 1.000 | 0.0% | 0.0% | 0 | 79% | 0.0% |
+| subfields | subfields-T | 13 | 37.7x | 1.000 | 1.000 | 0.0% | 0.0% | 0 | 95% | 0.0% |
+| subfields | countries-S | 13 | 84.7x | 1.000 | 1.000 | 0.0% | 0.1% | 0 | 98% | 0.0% |
+| countries | subfields-S | 10 | 10.5x | 1.000 | 1.000 | 0.0% | 0.1% | 0 | 97% | 0.0% |
+| subfields | topics-S;countries-S;institutions-S | 13 | 434.6x | 1.000 | 1.000 | 0.1% | 0.1% | 17 | 96% | 0.0% |
+| institutions | countries-S;subfields-S;institutions-S | 13 | 77.6x | 0.979 | 0.979 | 0.2% | 0.3% | 0 | 96% | 0.1% |
+| countries | institutions-S;subfields-S;countries-T;institutions-T | 10 | 43.6x | 1.000 | 1.000 | 0.6% | 0.6% | 687 | 85% | 0.0% |
+| subfields | sources-S;countries-S;institutions-S | 3 | 800.7x | 1.000 | 1.000 | 1.1% | 1.1% | 34 | 97% | 0.0% |
+| institutions | subfields-T;sources-T;topics-T | 1 | 911.2x | 0.995 | 0.997 | 1.6% | 1.4% | 0 | 44% | 1.0% |
+| sources | sources-T;countries-T;subfields-T | 1 | 183.6x | 1.000 | 1.000 | 1.7% | 1.7% | 22 | 57% | 0.1% |
+| sources | subfields-S;countries-T;institutions-T;sources-T | 3 | 219.9x | 0.970 | 0.951 | 3.0% | 2.3% | 0 | 80% | 2.0% |
+| institutions | subfields-S;countries-T;institutions-T;sources-T | 4 | 54.4x | 0.963 | 0.955 | 3.4% | 2.7% | 10 | 70% | 2.1% |
 
 ## Timing
 
 | Backend | Total (s) |
 |---------|-----------|
-| Flask (PG) | 38.3 |
-| Rust | 0.6 |
-| Ratio (PG/RS) | 62.6x |
+| Flask (PG) | 1190.0 |
+| Rust | 19.3 |
+| Ratio (PG/RS) | 61.5x |
 

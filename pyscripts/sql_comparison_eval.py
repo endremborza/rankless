@@ -99,18 +99,18 @@ def _flatten(children: dict, prefix: tuple = ()) -> list[dict]:
     return rows
 
 
+_EMPTY_COLS = [*METRICS, "topSourceId", "topSourceLinks"]
+
+
+def _rows_to_df(rows: list[dict]) -> pd.DataFrame:
+    if rows:
+        return pd.DataFrame(rows).set_index("path")
+    return pd.DataFrame(columns=_EMPTY_COLS, index=pd.Index([], name="path"))
+
+
 def make_diff_df(flask_dic: dict, rs_dic: dict) -> pd.DataFrame:
-    flask_df = (
-        pd.DataFrame(_flatten(flask_dic["children"]))
-        .set_index("path")
-        .add_prefix("flask_")
-    )
-    rs_rows = _flatten(rs_dic["tree"]["children"])
-    rs_df = (
-        pd.DataFrame(rs_rows).set_index("path")
-        if rs_rows
-        else pd.DataFrame(columns=METRICS, index=pd.Index([], name="path"))
-    )
+    flask_df = _rows_to_df(_flatten(flask_dic["children"])).add_prefix("flask_")
+    rs_df = _rows_to_df(_flatten(rs_dic["tree"]["children"]))
     return flask_df.join(rs_df, how="outer").fillna(0)
 
 
@@ -189,9 +189,14 @@ class ReproEvaluator:
                     {"node": b["attributeType"], "sourceSide": b["sourceSide"]}
                     for b in bds
                 ]
+                root_id = (
+                    _id_to_cc(int(row["oa_id"]))
+                    if root_type == EntC.COUNTRIES
+                    else row["oa_id"]
+                )
                 payload = {
                     "root_type": root_type,
-                    "root_id": row["oa_id"],
+                    "root_id": root_id,
                     "breakdowns": flask_bds,
                 }
                 ccount: int = row["citations"]
