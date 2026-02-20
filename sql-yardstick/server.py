@@ -85,12 +85,26 @@ def build_root_query(root_type: str) -> str:
     return f"""
     WITH root_works AS (
         SELECT DISTINCT work_id FROM {root_table} WHERE {root_column} = :root_id
+    ),
+    impact AS (
+        SELECT ce.source_work, ce.citing_work
+        FROM citation_edges ce
+        JOIN root_works rw ON ce.source_work = rw.work_id
+    ),
+    per_source AS (
+        SELECT source_work, COUNT(DISTINCT citing_work) AS work_links
+        FROM impact
+        GROUP BY source_work
+    ),
+    top_source AS (
+        SELECT source_work, work_links FROM per_source ORDER BY work_links DESC LIMIT 1
     )
     SELECT
-        COUNT(DISTINCT ce.source_work) AS sourcecount,
-        COUNT(DISTINCT (ce.source_work, ce.citing_work)) AS linkcount
-    FROM citation_edges ce
-    JOIN root_works rw ON ce.source_work = rw.work_id
+        COUNT(DISTINCT i.source_work) AS sourcecount,
+        COUNT(DISTINCT (i.source_work, i.citing_work)) AS linkcount,
+        (SELECT dw.dm_id FROM top_source ts JOIN dm_works dw ON dw.oa_id = ts.source_work) AS top_source_id,
+        (SELECT ts.work_links FROM top_source ts) AS top_source_links
+    FROM impact i
     """
 
 
@@ -160,10 +174,11 @@ def build_level_query(root_type: str, breakdowns: list, depth: int) -> str:
         select_parts.append(f"{col_expr} AS level_{i}")
         group_parts.append(col_expr)
 
-    joins = "\n    ".join(join_parts)
-    selects = ", ".join(select_parts)
-    groups = ", ".join(group_parts)
+    joins = "\n        ".join(join_parts)
+    level_selects = ", ".join(select_parts)
+    group_aliases = ", ".join(f"level_{i}" for i in range(depth + 1))
     where_clause = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+    join_condition = " AND ".join(f"g.level_{i} = ts.level_{i}" for i in range(depth + 1))
 
     return f"""
     WITH root_works AS (
@@ -173,15 +188,47 @@ def build_level_query(root_type: str, breakdowns: list, depth: int) -> str:
         SELECT ce.source_work, ce.citing_work
         FROM citation_edges ce
         JOIN root_works rw ON ce.source_work = rw.work_id
+    ),
+    expanded AS (
+        SELECT
+            {level_selects},
+            source_work,
+            citing_work
+        FROM impact
+        {joins}
+        {where_clause}
+    ),
+    grouped AS (
+        SELECT
+            {group_aliases},
+            COUNT(DISTINCT source_work) AS sourcecount,
+            COUNT(DISTINCT (source_work, citing_work)) AS linkcount
+        FROM expanded
+        GROUP BY {group_aliases}
+    ),
+    per_source AS (
+        SELECT
+            {group_aliases},
+            source_work,
+            COUNT(DISTINCT citing_work) AS work_links
+        FROM expanded
+        GROUP BY {group_aliases}, source_work
+    ),
+    top_source AS (
+        SELECT DISTINCT ON ({group_aliases})
+            {group_aliases},
+            source_work AS top_source_work,
+            work_links AS top_source_links
+        FROM per_source
+        ORDER BY {group_aliases}, work_links DESC
     )
     SELECT
-        {selects},
-        COUNT(DISTINCT source_work) AS sourcecount,
-        COUNT(DISTINCT (source_work, citing_work)) AS linkcount
-    FROM impact
-    {joins}
-    {where_clause}
-    GROUP BY {groups}
+        g.*,
+        dw.dm_id AS top_source_id,
+        ts.top_source_links
+    FROM grouped g
+    JOIN top_source ts ON {join_condition}
+    JOIN dm_works dw ON dw.oa_id = ts.top_source_work
     """
 
 
@@ -199,6 +246,8 @@ def build_tree(level_results: list) -> dict:
             node[key] = {
                 "linkCount": row["linkcount"],
                 "sourceCount": row["sourcecount"],
+                "topSourceId": row["top_source_id"],
+                "topSourceLinks": row["top_source_links"],
             }
             if depth < n - 1:
                 node[key]["children"] = {}
@@ -228,6 +277,8 @@ def impact():
     return jsonify({
         "linkCount": root_row["linkcount"],
         "sourceCount": root_row["sourcecount"],
+        "topSourceId": root_row["top_source_id"],
+        "topSourceLinks": root_row["top_source_links"],
         "children": build_tree(level_results),
     })
 

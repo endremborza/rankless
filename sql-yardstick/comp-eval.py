@@ -48,7 +48,9 @@ def _flatten(children: dict, prefix: tuple = ()) -> list[dict]:
         if "children" in v:
             rows.extend(_flatten(v["children"], path))
         rows.append(
-            {m: v.get(m, 0) for m in METRICS} | {"path": "-".join(map(str, path))}
+            {m: v.get(m, 0) for m in METRICS}
+            | {"path": "-".join(map(str, path))}
+            | {"topSourceId": v.get("topSourceId"), "topSourceLinks": v.get("topSourceLinks", 0)}
         )
     return rows
 
@@ -86,6 +88,19 @@ def _metric_stats(df: pd.DataFrame, col: str) -> dict | None:
         "relerr": float(relerr.mean()) if len(relerr) > 0 else None,
         "n_missing": int((rs_nodes[flask_col] == 0).sum()),
     }
+
+
+def _top_source_stats(df: pd.DataFrame) -> dict:
+    """Match rate of topSourceId and rel error of topSourceLinks on nodes present on both sides."""
+    both = df.loc[(df["topSourceLinks"] > 0) & (df["flask_topSourceLinks"] > 0)]
+    if both.empty:
+        return {"id_match_rate": None, "link_relerr": None}
+    id_match_rate = float((both["topSourceId"] == both["flask_topSourceId"]).mean())
+    mid = (both["topSourceLinks"] + both["flask_topSourceLinks"]) / 2.0
+    link_relerr = float(
+        ((both["topSourceLinks"] - both["flask_topSourceLinks"]).abs() / mid.replace(0, np.nan)).mean()
+    )
+    return {"id_match_rate": id_match_rate, "link_relerr": link_relerr}
 
 
 # ── data model ────────────────────────────────────────────────────────────────
@@ -170,6 +185,7 @@ def build_summary_df(results: list[CompResult]) -> pd.DataFrame:
         sc = _metric_stats(cr.diff_df, METRICS[1])
         if lc is None or sc is None:
             continue
+        ts = _top_source_stats(cr.diff_df)
         rows.append(
             {
                 "root_type": cr.root_type,
@@ -181,6 +197,8 @@ def build_summary_df(results: list[CompResult]) -> pd.DataFrame:
                 "relerr_lc": lc["relerr"],
                 "relerr_sc": sc["relerr"],
                 "n_missing": lc["n_missing"],
+                "ts_id_match_rate": ts["id_match_rate"],
+                "ts_link_relerr": ts["link_relerr"],
             }
         )
     return pd.DataFrame(rows)
@@ -198,6 +216,8 @@ def build_grouped_df(summary_df: pd.DataFrame) -> pd.DataFrame:
             relerr_lc=("relerr_lc", "mean"),
             relerr_sc=("relerr_sc", "mean"),
             n_missing=("n_missing", "sum"),
+            ts_id_match_rate=("ts_id_match_rate", "mean"),
+            ts_link_relerr=("ts_link_relerr", "mean"),
         )
         .reset_index()
         .assign(
@@ -222,6 +242,8 @@ def build_totals(results: list[CompResult], summary_df: pd.DataFrame) -> dict:
         "mean_relerr_lc": float(summary_df["relerr_lc"].mean()),
         "mean_relerr_sc": float(summary_df["relerr_sc"].mean()),
         "total_n_missing": int(summary_df["n_missing"].sum()),
+        "mean_ts_id_match_rate": float(summary_df["ts_id_match_rate"].mean()),
+        "mean_ts_link_relerr": float(summary_df["ts_link_relerr"].mean()),
     }
 
 
@@ -244,6 +266,8 @@ def print_report(grouped_df: pd.DataFrame, totals: dict) -> None:
         "relerr_lc",
         "relerr_sc",
         "n_missing",
+        "ts_id_match_rate",
+        "ts_link_relerr",
     ]
     fmt = {
         "flask_time": "{:.1f}".format,
@@ -253,6 +277,8 @@ def print_report(grouped_df: pd.DataFrame, totals: dict) -> None:
         "pearson_sc": "{:.3f}".format,
         "relerr_lc": "{:.1%}".format,
         "relerr_sc": "{:.1%}".format,
+        "ts_id_match_rate": "{:.1%}".format,
+        "ts_link_relerr": "{:.1%}".format,
     }
     with pd.option_context("display.max_rows", 100, "display.max_colwidth", 60):
         print(grouped_df[display_cols].to_string(index=False, formatters=fmt))
@@ -267,6 +293,8 @@ def print_report(grouped_df: pd.DataFrame, totals: dict) -> None:
             print(f"  {k}: {v:.1f}s")
         elif "pearson" in k:
             print(f"  {k}: {v:.3f}")
+        elif "match_rate" in k or "relerr" in k:
+            print(f"  {k}: {v:.1%}")
         else:
             print(f"  {k}: {v:.1f}")
 
@@ -345,8 +373,8 @@ def save_snapshot(grouped_df: pd.DataFrame, totals: dict) -> None:
 if __name__ == "__main__":
     # inst_oa_ids = [78577930]
     comper = ReproEvaluator()
-    bins = [5_000, 10_000, 30_000, 100_000, 200_000][:3]
-    e_per_g = 4
+    bins = [5_000, 10_000, 30_000, 100_000, 200_000][:2]
+    e_per_g = 2
     sample_df = BatchRequester(min_citations=bins[0]).urled_sample
     decorated_df = (
         pd.concat(
