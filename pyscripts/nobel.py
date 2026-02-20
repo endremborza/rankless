@@ -1,18 +1,19 @@
 import re
-import unicodedata
 from pathlib import Path
 from typing import TypedDict
 
 import numpy as np
 import pandas as pd
 from aswan import get_soup
-from ccl_science_data.common import EntC, GenReader, get_dl_arr
+from ccl_science_data.common import EntC, get_dl_arr, load_map
+from ccl_science_data.gen_reader_ext import GenReaderExt
 from rapidfuzz import fuzz
 from sklearn.metrics.pairwise import cosine_similarity
 from unidecode import unidecode
 
 WIKI_CSV = Path("extern/wiki-nobel.csv")
 REPORT_PATH = Path("extern/nobel-matching-report.md")
+MATCHES_PATH = Path("extern/nobel-matches.csv")
 
 CANDIDATE_LIMIT = 300
 NAME_SCORE_THRESHOLD = 0.55
@@ -25,8 +26,16 @@ W_BOOST = 0.20
 
 SUFFIX_TOKENS = {"jr", "sr", "junior", "senior", "ii", "iii", "iv", "v"}
 COMMON_SURNAMES = {
-    "smith", "johnson", "robinson", "brown", "williams",
-    "diamond", "lee", "kim", "li", "wang",
+    "smith",
+    "johnson",
+    "robinson",
+    "brown",
+    "williams",
+    "diamond",
+    "lee",
+    "kim",
+    "li",
+    "wang",
 }
 
 SCIENCE_CATEGORIES = {"Physics", "Chemistry", "Physiology or Medicine", "Economics"}
@@ -62,29 +71,40 @@ def parse_name_variants(raw_name: str) -> list[NameVariant]:
     if not parts:
         return [NameVariant(surname="", tokens=[], initials=set(), firstname="")]
     if len(parts) == 1:
-        return [NameVariant(
-            surname=parts[0], tokens=parts, initials=set(), firstname=parts[0],
-        )]
+        return [
+            NameVariant(
+                surname=parts[0],
+                tokens=parts,
+                initials=set(),
+                firstname=parts[0],
+            )
+        ]
     if len(parts) == 2:
         p0, p1 = parts
         return [
             NameVariant(surname=p1, tokens=[p0, p1], initials={p0[0]}, firstname=p0),
             NameVariant(surname=p0, tokens=[p1, p0], initials={p1[0]}, firstname=p1),
         ]
-    return [NameVariant(
-        surname=parts[-1],
-        tokens=parts,
-        initials={p[0] for p in parts[:-1] if p},
-        firstname=parts[0],
-    )]
+    return [
+        NameVariant(
+            surname=parts[-1],
+            tokens=parts,
+            initials={p[0] for p in parts[:-1] if p},
+            firstname=parts[0],
+        )
+    ]
 
 
 def dump_laureates() -> None:
     soup = get_soup("https://en.wikipedia.org/wiki/List_of_Nobel_laureates")
     table = soup.find("table")
     categories = [
-        "Physics", "Chemistry", "Physiology or Medicine",
-        "Literature", "Peace", "Economics",
+        "Physics",
+        "Chemistry",
+        "Physiology or Medicine",
+        "Literature",
+        "Peace",
+        "Economics",
     ]
     rows: list[dict] = []
     for tr in table.select("tbody > tr"):
@@ -99,10 +119,14 @@ def dump_laureates() -> None:
             if td.get_text(strip=True) in ("\u2014", "-", ""):
                 continue
             for a in td.find_all("a", href=True):
-                rows.append({
-                    "category": cat, "year": year,
-                    "name": a.get_text(strip=True), "link": a["href"],
-                })
+                rows.append(
+                    {
+                        "category": cat,
+                        "year": year,
+                        "name": a.get_text(strip=True),
+                        "link": a["href"],
+                    }
+                )
     pd.DataFrame(rows).to_csv(WIKI_CSV, index=False)
 
 
@@ -117,7 +141,7 @@ class NobelMatcher:
         self._build_surname_index()
 
     def _load_impact_data(self, root: str) -> None:
-        gr = GenReader(root)
+        gr = GenReaderExt(root)
         anames = gr.get_names(EntC.AUTHORS)
         sfn = len(gr.get_names(EntC.SUBFIELDS))
 
@@ -129,12 +153,21 @@ class NobelMatcher:
         impact_totals = self.impact_matrix.sum(axis=1)
         self.impact_boost = np.log1p(impact_totals) / np.log1p(impact_totals.max())
 
+        self.dm_to_oa: dict[int, int] = {
+            v: k for k, v in load_map(EntC.AUTHORS).items()
+        }
         self.impact_names: list[str] = ["Unknown"] + anames[1:]
         self.impact_names_norm = [normalize_name(n) for n in self.impact_names]
-        self.impact_tokens = [strip_suffix_tokens(n.split()) for n in self.impact_names_norm]
+        self.impact_tokens = [
+            strip_suffix_tokens(n.split()) for n in self.impact_names_norm
+        ]
         self.impact_token_sets = [set(toks) for toks in self.impact_tokens]
-        self.impact_initials = [{t[0] for t in toks if t} for toks in self.impact_tokens]
-        self.impact_firstnames = [toks[0] if toks else "" for toks in self.impact_tokens]
+        self.impact_initials = [
+            {t[0] for t in toks if t} for toks in self.impact_tokens
+        ]
+        self.impact_firstnames = [
+            toks[0] if toks else "" for toks in self.impact_tokens
+        ]
         self.impact_surnames = [
             parse_name_variants(n)[0]["surname"] for n in self.impact_names
         ]
@@ -152,16 +185,21 @@ class NobelMatcher:
 
         nob_tokens = set(variant["tokens"])
         imp_tokens = self.impact_token_sets[imp_pos]
-        tok_overlap = len(nob_tokens & imp_tokens) / len(nob_tokens) if nob_tokens else 0.0
+        tok_overlap = (
+            len(nob_tokens & imp_tokens) / len(nob_tokens) if nob_tokens else 0.0
+        )
 
         nob_inits = variant["initials"]
         imp_inits = self.impact_initials[imp_pos]
         init_overlap = len(nob_inits & imp_inits) / len(nob_inits) if nob_inits else 0.0
 
-        fuzzy_full = fuzz.token_sort_ratio(
-            self.impact_names_norm[imp_pos],
-            normalize_name(" ".join(variant["tokens"])),
-        ) / 100.0
+        fuzzy_full = (
+            fuzz.token_sort_ratio(
+                self.impact_names_norm[imp_pos],
+                normalize_name(" ".join(variant["tokens"])),
+            )
+            / 100.0
+        )
 
         imp_first = self.impact_firstnames[imp_pos]
         nob_first = variant["firstname"]
@@ -205,7 +243,10 @@ class NobelMatcher:
         return candidates[:CANDIDATE_LIMIT]
 
     def _subfield_sim(
-        self, imp_pos: int, category: str, prototypes: dict[str, np.ndarray],
+        self,
+        imp_pos: int,
+        category: str,
+        prototypes: dict[str, np.ndarray],
     ) -> float:
         if category not in prototypes:
             return 0.0
@@ -219,7 +260,11 @@ class NobelMatcher:
         protos: dict[str, np.ndarray] = {}
         matched = matches.dropna(subset=["impact_pos"])
         for cat in matched["category"].unique():
-            ids = matched.loc[matched["category"] == cat, "impact_pos"].astype(int).unique()
+            ids = (
+                matched.loc[matched["category"] == cat, "impact_pos"]
+                .astype(int)
+                .unique()
+            )
             if len(ids):
                 protos[cat] = np.mean(self.impact_matrix[ids, :], axis=0)
         return protos
@@ -237,28 +282,41 @@ class NobelMatcher:
             matches = self._score_iteration(laureate_candidates, prototypes)
 
         matches = matches.merge(
-            self.wiki_df[["year", "category"]], left_index=True, right_index=True,
+            self.wiki_df[["year", "category"]],
+            left_index=True,
+            right_index=True,
             suffixes=("", "_wiki"),
         ).drop(columns=["category_wiki"], errors="ignore")
+
+        matches["dm_id"] = matches["impact_pos"]
+        matches["oa_id"] = matches["dm_id"].map(self.dm_to_oa)
+        matches.to_csv(MATCHES_PATH, index=False)
 
         self._write_report(matches)
         print(f"Matched {matches['impact_pos'].notna().sum()}/{len(matches)} laureates")
         print(f"Report: {REPORT_PATH}")
+        print(f"Matches: {MATCHES_PATH}")
         return matches
 
     def _initial_matches(
-        self, laureate_candidates: list[tuple[int, str, str, list[Candidate]]],
+        self,
+        laureate_candidates: list[tuple[int, str, str, list[Candidate]]],
     ) -> pd.DataFrame:
         rows: list[dict] = []
         for idx, name, category, cands in laureate_candidates:
             best = self._pick_best(cands, category, {})
-            rows.append({
-                "nobel_name": name, "category": category,
-                "matched_name": self.impact_names[best["imp_pos"]] if best else None,
-                "impact_pos": best["imp_pos"] if best else None,
-                "name_score": best["name_score"] if best else None,
-                "final_score": best["final_score"] if best else None,
-            })
+            rows.append(
+                {
+                    "nobel_name": name,
+                    "category": category,
+                    "matched_name": self.impact_names[best["imp_pos"]]
+                    if best
+                    else None,
+                    "impact_pos": best["imp_pos"] if best else None,
+                    "name_score": best["name_score"] if best else None,
+                    "final_score": best["final_score"] if best else None,
+                }
+            )
         return pd.DataFrame(rows, index=[lc[0] for lc in laureate_candidates])
 
     def _score_iteration(
@@ -269,13 +327,18 @@ class NobelMatcher:
         rows: list[dict] = []
         for idx, name, category, cands in laureate_candidates:
             best = self._pick_best(cands, category, prototypes)
-            rows.append({
-                "nobel_name": name, "category": category,
-                "matched_name": self.impact_names[best["imp_pos"]] if best else None,
-                "impact_pos": best["imp_pos"] if best else None,
-                "name_score": best["name_score"] if best else None,
-                "final_score": best["final_score"] if best else None,
-            })
+            rows.append(
+                {
+                    "nobel_name": name,
+                    "category": category,
+                    "matched_name": self.impact_names[best["imp_pos"]]
+                    if best
+                    else None,
+                    "impact_pos": best["imp_pos"] if best else None,
+                    "name_score": best["name_score"] if best else None,
+                    "final_score": best["final_score"] if best else None,
+                }
+            )
         return pd.DataFrame(rows, index=[lc[0] for lc in laureate_candidates])
 
     def _pick_best(
@@ -341,20 +404,32 @@ class NobelMatcher:
             lines.append(f"| {decade}s | {dec_total} | {dec_matched} | {rate:.1%} |")
         matches.drop(columns=["decade"], inplace=True)
 
-        uncertain = (
-            matches[matched]
-            .nsmallest(15, "final_score")[["nobel_name", "matched_name", "category", "year", "name_score", "final_score"]]
-        )
+        uncertain = matches[matched].nsmallest(15, "final_score")[
+            [
+                "nobel_name",
+                "matched_name",
+                "category",
+                "year",
+                "name_score",
+                "final_score",
+            ]
+        ]
         lines.append("\n## Lowest-Confidence Matches (sanity check)\n")
-        lines.append("| Nobel Name | Matched Name | Category | Year | Name Score | Final Score |")
-        lines.append("|------------|-------------|----------|-----:|-----------:|------------:|")
+        lines.append(
+            "| Nobel Name | Matched Name | Category | Year | Name Score | Final Score |"
+        )
+        lines.append(
+            "|------------|-------------|----------|-----:|-----------:|------------:|"
+        )
         for _, r in uncertain.iterrows():
             lines.append(
                 f"| {r['nobel_name']} | {r['matched_name']} | {r['category']} "
                 f"| {r['year']} | {r['name_score']:.3f} | {r['final_score']:.3f} |"
             )
 
-        unmatched_df = matches[~matched][["nobel_name", "category", "year"]].sort_values("year")
+        unmatched_df = matches[~matched][
+            ["nobel_name", "category", "year"]
+        ].sort_values("year")
         lines.append(f"\n## Unmatched Laureates ({n_unmatched})\n")
         if len(unmatched_df):
             lines.append("| Nobel Name | Category | Year |")

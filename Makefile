@@ -53,7 +53,7 @@ rm-prof:
 	rm default_*.profraw
 	rm ./*/default_*.profraw
 
-extend_csvs lib_data_generation bm live_monitoring report sitemap_validation alpha_test survey_result_export log_parsing start_comparison sql_comparison_eval:
+extend_csvs lib_data_generation bm live_monitoring report sitemap_validation alpha_test survey_result_export log_parsing nobel start_comparison sql_comparison_eval:
 	python3 -m pyscripts.$@
 
 
