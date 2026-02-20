@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
@@ -21,6 +24,7 @@ from pyscripts.cache_prompting import RTC, BatchRequester, get_specs_and_ys
 
 FLASK_URL = "http://localhost:5000/impact-tree"
 SNAPSHOT_PATH = Path(__file__).parent / "eval-snapshot.json"
+PLOT_PATH = Path(__file__).parent / "timing-plot.png"
 METRICS = ["linkCount", "sourceCount"]
 SUPPORTED_ETYPES = {
     EntC.AUTHORS,
@@ -31,6 +35,7 @@ SUPPORTED_ETYPES = {
     EntC.TOPICS,
     EntC.WORKS,
 }
+RELERR_MAX = 0.05
 
 
 # ── tree / diff ───────────────────────────────────────────────────────────────
@@ -66,7 +71,7 @@ def make_diff_df(flask_dic: dict, rs_dic: dict) -> pd.DataFrame:
 # ── metrics ───────────────────────────────────────────────────────────────────
 
 
-def _metric_stats(df: pd.DataFrame, col: str) -> dict:
+def _metric_stats(df: pd.DataFrame, col: str) -> dict | None:
     """Stats on RS-present nodes (col > 0); symmetric rel error over all, pearson over matched."""
     rs_nodes = df.loc[df[col] > 0]
     flask_col = f"flask_{col}"
@@ -74,6 +79,8 @@ def _metric_stats(df: pd.DataFrame, col: str) -> dict:
     pearson = matched[col].corr(matched[flask_col]) if len(matched) >= 2 else np.nan
     mid = (rs_nodes[col] + rs_nodes[flask_col]) / 2.0
     relerr = (rs_nodes[col] - rs_nodes[flask_col]).abs() / mid.replace(0, np.nan)
+    if relerr.mean() > RELERR_MAX:
+        return None
     return {
         "pearson": float(pearson) if pd.notna(pearson) else None,
         "relerr": float(relerr.mean()) if len(relerr) > 0 else None,
@@ -99,8 +106,7 @@ class CompResult:
 
 
 class ReproEvaluator:
-    def __init__(self, upper_bound: int = 20_000 * 4) -> None:
-        self.br = BatchRequester(min_citations=1000, big_limit=upper_bound)
+    def __init__(self) -> None:
         self.specs, _ = get_specs_and_ys()
 
     def iter_comparisons(self, df_to_comp: pd.DataFrame):
@@ -157,9 +163,13 @@ class ReproEvaluator:
 
 def build_summary_df(results: list[CompResult]) -> pd.DataFrame:
     rows = []
-    for cr in (r for r in results if not r.error):
-        lc = _metric_stats(cr.diff_df, "linkCount")
-        sc = _metric_stats(cr.diff_df, "sourceCount")
+    for cr in results:
+        if cr.error:
+            continue
+        lc = _metric_stats(cr.diff_df, METRICS[0])
+        sc = _metric_stats(cr.diff_df, METRICS[1])
+        if lc is None or sc is None:
+            continue
         rows.append(
             {
                 "root_type": cr.root_type,
@@ -261,6 +271,62 @@ def print_report(grouped_df: pd.DataFrame, totals: dict) -> None:
             print(f"  {k}: {v:.1f}")
 
 
+def plot_timing(results: list[CompResult], out_path: Path) -> None:
+    rows = []
+    for r in results:
+        if (
+            r.error
+            or r.flask_time <= 0
+            or r.rs_time <= 0
+            or _metric_stats(r.diff_df, METRICS[0]) is None
+        ):
+            continue
+        bd_depth = len(r.bd_label.split(";"))
+        for backend, t in [("flask", r.flask_time), ("rust", r.rs_time)]:
+            rows.append(
+                {
+                    "backend": backend,
+                    "bd_depth": bd_depth,
+                    "citations": r.citation_count,
+                    "time": t,
+                }
+            )
+
+    df = pd.DataFrame(rows).assign(
+        log_citations=lambda df: np.log2(df["citations"]),
+        log_time=lambda df: np.log2(df["time"]),
+    )
+
+    palette = {"flask": "#4c78a8", "rust": "#e45756"}
+    depth_order = sorted(df["bd_depth"].unique())
+    g = sns.lmplot(
+        data=df,
+        x="log_citations",
+        y="log_time",
+        hue="backend",
+        col="bd_depth",
+        col_order=depth_order,
+        palette=palette,
+        markers=["o", "s"],
+        scatter_kws={"alpha": 0.55, "s": 30},
+        line_kws={"linewidth": 1.5},
+        height=4,
+        aspect=0.85,
+    )
+
+    g.set_axis_labels("Entity citation count (log₂)", "Response time, s (log₂)")
+    g.set_titles("Breakdown depth: {col_name}")
+    g.figure.suptitle(
+        "Flask (PostgreSQL) vs Rust backend: response time scaling",
+        y=1.03,
+        fontsize=12,
+    )
+    g.tight_layout()
+    g.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"\ntiming plot → {out_path}")
+
+
 # ── snapshot ──────────────────────────────────────────────────────────────────
 
 
@@ -277,12 +343,11 @@ def save_snapshot(grouped_df: pd.DataFrame, totals: dict) -> None:
 # ── main ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    inst_oa_ids = [78577930]
+    # inst_oa_ids = [78577930]
     comper = ReproEvaluator()
-    bins = [0, 10_000, 30_000, 100_000]
-    labels = [1, 10, 30]
+    bins = [5_000, 10_000, 30_000, 100_000, 200_000][:3]
     e_per_g = 4
-    sample_df = comper.br.urled_sample
+    sample_df = BatchRequester(min_citations=bins[0]).urled_sample
     decorated_df = (
         pd.concat(
             pd.DataFrame(
@@ -291,10 +356,14 @@ if __name__ == "__main__":
             for k in sample_df[RTC].unique()
         )
         .merge(sample_df)
-        .assign(ccut=lambda df: pd.cut(df["citations"], bins, labels=labels))
+        .assign(ccut=lambda df: pd.cut(df["citations"], bins))
         .loc[lambda df: df["ccut"].notna()]
         .groupby([RTC, "ccut"], observed=True)
-        .apply(lambda gdf: gdf.sample(min(e_per_g, len(gdf)), random_state=742))
+        .apply(
+            lambda gdf: gdf.sample(min(e_per_g, len(gdf)), random_state=742),
+            include_groups=False,
+        )
+        .reset_index()
         .drop_duplicates([RTC, "oa_id"])
     )
 
@@ -305,3 +374,4 @@ if __name__ == "__main__":
     totals = build_totals(results, summary_df)
     print_report(grouped_df, totals)
     save_snapshot(grouped_df, totals)
+    plot_timing(results, PLOT_PATH)
