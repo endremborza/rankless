@@ -32,7 +32,7 @@ class BatchRequester:
             ]
         )
         resdf = get_resdf(specs, 100)
-        self.urled_sample = (
+        self.urled_sample: pd.DataFrame = (
             resdf.merge(tid_df)
             .loc[lambda df: df["citations"] >= min_citations, :]
             .assign(cut_basis=lambda df: df["citations"] * df["bds"])
@@ -52,15 +52,7 @@ class BatchRequester:
         proc_counts=[16, 8, 4, 1],
         sampling_kwargs={"frac": 1.0},
     ):
-        for gid, gdf in tqdm(
-            self.urled_sample.assign(
-                ccut=lambda df: pd.cut(
-                    df["cut_basis"], [*bins, self.big_limit], labels=proc_counts
-                )
-            )
-            .loc[lambda df: df["ccut"].notna()]
-            .groupby("ccut", observed=True)
-        ):
+        for gid, gdf in tqdm(self.iter_gdfs(bins, proc_counts)):
             suburls = gdf.sample(**sampling_kwargs)["url"].tolist()
             self._run(suburls, gid)
 
@@ -76,6 +68,17 @@ class BatchRequester:
     def get_resps_df(self):
         return pd.DataFrame(self.resps).merge(
             self.urled_sample.loc[:, [RTC, SIDC, TIDC, BDSC, "citations", "cut_basis"]]
+        )
+
+    def iter_gdfs(self, bins: list[int], labels: list):
+        return (
+            self.urled_sample.assign(
+                ccut=lambda df: pd.cut(
+                    df["cut_basis"], [*bins, self.big_limit], labels=labels
+                )
+            )
+            .loc[lambda df: df["ccut"].notna()]
+            .groupby("ccut", observed=True)
         )
 
     def _run(self, urls, nprocs):
