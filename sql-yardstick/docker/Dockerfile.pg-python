@@ -1,0 +1,37 @@
+FROM python:3.10-slim-bookworm
+
+# Install PostgreSQL 15 from the official pgdg repo
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gnupg curl ca-certificates \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+       | gpg --dearmor -o /usr/share/keyrings/pgdg.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] \
+       https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+       > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        postgresql-15 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    flask sqlalchemy psycopg2-binary numpy python-dotenv \
+    pandas polars tqdm pyyaml
+
+WORKDIR /app
+
+# Copy only what's needed to run the loader and Flask server
+COPY sql-yardstick/ ./sql-yardstick/
+
+COPY sql-yardstick/docker/entrypoint-pg-python.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# OA data directory mounted at runtime: -v /path/to/oa-root:/data/oa-root
+# ccl_science_data source mounted at runtime: -v /path/to/ccl-science-data:/ccl-science-data
+ENV OA_ROOT=/data/oa-root
+ENV RANKLESS_ENV=micro
+ENV PG_CONSTR=postgresql://rankless:rankless@127.0.0.1:5432/rankless
+ENV FLASK_HOST=0.0.0.0
+ENV PYTHONPATH=/ccl-science-data
+
+EXPOSE 5000
+
+ENTRYPOINT ["/entrypoint.sh"]

@@ -237,4 +237,4 @@ if __name__ == "__main__":
     with engine.begin() as conn:
         conn.execute(text(view_sql))
         load_dm_mappings(conn)
-    app.run(debug=True)
+    app.run(debug=True, host=os.environ.get("FLASK_HOST", "127.0.0.1"))

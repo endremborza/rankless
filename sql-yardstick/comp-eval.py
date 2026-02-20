@@ -1,5 +1,5 @@
 import json
-import os
+import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -9,535 +9,299 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
 
-# Load project .env before ccl_science_data imports its own, so OA_ROOT etc. are correct.
 load_dotenv(override=True)
 
 import numpy as np
 import pandas as pd
 import requests
 from ccl_science_data.common import EntC, load_map
-from scipy.stats import spearmanr
 from tqdm import tqdm
 
-from pyscripts.cache_prompting import (
-    RTC,
-    SIDC,
-    TIDC,
-    BatchRequester,
-    addr,
-    get_specs_and_ys,
-)
+from pyscripts.cache_prompting import RTC, BatchRequester, get_specs_and_ys
 
-con = os.environ["PG_CONSTR"]
-
-flask_url = "http://localhost:5000/impact-tree"
-keys = ["linkCount", "sourceCount"]
-
+FLASK_URL = "http://localhost:5000/impact-tree"
 SNAPSHOT_PATH = Path(__file__).parent / "eval-snapshot.json"
+METRICS = ["linkCount", "sourceCount"]
+SUPPORTED_ETYPES = {
+    EntC.AUTHORS,
+    EntC.INSTITUTIONS,
+    EntC.COUNTRIES,
+    EntC.SOURCES,
+    EntC.SUBFIELDS,
+    EntC.TOPICS,
+    EntC.WORKS,
+}
 
 
-def flatten_child(children: dict, prefix=[]):
-    out = []
+# ── tree / diff ───────────────────────────────────────────────────────────────
+
+
+def _flatten(children: dict, prefix: tuple = ()) -> list[dict]:
+    rows = []
     for k, v in children.items():
+        path = (*prefix, k)
         if "children" in v:
-            out.extend(flatten_child(v["children"], [*prefix, k]))
-        out.append(
-            {sk: v.get(sk) for sk in keys} | {"path": "-".join(map(str, [*prefix, k]))}
+            rows.extend(_flatten(v["children"], path))
+        rows.append(
+            {m: v.get(m, 0) for m in METRICS} | {"path": "-".join(map(str, path))}
         )
-    return out
+    return rows
 
 
-def get_diff_df(flask_dic, rs_dic):
-    flask_rows = flatten_child(flask_dic["children"])
-    rs_rows = flatten_child(rs_dic["tree"]["children"])
-
+def make_diff_df(flask_dic: dict, rs_dic: dict) -> pd.DataFrame:
     flask_df = (
-        pd.DataFrame(flask_rows)
+        pd.DataFrame(_flatten(flask_dic["children"]))
         .set_index("path")
-        .rename(columns=lambda s: f"flask_{s}")
+        .add_prefix("flask_")
     )
+    rs_rows = _flatten(rs_dic["tree"]["children"])
     rs_df = (
         pd.DataFrame(rs_rows).set_index("path")
         if rs_rows
-        else pd.DataFrame(columns=["path", *keys]).set_index("path")
+        else pd.DataFrame(columns=METRICS, index=pd.Index([], name="path"))
     )
-
-    df = flask_df.merge(rs_df, left_index=True, right_index=True, how="outer").fillna(0)
-    df["depth"] = df.index.map(lambda p: p.count("-"))
-    for c in keys:
-        df[f"{c}_diff"] = df[c] - df[f"flask_{c}"]
-        flask_col = df[f"flask_{c}"].replace(0, float("nan"))
-        df[f"{c}_relerr"] = (df[f"{c}_diff"].abs() / flask_col).fillna(0)
-        df[f"{c}_relbias"] = (df[f"{c}_diff"] / flask_col).fillna(
-            0
-        )  # signed: RS - flask
-    return df
+    return flask_df.join(rs_df, how="outer").fillna(0)
 
 
-def _fmtn(v, fmt=".3f") -> str:
-    return (
-        f"{v:{fmt}}"
-        if v is not None and not (isinstance(v, float) and np.isnan(v))
-        else "n/a"
-    )
+# ── metrics ───────────────────────────────────────────────────────────────────
 
 
-def print_result(cr: "CompResult", min_flask_link: int = 2):
-    print("\n" + "-" * 49)
-    tid_str = f"  tid={cr.tid}" if cr.tid is not None else ""
-    print(f"payload:{tid_str}", cr.payload)
-    if cr.error is not None:
-        print("ERROR:", cr.error)
-        return
+def _metric_stats(df: pd.DataFrame, col: str) -> dict:
+    """Stats on RS-present nodes (col > 0); symmetric rel error over all, pearson over matched."""
+    rs_nodes = df.loc[df[col] > 0]
+    flask_col = f"flask_{col}"
+    matched = rs_nodes.loc[rs_nodes[flask_col] > 0]
+    pearson = matched[col].corr(matched[flask_col]) if len(matched) >= 2 else np.nan
+    mid = (rs_nodes[col] + rs_nodes[flask_col]) / 2.0
+    relerr = (rs_nodes[col] - rs_nodes[flask_col]).abs() / mid.replace(0, np.nan)
+    return {
+        "pearson": float(pearson) if pd.notna(pearson) else None,
+        "relerr": float(relerr.mean()) if len(relerr) > 0 else None,
+        "n_missing": int((rs_nodes[flask_col] == 0).sum()),
+    }
 
-    df = cr.diff_df
-    n_flask_only = (df["linkCount"] == 0).sum()
-    n_rs_only = (df["flask_linkCount"] == 0).sum()
-    matched = df.loc[(df["linkCount"] > 0) & (df["flask_linkCount"] > 0)]
-    n_both = len(matched)
 
-    print(f"flask {cr.flask_time:.2f}s  rs {cr.rs_time:.2f}s")
-    if cr.root_summary:
-        print(f"root: {cr.root_summary}")
-    print(f"nodes: {n_both} matched  {n_flask_only} flask-only  {n_rs_only} rs-only")
-
-    if n_both > 0:
-        for c in keys:
-            med_relerr = matched[f"{c}_relerr"].median()
-            max_relerr = matched[f"{c}_relerr"].max()
-            med_bias = matched[f"{c}_relbias"].median()
-            corr = matched[c].corr(matched[f"flask_{c}"])
-            print(
-                f"  {c}: median_relerr={med_relerr:.1%}  bias={med_bias:+.1%}"
-                f"  max_relerr={max_relerr:.1%}  corr={corr:.3f}"
-            )
-
-        sig = matched.loc[matched["flask_linkCount"] >= min_flask_link]
-        if len(sig) > 0:
-            worst = sig.nlargest(5, "linkCount_relerr")[
-                [
-                    "flask_linkCount",
-                    "linkCount",
-                    "linkCount_diff",
-                    "linkCount_relerr",
-                    "flask_sourceCount",
-                    "sourceCount",
-                    "sourceCount_relerr",
-                ]
-            ]
-            print(f"worst 5 (flask_linkCount>={min_flask_link}) by linkCount_relerr:")
-            print(worst.to_string())
+# ── data model ────────────────────────────────────────────────────────────────
 
 
 @dataclass
 class CompResult:
-    payload: dict
-    error: Exception | None
-    diff_df: pd.DataFrame | None = None
-    flask_time: float | None = None
-    rs_time: float | None = None
-    root_summary: str | None = None
-    flask_root: tuple[int, int] | None = None  # (linkCount, sourceCount)
-    rs_root: tuple[int, int] | None = None
-    tid: int | None = None
+    root_type: str
+    bd_label: str
+    citation_count: int
+    flask_time: float
+    rs_time: float
+    diff_df: pd.DataFrame
+    error: str | None = None
 
-    @property
-    def root_match_ratio(self) -> float:
-        if self.flask_root is None or self.rs_root is None:
-            return 0.0
-        fl, rl = self.flask_root[0], self.rs_root[0]
-        return min(fl, rl) / max(fl, rl) if max(fl, rl) > 0 else 1.0
+
+# ── fetching ──────────────────────────────────────────────────────────────────
 
 
 class ReproEvaluator:
-    def __init__(self, upper_bound=20_000 * 4) -> None:
+    def __init__(self, upper_bound: int = 20_000 * 4) -> None:
         self.br = BatchRequester(min_citations=1000, big_limit=upper_bound)
         self.specs, _ = get_specs_and_ys()
-        self.supported = {
-            EntC.AUTHORS,
-            EntC.INSTITUTIONS,
-            EntC.COUNTRIES,
-            EntC.SOURCES,
-            EntC.SUBFIELDS,
-            EntC.TOPICS,
-            EntC.WORKS,
-        }
 
-    def iter_comparisons(self, root_type: str, oa_ids, bd_nums: list[int] = [3, 4]):
-        match_recs = []
-        for oa_id in oa_ids:
-            mapper_url = f"{addr}/v1/sem-id-via-oa/{root_type}/{oa_id}"
-            resp = requests.get(mapper_url)
-            sem_id = resp.json()[0]
-            match_recs.append({SIDC: sem_id, RTC: root_type, "oa_id": oa_id})
+    def iter_comparisons(self, df_to_comp: pd.DataFrame):
 
-        matched_df = pd.DataFrame(match_recs).merge(self.br.urled_sample)
-
-        for _, rec in tqdm(
-            list(matched_df.loc[lambda df: df["bds"].isin(bd_nums)].iterrows()),
-            desc=root_type,
-        ):
-            url = rec["url"]
-            oa_id = rec["oa_id"]
-            tid = int(rec[TIDC])
-            bds = self.specs[root_type][rec[TIDC]]["breakdowns"]
-            flask_bds = [
-                {"node": bd["attributeType"], "sourceSide": bd["sourceSide"]}
-                for bd in bds
-            ]
-            bd_etypes = [b["node"] for b in flask_bds]
-
-            if not all(et in self.supported for et in bd_etypes):
-                # print(f"skipping unsupported breakdown types: {bd_etypes}")
-                continue
-
-            payload = {
-                "root_type": root_type,
-                "root_id": oa_id,
-                "breakdowns": flask_bds,
-            }
-
-            try:
-                flask_resp = requests.post(flask_url, json=payload)
-                flask_resp.raise_for_status()
-                flask_dic = flask_resp.json()
-            except Exception as e:
-                yield CompResult(payload, e, tid=tid)
-                continue
-
-            rs_resp = requests.get(url)
-            rs_dic = rs_resp.json()
-
-            rs_tree = rs_dic["tree"]
-            flask_root = (flask_dic["linkCount"], flask_dic["sourceCount"])
-            rs_root = (rs_tree["linkCount"], rs_tree["sourceCount"])
-            flask_root_ratio = (
-                f"flask_lc={flask_root[0]} rs_lc={rs_root[0]} "
-                f"flask_sc={flask_root[1]} rs_sc={rs_root[1]}"
-            )
-
-            yield CompResult(
-                payload,
-                None,
-                get_diff_df(flask_dic, rs_dic),
-                flask_resp.elapsed.total_seconds(),
-                rs_resp.elapsed.total_seconds(),
-                flask_root_ratio,
-                flask_root,
-                rs_root,
-                tid=tid,
-            )
-
-
-def _compute_group_stats(valid: list[CompResult]) -> dict:
-    all_dfs = pd.concat([cr.diff_df for cr in valid])
-    matched = all_dfs.loc[(all_dfs["linkCount"] > 0) & (all_dfs["flask_linkCount"] > 0)]
-    n_total = len(all_dfs)
-    n_matched = len(matched)
-    n_flask_only = int((all_dfs["linkCount"] == 0).sum())
-    n_rs_only = int((all_dfs["flask_linkCount"] == 0).sum())
-
-    stats: dict = {
-        "n_comparisons": len(valid),
-        "n_total": n_total,
-        "n_matched": n_matched,
-        "n_flask_only": n_flask_only,
-        "n_rs_only": n_rs_only,
-        "node_match_rate": n_matched / n_total if n_total > 0 else 0.0,
-        "tids": [cr.tid for cr in valid if cr.tid is not None],
-        "metrics": {},
-    }
-
-    if n_matched > 0:
-        per_comp_corrs: dict[str, list] = {c: [] for c in keys}
-        per_comp_spearman: dict[str, list] = {c: [] for c in keys}
-        for cr in valid:
-            df = cr.diff_df
-            m = df.loc[(df["linkCount"] > 0) & (df["flask_linkCount"] > 0)]
-            if len(m) >= 3:
-                for c in keys:
-                    r = m[c].corr(m[f"flask_{c}"])
-                    if pd.notna(r):
-                        per_comp_corrs[c].append(float(r))
-                    sr, _ = spearmanr(m[c], m[f"flask_{c}"])
-                    if not np.isnan(sr):
-                        per_comp_spearman[c].append(float(sr))
-
-        for c in keys:
-            pool_r = matched[c].corr(matched[f"flask_{c}"])
-            pool_rho, _ = spearmanr(matched[c], matched[f"flask_{c}"])
-            mean_r = (
-                float(pd.Series(per_comp_corrs[c]).mean())
-                if per_comp_corrs[c]
-                else None
-            )
-            mean_rho = (
-                float(pd.Series(per_comp_spearman[c]).mean())
-                if per_comp_spearman[c]
-                else None
-            )
-
-            depth_stats: dict = {}
-            for d in sorted(matched["depth"].unique()):
-                dm = matched.loc[matched["depth"] == d]
-                if len(dm) < 2:
+        for _, row in tqdm(list(df_to_comp.iterrows())):
+            root_type: str = row[RTC]
+            for tid, tree_spec in enumerate(self.specs[root_type]):
+                bds = tree_spec["breakdowns"]
+                bd_etypes = [b["attributeType"] for b in bds]
+                if not all(et in SUPPORTED_ETYPES for et in bd_etypes):
                     continue
-                dr = dm[c].corr(dm[f"flask_{c}"])
-                depth_stats[int(d)] = {
-                    "n": int(len(dm)),
-                    "med_err": float(dm[f"{c}_relerr"].median()),
-                    "med_bias": float(dm[f"{c}_relbias"].median()),
-                    "pool_pearson": float(dr) if pd.notna(dr) else None,
+                bd_label = ";".join(
+                    f'{b["attributeType"]}-{"S" if b["sourceSide"] else "T"}'
+                    for b in bds
+                )
+                flask_bds = [
+                    {"node": b["attributeType"], "sourceSide": b["sourceSide"]}
+                    for b in bds
+                ]
+                payload = {
+                    "root_type": root_type,
+                    "root_id": row["oa_id"],
+                    "breakdowns": flask_bds,
                 }
+                ccount: int = row["citations"]
+                url = re.sub(r"tid=\d", f"tid={tid}", row["url"])
 
-            stats["metrics"][c] = {
-                "med_err": float(matched[f"{c}_relerr"].median()),
-                "mean_err": float(matched[f"{c}_relerr"].mean()),
-                "p90": float(matched[f"{c}_relerr"].quantile(0.9)),
-                "med_bias": float(matched[f"{c}_relbias"].median()),
-                "pool_pearson": float(pool_r) if pd.notna(pool_r) else None,
-                "mean_pearson": mean_r,
-                "pool_spearman": float(pool_rho) if not np.isnan(pool_rho) else None,
-                "mean_spearman": mean_rho,
-                "by_depth": depth_stats,
+                try:
+                    flask_resp = requests.post(FLASK_URL, json=payload)
+                    flask_resp.raise_for_status()
+                    rs_resp = requests.get(url)
+                    yield CompResult(
+                        root_type=root_type,
+                        bd_label=bd_label,
+                        citation_count=ccount,
+                        flask_time=flask_resp.elapsed.total_seconds(),
+                        rs_time=rs_resp.elapsed.total_seconds(),
+                        diff_df=make_diff_df(flask_resp.json(), rs_resp.json()),
+                    )
+                except Exception as e:
+                    yield CompResult(
+                        root_type,
+                        bd_label,
+                        ccount,
+                        0.0,
+                        0.0,
+                        pd.DataFrame(),
+                        error=str(e),
+                    )
+
+
+# ── analysis ──────────────────────────────────────────────────────────────────
+
+
+def build_summary_df(results: list[CompResult]) -> pd.DataFrame:
+    rows = []
+    for cr in (r for r in results if not r.error):
+        lc = _metric_stats(cr.diff_df, "linkCount")
+        sc = _metric_stats(cr.diff_df, "sourceCount")
+        rows.append(
+            {
+                "root_type": cr.root_type,
+                "bd_label": cr.bd_label,
+                "flask_time": cr.flask_time,
+                "rs_time": cr.rs_time,
+                "pearson_lc": lc["pearson"],
+                "pearson_sc": sc["pearson"],
+                "relerr_lc": lc["relerr"],
+                "relerr_sc": sc["relerr"],
+                "n_missing": lc["n_missing"],
             }
-
-    root_lc_errs, root_sc_errs = [], []
-    for cr in valid:
-        if cr.flask_root and cr.rs_root:
-            fl, rl = cr.flask_root[0], cr.rs_root[0]
-            fs, rs_ = cr.flask_root[1], cr.rs_root[1]
-            if fl > 0:
-                root_lc_errs.append(abs(rl - fl) / fl)
-            if fs > 0:
-                root_sc_errs.append(abs(rs_ - fs) / fs)
-    if root_lc_errs:
-        stats["root_err"] = {
-            "lc_median": float(pd.Series(root_lc_errs).median()),
-            "lc_mean": float(pd.Series(root_lc_errs).mean()),
-            "sc_median": float(pd.Series(root_sc_errs).median()),
-            "sc_mean": float(pd.Series(root_sc_errs).mean()),
-        }
-
-    return stats
-
-
-def _print_group_stats(label: str, stats: dict) -> None:
-    n_comp = stats["n_comparisons"]
-    n_total = stats["n_total"]
-    n_matched = stats["n_matched"]
-    n_flask_only = stats["n_flask_only"]
-    n_rs_only = stats["n_rs_only"]
-    match_rate = stats["node_match_rate"]
-
-    print(f"\n  [{label}] {n_comp} comparisons")
-    print(
-        f"  nodes: {n_total} total  {n_matched} matched  {n_flask_only} flask-only  {n_rs_only} rs-only"
-    )
-    if n_total > 0:
-        print(f"  node match rate: {match_rate:.1%}")
-
-    for c in keys:
-        m = stats["metrics"].get(c)
-        if not m:
-            continue
-        print(
-            f"  {c}: med_err={m['med_err']:.1%}  bias={m['med_bias']:+.1%}"
-            f"  mean_err={m['mean_err']:.1%}  p90={m['p90']:.1%}"
         )
-        print(
-            f"    pearson: pool={_fmtn(m.get('pool_pearson'))}  mean={_fmtn(m.get('mean_pearson'))}"
-            f"  spearman: pool={_fmtn(m.get('pool_spearman'))}  mean={_fmtn(m.get('mean_spearman'))}"
+    return pd.DataFrame(rows)
+
+
+def build_grouped_df(summary_df: pd.DataFrame) -> pd.DataFrame:
+    return (
+        summary_df.groupby(["root_type", "bd_label"])
+        .agg(
+            n=("flask_time", "count"),
+            flask_time=("flask_time", "sum"),
+            rs_time=("rs_time", "sum"),
+            pearson_lc=("pearson_lc", "mean"),
+            pearson_sc=("pearson_sc", "mean"),
+            relerr_lc=("relerr_lc", "mean"),
+            relerr_sc=("relerr_sc", "mean"),
+            n_missing=("n_missing", "sum"),
         )
-        bd = m.get("by_depth")
-        if bd:
-            parts = [
-                f"d{d}(n={ds['n']}, err={ds['med_err']:.0%}, bias={ds['med_bias']:+.0%})"
-                for d, ds in bd.items()
-            ]
-            print("    by_depth: " + "  ".join(parts))
-
-    re = stats.get("root_err")
-    if re:
-        print(
-            f"  root_lc_err: med={re['lc_median']:.1%}  mean={re['lc_mean']:.1%}"
-            f"  root_sc_err: med={re['sc_median']:.1%}  mean={re['sc_mean']:.1%}"
+        .reset_index()
+        .assign(
+            time_rate=lambda df: df["flask_time"] / df["rs_time"],
         )
-
-
-def _aggregate_group(label: str, results: list[CompResult]) -> dict | None:
-    valid = [cr for cr in results if cr.error is None and cr.diff_df is not None]
-    if not valid:
-        return None
-    stats = _compute_group_stats(valid)
-    _print_group_stats(label, stats)
-    return stats
-
-
-def print_aggregate(results: list[CompResult]) -> dict:
-    valid = [cr for cr in results if cr.error is None and cr.diff_df is not None]
-    groups: dict = {}
-    if not valid:
-        print("\nno valid results to aggregate")
-        return groups
-    time_diffs = [{"flask_time": cr.flask_time, "rs_time": cr.rs_time} for cr in valid]
-    td_df = pd.DataFrame(time_diffs).assign(
-        rate=lambda df: df["flask_time"] / df["rs_time"]
+        .sort_values("relerr_sc")
     )
 
-    print("\n" + "=" * 49)
-    print("AGGREGATE RESULTS")
-    print(f"comparisons: {len(valid)} successful / {len(results)} total")
-    print(f"times:\n{td_df.describe()}\n")
 
-    root_matched = [cr for cr in valid if cr.root_match_ratio > 0.9]
-    root_mismatched = [cr for cr in valid if cr.root_match_ratio <= 0.9]
-
-    if root_matched:
-        g = _aggregate_group(f"root-matched (n={len(root_matched)})", root_matched)
-        if g:
-            groups["root_matched"] = g
-    if root_mismatched:
-        g = _aggregate_group(
-            f"root-mismatched (n={len(root_mismatched)}, different dataset)",
-            root_mismatched,
-        )
-        if g:
-            groups["root_mismatched"] = g
-    g = _aggregate_group("all", valid)
-    if g:
-        groups["all"] = g
-
-    return groups
-
-
-def _cr_summary(cr: CompResult) -> dict:
-    base: dict = {
-        "tid": cr.tid,
-        "payload": cr.payload,
-        "flask_root": list(cr.flask_root) if cr.flask_root else None,
-        "rs_root": list(cr.rs_root) if cr.rs_root else None,
-        "root_match_ratio": float(cr.root_match_ratio),
+def build_totals(results: list[CompResult], summary_df: pd.DataFrame) -> dict:
+    rs_time, flask_time = (
+        float(summary_df[k].sum()) for k in ["rs_time", "flask_time"]
+    )
+    return {
+        "n_comparisons": len(summary_df),
+        "n_errors": sum(1 for r in results if r.error),
+        "total_flask_time": flask_time,
+        "total_rs_time": rs_time,
+        "total_duration_ratio": flask_time / rs_time,
+        "mean_pearson_lc": float(summary_df["pearson_lc"].mean()),
+        "mean_pearson_sc": float(summary_df["pearson_sc"].mean()),
+        "mean_relerr_lc": float(summary_df["relerr_lc"].mean()),
+        "mean_relerr_sc": float(summary_df["relerr_sc"].mean()),
+        "total_n_missing": int(summary_df["n_missing"].sum()),
     }
-    if cr.error is not None:
-        base["error"] = str(cr.error)
-        return base
-    df = cr.diff_df
-    matched = df.loc[(df["linkCount"] > 0) & (df["flask_linkCount"] > 0)]
-    base["nodes"] = {
-        "total": len(df),
-        "matched": len(matched),
-        "flask_only": int((df["linkCount"] == 0).sum()),
-        "rs_only": int((df["flask_linkCount"] == 0).sum()),
+
+
+# ── reporting ─────────────────────────────────────────────────────────────────
+
+
+def print_report(grouped_df: pd.DataFrame, totals: dict) -> None:
+    print("\n" + "=" * 80)
+    print("BY root_type × breakdown")
+    print("=" * 80)
+    display_cols = [
+        "root_type",
+        "bd_label",
+        "n",
+        "flask_time",
+        "rs_time",
+        "time_rate",
+        "pearson_lc",
+        "pearson_sc",
+        "relerr_lc",
+        "relerr_sc",
+        "n_missing",
+    ]
+    fmt = {
+        "flask_time": "{:.1f}".format,
+        "rs_time": "{:.1f}".format,
+        "time_rate": "{:.1f}".format,
+        "pearson_lc": "{:.3f}".format,
+        "pearson_sc": "{:.3f}".format,
+        "relerr_lc": "{:.1%}".format,
+        "relerr_sc": "{:.1%}".format,
     }
-    for c in keys:
-        if len(matched) > 0:
-            r = matched[c].corr(matched[f"flask_{c}"])
-            base[c] = {
-                "med_err": float(matched[f"{c}_relerr"].median()),
-                "med_bias": float(matched[f"{c}_relbias"].median()),
-                "pool_pearson": float(r) if pd.notna(r) else None,
-            }
-    return base
+    with pd.option_context("display.max_rows", 100, "display.max_colwidth", 60):
+        print(grouped_df[display_cols].to_string(index=False, formatters=fmt))
+
+    print("\n" + "=" * 80)
+    print("TOTALS")
+    print("=" * 80)
+    for k, v in totals.items():
+        if not isinstance(v, float):
+            print(f"  {k}: {v}")
+        elif "time" in k:
+            print(f"  {k}: {v:.1f}s")
+        elif "pearson" in k:
+            print(f"  {k}: {v:.3f}")
+        else:
+            print(f"  {k}: {v:.1f}")
 
 
-def save_snapshot(results: list[CompResult], groups: dict) -> None:
+# ── snapshot ──────────────────────────────────────────────────────────────────
+
+
+def save_snapshot(grouped_df: pd.DataFrame, totals: dict) -> None:
     snapshot = {
         "timestamp": datetime.now().isoformat(),
-        "comparisons": [_cr_summary(cr) for cr in results],
-        "groups": groups,
+        "grouped": grouped_df.to_dict(orient="records"),
+        "totals": totals,
     }
     SNAPSHOT_PATH.write_text(json.dumps(snapshot, indent=2))
     print(f"\nsnapshot saved → {SNAPSHOT_PATH}")
 
 
-def load_snapshot() -> dict | None:
-    if SNAPSHOT_PATH.exists():
-        return json.loads(SNAPSHOT_PATH.read_text())
-    return None
-
-
-def _fmt_delta(cur: float | None, prev: float | None, pct: bool = True) -> str:
-    if cur is None or prev is None:
-        return "n/a"
-    fmt = ".1%" if pct else ".3f"
-    delta = cur - prev
-    sign = "+" if delta >= 0 else ""
-    return f"{cur:{fmt}} ({sign}{delta:{fmt}})"
-
-
-def print_comparison(current_groups: dict, prev_snapshot: dict) -> None:
-    prev_groups = prev_snapshot.get("groups", {})
-    prev_ts = prev_snapshot.get("timestamp", "unknown")
-    print("\n" + "=" * 49)
-    print(f"COMPARISON TO PREVIOUS RUN ({prev_ts[:19]})")
-
-    for gk in ["root_matched", "root_mismatched", "all"]:
-        cur = current_groups.get(gk)
-        prev = prev_groups.get(gk)
-        if not cur or not prev:
-            continue
-        print(f"\n  [{gk}]")
-        print(
-            f"  node_match_rate: {_fmt_delta(cur['node_match_rate'], prev['node_match_rate'])}"
-        )
-        print(
-            f"  matched: {cur['n_matched']} (prev {prev['n_matched']})"
-            f"  flask-only: {cur['n_flask_only']} (prev {prev['n_flask_only']})"
-            f"  rs-only: {cur['n_rs_only']} (prev {prev['n_rs_only']})"
-        )
-        for c in keys:
-            cm = cur.get("metrics", {}).get(c, {})
-            pm = prev.get("metrics", {}).get(c, {})
-            if not cm or not pm:
-                continue
-            print(
-                f"  {c}: med_err={_fmt_delta(cm.get('med_err'), pm.get('med_err'))}"
-                f"  bias={_fmt_delta(cm.get('med_bias'), pm.get('med_bias'))}"
-                f"  pearson={_fmt_delta(cm.get('pool_pearson'), pm.get('pool_pearson'), pct=False)}"
-            )
-        cur_re = cur.get("root_err", {})
-        prev_re = prev.get("root_err", {})
-        if cur_re and prev_re:
-            print(
-                f"  root_lc_err: {_fmt_delta(cur_re.get('lc_median'), prev_re.get('lc_median'))}"
-                f"  root_sc_err: {_fmt_delta(cur_re.get('sc_median'), prev_re.get('sc_median'))}"
-            )
-
+# ── main ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-
     inst_oa_ids = [78577930]
-    comper = ReproEvaluator(upper_bound=40_000 * 4)
-    oa_maps = {
-        k: {v: k2 for k2, v in load_map(k).items()}
-        for k in comper.br.urled_sample[RTC].unique()
-    }
-    bins = [0, 10_000 * 4, 20_000 * 4]
-    labels = [1, 2, 3]
+    comper = ReproEvaluator()
+    bins = [0, 10_000, 30_000, 100_000]
+    labels = [1, 10, 30]
+    e_per_g = 4
+    sample_df = comper.br.urled_sample
+    decorated_df = (
+        pd.concat(
+            pd.DataFrame(
+                [{"dmId": v, "oa_id": k2} for k2, v in load_map(k).items()]
+            ).assign(**{RTC: k})
+            for k in sample_df[RTC].unique()
+        )
+        .merge(sample_df)
+        .assign(ccut=lambda df: pd.cut(df["citations"], bins, labels=labels))
+        .loc[lambda df: df["ccut"].notna()]
+        .groupby([RTC, "ccut"], observed=True)
+        .apply(lambda gdf: gdf.sample(min(e_per_g, len(gdf)), random_state=742))
+        .drop_duplicates([RTC, "oa_id"])
+    )
 
-    eid_map = {EntC.INSTITUTIONS: set(inst_oa_ids)}
-    for _, gdf in comper.br.iter_gdfs(bins, labels):
-        for etype, egdf in gdf.groupby(RTC):
-            for _, row in egdf.sample(
-                min(3, egdf.shape[0]), random_state=742
-            ).iterrows():
-                if etype not in eid_map.keys():
-                    eid_map[etype] = set()
-                dm_id = row["dmId"]
-                oa_id = oa_maps[etype][dm_id]
-                eid_map[etype].add(oa_id)
+    results = list(comper.iter_comparisons(decorated_df))
 
-    comp_results = []
-    for etype, ids in eid_map.items():
-        comp_results.extend(comper.iter_comparisons(etype, ids))
-    # for cr in comp_results:
-    # print_result(cr)
-
-    groups = print_aggregate(comp_results)
-
-    prev_snapshot = load_snapshot()
-    save_snapshot(comp_results, groups)
-
-    if prev_snapshot:
-        print_comparison(groups, prev_snapshot)
+    summary_df = build_summary_df(results)
+    grouped_df = build_grouped_df(summary_df)
+    totals = build_totals(results, summary_df)
+    print_report(grouped_df, totals)
+    save_snapshot(grouped_df, totals)
