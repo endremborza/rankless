@@ -1,15 +1,11 @@
 import json
 import re
-import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -23,9 +19,10 @@ from tqdm import tqdm
 from pyscripts.cache_prompting import RTC, BatchRequester, get_specs_and_ys
 
 FLASK_URL = "http://localhost:5000/impact-tree"
-SNAPSHOT_PATH = Path(__file__).parent / "eval-snapshot.json"
-REPORT_PATH = Path(__file__).parent / "eval-report.md"
-PLOT_PATH = Path(__file__).parent / "timing-plot.png"
+SQL_COMP_DIR = Path("sql-yardstick")
+SNAPSHOT_PATH = SQL_COMP_DIR / "eval-snapshot.json"
+REPORT_PATH = SQL_COMP_DIR / "eval-report.md"
+PLOT_PATH = SQL_COMP_DIR / "timing-plot.png"
 METRICS = ["linkCount", "sourceCount"]
 SUPPORTED_ETYPES = {
     EntC.AUTHORS,
@@ -55,13 +52,17 @@ def build_oa_to_dm_maps() -> dict[str, dict[str, str]]:
     for ent in SUPPORTED_ETYPES:
         if ent == EntC.COUNTRIES:
             raw = load_map(ent)
-            maps[ent] = {_id_to_cc(int(k)): str(v) for k, v in raw.items() if _id_to_cc(int(k))}
+            maps[ent] = {
+                _id_to_cc(int(k)): str(v) for k, v in raw.items() if _id_to_cc(int(k))
+            }
         else:
             maps[ent] = {str(k): str(v) for k, v in load_map(ent).items()}
     return maps
 
 
-def translate_tree(children: dict, breakdowns: list[dict], maps: dict, depth: int = 0) -> dict:
+def translate_tree(
+    children: dict, breakdowns: list[dict], maps: dict, depth: int = 0
+) -> dict:
     if depth >= len(breakdowns):
         return children
     etype = breakdowns[depth]["attributeType"]
@@ -71,7 +72,9 @@ def translate_tree(children: dict, breakdowns: list[dict], maps: dict, depth: in
         dm_key = oa_to_dm.get(str(k), str(k))
         new_v = dict(v)
         if "children" in new_v:
-            new_v["children"] = translate_tree(new_v["children"], breakdowns, maps, depth + 1)
+            new_v["children"] = translate_tree(
+                new_v["children"], breakdowns, maps, depth + 1
+            )
         translated[dm_key] = new_v
     return translated
 
@@ -88,7 +91,10 @@ def _flatten(children: dict, prefix: tuple = ()) -> list[dict]:
         rows.append(
             {m: v.get(m, 0) for m in METRICS}
             | {"path": "-".join(map(str, path))}
-            | {"topSourceId": v.get("topSourceId"), "topSourceLinks": v.get("topSourceLinks", 0)}
+            | {
+                "topSourceId": v.get("topSourceId"),
+                "topSourceLinks": v.get("topSourceLinks", 0),
+            }
         )
     return rows
 
@@ -136,7 +142,10 @@ def _top_source_stats(df: pd.DataFrame) -> dict:
     id_match_rate = float((both["topSourceId"] == both["flask_topSourceId"]).mean())
     mid = (both["topSourceLinks"] + both["flask_topSourceLinks"]) / 2.0
     link_relerr = float(
-        ((both["topSourceLinks"] - both["flask_topSourceLinks"]).abs() / mid.replace(0, np.nan)).mean()
+        (
+            (both["topSourceLinks"] - both["flask_topSourceLinks"]).abs()
+            / mid.replace(0, np.nan)
+        ).mean()
     )
     return {"id_match_rate": id_match_rate, "link_relerr": link_relerr}
 
@@ -428,7 +437,9 @@ def _fmt_val(k: str, v) -> str:
     return f"{v:.2f}"
 
 
-def save_markdown(grouped_df: pd.DataFrame, totals: dict, results: list[CompResult]) -> None:
+def save_markdown(
+    grouped_df: pd.DataFrame, totals: dict, results: list[CompResult]
+) -> None:
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     lines = [
         f"# Reproduction Eval Report",
