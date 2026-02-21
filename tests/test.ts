@@ -58,7 +58,7 @@ test('navigate all links and test map control states quickly', async ({ page }) 
 			}
 		}
 	}
-	fs.writeFileSync('paragraph_texts.txt', Array.from(paragraphTexts).join('\n\n'));
+	fs.writeFileSync('logs/paragraph_texts.txt', Array.from(paragraphTexts).join('\n\n'));
 });
 
 async function collectParagraphs(page, paragraphTexts, url: string, paragraphSources: Record<string, string>) {

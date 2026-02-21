@@ -44,7 +44,7 @@ test-rs:
 
 test-js:
 	npm run test
-	cat paragraph_texts.txt | xxclip
+	cat logs/paragraph_texts.txt | xxclip
 
 test: test-rs test-js
 	echo OK
