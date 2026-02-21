@@ -148,7 +148,7 @@ export function getStylesForWords(
 }
 
 export function semantify(s: string, rootType: RootType, bds: string[], depth: number) {
-	let map = SEM_MAP[rootType] as any;
+	let map: Record<string, SemNode> | undefined = SEM_MAP[rootType];
 	for (let i = 0; i < depth; i++) {
 		if (map == undefined) {
 			return s;
@@ -371,10 +371,12 @@ export const SEMANTIC_CONF = {
 
 export const SPEC_BPS = [0.75, 1.2, 2.5];
 const SING_MAP: Record<string, string> = { countries: 'country' };
+type SemNode = { semantic?: string; children?: Record<string, SemNode> };
+
 const CO_FAL = 'are cited by authors working in';
 const SPEC = 'specifically';
 
-const SEM_MAP = {
+const SEM_MAP: Partial<Record<RootType, Record<string, SemNode>>> = {
 	authors: {
 		'subfields-true': {
 			children: {

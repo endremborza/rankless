@@ -133,3 +133,21 @@ describe('TypeWriterWordChanger', () => {
 		expect(tw.text).toBe('');
 	});
 });
+
+describe('semantify', () => {
+	it('returns semantic for known path', () => {
+		expect(semantify('subfields-true', 'authors', [], 0)).toBe('about');
+	});
+	it('returns semantic for nested path', () => {
+		expect(semantify('works-true', 'authors', ['subfields-true'], 1)).toBe('specifically');
+	});
+	it('returns original string for unknown rootType', () => {
+		expect(semantify('anything', 'works' as any, [], 0)).toBe('anything');
+	});
+	it('returns original string for unknown key', () => {
+		expect(semantify('nonexistent', 'authors', [], 0)).toBe('nonexistent');
+	});
+	it('returns original string when depth exceeds tree', () => {
+		expect(semantify('x', 'authors', ['subfields-true', 'works-true', 'a', 'b'], 4)).toBe('x');
+	});
+});
