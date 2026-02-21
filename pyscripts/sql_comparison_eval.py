@@ -1,5 +1,8 @@
 import json
 import re
+import subprocess
+import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +26,9 @@ SQL_COMP_DIR = Path("sql-yardstick")
 SNAPSHOT_PATH = SQL_COMP_DIR / "eval-snapshot.json"
 REPORT_PATH = SQL_COMP_DIR / "eval-report.md"
 PLOT_PATH = SQL_COMP_DIR / "timing-plot.png"
+MEMORY_PLOT_PATH = SQL_COMP_DIR / "memory-plot.png"
+RUST_CONTAINER = "rankless-rust"
+PG_PYTHON_CONTAINER = "rankless-pg-python"
 METRICS = ["linkCount", "sourceCount"]
 SUPPORTED_ETYPES = {
     EntC.AUTHORS,
@@ -34,6 +40,76 @@ SUPPORTED_ETYPES = {
     EntC.WORKS,
 }
 RELERR_MAX = 0.05
+
+
+# ── memory tracking ──────────────────────────────────────────────────────────
+
+
+def _parse_mem_mib(s: str) -> float:
+    s = s.split("/")[0].strip()
+    if "GiB" in s:
+        return float(s.replace("GiB", "")) * 1024
+    if "MiB" in s:
+        return float(s.replace("MiB", ""))
+    if "KiB" in s:
+        return float(s.replace("KiB", "")) / 1024
+    return 0.0
+
+
+@dataclass
+class MemSample:
+    elapsed: float
+    rust_mib: float
+    flask_mib: float
+
+
+class MemoryTracker:
+    def __init__(self, interval: float = 2.0) -> None:
+        self.samples: list[MemSample] = []
+        self._interval = interval
+        self._stop = threading.Event()
+        self._t0 = 0.0
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def start(self) -> None:
+        self._t0 = time.monotonic()
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join()
+
+    def _poll(self) -> MemSample:
+        r = subprocess.run(
+            [
+                "docker",
+                "stats",
+                "--no-stream",
+                "--format",
+                "{{.Name}}\t{{.MemUsage}}",
+                RUST_CONTAINER,
+                PG_PYTHON_CONTAINER,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        rust_mib = flask_mib = 0.0
+        for line in r.stdout.splitlines():
+            parts = line.split("\t")
+            if len(parts) != 2:
+                continue
+            name, usage = parts
+            mib = _parse_mem_mib(usage)
+            if RUST_CONTAINER in name:
+                rust_mib = mib
+            elif PG_PYTHON_CONTAINER in name:
+                flask_mib = mib
+        return MemSample(time.monotonic() - self._t0, rust_mib, flask_mib)
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            self.samples.append(self._poll())
+            self._stop.wait(self._interval)
 
 
 # ── OA → DM mapping ─────────────────────────────────────────────────────────
@@ -304,6 +380,20 @@ def build_totals(results: list[CompResult], summary_df: pd.DataFrame) -> dict:
     }
 
 
+def build_mem_stats(samples: list[MemSample]) -> dict:
+    if not samples:
+        return {}
+    rust = [s.rust_mib for s in samples]
+    flask = [s.flask_mib for s in samples]
+    return {
+        "rust_peak_mib": max(rust),
+        "rust_mean_mib": sum(rust) / len(rust),
+        "flask_peak_mib": max(flask),
+        "flask_mean_mib": sum(flask) / len(flask),
+        "n_mem_samples": len(samples),
+    }
+
+
 # ── reporting ─────────────────────────────────────────────────────────────────
 
 
@@ -412,6 +502,26 @@ def plot_timing(results: list[CompResult], out_path: Path) -> None:
     print(f"\ntiming plot → {out_path}")
 
 
+def plot_memory(samples: list[MemSample], out_path: Path) -> None:
+    if not samples:
+        return
+    elapsed = [s.elapsed for s in samples]
+    rust_mib = [s.rust_mib for s in samples]
+    flask_mib = [s.flask_mib for s in samples]
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(elapsed, rust_mib, color="#e45756", label="Rust")
+    ax.plot(elapsed, flask_mib, color="#4c78a8", label="Flask (PG)")
+    ax.set_xlabel("Elapsed time (s)")
+    ax.set_ylabel("Memory usage (MiB)")
+    ax.set_title("Container memory usage during evaluation")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"\nmemory plot → {out_path}")
+
+
 # ── snapshot ──────────────────────────────────────────────────────────────────
 
 
@@ -443,7 +553,10 @@ def _fmt_val(k: str, v) -> str:
 
 
 def save_markdown(
-    grouped_df: pd.DataFrame, totals: dict, results: list[CompResult]
+    grouped_df: pd.DataFrame,
+    totals: dict,
+    results: list[CompResult],
+    mem_stats: dict,
 ) -> None:
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     lines = [
@@ -504,7 +617,23 @@ def save_markdown(
         f"| Rust | {totals['total_rs_time']:.1f} |",
         f"| Ratio (PG/RS) | {totals['total_duration_ratio']:.1f}x |",
         f"",
+        f"![Response time scaling]({PLOT_PATH.name})",
+        f"",
     ]
+
+    if mem_stats:
+        lines += [
+            f"## Memory Usage",
+            f"",
+            f"| Metric | Rust | Flask (PG) |",
+            f"|--------|------|------------|",
+            f"| Peak (MiB) | {mem_stats['rust_peak_mib']:.0f} | {mem_stats['flask_peak_mib']:.0f} |",
+            f"| Mean (MiB) | {mem_stats['rust_mean_mib']:.0f} | {mem_stats['flask_mean_mib']:.0f} |",
+            f"| Samples | {mem_stats['n_mem_samples']} | — |",
+            f"",
+            f"![Memory usage over time]({MEMORY_PLOT_PATH.name})",
+            f"",
+        ]
 
     REPORT_PATH.write_text("\n".join(lines) + "\n")
     print(f"\nmarkdown report → {REPORT_PATH}")
@@ -536,12 +665,17 @@ if __name__ == "__main__":
         .drop_duplicates([RTC, "oa_id"])
     )
 
+    tracker = MemoryTracker()
+    tracker.start()
     results = list(comper.iter_comparisons(decorated_df))
+    tracker.stop()
 
     summary_df = build_summary_df(results)
     grouped_df = build_grouped_df(summary_df)
     totals = build_totals(results, summary_df)
+    mem_stats = build_mem_stats(tracker.samples)
     print_report(grouped_df, totals)
     save_snapshot(grouped_df, totals)
     plot_timing(results, PLOT_PATH)
-    save_markdown(grouped_df, totals, results)
+    plot_memory(tracker.samples, MEMORY_PLOT_PATH)
+    save_markdown(grouped_df, totals, results, mem_stats)
