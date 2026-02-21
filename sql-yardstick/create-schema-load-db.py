@@ -1,9 +1,12 @@
+import tomllib
 from pathlib import Path
 
 import sqlalchemy as sa
-import yaml
 from ccl_science_data.common import *
+from dotenv import load_dotenv
 from tqdm import tqdm
+
+load_dotenv()
 
 MAINS = [
     EntC.WORKS,
@@ -28,7 +31,7 @@ SUBS = [
 
 TAKEN_COLS = [PARID, IDC, DN]
 
-SCHEMA_PATH = Path("sql-yardstick/schemas.yaml")
+SCHEMA_PATH = Path("sql-yardstick/schemas.toml")
 con = os.environ["PG_CONSTR"]
 
 
@@ -55,7 +58,10 @@ meta = sa.MetaData()
 meta.reflect(bind=engine, views=True)
 
 
-def print_schema(meta=meta):
+def print_schema(con=con):
+    engine = sa.create_engine(con)
+    meta = sa.MetaData()
+    meta.reflect(bind=engine, views=True)
     lines = []
     for table in meta.sorted_tables:
         lines.append(sa.schema.CreateTable(table).compile(engine))
@@ -101,7 +107,6 @@ def do_fltering(df: pd.DataFrame, col, filt, leave_zeroes=False):
     return df.loc[df[col].isin(filt), :]
 
 
-# %%
 with engine.connect() as conn:
     conn.execute(sa.text("DROP SCHEMA public CASCADE"))
     conn.execute(sa.text("CREATE SCHEMA public"))
@@ -110,23 +115,25 @@ with engine.connect() as conn:
 meta.reflect(bind=engine, views=True)
 
 
-schemas_ext = yaml.load(SCHEMA_PATH.read_bytes())
+schemas_ext = tomllib.loads(SCHEMA_PATH.read_text())
 
 
 def df_fixer(df: pd.DataFrame, name: str) -> pd.DataFrame:
+    updates: dict = {}
     if PARID in df.columns:
-        df.loc[:, PARID] = parse_id(df[PARID]).astype(int)
+        updates[PARID] = parse_id(df[PARID]).astype(int)
     if IDC in df.columns:
         pfun = field_id_parser if name in FMAINS else parse_id
-        df.loc[:, IDC] = pfun(df.loc[:, IDC]).astype(int)
+        updates[IDC] = pfun(df[IDC]).astype(int)
+    if updates:
+        df = df.assign(**updates)
     ext_cols = []
     for k, v_full in schemas_ext.get(name, {}).items():
         v = v_full.split("-")[0]
         if v == "id":
-            df = df.dropna(subset=k)
-            df.loc[:, k] = parse_id(df[k]).astype(int)
+            df = df.dropna(subset=k).assign(**{k: lambda d: parse_id(d[k]).astype(int)})
         if v == "fid":
-            df.loc[:, k] = field_id_parser(df.loc[:, k])
+            df = df.assign(**{k: lambda d: field_id_parser(d[k])})
         ext_cols.append(k)
     return df.loc[:, df.columns.intersection(TAKEN_COLS + ext_cols)]
 
@@ -164,7 +171,6 @@ for ent in MAINS + FMAINS:
 
 
 _ik = "institution"
-wfilt = get_last_filter(EntC.WORKS)
 for ent, sub in SUBS:
     name = f"{ent}-{sub}"
     cols = []
@@ -195,44 +201,6 @@ with engine.begin() as conn:
     for c in pk_constraints + fk_constraints:
         conn.execute(c)
 
-# %%
-
-engine = sa.create_engine(con)
-meta = sa.MetaData()
-meta.reflect(bind=engine, views=True)
-schema_in_sql = print_schema(meta)
+schema_in_sql = print_schema(con)
 Path(SCHEMA_PATH.parent / "schema.sql").write_text(schema_in_sql)
 print(schema_in_sql)
-
-# %%
-
-
-def print_dump():
-    schemas = {}
-    for ent in MAINS:
-        df = next(iter_dfs(ent, chunk=1000))
-        # parse_id()
-        schemas[ent] = {k: str(v) for k, v in df.dtypes.items()}
-    for ent, sub in SUBS:
-        df = next(iter_dfs(ent, sub, chunk=1000))
-        schemas[f"{ent}-{sub}"] = {k: str(v) for k, v in df.dtypes.items()}
-    schema_dump_path = Path("sql-yardstick/schemas-dump.yaml")
-    schema_dump_path.write_text(yaml.dump(schemas))
-
-
-# %%
-columbia_id = 78577930
-inst_id = columbia_id
-# pd.read_sql_query(f"SELECT * FROM INSTITUTIONS WHERE id={inst_id} LIMIT 100", con=con)
-# pd.read_sql_query("SELECT * FROM INSTITUTIONS LIMIT 100", con=con)
-wids = pd.read_sql_query(
-    f'SELECT * FROM "works-authorships" WHERE institution={inst_id}', con=con
-)[PARID].unique()
-ship_df = pd.read_sql_query(
-    f'SELECT wa.{PARID} AS refed, wr.{PARID} FROM "works-authorships" wa LEFT JOIN "works-referenced_works" wr ON wr.referenced_work_id=wa.{PARID} WHERE institution={inst_id}',
-    con=con,
-)
-
-print(len(wids))
-print(ship_df.shape)
-ship_df.nunique().to_dict()

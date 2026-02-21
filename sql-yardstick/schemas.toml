@@ -1,0 +1,40 @@
+[authors]
+orcid = "object"
+
+[fields]
+domain = "fid-domains"
+
+[institutions]
+country_code = "object"
+display_name = "object"
+display_name_acronyms = "object"
+
+[sources]
+abbreviated_title = "object"
+
+[subfields]
+field = "fid-fields"
+
+[topics]
+domain = "fid-domains"
+field = "fid-fields"
+subfield = "fid-subfields"
+
+[works]
+doi = "object"
+publication_year = "int64"
+title = "object"
+type = "object"
+
+["works-authorships"]
+author = "id-authors"
+institutions = "object"
+
+["works-locations"]
+source = "id-sources"
+
+["works-referenced_works"]
+referenced_work_id = "id-works"
+
+["works-topics"]
+score = "float64"
