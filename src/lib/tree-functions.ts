@@ -119,6 +119,11 @@ export function treeBeUrl(root: string, conf: tt.FullTreeConfig, shallow: undefi
 	return url
 }
 
+export async function fetchTree(root: string, conf: tt.FullTreeConfig, shallow?: number): Promise<tt.TreeResponse> {
+	const res = await fetch(treeBeUrl(root, conf, shallow));
+	return res.json();
+}
+
 export function entToDirectedLink(e: { rootType: tt.RootType; semanticId: string }, dir: string): string {
 	return `${base}${dir}${getEntityPath(e.rootType, e.semanticId)}`;
 }
