@@ -13,25 +13,25 @@
 	let delayedTerm = '';
 	let searchResults: SearchResult[] = [];
 
-	function getSearchResults(searchTerm: string, cat: RootType, mounted: boolean) {
+	async function getSearchResults(searchTerm: string, cat: RootType, mounted: boolean) {
 		if (!mounted || cat == undefined) {
 			return;
 		}
 		delayedTerm = searchTerm;
-		fetch(
-			`${BE_REMOTE_URL}/names/${cat}?` +
-				new URLSearchParams({
-					q: searchTerm
-				}).toString()
-		)
-			.then((res) => res.json())
-			.then((l: SearchResult[]) => {
-				if (delayedTerm == searchTerm) {
-					searchResults = l.map((e) => {
-						return { ...e, rootType: cat };
-					});
-				}
-			});
+		try {
+			const res = await fetch(
+				`${BE_REMOTE_URL}/names/${cat}?` +
+					new URLSearchParams({ q: searchTerm }).toString()
+			);
+			const l: SearchResult[] = await res.json();
+			if (delayedTerm == searchTerm) {
+				searchResults = l.map((e) => {
+					return { ...e, rootType: cat };
+				});
+			}
+		} catch (e) {
+			console.error('search failed', e);
+		}
 	}
 
 	function getHeaderFontSize(textLen: number) {

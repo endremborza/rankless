@@ -12,6 +12,7 @@
 	import HeadControl from './HeadControl.svelte';
 	import { onMount } from 'svelte';
 	import { replaceState } from '$app/navigation';
+	import { debounce } from '$lib/util';
 	import HoverBlock from './HoverBlock.svelte';
 
 	export let conf: tt.FullTreeConfig;
@@ -68,27 +69,22 @@
 	let controlSpecs = tf.getDefaultControlSpecs(isGlobalSpecialization);
 	let maxOnOneLevel = 15;
 
-	onMount(() => {
+	onMount(async () => {
 		mounted = true;
 		if (shallowed && allowControls) {
 			let initConf = conf;
-			fetch(tf.treeBeUrl(BE_REMOTE_URL, initConf, undefined)).then((res) => {
-				res
-					.json()
-					.then((jsv: tt.TreeResponse) => {
-						if (
-							initConf.treeId == conf.treeId &&
-							initConf.semanticId == conf.semanticId &&
-							initConf.year == conf.year
-						) {
-							// console.log('deepening');
-							[completeTree, attributeLabels, shallowed] = [jsv.tree, jsv.atts, false];
-						}
-					})
-					.catch((e) => {
-						console.error('error', e);
-					});
-			});
+			try {
+				const jsv = await tf.fetchTree(BE_REMOTE_URL, initConf);
+				if (
+					initConf.treeId == conf.treeId &&
+					initConf.semanticId == conf.semanticId &&
+					initConf.year == conf.year
+				) {
+					[completeTree, attributeLabels, shallowed] = [jsv.tree, jsv.atts, false];
+				}
+			} catch (e) {
+				console.error('error', e);
+			}
 		}
 	});
 
@@ -123,9 +119,7 @@
 	$: updateTreeSpecId(selectedBreakdowns);
 
 	$: loadNewQc(conf);
-	$: ((isSpec: Boolean) => {
-		controlSpecs.globalSizeBase = isSpec ? 'specialization' : 'volume';
-	})(isGlobalSpecialization);
+	$: controlSpecs.globalSizeBase = isGlobalSpecialization ? 'specialization' : 'volume';
 
 	$: updateUrl(conf, selectionState);
 
@@ -137,10 +131,11 @@
 		selectedBreakdowns
 	);
 
+	const debouncedReplaceState = debounce((url: string) => replaceState(url, {}), 120);
+
 	function updateUrl(conf: tt.FullTreeConfig, selectionState: tt.BareNode) {
 		if (mounted && setUrl) {
-			let newUrl = tf.toLinkWithParams(conf, selectionState);
-			replaceState(newUrl, {});
+			debouncedReplaceState(tf.toLinkWithParams(conf, selectionState));
 		}
 	}
 
@@ -184,7 +179,7 @@
 		[conf.treeId, breakdownMatchLevel] = [newSelectedTreeSpecId, newBreakdownMatchLevel];
 	}
 
-	function loadNewQc(conf: tt.FullTreeConfig) {
+	async function loadNewQc(conf: tt.FullTreeConfig) {
 		showPaper = false;
 		highlightedPath = [];
 		if (!mounted) {
@@ -205,34 +200,30 @@
 		if (newTreeSpec.defaultIsSpec != currentTreeSpec.defaultIsSpec) {
 			newGlobalSpec = newTreeSpec.defaultIsSpec;
 		}
-		fetch(tf.treeBeUrl(BE_REMOTE_URL, conf, undefined)).then((res) => {
-			res
-				.json()
-				.then((jsv: tt.TreeResponse) => {
-					[
-						completeTree,
-						attributeLabels,
-						selectionState,
-						currentTreeSpec,
-						highlightRoot,
-						selectedBreakdowns,
-						isGlobalSpecialization,
-						shallowed
-					] = [
-						jsv.tree,
-						jsv.atts,
-						tf.intersectionTree(tf.pruneTree(selectionState, breakdownMatchLevel), jsv.tree),
-						newTreeSpec,
-						selectedQcRootId,
-						selectedBreakdowns,
-						newGlobalSpec,
-						false
-					];
-				})
-				.catch((e) => {
-					console.error('error', e);
-				});
-		});
+		try {
+			const jsv = await tf.fetchTree(BE_REMOTE_URL, conf);
+			[
+				completeTree,
+				attributeLabels,
+				selectionState,
+				currentTreeSpec,
+				highlightRoot,
+				selectedBreakdowns,
+				isGlobalSpecialization,
+				shallowed
+			] = [
+				jsv.tree,
+				jsv.atts,
+				tf.intersectionTree(tf.pruneTree(selectionState, breakdownMatchLevel), jsv.tree),
+				newTreeSpec,
+				selectedQcRootId,
+				selectedBreakdowns,
+				newGlobalSpec,
+				false
+			];
+		} catch (e) {
+			console.error('error', e);
+		}
 	}
 
 	function updateLevelSpecs(

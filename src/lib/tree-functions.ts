@@ -55,7 +55,7 @@ export function getDefaultControlSpecs(spec: boolean): tt.FullControlSpecs {
 		levelSpecs: Array(MAX_LEVEL_COUNT)
 			.fill(0)
 			.map(() => {
-				return { ...DEFAULT_CONTROL_SPEC };
+				return { ...DEFAULT_CONTROL_SPEC, include: [], exclude: [] };
 			})
 	};
 }
@@ -119,6 +119,11 @@ export function treeBeUrl(root: string, conf: tt.FullTreeConfig, shallow: undefi
 	return url
 }
 
+export async function fetchTree(root: string, conf: tt.FullTreeConfig, shallow?: number): Promise<tt.TreeResponse> {
+	const res = await fetch(treeBeUrl(root, conf, shallow));
+	return res.json();
+}
+
 export function entToDirectedLink(e: { rootType: tt.RootType; semanticId: string }, dir: string): string {
 	return `${base}${dir}${getEntityPath(e.rootType, e.semanticId)}`;
 }
@@ -137,10 +142,10 @@ export function externalEntityUrl(rootType: tt.RootType, semanticId: string): st
 
 export function decorBaseLink(url: string, conf: tt.FullTreeConfig, selectionState: tt.BareNode): string {
 	let params = [];
-	if (conf.year != getDefaultYear(conf.rootType)) {
+	if (conf.year !== getDefaultYear(conf.rootType)) {
 		params.push(`since=${conf.year}`);
 	}
-	if (conf.treeId != 0) {
+	if (conf.treeId !== 0) {
 		params.push(`tree=${conf.treeId + 1}`);
 	}
 	let selConfStr = nodeToConfStr(selectionState);
@@ -208,7 +213,7 @@ function nodeFromConfStr(confStr: string): tt.BareNode {
 }
 
 export function pruneTree(tree: tt.BareNode, depth: number): tt.BareNode {
-	if (depth == 0) {
+	if (depth === 0) {
 		return { children: {} };
 	}
 	return {
@@ -265,9 +270,9 @@ export function deriveVisibleTree(
 		const orderFun = (l: LevelNodeDescription, r: LevelNodeDescription) => {
 			const lParent = getParent(l);
 			const rParent = getParent(r);
-			if (lParent?.totalOffsetOnLevel.rank == rParent?.totalOffsetOnLevel.rank) {
+			if (lParent?.totalOffsetOnLevel.rank === rParent?.totalOffsetOnLevel.rank) {
 				const order = r.derivedWeight - l.derivedWeight;
-				if (order != 0) return order;
+				if (order !== 0) return order;
 				return lastE(l.path) > lastE(r.path) ? -1 : 1;
 			}
 			return (lParent?.totalOffsetOnLevel.rank || 0) - (rParent?.totalOffsetOnLevel.rank || 0);
@@ -345,9 +350,9 @@ function flatFilter(
 		denomIndex = treeSpec.breakdowns[i].specDenomInd;
 
 		const weightDerivation =
-			sizeBase == 'volume'
-				? (node: tt.ResponseNode, childId: number) => childId == 0 ? 0 : (node?.linkCount || 0)
-				: (node: tt.ResponseNode, childId: number, denominatorWeight: number) => childId == 0 ? 0 :
+			sizeBase === 'volume'
+				? (node: tt.ResponseNode, childId: number) => childId === 0 ? 0 : (node?.linkCount || 0)
+				: (node: tt.ResponseNode, childId: number, denominatorWeight: number) => childId === 0 ? 0 :
 					getSpecMetricObject(node, denominatorWeight, attributeLabels[entityKind], childId)
 						.specMetric;
 
@@ -369,7 +374,7 @@ function flatFilter(
 			remainingCount--;
 		};
 		const selectedOnLastLevel = lastLevelNodes.filter((e) => isPathInTree(e.path, selections));
-		if (selectedOnLastLevel.length == 0) {
+		if (selectedOnLastLevel.length === 0) {
 			break;
 		}
 		outNodes.push(thisLevelNodes);
@@ -380,7 +385,7 @@ function flatFilter(
 				getNodeByPath(possibleParentOfSelected.path, selections)?.children || {}
 			)) {
 				pushFun(possibleParentOfSelected, parseInt(selectedKey));
-				if (remainingCount == 0) continue LevelLoop;
+				if (remainingCount === 0) continue LevelLoop;
 			}
 		}
 
@@ -392,7 +397,7 @@ function flatFilter(
 					!includedPaths.has([...lastLevelsNode.path, mustInclude].join('-'))
 				) {
 					pushFun(lastLevelsNode, mustInclude);
-					if (remainingCount == 0) continue LevelLoop;
+					if (remainingCount === 0) continue LevelLoop;
 				}
 			}
 		}
@@ -401,7 +406,7 @@ function flatFilter(
 		// plus what remains in an array
 		for (const [i, possibleParent] of selectedOnLastLevel.entries()) {
 			const numFromThisLevel = Math.round(remainingCount / (selectedOnLastLevel.length - i));
-			if (numFromThisLevel == 0) continue;
+			if (numFromThisLevel === 0) continue;
 			const addFromParent: LevelNodeDescription[] = [];
 			const denomWeight = getDenomWeight(possibleParent.path);
 			for (const [childIdStr, childNode] of Object.entries(possibleParent.node.children || {})) {
@@ -449,7 +454,7 @@ export function flatFromResp(
 		);
 		return Object.fromEntries(l1Kv);
 	} catch (error) {
-		console.log(error);
+		console.error(error);
 	}
 }
 
@@ -470,7 +475,6 @@ export function getFlatRescaler(levels: tt.LevelT, nBreakPoints: number, pullerR
 		let puller = rate * wspan + (locMinw || 0);
 		let qInd = Math.floor(scaleBpPrep.length * rate);
 		let qVal = scaleBpPrep[qInd];
-		// console.log(i, puller, qVal, qInd, scaleBpPrep);
 		newBreakPoints.push(pullerRate * puller + (1 - pullerRate) * qVal);
 	}
 	const linScaler = (w: number) => (w - (locMinw || 0)) / wspan;
@@ -489,7 +493,7 @@ export function insertKeepingOrder<T>(elem: T, arr: T[], f: (l: T, r: T) => numb
 		mid = Math.floor((left + right) / 2);
 		compRes = f(arr[mid], elem);
 
-		if (compRes == 0) {
+		if (compRes === 0) {
 			return arr.splice(mid, 0, elem);
 		} else if (compRes < 0) {
 			left = mid + 1;

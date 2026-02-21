@@ -4,6 +4,7 @@ from pathlib import Path
 import sqlalchemy as sa
 from ccl_science_data.common import *
 from dotenv import load_dotenv
+from sqlmermaid import to_file
 from tqdm import tqdm
 
 load_dotenv()
@@ -185,6 +186,7 @@ def main():
     schema_sql = dump_schema(con)
     Path(SCHEMA_PATH.parent / "schema.sql").write_text(schema_sql)
     print(schema_sql)
+    to_file(con, "sql-yardstick/schema.md")
 
 
 if __name__ == "__main__":

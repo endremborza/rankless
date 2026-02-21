@@ -52,20 +52,21 @@
 		}
 	}
 
-	function reloadResp(conf: tt.FullTreeConfig, treeId: number, year: number, _rootId: number) {
+	async function reloadResp(
+		conf: tt.FullTreeConfig,
+		treeId: number,
+		year: number,
+		_rootId: number
+	) {
 		if (mounted == false) return;
 		let newConf: tt.FullTreeConfig = { ...conf, treeId, year, wide: true };
-		fetch(tf.treeBeUrl(BE_REMOTE_URL, newConf, 0)).then((res) => {
-			res
-				.json()
-				.then((jsv: tt.TreeResponse) => {
-					infoPath = [];
-					resp = jsv;
-				})
-				.catch((e) => {
-					console.error('error', e);
-				});
-		});
+		try {
+			const jsv = await tf.fetchTree(BE_REMOTE_URL, newConf, 0);
+			infoPath = [];
+			resp = jsv;
+		} catch (e) {
+			console.error('error', e);
+		}
 	}
 
 	function setNewFlout(resp: tt.TreeResponse | undefined, isSpec: boolean, treeSpec: tt.TreeSpec) {
@@ -74,10 +75,10 @@
 		if (newFlout != undefined) flatOut = newFlout;
 	}
 
-	onMount(() => {
+	onMount(async () => {
 		mounted = true;
 		if (resp == undefined) {
-			reloadResp(conf, treeId, year, rootId);
+			await reloadResp(conf, treeId, year, rootId);
 		}
 	});
 	$: updateTreeId(selectedBreakdowns, levelOptions);

@@ -25,22 +25,22 @@ export class TypeWriterWordChanger {
 	}
 
 	changeText() {
-		if (this.wordInd == this.texts.length) {
+		if (this.wordInd === this.texts.length) {
 			this.wordInd = 0;
 		}
 		let word = this.texts[this.wordInd];
 		this.text = word.slice(0, this.letterInd);
-		if (this.letterInd == word.length) {
+		if (this.letterInd === word.length) {
 			clearInterval(this.runner);
 			setTimeout(() => {
 				this.runner = setInterval(this.changeText, this.speed);
 			}, this.stopAtEnd);
 		}
 		this.letterInd += this.direction;
-		if (this.letterInd == word.length) {
+		if (this.letterInd === word.length) {
 			this.direction = -1;
 		}
-		if (this.letterInd == 0) {
+		if (this.letterInd === 0) {
 			this.direction = 1;
 			this.wordInd = this.wordInd + 1;
 		}
@@ -54,7 +54,7 @@ export function isAsciiOnly(str: string) {
 }
 
 export function pluralize(word: string, num: number, maxFix = 2) {
-	if (num == 1) {
+	if (num === 1) {
 		return `1 ${word}`;
 	}
 	return `${formatNumber(num, maxFix)} ${word}s`;
@@ -65,7 +65,7 @@ export function singularize(word: string) {
 }
 
 export function formatNumber(n: number, maxFix: number = 2) {
-	if (n == 0) {
+	if (n === 0) {
 		return "0"
 	} else if (n > 1e6) {
 		return `${(n / 1e6).toFixed(Math.min(1, maxFix))}M`;
@@ -74,7 +74,7 @@ export function formatNumber(n: number, maxFix: number = 2) {
 	} else if (n < 1) {
 		return n.toFixed(Math.min(2, maxFix));
 	} else if (n < 10) {
-		let round = n % 1 == 0 ? 0 : maxFix;
+		let round = n % 1 === 0 ? 0 : maxFix;
 		return n.toFixed(round);
 	} else {
 		return n.toFixed(0);
@@ -148,7 +148,7 @@ export function getStylesForWords(
 }
 
 export function semantify(s: string, rootType: RootType, bds: string[], depth: number) {
-	let map = SEM_MAP[rootType] as any;
+	let map: Record<string, SemNode> | undefined = SEM_MAP[rootType];
 	for (let i = 0; i < depth; i++) {
 		if (map == undefined) {
 			return s;
@@ -171,8 +171,8 @@ export function semOptioned(semId: string, bdDesc: string) {
 }
 
 export function prettifyRoot(rt: RootType): string {
-	if (rt == 'sources') return 'journals';
-	if (rt == 'subfields') return 'fields';
+	if (rt === 'sources') return 'journals';
+	if (rt === 'subfields') return 'fields';
 	return rt;
 }
 
@@ -208,13 +208,13 @@ function formatTextToLinesOneWay(
 		heightBasedFontSize = getDimBasedSize(height, heightMultiplier, numOfLines);
 		fontSize = Math.min(widthBasedFontSize, heightBasedFontSize);
 		if (
-			lines.length == words.length ||
+			lines.length === words.length ||
 			fontSize >= getDimBasedSize(height, heightMultiplier, numOfLines + 1)
 		) {
 			return { lines, fontSize };
 		}
 		lines = splitToLines(words, totalLength, numOfLines + 1);
-		if (numOfLines == lines.length) {
+		if (numOfLines === lines.length) {
 			break;
 		}
 		numOfLines = lines.length;
@@ -228,11 +228,9 @@ function splitToLines(words: string[], stringLength: number, numOfLines: number)
 	let lineLen = 0;
 	const maxPossLineLen = (stringLength / numOfLines) * 1.25;
 	for (const word of words) {
-		// console.log("increasing at", word, lineLen, word.length)
 		lineLen += word.length + 1;
 
 		if (lineLen > maxPossLineLen && line.length > 0) {
-			// console.log("pushing", line, lineLen)
 			lines.push({ words: line, length: lineLen - word.length - 2 });
 			line = [];
 			lineLen = word.length + 1;
@@ -255,7 +253,7 @@ function lineLen(words: string[]) {
 
 function productionSemantics(rootType: RootType, rootName: string) {
 	let prefix = 'papers'
-	if (rootType == 'hit-papers') {
+	if (rootType === 'hit-papers') {
 		prefix = ''
 	}
 	return {
@@ -282,10 +280,10 @@ export function getNetworkText(rootType: RootType, rootName: string, isSpec: boo
 		'Nodes represent research fields, and links connect fields that are likely to share authors.',
 		`Colored nodes show fields ${midNodeExp} ${productionSemantics(rootType, rootName)}.`
 	];
-	if (rootType == 'authors') {
+	if (rootType === 'authors') {
 		lines.push(`The network helps show where ${rootName} may publish in the future.`)
 	}
-	if (rootType == 'countries') {
+	if (rootType === 'countries') {
 		lines.push(`The network helps show where authors in ${rootName} may publish in the future.`)
 	}
 	if (sourceSide)
@@ -373,10 +371,12 @@ export const SEMANTIC_CONF = {
 
 export const SPEC_BPS = [0.75, 1.2, 2.5];
 const SING_MAP: Record<string, string> = { countries: 'country' };
+type SemNode = { semantic?: string; children?: Record<string, SemNode> };
+
 const CO_FAL = 'are cited by authors working in';
 const SPEC = 'specifically';
 
-const SEM_MAP = {
+const SEM_MAP: Partial<Record<RootType, Record<string, SemNode>>> = {
 	authors: {
 		'subfields-true': {
 			children: {
