@@ -128,7 +128,7 @@
 				});
 				countryLevels = Object.fromEntries(l1Kv);
 			} catch (error) {
-				console.log('flatOutUpdateFailed', error);
+				console.error('flatOutUpdateFailed', error);
 			}
 		}
 	}
