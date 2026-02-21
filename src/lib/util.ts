@@ -1,5 +1,4 @@
-
-export function randN(n) {
-	return Math.floor(Math.random() * n)
+export function randN(n: number): number {
+	return Math.floor(Math.random() * n);
 }
 
