@@ -66,7 +66,7 @@ erDiagram
   "works-topics" {
     BIGINT parent_id FK
     BIGINT id
-    DOUBLE PRECISION score
+    FLOAT score
   }
   "topics" {
     BIGINT id PK
