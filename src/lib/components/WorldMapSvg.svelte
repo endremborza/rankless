@@ -5,7 +5,6 @@
 	import * as tf from '$lib/tree-functions';
 
 	import countryPaths from '$lib/assets/data/country-svg-paths.json';
-	// import countryBoxes from '$lib/assets/data/country-svg-boxes.json';
 	import { getColor, getColorArr } from '$lib/style-util';
 	import { formatNumber, getMapText } from '$lib/text-format-util';
 	import { HIGH_OP, LOW_OP } from '$lib/constants';
