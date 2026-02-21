@@ -260,7 +260,8 @@ where
         let et_id = NET::<IteratorRootEtype<TMK>>::from_usize(self.params.fq.ck.eid);
         if self.is_cacheable() {
             let full_path = self.params.state.full_cache_file_period(&self.params.fq, 0);
-            create_dir_all(full_path.parent().unwrap()).unwrap();
+            create_dir_all(full_path.parent().unwrap())
+                .unwrap_or_else(|_| self.log("can't create directory for cache"));
         }
         if self.params.fq.q.big_read.unwrap_or(false) {
             self.read_big_calculate(&mut pids);
@@ -474,8 +475,10 @@ where
         T: Serialize,
     {
         let pb = f(&self.params.state, &self.params.fq, pid);
-        write_buf_path(obj, &pb).expect(&format!("writing to {pb:?}"));
-        self.log(format!("wrote to {pb:?}"));
+        match write_buf_path(obj, &pb) {
+            Ok(_) => self.log(format!("wrote to {pb:?}")),
+            Err(_) => self.log(format!("failed to write to {pb:?}")),
+        }
     }
 
     fn log<D: Display>(&self, s: D) {

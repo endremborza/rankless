@@ -168,7 +168,8 @@ macro_rules! pathfields_fn {
             pub fn new(root_path: &str) -> Self{
                 $(
                     let $k = Path::new(root_path).join(stringify!($k).replace("_","-"));
-                    create_dir_all(&$k).unwrap();
+                    let _d = &$k;
+                    create_dir_all(&$k).unwrap_or_else(|_| {println!("can't create {_d:?} directory");});
                 )*
 
                 Self {
@@ -586,14 +587,13 @@ where
     Ok(BufReader::new(gz_decoder))
 }
 
-pub fn get_gz_bufw<P>(file_name: P) -> BufWriter<GzEncoder<File>>
+pub fn get_gz_bufw<P>(file_name: P) -> Result<BufWriter<GzEncoder<File>>, io::Error>
 where
     P: AsRef<Path> + Debug,
 {
-    let msg = format!("could not create {file_name:?}");
-    let file = File::create(file_name).expect(&msg);
+    let file = File::create(file_name)?;
     let encoder = GzEncoder::new(file, Compression::default());
-    std::io::BufWriter::new(encoder)
+    Ok(std::io::BufWriter::new(encoder))
 }
 
 pub fn read_buf_path<T, P>(fp: P) -> Result<T, bincode::Error>
@@ -605,12 +605,16 @@ where
     bincode::deserialize_from(&mut buf)
 }
 
-pub fn write_buf_path<T, P>(obj: T, fp: P) -> Result<(), Box<bincode::ErrorKind>>
+pub fn write_buf_path<T, P>(obj: T, fp: P) -> Result<(), io::Error>
 where
     T: Serialize,
     P: AsRef<Path> + Debug,
 {
-    bincode::serialize_into(get_gz_bufw(fp), &obj)
+    let bufw = get_gz_bufw(fp)?;
+    match bincode::serialize_into(bufw, &obj) {
+        Ok(_) => Ok(()),
+        Err(s) => Err(io::Error::new(io::ErrorKind::Other, s)),
+    }
 }
 
 pub fn read_json_path<T, P>(fp: P) -> Result<T, io::Error>
@@ -630,7 +634,7 @@ where
     T: Serialize,
     P: AsRef<Path> + Debug,
 {
-    serde_json::to_writer(get_gz_bufw(fp), &obj)
+    serde_json::to_writer(get_gz_bufw(fp).unwrap(), &obj)
 }
 
 pub fn short_string_to_u64(input: &str) -> BigId {
