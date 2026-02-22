@@ -1,18 +1,15 @@
-use std::vec::IntoIter;
-
 use crate::{
     components::{
         AuthorBestiePapers, AuthorBesties, CiteSubSourceTop, CitingCoInstSuToByRef,
         CitingCoSuToByRef, CitingSourceCoSuByRef, CitingSuByRef, CountryBesties, CountryCiters,
         CountryInstsPost, FullRefCountryInstSubfieldByRef, FullRefSourceCountryInstByRef,
         InstBesties, IntX, MinDisJ, MinIntX, PostRefIterWrap, QedInf, RefCountryByRef, RefSuByRef,
-        RefSubCiSubTByRef, SourceSubfieldCiCoByRef, SourceWCoiByRef, StackBasis, StackFr,
+        RefSubCiSubTByRef, SourceSubfieldCiCoByRef, SourceWCoiByRef,
         SubfieldCountryInstByRef, SubfieldCountryInstSourceByRef, SubfieldCountryInstSubfieldByRef,
         SubfieldRefTopicCountryInst, SubfieldWCoiByRef, WorkingAuthors,
     },
-    interfacing::Getters,
     io::{
-        BufSerChildren, BufSerTree, CollapsedNode, CollapsedNodeGen, TreeQ, TreeResponse, TreeSpec,
+        BufSerChildren, BufSerTree, CollapsedNode, CollapsedNodeGen, TreeSpec,
         WorkCiteT, WorkWInd, WT,
     },
     part_iterator::{PartitioningIterator, TreeMakingParams},
@@ -25,9 +22,17 @@ use rankless_rs::{
     gen::derive_links3::HitPapers,
 };
 
-use dmove::{Entity, InitEmpty, UnsignedNumber, ET};
+use dmove::{InitEmpty, UnsignedNumber};
 use dmove_macro::derive_tree_getter;
 use hashbrown::HashMap;
+
+#[cfg(test)]
+use crate::{
+    components::StackFr,
+    io::{TreeQ, TreeResponse},
+};
+#[cfg(test)]
+use dmove::Entity;
 
 pub type CollT<T> = <T as Collapsing>::Collapsed;
 
@@ -780,78 +785,15 @@ mod hit_paper_trees {
     pub type Tree2<'a> = PostRefIterWrap<'a, MinIntX<HitPapers>, CiteSubSourceTop<'a>>;
 }
 
-pub mod test_tools {
-    use rankless_rs::steps::a1_entity_mapping::N_PERS;
-
-    use crate::components::PartitionId;
-
-    use super::*;
-
-    pub trait TestSB {
-        type SB: StackBasis;
-        fn get_vec(id: usize) -> Vec<StackFr<Self::SB>>;
-        fn get_pid(_v: &StackFr<Self::SB>) -> PartitionId {
-            0
-        }
-    }
-
-    pub struct Tither<TSB>
-    where
-        TSB: TestSB,
-    {
-        viter: IntoIter<StackFr<TSB::SB>>,
-    }
-
-    impl<TSB> PartitioningIterator<'_> for Tither<TSB>
-    where
-        TSB: TestSB,
-        TSB::SB: StackBasis,
-    {
-        type Root = MinIntX<Institutions>;
-        type StackBasis = TSB::SB;
-        const PARTITIONS: usize = N_PERS;
-        fn new(id: ET<Institutions>, _gets: &Getters) -> Self {
-            let viter = TSB::get_vec(id.to_usize()).into_iter();
-            Self { viter }
-        }
-    }
-
-    impl<TSB> Iterator for Tither<TSB>
-    where
-        TSB: TestSB,
-    {
-        type Item = (PartitionId, StackFr<TSB::SB>);
-
-        fn next(&mut self) -> Option<Self::Item> {
-            match self.viter.next() {
-                Some(v) => Some((TSB::get_pid(&v), v)),
-                None => None,
-            }
-        }
-    }
-
-    pub fn test_q(i: u8) -> TreeQ {
-        TreeQ {
-            year: None,
-            tid: Some(i),
-            connections: None,
-            big_prep: None,
-            big_read: None,
-            shallow: None,
-            cacheable: None,
-            wide: None,
-        }
-    }
-}
-
-pub mod big_test_tree {
+#[cfg(test)]
+mod big_test_tree {
     use std::{sync::Arc, thread, time::Duration};
 
     use super::*;
     use crate::io::{AttributeLabel, TreeRunManager};
     use dmove::{BigId, MappableEntity, NamespacedEntity};
     use rand::{rngs::StdRng, Rng, SeedableRng};
-    use test_tools::*;
+    use crate::test_utils::*;
 
     type BigStackFR = (
         IntX<Countries, 0, true>,
@@ -949,7 +891,7 @@ mod tests {
         derive_links1::WorkPeriods,
     };
     use std::{ops::Deref, sync::Arc};
-    use test_tools::{test_q, TestSB, Tither};
+    use crate::test_utils::{test_q, TestSB, Tither};
 
     use serde_json::to_string_pretty;
 
@@ -1179,6 +1121,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: ~65s, run with --include-ignored"]
     pub fn big_tree() {
         let r = big_test_tree::get_big_tree(20);
         let node = &r.tree.node;
