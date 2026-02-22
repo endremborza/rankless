@@ -13,7 +13,7 @@
 	import WorldMapSvg from '$lib/components/WorldMapSvg.svelte';
 	import ConceptMap from '$lib/components/ConceptMap.svelte';
 	import AuthorNetwork from '$lib/components/AuthorNetwork.svelte';
-	// import PaperRainbow from '$lib/components/PaperRainbow.svelte';
+	import PaperRainbow from '$lib/components/PaperRainbow.svelte';
 
 	export let data: {
 		view: tt.View;
@@ -149,9 +149,22 @@
 		</div>
 	{/if}
 </div>
-<!-- <div class="shadowy padded marged"> -->
-<!-- 	<PaperRainbow papers={data.view.hitPapers} /> -->
-<!-- </div> -->
+{#if data.conf.rootType === 'authors'}
+	<a href="/author-papers/{data.conf.semanticId}" class="explore-card shadowy padded marged">
+		<div>
+			<h3>Top Papers & Citation Paths</h3>
+			<p>
+				Explore {data.view.name}'s most cited publications and discover how their work connects
+				to other scholars through citations.
+			</p>
+		</div>
+		<span class="explore-arrow">&#8594;</span>
+	</a>
+{:else if data.view.hitPapers.length > 0}
+	<div class="shadowy padded marged">
+		<PaperRainbow papers={data.view.hitPapers} />
+	</div>
+{/if}
 <div id="similars" class="shadowy padded marged">
 	<p>
 		Rankless uses publication and citation data sourced from OpenAlex, an open and comprehensive
@@ -269,5 +282,43 @@
 		padding: 6px;
 		border-bottom: solid var(--color-theme-blue) 3px;
 		background: rgba(var(--color-range-15), 0.1);
+	}
+
+	.explore-card {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 24px;
+		text-decoration: none;
+		color: var(--color-text);
+		border-left: 4px solid var(--color-theme-blue);
+		transition: border-color 0.2s, background-color 0.2s;
+	}
+
+	.explore-card:hover {
+		border-left-color: var(--color-theme-yellow);
+		background-color: rgba(var(--color-range-15), 0.06);
+	}
+
+	.explore-card h3 {
+		margin: 0 0 6px;
+	}
+
+	.explore-card p {
+		margin: 0;
+		opacity: 0.7;
+		font-size: 0.9rem;
+	}
+
+	.explore-arrow {
+		font-size: 1.8rem;
+		opacity: 0.4;
+		flex-shrink: 0;
+		transition: opacity 0.2s, transform 0.2s;
+	}
+
+	.explore-card:hover .explore-arrow {
+		opacity: 0.8;
+		transform: translateX(4px);
 	}
 </style>

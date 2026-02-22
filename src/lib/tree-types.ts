@@ -161,6 +161,24 @@ export type LevelOutSpec = {
 	levelOptions: string[];
 };
 
+export type RefTree = 'Leaf' | { Node: Record<number, RefTree> };
+
+export type PathToPaperResp = {
+	tree: RefTree;
+	doi: string;
+	title: string;
+	year: number;
+};
+
+export type PathResp = {
+	paths: PathToPaperResp[];
+	srcName: string;
+	targetName: string;
+	relWorks: number[];
+	nameMap: Record<number, string>;
+	doiMap: Record<number, string>;
+};
+
 export type OaPaperResp = {
 	title: string;
 	doi: string;
