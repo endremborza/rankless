@@ -11,6 +11,15 @@ pub enum RefTree {
     Leaf,
 }
 
+impl RefTree {
+    pub fn has_paths(&self) -> bool {
+        match self {
+            RefTree::Node(map) => !map.is_empty(),
+            RefTree::Leaf => true,
+        }
+    }
+}
+
 pub trait RefGraph {
     fn get_refs(&self, wid: WT) -> &[WT];
     fn get_aworks(&self, aid: ET<Authors>) -> &[WT];

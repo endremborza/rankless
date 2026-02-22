@@ -1055,6 +1055,9 @@ async fn path_to_papers(
         if let Some(hp_sv) = hp_states.semantic_id_map.get(&doi) {
             let wid = gets.hit_papers[hp_sv.dm_id].to_usize();
             let (tree, mut aworks) = author_to_work_paths(gets, wid, aid, DEPTH, &mut wid_adder);
+            if !tree.has_paths() {
+                return;
+            }
             rel_works.append(&mut aworks);
             paths.push(PathToPaperResp { tree, doi, title: "".to_string(), year: 0 });
             wids.push(wid);

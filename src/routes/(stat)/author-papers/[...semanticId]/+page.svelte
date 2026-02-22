@@ -59,96 +59,89 @@
 	/>
 </svelte:head>
 
-<div class="page-wrap">
-	<div id="head" class="shadowy padded marged">
-		<a href="/authors/{data.semanticId}" class="back-link">← Back to full profile</a>
-		<h1>{data.view.name}</h1>
-		<p class="stats">{data.paperText} · {data.citeText}</p>
+<div id="head" class="shadowy padded marged">
+	<a href="/authors/{data.semanticId}" class="back-link">← Back to full profile</a>
+	<h1>{data.view.name}</h1>
+	<p class="stats">{data.paperText} · {data.citeText}</p>
+</div>
+
+{#if data.view.hitPapers.length > 0}
+	<div class="shadowy padded marged">
+		<h2>Top Papers</h2>
+		<PaperRainbow papers={data.view.hitPapers} />
 	</div>
+{/if}
 
-	{#if data.view.hitPapers.length > 0}
-		<div class="shadowy padded marged">
-			<h2>Top Papers</h2>
-			<PaperRainbow papers={data.view.hitPapers} />
-		</div>
-	{/if}
+<div class="shadowy padded marged" id="path-finder">
+	<h2>Citation Paths</h2>
+	<p class="section-desc">
+		Find how <strong>{data.view.name}</strong>'s papers are connected to another author through
+		citations.
+	</p>
 
-	<div class="shadowy padded marged" id="path-finder">
-		<h2>Citation Paths</h2>
-		<p class="section-desc">
-			Find how <strong>{data.view.name}</strong>'s papers are connected to another author through
-			citations.
-		</p>
-
-		<div class="search-box">
-			<label for="target-input">Search for an author</label>
-			<input
-				id="target-input"
-				type="text"
-				bind:value={targetQuery}
-				on:input={onTargetInput}
-				on:focus={() => (targetFocused = true)}
-				on:blur={() => setTimeout(() => (targetFocused = false), 150)}
-				placeholder="Type a name…"
-				autocomplete="off"
-			/>
-			{#if targetFocused && targetResults.length > 0}
-				<ul class="dropdown">
-					{#each targetResults as r}
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-						<li on:click={() => selectTarget(r)}>
-							<strong>{r.name}</strong>
-							<span>{r.papers} papers · {r.citations} citations</span>
-						</li>
-					{/each}
-				</ul>
-			{/if}
-		</div>
-
-		{#if pathLoading}
-			<p class="status">Loading citation paths…</p>
-		{:else if pathError}
-			<p class="status error">{pathError}</p>
-		{:else if pathResp}
-			{#if pathResp.paths.length === 0}
-				<p class="status">No citation paths found between these authors.</p>
-			{:else}
-				<div class="path-results">
-					{#each pathResp.paths as pathEntry}
-						<div class="path-block">
-							<h3>
-								{#if pathEntry.doi}
-									<a href="https://doi.org/{pathEntry.doi}" target="_blank"
-										>{pathEntry.title}</a
-									>
-								{:else}
-									{pathEntry.title}
-								{/if}
-								{#if pathEntry.year}
-									<span class="year">({pathEntry.year})</span>
-								{/if}
-							</h3>
-							<RefTreeTable
-								tree={pathEntry.tree}
-								nameMap={pathResp.nameMap}
-								doiMap={pathResp.doiMap}
-								relWorks={pathResp.relWorks}
-							/>
-						</div>
-					{/each}
-				</div>
-			{/if}
+	<div class="search-box">
+		<label for="target-input">Search for an author</label>
+		<input
+			id="target-input"
+			type="text"
+			bind:value={targetQuery}
+			on:input={onTargetInput}
+			on:focus={() => (targetFocused = true)}
+			on:blur={() => setTimeout(() => (targetFocused = false), 150)}
+			placeholder="Type a name…"
+			autocomplete="off"
+		/>
+		{#if targetFocused && targetResults.length > 0}
+			<ul class="dropdown">
+				{#each targetResults as r}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+					<li on:click={() => selectTarget(r)}>
+						<strong>{r.name}</strong>
+						<span>{r.papers} papers · {r.citations} citations</span>
+					</li>
+				{/each}
+			</ul>
 		{/if}
 	</div>
+
+	{#if pathLoading}
+		<p class="status">Loading citation paths…</p>
+	{:else if pathError}
+		<p class="status error">{pathError}</p>
+	{:else if pathResp}
+		{#if pathResp.paths.length === 0}
+			<p class="status">No citation paths found between these authors.</p>
+		{:else}
+			<div class="path-results">
+				{#each pathResp.paths as pathEntry}
+					<div class="path-block">
+						<h3>
+							{#if pathEntry.doi}
+								<a href="https://doi.org/{pathEntry.doi}" target="_blank"
+									>{pathEntry.title}</a
+								>
+							{:else}
+								{pathEntry.title}
+							{/if}
+							{#if pathEntry.year}
+								<span class="year">({pathEntry.year})</span>
+							{/if}
+						</h3>
+						<RefTreeTable
+							tree={pathEntry.tree}
+							nameMap={pathResp.nameMap}
+							doiMap={pathResp.doiMap}
+							relWorks={pathResp.relWorks}
+						/>
+					</div>
+				{/each}
+			</div>
+		{/if}
+	{/if}
 </div>
 
 <style>
-	.page-wrap {
-		max-width: 1100px;
-		margin: 0 auto;
-	}
-
 	#head {
 		margin-top: var(--unified-margin);
 	}
