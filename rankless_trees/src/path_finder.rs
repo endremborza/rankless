@@ -56,18 +56,28 @@ impl RefDAG {
                         return;
                     }
 
-                    let mut self_map = self_node.borrow_mut();
-                    let other_map = other_node.borrow();
+                    let mut to_recurse = Vec::new();
+                    let mut to_insert = Vec::new();
 
-                    for (k, other_child) in other_map.iter() {
-                        match self_map.get_mut(k) {
-                            Some(self_child) => {
-                                self_child.merge_with_visited(other_child.clone(), visited);
-                            }
-                            None => {
-                                self_map.insert(k.clone(), other_child.clone());
+                    {
+                        let mut self_map = self_node.borrow_mut();
+                        let other_map = other_node.borrow();
+
+                        for (k, other_child) in other_map.iter() {
+                            if let Some(self_child) = self_map.get_mut(k) {
+                                to_recurse.push((self_child.clone(), other_child.clone()));
+                            } else {
+                                to_insert.push((k.clone(), other_child.clone()));
                             }
                         }
+
+                        for (k, v) in to_insert {
+                            self_map.insert(k, v);
+                        }
+                    }
+
+                    for (mut self_child, other_child) in to_recurse {
+                        self_child.merge_with_visited(other_child, visited);
                     }
                 }
             }
