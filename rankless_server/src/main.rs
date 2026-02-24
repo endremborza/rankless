@@ -55,7 +55,7 @@ use rankless_trees::{
         AttributeLabel, AttributeLabels, ManFileHandle, ShallowQ, ShallowTreesResponse, TreeQ,
         TreeResponse, TreeRunManager, WT,
     },
-    path_finder::{self, RefTree},
+    path_finder::{extend_with_once_removed, get_direct_links, RefTree},
     AttributeLabelUnion,
 };
 
@@ -1026,7 +1026,7 @@ async fn path_to_papers(
     let gets = &states.0 .2.state.gets;
 
     let empty = || PathToPapersResp {
-        tree: RefTree::Node(Box::new(HashMap::new())),
+        tree: RefTree::new_map(),
         src_works: Vec::new(),
         name_map: HashMap::new(),
         doi_map: HashMap::new(),
@@ -1037,42 +1037,40 @@ async fn path_to_papers(
     };
     let aid = aid_sv.dm_id;
 
-    let direct_hit_ids = gets.author_citing_direct(aid);
-    let once_hit_ids = gets.author_citing_once(aid);
-    if direct_hit_ids.is_empty() && once_hit_ids.is_empty() {
+    let direct_hit_wids: Vec<WT> = gets
+        .author_citing_direct(aid)
+        .iter()
+        .map(|&hid| gets.hit_papers[hid as usize] as WT)
+        .collect();
+    let once_hit_wids: Vec<WT> = gets
+        .author_citing_once(aid)
+        .iter()
+        .map(|&hid| gets.hit_papers[hid as usize] as WT)
+        .collect();
+
+    if direct_hit_wids.is_empty() && once_hit_wids.is_empty() {
         return Json(empty());
     }
 
-    let citing_works_union = direct_hit_ids
-        .iter()
-        .chain(once_hit_ids.iter())
-        .map(|&hid| gets.hit_papers[hid as usize] as WT);
+    let refed_wids: &[WT] = gets.aworks(ET::<Authors>::from_usize(aid));
+    let refed_set: HashSet<WT> = refed_wids.iter().copied().collect();
 
-    let refed_works = gets.aworks(ET::<Authors>::from_usize(aid));
-
-    let mut visited: HashSet<WT> = HashSet::new();
-    let (tree, src_works) =
-        path_finder::multi_source_reftree(gets, &source_works, &target_works, 1, &mut |wid| {
-            visited.insert(wid);
-        });
-
-    if let RefTree::Node(ref top) = tree {
-        visited.extend(top.keys().copied());
-    }
-
+    let mut conn = get_direct_links(gets, refed_set.clone(), &direct_hit_wids);
+    extend_with_once_removed(gets, refed_set, &once_hit_wids, &mut conn);
     let mut name_map: HashMap<WT, String> = HashMap::new();
     let mut doi_map: HashMap<WT, String> = HashMap::new();
     let mut name_hand: ManFileHandle = states.2.get_file_handle();
     let mut doi_hand: VattReadingArcMap<WorkDois> = states.2.get_file_handle();
 
-    for wid in visited {
+    let src_works: Vec<WT> = conn.wids.iter().copied().collect();
+    for &wid in &conn.wids {
         let wu = wid.to_usize();
         name_map.insert(wid, name_hand.get_via_mut(&wu).unwrap_or_default());
         doi_map.insert(wid, doi_hand.get_via_mut(&wu).unwrap_or_default());
     }
 
     Json(PathToPapersResp {
-        tree,
+        tree: conn.tree,
         src_works,
         name_map,
         doi_map,
