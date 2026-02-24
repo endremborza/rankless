@@ -5,7 +5,7 @@ use serde::Serialize;
 
 use crate::io::WT;
 
-type RefTreeNodeT = Rc<RefCell<HashMap<WT, RefDAG>>>;
+type RefDAGNodeT = Rc<RefCell<HashMap<WT, RefDAG>>>;
 
 pub struct CitingConnection {
     pub tree: RefDAG,
@@ -14,7 +14,7 @@ pub struct CitingConnection {
 
 #[derive(Serialize, Debug, Clone)]
 pub enum RefDAG {
-    Node(RefTreeNodeT),
+    Node(RefDAGNodeT),
     Leaf,
 }
 
@@ -32,23 +32,40 @@ impl RefDAG {
         RefDAG::Node(Self::wrap_tree(tree))
     }
 
-    fn wrap_tree(tree: HashMap<WT, RefDAG>) -> RefTreeNodeT {
+    fn wrap_tree(tree: HashMap<WT, RefDAG>) -> RefDAGNodeT {
         Rc::new(RefCell::new(tree))
     }
 
-    fn merge(&mut self, other: Self) {
+    pub fn merge(&mut self, other: Self) {
+        let mut visited = HashSet::new();
+        self.merge_with_visited(other, &mut visited);
+    }
+
+    fn merge_with_visited(&mut self, other: Self, visited: &mut HashSet<(usize, usize)>) {
         match self {
             Self::Leaf => {
                 *self = other;
             }
-            Self::Node(node) => {
+
+            Self::Node(self_node) => {
                 if let Self::Node(other_node) = other {
-                    let mut map = node.borrow_mut();
-                    for (k, v) in other_node.borrow().iter() {
-                        match map.get_mut(k) {
-                            Some(existing) => existing.merge(v.clone()),
+                    let self_ptr = Rc::as_ptr(self_node) as usize;
+                    let other_ptr = Rc::as_ptr(&other_node) as usize;
+
+                    if !visited.insert((self_ptr, other_ptr)) {
+                        return;
+                    }
+
+                    let mut self_map = self_node.borrow_mut();
+                    let other_map = other_node.borrow();
+
+                    for (k, other_child) in other_map.iter() {
+                        match self_map.get_mut(k) {
+                            Some(self_child) => {
+                                self_child.merge_with_visited(other_child.clone(), visited);
+                            }
                             None => {
-                                map.insert(*k, v.clone());
+                                self_map.insert(k.clone(), other_child.clone());
                             }
                         }
                     }
@@ -215,7 +232,7 @@ mod tests {
         extend_with_once_removed(&graph, refed_set(&[3]), &[10, 20], &mut conn);
         let top = node_map(&conn.tree);
         assert_eq!(sorted_keys(&top), [10, 20]);
-        for &cit in &[10u32, 20] {
+        for &cit in &[10, 20] {
             let sub = node_map(top.get(&cit).unwrap());
             assert_eq!(sorted_keys(&sub), [4]);
             let sub_4 = node_map(sub.get(&4).unwrap());
@@ -249,6 +266,154 @@ mod tests {
         assert!(matches!(sub10.get(&3), Some(RefDAG::Leaf)));
         let sub_4 = node_map(sub10.get(&4).unwrap());
         assert!(matches!(sub_4.get(&5), Some(RefDAG::Leaf)));
+    }
+
+    #[test]
+    fn merge_when_both_sides_share_same_inner_rc() {
+        // Diamond shape: two outer nodes both map key 1 → the same inner Rc.
+        // merge calls borrow_mut on that Rc (via `self`) then borrow on the same Rc
+        // (via `other`) in the recursive step → RefCell double-borrow panic.
+        let shared = RefDAG::wrap_tree(HashMap::from([(3, RefDAG::Leaf)]));
+        let mut dag = RefDAG::from_tree(HashMap::from([(1, RefDAG::Node(shared.clone()))]));
+        let other = RefDAG::from_tree(HashMap::from([(1, RefDAG::Node(shared))]));
+        dag.merge(other);
+    }
+
+    #[test]
+    fn merge_simple_branching() {
+        let mut a = RefDAG::new_map();
+        let b = RefDAG::new_map();
+
+        // a: 1 -> {2}
+        if let RefDAG::Node(ref node) = a {
+            node.borrow_mut().insert(1, {
+                let child = RefDAG::new_map();
+                if let RefDAG::Node(ref cnode) = child {
+                    cnode.borrow_mut().insert(2, RefDAG::Leaf);
+                }
+                child
+            });
+        }
+
+        // b: 1 -> {3}
+        if let RefDAG::Node(ref node) = b {
+            node.borrow_mut().insert(1, {
+                let child = RefDAG::new_map();
+                if let RefDAG::Node(ref cnode) = child {
+                    cnode.borrow_mut().insert(3, RefDAG::Leaf);
+                }
+                child
+            });
+        }
+
+        a.merge(b);
+
+        // Expect: 1 -> {2,3}
+        if let RefDAG::Node(node) = a {
+            let map = node.borrow();
+            let child = map.get(&1).unwrap();
+
+            if let RefDAG::Node(cnode) = child {
+                let c = cnode.borrow();
+                assert!(c.contains_key(&2));
+                assert!(c.contains_key(&3));
+            } else {
+                panic!("expected node");
+            }
+        }
+    }
+
+    #[test]
+    fn merge_preserves_sharing() {
+        let shared = RefDAG::new_map();
+
+        // Insert child 42 into shared
+        if let RefDAG::Node(ref node) = shared {
+            node.borrow_mut().insert(42, RefDAG::Leaf);
+        }
+
+        let mut a = RefDAG::new_map();
+        let b = RefDAG::new_map();
+
+        // both point to same shared node
+        if let RefDAG::Node(ref node) = a {
+            node.borrow_mut().insert(1, shared.clone());
+        }
+        if let RefDAG::Node(ref node) = b {
+            node.borrow_mut().insert(1, shared.clone());
+        }
+
+        a.merge(b);
+
+        // after merge, child must still be same Rc
+        if let RefDAG::Node(node) = a {
+            let map = node.borrow();
+            let child = map.get(&1).unwrap();
+
+            if let RefDAG::Node(child_node) = child {
+                assert_eq!(Rc::strong_count(child_node), 2);
+            }
+        }
+    }
+
+    #[test]
+    fn merge_handles_cycle() {
+        let mut a = RefDAG::new_map();
+        let b = RefDAG::new_map();
+
+        // create cycle in a
+        if let RefDAG::Node(ref node) = a {
+            node.borrow_mut().insert(1, a.clone());
+        }
+
+        // create cycle in b
+        if let RefDAG::Node(ref node) = b {
+            node.borrow_mut().insert(1, b.clone());
+        }
+
+        // should NOT stack overflow
+        a.merge(b);
+    }
+
+    #[test]
+    fn merge_does_not_double_merge_shared_nodes() {
+        let shared = RefDAG::new_map();
+
+        let mut a = RefDAG::new_map();
+        let b = RefDAG::new_map();
+
+        if let RefDAG::Node(ref node) = a {
+            node.borrow_mut().insert(1, shared.clone());
+            node.borrow_mut().insert(2, shared.clone());
+        }
+
+        if let RefDAG::Node(ref node) = b {
+            node.borrow_mut().insert(1, shared.clone());
+            node.borrow_mut().insert(2, shared.clone());
+        }
+
+        a.merge(b);
+
+        // if visited logic is wrong, this may recurse exponentially
+        // or duplicate children
+    }
+
+    #[test]
+    fn leaf_becomes_node() {
+        let mut a = RefDAG::Leaf;
+
+        let b = RefDAG::new_map();
+        if let RefDAG::Node(ref node) = b {
+            node.borrow_mut().insert(7, RefDAG::Leaf);
+        }
+
+        a.merge(b);
+
+        if let RefDAG::Node(node) = a {
+            assert!(node.borrow().contains_key(&7));
+        } else {
+            panic!("Leaf should become Node");
+        }
     }
 
     #[test]
