@@ -5,15 +5,15 @@ use serde::Serialize;
 
 use crate::io::WT;
 
-type RefTreeNodeT = Rc<RefCell<HashMap<WT, RefTree>>>;
+type RefTreeNodeT = Rc<RefCell<HashMap<WT, RefDAG>>>;
 
 pub struct CitingConnection {
-    pub tree: RefTree,
+    pub tree: RefDAG,
     pub wids: HashSet<WT>,
 }
 
 #[derive(Serialize, Debug, Clone)]
-pub enum RefTree {
+pub enum RefDAG {
     Node(RefTreeNodeT),
     Leaf,
 }
@@ -23,16 +23,16 @@ pub trait RefGraph {
     fn get_cites(&self, wid: WT) -> &[WT];
 }
 
-impl RefTree {
+impl RefDAG {
     pub fn new_map() -> Self {
         Self::from_tree(HashMap::new())
     }
 
-    fn from_tree(tree: HashMap<WT, RefTree>) -> Self {
-        RefTree::Node(Self::wrap_tree(tree))
+    fn from_tree(tree: HashMap<WT, RefDAG>) -> Self {
+        RefDAG::Node(Self::wrap_tree(tree))
     }
 
-    fn wrap_tree(tree: HashMap<WT, RefTree>) -> RefTreeNodeT {
+    fn wrap_tree(tree: HashMap<WT, RefDAG>) -> RefTreeNodeT {
         Rc::new(RefCell::new(tree))
     }
 
@@ -66,24 +66,24 @@ pub fn get_direct_links<G>(
 where
     G: RefGraph,
 {
-    let mut tree_map: HashMap<WT, RefTree> = HashMap::new();
+    let mut tree_map: HashMap<WT, RefDAG> = HashMap::new();
     let mut reached: HashSet<WT> = HashSet::new();
 
     for &cit in citing_wids {
-        let mut sub: HashMap<WT, RefTree> = HashMap::new();
+        let mut sub: HashMap<WT, RefDAG> = HashMap::new();
         for &refed in graph.get_refs(cit) {
             if refed_set.contains(&refed) {
                 reached.insert(refed);
                 reached.insert(cit);
-                sub.insert(refed, RefTree::Leaf);
+                sub.insert(refed, RefDAG::Leaf);
             }
         }
         if !sub.is_empty() {
-            tree_map.insert(cit, RefTree::from_tree(sub));
+            tree_map.insert(cit, RefDAG::from_tree(sub));
         }
     }
     CitingConnection {
-        tree: RefTree::from_tree(tree_map),
+        tree: RefDAG::from_tree(tree_map),
         wids: reached,
     }
 }
@@ -110,28 +110,28 @@ pub fn extend_with_once_removed<G>(
     let mut found_mids = HashMap::new();
     let mut l2_map = HashMap::new();
     for &cit in citing_wids {
-        let mut sub: HashMap<WT, RefTree> = HashMap::new();
+        let mut sub: HashMap<WT, RefDAG> = HashMap::new();
         for &mid_wid in graph.get_refs(cit) {
             if !refed_set.contains(&mid_wid) & inter_from_refed.contains_key(&mid_wid) {
                 inter_from_citing.entry(mid_wid).or_default().push(cit);
                 resp.wids.insert(mid_wid);
                 resp.wids.insert(cit);
                 let mid_tree = found_mids.entry(mid_wid).or_insert_with(|| {
-                    RefTree::wrap_tree(HashMap::from_iter(
+                    RefDAG::wrap_tree(HashMap::from_iter(
                         inter_from_refed[&mid_wid]
                             .iter()
-                            .map(|ref_wid| (*ref_wid, RefTree::Leaf)),
+                            .map(|ref_wid| (*ref_wid, RefDAG::Leaf)),
                     ))
                 });
-                sub.insert(mid_wid, RefTree::Node(mid_tree.clone()));
+                sub.insert(mid_wid, RefDAG::Node(mid_tree.clone()));
             }
         }
         if !sub.is_empty() {
-            l2_map.insert(cit, RefTree::from_tree(sub));
+            l2_map.insert(cit, RefDAG::from_tree(sub));
         }
     }
 
-    resp.tree.merge(RefTree::from_tree(l2_map));
+    resp.tree.merge(RefDAG::from_tree(l2_map));
 }
 
 #[cfg(test)]
@@ -139,14 +139,14 @@ mod tests {
     use super::*;
     use crate::test_utils::TestGraph;
 
-    fn node_map(tree: &RefTree) -> std::cell::Ref<'_, HashMap<WT, RefTree>> {
+    fn node_map(tree: &RefDAG) -> std::cell::Ref<'_, HashMap<WT, RefDAG>> {
         match tree {
-            RefTree::Node(rc) => rc.borrow(),
-            RefTree::Leaf => panic!("expected Node, got Leaf"),
+            RefDAG::Node(rc) => rc.borrow(),
+            RefDAG::Leaf => panic!("expected Node, got Leaf"),
         }
     }
 
-    fn sorted_keys(map: &HashMap<WT, RefTree>) -> Vec<WT> {
+    fn sorted_keys(map: &HashMap<WT, RefDAG>) -> Vec<WT> {
         let mut keys: Vec<WT> = map.keys().copied().collect();
         keys.sort();
         keys
@@ -202,7 +202,7 @@ mod tests {
         let sub10 = node_map(top.get(&10).unwrap());
         assert_eq!(sorted_keys(&sub10), [4]);
         let sub_4 = node_map(sub10.get(&4).unwrap());
-        assert!(matches!(sub_4.get(&3), Some(RefTree::Leaf)));
+        assert!(matches!(sub_4.get(&3), Some(RefDAG::Leaf)));
     }
 
     #[test]
@@ -219,7 +219,7 @@ mod tests {
             let sub = node_map(top.get(&cit).unwrap());
             assert_eq!(sorted_keys(&sub), [4]);
             let sub_4 = node_map(sub.get(&4).unwrap());
-            assert!(matches!(sub_4.get(&3), Some(RefTree::Leaf)));
+            assert!(matches!(sub_4.get(&3), Some(RefDAG::Leaf)));
         }
     }
 
@@ -246,9 +246,9 @@ mod tests {
         extend_with_once_removed(&graph, rs, &[10], &mut conn);
         let top = node_map(&conn.tree);
         let sub10 = node_map(top.get(&10).unwrap());
-        assert!(matches!(sub10.get(&3), Some(RefTree::Leaf)));
+        assert!(matches!(sub10.get(&3), Some(RefDAG::Leaf)));
         let sub_4 = node_map(sub10.get(&4).unwrap());
-        assert!(matches!(sub_4.get(&5), Some(RefTree::Leaf)));
+        assert!(matches!(sub_4.get(&5), Some(RefDAG::Leaf)));
     }
 
     #[test]

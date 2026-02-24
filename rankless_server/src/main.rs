@@ -55,7 +55,7 @@ use rankless_trees::{
         AttributeLabel, AttributeLabels, ManFileHandle, ShallowQ, ShallowTreesResponse, TreeQ,
         TreeResponse, TreeRunManager, WT,
     },
-    path_finder::{extend_with_once_removed, get_direct_links, RefTree},
+    path_finder::{extend_with_once_removed, get_direct_links, RefDAG},
     AttributeLabelUnion,
 };
 
@@ -182,7 +182,7 @@ struct PaperOut {
 
 #[derive(Serialize, Clone)]
 struct PathToPapersResp {
-    tree: RefTree,
+    tree: RefDAG,
     #[serde(rename = "relWorks")]
     src_works: Vec<WT>,
     #[serde(rename = "nameMap")]
@@ -1026,7 +1026,7 @@ async fn path_to_papers(
     let gets = &states.0 .2.state.gets;
 
     let empty = || PathToPapersResp {
-        tree: RefTree::new_map(),
+        tree: RefDAG::new_map(),
         src_works: Vec::new(),
         name_map: HashMap::new(),
         doi_map: HashMap::new(),
