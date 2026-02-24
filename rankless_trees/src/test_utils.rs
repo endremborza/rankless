@@ -18,16 +18,22 @@ use rankless_rs::{
 
 pub struct TestGraph {
     refs: HashMap<WT, Vec<WT>>,
+    cites: HashMap<WT, Vec<WT>>,
 }
 
 impl TestGraph {
     pub fn new() -> Self {
         Self {
             refs: HashMap::new(),
+            cites: HashMap::new(),
         }
     }
 
+    /// Add refs for wid and automatically build the inverse cites entries.
     pub fn with_refs(mut self, wid: WT, refs: Vec<WT>) -> Self {
+        for &r in &refs {
+            self.cites.entry(r).or_default().push(wid);
+        }
         self.refs.insert(wid, refs);
         self
     }
@@ -36,6 +42,10 @@ impl TestGraph {
 impl RefGraph for TestGraph {
     fn get_refs(&self, wid: WT) -> &[WT] {
         self.refs.get(&wid).map(|v| v.as_slice()).unwrap_or(&[])
+    }
+
+    fn get_cites(&self, wid: WT) -> &[WT] {
+        self.cites.get(&wid).map(|v| v.as_slice()).unwrap_or(&[])
     }
 }
 
