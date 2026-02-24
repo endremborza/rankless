@@ -3,6 +3,7 @@ use std::{f64, sync::Arc};
 use crate::{
     ids::AttributeLabelUnion,
     io::{AttributeLabel, WT},
+    path_finder::RefGraph,
 };
 use rankless_rs::{
     common::{
@@ -19,7 +20,7 @@ use rankless_rs::{
             AuthorshipDiscardedAuthor, AuthorshipFilteredAuthor, CitiesNames, CountryCodes,
             DiscardedAuthorsNames, FilteredAuthorshipInstitutions, InstCities, InstCountries,
             InstLocs, SourceYearQs, TopicSubfields, WorkAnyAuthorships, WorkBiblios, WorkDois,
-            WorkTopics, WorkYears, WorksNames,
+            WorkReferences, WorkTopics, WorkYears, WorksNames,
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
         derive_links2::{WorkCountries, WorkTopSource},
@@ -278,6 +279,7 @@ make_interfaces!(
     dshipa => AuthorshipDiscardedAuthor,
     raw_cites => AuthorRawCites,
     raw_works => AuthorRawWorkCounts;
+    wrefs -> WorkReferences,
     wtopics -> WorkTopics,
     wsubfields -> WorkSubfields,
     winsts -> WorkInstitutions,
@@ -549,6 +551,12 @@ impl MetaMapGetter for Authors {
             ("anyHits", any_hits.to_string()),
         ];
         Some(HashMap::from_iter(kvs.into_iter()))
+    }
+}
+
+impl RefGraph for Getters {
+    fn get_refs(&self, wid: WT) -> &[WT] {
+        self.wrefs(wid)
     }
 }
 
