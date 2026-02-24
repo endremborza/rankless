@@ -1025,36 +1025,59 @@ async fn path_to_papers(
 ) -> Json<PathToPapersResp> {
     let astates = states.0 .0.get(Authors::NAME).unwrap();
     let gets = &states.0 .2.state.gets;
-    let src_works = Vec::new();
+
+    let empty = || PathToPapersResp {
+        tree: RefTree::Node(Box::new(HashMap::new())),
+        src_works: Vec::new(),
+        name_map: HashMap::new(),
+        doi_map: HashMap::new(),
+    };
+
+    let Some(aid_sv) = astates.semantic_id_map.get(&author_sem_id) else {
+        return Json(empty());
+    };
+    let aid = aid_sv.dm_id;
+
+    let direct_hit_ids = gets.author_citing_direct(aid);
+    let once_hit_ids = gets.author_citing_once(aid);
+    if direct_hit_ids.is_empty() && once_hit_ids.is_empty() {
+        return Json(empty());
+    }
+
+    let source_works: Vec<WT> = direct_hit_ids
+        .iter()
+        .chain(once_hit_ids.iter())
+        .map(|&hid| gets.hit_papers[hid as usize] as WT)
+        .collect();
+
+    let target_works: HashSet<WT> = gets.aworks(aid as u16).iter().copied().collect();
+
+    let mut visited: HashSet<WT> = HashSet::new();
+    let (tree, src_works) =
+        path_finder::multi_source_reftree(gets, &source_works, &target_works, 1, &mut |wid| {
+            visited.insert(wid);
+        });
+
+    if let RefTree::Node(ref top) = tree {
+        visited.extend(top.keys().copied());
+    }
 
     let mut name_map: HashMap<WT, String> = HashMap::new();
     let mut doi_map: HashMap<WT, String> = HashMap::new();
+    let mut name_hand: ManFileHandle = states.2.get_file_handle();
+    let mut doi_hand: VattReadingArcMap<WorkDois> = states.2.get_file_handle();
 
-    let add_paper = |hp_ids: &[u16], gets: &Getters| -> Vec<CitingHitPaper> {
-        hp_ids
-            .iter()
-            .map(|&hid| {
-                let hu = hid.to_usize();
-                CitingHitPaper {
-                    doi: String::from_utf8(gets.hit_dois(hu).to_vec()).unwrap(),
-                    title: String::from_utf8(gets.hit_names(hu).to_vec()).unwrap(),
-                    year: YearInterface::reverse(*gets.year(&gets.hit_papers[hu].to_usize())),
-                }
-            })
-            .collect()
-    };
-
-    if let Some(aid_sv) = astates.semantic_id_map.get(&author_sem_id) {
-        let src_dm = aid_sv.dm_id;
-        let src_direct = gets.author_citing_direct(src_dm);
-        let src_once = gets.author_citing_once(src_dm);
-        let all_targets = src_direct + src_once; //concat
-        let (tree, src_works) =
-            path_finder::works_to_reftree(graph, source_wid, target_works, depth, wid_fun);
+    for wid in visited {
+        let wu = wid.to_usize();
+        name_map.insert(wid, name_hand.get_via_mut(&wu).unwrap_or_default());
+        doi_map.insert(wid, doi_hand.get_via_mut(&wu).unwrap_or_default());
     }
+
     Json(PathToPapersResp {
-        //tree, ...
+        tree,
         src_works,
+        name_map,
+        doi_map,
     })
 }
 

@@ -1,6 +1,4 @@
-use dmove::ET;
 use hashbrown::{HashMap, HashSet};
-use rankless_rs::gen::a1_entity_mapping::Authors;
 use serde::Serialize;
 
 use crate::io::WT;
@@ -13,7 +11,6 @@ pub enum RefTree {
 
 pub trait RefGraph {
     fn get_refs(&self, wid: WT) -> &[WT];
-    fn get_aworks(&self, aid: ET<Authors>) -> &[WT];
 }
 
 pub fn works_to_reftree<G, F>(
@@ -32,10 +29,10 @@ where
     (tree, used_works.into_iter().collect())
 }
 
-pub fn author_works_reftree<G, F>(
+pub fn multi_source_reftree<G, F>(
     graph: &G,
-    source_wid: WT,
-    target_aid: ET<Authors>,
+    source_works: &[WT],
+    target_works: &HashSet<WT>,
     depth: usize,
     wid_fun: &mut F,
 ) -> (RefTree, Vec<WT>)
@@ -43,8 +40,20 @@ where
     G: RefGraph,
     F: FnMut(WT),
 {
-    let aworks: HashSet<WT> = graph.get_aworks(target_aid).iter().copied().collect();
-    works_to_reftree(graph, source_wid, &aworks, depth, wid_fun)
+    let mut used_works = HashSet::new();
+    let mut top_map = HashMap::new();
+    for &source_wid in source_works {
+        let subtree = extend_used_works_get_reftree(
+            graph, source_wid, depth, wid_fun, target_works, &mut used_works,
+        );
+        if let RefTree::Node(ref node_map) = subtree {
+            if !node_map.is_empty() {
+                wid_fun(source_wid);
+                top_map.insert(source_wid, subtree);
+            }
+        }
+    }
+    (RefTree::Node(Box::new(top_map)), used_works.into_iter().collect())
 }
 
 pub fn extend_used_works_get_reftree<G, F>(
@@ -233,7 +242,6 @@ mod tests {
         let graph = make_test_graph();
         let filter: HashSet<WT> = [3, 5].into_iter().collect();
         let results = run_find_paths(&graph, 0, 0, &filter);
-        // Only direct refs of 0 that match: 3 (1 and 2 don't match)
         assert_eq!(results, [vec![3]]);
     }
 
@@ -243,7 +251,6 @@ mod tests {
         let filter: HashSet<WT> = [3, 5].into_iter().collect();
         let mut results = run_find_paths(&graph, 0, 1, &filter);
         results.sort();
-        // Direct: [3]; via 1: [1,5]; via 2: [2,3]
         assert_eq!(results, [vec![1, 5], vec![2, 3], vec![3]]);
     }
 
@@ -252,7 +259,6 @@ mod tests {
         let graph = TestGraph::new().with_refs(0, vec![0, 1]);
         let filter: HashSet<WT> = [0, 1].into_iter().collect();
         let results = run_find_paths(&graph, 0, 0, &filter);
-        // 0 refs itself (skipped) and 1 (matches filter)
         assert_eq!(results, [vec![1]]);
     }
 
@@ -281,7 +287,6 @@ mod tests {
         );
         assert_eq!(used_works, [3u32, 5].into_iter().collect::<HashSet<_>>());
         let top = as_node(&tree);
-        // Top-level keys: 1 (via path [1,5]), 2 (via path [2,3]), 3 (direct)
         assert_eq!(sorted_keys(top), [1, 2, 3]);
         assert!(matches!(top.get(&3), Some(RefTree::Leaf)));
         assert_eq!(sorted_keys(as_node(top.get(&1).unwrap())), [5]);
@@ -325,22 +330,37 @@ mod tests {
         assert!(as_node(&tree).is_empty());
     }
 
-    // ---- author_works_reftree ----
+    // ---- multi_source_reftree ----
 
     #[test]
-    fn author_works_reftree_finds_all_author_works() {
-        let graph = make_test_graph().with_aworks(7, vec![3, 5]);
+    fn multi_source_reftree_merges_paths_from_multiple_sources() {
+        let graph = TestGraph::new()
+            .with_refs(10, vec![3, 5])
+            .with_refs(20, vec![5])
+            .with_refs(30, vec![]);
+        let targets: HashSet<WT> = [3, 5].into_iter().collect();
         let mut wid_calls: Vec<WT> = vec![];
-        let (tree, mut used) = author_works_reftree(&graph, 0, 7, 1, &mut |w| wid_calls.push(w));
+        let (tree, mut used) = multi_source_reftree(
+            &graph,
+            &[10, 20, 30],
+            &targets,
+            0,
+            &mut |w| wid_calls.push(w),
+        );
         used.sort();
         assert_eq!(used, [3, 5]);
-        assert!(sorted_keys(as_node(&tree)).contains(&3));
+        let top = as_node(&tree);
+        assert_eq!(sorted_keys(top), [10, 20]);
+        assert!(wid_calls.contains(&10));
+        assert!(wid_calls.contains(&20));
+        assert!(!wid_calls.contains(&30));
     }
 
     #[test]
-    fn author_works_reftree_no_works_yields_empty() {
-        let graph = make_test_graph().with_aworks(7, vec![]);
-        let (tree, used) = author_works_reftree(&graph, 0, 7, 1, &mut |_| {});
+    fn multi_source_reftree_empty_sources_yields_empty() {
+        let graph = make_test_graph();
+        let targets: HashSet<WT> = [3].into_iter().collect();
+        let (tree, used) = multi_source_reftree(&graph, &[], &targets, 0, &mut |_| {});
         assert!(used.is_empty());
         assert!(as_node(&tree).is_empty());
     }
