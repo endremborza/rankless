@@ -19,11 +19,12 @@ use rankless_rs::{
             AuthorshipDiscardedAuthor, AuthorshipFilteredAuthor, CitiesNames, CountryCodes,
             DiscardedAuthorsNames, FilteredAuthorshipInstitutions, InstCities, InstCountries,
             InstLocs, SourceYearQs, TopicSubfields, WorkAnyAuthorships, WorkBiblios, WorkDois,
-            WorkReferences, WorkTopics, WorkYears, WorksNames,
+            WorkTopics, WorkYears, WorksNames,
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
         derive_links2::{WorkCountries, WorkTopSource},
         derive_links3::{Coauthors, HitPapers, HitPapersDois, HitPapersNames},
+        derive_links4::{AuthorCitingHitsDirect, AuthorCitingHitsOnce},
         derive_links5::{HitPaperYearlyCitations, SourceStats},
     },
     steps::{
@@ -287,7 +288,8 @@ make_interfaces!(
     cinames -> CitiesNames,
     aslugs -> AuthorWikiSlugs,
     coathors -> Coauthors,
-    wor_refs -> WorkReferences,
+    author_citing_direct -> AuthorCitingHitsDirect,
+    author_citing_once -> AuthorCitingHitsOnce,
     hit_names -> HitPapersNames,
     hit_dois -> HitPapersDois,
     hit_yearlies -> HitPaperYearlyCitations,
@@ -355,8 +357,12 @@ where
     fn locs_from_ram(gets: &Getters) -> Arc<Locators<Self>>;
 }
 
-pub trait MetaMapGetter {
-    fn get_meta(_id: usize, _gets: &Getters) -> Option<HashMap<&'static str, String>> {
+pub trait MetaMapGetter: RootInterfaceable + Sized {
+    fn get_meta(
+        _id: usize,
+        _gets: &Getters,
+        _entif: &RootInterfaces<Self>,
+    ) -> Option<HashMap<&'static str, String>> {
         None
     }
 }
@@ -511,19 +517,36 @@ impl MetaMapGetter for Countries {}
 impl MetaMapGetter for HitPapers {}
 
 impl MetaMapGetter for Institutions {
-    fn get_meta(id: usize, gets: &Getters) -> Option<HashMap<&'static str, String>> {
+    fn get_meta(
+        id: usize,
+        gets: &Getters,
+        _: &RootInterfaces<Institutions>,
+    ) -> Option<HashMap<&'static str, String>> {
         let loc = gets.iloc(&id);
         let kvs = vec![("lat", loc.0.to_string()), ("lon", loc.1.to_string())];
         Some(HashMap::from_iter(kvs.into_iter()))
     }
 }
 impl MetaMapGetter for Authors {
-    fn get_meta(id: usize, gets: &Getters) -> Option<HashMap<&'static str, String>> {
+    fn get_meta(
+        id: usize,
+        gets: &Getters,
+        entif: &RootInterfaces<Authors>,
+    ) -> Option<HashMap<&'static str, String>> {
         let slug = String::from_utf8(gets.aslugs(id).to_vec()).unwrap();
+        let any_hits = if (gets.author_citing_once(id).len() > 0)
+            || (gets.author_citing_direct(id).len() > 0)
+            || (entif.hit_works.0[id].len() > 0)
+        {
+            "1"
+        } else {
+            "0"
+        };
         let kvs = vec![
             ("wikiSlug", slug),
             ("rawCites", gets.raw_cites(&id).to_string()),
             ("rawPapers", gets.raw_works(&id).to_string()),
+            ("anyHits", any_hits.to_string()),
         ];
         Some(HashMap::from_iter(kvs.into_iter()))
     }
