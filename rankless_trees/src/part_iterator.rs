@@ -256,13 +256,13 @@ where
     }
 
     fn fill_calculate(&mut self) {
-        let mut pids = Vec::new();
-        let et_id = NET::<IteratorRootEtype<TMK>>::from_usize(self.params.fq.ck.eid);
         if self.is_cacheable() {
             let full_path = self.params.state.full_cache_file_period(&self.params.fq, 0);
             create_dir_all(full_path.parent().unwrap())
                 .unwrap_or_else(|_| self.log("can't create directory for cache"));
         }
+        let mut pids = Vec::new();
+        let et_id = NET::<IteratorRootEtype<TMK>>::from_usize(self.params.fq.ck.eid);
         if self.params.fq.q.big_read.unwrap_or(false) {
             self.read_big_calculate(&mut pids);
             // clone could possibly be done better, but should not be big deal
@@ -332,9 +332,9 @@ where
     }
 
     fn write_tmp_parts(&self) {
+        let et_id = NET::<IteratorRootEtype<TMK>>::from_usize(self.params.fq.ck.eid);
         let cache_root = tmp_part_cache_root(&self.params.fq.ck);
-        let id = NET::<IteratorRootEtype<TMK>>::from_usize(self.params.fq.ck.eid);
-        let piter = TMK::new(id, &self.params.state.gets);
+        let piter = TMK::new(et_id, &self.params.state.gets);
         let mut writers: Vec<BufWriter<File>> = YearInterface::iter()
             .map(|yp| {
                 BufWriter::new(
