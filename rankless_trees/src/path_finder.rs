@@ -49,6 +49,10 @@ impl RefDAG {
 
             Self::Node(self_node) => {
                 if let Self::Node(other_node) = other {
+                    if Rc::ptr_eq(self_node, &other_node) {
+                        return;
+                    }
+
                     let self_ptr = Rc::as_ptr(self_node) as usize;
                     let other_ptr = Rc::as_ptr(&other_node) as usize;
 
