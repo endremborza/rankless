@@ -203,12 +203,14 @@
 <style>
 	div {
 		display: flex;
-		flex-wrap: wrap;
+		flex-direction: column;
+		gap: 16px;
 	}
 
 	svg {
-		min-width: 600px;
-		flex: 8;
+		width: 100%;
+		min-height: 300px;
+		flex: 0;
 	}
 
 	text {
@@ -221,10 +223,9 @@
 	}
 
 	#paper-list {
-		flex: 4;
-		min-width: 400px;
-		padding-top: 40px;
-		padding-right: 18px;
+		min-width: 0;
+		padding-top: 0;
+		padding-right: 0;
 		max-height: 55svh;
 		overflow-y: scroll;
 	}
@@ -233,5 +234,25 @@
 		margin-top: var(--unified-margin);
 		padding: var(--unified-padding);
 		font-weight: 600;
+	}
+
+	@media (min-width: 1100px) {
+		div {
+			flex-direction: row;
+			gap: 0;
+		}
+
+		svg {
+			width: auto;
+			min-width: 600px;
+			flex: 8;
+		}
+
+		#paper-list {
+			flex: 4;
+			min-width: 400px;
+			padding-top: 40px;
+			padding-right: 18px;
+		}
 	}
 </style>
