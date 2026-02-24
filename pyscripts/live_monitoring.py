@@ -12,7 +12,7 @@ from email.mime.text import MIMEText
 
 import requests
 
-from .deploy import LIVE_DOMAIN
+from .deploy import LIVE_DOMAIN, rolling_restart_live_fe
 
 EMAIL_ADDRESS = os.environ["GMAIL_ADDR"]
 EMAIL_PASSWORD = os.environ["GMAIL_APP_PW"]
@@ -20,6 +20,7 @@ IP = os.environ["RL_LIVE_IP"]
 FILE_CHANNEL_ADDR = os.environ.get("FILE_CHANNEL_ADDR")
 FILE_CHANNEL_TOKEN = os.environ.get("FILE_CHANNEL_TOKEN")
 TO_EMAIL = EMAIL_ADDRESS
+ALLOW_FE_RESTART = os.environ.get("ALLOW_RANKLESS_FE_RESTART")
 
 WARN_AT_FILES = 300
 WARN_AT_FULL = 92
@@ -114,6 +115,15 @@ def post_success():
             pass
 
 
+def try_restarting_fe():
+    if ALLOW_FE_RESTART:
+        try:
+            rolling_restart_live_fe()
+            time.sleep(20)
+        except:
+            print("failed restarting frontent")
+
+
 if __name__ == "__main__":
     started = False
     while True:
@@ -147,9 +157,11 @@ if __name__ == "__main__":
         if status_dic["fs_use_pct"] >= 97.5:
             warn("Rankless filling", str(status_dic))
             continue
-        if status_dic["open_files"] > WARN_AT_FILES:
-            warn("Rankless too many open files", str(status_dic))
         if status_dic["fs_use_pct"] > WARN_AT_FULL:
             warn("Rankless running out of space", str(status_dic))
+        if status_dic["open_files"] > WARN_AT_FILES:
+            try_restarting_fe()
+            warn("Rankless too many open files", str(status_dic))
         if status_dic["memory_free_gb"] < WARN_AT_RAM:
+            try_restarting_fe()
             warn("Rankless running out of ram", str(status_dic))
