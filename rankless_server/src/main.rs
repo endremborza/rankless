@@ -16,13 +16,14 @@ use dmove::{
     para_multi_gen_run, reverse_prefixed_n, ByteArrayInterface, Entity, EntityMutableMapperBackend,
     InitEmpty, NamespacedEntity, UnsignedNumber, VattReadingArcMap, ET,
 };
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use kd_tree::{KdPoint, KdTree};
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
 use std::{
     cmp::{max, min},
+    hash::Hash,
     net::SocketAddr,
     sync::{Arc, Mutex},
     thread::sleep,
@@ -35,7 +36,7 @@ use rankless_rs::{
     common::{MainEntity, NET},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
-        a2_init_atts::{AuthorOrcids, DiscardedAuthorsNames, WorkBiblios, WorkDois, WorksNames},
+        a2_init_atts::{AuthorOrcids, DiscardedAuthorsNames, WorkBiblios, WorkDois},
         derive_links3::HitPapers,
     },
     steps::{
@@ -55,7 +56,7 @@ use rankless_trees::{
         AttributeLabel, AttributeLabels, ManFileHandle, ShallowQ, ShallowTreesResponse, TreeQ,
         TreeResponse, TreeRunManager, WT,
     },
-    path_finder::{author_to_work_paths, RefTree},
+    path_finder::{self, RefTree},
     AttributeLabelUnion,
 };
 
@@ -181,22 +182,10 @@ struct PaperOut {
 }
 
 #[derive(Serialize, Clone)]
-struct PathToPaperResp {
-    tree: RefTree,
-    doi: String,
-    title: String,
-    year: RawYear,
-}
-
-#[derive(Serialize, Clone)]
 struct PathToPapersResp {
-    paths: Vec<PathToPaperResp>,
-    #[serde(rename = "srcName")]
-    src_name: String,
-    #[serde(rename = "targetName")]
-    target_name: String,
+    tree: RefTree,
     #[serde(rename = "relWorks")]
-    rel_works: Vec<WT>,
+    src_works: Vec<WT>,
     #[serde(rename = "nameMap")]
     name_map: HashMap<WT, String>,
     #[serde(rename = "doiMap")]
@@ -379,7 +368,7 @@ impl SearchResult {
             papers,
             citations: entif.ccounts[i].to_usize() as u32,
             oa_id: entif.oa_id[i],
-            meta: E::get_meta(i, gets),
+            meta: E::get_meta(i, gets, entif),
             dm_id: i,
         }
     }
@@ -839,7 +828,7 @@ async fn main() {
         .route("/views/:etype/:semantic_id", get(view_get))
         .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))
         .route("/orcid/:orcid_id", get(orcid_get))
-        .route("/path-to-paper/:asem/:taid/:is_author", get(path_to_papers))
+        .route("/path-to-papers/:asem", get(path_to_papers))
         .route("/trees/:root_type/:semantic_id", get(tree_get))
         .route("/shallows/:root_type", get(shallows_get))
         .route("/works/:etype/:semantic_id/:from", get(works_get))
@@ -916,6 +905,12 @@ async fn tree_get(
     let mut tq = tree_q.0;
     let (ns_map, _, tm) = states.0;
     if let Some(nstate) = ns_map.get(root_type.as_str()) {
+        if (root_type == HitPapers::NAME) & (semantic_id == "all") {
+            tq.cacheable = Some(true);
+            //TODO: all hit papers
+            // let resp = Json(tm.get_single_resp(tq, &root_type, HitPapers::N + 1));
+            // return (cache_header(60), resp);
+        }
         let psid = parse_semantic_id(semantic_id);
         if let Some(sval) = nstate.semantic_id_map.get(&psid) {
             let ncite = nstate.responses[sval.result_id].citations;
@@ -1025,68 +1020,42 @@ async fn orcid_get(Path(orcid_id): Path<String>, states: StatesT) -> Json<Option
 }
 
 async fn path_to_papers(
-    Path((author_sem_id, target_id, is_author)): Path<(String, String, bool)>,
+    Path(author_sem_id): Path<String>,
     states: StatesT,
 ) -> Json<PathToPapersResp> {
-    const DEPTH: usize = 2;
-    let mut paths = Vec::new();
-    let mut rel_works = Vec::new();
+    let astates = states.0 .0.get(Authors::NAME).unwrap();
+    let gets = &states.0 .2.state.gets;
+    let src_works = Vec::new();
+
     let mut name_map: HashMap<WT, String> = HashMap::new();
     let mut doi_map: HashMap<WT, String> = HashMap::new();
-    let astates = states.0 .0.get(Authors::NAME).unwrap();
-    let hp_states = states.0 .0.get(HitPapers::NAME).unwrap();
-    let gets = &states.0 .2.state.gets;
-    let mut wnames = states.0 .2.get_file_handle::<WorksNames>();
-    let mut wdois = states.0 .2.get_file_handle::<WorkDois>();
-    let mut wids = Vec::new();
-    let mut wid_adder = |wid: WT| {
-        if !name_map.contains_key(&wid) {
-            if let Some(wname) = wnames.get_via_mut(&wid.to_usize()) {
-                name_map.insert(wid, wname);
-            }
-        }
-        if !doi_map.contains_key(&wid) {
-            if let Some(doi) = wdois.get_via_mut(&wid.to_usize()) {
-                doi_map.insert(wid, doi);
-            }
-        }
-    };
-    let mut add_doi = |doi: String, aid: usize| {
-        if let Some(hp_sv) = hp_states.semantic_id_map.get(&doi) {
-            let wid = gets.hit_papers[hp_sv.dm_id].to_usize();
-            let (tree, mut aworks) = author_to_work_paths(gets, wid, aid, DEPTH, &mut wid_adder);
-            if !tree.has_paths() {
-                return;
-            }
-            rel_works.append(&mut aworks);
-            paths.push(PathToPaperResp { tree, doi, title: "".to_string(), year: 0 });
-            wids.push(wid);
-        }
-    };
-    let mut src_name = "".to_string();
-    let mut target_name = "".to_string();
-    if let Some(aid_sv) = astates.semantic_id_map.get(&author_sem_id) {
-        src_name = astates.responses[aid_sv.result_id].name.to_string();
-        if is_author {
-            if let Some(taid_sv) = astates.semantic_id_map.get(&target_id) {
-                target_name = astates.responses[taid_sv.result_id].name.clone();
-                for hit_paper in astates.prep_exts[taid_sv.result_id].hit_papers.iter() {
-                    let doi = String::from_utf8(gets.hit_dois(*hit_paper).to_vec()).unwrap();
-                    add_doi(doi, aid_sv.dm_id);
+
+    let add_paper = |hp_ids: &[u16], gets: &Getters| -> Vec<CitingHitPaper> {
+        hp_ids
+            .iter()
+            .map(|&hid| {
+                let hu = hid.to_usize();
+                CitingHitPaper {
+                    doi: String::from_utf8(gets.hit_dois(hu).to_vec()).unwrap(),
+                    title: String::from_utf8(gets.hit_names(hu).to_vec()).unwrap(),
+                    year: YearInterface::reverse(*gets.year(&gets.hit_papers[hu].to_usize())),
                 }
-            }
-        } else if let Some(hp_sv) = hp_states.semantic_id_map.get(&target_id) {
-            target_name = hp_states.responses[hp_sv.result_id].name.clone();
-            add_doi(target_id, aid_sv.dm_id);
-        }
+            })
+            .collect()
+    };
+
+    if let Some(aid_sv) = astates.semantic_id_map.get(&author_sem_id) {
+        let src_dm = aid_sv.dm_id;
+        let src_direct = gets.author_citing_direct(src_dm);
+        let src_once = gets.author_citing_once(src_dm);
+        let all_targets = src_direct + src_once; //concat
+        let (tree, src_works) =
+            path_finder::works_to_reftree(graph, source_wid, target_works, depth, wid_fun);
     }
-    for (wid, path) in wids.iter().zip(paths.iter_mut()) {
-        if let Some(title) = wnames.get_via_mut(wid) {
-            path.title = title;
-        }
-        path.year = YearInterface::reverse(*gets.year(wid));
-    }
-    Json(PathToPapersResp { paths, name_map, doi_map, rel_works, src_name, target_name })
+    Json(PathToPapersResp {
+        //tree, ...
+        src_works,
+    })
 }
 
 async fn name_get(
