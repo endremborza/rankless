@@ -10,7 +10,7 @@ use crate::{
 use dmove::{ET, UnsignedNumber};
 use hashbrown::HashMap;
 use rankless_rs::{
-    gen::a1_entity_mapping::{Authors, Institutions},
+    gen::a1_entity_mapping::Institutions,
     steps::a1_entity_mapping::N_PERS,
 };
 
@@ -18,14 +18,12 @@ use rankless_rs::{
 
 pub struct TestGraph {
     refs: HashMap<WT, Vec<WT>>,
-    author_works: HashMap<ET<Authors>, Vec<WT>>,
 }
 
 impl TestGraph {
     pub fn new() -> Self {
         Self {
             refs: HashMap::new(),
-            author_works: HashMap::new(),
         }
     }
 
@@ -33,20 +31,11 @@ impl TestGraph {
         self.refs.insert(wid, refs);
         self
     }
-
-    pub fn with_aworks(mut self, aid: ET<Authors>, works: Vec<WT>) -> Self {
-        self.author_works.insert(aid, works);
-        self
-    }
 }
 
 impl RefGraph for TestGraph {
     fn get_refs(&self, wid: WT) -> &[WT] {
         self.refs.get(&wid).map(|v| v.as_slice()).unwrap_or(&[])
-    }
-
-    fn get_aworks(&self, aid: ET<Authors>) -> &[WT] {
-        self.author_works.get(&aid).map(|v| v.as_slice()).unwrap_or(&[])
     }
 }
 
