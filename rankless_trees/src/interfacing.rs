@@ -558,6 +558,9 @@ impl RefGraph for Getters {
     fn get_refs(&self, wid: WT) -> &[WT] {
         self.wrefs(wid)
     }
+    fn get_cites(&self, wid: WT) -> &[WT] {
+        self.citing(wid)
+    }
 }
 
 fn reverse_id<E>(stowage: &Stowage) -> Box<[BigId]>

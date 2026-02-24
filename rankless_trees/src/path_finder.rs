@@ -1,3 +1,5 @@
+use std::collections::BinaryHeap;
+
 use hashbrown::{HashMap, HashSet};
 use serde::Serialize;
 
@@ -11,49 +13,42 @@ pub enum RefTree {
 
 pub trait RefGraph {
     fn get_refs(&self, wid: WT) -> &[WT];
+    fn get_cites(&self, wid: WT) -> &[WT];
 }
 
-pub fn works_to_reftree<G, F>(
+pub fn multi_source_reftree<I1, I2, G, F>(
     graph: &G,
-    source_wid: WT,
-    target_works: &HashSet<WT>,
+    refed_works: I1,
+    cited_works: I2,
     depth: usize,
     wid_fun: &mut F,
 ) -> (RefTree, Vec<WT>)
 where
     G: RefGraph,
-    F: FnMut(WT),
-{
-    let mut used_works = HashSet::new();
-    let tree = extend_used_works_get_reftree(graph, source_wid, depth, wid_fun, target_works, &mut used_works);
-    (tree, used_works.into_iter().collect())
-}
-
-pub fn multi_source_reftree<G, F>(
-    graph: &G,
-    source_works: &[WT],
-    target_works: &HashSet<WT>,
-    depth: usize,
-    wid_fun: &mut F,
-) -> (RefTree, Vec<WT>)
-where
-    G: RefGraph,
+    I1: Iterator<Item = WT>,
+    I2: Iterator<Item = WT>,
     F: FnMut(WT),
 {
     let mut used_works = HashSet::new();
     let mut top_map = HashMap::new();
-    for &source_wid in source_works {
-        let subtree = extend_used_works_get_reftree(
-            graph, source_wid, depth, wid_fun, target_works, &mut used_works,
-        );
-        if let RefTree::Node(ref node_map) = subtree {
-            if !node_map.is_empty() {
-                wid_fun(source_wid);
-                top_map.insert(source_wid, subtree);
-            }
+
+    let mut mid_from_refside = BinaryHeap::new();
+    let mut mid_from_citeside = BinaryHeap::new();
+    for cit_wid in cited_works {
+        for mid_wid in graph.get_refs(cit_wid) {
+            //make sure not in cited_works
         }
     }
-    (RefTree::Node(Box::new(top_map)), used_works.into_iter().collect())
+    for ref_wid in refed_works {
+        for mid_wid in graph.get_refs(ref_wid) {
+            //make sure not in refed_works
+        }
+    }
+
+    (
+        RefTree::Node(Box::new(top_map)),
+        used_works.into_iter().collect(),
+    )
 }
 
 pub fn extend_used_works_get_reftree<G, F>(
@@ -86,7 +81,7 @@ where
 
 fn find_paths<G, F>(
     graph: &G,
-    results: &mut Vec<Vec<WT>>,
+    results: Vec<Vec<WT>>,
     wid: WT,
     depth_to_go: usize,
     so_far: Vec<WT>,
@@ -107,7 +102,14 @@ fn find_paths<G, F>(
         if depth_to_go > 0 {
             let mut new_sofar = so_far.clone();
             new_sofar.push(refed_wid);
-            find_paths(graph, results, refed_wid, depth_to_go - 1, new_sofar, filter_fun);
+            find_paths(
+                graph,
+                results,
+                refed_wid,
+                depth_to_go - 1,
+                new_sofar,
+                filter_fun,
+            );
         }
     }
 }
@@ -170,9 +172,16 @@ mod tests {
             .with_refs(6, vec![])
     }
 
-    fn run_find_paths(graph: &impl RefGraph, wid: WT, depth: usize, filter: &HashSet<WT>) -> Vec<Vec<WT>> {
+    fn run_find_paths(
+        graph: &impl RefGraph,
+        wid: WT,
+        depth: usize,
+        filter: &HashSet<WT>,
+    ) -> Vec<Vec<WT>> {
         let mut results = Vec::new();
-        find_paths(graph, &mut results, wid, depth, Vec::new(), &|w| filter.contains(&w));
+        find_paths(graph, &mut results, wid, depth, Vec::new(), &|w| {
+            filter.contains(&w)
+        });
         results
     }
 
@@ -309,27 +318,6 @@ mod tests {
         assert!(as_node(&tree).is_empty());
     }
 
-    // ---- works_to_reftree ----
-
-    #[test]
-    fn works_to_reftree_finds_reachable_works() {
-        let graph = make_test_graph();
-        let target: HashSet<WT> = [3, 5].into_iter().collect();
-        let mut wid_calls: Vec<WT> = vec![];
-        let (tree, mut used) = works_to_reftree(&graph, 0, &target, 1, &mut |w| wid_calls.push(w));
-        used.sort();
-        assert_eq!(used, [3, 5]);
-        assert!(sorted_keys(as_node(&tree)).contains(&3));
-    }
-
-    #[test]
-    fn works_to_reftree_empty_target_yields_empty() {
-        let graph = make_test_graph();
-        let (tree, used) = works_to_reftree(&graph, 0, &HashSet::new(), 1, &mut |_| {});
-        assert!(used.is_empty());
-        assert!(as_node(&tree).is_empty());
-    }
-
     // ---- multi_source_reftree ----
 
     #[test]
@@ -340,13 +328,9 @@ mod tests {
             .with_refs(30, vec![]);
         let targets: HashSet<WT> = [3, 5].into_iter().collect();
         let mut wid_calls: Vec<WT> = vec![];
-        let (tree, mut used) = multi_source_reftree(
-            &graph,
-            &[10, 20, 30],
-            &targets,
-            0,
-            &mut |w| wid_calls.push(w),
-        );
+        let (tree, mut used) = multi_source_reftree(&graph, &[10, 20, 30], &targets, 0, &mut |w| {
+            wid_calls.push(w)
+        });
         used.sort();
         assert_eq!(used, [3, 5]);
         let top = as_node(&tree);

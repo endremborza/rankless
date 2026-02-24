@@ -23,7 +23,6 @@ use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
 use std::{
     cmp::{max, min},
-    hash::Hash,
     net::SocketAddr,
     sync::{Arc, Mutex},
     thread::sleep,
@@ -1044,13 +1043,12 @@ async fn path_to_papers(
         return Json(empty());
     }
 
-    let source_works: Vec<WT> = direct_hit_ids
+    let cited_works = direct_hit_ids
         .iter()
         .chain(once_hit_ids.iter())
-        .map(|&hid| gets.hit_papers[hid as usize] as WT)
-        .collect();
+        .map(|&hid| gets.hit_papers[hid as usize] as WT);
 
-    let target_works: HashSet<WT> = gets.aworks(aid as u16).iter().copied().collect();
+    let refed_works = gets.aworks(ET::<Authors>::from_usize(aid));
 
     let mut visited: HashSet<WT> = HashSet::new();
     let (tree, src_works) =
