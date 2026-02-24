@@ -1043,7 +1043,7 @@ async fn path_to_papers(
         return Json(empty());
     }
 
-    let cited_works = direct_hit_ids
+    let citing_works_union = direct_hit_ids
         .iter()
         .chain(once_hit_ids.iter())
         .map(|&hid| gets.hit_papers[hid as usize] as WT);

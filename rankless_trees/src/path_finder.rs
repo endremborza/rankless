@@ -19,7 +19,7 @@ pub trait RefGraph {
 pub fn multi_source_reftree<I1, I2, G, F>(
     graph: &G,
     refed_works: I1,
-    cited_works: I2,
+    citing_works: I2,
     depth: usize,
     wid_fun: &mut F,
 ) -> (RefTree, Vec<WT>)
@@ -34,7 +34,7 @@ where
 
     let mut mid_from_refside = BinaryHeap::new();
     let mut mid_from_citeside = BinaryHeap::new();
-    for cit_wid in cited_works {
+    for cit_wid in citing_works {
         for mid_wid in graph.get_refs(cit_wid) {
             //make sure not in cited_works
         }
