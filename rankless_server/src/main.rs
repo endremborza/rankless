@@ -182,7 +182,7 @@ struct PaperOut {
 
 #[derive(Serialize, Clone)]
 struct PathToPapersResp {
-    tree: RefDAG,
+    dag: RefDAG,
     #[serde(rename = "relWorks")]
     src_works: Vec<WT>,
     #[serde(rename = "nameMap")]
@@ -1026,7 +1026,7 @@ async fn path_to_papers(
     let gets = &states.0 .2.state.gets;
 
     let empty = || PathToPapersResp {
-        tree: RefDAG::new_map(),
+        dag: RefDAG::new_map(),
         src_works: Vec::new(),
         name_map: HashMap::new(),
         doi_map: HashMap::new(),
@@ -1070,7 +1070,7 @@ async fn path_to_papers(
     }
 
     Json(PathToPapersResp {
-        tree: conn.tree,
+        dag: conn.dag,
         src_works,
         name_map,
         doi_map,

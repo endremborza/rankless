@@ -8,7 +8,7 @@ use crate::io::WT;
 type RefDAGNodeT = Rc<RefCell<HashMap<WT, RefDAG>>>;
 
 pub struct CitingConnection {
-    pub tree: RefDAG,
+    pub dag: RefDAG,
     pub wids: HashSet<WT>,
 }
 
@@ -114,7 +114,7 @@ where
         }
     }
     CitingConnection {
-        tree: RefDAG::from_tree(tree_map),
+        dag: RefDAG::from_tree(tree_map),
         wids: reached,
     }
 }
@@ -162,7 +162,7 @@ pub fn extend_with_once_removed<G>(
         }
     }
 
-    resp.tree.merge(RefDAG::from_tree(l2_map));
+    resp.dag.merge(RefDAG::from_tree(l2_map));
 }
 
 #[cfg(test)]
@@ -196,7 +196,7 @@ mod tests {
             .with_refs(20, vec![5])
             .with_refs(30, vec![]);
         let conn = get_direct_links(&graph, refed_set(&[3, 5]), &[10, 20, 30]);
-        let top = node_map(&conn.tree);
+        let top = node_map(&conn.dag);
         assert_eq!(sorted_keys(&top), [10, 20]);
         assert!(conn.wids.contains(&10));
         assert!(conn.wids.contains(&20));
@@ -208,7 +208,7 @@ mod tests {
         let graph = TestGraph::new().with_refs(10, vec![3]);
         let conn = get_direct_links(&graph, refed_set(&[3]), &[]);
         assert!(conn.wids.is_empty());
-        assert!(node_map(&conn.tree).is_empty());
+        assert!(node_map(&conn.dag).is_empty());
     }
 
     #[test]
@@ -216,7 +216,7 @@ mod tests {
         let graph = TestGraph::new().with_refs(10, vec![2]);
         let conn = get_direct_links(&graph, refed_set(&[3]), &[10]);
         assert!(conn.wids.is_empty());
-        assert!(node_map(&conn.tree).is_empty());
+        assert!(node_map(&conn.dag).is_empty());
     }
 
     // ---- once-removed ----
@@ -228,7 +228,7 @@ mod tests {
             .with_refs(4, vec![3]);
         let mut conn = get_direct_links(&graph, refed_set(&[3]), &[10]);
         extend_with_once_removed(&graph, refed_set(&[3]), &[10], &mut conn);
-        let top = node_map(&conn.tree);
+        let top = node_map(&conn.dag);
         assert_eq!(sorted_keys(&top), [10]);
         let sub10 = node_map(top.get(&10).unwrap());
         assert_eq!(sorted_keys(&sub10), [4]);
@@ -244,7 +244,7 @@ mod tests {
             .with_refs(4, vec![3]);
         let mut conn = get_direct_links(&graph, refed_set(&[3]), &[10, 20]);
         extend_with_once_removed(&graph, refed_set(&[3]), &[10, 20], &mut conn);
-        let top = node_map(&conn.tree);
+        let top = node_map(&conn.dag);
         assert_eq!(sorted_keys(&top), [10, 20]);
         for &cit in &[10, 20] {
             let sub = node_map(top.get(&cit).unwrap());
@@ -263,7 +263,7 @@ mod tests {
             .with_refs(6, vec![]);
         let mut conn = get_direct_links(&graph, refed_set(&[3]), &[10, 20]);
         extend_with_once_removed(&graph, refed_set(&[3]), &[10, 20], &mut conn);
-        let top = node_map(&conn.tree);
+        let top = node_map(&conn.dag);
         assert_eq!(sorted_keys(&top), [10]);
     }
 
@@ -275,7 +275,7 @@ mod tests {
         let rs = refed_set(&[3, 5]);
         let mut conn = get_direct_links(&graph, rs.clone(), &[10]);
         extend_with_once_removed(&graph, rs, &[10], &mut conn);
-        let top = node_map(&conn.tree);
+        let top = node_map(&conn.dag);
         let sub10 = node_map(top.get(&10).unwrap());
         assert!(matches!(sub10.get(&3), Some(RefDAG::Leaf)));
         let sub_4 = node_map(sub10.get(&4).unwrap());
