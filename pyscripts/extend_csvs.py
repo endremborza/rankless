@@ -20,7 +20,6 @@ def get_best_q_by_year():
 
 
 if __name__ == "__main__":
-
     source_filter = get_last_filter(EntC.SOURCES)
     adf = pd.read_csv(link_frame.format("metascience/areas")).drop_duplicates()
     sodf = (
