@@ -11,8 +11,8 @@
 	const HIGHLIGHT_DEFS: Record<string, { label: string; cls: string }> = {
 		authored: { label: 'Authored', cls: 'hl-authored' },
 		hit: { label: 'High Impact', cls: 'hl-hit' },
-		fin_source: { label: 'Top Journal', cls: 'hl-fin-source' },
-		nobel: { label: 'Nobel Laureate', cls: 'hl-nobel' }
+		science: { label: 'Science', cls: 'hl-science' },
+		nature: { label: 'Nature', cls: 'hl-nature' }
 	};
 
 	type NodeMeta = { level: number; parents: Set<number>; children: Set<number> };
@@ -21,18 +21,16 @@
 	function build(node: RefTree, seen: SeenMap, depth: number, parent: number) {
 		if (node === 'Leaf') return;
 		for (const key of Object.keys(node.Node).map(Number)) {
-			if (seen[key] == undefined || seen[key].level > depth) {
+			if (seen[key] == undefined || seen[key].level > depth)
 				seen[key] = { level: depth, parents: new Set(), children: new Set() };
-			}
 			if (depth === seen[key].level) {
 				seen[key].parents.add(parent);
-				if (parent !== 0) {
+				if (parent !== 0)
 					(seen[parent] ??= {
 						level: depth - 1,
 						parents: new Set(),
 						children: new Set()
 					}).children.add(key);
-				}
 			}
 			build(node.Node[key], seen, depth + 1, key);
 		}
@@ -53,9 +51,8 @@
 	function getLevels(seen: SeenMap): number[][] {
 		const levels: number[][] = [];
 		for (const [k, v] of Object.entries(seen)) {
-			const d = v.level;
-			if (!levels[d]) levels[d] = [];
-			levels[d].push(Number(k));
+			if (!levels[v.level]) levels[v.level] = [];
+			levels[v.level].push(Number(k));
 		}
 		return levels;
 	}
@@ -68,6 +65,12 @@
 	}
 
 	let hovered: number | undefined;
+	let expanded = new Set<number>();
+
+	function toggleExpand(wid: number) {
+		expanded.has(wid) ? expanded.delete(wid) : expanded.add(wid);
+		expanded = expanded;
+	}
 
 	$: seen = computeSeen(dag);
 	$: levels = getLevels(seen);
@@ -85,21 +88,20 @@
 
 	$: activeHighlightKeys = (() => {
 		const keys = new Set<string>();
-		for (const wids of levels) {
+		for (const wids of levels)
 			for (const wid of wids) {
 				const p = paperMap[wid];
 				if (!p) continue;
-				for (const h of getPaperHighlights(p, sourceAuthorSemId, entityAtts)) {
+				for (const h of getPaperHighlights(p, sourceAuthorSemId, entityAtts))
 					if (HIGHLIGHT_DEFS[h]) keys.add(h);
-				}
 			}
-		}
 		return keys;
 	})();
 </script>
 
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <!-- svelte-ignore a11y-mouse-events-have-key-events -->
+<!-- svelte-ignore a11y-click-events-have-key-events -->
 <div class="impact-dag">
 	{#if activeHighlightKeys.size > 0}
 		<div class="legend">
@@ -122,16 +124,13 @@
 					{@const highlights = paper
 						? getPaperHighlights(paper, sourceAuthorSemId, entityAtts)
 						: []}
-					{@const source = paper ? resolveSourceName(paper.source, entityAtts) : ''}
-					{@const sourceSemId = paper
-						? entityAtts.sources?.[String(paper.source)]?.semantic_id
-						: undefined}
-					{@const authors = paper ? getChipAuthors(paper, entityAtts, discAuthorNames, 3) : []}
+					{@const isExpanded = expanded.has(wid)}
 					<div
 						class="chip"
 						class:is-hovered={isHovered}
 						class:is-related={isRelated}
 						class:dimmed
+						on:click={() => toggleExpand(wid)}
 						on:mouseover={() => {
 							hovered = wid;
 						}}
@@ -139,8 +138,8 @@
 							hovered = undefined;
 						}}
 					>
-						<div class="chip-title">
-							{#if paper?.doi}
+						<div class="chip-title" class:truncate={!isExpanded}>
+							{#if isExpanded && paper?.doi}
 								<a href="https://doi.org/{paper.doi}" target="_blank" rel="noopener"
 									>{paper?.name ?? '(unknown)'}</a
 								>
@@ -148,22 +147,29 @@
 								{paper?.name ?? '(unknown)'}
 							{/if}
 						</div>
-						{#if paper}
-							<div class="chip-stats">
-								<span>{paper.year}</span>
-								<span class="sep">·</span>
+						<div class="chip-sub">
+							<span>{paper?.year}</span>
+							{#each highlights as hl}
+								{@const def = HIGHLIGHT_DEFS[hl]}
+								{#if def}<span class="badge {def.cls}">{def.label}</span>{/if}
+							{/each}
+						</div>
+						{#if isExpanded && paper}
+							{@const source = resolveSourceName(paper.source, entityAtts)}
+							{@const sourceSemId = entityAtts.sources?.[String(paper.source)]?.semantic_id}
+							{@const authors = getChipAuthors(paper, entityAtts, discAuthorNames, 3)}
+							<div class="chip-details">
 								<span>{paper.citations} citations</span>
-							</div>
-							<div class="chip-entities">
 								{#if source}
+									<span class="sep">·</span>
 									{#if sourceSemId}
-										<a href="/sources/{sourceSemId}" class="chip-source">{source}</a>
+										<a href="/sources/{sourceSemId}">{source}</a>
 									{:else}
-										<span class="chip-source">{source}</span>
+										<span class="source-name">{source}</span>
 									{/if}
 								{/if}
 								{#if authors.length > 0}
-									<span class="chip-authors">
+									<div class="chip-authors">
 										{#each authors as author, ai}
 											{#if ai > 0},&nbsp;{/if}
 											{#if author.url}
@@ -171,29 +177,13 @@
 											{:else}
 												{author.name}
 											{/if}
-											{#if author.inst}
-												<span class="chip-inst"
-													>({#if author.instUrl}<a href={author.instUrl}>{author.inst}</a
-														>{:else}{author.inst}{/if})</span
-												>
-											{/if}
 										{/each}
 										{#if paper.authorships.length > authors.length}
-											<span>&nbsp;et al.</span>
+											&nbsp;et al.
 										{/if}
-									</span>
+									</div>
 								{/if}
 							</div>
-							{#if highlights.length > 0}
-								<div class="chip-badges">
-									{#each highlights as hl}
-										{@const def = HIGHLIGHT_DEFS[hl]}
-										{#if def}
-											<span class="badge {def.cls}">{def.label}</span>
-										{/if}
-									{/each}
-								</div>
-							{/if}
 						{/if}
 					</div>
 				{/each}
@@ -219,20 +209,19 @@
 	.impact-dag {
 		display: flex;
 		flex-direction: column;
-		gap: 0;
 	}
 
 	.legend {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 6px;
-		margin-bottom: 16px;
+		margin-bottom: 12px;
 	}
 
 	.legend-badge {
 		padding: 2px 8px;
 		border-radius: 3px;
-		font-size: 0.65rem;
+		font-size: 0.6rem;
 		font-weight: 600;
 		letter-spacing: 0.03em;
 	}
@@ -240,12 +229,12 @@
 	.level-section {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: 6px;
 	}
 
 	.level-label {
 		margin: 0;
-		font-size: 0.7rem;
+		font-size: 0.65rem;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		opacity: 0.5;
@@ -254,22 +243,21 @@
 	.chips {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 8px;
-		padding-bottom: 4px;
+		gap: 6px;
+		padding-bottom: 2px;
 	}
 
 	.chip {
-		padding: 8px 12px;
-		font-size: 0.75rem;
-		line-height: 1.4;
+		padding: 4px 8px;
+		font-size: 0.72rem;
+		line-height: 1.3;
 		border-radius: 4px;
 		border: 1px solid rgba(var(--color-range-15), 0.15);
 		background: rgba(var(--color-range-15), 0.03);
-		flex: 1 0 240px;
-		max-width: 400px;
-		box-sizing: border-box;
+		flex: 1 0 220px;
+		max-width: 380px;
+		cursor: pointer;
 		transition: border-color 160ms, background-color 160ms, opacity 160ms;
-		cursor: default;
 	}
 
 	.chip.dimmed {
@@ -289,8 +277,13 @@
 
 	.chip-title {
 		font-weight: 600;
-		line-height: 1.3;
-		margin-bottom: 4px;
+		line-height: 1.2;
+	}
+
+	.chip-title.truncate {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.chip-title a {
@@ -302,55 +295,44 @@
 		text-decoration: underline;
 	}
 
-	.chip-stats {
-		font-size: 0.7rem;
-		opacity: 0.6;
-		margin-bottom: 3px;
-	}
-
-	.chip-stats .sep {
-		margin: 0 3px;
-	}
-
-	.chip-entities {
+	.chip-sub {
 		display: flex;
-		flex-wrap: wrap;
-		gap: 2px 6px;
-		font-size: 0.65rem;
+		align-items: center;
+		gap: 4px;
+		font-size: 0.6rem;
 		opacity: 0.6;
 	}
 
-	.chip-source {
-		font-style: italic;
+	.chip-details {
+		font-size: 0.65rem;
+		opacity: 0.7;
+		margin-top: 4px;
+		padding-top: 4px;
+		border-top: 1px solid rgba(var(--color-range-15), 0.1);
 	}
 
-	.chip-entities a {
+	.chip-details a {
 		color: inherit;
 		text-decoration: none;
 	}
 
-	.chip-entities a:hover {
+	.chip-details a:hover {
 		text-decoration: underline;
-		opacity: 1;
 	}
 
-	.chip-inst {
-		font-size: 0.6rem;
-		opacity: 0.8;
+	.source-name {
+		font-style: italic;
 	}
 
-	.chip-badges {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 4px;
-		margin-top: 5px;
+	.chip-authors {
+		margin-top: 2px;
 	}
 
 	.badge {
 		display: inline-block;
-		padding: 1px 6px;
+		padding: 0px 5px;
 		border-radius: 3px;
-		font-size: 0.55rem;
+		font-size: 0.5rem;
 		font-weight: 600;
 		letter-spacing: 0.03em;
 		text-transform: uppercase;
@@ -366,14 +348,14 @@
 		color: rgba(var(--color-range-80), 1);
 	}
 
-	.hl-fin-source {
-		background: rgba(40, 160, 80, 0.15);
-		color: rgb(40, 140, 70);
+	.hl-science {
+		background: rgba(200, 50, 50, 0.15);
+		color: rgb(180, 40, 40);
 	}
 
-	.hl-nobel {
-		background: rgba(200, 160, 40, 0.15);
-		color: rgb(170, 130, 20);
+	.hl-nature {
+		background: rgba(40, 160, 80, 0.15);
+		color: rgb(40, 140, 70);
 	}
 
 	.connector {
@@ -381,5 +363,9 @@
 		justify-content: center;
 		margin: 4px 0;
 		color: var(--color-text);
+	}
+
+	.sep {
+		margin: 0 3px;
 	}
 </style>

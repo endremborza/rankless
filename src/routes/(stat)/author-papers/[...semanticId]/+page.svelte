@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { APP_NAME } from '$lib/constants';
 	import type { PaperProfileResp } from '$lib/tree-types';
-	import { buildPaperMap } from '$lib/utils/paper-helpers';
+	import { buildPaperMap, isAuthored } from '$lib/utils/paper-helpers';
 	import PaperRainbow from '$lib/components/PaperRainbow.svelte';
 	import ImpactDag from '$lib/components/ImpactDag.svelte';
 
@@ -16,7 +16,7 @@
 	$: papers = data.profile?.papers.papers ?? [];
 	$: entityAtts = data.profile?.papers.entity_atts ?? {};
 	$: discAuthorNames = data.profile?.papers.disc_author_names ?? {};
-	$: hitPapers = papers.filter((p) => p.is_hit);
+	$: authoredPapers = papers.filter((p) => isAuthored(p, data.semanticId, entityAtts));
 	$: paperMap = data.profile ? buildPaperMap(papers) : {};
 
 	$: dagEmpty =
@@ -39,10 +39,10 @@
 	<p class="stats">{data.paperText} · {data.citeText}</p>
 </div>
 
-{#if hitPapers.length > 0}
+{#if authoredPapers.length > 0}
 	<div class="shadowy padded marged">
-		<h2>Top Papers</h2>
-		<PaperRainbow papers={hitPapers} {entityAtts} {discAuthorNames} />
+		<h2>Papers</h2>
+		<PaperRainbow papers={authoredPapers} {entityAtts} {discAuthorNames} />
 	</div>
 {/if}
 

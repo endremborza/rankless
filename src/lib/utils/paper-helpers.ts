@@ -62,20 +62,30 @@ export function getChipAuthors(
 	});
 }
 
+export function isAuthored(
+	paper: Paper,
+	authorSemId: string,
+	entityAtts: EntityAttsForLinks
+): boolean {
+	return paper.authorships.some((s) => {
+		if (s.author[0] !== 'F') return false;
+		return entityAtts.authors?.[s.author.slice(1)]?.semantic_id === authorSemId;
+	});
+}
+
 export function getPaperHighlights(
 	paper: Paper,
 	sourceAuthorSemId?: string,
 	entityAtts?: EntityAttsForLinks
 ): string[] {
 	const hl: string[] = [];
-	if (sourceAuthorSemId && entityAtts) {
-		const isAuthored = paper.authorships.some((s) => {
-			if (s.author[0] !== 'F') return false;
-			return entityAtts.authors?.[s.author.slice(1)]?.semantic_id === sourceAuthorSemId;
-		});
-		if (isAuthored) hl.push('authored');
-	}
+	if (sourceAuthorSemId && entityAtts && isAuthored(paper, sourceAuthorSemId, entityAtts))
+		hl.push('authored');
 	if (paper.is_hit) hl.push('hit');
-	if (paper.highlights) hl.push(...paper.highlights);
+	if (entityAtts) {
+		const sourceName = entityAtts.sources?.[String(paper.source)]?.name ?? '';
+		if (sourceName === 'Science') hl.push('science');
+		else if (sourceName === 'Nature') hl.push('nature');
+	}
 	return hl;
 }
