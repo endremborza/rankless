@@ -1,59 +1,62 @@
 <script lang="ts">
 	import { APP_NAME } from '$lib/constants';
-	import type { View, PathToPapersResp } from '$lib/tree-types';
+	import type { PaperProfileResp } from '$lib/tree-types';
+	import { buildPaperMap } from '$lib/utils/paper-helpers';
 	import PaperRainbow from '$lib/components/PaperRainbow.svelte';
 	import ImpactDag from '$lib/components/ImpactDag.svelte';
 
 	export let data: {
-		view: View;
-		dagResp: PathToPapersResp | null;
+		name: string;
+		profile: PaperProfileResp | null;
 		semanticId: string;
 		paperText: string;
 		citeText: string;
 	};
 
+	$: papers = data.profile?.papers.papers ?? [];
+	$: entityAtts = data.profile?.papers.entity_atts ?? {};
+	$: discAuthorNames = data.profile?.papers.disc_author_names ?? {};
+	$: hitPapers = papers.filter((p) => p.is_hit);
+	$: paperMap = data.profile ? buildPaperMap(papers) : {};
+
 	$: dagEmpty =
-		!data.dagResp ||
-		data.dagResp.dag === 'Leaf' ||
-		Object.keys((data.dagResp.dag as { Node: object }).Node ?? {}).length === 0;
+		!data.profile ||
+		data.profile.dag === 'Leaf' ||
+		Object.keys((data.profile.dag as { Node: object }).Node ?? {}).length === 0;
 </script>
 
 <svelte:head>
-	<title>{APP_NAME} | {data.view.name} – Impact Graph</title>
+	<title>{APP_NAME} | {data.name} – Paper Profile</title>
 	<meta
 		name="description"
-		content="Top papers and citation impact graph for {data.view.name} – {data.paperText}, {data.citeText}"
+		content="Paper profile for {data.name} – {data.paperText}, {data.citeText}"
 	/>
 </svelte:head>
 
 <div id="head" class="shadowy padded marged">
 	<a href="/authors/{data.semanticId}" class="back-link">← Back to full profile</a>
-	<h1>{data.view.name}</h1>
+	<h1>{data.name}</h1>
 	<p class="stats">{data.paperText} · {data.citeText}</p>
 </div>
 
-{#if data.view.hitPapers.length > 0}
+{#if hitPapers.length > 0}
 	<div class="shadowy padded marged">
 		<h2>Top Papers</h2>
-		<PaperRainbow papers={data.view.hitPapers} />
+		<PaperRainbow papers={hitPapers} {entityAtts} {discAuthorNames} />
 	</div>
 {/if}
 
 <div class="shadowy padded marged">
-	<h2>Citation Impact Graph</h2>
-	<p class="section-desc">
-		High-impact papers that build on <strong>{data.view.name}</strong>'s work, connected through the
-		citation network.
-	</p>
-
+	<h2>Citation Impact</h2>
 	{#if dagEmpty}
 		<p class="status">No citation impact paths found for this author.</p>
-	{:else if data.dagResp}
+	{:else if data.profile}
 		<ImpactDag
-			dag={data.dagResp.dag}
-			nameMap={data.dagResp.nameMap}
-			doiMap={data.dagResp.doiMap}
-			hitWids={data.dagResp.hitWids}
+			dag={data.profile.dag}
+			{paperMap}
+			{entityAtts}
+			{discAuthorNames}
+			sourceAuthorSemId={data.semanticId}
 		/>
 	{/if}
 </div>
@@ -81,11 +84,6 @@
 
 	h2 {
 		margin-bottom: 8px;
-	}
-
-	.section-desc {
-		opacity: 0.7;
-		margin-bottom: 20px;
 	}
 
 	.status {

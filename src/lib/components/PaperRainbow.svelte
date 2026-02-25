@@ -3,9 +3,13 @@
 	import { getColor, getColorArr } from '$lib/style-util';
 	import { formatNumber } from '$lib/text-format-util';
 	import type * as tt from '$lib/tree-types';
+	import { resolveAuthorName, resolveSourceName } from '$lib/utils/paper-helpers';
 	import { onMount } from 'svelte';
 
 	export let papers: tt.Paper[];
+	export let entityAtts: tt.EntityAttsForLinks = {};
+	export let discAuthorNames: Record<string, string> = {};
+
 	const xPad = 2;
 	const yPad = 1;
 	const xBase = 26;
@@ -13,13 +17,14 @@
 	const maxN = 5;
 	const fontSize = 0.5;
 	let highlighted = 0;
-	//TODO!! - scrolling fails in brave!
 
 	let listContainer: HTMLUListElement;
 	let listItemElements: HTMLLIElement[] = [];
 	let firstVisible: number | null = null;
 	let intervalSetup: number;
 	let scrollTimeout: ReturnType<typeof setTimeout>;
+
+	$: chartPapers = papers.filter((p) => p.yearlyCites && p.yearlyCites.length > 0);
 
 	function getVisInds(papers: tt.Paper[], first: number) {
 		const inds = [];
@@ -54,10 +59,11 @@
 		let figPapers = [];
 		for (const i of inds) {
 			paper = papers[i];
+			const yc = paper.yearlyCites ?? [];
 			let startYear = paper.year - minYear;
 			let cCum = 0;
 			const pBasis = [];
-			for (const [y, yCites] of paper.yearlyCites.entries()) {
+			for (const [y, yCites] of yc.entries()) {
 				if (y + startYear + minYear >= LATEST_YEAR) break;
 				cCum -= yCites / yScale;
 				const ch = y == 0 ? 'M' : 'L';
@@ -127,6 +133,16 @@
 		}, 50);
 	}
 
+	function shortAuthors(paper: tt.Paper): string {
+		if (!paper.authorships?.length) return '';
+		return (
+			paper.authorships
+				.slice(0, 2)
+				.map((s) => resolveAuthorName(s, entityAtts, discAuthorNames))
+				.join(', ') + (paper.authorships.length > 2 ? ' et al.' : '')
+		);
+	}
+
 	onMount(() => {
 		intervalSetup = setInterval(() => {
 			highlighted = (highlighted + 1) % fb.figPapers.length;
@@ -137,53 +153,57 @@
 		updateFirstVisible();
 	});
 
-	$: visInds = getVisInds(papers, firstVisible || 0);
-	$: fb = getFigureBasis(papers, visInds);
+	$: visInds = getVisInds(chartPapers, firstVisible || 0);
+	$: fb = getFigureBasis(chartPapers, visInds);
 	$: highlightedVis = visInds.includes(highlighted) ? highlighted - visInds[0] : undefined;
 </script>
 
 <div>
-	<svg
-		viewBox="{fb.xMin} {fb.yMin} {fb.width} {fb.height}"
-		style="aspect-ratio: {fb.aspect.toFixed(3)};"
-	>
-		{#each fb.figPapers as paper}
-			<path
-				role="region"
-				fill={getColor(paper.rate)}
-				stroke="none"
-				d={paper.path}
-				opacity={paper.i == highlighted ? 0.95 : 0.2}
-				id="hit-paper-path-{paper.i}"
-				on:mouseover={() => fixHighlight(paper.i)}
-				on:focus={() => fixHighlight(paper.i)}
-			/>
-		{/each}
-		{#if highlightedVis != undefined}
-			<text font-size="0.4">
-				<textPath href="#hit-paper-path-{highlighted}">
-					{fb.figPapers[highlightedVis].pathName}
-				</textPath>
-			</text>
-		{/if}
-
-		<g stroke-width="0.03" stroke="var(--color-text)" font-size={fontSize}>
-			<path d="M 0, 0 h {xBase}" />
-			{#each fb.yearTicks as yTick}
-				<path d="M {yTick.x}, 0 v {yPad / 4}" />
-				{#if yTick.name != undefined}
-					<text x={yTick.x} y={yPad * 0.9} text-anchor="middle">{yTick.name}</text>
-				{/if}
+	{#if chartPapers.length > 0}
+		<svg
+			viewBox="{fb.xMin} {fb.yMin} {fb.width} {fb.height}"
+			style="aspect-ratio: {fb.aspect.toFixed(3)};"
+		>
+			{#each fb.figPapers as paper}
+				<path
+					role="region"
+					fill={getColor(paper.rate)}
+					stroke="none"
+					d={paper.path}
+					opacity={paper.i == highlighted ? 0.95 : 0.2}
+					id="hit-paper-path-{paper.i}"
+					on:mouseover={() => fixHighlight(paper.i)}
+					on:focus={() => fixHighlight(paper.i)}
+				/>
 			{/each}
-			<path d="M {xBase}, {-yBase} h {xPad / 8}" />
-			<text x={xBase + xPad / 4} y={-yBase + fontSize / 3.5} text-anchor="left"
-				>{formatNumber(fb.cMax)}</text
-			>
-		</g>
-	</svg>
+			{#if highlightedVis != undefined}
+				<text font-size="0.4">
+					<textPath href="#hit-paper-path-{highlighted}">
+						{fb.figPapers[highlightedVis].pathName}
+					</textPath>
+				</text>
+			{/if}
+
+			<g stroke-width="0.03" stroke="var(--color-text)" font-size={fontSize}>
+				<path d="M 0, 0 h {xBase}" />
+				{#each fb.yearTicks as yTick}
+					<path d="M {yTick.x}, 0 v {yPad / 4}" />
+					{#if yTick.name != undefined}
+						<text x={yTick.x} y={yPad * 0.9} text-anchor="middle">{yTick.name}</text>
+					{/if}
+				{/each}
+				<path d="M {xBase}, {-yBase} h {xPad / 8}" />
+				<text x={xBase + xPad / 4} y={-yBase + fontSize / 3.5} text-anchor="left"
+					>{formatNumber(fb.cMax)}</text
+				>
+			</g>
+		</svg>
+	{/if}
 
 	<ol id="paper-list" bind:this={listContainer}>
-		{#each papers as paper, i}
+		{#each chartPapers as paper, i}
+			{@const source = resolveSourceName(paper.source, entityAtts)}
+			{@const authors = shortAuthors(paper)}
 			<li
 				style={getLiStyle(i, visInds || [], highlighted)}
 				data-index={i}
@@ -194,6 +214,12 @@
 					<a href={paper.doi} target="_blank">{paper.name} ({paper.year})</a>
 				{:else}
 					{paper.name} ({paper.year})
+				{/if}
+				{#if source || authors}
+					<div class="paper-meta">
+						{#if authors}<span class="paper-authors">{authors}</span>{/if}
+						{#if source}<span class="paper-source">{source}</span>{/if}
+					</div>
 				{/if}
 			</li>
 		{/each}
@@ -234,6 +260,20 @@
 		margin-top: var(--unified-margin);
 		padding: var(--unified-padding);
 		font-weight: 600;
+	}
+
+	.paper-meta {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px 12px;
+		font-size: 0.75rem;
+		font-weight: 400;
+		opacity: 0.65;
+		margin-top: 2px;
+	}
+
+	.paper-source {
+		font-style: italic;
 	}
 
 	@media (min-width: 1100px) {

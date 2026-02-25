@@ -1,12 +1,10 @@
 <script lang="ts">
 	import { BE_REMOTE_URL } from '$lib/constants.js';
 	import { onMount } from 'svelte';
+	import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
 	import {
 		formatReference,
 		toBibtexFile,
-		type Paper,
-		type AuthorMap,
-		type SourcesMap,
 		type CitationStyle
 	} from '$lib/utils/reference-format';
 	import { copyToClipboard, downloadTextFile } from '$lib/utils/clipboard-download';
@@ -14,8 +12,8 @@
 	export let data: { user?: any; searchResult?: any };
 
 	let papers: Paper[] = [];
-	let authors: AuthorMap = {};
-	let sources: SourcesMap = {};
+	let entityAtts: EntityAttsForLinks = {};
+	let discAuthorNames: Record<string, string> = {};
 	let sortBy: 'year' | 'citations' = 'year';
 	let minCitations = 0;
 	let includeDoi = true;
@@ -25,9 +23,9 @@
 		if (data.searchResult) {
 			const resp = await fetch(`${BE_REMOTE_URL}/works/authors/${data.searchResult.semanticId}/0`);
 			const obj = await resp.json();
-			papers = obj.papers || [];
-			authors = obj.author_names || {};
-			sources = obj.labels?.sources || {};
+			papers = obj.resp?.papers || [];
+			entityAtts = obj.resp?.entity_atts || {};
+			discAuthorNames = obj.resp?.disc_author_names || {};
 		}
 	});
 
@@ -36,12 +34,12 @@
 		.sort((a, b) => (sortBy === 'citations' ? b.citations - a.citations : b.year - a.year));
 
 	function handleCopyBibtex() {
-		const bib = toBibtexFile(filteredPapers, authors, sources);
+		const bib = toBibtexFile(filteredPapers, entityAtts, discAuthorNames);
 		copyToClipboard(bib);
 	}
 
 	function handleDownloadBibtex() {
-		const bib = toBibtexFile(filteredPapers, authors, sources);
+		const bib = toBibtexFile(filteredPapers, entityAtts, discAuthorNames);
 		downloadTextFile('papers.bib', bib);
 	}
 </script>
@@ -98,7 +96,7 @@
 
 				<ul class="references">
 					{#each filteredPapers as paper}
-						<li>{formatReference(paper, authors, sources, citationStyle, includeDoi)}</li>
+						<li>{formatReference(paper, entityAtts, discAuthorNames, citationStyle, includeDoi)}</li>
 					{/each}
 				</ul>
 			{:else}
