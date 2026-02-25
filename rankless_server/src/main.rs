@@ -168,12 +168,12 @@ struct EntityRelationshipOut {
 #[derive(Serialize, Clone)]
 struct PaperAuthorship {
     author: String, //prefixed with filtered/discarded
-
     insts: Vec<usize>,
 }
 
 #[derive(Serialize)]
 struct PaperOut {
+    wid: usize,
     year: u16,
     name: String,
     doi: String,
@@ -1182,6 +1182,7 @@ fn paper_out(
     add_to_eatts(Sources::NAME, source);
 
     PaperOut {
+        wid,
         year: YearInterface::reverse(*gets.year(&wid)),
         name,
         doi,
