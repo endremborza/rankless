@@ -47,7 +47,7 @@ pub const FIN_SOURCES: [&str; 50] = [
     "prl",
     "chemical-reviews",
     "nejm",
-    "science-online",
+    "science",
     "nature",
 ];
 
