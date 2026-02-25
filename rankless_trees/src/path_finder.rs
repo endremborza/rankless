@@ -148,11 +148,12 @@ pub fn extend_with_once_removed<G>(
                 resp.wids.insert(mid_wid);
                 resp.wids.insert(cit);
                 let mid_tree = found_mids.entry(mid_wid).or_insert_with(|| {
-                    RefDAG::wrap_tree(HashMap::from_iter(
-                        inter_from_refed[&mid_wid]
-                            .iter()
-                            .map(|ref_wid| (*ref_wid, RefDAG::Leaf)),
-                    ))
+                    RefDAG::wrap_tree(HashMap::from_iter(inter_from_refed[&mid_wid].iter().map(
+                        |&ref_wid| {
+                            resp.wids.insert(ref_wid);
+                            (ref_wid, RefDAG::Leaf)
+                        },
+                    )))
                 });
                 sub.insert(mid_wid, RefDAG::Node(mid_tree.clone()));
             }
