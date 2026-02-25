@@ -12,7 +12,7 @@ use std::{
 
 use dmove::{
     reverse_prefixed_n, ByteFixArrayInterface, DowncastingBuilder, Entity, FixAttBuilder,
-    InitEmpty, MarkedAttribute, NamespacedEntity, UnsignedNumber, VarAttBuilder, VarAttIterator,
+    MarkedAttribute, NamespacedEntity, UnsignedNumber, VarAttBuilder, VarAttIterator,
     VariableSizeAttribute, VattArrPair, ET, MAA,
 };
 use dmove_macro::ByteFixArrayInterface;
@@ -64,7 +64,6 @@ pub type Top15Rec<E> = TopNRec<E, 25>;
 
 type YT = ET<Years>;
 type IT = ET<Institutions>;
-type SfDistRec<E> = [ET<MAA<E, WorkCountMarker>>; Subfields::N];
 type Top3RelExtender<E, SE> = TopNRelExtender<3, E, SE, HashMap<ET<E>, u32>>;
 type Top15HRelExtender<E, SE> = TopNRelExtender<25, E, SE, HashMap<ET<E>, f64>>;
 
@@ -94,6 +93,8 @@ where
     rels: Vec<[InstRelation; N_RELS]>,
     rel_map_rec: HashMap<ET<Institutions>, InstRelation>,
 }
+
+struct SfDistRec<E: MarkedAttribute<WorkCountMarker>>([ET<MAA<E, WorkCountMarker>>; Subfields::N]);
 
 struct CiteDeriver {
     pub stowage: Stowage,
@@ -155,6 +156,17 @@ trait TopPrepper<E> {
     fn to_v(self) -> Vec<(usize, u32)>;
 }
 
+impl<E> Default for SfDistRec<E>
+where
+    E: MarkedAttribute<WorkCountMarker>,
+    ET<MAA<E, WorkCountMarker>>: Default,
+{
+    fn default() -> Self {
+        let arr = [(); Subfields::N].map(|_| ET::<MAA<E, WorkCountMarker>>::default());
+        Self(arr)
+    }
+}
+
 impl Stowage {
     fn write_all_sem_ids(&self) {
         self.write_semantic_id::<Authors>();
@@ -211,18 +223,18 @@ impl InstRelation {
 
 impl<T> SelfExtender<T>
 where
-    T: InitEmpty,
+    T: Default,
 {
     fn new() -> Self {
         Self {
             vec: Vec::new(),
-            rec: T::init_empty(),
+            rec: T::default(),
         }
     }
 
     fn push(&mut self) {
         self.vec
-            .push(std::mem::replace(&mut self.rec, T::init_empty()));
+            .push(std::mem::replace(&mut self.rec, T::default()));
     }
 }
 
@@ -232,13 +244,13 @@ where
     SE: Entity,
     ET<E>: UnsignedNumber,
     ET<SE>: UnsignedNumber,
-    Prep: TopPrepper<E> + InitEmpty,
+    Prep: TopPrepper<E> + Default,
 {
     fn new() -> Self {
         Self {
             vec: Vec::new(),
-            prep: Prep::init_empty(),
-            seid: SE::T::init_empty(),
+            prep: Prep::default(),
+            seid: SE::T::default(),
         }
     }
 
@@ -247,7 +259,7 @@ where
     }
 
     fn push(&mut self, seid: SE::T, sort_o: TopSorter) {
-        let cv = replace(&mut self.prep, Prep::init_empty()).to_v();
+        let cv = replace(&mut self.prep, Prep::default()).to_v();
         self.push_from_it(cv.into_iter(), seid, sort_o)
     }
 
@@ -326,7 +338,7 @@ where
         inc_year(&mut self.papers_by_years.rec, year);
         let wu = wid.to_usize();
         for sf_id in bends.wsubfields.get(&wu).unwrap() {
-            self.paper_subfields.rec[*sf_id as usize].inc();
+            self.paper_subfields.rec.0[*sf_id as usize].inc();
         }
         for topic_id in bends.wtopics.get(&wu).unwrap() {
             self.top3_paper_topics.add(*topic_id);
@@ -348,7 +360,7 @@ where
         }
         for c_wid in wcs {
             for sf_id in bends.wsubfields.get(&c_wid.to_usize()).unwrap() {
-                self.citing_subfields.rec[*sf_id as usize].inc();
+                self.citing_subfields.rec.0[*sf_id as usize].inc();
             }
             inc_year(&mut self.citing_by_years.rec, bends.year[c_wid.to_usize()]);
         }
@@ -368,9 +380,9 @@ where
         rel_vec.sort_by(|l, r| (r.papers, (r.end - r.start)).cmp(&(l.papers, l.end - l.start)));
         push_cut::<N_RELS, InstRelation>(rel_vec, &mut self.rels);
         self.top3_paper_sfs
-            .push_from_arr(&self.paper_subfields.rec, parent_id);
+            .push_from_arr(&self.paper_subfields.rec.0, parent_id);
         self.top3_citing_sfs
-            .push_from_arr(&self.citing_subfields.rec, parent_id);
+            .push_from_arr(&self.citing_subfields.rec.0, parent_id);
         self.top3_paper_topics.push(parent_id, TopSorter::Default);
         self.top5_authors.push(parent_id, TopSorter::Default);
         self.top3_aff_countries.push(parent_id, TopSorter::Default);
@@ -383,8 +395,11 @@ where
     }
 
     fn add_iters(self, stowage: &Stowage) {
-        stowage.ditf::<CitSubfieldsArrayMarker, E, _>(self.citing_subfields.vec, "cit-subfields");
-        stowage.ditf::<RefSubfieldsArrayMarker, E, _>(self.paper_subfields.vec, "ref-subfields");
+        let cisu_vec = self.citing_subfields.vec.into_iter().map(|e| e.0).collect();
+        let pasu_vec = self.paper_subfields.vec.into_iter().map(|e| e.0).collect();
+
+        stowage.ditf::<CitSubfieldsArrayMarker, E, _>(cisu_vec, "cit-subfields");
+        stowage.ditf::<RefSubfieldsArrayMarker, E, _>(pasu_vec, "ref-subfields");
         stowage.ditf::<YearlyPapersMarker, E, _>(self.papers_by_years.vec, "papers-yearly");
         stowage.ditf::<YearlyCitationsMarker, E, _>(self.citing_by_years.vec, "citations-yearly");
         stowage.ditf::<Top3PaperSfMarker, E, _>(self.top3_paper_sfs.vec, "top-paper-subfields");
@@ -513,7 +528,7 @@ impl CiteDeriver {
                 let wu = wid.to_usize();
                 let wyear = self.backends.year[wu];
                 let mut v = vec![0; (1 + FINAL_YEAR - YearInterface::reverse(wyear)).to_usize()];
-                let mut era = EraRec::init_empty();
+                let mut era = EraRec::default();
                 self.backends
                     .wciting
                     .get(&wu)
@@ -660,8 +675,8 @@ where
     }
 }
 
-impl InitEmpty for InstRelation {
-    fn init_empty() -> Self {
+impl Default for InstRelation {
+    fn default() -> Self {
         Self::new(0)
     }
 }
@@ -779,10 +794,10 @@ fn inc_year(era_rec: &mut EraRec, year: YT) {
 
 fn push_cut<const C: usize, T>(mut v: Vec<T>, outer: &mut Vec<[T; C]>)
 where
-    T: InitEmpty + Debug,
+    T: Default + Debug,
 {
     for _ in v.len()..(C + 1) {
-        v.push(T::init_empty());
+        v.push(T::default());
     }
     v.truncate(C);
     outer.push(v.try_into().unwrap());

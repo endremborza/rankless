@@ -24,7 +24,7 @@ use crate::{
 };
 use dmove::{
     para::{set_and_notify, wait_for_data, wait_for_data_with_taker},
-    ByteFixArrayInterface, Entity, InitEmpty, UnsignedNumber,
+    ByteFixArrayInterface, Entity, UnsignedNumber,
 };
 use hashbrown::{hash_map::Entry, HashMap};
 use rankless_rs::{
@@ -124,7 +124,7 @@ impl Progress {
         //in full progress, vs in pruning progress
         match value.lock().unwrap().entry(fq.ck.clone()) {
             Entry::Vacant(e) => {
-                e.insert(CacheValue::InProgress(BoolCvp::init_empty()));
+                e.insert(CacheValue::InProgress(BoolCvp::default()));
                 Progress::Calculate
             }
             Entry::Occupied(cv) => match cv.get() {
@@ -195,8 +195,7 @@ where
     pub fn run(mut self) {
         match mem::replace(&mut self.params.fmqo, None) {
             Some(fmq) => {
-                let outer_res_cvp =
-                    std::mem::replace(&mut self.params.res_cvp, ResCvp::init_empty());
+                let outer_res_cvp = std::mem::replace(&mut self.params.res_cvp, ResCvp::default());
                 let mut trees = HashMap::new();
                 let atts = HashMap::new();
                 for eid in &fmq.sq.ids {
@@ -204,7 +203,7 @@ where
                     self.run_single_tree();
                     let out = wait_for_data(std::mem::replace(
                         &mut self.params.res_cvp,
-                        ResCvp::init_empty(),
+                        ResCvp::default(),
                     ));
                     if let AnyResponse::Single(tri) = out {
                         trees.insert(*eid, tri.tree);

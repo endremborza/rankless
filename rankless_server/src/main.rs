@@ -14,7 +14,7 @@ use axum::{
 use dmove::{
     para::{set_and_notify, wait_for_data_copy, AcTuple},
     para_multi_gen_run, reverse_prefixed_n, ByteArrayInterface, Entity, EntityMutableMapperBackend,
-    InitEmpty, NamespacedEntity, UnsignedNumber, VattReadingArcMap, ET,
+    NamespacedEntity, UnsignedNumber, VattReadingArcMap, ET,
 };
 use hashbrown::{HashMap, HashSet};
 use kd_tree::{KdPoint, KdTree};
@@ -383,7 +383,7 @@ impl ResultExtension {
             let i = res.dm_id;
 
             let mut sy_ind = 0;
-            let mut yearly_papers = EraRec::init_empty();
+            let mut yearly_papers = EraRec::default();
             if let Some(ypi) = entif.yearly_papers.get(i) {
                 yearly_papers = ypi.clone();
                 for (yi, ycount) in ypi.into_iter().enumerate() {
@@ -728,7 +728,7 @@ fn get_rest(
 ) {
     let gets = Arc::new(Getters::new(Arc::new(stowage)));
     let mux_satts: Arc<Mutex<AttributeLabelUnion>> = Arc::new(Mutex::new(HashMap::new()));
-    let cv_pair = AcTuple::<Option<f64>>::init_empty();
+    let cv_pair = AcTuple::<Option<f64>>::default();
     let mut ns_map: NameStateMap = HashMap::new();
     let mut tops = Vec::new();
     let mut descriptions = Vec::new();
@@ -1005,7 +1005,7 @@ async fn orcid_get(Path(orcid_id): Path<String>, states: StatesT) -> Json<Option
         .into_iter()
         .collect::<Vec<u8>>()
         .try_into()
-        .unwrap_or(<ET<AuthorOrcids> as InitEmpty>::init_empty());
+        .unwrap_or(<ET<AuthorOrcids> as Default>::default());
     if let Some(a_dm_id) = states.2.state.gets.orcid_map.get(&obytes) {
         if let Some(nstate) = states.0 .0.get(Authors::NAME) {
             if let Some(a_rid) = nstate.dm_id_to_result_id.get(a_dm_id) {

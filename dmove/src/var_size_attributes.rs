@@ -523,6 +523,12 @@ where
     }
 }
 
+impl<T> Default for VarBox<T> {
+    fn default() -> Self {
+        Self(Vec::new().into_boxed_slice())
+    }
+}
+
 fn from_buf<E>(full_size: usize, targets: &mut File, buf: &mut [u8]) -> E::T
 where
     E: Entity,

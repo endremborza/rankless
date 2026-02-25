@@ -22,7 +22,7 @@ use crate::{
 };
 use dmove::{
     para::Worker, BigId, DiscoMapEntityBuilder, DowncastingBuilder, DowncastingPrefixedVarBuilder,
-    Entity, EntityImmutableMapperBackend, FixAttBuilder, InitEmpty, LoadedIdMap, MappableEntity,
+    Entity, EntityImmutableMapperBackend, FixAttBuilder, LoadedIdMap, MappableEntity,
     MetaIntegrator, NamespacedEntity, UnsignedNumber, VarAttBuilder, ET,
 };
 use levenshtein::levenshtein;
@@ -621,7 +621,7 @@ impl Worker<Biblio> for WorkBiblioWriter {
             None => return,
         };
         let new_bib: BiblioInfo = bib.into();
-        if new_bib != BiblioInfo::init_empty() {
+        if new_bib != BiblioInfo::default() {
             self.biblios.lock().unwrap()[w_ind] = new_bib;
         }
     }
@@ -688,7 +688,7 @@ impl<'a> StrWriter<'a> {
 impl<'a, S, T, SIF> DataAttWorker<'a, S, T, SIF>
 where
     S: MainEntity,
-    T: InitEmpty + Sync + Send,
+    T: Default + Sync + Send,
     SIF: EntityImmutableMapperBackend<S>,
 {
     fn new(self_interface: &'a SIF) -> Self {
@@ -705,7 +705,7 @@ impl<'a, S, T, TT, SIF, TIF> GenObjAttWorker<'a, S, T, TT, SIF, TIF>
 where
     S: MainEntity,
     T: MappableEntity,
-    TT: InitEmpty + Sync + Send,
+    TT: Default + Sync + Send,
     SIF: EntityImmutableMapperBackend<S>,
     TIF: EntityImmutableMapperBackend<T>,
 {

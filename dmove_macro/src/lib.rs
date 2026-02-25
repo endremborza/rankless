@@ -225,11 +225,11 @@ pub fn def_srecs(ts: TokenStream) -> TokenStream {
             }),
             "",
         );
-        let empties = cjoin((1..i + 1).rev().map(|i| format!("T{i}::init_empty()")));
+        let empties = cjoin((1..i + 1).rev().map(|i| format!("T{i}::default()")));
         let empty_srec: syn::Expr =
             syn::parse_str(&format!("{rec_prefix}{i}(({empties}))")).unwrap();
 
-        let t_init_empties = cjoin((1..i + 1).map(|e| format!("T{e}: InitEmpty")));
+        let t_init_empties = cjoin((1..i + 1).map(|e| format!("T{e}: Default")));
         let t_comps = cjoin((1..i + 1).map(|e| format!("T{e}: PartialEq")));
         let t_to_ss = cjoin((1..i).map(|e| format!("T{e}: Into<S{e}>")));
         let reinstate_wheres = cjoin((1..i).map(|e| format!("S{e}: ReinstateFrom<T{e}>")));
@@ -255,7 +255,7 @@ pub fn def_srecs(ts: TokenStream) -> TokenStream {
                 {update_wheres} 
                 {{
                     let mut stack = it.next().unwrap().to_stack();
-                    let flusher = vec![Self::init_empty()].into_iter();
+                    let flusher = vec![Self::default()].into_iter();
                     for rec in it.chain(flusher) {{
                         rec.update_stack(&mut stack, root);
                     }}
@@ -321,8 +321,8 @@ pub fn def_srecs(ts: TokenStream) -> TokenStream {
             }
 
 
-            impl #tgen InitEmpty for #enum_ident #t_ie_where  {
-                fn init_empty() -> Self {
+            impl #tgen Default for #enum_ident #t_ie_where  {
+                fn default() -> Self {
                     #empty_srec
                 }
             }

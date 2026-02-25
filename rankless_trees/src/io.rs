@@ -24,8 +24,7 @@ use rankless_rs::{
 };
 
 use dmove::{
-    para::AcTuple, BigId, Entity, InitEmpty, NamespacedEntity, VarSizedAttributeElement,
-    VattReadingArcMap, ET,
+    para::AcTuple, BigId, Entity, NamespacedEntity, VarSizedAttributeElement, VattReadingArcMap, ET,
 };
 
 use crate::{
@@ -273,7 +272,7 @@ impl TreeResponse {
     pub fn empty() -> Self {
         Self {
             tree: JsSerTree {
-                node: CollapsedNodeGen::init_empty(),
+                node: CollapsedNodeGen::default(),
                 children: JsSerChildren::Leaves(HashMap::new()).into(),
             },
             atts: HashMap::new(),
@@ -443,7 +442,7 @@ where
                 state: Arc::new(state),
                 thread_pool: Vec::new(),
                 specs,
-                cv_pair: BasisCvp::init_empty(),
+                cv_pair: BasisCvp::default(),
                 p: PhantomData,
             }
             .fill_thread_pool(n),
@@ -489,7 +488,7 @@ where
     }
 
     fn get_resp(&self, aq: AnyQuery) -> Option<AnyResponse> {
-        let res_cvp = ResCvp::init_empty();
+        let res_cvp = ResCvp::default();
         self.add_to_queue(Some(aq), res_cvp.clone());
         {
             let (lock, cvar) = &*res_cvp;
@@ -503,7 +502,7 @@ where
 
     pub fn join(self) {
         for _ in 0..self.thread_pool.len() {
-            self.add_to_queue(None, ResCvp::init_empty());
+            self.add_to_queue(None, ResCvp::default());
         }
         for t in self.thread_pool.into_iter() {
             t.join().unwrap();

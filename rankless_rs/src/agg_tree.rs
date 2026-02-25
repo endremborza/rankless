@@ -1,4 +1,3 @@
-use dmove::InitEmpty;
 use dmove_macro::def_srecs;
 use serde::{Deserialize, Serialize};
 use std::{cmp::Reverse, collections::BinaryHeap as MaxHeap};
@@ -120,13 +119,13 @@ where
 
 impl<IT, T, CT> From<IT> for AggTreeBase<IT, T, CT>
 where
-    T: InitEmpty,
+    T: Default,
 {
     fn from(id: IT) -> Self {
         Self {
             id,
             children: Vec::new(),
-            node: T::init_empty(),
+            node: T::default(),
         }
     }
 }

@@ -39,9 +39,9 @@ use rankless_rs::{
 
 use dmove::{
     BackendLoading, BigId, ByteArrayInterface, ByteFixArrayInterface, CompactEntity, Entity,
-    EntityImmutableRefMapperBackend, InitEmpty, Locators, MappableEntity, MarkedAttribute,
-    NamespacedEntity, UnsignedNumber, VaST, VarAttBuilder, VarBox, VarSizedAttributeElement,
-    VariableSizeAttribute, VattArrPair, ET, MAA,
+    EntityImmutableRefMapperBackend, Locators, MappableEntity, MarkedAttribute, NamespacedEntity,
+    UnsignedNumber, VaST, VarAttBuilder, VarBox, VarSizedAttributeElement, VariableSizeAttribute,
+    VattArrPair, ET, MAA,
 };
 use hashbrown::HashMap;
 use rand::Rng;
@@ -416,7 +416,7 @@ impl Getters {
         let work_oa = reverse_id::<Works>(&stowage);
         let hit_papers = reverse_id::<HitPapers>(&stowage);
         let mut orcid_map = HashMap::new();
-        let na_orcid: ET<AuthorOrcids> = <ET<AuthorOrcids> as InitEmpty>::init_empty();
+        let na_orcid: ET<AuthorOrcids> = <ET<AuthorOrcids> as Default>::default();
         stowage
             .get_entity_interface::<AuthorOrcids, ReadFixIter>()
             .enumerate()

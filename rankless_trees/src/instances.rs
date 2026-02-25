@@ -4,13 +4,13 @@ use crate::{
         CitingCoSuToByRef, CitingSourceCoSuByRef, CitingSuByRef, CountryBesties, CountryCiters,
         CountryInstsPost, FullRefCountryInstSubfieldByRef, FullRefSourceCountryInstByRef,
         InstBesties, IntX, MinDisJ, MinIntX, PostRefIterWrap, QedInf, RefCountryByRef, RefSuByRef,
-        RefSubCiSubTByRef, SourceSubfieldCiCoByRef, SourceWCoiByRef,
-        SubfieldCountryInstByRef, SubfieldCountryInstSourceByRef, SubfieldCountryInstSubfieldByRef,
+        RefSubCiSubTByRef, SourceSubfieldCiCoByRef, SourceWCoiByRef, SubfieldCountryInstByRef,
+        SubfieldCountryInstSourceByRef, SubfieldCountryInstSubfieldByRef,
         SubfieldRefTopicCountryInst, SubfieldWCoiByRef, WorkingAuthors,
     },
     io::{
-        BufSerChildren, BufSerTree, CollapsedNode, CollapsedNodeGen, TreeSpec,
-        WorkCiteT, WorkWInd, WT,
+        BufSerChildren, BufSerTree, CollapsedNode, CollapsedNodeGen, TreeSpec, WorkCiteT, WorkWInd,
+        WT,
     },
     part_iterator::{PartitioningIterator, TreeMakingParams},
 };
@@ -22,7 +22,7 @@ use rankless_rs::{
     gen::derive_links3::HitPapers,
 };
 
-use dmove::{InitEmpty, UnsignedNumber};
+use dmove::UnsignedNumber;
 use dmove_macro::derive_tree_getter;
 use hashbrown::HashMap;
 
@@ -122,7 +122,7 @@ impl<'a> WVecMerger<'a> {
         Self {
             left_i: 0,
             right_i: 0,
-            node: CollapsedNode::init_empty(),
+            node: CollapsedNode::default(),
             wv_into,
             left_from,
             right_from,
@@ -491,22 +491,22 @@ impl ReinstateFrom<WT> for WorkTree {
 }
 
 //TODO/clarity - low-prio - these could be derived
-impl<T> InitEmpty for CollapsedNodeGen<T>
+impl<T> Default for CollapsedNodeGen<T>
 where
-    T: InitEmpty,
+    T: Default,
 {
-    fn init_empty() -> Self {
+    fn default() -> Self {
         Self {
             link_count: 0,
             source_count: 0,
-            top_source: T::init_empty(),
+            top_source: T::default(),
             top_cite_count: 0,
         }
     }
 }
 
-impl InitEmpty for PrepNode {
-    fn init_empty() -> Self {
+impl Default for PrepNode {
+    fn default() -> Self {
         Self {
             merge_from: WVecPair::new(),
             merge_into: WVecPair::new(),
@@ -514,8 +514,8 @@ impl InitEmpty for PrepNode {
     }
 }
 
-impl InitEmpty for WorkWInd {
-    fn init_empty() -> Self {
+impl Default for WorkWInd {
+    fn default() -> Self {
         Self(0, 0)
     }
 }
@@ -625,7 +625,7 @@ where
 impl Collapsing for PrepNode {
     type Collapsed = CollapsedNode;
     fn collapse(&mut self) -> Self::Collapsed {
-        let mut out = CollapsedNode::init_empty();
+        let mut out = CollapsedNode::default();
         self.merge_from.sources.iter().for_each(|e| {
             out.update_with_wt(e);
         });
@@ -675,7 +675,7 @@ where
     type Collapsed = Self;
     fn collapse(&mut self) -> Self::Collapsed {
         let children = std::mem::replace(&mut self.0.children, Vec::new());
-        let node = std::mem::replace(&mut self.0.node, CollapsedNode::init_empty());
+        let node = std::mem::replace(&mut self.0.node, CollapsedNode::default());
         DisJTree(AggTreeBase {
             id: self.0.id,
             node,
@@ -791,9 +791,9 @@ mod big_test_tree {
 
     use super::*;
     use crate::io::{AttributeLabel, TreeRunManager};
+    use crate::test_utils::*;
     use dmove::{BigId, MappableEntity, NamespacedEntity};
     use rand::{rngs::StdRng, Rng, SeedableRng};
-    use crate::test_utils::*;
 
     type BigStackFR = (
         IntX<Countries, 0, true>,
@@ -884,6 +884,7 @@ mod big_test_tree {
 mod tests {
     use super::*;
     use crate::io::{AttributeLabels, JsSerChildren, JsSerTree, ShallowQ, TreeRunManager};
+    use crate::test_utils::{test_q, TestSB, Tither};
     use dmove::{BigId, MappableEntity, NamespacedEntity};
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use rankless_rs::steps::{
@@ -891,7 +892,6 @@ mod tests {
         derive_links1::WorkPeriods,
     };
     use std::{ops::Deref, sync::Arc};
-    use crate::test_utils::{test_q, TestSB, Tither};
 
     use serde_json::to_string_pretty;
 

@@ -8,7 +8,7 @@ use dmove::{
 };
 
 use crate::{
-    common::{EmptyAttributeEntity, HitWorkMarker, MainWorkMarker},
+    common::{init_empty_slice, EmptyAttributeEntity, HitWorkMarker, MainWorkMarker},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::WorkReferences,
@@ -85,8 +85,8 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let parc = Arc::new((stowage, hit_map, wcc));
     para_multi_gen_run!(sorted_hit_papers, Institutions, Authors, Countries, Sources, Subfields, Topics; parc).last();
 
-    let mut direct: Vec<HashSet<ET<HitPapers>>> = vec![HashSet::new(); Authors::N];
-    let mut once_removed: Vec<HashSet<ET<HitPapers>>> = vec![HashSet::new(); Authors::N];
+    let mut direct = init_empty_slice::<Authors, HashSet<ET<HitPapers>>>();
+    let mut once_removed = init_empty_slice::<Authors, HashSet<ET<HitPapers>>>();
 
     for (&hp_wid_big, &hp_id) in parc.1 .0.iter().tqdm().desc(Some("hit papers for authors")) {
         let hp_wid = hp_wid_big.to_usize();
@@ -115,8 +115,8 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         }
     }
 
-    let to_sorted = |sets: Vec<HashSet<ET<HitPapers>>>| {
-        sets.into_iter().map(|s| {
+    let to_sorted = |sets: Box<[HashSet<ET<HitPapers>>]>| {
+        sets.to_vec().into_iter().map(|s| {
             let mut v: Vec<ET<HitPapers>> = s.into_iter().collect();
             v.sort();
             v.into_boxed_slice()
@@ -126,6 +126,11 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let n_direct: usize = direct.iter().map(|s| s.len()).sum();
     let n_once: usize = once_removed.iter().map(|s| s.len()).sum();
     println!("direct: {n_direct} total entries, once_removed: {n_once} total entries");
+    println!(
+        "direct len: {}, once_removed len: {}",
+        direct.len(),
+        once_removed.len()
+    );
     parc.0.add_iter_owned::<VarAttBuilder, _, _>(
         to_sorted(direct),
         Some("author-citing-hits-direct"),

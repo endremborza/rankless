@@ -18,10 +18,10 @@ use serde::{de::DeserializeOwned, Serialize};
 use tqdm::{Iter, Tqdm};
 
 use dmove::{
-    BackendLoading, BigId, CompactEntity, Entity, FixAttIterator, FixWriteSizeEntity, InitEmpty,
-    LoadedIdMap, MainBuilder, MappableEntity, MarkedAttribute, MetaIntegrator, NamespacedEntity,
-    UnsignedNumber, VarAttBuilder, VarAttIterator, VarBox, VarSizedAttributeElement,
-    VariableSizeAttribute, VattArrPair, VattReadingMap, ET, MAA,
+    BackendLoading, BigId, CompactEntity, Entity, FixAttIterator, FixWriteSizeEntity, LoadedIdMap,
+    MainBuilder, MappableEntity, MarkedAttribute, MetaIntegrator, NamespacedEntity, UnsignedNumber,
+    VarAttBuilder, VarAttIterator, VarBox, VarSizedAttributeElement, VariableSizeAttribute,
+    VattArrPair, VattReadingMap, ET, MAA,
 };
 
 pub type StowReader = Reader<BufReader<GzDecoder<File>>>;
@@ -448,11 +448,11 @@ where
 impl<T, BeMarker> MarkedBackendLoader<BeMarker> for EmptyAttributeEntity<T>
 where
     BeMarker: BackendSelector<Self>,
-    BeMarker::BE: InitEmpty,
+    BeMarker::BE: Default,
 {
     type BE = BeMarker::BE;
     fn load(_: &Stowage) -> Self::BE {
-        Self::BE::init_empty()
+        Self::BE::default()
     }
 }
 
@@ -644,9 +644,9 @@ pub fn short_string_to_u64(input: &str) -> BigId {
     BigId::from_le_bytes(padded_input)
 }
 
-pub fn init_empty_slice<E: Entity, T: InitEmpty>() -> Box<[T]> {
+pub fn init_empty_slice<E: Entity, T: Default>() -> Box<[T]> {
     (0..E::N + 1)
-        .map(|_| T::init_empty())
+        .map(|_| T::default())
         .collect::<Vec<T>>()
         .into()
 }

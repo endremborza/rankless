@@ -1,5 +1,4 @@
 use std::{
-    collections::{BTreeSet, BinaryHeap, VecDeque},
     fmt::{Debug, Display},
     fs::File,
     hash::Hash,
@@ -7,11 +6,13 @@ use std::{
     ops::Add,
     path::PathBuf,
     rc::Rc,
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Mutex},
 };
 
 use dmove_macro::{def_me_struct, derive_meta_trait, impl_fbarrs};
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashSet;
+
+use crate::{var_size_attributes::VaST, VarSizedAttributeElement};
 
 pub const MAX_BUF: usize = 0x1000;
 pub const MAX_NUMBUF: usize = 0x20;
@@ -27,10 +28,6 @@ pub struct MainBuilder {
     pub meta_elems: Vec<MetaElem>,
     pub definables: HashSet<String>,
     pub parent_root: PathBuf,
-}
-
-pub trait InitEmpty {
-    fn init_empty() -> Self;
 }
 
 pub trait BackendLoading<E>
@@ -122,34 +119,6 @@ pub trait CompactEntity: MappableEntity<KeyType = usize> {}
 
 impl<T> CompactEntity for T where T: MappableEntity<KeyType = usize> {}
 
-impl InitEmpty for () {
-    fn init_empty() -> Self {}
-}
-
-impl InitEmpty for f64 {
-    fn init_empty() -> Self {
-        0.0
-    }
-}
-
-impl InitEmpty for bool {
-    fn init_empty() -> Self {
-        false
-    }
-}
-
-impl InitEmpty for String {
-    fn init_empty() -> Self {
-        "".to_string()
-    }
-}
-
-impl<T> InitEmpty for Box<[T]> {
-    fn init_empty() -> Self {
-        Vec::new().into_boxed_slice()
-    }
-}
-
 // pub trait ByteFixArrayInterface<const S: usize> {
 //     const S: usize = S;
 //     fn to_fbytes(&self) -> [u8; S];
@@ -179,7 +148,7 @@ pub trait UnsignedNumber:
     + Send
     + Sync
     + ByteFixArrayInterface
-    + InitEmpty
+    + Default
     + Display
     + Debug
     + Add<Output = Self>
@@ -317,52 +286,6 @@ impl ByteArrayInterface for String {
 
 impl_fbarrs!(6);
 
-impl<T> InitEmpty for Option<T> {
-    fn init_empty() -> Self {
-        None
-    }
-}
-
-impl<T, const S: usize> InitEmpty for [T; S]
-where
-    T: InitEmpty,
-{
-    fn init_empty() -> Self {
-        [(); S].map(|_| T::init_empty())
-    }
-}
-
-impl InitEmpty for Condvar {
-    fn init_empty() -> Self {
-        Condvar::new()
-    }
-}
-
-impl<T> InitEmpty for VarBox<T> {
-    fn init_empty() -> Self {
-        Self(Vec::new().into_boxed_slice())
-    }
-}
-
-impl<T> InitEmpty for BinaryHeap<T>
-where
-    T: Ord,
-{
-    fn init_empty() -> Self {
-        Self::new()
-    }
-}
-
-impl<T1, T2> InitEmpty for (T1, T2)
-where
-    T1: InitEmpty,
-    T2: InitEmpty,
-{
-    fn init_empty() -> Self {
-        (T1::init_empty(), T2::init_empty())
-    }
-}
-
 impl<T, const AS: usize> ByteFixArrayInterface for [T; AS]
 where
     T: ByteFixArrayInterface + Debug,
@@ -471,49 +394,6 @@ macro_rules! downcast_fun {
     };
 }
 pub(crate) use downcast_fun;
-
-macro_rules! empty_num {
-    ($($ty:ty),*) => {
-        $(impl InitEmpty for $ty {
-                fn init_empty() -> Self {
-                    0
-                }
-            }
-        )*
-    };
-}
-
-macro_rules! empty_coll {
-    ($($ty:ty;$($g:ident)-*),*) => {
-        $(impl <$($g),*> InitEmpty for $ty{
-                fn init_empty() -> Self {
-                    Self::new()
-                }
-            }
-        )*
-    };
-}
-
-macro_rules! empty_wrap {
-    ($($ty:ty),*) => {
-        $(impl <T> InitEmpty for $ty
-            where T: InitEmpty
-            {
-                fn init_empty() -> Self {
-                    Self::new(T::init_empty())
-                }
-            }
-        )*
-    };
-}
-
-empty_num!(u8, u16, u32, u64, u128, usize);
-
-empty_coll!(Vec<T>; T, BTreeSet<T>; T, HashMap<K, V>; K-V, VecDeque<T>; T);
-
-empty_wrap!(Mutex<T>, Arc<T>);
-
-use crate::{var_size_attributes::VaST, VarBox, VarSizedAttributeElement};
 
 uint_impl!(u8, u16, u32, u64, u128, usize);
 num_impl!(u8, u16, u32, u64, u128, f32, f64, usize);

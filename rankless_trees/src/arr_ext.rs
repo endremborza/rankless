@@ -12,11 +12,11 @@ struct StackWExtension<const L: usize, T> {
 
 impl<const L: usize, T> StackWExtension<L, T>
 where
-    T: InitEmpty + Copy + Clone,
+    T: Default + Copy + Clone,
 {
     fn new() -> Self {
         Self {
-            buf: [T::init_empty(); L],
+            buf: [T::default(); L],
             vec: Vec::new(),
             blen: 0,
         }

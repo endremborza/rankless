@@ -1,4 +1,4 @@
-use dmove::{ByteArrayInterface, InitEmpty, VarSizedAttributeElement};
+use dmove::{ByteArrayInterface, VarSizedAttributeElement};
 use serde::Serialize;
 use std::convert::TryInto;
 
@@ -132,7 +132,7 @@ impl ByteArrayInterface for BiblioInfo {
 
     fn from_bytes(buf: &[u8]) -> Self {
         if buf.is_empty() {
-            return Self::init_empty();
+            return Self::default();
         }
 
         let prefix = buf[0];
@@ -141,7 +141,7 @@ impl ByteArrayInterface for BiblioInfo {
 
         // if nothing present
         if presence_bits == 0 {
-            return Self::init_empty();
+            return Self::default();
         }
 
         // size byte must exist when some fields are present
@@ -230,8 +230,8 @@ impl ByteArrayInterface for BiblioInfo {
     }
 }
 
-impl InitEmpty for BiblioInfo {
-    fn init_empty() -> Self {
+impl Default for BiblioInfo {
+    fn default() -> Self {
         Self {
             volume: "".into(),
             issue: "".into(),
