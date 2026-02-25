@@ -1,6 +1,12 @@
 <script lang="ts">
+	import { afterUpdate, onMount } from 'svelte';
 	import type { RefTree, Paper, EntityAttsForLinks } from '$lib/tree-types';
-	import { resolveSourceName, getChipAuthors, getPaperHighlights } from '$lib/utils/paper-helpers';
+	import {
+		resolveSourceName,
+		getChipAuthors,
+		getPaperHighlights,
+		type PaperHighlight
+	} from '$lib/utils/paper-helpers';
 
 	export let dag: RefTree;
 	export let paperMap: Record<number, Paper>;
@@ -9,10 +15,8 @@
 	export let sourceAuthorSemId: string | undefined = undefined;
 
 	const HIGHLIGHT_DEFS: Record<string, { label: string; cls: string }> = {
-		authored: { label: 'Authored', cls: 'hl-authored' },
 		hit: { label: 'High Impact', cls: 'hl-hit' },
-		science: { label: 'Science', cls: 'hl-science' },
-		nature: { label: 'Nature', cls: 'hl-nature' }
+		prestigious: { label: 'Prestigious', cls: 'hl-prestigious' }
 	};
 
 	type NodeMeta = { level: number; parents: Set<number>; children: Set<number> };
@@ -64,6 +68,15 @@
 		return 'Citation Chain';
 	}
 
+	function hasHighlight(highlights: PaperHighlight[], key: string): boolean {
+		return highlights.some((h) => h.key === key);
+	}
+
+	function badgeLabel(hl: PaperHighlight): string {
+		if (hl.key === 'prestigious' && hl.label) return hl.label;
+		return HIGHLIGHT_DEFS[hl.key]?.label ?? hl.key;
+	}
+
 	let hovered: number | undefined;
 	let expanded = new Set<number>();
 
@@ -88,24 +101,109 @@
 
 	$: activeHighlightKeys = (() => {
 		const keys = new Set<string>();
+		let hasAuthored = false;
 		for (const wids of levels)
 			for (const wid of wids) {
 				const p = paperMap[wid];
 				if (!p) continue;
-				for (const h of getPaperHighlights(p, sourceAuthorSemId, entityAtts))
-					if (HIGHLIGHT_DEFS[h]) keys.add(h);
+				for (const h of getPaperHighlights(p, sourceAuthorSemId, entityAtts)) {
+					if (h.key === 'authored') hasAuthored = true;
+					else if (HIGHLIGHT_DEFS[h.key]) keys.add(h.key);
+				}
 			}
-		return keys;
+		return { keys, hasAuthored };
 	})();
+
+	// --- DAG edge computation ---
+	type ComputedEdge = {
+		path: string;
+		parentWid: number;
+		childWid: number;
+	};
+
+	let containerEl: HTMLDivElement;
+	let chipEls: Record<number, HTMLDivElement> = {};
+	let edgesByGap: ComputedEdge[][] = [];
+	let gapSvgEls: Record<number, SVGSVGElement> = {};
+
+	const GAP_HEIGHT = 28;
+
+	function computeEdges() {
+		if (!containerEl || levels.length < 2) {
+			edgesByGap = [];
+			return;
+		}
+		const containerRect = containerEl.getBoundingClientRect();
+		const newEdges: ComputedEdge[][] = [];
+
+		for (let li = 0; li < levels.length - 1; li++) {
+			const gapEdges: ComputedEdge[] = [];
+			const svgEl = gapSvgEls[li];
+			if (!svgEl) {
+				newEdges.push([]);
+				continue;
+			}
+			const svgRect = svgEl.getBoundingClientRect();
+
+			for (const parentWid of levels[li]) {
+				const parentEl = chipEls[parentWid];
+				if (!parentEl) continue;
+				const pRect = parentEl.getBoundingClientRect();
+				const startX = pRect.left + pRect.width / 2 - svgRect.left;
+				const startY = pRect.bottom - svgRect.top;
+
+				const children = seen[parentWid]?.children;
+				if (!children) continue;
+				for (const childWid of children) {
+					if (!levels[li + 1]?.includes(childWid)) continue;
+					const childEl = chipEls[childWid];
+					if (!childEl) continue;
+					const cRect = childEl.getBoundingClientRect();
+					const endX = cRect.left + cRect.width / 2 - svgRect.left;
+					const endY = cRect.top - svgRect.top;
+
+					const gap = endY - startY;
+					const cp1y = startY + gap * 0.4;
+					const cp2y = endY - gap * 0.4;
+					gapEdges.push({
+						path: `M ${startX} ${startY} C ${startX} ${cp1y}, ${endX} ${cp2y}, ${endX} ${endY}`,
+						parentWid,
+						childWid
+					});
+				}
+			}
+			newEdges.push(gapEdges);
+		}
+		edgesByGap = newEdges;
+	}
+
+	function edgeOpacity(edge: ComputedEdge): number {
+		if (hovered == undefined) return 0.12;
+		if (edge.parentWid === hovered || edge.childWid === hovered) return 0.7;
+		return 0.04;
+	}
+
+	let resizeObserver: ResizeObserver | undefined;
+
+	onMount(() => {
+		resizeObserver = new ResizeObserver(() => computeEdges());
+		if (containerEl) resizeObserver.observe(containerEl);
+		return () => resizeObserver?.disconnect();
+	});
+
+	afterUpdate(() => computeEdges());
 </script>
 
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <!-- svelte-ignore a11y-mouse-events-have-key-events -->
 <!-- svelte-ignore a11y-click-events-have-key-events -->
-<div class="impact-dag">
-	{#if activeHighlightKeys.size > 0}
+<div class="impact-dag" bind:this={containerEl}>
+	{#if activeHighlightKeys.keys.size > 0 || activeHighlightKeys.hasAuthored}
 		<div class="legend">
-			{#each [...activeHighlightKeys] as key}
+			{#if activeHighlightKeys.hasAuthored}
+				<span class="legend-authored"><span class="legend-authored-swatch"></span> Authored</span>
+			{/if}
+			{#each [...activeHighlightKeys.keys] as key}
 				{@const def = HIGHLIGHT_DEFS[key]}
 				<span class="legend-badge {def.cls}">{def.label}</span>
 			{/each}
@@ -124,12 +222,15 @@
 					{@const highlights = paper
 						? getPaperHighlights(paper, sourceAuthorSemId, entityAtts)
 						: []}
+					{@const isAuthored = hasHighlight(highlights, 'authored')}
 					{@const isExpanded = expanded.has(wid)}
 					<div
 						class="chip"
 						class:is-hovered={isHovered}
 						class:is-related={isRelated}
+						class:is-authored={isAuthored}
 						class:dimmed
+						bind:this={chipEls[wid]}
 						on:click={() => toggleExpand(wid)}
 						on:mouseover={() => {
 							hovered = wid;
@@ -138,7 +239,7 @@
 							hovered = undefined;
 						}}
 					>
-						<div class="chip-title" class:truncate={!isExpanded}>
+						<div class="chip-title" class:clamp={!isExpanded}>
 							{#if isExpanded && paper?.doi}
 								<a href="https://doi.org/{paper.doi}" target="_blank" rel="noopener"
 									>{paper?.name ?? '(unknown)'}</a
@@ -150,8 +251,9 @@
 						<div class="chip-sub">
 							<span>{paper?.year}</span>
 							{#each highlights as hl}
-								{@const def = HIGHLIGHT_DEFS[hl]}
-								{#if def}<span class="badge {def.cls}">{def.label}</span>{/if}
+								{#if hl.key !== 'authored' && HIGHLIGHT_DEFS[hl.key]}
+									<span class="badge {HIGHLIGHT_DEFS[hl.key].cls}">{badgeLabel(hl)}</span>
+								{/if}
 							{/each}
 						</div>
 						{#if isExpanded && paper}
@@ -190,17 +292,24 @@
 			</div>
 		</div>
 		{#if i < levels.length - 1}
-			<div class="connector" aria-hidden="true">
-				<svg width="20" height="20" viewBox="0 0 20 20">
-					<path
-						d="M10 2 L10 14 M6 10 L10 14 L14 10"
-						stroke="currentColor"
-						stroke-width="1.5"
-						fill="none"
-						opacity="0.4"
-					/>
-				</svg>
-			</div>
+			<svg
+				class="edge-svg"
+				bind:this={gapSvgEls[i]}
+				style="height: {GAP_HEIGHT}px"
+				aria-hidden="true"
+			>
+				{#if edgesByGap[i]}
+					{#each edgesByGap[i] as edge}
+						<path
+							d={edge.path}
+							stroke="currentColor"
+							stroke-width="1.2"
+							fill="none"
+							opacity={edgeOpacity(edge)}
+						/>
+					{/each}
+				{/if}
+			</svg>
 		{/if}
 	{/each}
 </div>
@@ -209,6 +318,7 @@
 	.impact-dag {
 		display: flex;
 		flex-direction: column;
+		position: relative;
 	}
 
 	.legend {
@@ -216,6 +326,7 @@
 		flex-wrap: wrap;
 		gap: 6px;
 		margin-bottom: 12px;
+		align-items: center;
 	}
 
 	.legend-badge {
@@ -224,6 +335,24 @@
 		font-size: 0.6rem;
 		font-weight: 600;
 		letter-spacing: 0.03em;
+	}
+
+	.legend-authored {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		font-size: 0.6rem;
+		font-weight: 600;
+		letter-spacing: 0.03em;
+		color: rgb(80, 140, 220);
+	}
+
+	.legend-authored-swatch {
+		display: inline-block;
+		width: 3.5px;
+		height: 14px;
+		border-radius: 1px;
+		background: rgb(80, 140, 220);
 	}
 
 	.level-section {
@@ -254,10 +383,15 @@
 		border-radius: 4px;
 		border: 1px solid rgba(var(--color-range-15), 0.15);
 		background: rgba(var(--color-range-15), 0.03);
-		flex: 1 0 220px;
-		max-width: 380px;
+		flex: 1 0 150px;
+		max-width: 260px;
 		cursor: pointer;
 		transition: border-color 160ms, background-color 160ms, opacity 160ms;
+	}
+
+	.chip.is-authored {
+		border-left: 3.5px solid rgb(80, 140, 220);
+		background: rgba(80, 140, 220, 0.05);
 	}
 
 	.chip.dimmed {
@@ -270,9 +404,17 @@
 		box-shadow: 0 0 0 1px var(--color-theme-blue);
 	}
 
+	.chip.is-hovered.is-authored {
+		border-left-color: rgb(80, 140, 220);
+	}
+
 	.chip.is-related {
 		border-color: var(--color-theme-blue);
 		background: rgba(var(--color-range-15), 0.06);
+	}
+
+	.chip.is-related.is-authored {
+		border-left-color: rgb(80, 140, 220);
 	}
 
 	.chip-title {
@@ -280,10 +422,11 @@
 		line-height: 1.2;
 	}
 
-	.chip-title.truncate {
+	.chip-title.clamp {
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
 		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
 	}
 
 	.chip-title a {
@@ -338,30 +481,19 @@
 		text-transform: uppercase;
 	}
 
-	.hl-authored {
-		background: rgba(80, 140, 220, 0.15);
-		color: rgb(80, 140, 220);
-	}
-
 	.hl-hit {
 		background: rgba(var(--color-range-80), 0.15);
 		color: rgba(var(--color-range-80), 1);
 	}
 
-	.hl-science {
-		background: rgba(200, 50, 50, 0.15);
-		color: rgb(180, 40, 40);
+	.hl-prestigious {
+		background: rgba(180, 130, 40, 0.15);
+		color: rgb(180, 130, 40);
 	}
 
-	.hl-nature {
-		background: rgba(40, 160, 80, 0.15);
-		color: rgb(40, 140, 70);
-	}
-
-	.connector {
-		display: flex;
-		justify-content: center;
-		margin: 4px 0;
+	.edge-svg {
+		width: 100%;
+		overflow: visible;
 		color: var(--color-text);
 	}
 

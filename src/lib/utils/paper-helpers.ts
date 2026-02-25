@@ -1,5 +1,12 @@
 import type { Paper, PaperAuthorship, EntityAttsForLinks } from '$lib/tree-types';
 
+export const PRESTIGIOUS_SOURCE_SEM_IDS = new Set(['science', 'nature']);
+
+export type PaperHighlight = {
+	key: string; // 'authored' | 'hit' | 'prestigious'
+	label?: string; // for prestigious: actual source name
+};
+
 export function resolveAuthorName(
 	ship: PaperAuthorship,
 	entityAtts: EntityAttsForLinks,
@@ -77,15 +84,15 @@ export function getPaperHighlights(
 	paper: Paper,
 	sourceAuthorSemId?: string,
 	entityAtts?: EntityAttsForLinks
-): string[] {
-	const hl: string[] = [];
+): PaperHighlight[] {
+	const hl: PaperHighlight[] = [];
 	if (sourceAuthorSemId && entityAtts && isAuthored(paper, sourceAuthorSemId, entityAtts))
-		hl.push('authored');
-	if (paper.is_hit) hl.push('hit');
+		hl.push({ key: 'authored' });
+	if (paper.is_hit) hl.push({ key: 'hit' });
 	if (entityAtts) {
-		const sourceName = entityAtts.sources?.[String(paper.source)]?.name ?? '';
-		if (sourceName === 'Science') hl.push('science');
-		else if (sourceName === 'Nature') hl.push('nature');
+		const sourceAtt = entityAtts.sources?.[String(paper.source)];
+		if (sourceAtt?.semantic_id && PRESTIGIOUS_SOURCE_SEM_IDS.has(sourceAtt.semantic_id))
+			hl.push({ key: 'prestigious', label: sourceAtt.name });
 	}
 	return hl;
 }
