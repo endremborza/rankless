@@ -179,6 +179,14 @@ export type PathResp = {
 	doiMap: Record<number, string>;
 };
 
+export type PathToPapersResp = {
+	dag: RefTree;
+	relWorks: number[];
+	nameMap: Record<string, string>;
+	doiMap: Record<string, string>;
+	hitWids: number[];
+};
+
 export type OaPaperResp = {
 	title: string;
 	doi: string;
