@@ -987,6 +987,11 @@ async fn paper_profile(
             (StatusCode::NOT_FOUND, "no such entity").into_response(),
         );
     };
+    let hw_set: HashSet<WT> = astates.prep_exts[aid_sv.result_id]
+        .hit_papers
+        .iter()
+        .map(|hwid| gets.hit_papers[hwid.to_usize()])
+        .collect();
     let aid = aid_sv.dm_id;
 
     let direct_hit_wids: Vec<WT> = gets
@@ -1005,12 +1010,6 @@ async fn paper_profile(
 
     let mut conn = get_direct_links(gets, refed_set.clone(), &direct_hit_wids);
     extend_with_once_removed(gets, refed_set, &once_hit_wids, &mut conn);
-
-    let hw_set: HashSet<WT> = astates.prep_exts[aid]
-        .hit_papers
-        .iter()
-        .map(|hwid| gets.hit_papers[hwid.to_usize()])
-        .collect();
 
     let wids = hw_set
         .iter()
