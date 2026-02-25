@@ -22,3 +22,4 @@ __pycache__
 .ipynb_checkpoints
 draft*.ipynb
 notebooks/draft*
+svg-exports
