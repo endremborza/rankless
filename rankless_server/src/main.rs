@@ -178,6 +178,7 @@ struct PaperOut {
     yearly_cites: Option<Box<[u32]>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     biblio: Option<ET<WorkBiblios>>,
+    is_hit: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -189,6 +190,8 @@ struct PathToPapersResp {
     name_map: HashMap<WT, String>,
     #[serde(rename = "doiMap")]
     doi_map: HashMap<WT, String>,
+    #[serde(rename = "hitWids")]
+    hit_wids: Vec<WT>,
 }
 
 #[derive(Serialize, Clone)]
@@ -534,6 +537,7 @@ impl PreAttResultExtension {
                     source: gets.top_source(&wid.to_usize()).to_usize(),
                     biblio: None,
                     authors: Vec::new(),
+                    is_hit: true,
                 }
             })
             .collect();
@@ -1030,6 +1034,7 @@ async fn path_to_papers(
         src_works: Vec::new(),
         name_map: HashMap::new(),
         doi_map: HashMap::new(),
+        hit_wids: Vec::new(),
     };
 
     let Some(aid_sv) = astates.semantic_id_map.get(&author_sem_id) else {
@@ -1069,11 +1074,17 @@ async fn path_to_papers(
         doi_map.insert(wid, doi_hand.get_via_mut(&wu).unwrap_or_default());
     }
 
+    let hit_wids: Vec<WT> = direct_hit_wids
+        .iter()
+        .chain(once_hit_wids.iter())
+        .copied()
+        .collect();
     Json(PathToPapersResp {
         dag: conn.dag,
         src_works,
         name_map,
         doi_map,
+        hit_wids,
     })
 }
 
@@ -1111,44 +1122,10 @@ async fn works_get(
         if let Some(sem_val) = state.semantic_id_map.get(&psid) {
             if let Some(work_arr) = states.2.state.gets.works_of_entity(sem_val.dm_id, etype) {
                 if work_arr.len() > 0 {
-                    let mut satts = HashMap::new();
-                    let mut author_names = HashMap::new();
-                    let mut fhand = states.2.get_file_handle();
-                    let mut doi_hand = states.2.get_file_handle();
-                    let mut dan_hand = states.2.get_file_handle();
-                    let alabels = &states.2.state.att_union[Authors::NAME];
                     let start = min(pstart, work_arr.len() - 1);
-                    let papers: Vec<PaperOut> = work_arr[start..]
-                        .iter()
-                        .take(MAX_WORKS)
-                        .map(|wid| {
-                            let po = paper_out(
-                                wid.to_usize(),
-                                &states.2.state.gets,
-                                &mut fhand,
-                                &mut doi_hand,
-                                &mut dan_hand,
-                                &mut author_names,
-                                alabels,
-                            );
-                            add_nonwork_label(
-                                [po.source as u32].iter(),
-                                &mut satts,
-                                Sources::NAME,
-                                &states.2.state,
-                            );
-                            po
-                        })
-                        .collect();
-                    let labels =
-                        HashMap::from_iter([(Sources::NAME.to_string(), satts)].into_iter());
-                    let resp = PaperSetResp {
-                        papers,
-                        paper_count: work_arr.len(),
-                        labels,
-                        author_names,
-                    };
-
+                    let wids = work_arr[start..].iter().take(MAX_WORKS).map(WT::to_usize);
+                    let mut resp = get_paper_set_resp(wids, states.2.clone());
+                    resp.paper_count = work_arr.len();
                     return (cache_header(60), Json(resp).into_response());
                 }
             }
@@ -1160,17 +1137,69 @@ async fn works_get(
     )
 }
 
+fn get_paper_set_resp<I>(wids: I, trm: Arc<InstTrm>) -> PaperSetResp
+where
+    I: Iterator<Item = usize>,
+{
+    let mut source_atts = HashMap::new();
+    let mut author_names = HashMap::new();
+    let mut fhand = trm.get_file_handle();
+    let mut doi_hand = trm.get_file_handle();
+    let mut dan_hand = trm.get_file_handle();
+    let alabels = &trm.state.att_union[Authors::NAME];
+    let mut paper_count = 0;
+    let papers = wids
+        .map(|wid| {
+            let po = paper_out(
+                wid.to_usize(),
+                &trm.state.gets,
+                &mut fhand,
+                &mut doi_hand,
+                &mut dan_hand,
+                &mut author_names,
+                alabels,
+            );
+            add_nonwork_label(
+                [po.source as u32].iter(),
+                &mut source_atts,
+                Sources::NAME,
+                &trm.state,
+            );
+            paper_count += 1;
+            po
+        })
+        .collect();
+    let labels = HashMap::from_iter([(Sources::NAME.to_string(), source_atts)].into_iter());
+    PaperSetResp {
+        papers,
+        paper_count,
+        labels,
+        author_names,
+    }
+}
+
 fn paper_out(
     wid: usize,
     gets: &Getters,
     handler: &mut ManFileHandle,
     doi_handler: &mut VattReadingArcMap<WorkDois>,
     disc_name_handler: &mut VattReadingArcMap<DiscardedAuthorsNames>,
-    anames: &mut HashMap<String, String>,
-    alabels: &Box<[AttributeLabel]>,
+    full_author_name_map: &mut HashMap<String, String>,
+    filtered_author_labels: &Box<[AttributeLabel]>,
 ) -> PaperOut {
-    let name = handler.get_via_mut(&wid).unwrap_or("Unknown".to_string());
-    let doi = doi_handler.get_via_mut(&wid).unwrap_or("".to_string());
+    let mut yearly_cites = None;
+    let mut is_hit = false;
+    let (name, doi) = if let Some(hwid) = gets.hit_wid_map.get(&WT::from_usize(wid)) {
+        let name = String::from_utf8(gets.hit_names(*hwid).to_vec()).unwrap();
+        let doi = String::from_utf8(gets.hit_dois(*hwid).to_vec()).unwrap();
+        yearly_cites = Some(gets.hit_yearlies(*hwid).into());
+        is_hit = true;
+        (name, doi)
+    } else {
+        let name = handler.get_via_mut(&wid).unwrap_or("Unknown".to_string());
+        let doi = doi_handler.get_via_mut(&wid).unwrap_or("".to_string());
+        (name, doi)
+    };
     //this is similarly to String with hit paper names not automatically remakes
     //the var sized element from &[SubType]
     let biblio = Some(<ET<WorkBiblios> as ByteArrayInterface>::from_bytes(
@@ -1182,7 +1211,7 @@ fn paper_out(
         let (full_aid, aname) = if is_filterd {
             let aid = gets.fshipa(&ship_id);
             let full_aid = format!("F{aid}");
-            let aname = alabels[aid.to_usize()].name.clone();
+            let aname = filtered_author_labels[aid.to_usize()].name.clone();
             (full_aid, aname)
         } else {
             let aid = gets.dshipa(&ship_id);
@@ -1190,17 +1219,18 @@ fn paper_out(
             (format!("D{aid}"), name.unwrap_or("Unknown".to_string()))
         };
         authors.push(full_aid.clone());
-        anames.insert(full_aid, aname);
+        full_author_name_map.insert(full_aid, aname);
     }
     PaperOut {
         year: YearInterface::reverse(*gets.year(&wid)),
         name,
         doi,
         citations: gets.wccount(wid) as u32,
-        yearly_cites: None,
+        yearly_cites,
         biblio,
         source: gets.top_source(&wid).to_usize(),
         authors,
+        is_hit,
     }
 }
 
