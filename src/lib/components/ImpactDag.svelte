@@ -5,6 +5,7 @@
 		resolveSourceName,
 		getChipAuthors,
 		getPaperHighlights,
+		isAuthored,
 		type PaperHighlight
 	} from '$lib/utils/paper-helpers';
 
@@ -46,35 +47,22 @@
 		for (const [, meta] of Object.entries(seen)) {
 			for (const p of meta.parents) {
 				if (p !== 0 && seen[p])
-					seen[p].children.add(Number(Object.keys(seen).find((k) => seen[Number(k)] === meta)));
+					seen[p].children.add(
+						Number(Object.keys(seen).find((k) => seen[Number(k)] === meta))
+					);
 			}
 		}
 		return seen;
 	}
 
-	function getLevels(seen: SeenMap): number[][] {
-		const levels: number[][] = [];
-		for (const [k, v] of Object.entries(seen)) {
-			if (!levels[v.level]) levels[v.level] = [];
-			levels[v.level].push(Number(k));
-		}
-		return levels;
-	}
-
-	function levelLabel(i: number, total: number): string {
-		if (total === 1) return 'Papers in the Citation Network';
-		if (i === 0) return 'High-Impact Citing Papers';
-		if (i === total - 1) return 'Referenced Works';
-		return 'Citation Chain';
-	}
-
-	function hasHighlight(highlights: PaperHighlight[], key: string): boolean {
-		return highlights.some((h) => h.key === key);
-	}
-
 	function badgeLabel(hl: PaperHighlight): string {
 		if (hl.key === 'prestigious' && hl.label) return hl.label;
 		return HIGHLIGHT_DEFS[hl.key]?.label ?? hl.key;
+	}
+
+	function chipMaxW(wid: number): number {
+		const len = paperMap[wid]?.name?.length ?? 50;
+		return Math.min(280, Math.max(170, 130 + Math.round(len * 1.8)));
 	}
 
 	let hovered: number | undefined;
@@ -86,101 +74,118 @@
 	}
 
 	$: seen = computeSeen(dag);
-	$: levels = getLevels(seen);
+
+	$: groups = (() => {
+		const allWids = Object.keys(seen).map(Number);
+		if (!sourceAuthorSemId) return { impacted: allWids, authored: [] as number[] };
+		const authored: number[] = [];
+		const impacted: number[] = [];
+		for (const wid of allWids) {
+			const p = paperMap[wid];
+			if (p && isAuthored(p, sourceAuthorSemId, entityAtts)) authored.push(wid);
+			else impacted.push(wid);
+		}
+		return { impacted, authored };
+	})();
+
+	$: sections = (() => {
+		const hasBoth = groups.impacted.length > 0 && groups.authored.length > 0;
+		if (hasBoth)
+			return [
+				{ wids: groups.impacted, label: 'Citing Papers' },
+				{ wids: groups.authored, label: 'Referenced Works' }
+			];
+		return [{ wids: [...groups.impacted, ...groups.authored], label: '' }];
+	})();
+
 	$: relatedSet = (() => {
 		if (hovered == undefined) return new Set<number>();
 		const meta = seen[hovered];
 		if (!meta) return new Set<number>();
 		const s = new Set<number>();
-		meta.parents.forEach((p) => {
-			if (p !== 0) s.add(p);
-		});
-		meta.children.forEach((c) => s.add(c));
+		const pq = [...meta.parents].filter((p) => p !== 0);
+		while (pq.length) {
+			const p = pq.pop()!;
+			if (s.has(p)) continue;
+			s.add(p);
+			seen[p]?.parents.forEach((pp) => {
+				if (pp !== 0 && !s.has(pp)) pq.push(pp);
+			});
+		}
+		const cq = [...meta.children];
+		while (cq.length) {
+			const c = cq.pop()!;
+			if (s.has(c)) continue;
+			s.add(c);
+			seen[c]?.children.forEach((cc) => {
+				if (!s.has(cc)) cq.push(cc);
+			});
+		}
 		return s;
 	})();
 
-	$: activeHighlightKeys = (() => {
-		const keys = new Set<string>();
-		let hasAuthored = false;
-		for (const wids of levels)
-			for (const wid of wids) {
-				const p = paperMap[wid];
-				if (!p) continue;
-				for (const h of getPaperHighlights(p, sourceAuthorSemId, entityAtts)) {
-					if (h.key === 'authored') hasAuthored = true;
-					else if (HIGHLIGHT_DEFS[h.key]) keys.add(h.key);
-				}
-			}
-		return { keys, hasAuthored };
-	})();
-
 	// --- DAG edge computation ---
-	type ComputedEdge = {
-		path: string;
-		parentWid: number;
-		childWid: number;
-	};
+	type ComputedEdge = { path: string; parentWid: number; childWid: number };
 
 	let containerEl: HTMLDivElement;
 	let chipEls: Record<number, HTMLDivElement> = {};
-	let edgesByGap: ComputedEdge[][] = [];
-	let gapSvgEls: Record<number, SVGSVGElement> = {};
+	let edges: ComputedEdge[] = [];
+	let edgeSvgEl: SVGSVGElement;
 
 	const GAP_HEIGHT = 28;
 
 	function computeEdges() {
-		if (!containerEl || levels.length < 2) {
-			edgesByGap = [];
+		if (
+			!containerEl ||
+			!edgeSvgEl ||
+			groups.impacted.length === 0 ||
+			groups.authored.length === 0
+		) {
+			edges = [];
 			return;
 		}
-		const containerRect = containerEl.getBoundingClientRect();
-		const newEdges: ComputedEdge[][] = [];
+		const svgRect = edgeSvgEl.getBoundingClientRect();
+		const newEdges: ComputedEdge[] = [];
+		const authoredSet = new Set(groups.authored);
 
-		for (let li = 0; li < levels.length - 1; li++) {
-			const gapEdges: ComputedEdge[] = [];
-			const svgEl = gapSvgEls[li];
-			if (!svgEl) {
-				newEdges.push([]);
-				continue;
+		for (const impWid of groups.impacted) {
+			const el = chipEls[impWid];
+			if (!el) continue;
+			const pRect = el.getBoundingClientRect();
+			const startX = pRect.left + pRect.width / 2 - svgRect.left;
+			const startY = pRect.bottom - svgRect.top;
+
+			const children = seen[impWid]?.children;
+			if (!children) continue;
+			for (const childWid of children) {
+				if (!authoredSet.has(childWid)) continue;
+				const childEl = chipEls[childWid];
+				if (!childEl) continue;
+				const cRect = childEl.getBoundingClientRect();
+				const endX = cRect.left + cRect.width / 2 - svgRect.left;
+				const endY = cRect.top - svgRect.top;
+
+				const gap = endY - startY;
+				const cp1y = startY + gap * 0.4;
+				const cp2y = endY - gap * 0.4;
+				newEdges.push({
+					path: `M ${startX} ${startY} C ${startX} ${cp1y}, ${endX} ${cp2y}, ${endX} ${endY}`,
+					parentWid: impWid,
+					childWid
+				});
 			}
-			const svgRect = svgEl.getBoundingClientRect();
-
-			for (const parentWid of levels[li]) {
-				const parentEl = chipEls[parentWid];
-				if (!parentEl) continue;
-				const pRect = parentEl.getBoundingClientRect();
-				const startX = pRect.left + pRect.width / 2 - svgRect.left;
-				const startY = pRect.bottom - svgRect.top;
-
-				const children = seen[parentWid]?.children;
-				if (!children) continue;
-				for (const childWid of children) {
-					if (!levels[li + 1]?.includes(childWid)) continue;
-					const childEl = chipEls[childWid];
-					if (!childEl) continue;
-					const cRect = childEl.getBoundingClientRect();
-					const endX = cRect.left + cRect.width / 2 - svgRect.left;
-					const endY = cRect.top - svgRect.top;
-
-					const gap = endY - startY;
-					const cp1y = startY + gap * 0.4;
-					const cp2y = endY - gap * 0.4;
-					gapEdges.push({
-						path: `M ${startX} ${startY} C ${startX} ${cp1y}, ${endX} ${cp2y}, ${endX} ${endY}`,
-						parentWid,
-						childWid
-					});
-				}
-			}
-			newEdges.push(gapEdges);
 		}
-		edgesByGap = newEdges;
+		edges = newEdges;
 	}
 
 	function edgeOpacity(edge: ComputedEdge): number {
-		if (hovered == undefined) return 0.12;
-		if (edge.parentWid === hovered || edge.childWid === hovered) return 0.7;
-		return 0.04;
+		if (hovered == undefined) return 0.06;
+		if (
+			(edge.parentWid === hovered || relatedSet.has(edge.parentWid)) &&
+			(edge.childWid === hovered || relatedSet.has(edge.childWid))
+		)
+			return 0.5;
+		return 0.02;
 	}
 
 	let resizeObserver: ResizeObserver | undefined;
@@ -198,38 +203,27 @@
 <!-- svelte-ignore a11y-mouse-events-have-key-events -->
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <div class="impact-dag" bind:this={containerEl}>
-	{#if activeHighlightKeys.keys.size > 0 || activeHighlightKeys.hasAuthored}
-		<div class="legend">
-			{#if activeHighlightKeys.hasAuthored}
-				<span class="legend-authored"><span class="legend-authored-swatch"></span> Authored</span>
-			{/if}
-			{#each [...activeHighlightKeys.keys] as key}
-				{@const def = HIGHLIGHT_DEFS[key]}
-				<span class="legend-badge {def.cls}">{def.label}</span>
-			{/each}
-		</div>
-	{/if}
-
-	{#each levels as level, i}
+	{#each sections as section, si}
 		<div class="level-section">
-			<h4 class="level-label">{levelLabel(i, levels.length)}</h4>
+			{#if section.label}
+				<h4 class="level-label">{section.label}</h4>
+			{/if}
 			<div class="chips">
-				{#each level as wid}
+				{#each section.wids as wid}
 					{@const paper = paperMap[wid]}
 					{@const isHovered = hovered === wid}
 					{@const isRelated = relatedSet.has(wid)}
 					{@const dimmed = hovered != undefined && !isHovered && !isRelated}
 					{@const highlights = paper
-						? getPaperHighlights(paper, sourceAuthorSemId, entityAtts)
+						? getPaperHighlights(paper, undefined, entityAtts)
 						: []}
-					{@const isAuthored = hasHighlight(highlights, 'authored')}
 					{@const isExpanded = expanded.has(wid)}
 					<div
 						class="chip"
 						class:is-hovered={isHovered}
 						class:is-related={isRelated}
-						class:is-authored={isAuthored}
 						class:dimmed
+						style="max-width: {chipMaxW(wid)}px"
 						bind:this={chipEls[wid]}
 						on:click={() => toggleExpand(wid)}
 						on:mouseover={() => {
@@ -251,15 +245,23 @@
 						<div class="chip-sub">
 							<span>{paper?.year}</span>
 							{#each highlights as hl}
-								{#if hl.key !== 'authored' && HIGHLIGHT_DEFS[hl.key]}
-									<span class="badge {HIGHLIGHT_DEFS[hl.key].cls}">{badgeLabel(hl)}</span>
+								{#if HIGHLIGHT_DEFS[hl.key]}
+									<span class="badge {HIGHLIGHT_DEFS[hl.key].cls}"
+										>{badgeLabel(hl)}</span
+									>
 								{/if}
 							{/each}
 						</div>
 						{#if isExpanded && paper}
 							{@const source = resolveSourceName(paper.source, entityAtts)}
-							{@const sourceSemId = entityAtts.sources?.[String(paper.source)]?.semantic_id}
-							{@const authors = getChipAuthors(paper, entityAtts, discAuthorNames, 3)}
+							{@const sourceSemId =
+								entityAtts.sources?.[String(paper.source)]?.semantic_id}
+							{@const authors = getChipAuthors(
+								paper,
+								entityAtts,
+								discAuthorNames,
+								3
+							)}
 							<div class="chip-details">
 								<span>{paper.citations} citations</span>
 								{#if source}
@@ -291,24 +293,22 @@
 				{/each}
 			</div>
 		</div>
-		{#if i < levels.length - 1}
+		{#if si === 0 && sections.length > 1}
 			<svg
 				class="edge-svg"
-				bind:this={gapSvgEls[i]}
+				bind:this={edgeSvgEl}
 				style="height: {GAP_HEIGHT}px"
 				aria-hidden="true"
 			>
-				{#if edgesByGap[i]}
-					{#each edgesByGap[i] as edge}
-						<path
-							d={edge.path}
-							stroke="currentColor"
-							stroke-width="1.2"
-							fill="none"
-							opacity={edgeOpacity(edge)}
-						/>
-					{/each}
-				{/if}
+				{#each edges as edge}
+					<path
+						d={edge.path}
+						stroke="currentColor"
+						stroke-width="1.2"
+						fill="none"
+						opacity={edgeOpacity(edge)}
+					/>
+				{/each}
 			</svg>
 		{/if}
 	{/each}
@@ -319,40 +319,6 @@
 		display: flex;
 		flex-direction: column;
 		position: relative;
-	}
-
-	.legend {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 6px;
-		margin-bottom: 12px;
-		align-items: center;
-	}
-
-	.legend-badge {
-		padding: 2px 8px;
-		border-radius: 3px;
-		font-size: 0.6rem;
-		font-weight: 600;
-		letter-spacing: 0.03em;
-	}
-
-	.legend-authored {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		font-size: 0.6rem;
-		font-weight: 600;
-		letter-spacing: 0.03em;
-		color: rgb(80, 140, 220);
-	}
-
-	.legend-authored-swatch {
-		display: inline-block;
-		width: 3.5px;
-		height: 14px;
-		border-radius: 1px;
-		background: rgb(80, 140, 220);
 	}
 
 	.level-section {
@@ -383,15 +349,9 @@
 		border-radius: 4px;
 		border: 1px solid rgba(var(--color-range-15), 0.15);
 		background: rgba(var(--color-range-15), 0.03);
-		flex: 1 0 150px;
-		max-width: 260px;
+		flex: 1 0 130px;
 		cursor: pointer;
 		transition: border-color 160ms, background-color 160ms, opacity 160ms;
-	}
-
-	.chip.is-authored {
-		border-left: 3.5px solid rgb(80, 140, 220);
-		background: rgba(80, 140, 220, 0.05);
 	}
 
 	.chip.dimmed {
@@ -404,17 +364,9 @@
 		box-shadow: 0 0 0 1px var(--color-theme-blue);
 	}
 
-	.chip.is-hovered.is-authored {
-		border-left-color: rgb(80, 140, 220);
-	}
-
 	.chip.is-related {
 		border-color: var(--color-theme-blue);
 		background: rgba(var(--color-range-15), 0.06);
-	}
-
-	.chip.is-related.is-authored {
-		border-left-color: rgb(80, 140, 220);
 	}
 
 	.chip-title {
@@ -487,8 +439,8 @@
 	}
 
 	.hl-prestigious {
-		background: rgba(180, 130, 40, 0.15);
-		color: rgb(180, 130, 40);
+		background: rgba(120, 80, 180, 0.15);
+		color: rgb(120, 80, 180);
 	}
 
 	.edge-svg {
