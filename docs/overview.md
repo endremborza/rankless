@@ -23,7 +23,7 @@ Each searchable entity has a hero page built around **production** (its papers) 
 
 ## Architecture
 
-**Processing (`rankless_rs`):** Ingests OpenAlex/Scopus CSV dumps through a six-step pipeline (entity mapping → attribute init → link derivation). Uses `dmove`/`dmove_macro` metaprogramming to generate Rust source tailored to the dataset, producing optimized binary data files.
+**Processing (`rankless_rs`):** Ingests OpenAlex/Scopus CSV dumps through a six-step pipeline (entity mapping → attribute init → link derivation). Uses `dmove`/`dmove_macro` metaprogramming to generate Rust source tailored to the dataset, producing optimized binary data files. See `docs/metaprogramming-make.md` for the build orchestration details.
 
 **Backend (`rankless_server`):** Axum HTTP server (port 3038) over pre-processed binary data. Custom partial-string search (`muwo_search`). Proactive cache pre-warming (`pyscripts/cache_prompting.py`) for high-traffic entities. KD-tree for institution geo queries.
 
