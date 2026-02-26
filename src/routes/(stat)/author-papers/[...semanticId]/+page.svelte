@@ -14,8 +14,9 @@
 	};
 
 	$: papers = data.profile?.papers.papers ?? [];
-	$: entityAtts = data.profile?.papers.entity_atts ?? {};
-	$: discAuthorNames = data.profile?.papers.disc_author_names ?? {};
+	$: entityAtts = data.profile?.papers.entityAtts ?? {};
+	$: discAuthorNames = data.profile?.papers.discAuthorNames ?? {};
+	$: authorOaIds = data.profile?.papers.authorOaIds ?? {};
 	$: authoredPapers = papers.filter((p) => isAuthored(p, data.semanticId, entityAtts));
 	$: paperMap = data.profile ? buildPaperMap(papers) : {};
 
@@ -56,7 +57,9 @@
 			{paperMap}
 			{entityAtts}
 			{discAuthorNames}
+			{authorOaIds}
 			sourceAuthorSemId={data.semanticId}
+			authorName={data.name}
 		/>
 	{/if}
 </div>
