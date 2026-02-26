@@ -17,7 +17,9 @@
 	$: entityAtts = data.profile?.papers.entityAtts ?? {};
 	$: discAuthorNames = data.profile?.papers.discAuthorNames ?? {};
 	$: authorOaIds = data.profile?.papers.authorOaIds ?? {};
-	$: authoredPapers = papers.filter((p) => isAuthored(p, data.semanticId, entityAtts));
+	$: authoredHitPapers = papers.filter(
+		(p) => isAuthored(p, data.semanticId, entityAtts) && p.yearlyCites && p.yearlyCites.length > 0
+	);
 	$: paperMap = data.profile ? buildPaperMap(papers) : {};
 
 	$: dagEmpty =
@@ -40,10 +42,10 @@
 	<p class="stats">{data.paperText} · {data.citeText}</p>
 </div>
 
-{#if authoredPapers.length > 0}
+{#if authoredHitPapers.length > 0}
 	<div class="shadowy padded marged">
-		<h2>Papers</h2>
-		<PaperRainbow papers={authoredPapers} {entityAtts} {discAuthorNames} />
+		<h2>Standout Papers</h2>
+		<PaperRainbow papers={authoredHitPapers} {entityAtts} {discAuthorNames} />
 	</div>
 {/if}
 
