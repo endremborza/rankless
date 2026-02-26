@@ -17,5 +17,8 @@ opt-level = 3
 codegen-units = 1
 lto = true
 
+[profile.gen-debug]
+inherits = "dev"
+
 [build]
 rustflags = ["-C", "target-cpu=native"]

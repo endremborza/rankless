@@ -28,7 +28,10 @@ enum Commands {
         #[arg(short, long)]
         step: String,
     },
-    MakeSetup,
+    MakeSetup {
+        #[arg(short, long, default_value = "false")]
+        fast: bool,
+    },
 }
 
 fn main() {
@@ -46,8 +49,6 @@ fn main() {
     let src_path = pack_path.join("src");
     let steps_mod_dir = src_path.join(STEPS_MODULE);
     let gen_mod_dir = src_path.join(GEN_MODULE);
-    let make_path = pack_path.join("Makefile");
-
     let mut steps: Vec<String> = steps_mod_dir
         .read_dir()
         .unwrap()
@@ -68,8 +69,14 @@ fn main() {
     match &cli.command.unwrap() {
         PreBuild { step } => build_ends(&steps, step, &src_path, true),
         PostRun { step } => build_ends(&steps, step, &src_path, false),
-        MakeSetup => {
+        MakeSetup { fast } => {
             create_dir_all(&gen_mod_dir).unwrap();
+            let (profile_flag, rustflags_prefix, out_file) = if *fast {
+                ("--profile gen-debug", "RUSTFLAGS=\"\" ", "Makefile.fast")
+            } else {
+                ("--release", "", "Makefile")
+            };
+            let out_path = pack_path.join(out_file);
             let mut last_gen = "".to_string();
             let mut make_comms = Vec::new();
             for step in steps.iter() {
@@ -78,8 +85,8 @@ fn main() {
                 make_comms.push(format!(
                     "{gen_mod}: {step_mod} {last_gen}
 {}
-\tcargo build {cargo_param} --release
-\tcargo run {cargo_param} --release -- {step}
+\t{rustflags_prefix}cargo build {cargo_param} {profile_flag}
+\t{rustflags_prefix}cargo run {cargo_param} {profile_flag} -- {step}
 {}
 ",
                     comm_line("pre-build", &pack, step),
@@ -88,7 +95,7 @@ fn main() {
                 last_gen = gen_mod;
             }
             let make_content = make_comms.join("\n");
-            std::fs::write(&make_path, make_content).unwrap();
+            std::fs::write(&out_path, make_content).unwrap();
         }
     }
 }
