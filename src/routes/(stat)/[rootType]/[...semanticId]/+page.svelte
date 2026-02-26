@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { APP_NAME, REL_TYPES } from '$lib/constants';
-	import { prettifyRoot } from '$lib/text-format-util';
+	import { prettifyRoot, formatNumber, pluralize } from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
@@ -30,7 +30,13 @@
 	};
 
 	let showIndexedCiteText = false;
+	let showRawStatsText = false;
 	let ticksHeight: number;
+
+	$: rawPapers =
+		data.conf.rootType === 'authors' ? parseInt(data.view.meta?.rawPapers ?? '0') || 0 : 0;
+	$: rawCites =
+		data.conf.rootType === 'authors' ? parseInt(data.view.meta?.rawCites ?? '0') || 0 : 0;
 
 	function getAuthorStats(view: tt.View) {
 		let authorNames = [];
@@ -63,7 +69,7 @@
 	<link rel="canonical" href={tf.externalEntityUrl(data.conf.rootType, data.conf.semanticId)} />
 </svelte:head>
 
-<div id="head-row" class="shadowy padded marged">
+<div id="head-row" class="shadowy padded marged main-block">
 	<div id="name-block">
 		<HoverBlock
 			show={showIndexedCiteText}
@@ -72,14 +78,58 @@
 			Citations made by non-retracted papers categorized as "article", "book", or "review" that have
 			received at least one citation.
 		</HoverBlock>
+		{#if rawPapers > 0 || rawCites > 0}
+			<HoverBlock
+				show={showRawStatsText}
+				style={'top: 20svh; left:20vw; width: 60vw;max-width: 550px'}
+			>
+				Total papers and citations as reported by OpenAlex for this author, across all work types
+				and without quality filters. The counts above are filtered to non-retracted articles, books,
+				and reviews that have received at least one citation.
+			</HoverBlock>
+		{/if}
+
+		<!-- svelte-ignore a11y-mouse-events-have-key-events -->
 		<div id="nametag">
 			<h1>{data.view.name}</h1>
-			<div>
-				<span>{data.paperText}</span>
-				and
-				<span><a href="/#indexed-citation" target="blank_">{data.citeText}</a></span>
-				<HoverI bind:hoverToggle={showIndexedCiteText} />.
-			</div>
+			{#if rawPapers > 0 || rawCites > 0}
+				<div>
+					<span
+						>{pluralize('total paper', rawPapers)} · {pluralize('total citation', rawCites)}</span
+					>
+					<br />
+					<span class="indexed-subtext"
+						>{pluralize('paper', data.view.papers)}, {pluralize('citation', data.view.citations)}
+						<a
+							on:mouseover={() => {
+								showIndexedCiteText = true;
+							}}
+							on:mouseleave={() => {
+								showIndexedCiteText = false;
+							}}
+							href="/#indexed-citation"
+							target="blank_">indexed</a
+						></span
+					>
+				</div>
+			{:else}
+				<div>
+					<span>{data.paperText}</span>
+					and
+					<span
+						><a
+							on:mouseover={() => {
+								showIndexedCiteText = true;
+							}}
+							on:mouseleave={() => {
+								showIndexedCiteText = false;
+							}}
+							href="/#indexed-citation"
+							target="blank_">{data.citeText}</a
+						></span
+					>
+				</div>
+			{/if}
 		</div>
 		<div id="about">
 			<h2>About</h2>
@@ -98,23 +148,23 @@
 				fullHeight={ticksHeight}
 			/>
 		</div>
+		{#if data.conf.rootType === 'authors' && data.view.meta?.anyHits === '1'}
+			<a href="/author-papers/{data.conf.semanticId}" class="explore-card shadowy marged padded">
+				<div>
+					<h3>Paper Profile & Citation Paths</h3>
+					<p>
+						Explore {data.view.name}'s most cited publications and how their work connects to other
+						scholars through citations.
+					</p>
+				</div>
+				<span class="explore-arrow">&#8594;</span>
+			</a>
+		{/if}
 	</div>
 </div>
-{#if data.conf.rootType === 'authors' && data.view.meta?.anyHits === '1'}
-	<a href="/author-papers/{data.conf.semanticId}" class="explore-card shadowy marged">
-		<div>
-			<h3>Paper Profile & Citation Paths</h3>
-			<p>
-				Explore {data.view.name}'s most cited publications and how their work connects
-				to other scholars through citations.
-			</p>
-		</div>
-		<span class="explore-arrow">&#8594;</span>
-	</a>
-{/if}
-<div class="comp-basis">
+<div class="comp-basis main-block">
 	{#if showAuthorNetwork}
-		<div class="shadowy padded marged heighted" id="author-network">
+		<div class="shadowy padded marged heighted main-block" id="author-network">
 			<AuthorNetwork
 				nodes={authorStats.authorNames}
 				edgeWeights={authorStats.edgeWeights}
@@ -123,7 +173,7 @@
 			/>
 		</div>
 	{/if}
-	<div class="shadowy padded marged" id="tree">
+	<div class="shadowy padded marged main-block" id="tree">
 		<FullQc
 			rootName={data.view.name}
 			prefixText={data.prefixText}
@@ -137,7 +187,7 @@
 		/>
 	</div>
 	{#if showsSubfields}
-		<div class="shadowy padded marged heighted" id="research-space">
+		<div class="shadowy padded marged heighted main-block" id="research-space">
 			<ConceptMap
 				rootId={data.view.dmId}
 				{indsByEntityType}
@@ -148,7 +198,7 @@
 		</div>
 	{/if}
 	{#if showsCountry}
-		<div class="shadowy padded marged heighted" id="world-map">
+		<div class="shadowy padded marged heighted main-block" id="world-map">
 			<WorldMapSvg
 				rootId={data.view.dmId}
 				{indsByEntityType}
@@ -238,6 +288,9 @@
 
 	#era {
 		flex: 4;
+		display: flex;
+		flex-direction: column;
+		justify-content: space-evenly;
 	}
 
 	#era > div {
@@ -283,16 +336,16 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 16px;
-		padding: 10px 16px;
 		text-decoration: none;
 		color: var(--color-text);
-		border-left: 4px solid var(--color-theme-blue);
+		background-color: rgba(var(--color-range-40), 0.08);
+		border-right: 5px solid var(--color-theme-blue);
 		transition: border-color 0.2s, background-color 0.2s;
 	}
 
 	.explore-card:hover {
 		border-left-color: var(--highlight-text);
-		background-color: rgba(var(--color-range-15), 0.06);
+		background-color: rgba(var(--color-range-15), 0.16);
 	}
 
 	.explore-card h3 {
@@ -308,14 +361,25 @@
 	}
 
 	.explore-arrow {
-		font-size: 1.4rem;
-		opacity: 0.35;
+		font-size: 1.8rem;
+		opacity: 0.95;
+		font-weight: 800;
 		flex-shrink: 0;
+		color: var(--color-theme-blue);
 		transition: opacity 0.2s, transform 0.2s;
 	}
 
 	.explore-card:hover .explore-arrow {
-		opacity: 0.7;
+		opacity: 1;
 		transform: translateX(4px);
+	}
+
+	.indexed-subtext {
+		opacity: 0.8;
+		font-size: 0.8rem;
+	}
+
+	.main-block {
+		margin-bottom: 0px;
 	}
 </style>
