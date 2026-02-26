@@ -122,6 +122,18 @@ where
     ET<L::Target>: UnsignedNumber,
     LIF: Iterator<Item = L::T>,
 {
+    let inverted = get_inverted_multi::<L, LIF>(interface, ignore_zero);
+    stowage.add_barr::<VarAttBuilder, _>(inverted, name);
+    stowage.declare_link::<L::Target, L::Source>(name);
+}
+
+pub fn get_inverted_multi<L, LIF>(interface: LIF, ignore_zero: bool) -> Box<[Box<[ET<L::Source>]>]>
+where
+    L: Entity<T = Box<[ET<L::Target>]>> + Link,
+    ET<L::Source>: UnsignedNumber,
+    ET<L::Target>: UnsignedNumber,
+    LIF: Iterator<Item = L::T>,
+{
     let mut inverted = init_empty_slice::<L::Target, Vec<<L::Source as Entity>::T>>();
     for (source_id, target_slice) in interface.enumerate() {
         for target_id in target_slice.iter() {
@@ -132,14 +144,11 @@ where
             inverted[tidu].push(<L::Source as Entity>::T::from_usize(source_id))
         }
     }
-    stowage.add_iter_owned::<VarAttBuilder, _, _>(
-        inverted
-            .into_vec()
-            .into_iter()
-            .map(|e| e.into_boxed_slice()),
-        Some(name),
-    );
-    stowage.declare_link::<L::Target, L::Source>(name);
+    inverted
+        .into_vec()
+        .into_iter()
+        .map(|e| e.into_boxed_slice())
+        .collect()
 }
 
 pub fn collapse_links<Link1, Link2>(stowage: &mut Stowage, name: &str)
