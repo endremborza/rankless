@@ -40,7 +40,7 @@ use rankless_rs::{
     },
     steps::{
         a1_entity_mapping::{Qs, RawYear, YearInterface, Years},
-        derive_links2::{EraRec, InstRelation},
+        derive_links2::EraRec,
     },
     Stowage,
 };
@@ -151,18 +151,6 @@ struct NameState {
 struct SemVal {
     result_id: usize,
     dm_id: usize,
-}
-
-#[derive(Serialize, Clone)]
-struct EntityRelationshipOut {
-    start: u16,
-    end: u16,
-    #[serde(rename = "semId")]
-    inst_sem_id: String,
-    #[serde(rename = "name")]
-    inst_name: String,
-    papers: u16,
-    citations: u32,
 }
 
 #[derive(Serialize, Clone)]
@@ -648,36 +636,6 @@ impl EntityDescription {
         Self {
             name: <E as Entity>::NAME.to_string(),
             count,
-        }
-    }
-}
-
-impl EntityRelationshipOut {
-    fn from(v: &InstRelation, iif: &RootInterfaces<Institutions>, gets: &Getters) -> Self {
-        let iid = v.inst.to_usize();
-        let inst_name = iif.names.0.get(iid).unwrap().clone();
-        let mut inst_sem_id = iif.sem_ids.0.get(iid).unwrap().clone();
-
-        let i_sr = SearchResult::new(
-            iid,
-            inst_name.to_string(),
-            "".to_string(),
-            inst_sem_id.to_string(),
-            None,
-            iif,
-            gets,
-        );
-        if !Institutions::filter_sr(&i_sr, gets, iif) {
-            inst_sem_id = "".to_string();
-        }
-
-        Self {
-            start: YearInterface::reverse(v.start),
-            end: YearInterface::reverse(v.end),
-            inst_name,
-            inst_sem_id,
-            citations: v.citations,
-            papers: v.papers,
         }
     }
 }
@@ -1278,8 +1236,4 @@ where
             })
         }
     });
-}
-
-fn coord_dist(l: &Coords, r: &Coords) -> f64 {
-    (l[0] - r[0]).powf(2.0) + (l[1] - r[1]).powf(2.0)
 }

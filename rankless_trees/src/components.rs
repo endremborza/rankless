@@ -215,22 +215,7 @@ pub struct SubfieldCountryInstSubfieldByRef<'a> {
     gets: &'a Getters,
 }
 
-pub struct InstSubfieldCountryInstByRef<'a> {
-    ref_wid: &'a WT,
-    sci_top: Peekable<SubfieldCountryInstByRef<'a>>,
-    ref_insts: Iter<'a, ET<Institutions>>,
-    gets: &'a Getters,
-}
-
 pub struct RefSubCiSubTByRef<'a> {
-    ref_wid: &'a WT,
-    ref_sfs: Peekable<Iter<'a, ET<Subfields>>>,
-    cit_wids: Peekable<Iter<'a, ET<Works>>>,
-    cit_topics: Option<Iter<'a, ET<Topics>>>,
-    gets: &'a Getters,
-}
-
-pub struct RefSubSourceTop<'a> {
     ref_wid: &'a WT,
     ref_sfs: Peekable<Iter<'a, ET<Subfields>>>,
     cit_wids: Peekable<Iter<'a, ET<Works>>>,
@@ -696,23 +681,6 @@ impl<'a> RefWorkBasedIter<'a> for SubfieldCountryInstSubfieldByRef<'a> {
     }
 }
 
-impl<'a> RefWorkBasedIter<'a> for InstSubfieldCountryInstByRef<'a> {
-    type SB = (
-        IntX<Institutions, 0, true>,
-        IntX<Subfields, 1, true>,
-        IntX<Countries, 2, false>,
-        IntX<Institutions, 2, false>,
-    );
-    fn new(ref_wid: &'a ET<Works>, gets: &'a Getters) -> Self {
-        Self {
-            ref_wid,
-            ref_insts: gets.winsts(*ref_wid).iter(),
-            sci_top: SubfieldCountryInstByRef::new(ref_wid, gets).peekable(),
-            gets,
-        }
-    }
-}
-
 impl<'a> RefWorkBasedIter<'a> for RefSubCiSubTByRef<'a> {
     type SB = (
         IntX<Subfields, 0, true>,
@@ -742,23 +710,6 @@ impl<'a> RefWorkBasedIter<'a> for CiteSubSourceTop<'a> {
             cit_wids: gets.citing(*ref_wid).iter().peekable(),
             cit_topics: None,
             cit_sfs: None,
-        }
-    }
-}
-
-impl<'a> RefWorkBasedIter<'a> for RefSubSourceTop<'a> {
-    type SB = (
-        IntX<Subfields, 0, true>,
-        IntX<Sources, 1, false>,
-        IntX<Topics, 1, false>,
-    );
-    fn new(ref_wid: &'a WT, gets: &'a Getters) -> Self {
-        Self {
-            ref_wid,
-            gets,
-            cit_wids: gets.citing(*ref_wid).iter().peekable(),
-            cit_topics: None,
-            ref_sfs: gets.wsubfields(*ref_wid).iter().peekable(),
         }
     }
 }
@@ -1026,22 +977,6 @@ impl<'a> Iterator for SubfieldCountryInstSubfieldByRef<'a> {
     }
 }
 
-impl<'a> Iterator for InstSubfieldCountryInstByRef<'a> {
-    type Item = RwbiItem<'a, Self>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let top_tup = reg_peek!(self.sci_top);
-            let ref_inst = reg_next!(
-                self.ref_insts,
-                self.sci_top,
-                self.gets.winsts(*self.ref_wid)
-            );
-            return Some((ref_inst, top_tup.0, top_tup.1, top_tup.2, top_tup.3));
-        }
-    }
-}
-
 impl<'a> Iterator for RefSubCiSubTByRef<'a> {
     type Item = RwbiItem<'a, Self>;
 
@@ -1051,20 +986,6 @@ impl<'a> Iterator for RefSubCiSubTByRef<'a> {
             let cit_wid = reg_peek!(self.cit_wids, self.ref_sfs, self.gets.citing(*self.ref_wid));
             let cit_topic = opt_next!(self.cit_topics, self.cit_wids, self.gets.wtopics(*cit_wid));
             return Some((*ref_sf, *self.gets.tsuf(cit_topic), *cit_topic, *cit_wid));
-        }
-    }
-}
-
-impl<'a> Iterator for RefSubSourceTop<'a> {
-    type Item = RwbiItem<'a, Self>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let ref_sf = reg_peek!(self.ref_sfs);
-            let cit_wid = reg_peek!(self.cit_wids, self.ref_sfs, self.gets.citing(*self.ref_wid));
-            let cit_source = self.gets.top_source(self.ref_wid);
-            let cit_topic = opt_next!(self.cit_topics, self.cit_wids, self.gets.wtopics(*cit_wid));
-            return Some((*ref_sf, *cit_source, *cit_topic, *cit_wid));
         }
     }
 }
