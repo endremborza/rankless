@@ -36,7 +36,7 @@ const DIRECT_MULTIPLIER: u64 = 3;
 const NOBEL_MULTIPLIER: u64 = 2;
 const TOP_HIT_PAPERS: usize = 50;
 
-fn citing_score(cite_count: u16, stats: ([u32; 2], u8)) -> u64 {
+fn citing_score(cite_count: ET<WorkCitingCounts>, stats: ([u32; 2], u8)) -> u64 {
     let ([h, median], q) = stats;
     let prestige = (5u32.saturating_sub(q as u32)) * h * 2 + median * 3;
     cite_count as u64 * CITE_COUNT_WEIGHT + prestige as u64 * SOURCE_PRESTIGE_WEIGHT + 1
