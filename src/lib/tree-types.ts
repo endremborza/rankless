@@ -83,11 +83,13 @@ export type Paper = {
 export type EntityAttLabel = { name: string; semantic_id: string; spec_baseline: number };
 export type EntityAttsForLinks = Record<string, Record<string, EntityAttLabel>>;
 
+export type AuthorMeta = { prize: number; year: number };
+
 export type PaperSetResp = {
 	papers: Paper[];
 	entityAtts: EntityAttsForLinks;
 	discAuthorNames: Record<string, string>;
-	authorOaIds: Record<string, number>;
+	authorsMeta: Record<string, AuthorMeta>;
 };
 
 export type PaperProfileResp = {

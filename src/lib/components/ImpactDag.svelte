@@ -9,14 +9,13 @@
 		type PaperHighlight
 	} from '$lib/utils/paper-helpers';
 	import { computeSeen } from '$lib/utils/dag-builder';
-	import { getNobelOaIds } from '$lib/utils/nobel';
 	import { pluralize } from '$lib/text-format-util';
 
 	export let dag: RefTree;
 	export let paperMap: Record<number, Paper>;
 	export let entityAtts: EntityAttsForLinks;
 	export let discAuthorNames: Record<string, string>;
-	export let authorOaIds: Record<string, number> = {};
+	export let authorsMeta: Record<string, { prize: number; year: number }> = {};
 	export let sourceAuthorSemId: string | undefined = undefined;
 	export let authorName: string = '';
 
@@ -37,8 +36,6 @@
 	}
 
 	// --- Nobel ---
-	let nobelOaIds: Set<number> = new Set();
-
 	$: pageAuthorDmId = (() => {
 		if (!sourceAuthorSemId) return undefined;
 		const authors = entityAtts['authors'];
@@ -49,18 +46,14 @@
 		return undefined;
 	})();
 
-	$: pageAuthorOaId = pageAuthorDmId ? authorOaIds[pageAuthorDmId] : undefined;
-	$: pageAuthorIsNobel = pageAuthorOaId != null && nobelOaIds.has(pageAuthorOaId);
+	$: pageAuthorIsNobel = pageAuthorDmId != null && (authorsMeta[pageAuthorDmId]?.prize ?? 0) > 0;
 
 	function hasNobelCoauthor(paper: Paper): boolean {
-		if (nobelOaIds.size === 0) return false;
 		for (const ship of paper.authorships) {
 			if (ship.author[0] !== 'F') continue;
 			const dmId = ship.author.slice(1);
-			const oaId = authorOaIds[dmId];
-			if (oaId == null) continue;
-			if (pageAuthorIsNobel && oaId === pageAuthorOaId) continue;
-			if (nobelOaIds.has(oaId)) return true;
+			if (pageAuthorIsNobel && dmId === pageAuthorDmId) continue;
+			if ((authorsMeta[dmId]?.prize ?? 0) > 0) return true;
 		}
 		return false;
 	}
@@ -197,7 +190,6 @@
 	onMount(() => {
 		resizeObserver = new ResizeObserver(() => computeEdges());
 		if (containerEl) resizeObserver.observe(containerEl);
-		getNobelOaIds().then((ids) => (nobelOaIds = ids));
 		return () => resizeObserver?.disconnect();
 	});
 

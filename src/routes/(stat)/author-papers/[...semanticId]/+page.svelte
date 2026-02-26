@@ -16,7 +16,7 @@
 	$: papers = data.profile?.papers.papers ?? [];
 	$: entityAtts = data.profile?.papers.entityAtts ?? {};
 	$: discAuthorNames = data.profile?.papers.discAuthorNames ?? {};
-	$: authorOaIds = data.profile?.papers.authorOaIds ?? {};
+	$: authorsMeta = data.profile?.papers.authorsMeta ?? {};
 	$: authoredHitPapers = papers.filter(
 		(p) => isAuthored(p, data.semanticId, entityAtts) && p.yearlyCites && p.yearlyCites.length > 0
 	);
@@ -59,7 +59,7 @@
 			{paperMap}
 			{entityAtts}
 			{discAuthorNames}
-			{authorOaIds}
+			{authorsMeta}
 			sourceAuthorSemId={data.semanticId}
 			authorName={data.name}
 		/>
