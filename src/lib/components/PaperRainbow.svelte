@@ -3,7 +3,7 @@
 	import { getColor, getColorArr } from '$lib/style-util';
 	import { formatNumber } from '$lib/text-format-util';
 	import type * as tt from '$lib/tree-types';
-	import { resolveAuthorName, resolveSourceName } from '$lib/utils/paper-helpers';
+	import { resolveAuthorNameOrNull, resolveSourceName } from '$lib/utils/paper-helpers';
 	import { onMount } from 'svelte';
 
 	export let papers: tt.Paper[];
@@ -135,12 +135,15 @@
 
 	function shortAuthors(paper: tt.Paper): string {
 		if (!paper.authorships?.length) return '';
-		return (
-			paper.authorships
-				.slice(0, 2)
-				.map((s) => resolveAuthorName(s, entityAtts, discAuthorNames))
-				.join(', ') + (paper.authorships.length > 2 ? ' et al.' : '')
-		);
+		const total = paper.authorships.length;
+		const known: string[] = [];
+		for (const s of paper.authorships) {
+			if (known.length >= 2) break;
+			const name = resolveAuthorNameOrNull(s, entityAtts, discAuthorNames);
+			if (name !== null) known.push(name);
+		}
+		if (known.length === 0) return `${total} author${total > 1 ? 's' : ''}`;
+		return known.join(', ') + (total > known.length ? ' et al.' : '');
 	}
 
 	onMount(() => {
