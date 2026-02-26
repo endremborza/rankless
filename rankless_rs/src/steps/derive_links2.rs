@@ -11,7 +11,7 @@ use std::{
 };
 
 use dmove::{
-    reverse_prefixed_n, ByteFixArrayInterface, DowncastingBuilder, Entity, FixAttBuilder,
+    reverse_prefixed_n, BigId, ByteFixArrayInterface, DowncastingBuilder, Entity, FixAttBuilder,
     MarkedAttribute, NamespacedEntity, UnsignedNumber, VarAttBuilder, VarAttIterator,
     VariableSizeAttribute, VattArrPair, ET, MAA,
 };
@@ -42,11 +42,36 @@ use crate::{
     },
     semantic_ids::SemCsvObj,
     steps::{
-        a1_entity_mapping::{Qs, Years},
+        a1_entity_mapping::{Qs, RawYear, YearInterface, Years},
         derive_links1::{multi_inverter, InvertedMultiLink},
     },
     CiteCountMarker, QuickestBox, ReadIter, Stowage,
 };
+
+//TODO: move this all to a2
+
+use serde::Deserialize;
+#[derive(Deserialize)]
+struct NobelEntry {
+    oa_id: BigId,
+    category: u8,
+    year: RawYear,
+}
+impl Stowage {
+    fn add_nobels(&self) {
+        let aif = self.get_entity_interface::<Authors, QuickMap>();
+        let mut author_nobels = init_empty_slice::<Authors, (u8, ET<Years>)>();
+        for ne in self.read_csv_objs::<NobelEntry>(Authors::NAME, "nobel") {
+            if let Some(aidt) = aif.get(&ne.oa_id) {
+                if ne.year > MIN_YEAR as RawYear {
+                    author_nobels[aidt.to_usize()] = (ne.category, YearInterface::parse(ne.year));
+                }
+            }
+        }
+        self.add_barr::<FixAttBuilder, _>(author_nobels, "author-nobels");
+    }
+}
+
 pub const N_RELS: usize = 8;
 pub const ERA_SIZE: usize = 11;
 pub const MAX_YEAR: usize = (FINAL_YEAR - START_YEAR) as usize;
@@ -692,6 +717,7 @@ impl IRelAdder for Authors {
 }
 
 pub fn main(stowage: Stowage) -> io::Result<()> {
+    stowage.add_nobels();
     let sqy = stowage.get_entity_interface::<SourceYearQs, QuickMap>();
     let w_sources = stowage.get_entity_interface::<WorkSources, ReadIter>();
     let w_years = stowage.get_entity_interface::<WorkYears, QuickestBox>();
