@@ -20,6 +20,19 @@ export function resolveAuthorName(
 	return discAuthorNames[id] ?? `Unknown - disc ${ship.author}`;
 }
 
+export function resolveAuthorNameOrNull(
+	ship: PaperAuthorship,
+	entityAtts: EntityAttsForLinks,
+	discAuthorNames: Record<string, string>
+): string | null {
+	const prefix = ship.author[0];
+	const id = ship.author.slice(1);
+	if (prefix === 'F') {
+		return entityAtts.authors?.[id]?.name ?? null;
+	}
+	return discAuthorNames[id] ?? null;
+}
+
 export function resolveSourceName(
 	sourceId: number,
 	entityAtts: EntityAttsForLinks
@@ -53,20 +66,24 @@ export function getChipAuthors(
 	discAuthorNames: Record<string, string>,
 	maxN = 3
 ): ChipAuthor[] {
-	return paper.authorships.slice(0, maxN).map((ship) => {
-		const name = resolveAuthorName(ship, entityAtts, discAuthorNames);
-		const result: ChipAuthor = { name };
+	const result: ChipAuthor[] = [];
+	for (const ship of paper.authorships) {
+		if (result.length >= maxN) break;
+		const name = resolveAuthorNameOrNull(ship, entityAtts, discAuthorNames);
+		if (name === null) continue;
+		const chipAuthor: ChipAuthor = { name };
 		if (ship.author[0] === 'F') {
 			const att = entityAtts.authors?.[ship.author.slice(1)];
-			if (att?.semantic_id) result.url = `/authors/${att.semantic_id}`;
+			if (att?.semantic_id) chipAuthor.url = `/authors/${att.semantic_id}`;
 		}
 		if (ship.insts[0] != null) {
-			result.inst = resolveInstName(ship.insts[0], entityAtts);
+			chipAuthor.inst = resolveInstName(ship.insts[0], entityAtts);
 			const instAtt = entityAtts.institutions?.[String(ship.insts[0])];
-			if (instAtt?.semantic_id) result.instUrl = `/institutions/${instAtt.semantic_id}`;
+			if (instAtt?.semantic_id) chipAuthor.instUrl = `/institutions/${instAtt.semantic_id}`;
 		}
-		return result;
-	});
+		result.push(chipAuthor);
+	}
+	return result;
 }
 
 export function isAuthored(
