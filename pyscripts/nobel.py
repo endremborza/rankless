@@ -42,6 +42,13 @@ COMMON_SURNAMES = {
 
 SCIENCE_CATEGORIES = {"Physics", "Chemistry", "Physiology or Medicine", "Economics"}
 
+# (surname, wrong_first_name): known false matches where two different people
+# share the same surname and first initial, evading automated checks.
+KNOWN_FALSE_FIRST_NAMES = {
+    ("kantorovich", "lev"),   # Leonid Kantorovich ≠ Lev Kantorovich
+    ("boyle", "william"),     # Willard S. Boyle ≠ William S. Boyle
+}
+
 
 class NameVariant(TypedDict):
     surname: str
@@ -271,6 +278,37 @@ class NobelMatcher:
                 protos[cat] = np.mean(self.impact_matrix[ids, :], axis=0)
         return protos
 
+    def _validate_match(self, nobel_name: str, imp_pos: int) -> bool:
+        """Reject matches where names are clearly incompatible.
+
+        Three narrow checks, each targeting a specific failure mode:
+        1. Name-reversal: "Jack Kilby" → "K.H. Jack" (surname index finds first name)
+        2. Initial-mismatch: "Jerome Friedman" → "Daniel Friedman" (D ∉ {J,I,F})
+        3. Deny-list: known same-initial false matches (Lev/Leonid, William/Willard)
+        """
+        nob_tokens = strip_suffix_tokens(normalize_name(nobel_name).split())
+        if len(nob_tokens) < 2:
+            return True
+
+        imp_first = self.impact_firstnames[imp_pos]
+        imp_surname = self.impact_surnames[imp_pos]
+
+        # 1. Reject name-reversal: matched surname == Nobel first name
+        if imp_surname == nob_tokens[0] and imp_surname != nob_tokens[-1]:
+            return False
+
+        # 2. Reject when matched full first name's initial is absent from all Nobel tokens
+        if len(imp_first) >= 3:
+            nob_initials = {t[0] for t in nob_tokens if t}
+            if imp_first[0] not in nob_initials:
+                return False
+
+        # 3. Reject known false matches (same initial, different person)
+        if (imp_surname, imp_first) in KNOWN_FALSE_FIRST_NAMES:
+            return False
+
+        return True
+
     def run(self) -> pd.DataFrame:
         laureate_candidates: list[tuple[int, str, str, list[Candidate]]] = []
         for idx, row in self.wiki_df.iterrows():
@@ -306,7 +344,7 @@ class NobelMatcher:
     ) -> pd.DataFrame:
         rows: list[dict] = []
         for idx, name, category, cands in laureate_candidates:
-            best = self._pick_best(cands, category, {})
+            best = self._pick_best(name, cands, category, {})
             rows.append(
                 {
                     "nobel_name": name,
@@ -328,7 +366,7 @@ class NobelMatcher:
     ) -> pd.DataFrame:
         rows: list[dict] = []
         for idx, name, category, cands in laureate_candidates:
-            best = self._pick_best(cands, category, prototypes)
+            best = self._pick_best(name, cands, category, prototypes)
             rows.append(
                 {
                     "nobel_name": name,
@@ -345,13 +383,14 @@ class NobelMatcher:
 
     def _pick_best(
         self,
+        nobel_name: str,
         candidates: list[Candidate],
         category: str,
         prototypes: dict[str, np.ndarray],
     ) -> dict | None:
         if not candidates:
             return None
-        best_score, best_result = -1.0, None
+        scored = []
         for c in candidates:
             sf_sim = self._subfield_sim(c["imp_pos"], category, prototypes)
             final = (
@@ -359,15 +398,15 @@ class NobelMatcher:
                 + W_SUBFIELD * sf_sim
                 + W_BOOST * self.impact_boost[c["imp_pos"]]
             )
-            if final > best_score:
-                best_score = final
-                best_result = {
-                    "imp_pos": c["imp_pos"],
-                    "name_score": c["name_score"],
-                    "final_score": final,
-                }
-        if best_result and best_result["final_score"] >= FINAL_SCORE_THRESHOLD:
-            return best_result
+            scored.append(
+                {"imp_pos": c["imp_pos"], "name_score": c["name_score"], "final_score": final}
+            )
+        scored.sort(key=lambda x: x["final_score"], reverse=True)
+        for result in scored:
+            if result["final_score"] < FINAL_SCORE_THRESHOLD:
+                break
+            if self._validate_match(nobel_name, result["imp_pos"]):
+                return result
         return None
 
     def _write_report(self, matches: pd.DataFrame) -> None:
