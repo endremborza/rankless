@@ -51,9 +51,7 @@
 		for (const [, meta] of Object.entries(seen)) {
 			for (const p of meta.parents) {
 				if (p !== 0 && seen[p])
-					seen[p].children.add(
-						Number(Object.keys(seen).find((k) => seen[Number(k)] === meta))
-					);
+					seen[p].children.add(Number(Object.keys(seen).find((k) => seen[Number(k)] === meta)));
 			}
 		}
 		return seen;
@@ -66,7 +64,7 @@
 
 	function chipMaxW(wid: number): number {
 		const len = paperMap[wid]?.name?.length ?? 50;
-		return Math.min(280, Math.max(170, 130 + Math.round(len * 1.8)));
+		return Math.min(380, Math.max(200, 150 + Math.round(len * 2)));
 	}
 
 	// --- Nobel ---
@@ -130,9 +128,7 @@
 
 	$: sections = (() => {
 		const hasBoth = groups.impacted.length > 0 && groups.authored.length > 0;
-		const refLabel = authorName
-			? `Works of ${authorName} being referenced`
-			: 'Referenced Works';
+		const refLabel = authorName ? `Works of ${authorName} being referenced` : 'Referenced Works';
 		if (hasBoth)
 			return [
 				{ wids: groups.impacted, label: 'Citing Papers' },
@@ -295,22 +291,14 @@
 							<span>{paper?.year}</span>
 							{#each highlights as hl}
 								{#if HIGHLIGHT_DEFS[hl.key]}
-									<span class="badge {HIGHLIGHT_DEFS[hl.key].cls}"
-										>{badgeLabel(hl)}</span
-									>
+									<span class="badge {HIGHLIGHT_DEFS[hl.key].cls}">{badgeLabel(hl)}</span>
 								{/if}
 							{/each}
 						</div>
 						{#if isExpanded && paper}
 							{@const source = resolveSourceName(paper.source, entityAtts)}
-							{@const sourceSemId =
-								entityAtts.sources?.[String(paper.source)]?.semantic_id}
-							{@const authors = getChipAuthors(
-								paper,
-								entityAtts,
-								discAuthorNames,
-								3
-							)}
+							{@const sourceSemId = entityAtts.sources?.[String(paper.source)]?.semantic_id}
+							{@const authors = getChipAuthors(paper, entityAtts, discAuthorNames, 3)}
 							<div class="chip-details">
 								<span>{paper.citations} citations</span>
 								{#if source}
@@ -386,13 +374,13 @@
 	}
 
 	.chip {
-		padding: 4px 8px;
-		font-size: 0.72rem;
+		padding: 6px 10px;
+		font-size: 0.78rem;
 		line-height: 1.3;
 		border-radius: 4px;
 		border: 1px solid rgba(var(--color-range-15), 0.15);
 		background: rgba(var(--color-range-15), 0.03);
-		flex: 1 0 130px;
+		flex: 1 0 160px;
 		cursor: pointer;
 		transition: border-color 160ms, background-color 160ms, opacity 160ms;
 		position: relative;
@@ -438,8 +426,7 @@
 		display: flex;
 		align-items: center;
 		gap: 4px;
-		font-size: 0.6rem;
-		opacity: 0.75;
+		font-size: 0.65rem;
 	}
 
 	.chip-details {
@@ -469,27 +456,48 @@
 
 	.badge {
 		display: inline-block;
-		padding: 0px 5px;
+		padding: 1px 5px;
 		border-radius: 3px;
-		font-size: 0.5rem;
-		font-weight: 600;
+		font-size: 0.55rem;
+		font-weight: 700;
 		letter-spacing: 0.03em;
 		text-transform: uppercase;
 	}
 
 	.hl-hit {
-		background: rgba(var(--color-range-80), 0.2);
-		color: rgba(var(--color-range-80), 1);
+		background: var(--badge-hit-bg);
+		color: var(--badge-hit-text);
 	}
 
 	.hl-prestigious {
-		background: rgba(120, 80, 180, 0.15);
-		color: rgb(120, 80, 180);
+		background: var(--badge-prestigious-bg);
+		color: var(--badge-prestigious-text);
 	}
 
 	.hl-nobel {
-		background: rgba(180, 140, 30, 0.2);
-		color: rgb(160, 120, 20);
+		background: var(--badge-award-bg);
+		color: var(--badge-award-text);
+	}
+
+	@media (min-width: 1200px) {
+		.chip {
+			padding: 8px 12px;
+			font-size: 0.85rem;
+			flex-basis: 200px;
+		}
+
+		.chip-sub {
+			font-size: 0.7rem;
+		}
+
+		.badge {
+			font-size: 0.6rem;
+			padding: 1px 6px;
+		}
+
+		.chip-details {
+			font-size: 0.72rem;
+		}
 	}
 
 	.sep {
