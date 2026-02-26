@@ -77,7 +77,7 @@ export type Paper = {
 	authorships: PaperAuthorship[];
 	yearlyCites?: number[];
 	biblio?: PaperBiblio;
-	is_hit: boolean;
+	isHit: boolean;
 };
 
 export type EntityAttLabel = { name: string; semantic_id: string; spec_baseline: number };
@@ -85,8 +85,9 @@ export type EntityAttsForLinks = Record<string, Record<string, EntityAttLabel>>;
 
 export type PaperSetResp = {
 	papers: Paper[];
-	entity_atts: EntityAttsForLinks;
-	disc_author_names: Record<string, string>;
+	entityAtts: EntityAttsForLinks;
+	discAuthorNames: Record<string, string>;
+	authorOaIds: Record<string, number>;
 };
 
 export type PaperProfileResp = {
@@ -214,8 +215,8 @@ export type PathResp = {
 
 export type PaginatedPaperSetResp = {
 	resp: PaperSetResp;
-	total_papers: number;
-	slice_start: number;
+	totalPapers: number;
+	sliceStart: number;
 };
 
 export type OaPaperResp = {

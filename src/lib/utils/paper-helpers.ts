@@ -88,7 +88,7 @@ export function getPaperHighlights(
 	const hl: PaperHighlight[] = [];
 	if (sourceAuthorSemId && entityAtts && isAuthored(paper, sourceAuthorSemId, entityAtts))
 		hl.push({ key: 'authored' });
-	if (paper.is_hit) hl.push({ key: 'hit' });
+	if (paper.isHit) hl.push({ key: 'hit' });
 	if (entityAtts) {
 		const sourceAtt = entityAtts.sources?.[String(paper.source)];
 		if (sourceAtt?.semantic_id && PRESTIGIOUS_SOURCE_SEM_IDS.has(sourceAtt.semantic_id))

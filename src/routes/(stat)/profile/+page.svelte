@@ -24,8 +24,8 @@
 			const resp = await fetch(`${BE_REMOTE_URL}/works/authors/${data.searchResult.semanticId}/0`);
 			const obj = await resp.json();
 			papers = obj.resp?.papers || [];
-			entityAtts = obj.resp?.entity_atts || {};
-			discAuthorNames = obj.resp?.disc_author_names || {};
+			entityAtts = obj.resp?.entityAtts || {};
+			discAuthorNames = obj.resp?.discAuthorNames || {};
 		}
 	});
 

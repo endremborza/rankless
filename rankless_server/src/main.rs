@@ -184,6 +184,7 @@ struct PaperOut {
     yearly_cites: Option<Box<[u32]>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     biblio: Option<ET<WorkBiblios>>,
+    #[serde(rename = "isHit")]
     is_hit: bool,
 }
 
@@ -237,15 +238,20 @@ struct PostAttResultExtension {
 #[derive(Serialize)]
 struct PaperSetResp {
     papers: Vec<PaperOut>,
+    #[serde(rename = "entityAtts")]
     entity_atts: EntityAttsForLinks,
+    #[serde(rename = "discAuthorNames")]
     disc_author_names: HashMap<String, String>,
+    #[serde(rename = "authorOaIds")]
     author_oa_ids: HashMap<usize, usize>, //only filtered authors
 }
 
 #[derive(Serialize)]
 struct PaginatedPaperSetResp {
     resp: PaperSetResp,
+    #[serde(rename = "totalPapers")]
     total_papers: usize,
+    #[serde(rename = "sliceStart")]
     slice_start: usize,
 }
 

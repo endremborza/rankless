@@ -147,7 +147,7 @@
 		</div>
 	{/if}
 </div>
-{#if data.conf.rootType === 'authors'}
+{#if data.conf.rootType === 'authors' && data.view.meta?.anyHits === '1'}
 	<a href="/author-papers/{data.conf.semanticId}" class="explore-card shadowy padded marged">
 		<div>
 			<h3>Paper Profile & Citation Paths</h3>
