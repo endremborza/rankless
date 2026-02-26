@@ -1,34 +1,32 @@
-use dmove::{Entity, MappableEntity, NamespacedEntity};
-
-pub struct Works { }
-
-pub struct Qs { }
-
-pub struct AreaFields { }
-
-pub struct Institutions { }
-
-pub struct Subfields { }
-
-pub struct AuthorshipsDiscardedAuthor { }
-
-pub struct Domains { }
-
-pub struct Fields { }
+use dmove::{MappableEntity, NamespacedEntity, Entity};
 
 pub struct Authors { }
 
-pub struct AuthorshipsFilteredAuthor { }
-
 pub struct Countries { }
+
+pub struct Domains { }
+
+pub struct Works { }
 
 pub struct Sources { }
 
-pub struct Cities { }
+pub struct AreaFields { }
+
+pub struct Fields { }
 
 pub struct Topics { }
 
+pub struct Cities { }
+
+pub struct Subfields { }
+
 pub struct DiscardedAuthors { }
+
+pub struct AuthorshipsFilteredAuthor { }
+
+pub struct AuthorshipsDiscardedAuthor { }
+
+pub struct Institutions { }
 
 impl Entity for Domains { type T = u8; const N: usize = 5; const NAME: & str = "domains"; }
 
@@ -109,7 +107,3 @@ impl MappableEntity for AuthorshipsFilteredAuthor { type KeyType = usize; }
 impl Entity for AuthorshipsDiscardedAuthor { type T = u32; const N: usize = 99718253; const NAME: & str = "authorships-discarded-author"; }
 
 impl MappableEntity for AuthorshipsDiscardedAuthor { type KeyType = usize; }
-
-impl Entity for Qs { type T = u8; const N: usize = 5; const NAME: & str = "qs"; }
-
-impl MappableEntity for Qs { type KeyType = usize; }

@@ -1,92 +1,92 @@
-use dmove::{MarkedAttribute, Entity, Link, VariableSizeAttribute, MappableEntity, NamespacedEntity};
+use dmove::{MappableEntity, NamespacedEntity, Link, MarkedAttribute, VariableSizeAttribute, Entity};
 
-pub struct AuthorOrcids { }
+pub struct AuthorsNameExts { }
 
-pub struct WorkSources { }
+pub struct SubfieldsNameExts { }
 
-pub struct DomainsNames { }
-
-pub struct InstLocs { }
-
-pub struct FilteredAuthorshipInstitutions { }
-
-pub struct AuthorsNames { }
-
-pub struct TopicsNames { }
-
-pub struct InstCountries { }
+pub struct InstitutionsNameExts { }
 
 pub struct TopicSubfields { }
 
 pub struct WorkReferences { }
 
-pub struct WorkAnyAuthorships { }
-
-pub struct WorkBiblios { }
-
-pub struct InstitutionsNames { }
-
-pub struct AuthorRawCites { }
-
-pub struct InstitutionsNameExts { }
-
-pub struct CountryCodesThree { }
-
-pub struct SubfieldsWikipedia { }
-
-pub struct FieldAncestors { }
-
-pub struct InstCities { }
-
-pub struct InstRors { }
-
-pub struct TopicsWikipedia { }
-
-pub struct WorkDois { }
-
-pub struct WorkTopics { }
-
-pub struct SubfieldAncestors { }
-
-pub struct CountriesNames { }
+pub struct InstLocs { }
 
 pub struct SourcesNameExts { }
 
-pub struct AuthorshipFilteredAuthor { }
+pub struct InstCountries { }
 
-pub struct AuthorshipDiscardedAuthor { }
+pub struct AuthorRawCites { }
 
-pub struct DiscardedAuthorshipInstitutions { }
-
-pub struct AuthorWikiSlugs { }
-
-pub struct DiscardedAuthorsNames { }
-
-pub struct CitiesNames { }
-
-pub struct AuthorRawWorkCounts { }
-
-pub struct FieldsNames { }
-
-pub struct CountriesNameExts { }
-
-pub struct WorkYears { }
-
-pub struct WorksNames { }
-
-pub struct SubfieldsNameExts { }
-
-pub struct AuthorsNameExts { }
-
-pub struct CountryCodes { }
-
-pub struct SubfieldsNames { }
+pub struct DomainsNames { }
 
 pub struct SourceYearQs { }
 
+pub struct SourceAreaFields { }
+
+pub struct CountriesNames { }
+
+pub struct InstitutionsNames { }
+
+pub struct InstCities { }
+
+pub struct DiscardedAuthorsNames { }
+
+pub struct AuthorWikiSlugs { }
+
+pub struct WorkDois { }
+
+pub struct AuthorsNames { }
+
+pub struct CountriesNameExts { }
+
+pub struct SubfieldsNames { }
+
+pub struct WorkSources { }
+
+pub struct CitiesNames { }
+
+pub struct WorkTopics { }
+
+pub struct AuthorOrcids { }
+
+pub struct FilteredAuthorshipInstitutions { }
+
+pub struct AuthorRawWorkCounts { }
+
+pub struct AuthorshipDiscardedAuthor { }
+
+pub struct SubfieldsWikipedia { }
+
+pub struct WorkYears { }
+
+pub struct TopicsWikipedia { }
+
+pub struct SubfieldAncestors { }
+
+pub struct FieldAncestors { }
+
+pub struct WorkAnyAuthorships { }
+
+pub struct FieldsNames { }
+
 pub struct SourcesNames { }
 
-pub struct SourceAreaFields { }
+pub struct TopicsNames { }
+
+pub struct WorkBiblios { }
+
+pub struct AuthorshipFilteredAuthor { }
+
+pub struct DiscardedAuthorshipInstitutions { }
+
+pub struct CountryCodes { }
+
+pub struct CountryCodesThree { }
+
+pub struct InstRors { }
+
+pub struct WorksNames { }
 
 impl Entity for AuthorshipFilteredAuthor { type T = u32; const N: usize = 196169401; const NAME: & str = "authorship-filtered-author"; }
 

@@ -1,14 +1,14 @@
-use dmove::{MarkedAttribute, Entity, Link, VariableSizeAttribute, MappableEntity, NamespacedEntity};
-
-pub struct SourceWorks { }
+use dmove::{MappableEntity, NamespacedEntity, Link, MarkedAttribute, VariableSizeAttribute, Entity};
 
 pub struct WorkInstitutions { }
+
+pub struct WorkSubfields { }
 
 pub struct WorksCiting { }
 
 pub struct TopicWorks { }
 
-pub struct WorkSubfields { }
+pub struct SourceWorks { }
 
 pub struct WorkFilteredAuthors { }
 
