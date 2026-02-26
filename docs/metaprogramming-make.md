@@ -55,15 +55,17 @@ Called after a step finishes running. Adds the newly generated file to `gen/mod.
 
 ## Makefile structure
 
-Each step target looks like:
+Both Makefiles suppress `dead_code` and `unused` warnings via RUSTFLAGS, since early steps leave later steps' symbols unreferenced. Each step target looks like:
 
 ```makefile
 rankless_rs/src/gen/derive_links3.rs: rankless_rs/src/steps/derive_links3.rs rankless_rs/src/gen/derive_links2.rs
 	./target/release/dmove-macro -p rankless_rs pre-build -s derive_links3
-	cargo build -p rankless-rs --release
-	cargo run -p rankless-rs --release -- derive_links3
+	RUSTFLAGS="-C target-cpu=native -A dead_code -A unused" cargo build -p rankless-rs --profile gen-release
+	RUSTFLAGS="-C target-cpu=native -A dead_code -A unused" cargo run -p rankless-rs --profile gen-release -- derive_links3
 	./target/release/dmove-macro -p rankless_rs post-run -s derive_links3
 ```
+
+`RUSTFLAGS` must be set explicitly here because env RUSTFLAGS overrides `.cargo/config.toml` rather than appending; `target-cpu=native` is re-declared so it isn't silently dropped.
 
 Make's dependency tracking means touching a step file (or its gen dependency) re-triggers only that step and all downstream ones.
 
@@ -71,7 +73,7 @@ Make's dependency tracking means touching a step file (or its gen dependency) re
 
 ## Fast (debug) pipeline
 
-The release profile (`codegen-units=1`, `lto=true`, `opt-level=3`) makes each compile step slow.
+The `gen-release` profile (`codegen-units=1`, `lto=true`, `opt-level=3`) makes each compile step slow.
 For iterating on step logic — where you only care about generating the `.rs` files, not runtime speed — use the fast pipeline.
 
 **Profile** (`Cargo.toml`):
@@ -87,11 +89,11 @@ inherits = "dev"   # opt-level=0, codegen-units=256, no LTO, incremental=true
 
 Each fast target uses:
 ```makefile
-	RUSTFLAGS="" cargo build -p rankless-rs --profile gen-debug
-	RUSTFLAGS="" cargo run -p rankless-rs --profile gen-debug -- derive_links3
+	RUSTFLAGS="-A dead_code -A unused" cargo build -p rankless-rs --profile gen-debug
+	RUSTFLAGS="-A dead_code -A unused" cargo run -p rankless-rs --profile gen-debug -- derive_links3
 ```
 
-`RUSTFLAGS=""` overrides any env-level rustflags (highest precedence in Cargo's lookup order).
+`target-cpu=native` is intentionally omitted — it has negligible effect at `opt-level=0` and would only slow down compilation.
 
 **Run a single step:**
 ```sh
