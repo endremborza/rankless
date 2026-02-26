@@ -19,3 +19,6 @@ lto = true
 
 [profile.gen-debug]
 inherits = "dev"
+
+[profile.gen-release]
+inherits = "release"

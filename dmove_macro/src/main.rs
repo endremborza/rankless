@@ -71,10 +71,14 @@ fn main() {
         PostRun { step } => build_ends(&steps, step, &src_path, false),
         MakeSetup { fast } => {
             create_dir_all(&gen_mod_dir).unwrap();
-            let (profile_flag, rustflags_prefix, out_file) = if *fast {
-                ("--profile gen-debug", "RUSTFLAGS=\"\" ", "Makefile.fast")
+            let (profile_flag, rustflags, out_file) = if *fast {
+                ("--profile gen-debug", "RUSTFLAGS=\"-A dead_code -A unused\"", "Makefile.fast")
             } else {
-                ("--release", "", "Makefile")
+                (
+                    "--profile gen-release",
+                    "RUSTFLAGS=\"-C target-cpu=native -A dead_code -A unused\"",
+                    "Makefile",
+                )
             };
             let out_path = pack_path.join(out_file);
             let mut last_gen = "".to_string();
@@ -85,8 +89,8 @@ fn main() {
                 make_comms.push(format!(
                     "{gen_mod}: {step_mod} {last_gen}
 {}
-\t{rustflags_prefix}cargo build {cargo_param} {profile_flag}
-\t{rustflags_prefix}cargo run {cargo_param} {profile_flag} -- {step}
+\t{rustflags} cargo build {cargo_param} {profile_flag}
+\t{rustflags} cargo run {cargo_param} {profile_flag} -- {step}
 {}
 ",
                     comm_line("pre-build", &pack, step),
