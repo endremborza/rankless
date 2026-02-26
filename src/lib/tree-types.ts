@@ -27,10 +27,8 @@ export type View = {
 	papers: number;
 	dmId: number;
 	primeRelations: RelatedEntity[];
-	hitPapers: Paper[];
 	similars: SearchResult[];
 	authorNetwork: number[];
-	// sfCoords: [number, number];
 	instRels: InstRel[];
 	startYear: number;
 	yearlyPapers: number[];
@@ -57,8 +55,44 @@ export type FullTreeConfig = {
 	semanticId: string;
 	wide: boolean;
 };
+export type PaperAuthorship = {
+	author: string; // "F{id}" for filtered, "D{id}" for discarded
+	insts: number[];
+};
+
+export type PaperBiblio = {
+	volume: string;
+	issue: string;
+	first_page: string;
+	last_page: string;
+};
+
 export type Paper = {
-	year: number; name: string; doi: string; citations: number; yearlyCites: number[]
+	wid: number;
+	year: number;
+	name: string;
+	doi: string;
+	citations: number;
+	source: number;
+	authorships: PaperAuthorship[];
+	yearlyCites?: number[];
+	biblio?: PaperBiblio;
+	isHit: boolean;
+};
+
+export type EntityAttLabel = { name: string; semantic_id: string; spec_baseline: number };
+export type EntityAttsForLinks = Record<string, Record<string, EntityAttLabel>>;
+
+export type PaperSetResp = {
+	papers: Paper[];
+	entityAtts: EntityAttsForLinks;
+	discAuthorNames: Record<string, string>;
+	authorOaIds: Record<string, number>;
+};
+
+export type PaperProfileResp = {
+	dag: RefTree;
+	papers: PaperSetResp;
 };
 
 export type RootType = 'authors' | 'institutions' | 'sources' | 'countries' | 'subfields' | 'hit-papers';
@@ -177,6 +211,12 @@ export type PathResp = {
 	relWorks: number[];
 	nameMap: Record<number, string>;
 	doiMap: Record<number, string>;
+};
+
+export type PaginatedPaperSetResp = {
+	resp: PaperSetResp;
+	totalPapers: number;
+	sliceStart: number;
 };
 
 export type OaPaperResp = {

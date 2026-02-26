@@ -40,20 +40,19 @@ use rankless_rs::{
     },
     steps::{
         a1_entity_mapping::{Qs, RawYear, YearInterface, Years},
-        derive_links5::{EraRec, InstRelation},
+        derive_links2::{EraRec, InstRelation},
     },
     Stowage,
 };
 use rankless_trees::{
     extensions::DistinctionText,
-    ids::add_nonwork_label,
     interfacing::{
         Getters, MetaMapGetter, NodeInterfaceable, NodeInterfaces, RootInterfaceable,
         RootInterfaces,
     },
     io::{
-        AttributeLabel, AttributeLabels, ManFileHandle, ShallowQ, ShallowTreesResponse, TreeQ,
-        TreeResponse, TreeRunManager, WT,
+        EntityAttsForLinks, ManFileHandle, ShallowQ, ShallowTreesResponse, TreeQ, TreeResponse,
+        TreeRunManager, WT,
     },
     path_finder::{extend_with_once_removed, get_direct_links, RefDAG},
     AttributeLabelUnion,
@@ -167,28 +166,32 @@ struct EntityRelationshipOut {
 }
 
 #[derive(Serialize, Clone)]
+struct PaperAuthorship {
+    author: String, //prefixed with filtered/discarded
+    insts: Vec<usize>,
+}
+
+#[derive(Serialize)]
 struct PaperOut {
+    wid: usize,
     year: u16,
     name: String,
     doi: String,
     citations: u32,
     source: usize,
-    authors: Vec<String>, //prefixed with filtered/discarded
+    authorships: Vec<PaperAuthorship>,
     #[serde(rename = "yearlyCites", skip_serializing_if = "Option::is_none")]
     yearly_cites: Option<Box<[u32]>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     biblio: Option<ET<WorkBiblios>>,
+    #[serde(rename = "isHit")]
+    is_hit: bool,
 }
 
-#[derive(Serialize, Clone)]
-struct PathToPapersResp {
+#[derive(Serialize)]
+struct PaperProfileResp {
     dag: RefDAG,
-    #[serde(rename = "relWorks")]
-    src_works: Vec<WT>,
-    #[serde(rename = "nameMap")]
-    name_map: HashMap<WT, String>,
-    #[serde(rename = "doiMap")]
-    doi_map: HashMap<WT, String>,
+    papers: PaperSetResp,
 }
 
 #[derive(Serialize, Clone)]
@@ -228,18 +231,28 @@ struct ResultExtension {
 struct PostAttResultExtension {
     #[serde(rename = "primeRelations")]
     prime_relations: Vec<PostAttRelatedEntity>,
-    #[serde(rename = "hitPapers")]
-    hit_papers: Box<[PaperOut]>,
     #[serde(rename = "authorNetwork")]
     author_network: Box<[u8]>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize)]
 struct PaperSetResp {
     papers: Vec<PaperOut>,
-    paper_count: usize,
-    labels: AttributeLabels,
-    author_names: HashMap<String, String>,
+    #[serde(rename = "entityAtts")]
+    entity_atts: EntityAttsForLinks,
+    #[serde(rename = "discAuthorNames")]
+    disc_author_names: HashMap<String, String>,
+    #[serde(rename = "authorOaIds")]
+    author_oa_ids: HashMap<usize, usize>, //only filtered authors
+}
+
+#[derive(Serialize)]
+struct PaginatedPaperSetResp {
+    resp: PaperSetResp,
+    #[serde(rename = "totalPapers")]
+    total_papers: usize,
+    #[serde(rename = "sliceStart")]
+    slice_start: usize,
 }
 
 struct PreAttResultExtension {
@@ -494,7 +507,6 @@ impl PreAttResultExtension {
         &self,
         satts: &AttributeLabelUnion,
         nstates: &NameStateMap,
-        gets: &Getters,
     ) -> PostAttResultExtension {
         let prime_relations = self
             .prime_relations
@@ -520,54 +532,11 @@ impl PreAttResultExtension {
                 })
             })
             .collect();
-        let hit_papers = self
-            .hit_papers
-            .iter()
-            .map(|hwid| {
-                let wid = gets.hit_papers[*hwid].to_usize();
-                PaperOut {
-                    year: YearInterface::reverse(*gets.year(&wid)),
-                    name: String::from_utf8(gets.hit_names(*hwid).to_vec()).unwrap(),
-                    doi: String::from_utf8(gets.hit_dois(*hwid).to_vec()).unwrap(),
-                    citations: gets.wccount(wid) as u32,
-                    yearly_cites: Some(gets.hit_yearlies(*hwid).into()),
-                    source: gets.top_source(&wid.to_usize()).to_usize(),
-                    biblio: None,
-                    authors: Vec::new(),
-                }
-            })
-            .collect();
         PostAttResultExtension {
             prime_relations,
-            hit_papers,
             author_network: self.author_network.clone(),
         }
     }
-}
-
-fn add_to_relations<RE, T>(arr: &[(u32, T)], prels: &mut Vec<PreAttRelatedEntity>, rel_type: u8)
-where
-    RE: Entity,
-    T: UnsignedNumber,
-{
-    arr.iter().for_each(|e| {
-        let etype_id = ETYPE_ENC
-            .iter()
-            .enumerate()
-            .filter(|e| *e.1 == RE::NAME)
-            .next()
-            .unwrap()
-            .0 as u8;
-        let dm_id = e.1.to_usize() as u32;
-        if dm_id != 0 {
-            prels.push(PreAttRelatedEntity {
-                rel_type,
-                dm_id,
-                etype_id,
-                score: e.0,
-            })
-        }
-    });
 }
 
 impl NameState {
@@ -672,10 +641,6 @@ impl NameState {
         responses.sort_by_key(|e| u32::MAX - e.citations);
         responses.into()
     }
-}
-
-fn coord_dist(l: &Coords, r: &Coords) -> f64 {
-    (l[0] - r[0]).powf(2.0) + (l[1] - r[1]).powf(2.0)
 }
 
 impl EntityDescription {
@@ -827,7 +792,7 @@ async fn main() {
         .route("/views/:etype/:semantic_id", get(view_get))
         .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))
         .route("/orcid/:orcid_id", get(orcid_get))
-        .route("/path-to-papers/:asem", get(path_to_papers))
+        .route("/paper-profile/:asem", get(paper_profile))
         .route("/trees/:root_type/:semantic_id", get(tree_get))
         .route("/shallows/:root_type", get(shallows_get))
         .route("/works/:etype/:semantic_id/:from", get(works_get))
@@ -952,7 +917,6 @@ async fn view_get(
     states: StatesT,
 ) -> Json<Option<ViewResult>> {
     let satts = states.0 .1;
-    let tm = states.0 .2;
     let mut out = None;
     if let Some(state) = states.0 .0.get(etype.as_str()) {
         let psid = parse_semantic_id(semantic_id);
@@ -976,7 +940,7 @@ async fn view_get(
                 similars,
                 ext: ext.clone(),
                 sr: srs.clone(),
-                prep_ext: state.prep_exts[i].to_post(&satts, &states.0 .0, &tm.state.gets),
+                prep_ext: state.prep_exts[i].to_post(&satts, &states.0 .0),
             };
             out = Some(vr)
         };
@@ -1014,27 +978,27 @@ async fn orcid_get(Path(orcid_id): Path<String>, states: StatesT) -> Json<Option
             }
         }
     }
-
     Json(out)
 }
 
-async fn path_to_papers(
+async fn paper_profile(
     Path(author_sem_id): Path<String>,
     states: StatesT,
-) -> Json<PathToPapersResp> {
+) -> (HeaderMap, Response) {
     let astates = states.0 .0.get(Authors::NAME).unwrap();
     let gets = &states.0 .2.state.gets;
 
-    let empty = || PathToPapersResp {
-        dag: RefDAG::new_map(),
-        src_works: Vec::new(),
-        name_map: HashMap::new(),
-        doi_map: HashMap::new(),
-    };
-
     let Some(aid_sv) = astates.semantic_id_map.get(&author_sem_id) else {
-        return Json(empty());
+        return (
+            HeaderMap::new(),
+            (StatusCode::NOT_FOUND, "no such entity").into_response(),
+        );
     };
+    let hw_set: HashSet<WT> = astates.prep_exts[aid_sv.result_id]
+        .hit_papers
+        .iter()
+        .map(|hwid| gets.hit_papers[hwid.to_usize()])
+        .collect();
     let aid = aid_sv.dm_id;
 
     let direct_hit_wids: Vec<WT> = gets
@@ -1048,33 +1012,23 @@ async fn path_to_papers(
         .map(|&hid| gets.hit_papers[hid as usize] as WT)
         .collect();
 
-    if direct_hit_wids.is_empty() && once_hit_wids.is_empty() {
-        return Json(empty());
-    }
-
     let refed_wids: &[WT] = gets.aworks(ET::<Authors>::from_usize(aid));
     let refed_set: HashSet<WT> = refed_wids.iter().copied().collect();
 
     let mut conn = get_direct_links(gets, refed_set.clone(), &direct_hit_wids);
     extend_with_once_removed(gets, refed_set, &once_hit_wids, &mut conn);
-    let mut name_map: HashMap<WT, String> = HashMap::new();
-    let mut doi_map: HashMap<WT, String> = HashMap::new();
-    let mut name_hand: ManFileHandle = states.2.get_file_handle();
-    let mut doi_hand: VattReadingArcMap<WorkDois> = states.2.get_file_handle();
 
-    let src_works: Vec<WT> = conn.wids.iter().copied().collect();
-    for &wid in &conn.wids {
-        let wu = wid.to_usize();
-        name_map.insert(wid, name_hand.get_via_mut(&wu).unwrap_or_default());
-        doi_map.insert(wid, doi_hand.get_via_mut(&wu).unwrap_or_default());
-    }
+    let wids = hw_set
+        .iter()
+        .chain(conn.wids.iter().filter(|wid| !hw_set.contains(*wid)))
+        .map(|e| e.to_usize());
 
-    Json(PathToPapersResp {
+    let papers = get_paper_set_resp(wids, states.2.clone(), &states.0 .0[Authors::NAME]);
+    let out = PaperProfileResp {
         dag: conn.dag,
-        src_works,
-        name_map,
-        doi_map,
-    })
+        papers,
+    };
+    (cache_header(60), Json(out).into_response())
 }
 
 async fn name_get(
@@ -1111,45 +1065,16 @@ async fn works_get(
         if let Some(sem_val) = state.semantic_id_map.get(&psid) {
             if let Some(work_arr) = states.2.state.gets.works_of_entity(sem_val.dm_id, etype) {
                 if work_arr.len() > 0 {
-                    let mut satts = HashMap::new();
-                    let mut author_names = HashMap::new();
-                    let mut fhand = states.2.get_file_handle();
-                    let mut doi_hand = states.2.get_file_handle();
-                    let mut dan_hand = states.2.get_file_handle();
-                    let alabels = &states.2.state.att_union[Authors::NAME];
                     let start = min(pstart, work_arr.len() - 1);
-                    let papers: Vec<PaperOut> = work_arr[start..]
-                        .iter()
-                        .take(MAX_WORKS)
-                        .map(|wid| {
-                            let po = paper_out(
-                                wid.to_usize(),
-                                &states.2.state.gets,
-                                &mut fhand,
-                                &mut doi_hand,
-                                &mut dan_hand,
-                                &mut author_names,
-                                alabels,
-                            );
-                            add_nonwork_label(
-                                [po.source as u32].iter(),
-                                &mut satts,
-                                Sources::NAME,
-                                &states.2.state,
-                            );
-                            po
-                        })
-                        .collect();
-                    let labels =
-                        HashMap::from_iter([(Sources::NAME.to_string(), satts)].into_iter());
-                    let resp = PaperSetResp {
-                        papers,
-                        paper_count: work_arr.len(),
-                        labels,
-                        author_names,
+                    let wids = work_arr[start..].iter().take(MAX_WORKS).map(WT::to_usize);
+                    let resp =
+                        get_paper_set_resp(wids, states.2.clone(), &states.0 .0[Authors::NAME]);
+                    let out = PaginatedPaperSetResp {
+                        resp,
+                        total_papers: work_arr.len(),
+                        slice_start: start,
                     };
-
-                    return (cache_header(60), Json(resp).into_response());
+                    return (cache_header(60), Json(out).into_response());
                 }
             }
         }
@@ -1160,47 +1085,130 @@ async fn works_get(
     )
 }
 
+fn get_paper_set_resp<I>(wids: I, trm: Arc<InstTrm>, author_nstate: &NameState) -> PaperSetResp
+where
+    I: Iterator<Item = usize>,
+{
+    let mut disc_author_names = HashMap::new();
+    let mut author_oa_ids = HashMap::new();
+    let mut wnames_handle = trm.get_file_handle();
+    let mut doi_hand = trm.get_file_handle();
+    let mut dan_hand = trm.get_file_handle();
+
+    let mut entity_atts: EntityAttsForLinks = HashMap::new();
+    let papers = wids
+        .map(|wid| {
+            paper_out(
+                wid.to_usize(),
+                &trm.state.gets,
+                &mut wnames_handle,
+                &mut doi_hand,
+                &mut dan_hand,
+                &mut disc_author_names,
+                &mut author_oa_ids,
+                &mut entity_atts,
+                author_nstate,
+                &trm.state.att_union,
+            )
+        })
+        .collect();
+    PaperSetResp {
+        papers,
+        entity_atts,
+        disc_author_names,
+        author_oa_ids,
+    }
+}
+
 fn paper_out(
     wid: usize,
     gets: &Getters,
-    handler: &mut ManFileHandle,
+    wname_handler: &mut ManFileHandle,
     doi_handler: &mut VattReadingArcMap<WorkDois>,
     disc_name_handler: &mut VattReadingArcMap<DiscardedAuthorsNames>,
-    anames: &mut HashMap<String, String>,
-    alabels: &Box<[AttributeLabel]>,
+    discarded_author_name_map: &mut HashMap<String, String>,
+    author_oa_ids: &mut HashMap<usize, usize>,
+    entity_atts: &mut EntityAttsForLinks,
+    author_nstate: &NameState,
+    att_union: &AttributeLabelUnion,
 ) -> PaperOut {
-    let name = handler.get_via_mut(&wid).unwrap_or("Unknown".to_string());
-    let doi = doi_handler.get_via_mut(&wid).unwrap_or("".to_string());
+    let mut yearly_cites = None;
+    let mut is_hit = false;
+    let (name, doi) = if let Some(hwid) = gets.hit_wid_map.get(&WT::from_usize(wid)) {
+        let name = String::from_utf8(gets.hit_names(*hwid).to_vec()).unwrap();
+        let doi = String::from_utf8(gets.hit_dois(*hwid).to_vec()).unwrap();
+        yearly_cites = Some(gets.hit_yearlies(*hwid).into());
+        is_hit = true;
+        (name, doi)
+    } else {
+        let name = wname_handler
+            .get_via_mut(&wid)
+            .unwrap_or("Unknown".to_string());
+        let doi = doi_handler.get_via_mut(&wid).unwrap_or("".to_string());
+        (name, doi)
+    };
+    let mut add_to_eatts = |etype: &str, k: usize| {
+        if let Some(u_eatts) = att_union.get(etype) {
+            let eatts = entity_atts
+                .entry(etype.to_string())
+                .or_insert_with(HashMap::new);
+            if eatts.contains_key(&k) {
+                return;
+            };
+            if let Some(v) = u_eatts.get(k) {
+                eatts.insert(k, v.clone());
+            }
+        }
+    };
     //this is similarly to String with hit paper names not automatically remakes
     //the var sized element from &[SubType]
     let biblio = Some(<ET<WorkBiblios> as ByteArrayInterface>::from_bytes(
         gets.wbiblios(wid),
     ));
-    let mut authors = Vec::new();
+    let mut authorships = Vec::new();
     for anyship in gets.wanyships(wid) {
         let (is_filterd, ship_id) = reverse_prefixed_n(anyship.to_usize());
-        let (full_aid, aname) = if is_filterd {
+        let (full_aid, insts_slice) = if is_filterd {
             let aid = gets.fshipa(&ship_id);
-            let full_aid = format!("F{aid}");
-            let aname = alabels[aid.to_usize()].name.clone();
-            (full_aid, aname)
+            add_to_eatts(Authors::NAME, aid.to_usize());
+            if let Some(resid) = author_nstate.dm_id_to_result_id.get(&aid.to_usize()) {
+                let oa_id = author_nstate.responses[*resid].oa_id.to_usize();
+                author_oa_ids.insert(aid.to_usize(), oa_id);
+            }
+            (format!("F{aid}"), gets.fshipis(*aid))
         } else {
             let aid = gets.dshipa(&ship_id);
-            let name = disc_name_handler.get_via_mut(&aid.to_usize());
-            (format!("D{aid}"), name.unwrap_or("Unknown".to_string()))
+            let name = disc_name_handler
+                .get_via_mut(&aid.to_usize())
+                .unwrap_or("Unknown".to_string());
+            let full_aid = format!("D{aid}");
+            discarded_author_name_map.insert(full_aid.clone(), name);
+            (full_aid, gets.dshipis(*aid))
         };
-        authors.push(full_aid.clone());
-        anames.insert(full_aid, aname);
+        let mut insts = Vec::new();
+        for iid in insts_slice {
+            add_to_eatts(Institutions::NAME, iid.to_usize());
+            insts.push(iid.to_usize());
+        }
+        authorships.push(PaperAuthorship {
+            author: full_aid,
+            insts,
+        });
     }
+    let source = gets.top_source(&wid).to_usize();
+    add_to_eatts(Sources::NAME, source);
+
     PaperOut {
+        wid,
         year: YearInterface::reverse(*gets.year(&wid)),
         name,
         doi,
         citations: gets.wccount(wid) as u32,
-        yearly_cites: None,
+        yearly_cites,
         biblio,
-        source: gets.top_source(&wid).to_usize(),
-        authors,
+        source,
+        authorships,
+        is_hit,
     }
 }
 
@@ -1245,4 +1253,33 @@ fn tree_from_iter(v: Vec<[f64; 2]>) -> KdTree<KDItem> {
             .map(|(id, point)| KDItem { id, point })
             .collect(),
     )
+}
+
+fn add_to_relations<RE, T>(arr: &[(u32, T)], prels: &mut Vec<PreAttRelatedEntity>, rel_type: u8)
+where
+    RE: Entity,
+    T: UnsignedNumber,
+{
+    arr.iter().for_each(|e| {
+        let etype_id = ETYPE_ENC
+            .iter()
+            .enumerate()
+            .filter(|e| *e.1 == RE::NAME)
+            .next()
+            .unwrap()
+            .0 as u8;
+        let dm_id = e.1.to_usize() as u32;
+        if dm_id != 0 {
+            prels.push(PreAttRelatedEntity {
+                rel_type,
+                dm_id,
+                etype_id,
+                score: e.0,
+            })
+        }
+    });
+}
+
+fn coord_dist(l: &Coords, r: &Coords) -> f64 {
+    (l[0] - r[0]).powf(2.0) + (l[1] - r[1]).powf(2.0)
 }

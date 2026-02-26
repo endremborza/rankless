@@ -13,8 +13,6 @@
 	import WorldMapSvg from '$lib/components/WorldMapSvg.svelte';
 	import ConceptMap from '$lib/components/ConceptMap.svelte';
 	import AuthorNetwork from '$lib/components/AuthorNetwork.svelte';
-	import PaperRainbow from '$lib/components/PaperRainbow.svelte';
-
 	export let data: {
 		view: tt.View;
 		conf: tt.FullTreeConfig;
@@ -149,10 +147,10 @@
 		</div>
 	{/if}
 </div>
-{#if data.conf.rootType === 'authors'}
+{#if data.conf.rootType === 'authors' && data.view.meta?.anyHits === '1'}
 	<a href="/author-papers/{data.conf.semanticId}" class="explore-card shadowy padded marged">
 		<div>
-			<h3>Top Papers & Citation Paths</h3>
+			<h3>Paper Profile & Citation Paths</h3>
 			<p>
 				Explore {data.view.name}'s most cited publications and discover how their work connects
 				to other scholars through citations.
@@ -160,10 +158,6 @@
 		</div>
 		<span class="explore-arrow">&#8594;</span>
 	</a>
-{:else if data.view.hitPapers.length > 0}
-	<div class="shadowy padded marged">
-		<PaperRainbow papers={data.view.hitPapers} />
-	</div>
 {/if}
 <div id="similars" class="shadowy padded marged">
 	<p>

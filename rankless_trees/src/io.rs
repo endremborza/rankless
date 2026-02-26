@@ -39,6 +39,7 @@ pub type WorkCiteT = u32;
 
 pub type TreeSpecMap = HashMap<String, Vec<TreeSpec>>;
 pub type AttributeLabels = HashMap<String, HashMap<usize, AttributeLabelOut>>;
+pub type EntityAttsForLinks = HashMap<String, HashMap<usize, AttributeLabel>>;
 pub type CollapsedNode = CollapsedNodeGen<WT>;
 pub type CollapsedNodeJson = CollapsedNodeGen<Option<BigId>>;
 pub type CacheMap = HashMap<CacheKey, CacheValue>;
@@ -88,6 +89,7 @@ pub struct FullMultiTreeQuery {
 #[derive(Clone, Copy)]
 pub struct WorkWInd(pub WT, pub WorkCiteT);
 
+#[derive(Serialize, Clone)]
 pub struct AttributeLabel {
     pub name: String,
     pub semantic_id: String,
@@ -464,6 +466,7 @@ where
     }
 
     pub fn get_shallows(&self, sq: ShallowQ, root_type: &String) -> Option<ShallowTreesResponse> {
+        //TODO: this is incomplete
         let tq = TreeQ {
             year: sq.year,
             tid: sq.tid,

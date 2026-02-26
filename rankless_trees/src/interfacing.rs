@@ -18,20 +18,20 @@ use rankless_rs::{
         a2_init_atts::{
             AuthorOrcids, AuthorRawCites, AuthorRawWorkCounts, AuthorWikiSlugs,
             AuthorshipDiscardedAuthor, AuthorshipFilteredAuthor, CitiesNames, CountryCodes,
-            DiscardedAuthorsNames, FilteredAuthorshipInstitutions, InstCities, InstCountries,
-            InstLocs, SourceYearQs, TopicSubfields, WorkAnyAuthorships, WorkBiblios, WorkDois,
-            WorkReferences, WorkTopics, WorkYears, WorksNames,
+            DiscardedAuthorsNames, DiscardedAuthorshipInstitutions, FilteredAuthorshipInstitutions,
+            InstCities, InstCountries, InstLocs, SourceYearQs, TopicSubfields, WorkAnyAuthorships,
+            WorkBiblios, WorkDois, WorkReferences, WorkTopics, WorkYears, WorksNames,
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
-        derive_links2::{WorkCountries, WorkTopSource},
+        derive_links2::{SourceStats, WorkCountries, WorkTopSource},
         derive_links3::{Coauthors, HitPapers, HitPapersDois, HitPapersNames},
         derive_links4::{AuthorCitingHitsDirect, AuthorCitingHitsOnce},
-        derive_links5::{HitPaperYearlyCitations, SourceStats},
+        derive_links5::HitPaperYearlyCitations,
     },
     steps::{
         a1_entity_mapping::YearInterface,
         derive_links1::{CountryInsts, WorkPeriods},
-        derive_links5::{EraRec, Top15Rec, Top3Rec},
+        derive_links2::{EraRec, Top15Rec, Top3Rec},
     },
     CiteCountMarker, NameExtensionMarker, NameMarker, QuickestNumbered, ReadFixIter,
     SemanticIdMarker, WorkCountMarker,
@@ -57,7 +57,8 @@ pub struct Getters {
     pub stowage: Arc<Stowage>,
     pub inst_oa: Box<[BigId]>,
     pub work_oa: Box<[BigId]>,
-    pub hit_papers: Box<[BigId]>,
+    pub hit_papers: Box<[WT]>,
+    pub hit_wid_map: HashMap<WT, usize>,
     pub orcid_map: HashMap<ET<AuthorOrcids>, usize>,
 }
 
@@ -287,6 +288,7 @@ make_interfaces!(
     wcountries -> WorkCountries,
     wbiblios -> WorkBiblios,
     fshipis -> FilteredAuthorshipInstitutions,
+    dshipis -> DiscardedAuthorshipInstitutions,
     cinames -> CitiesNames,
     aslugs -> AuthorWikiSlugs,
     coathors -> Coauthors,
@@ -414,7 +416,12 @@ impl Getters {
     pub fn new(stowage: Arc<Stowage>) -> Self {
         let inst_oa = reverse_id::<Institutions>(&stowage);
         let work_oa = reverse_id::<Works>(&stowage);
-        let hit_papers = reverse_id::<HitPapers>(&stowage);
+        let hit_papers: Box<[WT]> = reverse_id::<HitPapers>(&stowage)
+            .iter()
+            .map(|e| WT::from_usize(e.to_usize()))
+            .collect();
+        let hit_wid_map: HashMap<WT, usize> =
+            HashMap::from_iter(hit_papers.iter().enumerate().map(|(hwi, e)| (*e, hwi)));
         let mut orcid_map = HashMap::new();
         let na_orcid: ET<AuthorOrcids> = <ET<AuthorOrcids> as Default>::default();
         stowage
@@ -433,6 +440,7 @@ impl Getters {
             inst_oa,
             work_oa,
             hit_papers,
+            hit_wid_map,
             orcid_map,
         }
     }
@@ -462,6 +470,7 @@ impl Getters {
             inst_oa: Vec::new().into(),
             work_oa: (0..20000000).collect::<Vec<BigId>>().into(),
             hit_papers: Vec::new().into(),
+            hit_wid_map: HashMap::new(),
             orcid_map: HashMap::new(),
         }
     }

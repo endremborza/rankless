@@ -7,12 +7,9 @@ use crate::{
         a1_entity_mapping::{Authors, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{WorkDois, WorkTopics, WorkYears, WorksNames},
         derive_links1::{WorkFilteredAuthors, WorkSubfields},
-        derive_links2::{AuthorWorks, WorkCountries},
+        derive_links2::AuthorWorks,
     },
-    steps::{
-        a1_entity_mapping::{YearInterface, Years},
-        derive_links1::invert_read_multi_link_to_work,
-    },
+    steps::a1_entity_mapping::{YearInterface, Years},
     CiteCountMarker, QuickestBox, QuickestVBox, ReadIter, Stowage, WorkCountMarker,
 };
 use dmove::{
@@ -47,7 +44,6 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     let starc = Arc::new(stowage);
     para_multi_gen_run!(work_count, Sources, Institutions, Authors, Subfields, Topics; starc)
         .last();
-    invert_read_multi_link_to_work::<WorkCountries>(&starc, "country-works");
     let cc_interface = starc.get_entity_interface::<MAA<Works, CiteCountMarker>, QuickestBox>();
 
     let w_sfs = starc.get_entity_interface::<WorkSubfields, QuickestVBox>();
@@ -101,6 +97,9 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
             hit_dois.push(doi_interface.0[wid].to_string());
             hit_ccounts.push(wcc.to_usize());
             //TODO: unnecessary but low cost - hit_papers contains the exact same info
+            //but this is so that something that is a Box<[wid]> can be assigned to hit-papers
+            //as in memory wid store for trees
+            //this is the way to add an N+1 hit papers with all of them
             hit_wids.push(vec![wid as ET<Works>].into_boxed_slice());
             Some(wid as BigId)
         } else {

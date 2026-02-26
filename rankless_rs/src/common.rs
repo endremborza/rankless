@@ -104,11 +104,11 @@ macro_rules! add_parent_parsed_id_traits {
 #[macro_export]
 macro_rules! make_interface_struct {
     ($IT:ident, $($e_key:ident > $e_t:ty),*;$($f_key:ident => $f_t:ty),*; $($v_key:ident -> $v_t:ty),*; $($m_key:ident >> $m_t:ty),*) => {
-        struct $IT {
-            $($e_key: BeS<QuickAttPair, MAA<$e_t, MainWorkMarker>>,)*
-            $($f_key: BeS<QuickestBox, $f_t>,)*
-            $($v_key: BeS<QuickAttPair, $v_t>,)*
-            $($m_key: BeS<QuickMap, $m_t>,)*
+        pub struct $IT {
+            $(pub $e_key: BeS<QuickAttPair, MAA<$e_t, MainWorkMarker>>,)*
+            $(pub $f_key: BeS<QuickestBox, $f_t>,)*
+            $(pub $v_key: BeS<QuickAttPair, $v_t>,)*
+            $(pub $m_key: BeS<QuickMap, $m_t>,)*
         }
 
         impl $IT {
