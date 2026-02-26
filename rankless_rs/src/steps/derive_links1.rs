@@ -1,5 +1,8 @@
-use std::io;
+use std::marker::PhantomData;
+use std::mem;
+use std::{io, sync::Arc};
 
+use crate::common::{NumberedEntity, NET};
 use crate::{
     common::{
         init_empty_slice, BackendSelector, BeS, MainWorkMarker, MarkedBackendLoader, QuickAttPair,
@@ -27,6 +30,14 @@ use super::a1_entity_mapping::{YearInterface, N_PERS, POSSIBLE_YEAR_FILTERS};
 
 pub struct WorkPeriods {}
 pub struct CountryInsts {}
+
+pub struct InvertedMultiLink<L: Link>
+where
+    L::Source: NumberedEntity,
+{
+    pub data: Arc<[Box<[NET<L::Source>]>]>,
+    _marker: PhantomData<L>,
+}
 
 impl WorkPeriods {
     pub fn from_year(year: u16) -> ET<Self> {
@@ -100,48 +111,59 @@ impl VariableSizeAttribute for CountryInsts {
     type LocType = u32;
 }
 
-pub fn invert_read_multi_link_to_work<L>(stowage: &Stowage, name: &str)
+impl<L> InvertedMultiLink<L>
 where
-    L: Entity<T = Box<[ET<L::Target>]>>
-        + Link<Source = Works>
-        + NamespacedEntity
-        + CompactEntity
-        + VariableSizeAttribute,
-    ET<L::Source>: UnsignedNumber,
-    ET<L::Target>: UnsignedNumber,
+    L: Entity<T = Box<[NET<L::Target>]>> + Link,
+    L::Source: NumberedEntity,
+    L::Target: NumberedEntity,
 {
-    let interface = stowage.get_entity_interface::<L, ReadIter>();
-    invert_multi_link::<L, _>(stowage, interface, name, true);
-    stowage.declare::<L::Target, MainWorkMarker>(name);
+    pub fn build(interface: impl Iterator<Item = L::T>, ignore_zero: bool) -> Self {
+        let data = multi_inverter::<L::Source, L::Target, _>(interface, ignore_zero);
+        Self {
+            data: data.into(),
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn from_stowage(stowage: &Stowage) -> Self
+    where
+        L: NamespacedEntity + CompactEntity + VariableSizeAttribute,
+    {
+        Self::build(stowage.get_entity_interface::<L, ReadIter>(), true)
+    }
+
+    pub fn stow(self, stowage: &Stowage, name: &str) {
+        self.stow_inner(stowage, name);
+    }
+
+    pub fn stow_as_work_link(self, stowage: &Stowage, name: &str) {
+        self.stow_inner(stowage, name);
+        stowage.declare::<L::Target, MainWorkMarker>(name);
+    }
+
+    fn stow_inner(mut self, stowage: &Stowage, name: &str) {
+        let muv = Arc::get_mut(&mut self.data).unwrap();
+        let iter = muv.into_iter().map(mem::take);
+        stowage.add_iter_owned::<VarAttBuilder, _, _>(iter, Some(name));
+        stowage.declare_link::<L::Target, L::Source>(name);
+    }
 }
 
-pub fn invert_multi_link<L, LIF>(stowage: &Stowage, interface: LIF, name: &str, ignore_zero: bool)
+pub fn multi_inverter<E1, E2, I>(it: I, ignore_zero: bool) -> Box<[Box<[NET<E1>]>]>
 where
-    L: Entity<T = Box<[ET<L::Target>]>> + Link,
-    ET<L::Source>: UnsignedNumber,
-    ET<L::Target>: UnsignedNumber,
-    LIF: Iterator<Item = L::T>,
-{
-    let inverted = get_inverted_multi::<L, LIF>(interface, ignore_zero);
-    stowage.add_barr::<VarAttBuilder, _>(inverted, name);
-    stowage.declare_link::<L::Target, L::Source>(name);
-}
+    E1: NumberedEntity,
+    E2: NumberedEntity,
 
-pub fn get_inverted_multi<L, LIF>(interface: LIF, ignore_zero: bool) -> Box<[Box<[ET<L::Source>]>]>
-where
-    L: Entity<T = Box<[ET<L::Target>]>> + Link,
-    ET<L::Source>: UnsignedNumber,
-    ET<L::Target>: UnsignedNumber,
-    LIF: Iterator<Item = L::T>,
+    I: Iterator<Item = Box<[NET<E2>]>>,
 {
-    let mut inverted = init_empty_slice::<L::Target, Vec<<L::Source as Entity>::T>>();
-    for (source_id, target_slice) in interface.enumerate() {
-        for target_id in target_slice.iter() {
+    let mut inverted = init_empty_slice::<E2, Vec<NET<E1>>>();
+    for (source_id, target_slice) in it.enumerate() {
+        for &target_id in target_slice.iter() {
             let tidu = target_id.to_usize();
             if ignore_zero & (tidu == 0) {
                 continue;
             }
-            inverted[tidu].push(<L::Source as Entity>::T::from_usize(source_id))
+            inverted[tidu].push(NET::<E1>::from_usize(source_id))
         }
     }
     inverted
@@ -192,9 +214,12 @@ where
 }
 
 pub fn main(mut stowage: Stowage) -> io::Result<()> {
-    invert_read_multi_link_to_work::<WorkReferences>(&mut stowage, "works-citing");
-    invert_read_multi_link_to_work::<WorkTopics>(&mut stowage, "topic-works");
-    invert_read_multi_link_to_work::<WorkSources>(&mut stowage, "source-works");
+    InvertedMultiLink::<WorkReferences>::from_stowage(&stowage)
+        .stow_as_work_link(&stowage, "works-citing");
+    InvertedMultiLink::<WorkTopics>::from_stowage(&stowage)
+        .stow_as_work_link(&stowage, "topic-works");
+    InvertedMultiLink::<WorkSources>::from_stowage(&stowage)
+        .stow_as_work_link(&stowage, "source-works");
 
     collapse_links::<WorkTopics, TopicSubfields>(&mut stowage, "work-subfields");
 

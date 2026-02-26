@@ -1,6 +1,7 @@
 use std::{
     cmp::Ordering,
     fmt::Debug,
+    hash::Hash,
     io,
     iter::Enumerate,
     mem::replace,
@@ -20,23 +21,19 @@ use tqdm::{Iter, Tqdm};
 
 use crate::{
     common::{
-        init_empty_slice, BeS, CitSubfieldsArrayMarker, EmptyAttributeEntity, HitWorkMarker,
-        InstRelMarker, MainWorkMarker, QuickAttPair, QuickMap, RefSubfieldsArrayMarker,
-        Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker,
-        Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader, YearlyCitationsMarker,
-        YearlyPapersMarker,
+        init_empty_slice, BeS, CitSubfieldsArrayMarker, InstRelMarker, MainWorkMarker,
+        NumberedEntity, QuickAttPair, QuickMap, RefSubfieldsArrayMarker, Top15AuthorMarker,
+        Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker,
+        Top3PaperTopicMarker, WorkLoader, YearlyCitationsMarker, YearlyPapersMarker, NET,
     },
     env_consts::{FINAL_YEAR, START_YEAR},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{
-            AuthorshipFilteredAuthor, CountryCodes, CountryCodesThree,
-            FilteredAuthorshipInstitutions, InstCountries, SourceYearQs, WorkAnyAuthorships,
-            WorkSources, WorkTopics, WorkYears,
+            AuthorshipFilteredAuthor, FilteredAuthorshipInstitutions, InstCountries, SourceYearQs,
+            WorkAnyAuthorships, WorkSources, WorkTopics, WorkYears,
         },
         derive_links1::{WorkFilteredAuthors, WorkInstitutions, WorkSubfields, WorksCiting},
-        derive_links2::{WorkCountries, WorkTopSource},
-        derive_links3::HitPapers,
     },
     make_interface_struct,
     oa_structs::{
@@ -45,11 +42,10 @@ use crate::{
     },
     semantic_ids::SemCsvObj,
     steps::{
-        a1_entity_mapping::{Qs, YearInterface, Years},
-        derive_links1::{collapse_links, invert_read_multi_link_to_work},
+        a1_entity_mapping::{Qs, Years},
+        derive_links1::{multi_inverter, InvertedMultiLink},
     },
-    CiteCountMarker, QuickestBox, QuickestNumbered, ReadFixIter, ReadIter, Stowage,
-    WorkCountMarker,
+    CiteCountMarker, QuickestBox, ReadIter, Stowage,
 };
 pub const N_RELS: usize = 8;
 pub const ERA_SIZE: usize = 11;
@@ -57,7 +53,7 @@ pub const MAX_YEAR: usize = (FINAL_YEAR - START_YEAR) as usize;
 pub const MIN_YEAR: usize = MAX_YEAR - ERA_SIZE + 1;
 
 pub type EraRec = [u32; ERA_SIZE];
-pub type TopNRec<E, const N: usize> = [(u32, ET<E>); N];
+pub type TopNRec<E, const N: usize> = [(u32, NET<E>); N];
 pub type Top3Rec<E> = TopNRec<E, 3>;
 pub type Top15Rec<E> = TopNRec<E, 25>;
 
@@ -75,12 +71,9 @@ pub struct InstRelation {
     pub citations: u32,
 }
 
-struct ExtensionContainer<E>
-where
-    E: MarkedAttribute<WorkCountMarker>,
-{
-    paper_subfields: SelfExtender<SfDistRec<E>>,
-    citing_subfields: SelfExtender<SfDistRec<E>>,
+struct ExtensionContainer<E: NumberedEntity> {
+    paper_subfields: SelfExtender<SfDistRec>,
+    citing_subfields: SelfExtender<SfDistRec>,
     papers_by_years: SelfExtender<EraRec>,
     citing_by_years: SelfExtender<EraRec>,
     top3_paper_sfs: Top3RelExtender<Subfields, E>,
@@ -93,12 +86,15 @@ where
     rel_map_rec: HashMap<ET<Institutions>, InstRelation>,
 }
 
-struct SfDistRec<E: MarkedAttribute<WorkCountMarker>>([ET<MAA<E, WorkCountMarker>>; Subfields::N]);
+struct SfDistRec([usize; Subfields::N]); //TODO: usize here should be a smaller number, this should
+                                         //be a downcasting instance
 
-struct CiteDeriver {
+pub struct CiteDeriver {
     pub stowage: Stowage,
-    backends: CDBackends,
-    journal_vals: Arc<[u32]>,
+    pub backends: CDBackends,
+    pub journal_vals: Arc<[u32]>,
+    pub wcountries: Box<[Box<[ET<Countries>]>]>,
+    pub w_top_source: Box<[ET<Sources>]>,
 }
 
 struct CdManager {
@@ -113,14 +109,13 @@ struct SelfExtender<T> {
 
 struct TopNRelExtender<const N: usize, E, SE, Prep>
 where
-    SE: Entity,
-    E: Entity,
-    ET<E>: UnsignedNumber,
+    SE: NumberedEntity,
+    E: NumberedEntity,
     Prep: TopPrepper<E>,
 {
     vec: Vec<TopNRec<E, N>>,
     prep: Prep,
-    seid: SE::T,
+    seid: NET<SE>,
 }
 
 enum TopSorter {
@@ -132,19 +127,17 @@ make_interface_struct!(CDBackends,
     wciting > Works;
     year => WorkYears,
     icountry => InstCountries,
-    wtopsource => WorkTopSource,
     ship_fa => AuthorshipFilteredAuthor;
     wsubfields -> WorkSubfields,
     wtopics -> WorkTopics,
-    wcountries -> WorkCountries,
     wsources -> WorkSources,
     winsts -> WorkInstitutions,
     w_aships -> WorkAnyAuthorships,
     fship_insts -> FilteredAuthorshipInstitutions;
 );
 
-trait IRelAdder: Entity {
-    fn get_by_work(wu: usize, bends: &CDBackends, _id: ET<Self>) -> Vec<IT> {
+trait IRelAdder: NumberedEntity {
+    fn get_by_work(wu: usize, bends: &CDBackends, _id: NET<Self>) -> Vec<IT> {
         bends.winsts.get(&wu).unwrap().to_vec()
     }
 }
@@ -155,37 +148,15 @@ trait TopPrepper<E> {
     fn to_v(self) -> Vec<(usize, u32)>;
 }
 
-impl<E> Default for SfDistRec<E>
-where
-    E: MarkedAttribute<WorkCountMarker>,
-    ET<MAA<E, WorkCountMarker>>: Default,
-{
+impl Default for SfDistRec {
     fn default() -> Self {
-        let arr = [(); Subfields::N].map(|_| ET::<MAA<E, WorkCountMarker>>::default());
+        let arr = [0; Subfields::N];
         Self(arr)
     }
 }
 
 impl Stowage {
-    fn write_all_sem_ids(&self) {
-        self.write_semantic_id::<Authors>();
-        self.write_semantic_id::<Institutions>();
-        self.write_semantic_id::<Sources>();
-        self.write_semantic_id::<Subfields>();
-        let citer = self
-            .get_entity_interface::<CountryCodesThree, ReadFixIter>()
-            .zip(self.get_entity_interface::<CountryCodes, ReadFixIter>())
-            .map(|(e3, e2)| {
-                if e3 != [0; 3] {
-                    String::from_utf8(e3.into()).unwrap().to_lowercase()
-                } else {
-                    String::from_utf8(e2.into()).unwrap().to_lowercase()
-                }
-            });
-        self.decsem::<Countries, _>(citer);
-    }
-
-    fn ditf<Marker, E, T>(&self, v: Vec<T>, suff: &str)
+    pub fn ditf<Marker, E, T>(&self, v: Vec<T>, suff: &str)
     where
         E: Entity,
         T: ByteFixArrayInterface,
@@ -239,17 +210,15 @@ where
 
 impl<const N: usize, E, SE, Prep> TopNRelExtender<N, E, SE, Prep>
 where
-    E: Entity,
-    SE: Entity,
-    ET<E>: UnsignedNumber,
-    ET<SE>: UnsignedNumber,
+    E: NumberedEntity,
+    SE: NumberedEntity,
     Prep: TopPrepper<E> + Default,
 {
     fn new() -> Self {
         Self {
             vec: Vec::new(),
             prep: Prep::default(),
-            seid: SE::T::default(),
+            seid: NET::<SE>::default(),
         }
     }
 
@@ -257,12 +226,12 @@ where
         self.prep.add(e)
     }
 
-    fn push(&mut self, seid: SE::T, sort_o: TopSorter) {
+    fn push(&mut self, seid: NET<SE>, sort_o: TopSorter) {
         let cv = replace(&mut self.prep, Prep::default()).to_v();
         self.push_from_it(cv.into_iter(), seid, sort_o)
     }
 
-    fn push_from_arr<'a, T>(&mut self, arr: &[T], seid: SE::T)
+    fn push_from_arr<'a, T>(&mut self, arr: &[T], seid: NET<SE>)
     where
         T: UnsignedNumber + 'a,
         SE: Entity,
@@ -274,17 +243,16 @@ where
         );
     }
 
-    fn push_from_it<I>(&mut self, it: I, seid: SE::T, sort_o: TopSorter)
+    fn push_from_it<I>(&mut self, it: I, seid: NET<SE>, sort_o: TopSorter)
     where
         I: Iterator<Item = (usize, u32)>,
-        SE: Entity,
     {
         self.seid = seid;
         let mut v: Vec<(usize, u32)> = it.filter(|e| self.filter(e)).collect();
         v.sort_by(|l, r| sort_o.cmp(l, r));
         push_cut::<N, _>(
             v.into_iter()
-                .map(|t| (t.1.to_usize() as u32, E::T::from_usize(t.0)))
+                .map(|t| (t.1.to_usize() as u32, NET::<E>::from_usize(t.0)))
                 .collect(),
             &mut self.vec,
         );
@@ -303,9 +271,7 @@ where
 
 impl<E> ExtensionContainer<E>
 where
-    E: MarkedAttribute<WorkCountMarker>,
-    ET<E>: UnsignedNumber,
-    ET<MAA<E, WorkCountMarker>>: UnsignedNumber,
+    E: NumberedEntity,
 {
     fn new() -> Self {
         Self {
@@ -326,14 +292,15 @@ where
 
     fn extend_get_ccount(
         &mut self,
-        id: ET<E>,
+        id: NET<E>,
         wid: &ET<Works>,
-        bends: &CDBackends,
+        cd: &CiteDeriver,
         year: YT,
     ) -> usize
     where
         E: IRelAdder,
     {
+        let bends = &cd.backends;
         inc_year(&mut self.papers_by_years.rec, year);
         let wu = wid.to_usize();
         for sf_id in bends.wsubfields.get(&wu).unwrap() {
@@ -342,10 +309,10 @@ where
         for topic_id in bends.wtopics.get(&wu).unwrap() {
             self.top3_paper_topics.add(*topic_id);
         }
-        for cid in bends.wcountries.get(&wu).unwrap() {
+        for cid in &cd.wcountries[wu] {
             self.top3_aff_countries.add(*cid);
         }
-        self.top3_journals.add(*bends.wtopsource.get(wu).unwrap());
+        self.top3_journals.add(cd.w_top_source[wu]);
         let wcs = bends.wciting.get(&wu).unwrap();
         let wlen = wcs.len();
         let coauthships = bends.w_aships.get(&wu).unwrap();
@@ -373,7 +340,7 @@ where
         wcs.len()
     }
 
-    fn push(&mut self, parent_id: E::T, cd: &CiteDeriver) {
+    fn push(&mut self, parent_id: NET<E>, cd: &CiteDeriver) {
         let map_base = replace(&mut self.rel_map_rec, HashMap::new());
         let mut rel_vec: Vec<InstRelation> = map_base.into_values().collect();
         rel_vec.sort_by(|l, r| (r.papers, (r.end - r.start)).cmp(&(l.papers, l.end - l.start)));
@@ -413,18 +380,17 @@ where
 }
 
 impl CiteDeriver {
-    fn new(stowage: Stowage) -> Self {
+    pub(crate) fn new(stowage: Stowage, w_top_source: Box<[ET<Sources>]>) -> Self {
         let astow = Arc::new(stowage);
         let backends = CDBackends::new(astow.clone());
+        let wcountries = get_work_countries(&backends);
 
-        let journal_vals = source_stats
-            .iter()
-            .map(|hm| (5 - hm.1) as u32 * hm.0[0] * 2 + hm.0[1] * 3)
-            .collect();
         Self {
             backends,
             stowage: Arc::into_inner(astow).unwrap(),
-            journal_vals,
+            journal_vals: init_empty_slice::<Sources, u32>().into(),
+            wcountries,
+            w_top_source,
         }
     }
 
@@ -441,23 +407,21 @@ impl CiteDeriver {
             .desc(Some(E::NAME))
     }
 
-    fn cite_count<E>(&self)
+    fn cite_count_read<E>(&self, _: ())
     where
-        E: MarkedAttribute<MainWorkMarker> + MarkedAttribute<WorkCountMarker> + IRelAdder,
-        E::T: UnsignedNumber,
+        E: MarkedAttribute<MainWorkMarker> + IRelAdder,
         MAA<E, MainWorkMarker>:
             Entity<T = Box<[ET<Works>]>> + NamespacedEntity + VariableSizeAttribute,
-        ET<MAA<E, WorkCountMarker>>: UnsignedNumber,
     {
         let mut ext = ExtensionContainer::<E>::new();
 
         let iter = self.witer::<E>().map(|(i, ws)| {
-            let eid = ET::<E>::from_usize(i);
+            let eid = NET::<E>::from_usize(i);
             let sum = ws
                 .iter()
                 .map(|wid| {
                     let year = self.backends.year[wid.to_usize()];
-                    ext.extend_get_ccount(eid, wid, &self.backends, year)
+                    ext.extend_get_ccount(eid, wid, &self, year)
                 })
                 .sum();
             ext.push(eid, self);
@@ -468,12 +432,35 @@ impl CiteDeriver {
         ext.add_iters(&self.stowage);
     }
 
-    fn author_paths(&self) {
+    fn cite_count<E>(&self, eworks: Arc<[Box<[ET<Works>]>]>)
+    where
+        E: NumberedEntity + IRelAdder,
+    {
+        let mut ext = ExtensionContainer::<E>::new();
+
+        let iter = eworks.iter().enumerate().map(|(i, ws)| {
+            let eid = NET::<E>::from_usize(i);
+            let sum = ws
+                .iter()
+                .map(|wid| {
+                    let year = self.backends.year[wid.to_usize()];
+                    ext.extend_get_ccount(eid, wid, &self, year)
+                })
+                .sum();
+            ext.push(eid, self);
+            sum
+        });
+
+        add_iter_cc::<E, _>(&self.stowage, iter);
+        ext.add_iters(&self.stowage);
+    }
+
+    fn author_paths(&self, aworks: Arc<[Box<[ET<Works>]>]>) {
         let mut ext = ExtensionContainer::<Authors>::new();
         let mut source_paths = HashMap::<[ET<Sources>; 2], u32>::new();
         let mut sf_paths = HashMap::<[ET<Subfields>; 2], u32>::new();
 
-        let iter = self.witer::<Authors>().map(|(i, ws)| {
+        let iter = aworks.iter().enumerate().map(|(i, ws)| {
             let eid = ET::<Authors>::from_usize(i);
             let mut path_base = HashSet::<ET<Sources>>::new();
             let mut sf_path_base = HashSet::<ET<Subfields>>::new();
@@ -500,7 +487,7 @@ impl CiteDeriver {
                             sf_path_base.insert(*e);
                         });
 
-                    ext.extend_get_ccount(eid, wid, &self.backends, year)
+                    ext.extend_get_ccount(eid, wid, &self, year)
                 })
                 .sum();
             ext.push(eid, self);
@@ -521,7 +508,7 @@ impl CiteDeriver {
         )
     }
 
-    fn q_ccs(&self) {
+    fn q_ccs(&mut self) {
         let mut q_maps = init_empty_slice::<Qs, HashMap<ET<Works>, usize>>();
         let qy_map = self
             .stowage
@@ -541,7 +528,7 @@ impl CiteDeriver {
                     if (q != 0) & (q < best_q) {
                         best_q = q;
                     }
-                    let ccount = source_ext.extend_get_ccount(sid, e, &self.backends, year);
+                    let ccount = source_ext.extend_get_ccount(sid, e, &self, year);
                     q_maps[q as usize].insert(*e, ccount);
                     ccount
                 })
@@ -554,6 +541,10 @@ impl CiteDeriver {
         });
 
         add_iter_cc::<Sources, _>(&self.stowage, iter);
+        self.journal_vals = source_stats
+            .iter()
+            .map(|hm| (5 - hm.1) as u32 * hm.0[0] * 2 + hm.0[1] * 3)
+            .collect();
 
         source_ext.add_iters(&self.stowage);
 
@@ -579,12 +570,14 @@ impl CdManager {
         }
     }
 
-    fn send<F>(&mut self, f: F)
+    fn send<F, A>(&mut self, f: F, arg: A)
     where
-        F: Fn(&CiteDeriver) + Send + 'static,
+        F: Fn(&CiteDeriver, A) + Send + 'static,
+        A: Send + Clone + 'static,
     {
         let ac = self.cd.clone();
-        self.threads.push(thread::spawn(move || f(&ac)));
+        let arg_c = arg.clone();
+        self.threads.push(thread::spawn(move || f(&ac, arg_c)));
     }
 
     fn join(&mut self) {
@@ -698,51 +691,76 @@ impl IRelAdder for Authors {
     }
 }
 
-pub fn main(mut stowage: Stowage) -> io::Result<()> {
-    let cd = CiteDeriver::new(stowage);
+pub fn main(stowage: Stowage) -> io::Result<()> {
+    let sqy = stowage.get_entity_interface::<SourceYearQs, QuickMap>();
+    let w_sources = stowage.get_entity_interface::<WorkSources, ReadIter>();
+    let w_years = stowage.get_entity_interface::<WorkYears, QuickestBox>();
+
+    let a_inverter = InvertedMultiLink::<WorkFilteredAuthors>::from_stowage(&stowage);
+    let sf_inferter = InvertedMultiLink::<WorkSubfields>::from_stowage(&stowage);
+    let i_inverter = InvertedMultiLink::<WorkInstitutions>::from_stowage(&stowage);
+
+    let w_top_source: Box<[ET<Sources>]> = w_sources
+        .enumerate()
+        .map(|(i, sources)| {
+            let wy = w_years[i];
+            let mut best_q = 6;
+            let mut best_s = 0;
+            let mut update = |mut q, sid| {
+                if q == 0 {
+                    q = 5
+                }
+                if q < best_q {
+                    best_s = sid;
+                    best_q = q;
+                }
+            };
+            for sid in sources {
+                let q = *sqy.get(&(sid, wy)).unwrap_or(&5);
+                update(q, sid);
+            }
+            best_s
+        })
+        .collect();
+
+    let mut cd = CiteDeriver::new(stowage, w_top_source);
+    let country_works =
+        multi_inverter::<Works, Countries, _>(cd.wcountries.iter().map(|e| e.clone()), true);
+    let cwo_name = "country-works";
+    cd.stowage
+        .add_barr::<VarAttBuilder, _>(country_works.clone(), cwo_name);
+
+    cd.stowage.declare::<Countries, MainWorkMarker>(cwo_name);
+
+    cd.q_ccs();
     let mut cdm = CdManager::new(cd);
-    cdm.send(CiteDeriver::author_paths);
-    cdm.send(CiteDeriver::cite_count::<Sources>);
-    cdm.send(CiteDeriver::cite_count::<Institutions>);
-    cdm.send(CiteDeriver::cite_count::<Countries>);
-    cdm.send(CiteDeriver::cite_count::<Subfields>);
-    cdm.send(CiteDeriver::cite_count::<Topics>);
-    cdm.send(|dm| dm.stowage.write_all_sem_ids());
+    cdm.send(CiteDeriver::author_paths, a_inverter.data.clone());
+    cdm.send(
+        CiteDeriver::cite_count::<Institutions>,
+        i_inverter.data.clone(),
+    );
+    cdm.send(CiteDeriver::cite_count::<Countries>, country_works.into());
+    cdm.send(
+        CiteDeriver::cite_count::<Subfields>,
+        sf_inferter.data.clone(),
+    );
+    cdm.send(CiteDeriver::cite_count_read::<Topics>, ());
     cdm.join();
     cdm.cd.stowage.write_code()?;
+    let cd = Arc::into_inner(cdm.cd).unwrap();
+    let stowage = cd.stowage;
     let interface = stowage.get_entity_interface::<WorksCiting, ReadIter>();
     let wc_name = "work-citing-counts";
     stowage.add_iter_owned::<DowncastingBuilder, _, _>(interface.map(|e| e.len()), Some(&wc_name));
     stowage.declare::<Works, CiteCountMarker>(wc_name);
 
-    let sqy = stowage.get_entity_interface::<SourceYearQs, QuickMap>();
-    let w_sources = stowage.get_entity_interface::<WorkSources, ReadIter>();
-    let w_years = stowage.get_entity_interface::<WorkYears, QuickestBox>();
-    let iter = w_sources.enumerate().map(|(i, sources)| {
-        let wy = w_years[i];
-        let mut best_q = 6;
-        let mut best_s = 0;
-        let mut update = |mut q, sid| {
-            if q == 0 {
-                q = 5
-            }
-            if q < best_q {
-                best_s = sid;
-                best_q = q;
-            }
-        };
-        for sid in sources {
-            let q = *sqy.get(&(sid, wy)).unwrap_or(&5);
-            update(q, sid);
-        }
-        best_s
-    });
-    stowage.add_iter_owned::<FixAttBuilder, _, _>(iter, Some("work-top-source"));
+    a_inverter.stow_as_work_link(&stowage, "author-works");
+    sf_inferter.stow_as_work_link(&stowage, "subfield-works");
+    i_inverter.stow_as_work_link(&stowage, "institution-works");
 
-    invert_read_multi_link_to_work::<WorkFilteredAuthors>(&mut stowage, "author-works");
-    invert_read_multi_link_to_work::<WorkSubfields>(&mut stowage, "subfield-works");
-    invert_read_multi_link_to_work::<WorkInstitutions>(&mut stowage, "institution-works");
-    collapse_links::<WorkInstitutions, InstCountries>(&mut stowage, "work-countries");
+    stowage.add_barr::<VarAttBuilder, _>(cd.wcountries, "work-countries");
+    stowage.add_barr::<FixAttBuilder, _>(cd.w_top_source, "work-top-source");
+
     stowage.write_code()?;
     Ok(())
 }
@@ -771,7 +789,7 @@ where
     );
 }
 
-fn inc_year(era_rec: &mut EraRec, year: YT) {
+pub fn inc_year(era_rec: &mut EraRec, year: YT) {
     let yi = year.to_usize();
     if (yi >= MIN_YEAR) & (yi <= MAX_YEAR) {
         era_rec[yi - MIN_YEAR] += 1
@@ -801,4 +819,20 @@ where
             }
         }
     }
+}
+
+fn get_work_countries(cb: &CDBackends) -> Box<[Box<[ET<Countries>]>]> {
+    (0..Works::N + 1)
+        .map(|wid| {
+            let mut countries = Vec::new();
+            let mid_targets = cb.winsts.get(&wid).unwrap();
+            for iid in mid_targets {
+                let fw_target = cb.icountry[iid.to_usize()];
+                if !countries.contains(&fw_target) {
+                    countries.push(fw_target);
+                }
+            }
+            countries.into_boxed_slice()
+        })
+        .collect()
 }
