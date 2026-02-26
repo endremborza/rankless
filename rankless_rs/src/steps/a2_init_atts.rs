@@ -18,7 +18,10 @@ use crate::{
         },
         Biblio, FieldLike, Geo, Named, NamedEntity, ReferencedWork, Work, WorkTopic,
     },
-    steps::a1_entity_mapping::{iter_authorships, Qs, SourceArea, YearInterface, Years},
+    steps::{
+        a1_entity_mapping::{iter_authorships, Qs, RawYear, SourceArea, YearInterface, Years},
+        derive_links2::MIN_YEAR,
+    },
 };
 use dmove::{
     para::Worker, BigId, DiscoMapEntityBuilder, DowncastingBuilder, DowncastingPrefixedVarBuilder,
@@ -53,6 +56,13 @@ struct SourceQ {
 struct WikiId {
     slug: String,
     oa_id: BigId,
+}
+
+#[derive(Deserialize)]
+struct NobelEntry {
+    oa_id: BigId,
+    category: u8,
+    year: RawYear,
 }
 
 struct ShipRelWriter {
@@ -255,6 +265,7 @@ impl Stowage {
 
     fn add_author_atts(&mut self) {
         let aif = self.get_entity_interface::<Authors, QuickestNumbered>();
+        self.add_nobels(&aif);
         let mut names = init_empty_slice::<Authors, String>();
         let mut wiki_slugs = init_empty_slice::<Authors, String>();
         let mut orcids = init_empty_slice::<Authors, [u8; 19]>();
@@ -455,6 +466,18 @@ impl Stowage {
         //TODO: this takes memory (and some space) for no fucking reason
         let iter = (0..E::N).map(|_| "".to_string());
         self.declare_iter::<VarAttBuilder, _, _, E, Marker>(iter, name)
+    }
+
+    fn add_nobels(&self, aif: &LoadedIdMap<ET<Authors>>) {
+        let mut author_nobels = init_empty_slice::<Authors, (u8, ET<Years>)>();
+        for ne in self.read_csv_objs::<NobelEntry>(Authors::NAME, "nobel") {
+            if let Some(aidt) = aif.0.get(&ne.oa_id) {
+                if ne.year > MIN_YEAR as RawYear {
+                    author_nobels[aidt.to_usize()] = (ne.category, YearInterface::parse(ne.year));
+                }
+            }
+        }
+        self.add_barr::<FixAttBuilder, _>(author_nobels, "author-nobels");
     }
 }
 
