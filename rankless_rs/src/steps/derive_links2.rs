@@ -45,7 +45,7 @@ use crate::{
         a1_entity_mapping::{Qs, RawYear, YearInterface, Years},
         derive_links1::{multi_inverter, InvertedMultiLink},
     },
-    CiteCountMarker, QuickestBox, ReadIter, Stowage,
+    CiteCountMarker, QuickestBox, QuickestNumbered, ReadIter, Stowage,
 };
 
 //TODO: move this all to a2
@@ -59,10 +59,11 @@ struct NobelEntry {
 }
 impl Stowage {
     fn add_nobels(&self) {
-        let aif = self.get_entity_interface::<Authors, QuickMap>();
+        let aif = self.get_entity_interface::<Authors, QuickestNumbered>();
         let mut author_nobels = init_empty_slice::<Authors, (u8, ET<Years>)>();
         for ne in self.read_csv_objs::<NobelEntry>(Authors::NAME, "nobel") {
-            if let Some(aidt) = aif.get(&ne.oa_id) {
+            println!("ne row oa: {}", ne.oa_id);
+            if let Some(aidt) = aif.0.get(&ne.oa_id) {
                 if ne.year > MIN_YEAR as RawYear {
                     author_nobels[aidt.to_usize()] = (ne.category, YearInterface::parse(ne.year));
                 }
