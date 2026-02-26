@@ -102,23 +102,3 @@ make -f rankless_rs/Makefile.fast rankless_rs/src/gen/derive_links3.rs
 ```sh
 make -f rankless_rs/Makefile.fast
 ```
-
----
-
-## `[build] rustflags` gotcha
-
-The workspace `Cargo.toml` has:
-```toml
-[build]
-rustflags = ["-C", "target-cpu=native"]
-```
-
-This key is **silently ignored** in `Cargo.toml`. It is only valid in `.cargo/config.toml`.
-Cargo warns: `unused manifest key: build — build is a valid .cargo/config.toml key`.
-
-The true source of slow release builds is the profile, not this flag.
-To actually enable `target-cpu=native`, create `.cargo/config.toml`:
-```toml
-[build]
-rustflags = ["-C", "target-cpu=native"]
-```

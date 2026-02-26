@@ -19,6 +19,3 @@ lto = true
 
 [profile.gen-debug]
 inherits = "dev"
-
-[build]
-rustflags = ["-C", "target-cpu=native"]
