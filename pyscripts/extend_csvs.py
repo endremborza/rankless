@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pandas as pd
 import polars as pl
@@ -10,6 +11,17 @@ from ccl_science_data.common import (
     get_last_filter,
     parse_id,
 )
+
+_EXTERN = Path(__file__).parent.parent / "extern"
+
+# Integer codes for Nobel categories — avoids repeating strings in the CSV.
+# Only scientific categories that appear in nobel-matches.csv are listed.
+NOBEL_CATEGORY_CODES = {
+    "Physics": 1,
+    "Chemistry": 2,
+    "Physiology or Medicine": 3,
+    "Economics": 4,
+}
 
 # link_frame = "https://tmp-borza-public-cyx.s3.amazonaws.com/{}.csv.gz"
 link_frame = "s3://tmp-borza-public-cyx/{}.csv.gz"
@@ -57,3 +69,15 @@ if __name__ == "__main__":
         "rl_i", axis=1
     )
     oa_to_slug.to_csv(get_csv_path(EntC.AUTHORS, "wiki-slug"), index=False)
+    nobel_out = (
+        pd.read_csv(_EXTERN / "nobel-matches.csv")
+        .loc[lambda df: df["oa_id"].notna()]
+        .assign(
+            category=lambda df: df["category"].map(NOBEL_CATEGORY_CODES),
+        )
+        .loc[lambda df: df["category"].notna()]
+        .loc[:, ["oa_id", "category", "year"]]
+        .astype(int)
+    )
+    assert len(nobel_out) > 400, f"Expected 400+ Nobel matches, got {len(nobel_out)}"
+    nobel_out.to_csv(get_csv_path(EntC.AUTHORS, "nobel"), index=False)
