@@ -19,6 +19,7 @@ __pycache__
 /reports
 *.profraw
 *.img
+*.json.gz
 .ipynb_checkpoints
 draft*.ipynb
 notebooks/draft*
