@@ -250,10 +250,10 @@
 						<div class="chip-title" class:clamp={!isExpanded}>
 							{#if isExpanded && paper?.doi}
 								<a href="https://doi.org/{paper.doi}" target="_blank" rel="noopener"
-									>{paper?.name ?? '(unknown)'}</a
+									>{@html paper?.name ?? '(unknown)'}</a
 								>
 							{:else}
-								{paper?.name ?? '(unknown)'}
+								{@html paper?.name ?? '(unknown)'}
 							{/if}
 						</div>
 						<div class="chip-sub">

@@ -214,9 +214,9 @@
 				on:focus={() => fixHighlight(i)}
 			>
 				{#if paper.doi.length > 0}
-					<a href={paper.doi} target="_blank">{paper.name} ({paper.year})</a>
+					<a href={paper.doi} target="_blank">{@html paper.name} ({paper.year})</a>
 				{:else}
-					{paper.name} ({paper.year})
+					{@html paper.name} ({paper.year})
 				{/if}
 				{#if source || authors}
 					<div class="paper-meta">
