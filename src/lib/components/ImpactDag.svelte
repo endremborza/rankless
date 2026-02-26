@@ -8,6 +8,7 @@
 		isAuthored,
 		type PaperHighlight
 	} from '$lib/utils/paper-helpers';
+	import { computeSeen } from '$lib/utils/dag-builder';
 	import { getNobelOaIds } from '$lib/utils/nobel';
 	import { pluralize } from '$lib/text-format-util';
 
@@ -24,39 +25,6 @@
 		prestigious: { label: 'Prestigious', cls: 'hl-prestigious' },
 		nobel: { label: 'Nobel', cls: 'hl-nobel' }
 	};
-
-	type NodeMeta = { level: number; parents: Set<number>; children: Set<number> };
-	type SeenMap = Record<number, NodeMeta>;
-
-	function build(node: RefTree, seen: SeenMap, depth: number, parent: number) {
-		if (node === 'Leaf') return;
-		for (const key of Object.keys(node.Node).map(Number)) {
-			if (seen[key] == undefined || seen[key].level > depth)
-				seen[key] = { level: depth, parents: new Set(), children: new Set() };
-			if (depth === seen[key].level) {
-				seen[key].parents.add(parent);
-				if (parent !== 0)
-					(seen[parent] ??= {
-						level: depth - 1,
-						parents: new Set(),
-						children: new Set()
-					}).children.add(key);
-			}
-			build(node.Node[key], seen, depth + 1, key);
-		}
-	}
-
-	function computeSeen(t: RefTree): SeenMap {
-		const seen: SeenMap = {};
-		build(t, seen, 0, 0);
-		for (const [, meta] of Object.entries(seen)) {
-			for (const p of meta.parents) {
-				if (p !== 0 && seen[p])
-					seen[p].children.add(Number(Object.keys(seen).find((k) => seen[Number(k)] === meta)));
-			}
-		}
-		return seen;
-	}
 
 	function badgeLabel(hl: PaperHighlight): string {
 		if (hl.key === 'prestigious' && hl.label) return hl.label;
