@@ -8,16 +8,20 @@
 		isAuthored,
 		type PaperHighlight
 	} from '$lib/utils/paper-helpers';
+	import { getNobelOaIds } from '$lib/utils/nobel';
 
 	export let dag: RefTree;
 	export let paperMap: Record<number, Paper>;
 	export let entityAtts: EntityAttsForLinks;
 	export let discAuthorNames: Record<string, string>;
+	export let authorOaIds: Record<string, number> = {};
 	export let sourceAuthorSemId: string | undefined = undefined;
+	export let authorName: string = '';
 
 	const HIGHLIGHT_DEFS: Record<string, { label: string; cls: string }> = {
-		hit: { label: 'High Impact', cls: 'hl-hit' },
-		prestigious: { label: 'Prestigious', cls: 'hl-prestigious' }
+		hit: { label: 'Standout', cls: 'hl-hit' },
+		prestigious: { label: 'Prestigious', cls: 'hl-prestigious' },
+		nobel: { label: 'Nobel', cls: 'hl-nobel' }
 	};
 
 	type NodeMeta = { level: number; parents: Set<number>; children: Set<number> };
@@ -65,6 +69,42 @@
 		return Math.min(280, Math.max(170, 130 + Math.round(len * 1.8)));
 	}
 
+	// --- Nobel ---
+	let nobelOaIds: Set<number> = new Set();
+
+	$: pageAuthorDmId = (() => {
+		if (!sourceAuthorSemId) return undefined;
+		const authors = entityAtts['authors'];
+		if (!authors) return undefined;
+		for (const [dmId, att] of Object.entries(authors)) {
+			if (att.semantic_id === sourceAuthorSemId) return dmId;
+		}
+		return undefined;
+	})();
+
+	$: pageAuthorOaId = pageAuthorDmId ? authorOaIds[pageAuthorDmId] : undefined;
+	$: pageAuthorIsNobel = pageAuthorOaId != null && nobelOaIds.has(pageAuthorOaId);
+
+	function hasNobelCoauthor(paper: Paper): boolean {
+		if (nobelOaIds.size === 0) return false;
+		for (const ship of paper.authorships) {
+			if (ship.author[0] !== 'F') continue;
+			const dmId = ship.author.slice(1);
+			const oaId = authorOaIds[dmId];
+			if (oaId == null) continue;
+			if (pageAuthorIsNobel && oaId === pageAuthorOaId) continue;
+			if (nobelOaIds.has(oaId)) return true;
+		}
+		return false;
+	}
+
+	function getHighlights(paper: Paper): PaperHighlight[] {
+		const hl = getPaperHighlights(paper, undefined, entityAtts);
+		if (hasNobelCoauthor(paper)) hl.push({ key: 'nobel' });
+		return hl;
+	}
+
+	// --- state ---
 	let hovered: number | undefined;
 	let expanded = new Set<number>();
 
@@ -90,10 +130,13 @@
 
 	$: sections = (() => {
 		const hasBoth = groups.impacted.length > 0 && groups.authored.length > 0;
+		const refLabel = authorName
+			? `Works of ${authorName} being referenced`
+			: 'Referenced Works';
 		if (hasBoth)
 			return [
 				{ wids: groups.impacted, label: 'Citing Papers' },
-				{ wids: groups.authored, label: 'Referenced Works' }
+				{ wids: groups.authored, label: refLabel }
 			];
 		return [{ wids: [...groups.impacted, ...groups.authored], label: '' }];
 	})();
@@ -130,49 +173,45 @@
 	let containerEl: HTMLDivElement;
 	let chipEls: Record<number, HTMLDivElement> = {};
 	let edges: ComputedEdge[] = [];
-	let edgeSvgEl: SVGSVGElement;
-
-	const GAP_HEIGHT = 28;
 
 	function computeEdges() {
-		if (
-			!containerEl ||
-			!edgeSvgEl ||
-			groups.impacted.length === 0 ||
-			groups.authored.length === 0
-		) {
+		if (!containerEl) {
 			edges = [];
 			return;
 		}
-		const svgRect = edgeSvgEl.getBoundingClientRect();
+		const containerRect = containerEl.getBoundingClientRect();
 		const newEdges: ComputedEdge[] = [];
-		const authoredSet = new Set(groups.authored);
 
-		for (const impWid of groups.impacted) {
-			const el = chipEls[impWid];
-			if (!el) continue;
-			const pRect = el.getBoundingClientRect();
-			const startX = pRect.left + pRect.width / 2 - svgRect.left;
-			const startY = pRect.bottom - svgRect.top;
+		for (const [widStr, meta] of Object.entries(seen)) {
+			const parentWid = Number(widStr);
+			const parentEl = chipEls[parentWid];
+			if (!parentEl) continue;
 
-			const children = seen[impWid]?.children;
-			if (!children) continue;
-			for (const childWid of children) {
-				if (!authoredSet.has(childWid)) continue;
+			for (const childWid of meta.children) {
 				const childEl = chipEls[childWid];
 				if (!childEl) continue;
-				const cRect = childEl.getBoundingClientRect();
-				const endX = cRect.left + cRect.width / 2 - svgRect.left;
-				const endY = cRect.top - svgRect.top;
 
-				const gap = endY - startY;
-				const cp1y = startY + gap * 0.4;
-				const cp2y = endY - gap * 0.4;
-				newEdges.push({
-					path: `M ${startX} ${startY} C ${startX} ${cp1y}, ${endX} ${cp2y}, ${endX} ${endY}`,
-					parentWid: impWid,
-					childWid
-				});
+				const pRect = parentEl.getBoundingClientRect();
+				const cRect = childEl.getBoundingClientRect();
+
+				const startX = pRect.left + pRect.width / 2 - containerRect.left;
+				const startY = pRect.bottom - containerRect.top;
+				const endX = cRect.left + cRect.width / 2 - containerRect.left;
+				const endY = cRect.top - containerRect.top;
+
+				const rawGap = endY - startY;
+				let path: string;
+				if (rawGap <= 10) {
+					const arcDepth = 18;
+					const midX = (startX + endX) / 2;
+					const belowY = Math.max(startY, endY) + arcDepth;
+					path = `M ${startX} ${startY} Q ${midX} ${belowY}, ${endX} ${endY}`;
+				} else {
+					const cp1y = startY + rawGap * 0.4;
+					const cp2y = endY - rawGap * 0.4;
+					path = `M ${startX} ${startY} C ${startX} ${cp1y}, ${endX} ${cp2y}, ${endX} ${endY}`;
+				}
+				newEdges.push({ path, parentWid: parentWid, childWid });
 			}
 		}
 		edges = newEdges;
@@ -193,6 +232,7 @@
 	onMount(() => {
 		resizeObserver = new ResizeObserver(() => computeEdges());
 		if (containerEl) resizeObserver.observe(containerEl);
+		getNobelOaIds().then((ids) => (nobelOaIds = ids));
 		return () => resizeObserver?.disconnect();
 	});
 
@@ -203,7 +243,18 @@
 <!-- svelte-ignore a11y-mouse-events-have-key-events -->
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <div class="impact-dag" bind:this={containerEl}>
-	{#each sections as section, si}
+	<svg class="edge-overlay" aria-hidden="true">
+		{#each edges as edge}
+			<path
+				d={edge.path}
+				stroke="currentColor"
+				stroke-width="1.2"
+				fill="none"
+				opacity={edgeOpacity(edge)}
+			/>
+		{/each}
+	</svg>
+	{#each sections as section}
 		<div class="level-section">
 			{#if section.label}
 				<h4 class="level-label">{section.label}</h4>
@@ -214,9 +265,7 @@
 					{@const isHovered = hovered === wid}
 					{@const isRelated = relatedSet.has(wid)}
 					{@const dimmed = hovered != undefined && !isHovered && !isRelated}
-					{@const highlights = paper
-						? getPaperHighlights(paper, undefined, entityAtts)
-						: []}
+					{@const highlights = paper ? getHighlights(paper) : []}
 					{@const isExpanded = expanded.has(wid)}
 					<div
 						class="chip"
@@ -293,24 +342,6 @@
 				{/each}
 			</div>
 		</div>
-		{#if si === 0 && sections.length > 1}
-			<svg
-				class="edge-svg"
-				bind:this={edgeSvgEl}
-				style="height: {GAP_HEIGHT}px"
-				aria-hidden="true"
-			>
-				{#each edges as edge}
-					<path
-						d={edge.path}
-						stroke="currentColor"
-						stroke-width="1.2"
-						fill="none"
-						opacity={edgeOpacity(edge)}
-					/>
-				{/each}
-			</svg>
-		{/if}
 	{/each}
 </div>
 
@@ -319,12 +350,24 @@
 		display: flex;
 		flex-direction: column;
 		position: relative;
+		gap: 12px;
+	}
+
+	.edge-overlay {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+		overflow: visible;
+		color: var(--color-text);
 	}
 
 	.level-section {
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
+		position: relative;
 	}
 
 	.level-label {
@@ -352,6 +395,7 @@
 		flex: 1 0 130px;
 		cursor: pointer;
 		transition: border-color 160ms, background-color 160ms, opacity 160ms;
+		position: relative;
 	}
 
 	.chip.dimmed {
@@ -395,7 +439,7 @@
 		align-items: center;
 		gap: 4px;
 		font-size: 0.6rem;
-		opacity: 0.6;
+		opacity: 0.75;
 	}
 
 	.chip-details {
@@ -434,7 +478,7 @@
 	}
 
 	.hl-hit {
-		background: rgba(var(--color-range-80), 0.15);
+		background: rgba(var(--color-range-80), 0.2);
 		color: rgba(var(--color-range-80), 1);
 	}
 
@@ -443,10 +487,9 @@
 		color: rgb(120, 80, 180);
 	}
 
-	.edge-svg {
-		width: 100%;
-		overflow: visible;
-		color: var(--color-text);
+	.hl-nobel {
+		background: rgba(180, 140, 30, 0.2);
+		color: rgb(160, 120, 20);
 	}
 
 	.sep {
