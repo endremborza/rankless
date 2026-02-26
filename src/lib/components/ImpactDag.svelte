@@ -331,7 +331,7 @@
 
 	.level-label {
 		margin: 0;
-		font-size: 0.65rem;
+		font-size: 0.85rem;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		opacity: 0.5;
@@ -453,21 +453,24 @@
 	@media (min-width: 1200px) {
 		.chip {
 			padding: 8px 12px;
-			font-size: 0.85rem;
-			flex-basis: 200px;
+			font-size: 1.15rem;
+			flex-basis: 300px;
 		}
 
 		.chip-sub {
-			font-size: 0.7rem;
+			font-size: 0.9rem;
 		}
 
 		.badge {
-			font-size: 0.6rem;
+			font-size: 0.8rem;
 			padding: 1px 6px;
 		}
 
 		.chip-details {
-			font-size: 0.72rem;
+			font-size: 0.82rem;
+		}
+		.level-label {
+			font-size: 1.15rem;
 		}
 	}
 
