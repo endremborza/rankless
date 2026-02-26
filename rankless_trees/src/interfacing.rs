@@ -23,7 +23,7 @@ use rankless_rs::{
             WorkBiblios, WorkDois, WorkReferences, WorkTopics, WorkYears, WorksNames,
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
-        derive_links2::{SourceStats, WorkCountries, WorkTopSource},
+        derive_links2::{AuthorNobels, SourceStats, WorkCountries, WorkTopSource},
         derive_links3::{Coauthors, HitPapers, HitPapersDois, HitPapersNames},
         derive_links4::{AuthorCitingHitsDirect, AuthorCitingHitsOnce},
         derive_links5::HitPaperYearlyCitations,
@@ -278,6 +278,7 @@ make_interfaces!(
     ccodes => CountryCodes,
     fshipa => AuthorshipFilteredAuthor,
     dshipa => AuthorshipDiscardedAuthor,
+    author_prizes => AuthorNobels,
     raw_cites => AuthorRawCites,
     raw_works => AuthorRawWorkCounts;
     wrefs -> WorkReferences,

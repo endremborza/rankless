@@ -230,8 +230,14 @@ struct PaperSetResp {
     entity_atts: EntityAttsForLinks,
     #[serde(rename = "discAuthorNames")]
     disc_author_names: HashMap<String, String>,
-    #[serde(rename = "authorOaIds")]
-    author_oa_ids: HashMap<usize, usize>, //only filtered authors
+    #[serde(rename = "authorsMeta")]
+    authors_meta: HashMap<usize, PaperAuthorMeta>, //only filtered authors
+}
+
+#[derive(Serialize)]
+struct PaperAuthorMeta {
+    prize: u8,
+    year: u16,
 }
 
 #[derive(Serialize)]
@@ -981,7 +987,7 @@ async fn paper_profile(
         .chain(conn.wids.iter().filter(|wid| !hw_set.contains(*wid)))
         .map(|e| e.to_usize());
 
-    let papers = get_paper_set_resp(wids, states.2.clone(), &states.0 .0[Authors::NAME]);
+    let papers = get_paper_set_resp(wids, states.2.clone());
     let out = PaperProfileResp {
         dag: conn.dag,
         papers,
@@ -1025,8 +1031,7 @@ async fn works_get(
                 if work_arr.len() > 0 {
                     let start = min(pstart, work_arr.len() - 1);
                     let wids = work_arr[start..].iter().take(MAX_WORKS).map(WT::to_usize);
-                    let resp =
-                        get_paper_set_resp(wids, states.2.clone(), &states.0 .0[Authors::NAME]);
+                    let resp = get_paper_set_resp(wids, states.2.clone());
                     let out = PaginatedPaperSetResp {
                         resp,
                         total_papers: work_arr.len(),
@@ -1043,12 +1048,12 @@ async fn works_get(
     )
 }
 
-fn get_paper_set_resp<I>(wids: I, trm: Arc<InstTrm>, author_nstate: &NameState) -> PaperSetResp
+fn get_paper_set_resp<I>(wids: I, trm: Arc<InstTrm>) -> PaperSetResp
 where
     I: Iterator<Item = usize>,
 {
     let mut disc_author_names = HashMap::new();
-    let mut author_oa_ids = HashMap::new();
+    let mut authors_meta = HashMap::new();
     let mut wnames_handle = trm.get_file_handle();
     let mut doi_hand = trm.get_file_handle();
     let mut dan_hand = trm.get_file_handle();
@@ -1063,9 +1068,8 @@ where
                 &mut doi_hand,
                 &mut dan_hand,
                 &mut disc_author_names,
-                &mut author_oa_ids,
+                &mut authors_meta,
                 &mut entity_atts,
-                author_nstate,
                 &trm.state.att_union,
             )
         })
@@ -1074,7 +1078,7 @@ where
         papers,
         entity_atts,
         disc_author_names,
-        author_oa_ids,
+        authors_meta,
     }
 }
 
@@ -1085,9 +1089,8 @@ fn paper_out(
     doi_handler: &mut VattReadingArcMap<WorkDois>,
     disc_name_handler: &mut VattReadingArcMap<DiscardedAuthorsNames>,
     discarded_author_name_map: &mut HashMap<String, String>,
-    author_oa_ids: &mut HashMap<usize, usize>,
+    authors_meta: &mut HashMap<usize, PaperAuthorMeta>,
     entity_atts: &mut EntityAttsForLinks,
-    author_nstate: &NameState,
     att_union: &AttributeLabelUnion,
 ) -> PaperOut {
     let mut yearly_cites = None;
@@ -1129,10 +1132,14 @@ fn paper_out(
         let (full_aid, insts_slice) = if is_filterd {
             let aid = gets.fshipa(&ship_id);
             add_to_eatts(Authors::NAME, aid.to_usize());
-            if let Some(resid) = author_nstate.dm_id_to_result_id.get(&aid.to_usize()) {
-                let oa_id = author_nstate.responses[*resid].oa_id.to_usize();
-                author_oa_ids.insert(aid.to_usize(), oa_id);
-            }
+            let prize_rec = gets.author_prizes(aid);
+            authors_meta.insert(
+                aid.to_usize(),
+                PaperAuthorMeta {
+                    prize: prize_rec.0,
+                    year: YearInterface::reverse(prize_rec.1),
+                },
+            );
             (format!("F{aid}"), gets.fshipis(*aid))
         } else {
             let aid = gets.dshipa(&ship_id);
