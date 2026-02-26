@@ -7,7 +7,7 @@ use crate::{
         a1_entity_mapping::{Authors, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{WorkDois, WorkTopics, WorkYears, WorksNames},
         derive_links1::{WorkFilteredAuthors, WorkSubfields},
-        derive_links2::AuthorWorks,
+        derive_links2::{AuthorNobels, AuthorWorks},
     },
     steps::a1_entity_mapping::{YearInterface, Years},
     CiteCountMarker, QuickestBox, QuickestVBox, ReadIter, Stowage, WorkCountMarker,
@@ -17,9 +17,10 @@ use dmove::{
     MarkedAttribute, NamespacedEntity, UnsignedNumber, VarAttBuilder, VariableSizeAttribute, ET,
     MAA,
 };
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 
 const MIN_FOR_HIT: usize = 40;
+const MIN_FOR_NOBEL: usize = 5;
 const TOP_TOPIC: usize = 20;
 const TOP_SUBFIELD: usize = 100;
 const TOP_YEAR: usize = 50;
@@ -38,6 +39,24 @@ where
             .map(|e| e.len()),
         &format!("{}-work-count", E::NAME),
     );
+}
+
+pub fn get_nobeled_works(stowage: &Stowage, w_years: &Box<[ET<Years>]>) -> HashSet<ET<Works>> {
+    let author_nobels = stowage.get_entity_interface::<AuthorNobels, QuickestBox>();
+    let mut nobeled_works = HashSet::new();
+    for (wid, w_aids) in stowage
+        .get_entity_interface::<WorkFilteredAuthors, ReadIter>()
+        .enumerate()
+    {
+        let wyear = w_years[wid];
+        for aid in w_aids {
+            let anobely = author_nobels[aid.to_usize()].1;
+            if anobely >= wyear {
+                nobeled_works.insert(ET::<Works>::from_usize(wid));
+            }
+        }
+    }
+    nobeled_works
 }
 
 pub fn main(stowage: Stowage) -> std::io::Result<()> {
@@ -72,6 +91,8 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     cc_interface.iter().for_each(|e| theap.push(*e));
     let global_limit = topn(theap, TOP_ALL_TIME);
 
+    let nobeled_works = get_nobeled_works(&starc, &w_years);
+
     let doi_interface = starc.get_entity_interface::<WorkDois, QuickestVBox>();
     let name_interface = starc.get_entity_interface::<WorksNames, ReadIter>();
     let mut hit_names = vec!["Unknown".to_string()]; //TODO: 0 id is unknown, but all this needing to map to
@@ -84,14 +105,23 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         if w_years[wid] >= this_year {
             return None;
         }
+        let widt = ET::<Works>::from_usize(wid);
         let wcc = cc_interface[wid];
-        if (wcc.to_usize() >= MIN_FOR_HIT)
-            && (wcc >= global_limit
-                || wcc >= year_limits[w_years[wid].to_usize()]
-                || w_sfs.0[wid].iter().any(|e| sf_limits[e.to_usize()] <= wcc)
-                || w_topics.0[wid]
-                    .iter()
-                    .any(|e| topic_limits[e.to_usize()] <= wcc))
+        let reaches_abs_minimum = wcc.to_usize() >= MIN_FOR_HIT;
+        let reaches_any_sf_limit = w_sfs.0[wid].iter().any(|e| sf_limits[e.to_usize()] <= wcc);
+        let reaches_any_topic_limit = w_topics.0[wid]
+            .iter()
+            .any(|e| topic_limits[e.to_usize()] <= wcc);
+        let wyear = w_years[wid];
+        let has_nobel = nobeled_works.contains(&widt);
+        let qualifies_with_nobel = has_nobel & (wcc.to_usize() >= MIN_FOR_NOBEL);
+
+        if qualifies_with_nobel
+            || (reaches_abs_minimum
+                && (wcc >= global_limit
+                    || wcc >= year_limits[wyear.to_usize()]
+                    || reaches_any_sf_limit
+                    || reaches_any_topic_limit))
         {
             hit_names.push(name);
             hit_dois.push(doi_interface.0[wid].to_string());
