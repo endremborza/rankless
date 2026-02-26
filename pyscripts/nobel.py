@@ -1,3 +1,5 @@
+import gzip
+import json
 import re
 from pathlib import Path
 from typing import TypedDict
@@ -459,11 +461,32 @@ class NobelMatcher:
 
 
 def main() -> None:
+    if reform_df():
+        return
     if not WIKI_CSV.exists():
         print("Scraping Nobel laureates from Wikipedia...")
         dump_laureates()
     matcher = NobelMatcher()
     matcher.run()
+
+
+def reform_df() -> bool:
+    if MATCHES_PATH.exists():
+        nobel_df = (
+            pd.read_csv(MATCHES_PATH).loc[:, ["oa_id", "category", "year"]].dropna()
+        )
+        nobel_recs = [
+            {
+                "category": gid,
+                "winners": gdf.loc[:, ["year", "oa_id"]].astype(int).values.tolist(),
+            }
+            for gid, gdf in nobel_df.groupby("category")
+        ]
+        Path("nobel-to-oa.json.gz").write_bytes(
+            gzip.compress(json.dumps({"winners": nobel_recs}).encode())
+        )
+        return True
+    return False
 
 
 if __name__ == "__main__":
