@@ -62,6 +62,13 @@
 	--color-text: var(--color-theme-darktext);
 	--accent-text: var(--color-theme-darkgrey);
 	--highlight-text: var(--color-theme-darkblue);
+
+	--badge-hit-bg: rgba(var(--color-range-80), 0.22);
+	--badge-hit-text: rgb(180, 110, 30);
+	--badge-prestigious-bg: rgba(120, 80, 180, 0.18);
+	--badge-prestigious-text: rgb(100, 60, 160);
+	--badge-award-bg: rgba(var(--color-range-90), 0.22);
+	--badge-award-text: rgb(150, 115, 10);
 }
 
 :global(body.no-scroll) {
@@ -77,6 +84,13 @@
 		--color-text: var(--color-theme-white);
 		--accent-text: var(--color-theme-pink);
 		--highlight-text: var(--color-theme-yellow);
+
+		--badge-hit-bg: rgba(var(--color-range-80), 0.35);
+		--badge-hit-text: rgb(var(--color-range-95));
+		--badge-prestigious-bg: rgba(170, 140, 230, 0.3);
+		--badge-prestigious-text: rgb(185, 160, 245);
+		--badge-award-bg: rgba(var(--color-range-95), 0.3);
+		--badge-award-text: rgb(var(--color-range-100));
 	}
 }
 
