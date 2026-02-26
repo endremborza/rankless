@@ -218,7 +218,6 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     starc
         .mu_bu()
         .add_scaled_entity("authorships-discarded-author", disc_ship_n, true);
-    starc.mu_bu().add_scaled_entity("qs", 5, true);
     starc.write_code()?;
     Ok(())
 }

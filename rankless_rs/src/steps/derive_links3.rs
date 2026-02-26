@@ -101,6 +101,9 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
             hit_dois.push(doi_interface.0[wid].to_string());
             hit_ccounts.push(wcc.to_usize());
             //TODO: unnecessary but low cost - hit_papers contains the exact same info
+            //but this is so that something that is a Box<[wid]> can be assigned to hit-papers
+            //as in memory wid store for trees
+            //this is the way to add an N+1 hit papers with all of them
             hit_wids.push(vec![wid as ET<Works>].into_boxed_slice());
             Some(wid as BigId)
         } else {
