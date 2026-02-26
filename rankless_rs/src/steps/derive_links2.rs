@@ -62,7 +62,6 @@ impl Stowage {
         let aif = self.get_entity_interface::<Authors, QuickestNumbered>();
         let mut author_nobels = init_empty_slice::<Authors, (u8, ET<Years>)>();
         for ne in self.read_csv_objs::<NobelEntry>(Authors::NAME, "nobel") {
-            println!("ne row oa: {}", ne.oa_id);
             if let Some(aidt) = aif.0.get(&ne.oa_id) {
                 if ne.year > MIN_YEAR as RawYear {
                     author_nobels[aidt.to_usize()] = (ne.category, YearInterface::parse(ne.year));
