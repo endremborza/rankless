@@ -9,6 +9,7 @@
 		type PaperHighlight
 	} from '$lib/utils/paper-helpers';
 	import { getNobelOaIds } from '$lib/utils/nobel';
+	import { pluralize } from '$lib/text-format-util';
 
 	export let dag: RefTree;
 	export let paperMap: Record<number, Paper>;
@@ -323,6 +324,8 @@
 											&nbsp;et al.
 										{/if}
 									</div>
+								{:else if paper.authorships.length > 0}
+									<div class="chip-authors">{pluralize('author', paper.authorships.length)}</div>
 								{/if}
 							</div>
 						{/if}
