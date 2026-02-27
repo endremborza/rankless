@@ -85,6 +85,8 @@
 			if (p && isAuthored(p, sourceAuthorSemId, entityAtts)) authored.push(wid);
 			else impacted.push(wid);
 		}
+		impacted.sort((lp, rp) => paperMap[rp].year - paperMap[lp].year);
+		authored.sort((lp, rp) => paperMap[rp].year - paperMap[lp].year);
 		return { impacted, authored };
 	})();
 
