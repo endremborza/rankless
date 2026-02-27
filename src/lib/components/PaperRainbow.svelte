@@ -214,7 +214,8 @@
 				on:focus={() => fixHighlight(i)}
 			>
 				{#if paper.doi.length > 0}
-					<a href={paper.doi} target="_blank">{@html paper.name} ({paper.year})</a>
+					<a href="https://doi.org/{paper.doi}" target="_blank">{@html paper.name} ({paper.year})</a
+					>
 				{:else}
 					{@html paper.name} ({paper.year})
 				{/if}
