@@ -16,14 +16,14 @@ use rankless_rs::{
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{
-            AuthorOrcids, AuthorRawCites, AuthorRawWorkCounts, AuthorWikiSlugs,
+            AuthorNobels, AuthorOrcids, AuthorRawCites, AuthorRawWorkCounts, AuthorWikiSlugs,
             AuthorshipDiscardedAuthor, AuthorshipFilteredAuthor, CitiesNames, CountryCodes,
             DiscardedAuthorsNames, DiscardedAuthorshipInstitutions, FilteredAuthorshipInstitutions,
             InstCities, InstCountries, InstLocs, SourceYearQs, TopicSubfields, WorkAnyAuthorships,
             WorkBiblios, WorkDois, WorkReferences, WorkTopics, WorkYears, WorksNames,
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
-        derive_links2::{AuthorNobels, SourceStats, WorkCountries, WorkTopSource},
+        derive_links2::{SourceStats, WorkCountries, WorkTopSource},
         derive_links3::{Coauthors, HitPapers, HitPapersDois, HitPapersNames},
         derive_links4::{AuthorCitingHitsDirect, AuthorCitingHitsOnce},
         derive_links5::HitPaperYearlyCitations,

@@ -176,14 +176,10 @@ impl Stowage {
             .read_csv_objs::<SourceQ>(Sources::NAME, Qs::NAME)
             .filter_map(|yq| {
                 let source_oa_id = yq.get_parsed_id().unwrap();
-                if let Some(sid) = sources_interface.get_via_immut(&source_oa_id) {
+                sources_interface.get_via_immut(&source_oa_id).map(|sid| {
                     let year = years_interface.get_via_immut(&yq.publication_year).unwrap();
-                    let key = (sid, year);
-                    let v = yq.best_q;
-                    Some((key, v))
-                } else {
-                    None
-                }
+                    ((sid, year), yq.best_q)
+                })
             });
 
         self.add_iter_owned::<DiscoMapEntityBuilder<
@@ -208,14 +204,14 @@ impl Stowage {
         let mut cities = init_empty_slice::<Institutions, ET<Cities>>();
         let mut locs = init_empty_slice::<Institutions, (f64, f64)>();
         for cgeo in self.read_csv_objs::<Geo>(Institutions::NAME, institutions::atts::geo) {
-            let rcid = short_string_to_u64(cgeo.city.as_ref().unwrap_or(&"".to_string()));
+            let rcid = short_string_to_u64(cgeo.city.as_deref().unwrap_or(""));
             let cid = cif.0.get(&rcid).unwrap();
             let rcoid = cgeo.get_parsed_id().unwrap();
             let coid = coif.0.get(&rcoid).unwrap();
             if *coid > 0 {
                 ccs[coid.to_usize()] = rcoid.to_le_bytes()[..2].try_into().unwrap();
-                cinames[cid.to_usize()] = cgeo.city.unwrap_or("".to_string());
-                conames[coid.to_usize()] = cgeo.country.unwrap_or("".to_string());
+                cinames[cid.to_usize()] = cgeo.city.unwrap_or_default();
+                conames[coid.to_usize()] = cgeo.country.unwrap_or_default();
             }
             if let Some(iid) = iif.0.get(&oa_id_parse(&cgeo.parent_id.unwrap())) {
                 let iid_u = iid.to_usize();
@@ -243,7 +239,7 @@ impl Stowage {
             .map(|e| {
                 for (k, v) in CC_MAP.iter() {
                     if k == e {
-                        return v.clone();
+                        return *v;
                     }
                 }
                 [0; 3]
@@ -273,7 +269,7 @@ impl Stowage {
             .read_csv_objs::<Author>(Authors::NAME, MAIN_NAME)
             .filter_map(|aobj| {
                 if let Some(pid) = aobj.get_parsed_id() {
-                    let aname = aobj.display_name.unwrap_or("".to_string());
+                    let aname = aobj.display_name.unwrap_or_default();
                     if let Some(aidt) = aif.0.get(&pid) {
                         let aid = aidt.to_usize();
                         names[aid] = aname;
@@ -527,7 +523,7 @@ impl ShipRelWriter {
 
         let ivec: Vec<ET<Institutions>> = ship
             .institutions
-            .unwrap_or("".to_string())
+            .unwrap_or_default()
             .trim()
             .split(";")
             .filter(|e| e.len() > 1)
@@ -536,20 +532,18 @@ impl ShipRelWriter {
             .map(|e| *e)
             .collect();
 
-        let mut is_filtered = false;
-        let aid = match &ship.author_id {
-            Some(aid_str) => match oa_id_parse_opt(&aid_str) {
-                Some(oa_aid) => match self.fainf.0.get(&oa_aid) {
-                    Some(faid) => {
-                        is_filtered = true;
-                        faid.to_usize()
-                    }
-                    None => self.dainf.0.get(&oa_aid).unwrap_or(&0).to_usize(),
-                },
-                None => 0,
-            },
-            None => 0,
-        };
+        let (is_filtered, aid) = ship
+            .author_id
+            .as_deref()
+            .and_then(oa_id_parse_opt)
+            .and_then(|oa_aid| {
+                if let Some(faid) = self.fainf.0.get(&oa_aid) {
+                    Some((true, faid.to_usize()))
+                } else {
+                    self.dainf.0.get(&oa_aid).map(|d| (false, d.to_usize()))
+                }
+            })
+            .unwrap_or((false, 0));
 
         let (ship2a, ship2is) = if is_filtered {
             (&mut self.fship2a, &mut self.fship2is)
@@ -693,7 +687,7 @@ impl<'a> StrWriter<'a> {
         CsvObj: DeserializeOwned + ParsedId + AttGetter<String, Marker> + Send,
         E: MainEntity + NamespacedEntity,
     {
-        if self.main == "" {
+        if self.main.is_empty() {
             self.set_path(E::NAME, MAIN_NAME);
         }
         let winit = GenWorker::new(DataAttWorker::<E, String, _>::new(interface));
@@ -832,19 +826,17 @@ where
 
 impl Named for Source {
     fn get_name(&self) -> String {
-        let dn = self.display_name.clone();
-        let parts: Vec<&str> = dn.split("/").collect();
-        if parts.len() == 2 {
-            let lmin = min(parts[0].len(), parts[1].len());
+        let dn = &self.display_name;
+        if let Some((left, right)) = dn.split_once('/') {
+            let lmin = min(left.len(), right.len());
             if lmin >= MIN_LEN {
-                let edist = levenshtein(parts[0], parts[1]);
-                let rate = 1.0 - f64::from(edist as u32) / f64::from(lmin as u32);
+                let rate = 1.0 - levenshtein(left, right) as f64 / lmin as f64;
                 if rate >= MIN_RATE {
-                    return parts[0].to_string();
+                    return left.to_string();
                 }
             }
         }
-        dn
+        dn.clone()
     }
 }
 
@@ -877,10 +869,7 @@ impl ObjAttGetter<Topics> for WorkTopic {
 
 impl ObjAttGetter<Countries> for Institution {
     fn get_obj_att(&self) -> Option<<Countries as MappableEntity>::KeyType> {
-        if let Some(cc_id) = &self.country_code {
-            return Some(short_string_to_u64(&cc_id));
-        }
-        return None;
+        self.country_code.as_ref().map(|cc| short_string_to_u64(cc))
     }
 }
 
@@ -897,12 +886,8 @@ impl ObjAttGetter<AreaFields> for SourceArea {
 }
 
 impl ObjAttGetter<Sources> for Location {
-    fn get_obj_att(&self) -> Option<<Works as MappableEntity>::KeyType> {
-        if let Some(sid) = &self.source_id {
-            oa_id_parse_opt(&sid)
-        } else {
-            None
-        }
+    fn get_obj_att(&self) -> Option<<Sources as MappableEntity>::KeyType> {
+        self.source_id.as_deref().and_then(oa_id_parse_opt)
     }
 }
 
@@ -913,11 +898,7 @@ where
     type Item = T::FinalType;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(v) = self.arr.next() {
-            Some(v.finalize())
-        } else {
-            None
-        }
+        self.arr.next().map(|v| v.finalize())
     }
 }
 
@@ -1149,22 +1130,12 @@ fn assign_farr<const S: usize>(
     ind: usize,
 ) {
     if let Some(s) = so {
-        arr[ind] = s
-            .into_bytes()
-            .into_iter()
-            .skip(prefix.len())
-            .collect::<Vec<u8>>()
-            .try_into()
-            .unwrap();
+        arr[ind] = s.as_bytes()[prefix.len()..].try_into().unwrap();
     }
 }
 
 fn get_wind<T: ParsedId, U: UnsignedNumber>(obj: &T, inf: &LoadedIdMap<U>) -> Option<usize> {
-    match obj.get_parsed_id() {
-        Some(opi) => match inf.0.get(&opi) {
-            Some(i) => Some(i.to_usize()),
-            None => None,
-        },
-        None => None,
-    }
+    obj.get_parsed_id()
+        .and_then(|id| inf.0.get(&id))
+        .map(|i| i.to_usize())
 }
