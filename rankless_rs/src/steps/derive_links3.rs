@@ -5,9 +5,9 @@ use crate::{
     env_consts::FINAL_YEAR,
     gen::{
         a1_entity_mapping::{Authors, Institutions, Sources, Subfields, Topics, Works},
-        a2_init_atts::{WorkDois, WorkTopics, WorkYears, WorksNames},
+        a2_init_atts::{AuthorNobels, WorkDois, WorkTopics, WorkYears, WorksNames},
         derive_links1::{WorkFilteredAuthors, WorkSubfields},
-        derive_links2::{AuthorNobels, AuthorWorks},
+        derive_links2::AuthorWorks,
     },
     steps::a1_entity_mapping::{YearInterface, Years},
     CiteCountMarker, QuickestBox, QuickestVBox, ReadIter, Stowage, WorkCountMarker,

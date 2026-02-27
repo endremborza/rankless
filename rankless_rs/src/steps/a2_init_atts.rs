@@ -7,6 +7,7 @@ use crate::{
     },
     csv_writers::{institutions, works},
     data_consts::CC_MAP,
+    env_consts::START_YEAR,
     gen::a1_entity_mapping::{
         AreaFields, Authors, Cities, Countries, DiscardedAuthors, Domains, Fields, Institutions,
         Sources, Subfields, Topics, Works,
@@ -18,10 +19,7 @@ use crate::{
         },
         Biblio, FieldLike, Geo, Named, NamedEntity, ReferencedWork, Work, WorkTopic,
     },
-    steps::{
-        a1_entity_mapping::{iter_authorships, Qs, RawYear, SourceArea, YearInterface, Years},
-        derive_links2::MIN_YEAR,
-    },
+    steps::a1_entity_mapping::{iter_authorships, Qs, RawYear, SourceArea, YearInterface, Years},
 };
 use dmove::{
     para::Worker, BigId, DiscoMapEntityBuilder, DowncastingBuilder, DowncastingPrefixedVarBuilder,
@@ -472,7 +470,7 @@ impl Stowage {
         let mut author_nobels = init_empty_slice::<Authors, (u8, ET<Years>)>();
         for ne in self.read_csv_objs::<NobelEntry>(Authors::NAME, "nobel") {
             if let Some(aidt) = aif.0.get(&ne.oa_id) {
-                if ne.year > MIN_YEAR as RawYear {
+                if ne.year > START_YEAR as RawYear {
                     author_nobels[aidt.to_usize()] = (ne.category, YearInterface::parse(ne.year));
                 }
             }
