@@ -1,4 +1,4 @@
-use std::{f64, sync::Arc};
+use std::{collections::HashSet, f64, sync::Arc};
 
 use crate::{
     ids::AttributeLabelUnion,
@@ -60,6 +60,7 @@ pub struct Getters {
     pub hit_papers: Box<[WT]>,
     pub hit_wid_map: HashMap<WT, usize>,
     pub orcid_map: HashMap<ET<AuthorOrcids>, usize>,
+    pub orcid_authors: HashSet<usize>,
 }
 
 macro_rules! make_interfaces {
@@ -424,6 +425,7 @@ impl Getters {
         let hit_wid_map: HashMap<WT, usize> =
             HashMap::from_iter(hit_papers.iter().enumerate().map(|(hwi, e)| (*e, hwi)));
         let mut orcid_map = HashMap::new();
+        let mut orcid_authors = HashSet::new();
         let na_orcid: ET<AuthorOrcids> = <ET<AuthorOrcids> as Default>::default();
         stowage
             .get_entity_interface::<AuthorOrcids, ReadFixIter>()
@@ -431,6 +433,7 @@ impl Getters {
             .for_each(|(ai, orcid_id)| {
                 if orcid_id != na_orcid {
                     orcid_map.insert(orcid_id, ai);
+                    orcid_authors.insert(ai);
                 }
             });
         let ifs = Interfaces::new(stowage.clone());
@@ -443,6 +446,7 @@ impl Getters {
             hit_papers,
             hit_wid_map,
             orcid_map,
+            orcid_authors,
         }
     }
 
@@ -473,6 +477,7 @@ impl Getters {
             hit_papers: Vec::new().into(),
             hit_wid_map: HashMap::new(),
             orcid_map: HashMap::new(),
+            orcid_authors: HashSet::new(),
         }
     }
 }
@@ -554,11 +559,17 @@ impl MetaMapGetter for Authors {
         } else {
             "0"
         };
+        let has_orcid = if gets.orcid_authors.contains(&id) {
+            "1"
+        } else {
+            "0"
+        };
         let kvs = vec![
             ("wikiSlug", slug),
             ("rawCites", gets.raw_cites(&id).to_string()),
             ("rawPapers", gets.raw_works(&id).to_string()),
             ("anyHits", any_hits.to_string()),
+            ("hasOrcid", has_orcid.to_string()),
         ];
         Some(HashMap::from_iter(kvs.into_iter()))
     }
