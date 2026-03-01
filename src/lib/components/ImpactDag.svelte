@@ -2,7 +2,7 @@
 	import { afterUpdate, onMount } from 'svelte';
 	import type { RefTree, Paper, EntityAttsForLinks } from '$lib/tree-types';
 	import { isAuthored } from '$lib/utils/paper-helpers';
-	import { computeSeen, decomposeComponents, classifyComponentLayers } from '$lib/utils/dag-builder';
+	import { computeSeen, buildSubgraphs, classifyComponentLayers } from '$lib/utils/dag-builder';
 	import { computeImpactSummary } from '$lib/utils/impact-summary';
 	import { pluralize } from '$lib/text-format-util';
 	import DagChip from './DagChip.svelte';
@@ -30,7 +30,7 @@
 	$: pageAuthorIsNobel = pageAuthorDmId != null && (authorsMeta[pageAuthorDmId]?.prize ?? 0) > 0;
 
 	$: seen = computeSeen(dag);
-	$: components = decomposeComponents(seen);
+	$: components = buildSubgraphs(seen, paperMap);
 
 	$: isAuthoredFn = (wid: number) => {
 		const p = paperMap[wid];
@@ -253,6 +253,10 @@
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
 				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<span class="expand-link" on:click={() => { topExpanded = true; }}>and {hiddenTopCount} more</span>
+			{:else if topExpanded && hiddenTopCount > 0}
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
+				<span class="expand-link" on:click={() => { topExpanded = false; }}>see less</span>
 			{/if}
 		</div>
 	{/if}
@@ -260,7 +264,11 @@
 	{#if currentLayers.mid.length > 0}
 		<div class="level-section">
 			{#if midExpanded}
-				<h4 class="level-label">Intermediate Papers</h4>
+				<h4 class="level-label">Intermediate Papers
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<span class="expand-link" on:click={() => { midExpanded = false; }}>see less</span>
+				</h4>
 				<div class="chips">
 					{#each visibleMid as wid (wid)}
 						<div class="chip-wrap" bind:this={chipEls[wid]}>
@@ -322,6 +330,10 @@
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
 				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<span class="expand-link" on:click={() => { bottomExpanded = true; }}>and {hiddenBottomCount} more</span>
+			{:else if bottomExpanded && hiddenBottomCount > 0}
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
+				<span class="expand-link" on:click={() => { bottomExpanded = false; }}>see less</span>
 			{/if}
 		</div>
 	{/if}
