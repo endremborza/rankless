@@ -14,6 +14,7 @@
 		paperText: string;
 		citeText: string;
 		isOwner: boolean;
+		hasOrcid: boolean;
 		disownedWids: number[];
 		claimedDois: string[];
 	};
@@ -97,16 +98,9 @@
 </svelte:head>
 
 <div id="head" class="shadowy padded marged">
-	<div class="header-row">
-		<a href="/authors/{data.semanticId}" class="back-link">← Back to full profile</a>
-		{#if user}
-			<a href="/logout" class="auth-link">Logout</a>
-		{:else}
-			<a href="/login?returnTo=/author-papers/{data.semanticId}" class="auth-link">Login with ORCID</a>
-		{/if}
-	</div>
+	<a href="/authors/{data.semanticId}" class="back-link">&larr; Back to full profile</a>
 	<h1>{data.name}</h1>
-	<p class="stats">{data.paperText} · {data.citeText}</p>
+	<p class="stats">{data.paperText} &middot; {data.citeText}</p>
 </div>
 
 {#if authoredHitPapers.length > 0}
@@ -134,7 +128,17 @@
 </div>
 
 <div class="shadowy padded marged">
-	<h2>All Works</h2>
+	<div class="works-header">
+		<h2>All Works</h2>
+		{#if data.isOwner}
+			<a href="/logout" class="auth-link" data-sveltekit-preload-data="off">Logout</a>
+		{:else if data.hasOrcid && !user}
+			<div class="login-prompt">
+				<a href="/login?returnTo=/author-papers/{data.semanticId}" class="auth-link" data-sveltekit-preload-data="off">Login with ORCID</a>
+				<span class="login-hint">to disown or claim papers</span>
+			</div>
+		{/if}
+	</div>
 	<AllWorks
 		semanticId={data.semanticId}
 		{entityAtts}
@@ -171,12 +175,6 @@
 </div>
 
 <style>
-	.header-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
 	.back-link {
 		font-size: 0.8rem;
 		opacity: 0.6;
@@ -185,6 +183,25 @@
 
 	.back-link:hover {
 		opacity: 1;
+	}
+
+	.works-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 4px;
+	}
+
+	.login-prompt {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.login-hint {
+		font-size: 0.7rem;
+		opacity: 0.4;
 	}
 
 	.auth-link {
