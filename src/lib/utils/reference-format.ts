@@ -1,7 +1,7 @@
 import type { Paper, PaperAuthorship, EntityAttsForLinks } from '$lib/tree-types';
-import { resolveAuthorName } from '$lib/utils/paper-helpers';
+import { resolveAuthorName, resolveAuthorNameOrNull } from '$lib/utils/paper-helpers';
 
-export type CitationStyle = 'apa' | 'mla' | 'chicago';
+export type CitationStyle = 'html' | 'apa' | 'mla' | 'chicago';
 export type { Paper };
 
 export interface SourcesMap {
@@ -18,6 +18,16 @@ function buildAuthorNames(
 	discAuthorNames: Record<string, string>
 ): string[] {
 	return authorships.map((s) => resolveAuthorName(s, entityAtts, discAuthorNames));
+}
+
+function buildKnownAuthorNames(
+	authorships: PaperAuthorship[],
+	entityAtts: EntityAttsForLinks,
+	discAuthorNames: Record<string, string>
+): string[] {
+	return authorships
+		.map((s) => resolveAuthorNameOrNull(s, entityAtts, discAuthorNames))
+		.filter((n): n is string => n !== null);
 }
 
 function splitName(full: string): { last: string; given: string[] } {
@@ -107,15 +117,27 @@ export function formatReference(
 	paper: Paper,
 	entityAtts: EntityAttsForLinks,
 	discAuthorNames: Record<string, string>,
-	style: CitationStyle = 'chicago',
+	style: CitationStyle = 'html',
 	includeDoi = true
 ): string {
 	const names = buildAuthorNames(paper.authorships, entityAtts, discAuthorNames);
-	const authorStr = formatAuthorNames(names, style);
-	const container = entityAtts.sources?.[String(paper.source)]?.name || 'Unknown Source';
+	const authorStr = names.length ? formatAuthorNames(names, style === 'html' ? 'chicago' : style) : '';
+	const container = entityAtts.sources?.[String(paper.source)]?.name || '';
 	const vol = paper.biblio?.volume ?? '';
 	const issue = paper.biblio?.issue ?? '';
 	const pagest = pagesText(paper.biblio);
+
+	if (style === 'html') {
+		const titleHtml = paper.doi
+			? `<a href="https://doi.org/${paper.doi}" target="_blank" rel="noopener">${paper.name}</a>`
+			: paper.name;
+		const parts = [authorStr, `(${paper.year})`, titleHtml];
+		if (container) parts.push(`<em>${container}</em>`);
+		if (vol) parts.push(issue ? `${vol}(${issue})` : vol);
+		if (pagest) parts.push(pagest);
+		return parts.filter(Boolean).join('. ') + '.';
+	}
+
 	const doiPart = includeDoi && paper.doi ? ` https://doi.org/${paper.doi}` : '';
 
 	switch (style) {
@@ -143,16 +165,28 @@ function escapeBibField(s: string): string {
 	return (s ?? '').replace(/[{}]/g, '').trim();
 }
 
-export function toBibtex(
+export function bibtexKey(names: string[], year: number): string {
+	const first = names.length ? names[0].split(/\s+/)[0].toLowerCase() : 'anon';
+	return `${first}${year}`;
+}
+
+function nextSuffix(s: string): string {
+	if (!s) return 'a';
+	const last = s[s.length - 1];
+	if (last < 'z') return s.slice(0, -1) + String.fromCharCode(last.charCodeAt(0) + 1);
+	return s + 'a';
+}
+
+export function toBibtexEntry(
 	paper: Paper,
 	entityAtts: EntityAttsForLinks,
-	discAuthorNames: Record<string, string>
+	discAuthorNames: Record<string, string>,
+	key: string
 ): string {
-	const names = buildAuthorNames(paper.authorships, entityAtts, discAuthorNames);
+	const names = buildKnownAuthorNames(paper.authorships, entityAtts, discAuthorNames);
 	const authorList = names.join(' and ');
-	const journal = entityAtts.sources?.[String(paper.source)]?.name || 'Unknown Source';
+	const journal = entityAtts.sources?.[String(paper.source)]?.name ?? '';
 	const pages = pagesText(paper.biblio);
-	const key = `${(names[0] ?? 'anon').split(/\s+/)[0].toLowerCase()}${paper.year}`;
 	return `@article{${key},
   author = {${escapeBibField(authorList)}},
   title = {${escapeBibField(paper.name)}},
@@ -170,5 +204,25 @@ export function toBibtexFile(
 	entityAtts: EntityAttsForLinks,
 	discAuthorNames: Record<string, string>
 ): string {
-	return papers.map((p) => toBibtex(p, entityAtts, discAuthorNames)).join('\n\n');
+	const baseCounts = new Map<string, number>();
+	for (const p of papers) {
+		const names = buildKnownAuthorNames(p.authorships, entityAtts, discAuthorNames);
+		const base = bibtexKey(names, p.year);
+		baseCounts.set(base, (baseCounts.get(base) ?? 0) + 1);
+	}
+	const usedSuffix = new Map<string, string>();
+	return papers
+		.map((p) => {
+			const names = buildKnownAuthorNames(p.authorships, entityAtts, discAuthorNames);
+			const base = bibtexKey(names, p.year);
+			let key = base;
+			if ((baseCounts.get(base) ?? 0) > 1) {
+				const prev = usedSuffix.get(base) ?? '';
+				const suffix = prev ? nextSuffix(prev) : 'a';
+				usedSuffix.set(base, suffix);
+				key = base + suffix;
+			}
+			return toBibtexEntry(p, entityAtts, discAuthorNames, key);
+		})
+		.join('\n\n');
 }

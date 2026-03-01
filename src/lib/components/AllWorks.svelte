@@ -3,6 +3,7 @@
 	import { BE_REMOTE_URL } from '$lib/constants';
 	import type { Paper, EntityAttsForLinks, PaginatedPaperSetResp } from '$lib/tree-types';
 	import { resolveSourceName } from '$lib/utils/paper-helpers';
+	import { formatReference, type CitationStyle } from '$lib/utils/reference-format';
 	import ExportControls from './ExportControls.svelte';
 
 	export let semanticId: string;
@@ -18,6 +19,10 @@
 	let sliceEnd = 0;
 	let loading = false;
 	let initialLoaded = false;
+
+	let sortBy: 'year' | 'citations' = 'year';
+	let minCitations = 0;
+	let citationStyle: CitationStyle = 'html';
 
 	async function fetchPage(from: number) {
 		loading = true;
@@ -48,35 +53,37 @@
 
 	$: activePapers = papers.filter(p => !disownedWids.has(p.wid));
 	$: disownedPapersList = papers.filter(p => disownedWids.has(p.wid));
+
+	$: displayPapers = activePapers
+		.filter(p => p.citations >= minCitations)
+		.sort((a, b) => sortBy === 'citations' ? b.citations - a.citations : b.year - a.year);
 </script>
 
 <div class="all-works">
 	{#if !initialLoaded}
 		<p class="status">Loading papers...</p>
 	{:else}
-		<ExportControls papers={activePapers} {entityAtts} {discAuthorNames} />
+		<ExportControls papers={activePapers} {entityAtts} {discAuthorNames}
+			bind:sortBy bind:minCitations bind:citationStyle />
 
 		<div class="paper-list">
-			{#each activePapers as paper (paper.wid)}
-				{@const source = resolveSourceName(paper.source, entityAtts)}
+			{#each displayPapers as paper (paper.wid)}
 				<div class="paper-row">
 					<div class="paper-info">
-						<span class="paper-title">
-							{#if paper.doi}
-								<a href="https://doi.org/{paper.doi}" target="_blank" rel="noopener">{@html paper.name}</a>
-							{:else}
-								{@html paper.name}
-							{/if}
-						</span>
-						<span class="paper-meta">
-							{paper.year}
-							{#if paper.citations > 0} · {paper.citations} citations{/if}
-							{#if source} · {source}{/if}
-						</span>
+						{#if citationStyle === 'html'}
+							<span class="paper-ref">{@html formatReference(paper, entityAtts, discAuthorNames, 'html')}</span>
+							<span class="paper-meta">
+								{#if paper.citations > 0}{paper.citations} indexed citations{/if}
+							</span>
+						{:else}
+							<span class="paper-ref">{formatReference(paper, entityAtts, discAuthorNames, citationStyle)}</span>
+							<span class="paper-meta">
+								{#if paper.citations > 0}{paper.citations} indexed citations{/if}
+							</span>
+						{/if}
 					</div>
 					{#if isOwner}
 						<button class="disown-btn" on:click={() => dispatch('disown', paper.wid)}>Disown</button>
-
 					{/if}
 				</div>
 			{/each}
@@ -90,11 +97,10 @@
 						{@const source = resolveSourceName(paper.source, entityAtts)}
 						<div class="paper-row">
 							<div class="paper-info">
-								<span class="paper-title">{@html paper.name}</span>
+								<span class="paper-ref">{@html paper.name}</span>
 								<span class="paper-meta">{paper.year}{#if source} · {source}{/if}</span>
 							</div>
 							<button class="undo-btn" on:click={() => dispatch('undisown', paper.wid)}>Undo</button>
-
 						</div>
 					{/each}
 				</div>
@@ -138,19 +144,22 @@
 		min-width: 0;
 	}
 
-	.paper-title {
+	.paper-ref {
 		font-size: 0.85rem;
-		font-weight: 500;
 		line-height: 1.3;
 	}
 
-	.paper-title a {
+	.paper-ref :global(a) {
 		color: inherit;
 		text-decoration: none;
 	}
 
-	.paper-title a:hover {
+	.paper-ref :global(a:hover) {
 		text-decoration: underline;
+	}
+
+	.paper-ref :global(em) {
+		font-style: italic;
 	}
 
 	.paper-meta {
@@ -214,7 +223,7 @@
 	}
 
 	@media (min-width: 1200px) {
-		.paper-title {
+		.paper-ref {
 			font-size: 1rem;
 		}
 
