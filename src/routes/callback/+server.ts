@@ -7,6 +7,8 @@ export const GET: RequestHandler = async ({ url, request }) => {
 	const code = url.searchParams.get('code');
 	if (!code) return new Response('Missing code', { status: 400 });
 
+	const redirectTo = url.searchParams.get('state') ?? '/';
+
 	const res = await fetch(ORCID_TOKEN_URL, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -22,6 +24,5 @@ export const GET: RequestHandler = async ({ url, request }) => {
 	const data = await res.json();
 	if (!data.orcid) return new Response('Invalid token response', { status: 400 });
 
-	// Store orcid ID and access token in cookie
-	return setSession({ request } as any, { orcid: data.orcid, name: data.name || 'ORCID User' });
+	return setSession({ request } as any, { orcid: data.orcid, name: data.name || 'ORCID User' }, redirectTo);
 };
