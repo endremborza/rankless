@@ -29,7 +29,7 @@ Each searchable entity has a hero page built around **production** (its papers) 
 
 **Tree library (`rankless_trees`):** Hierarchical query engine with thread pool (`TreeRunManager`), citation path finder (`path_finder.rs`), and in-memory caching.
 
-**Frontend (`src/`):** SvelteKit/Svelte with SSR. All visualizations hand-written SVG; Cytoscape.js the only external viz dependency. ORCID authentication for user profiles. Dark mode responsive, color scheme defined in `src/routes/styles.css`
+**Frontend (`src/`):** SvelteKit/Svelte with SSR. All visualizations hand-written SVG; Cytoscape.js the only external viz dependency. ORCID authentication integrated into author-papers pages (login redirects back to same page). SQLite (better-sqlite3, WAL mode) stores paper disown/claim actions per ORCID user. Dark mode responsive, color scheme defined in `src/routes/styles.css`
 
 **Deployment (`pyscripts/deploy.py`):** Linux, systemd (Rust backend + Bun frontend), Nginx reverse proxy, Let's Encrypt SSL. Live monitoring via distributed alert swarm (`live_monitoring.py`). Nginx logs parsed hourly for performance reports.
 
