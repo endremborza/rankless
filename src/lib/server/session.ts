@@ -8,7 +8,7 @@ export function getSession(event: RequestEvent) {
 	return cookies[COOKIE_NAME] ? JSON.parse(cookies[COOKIE_NAME]) : null;
 }
 
-export function setSession(_event: RequestEvent, data: SessionUserData) {
+export function setSession(_event: RequestEvent, data: SessionUserData, redirectTo = '/') {
 	return new Response(null, {
 		status: 302,
 		headers: {
@@ -18,7 +18,7 @@ export function setSession(_event: RequestEvent, data: SessionUserData) {
 				sameSite: 'lax',
 				maxAge: 60 * 60 * 24 // 1 day
 			}),
-			Location: '/profile'
+			Location: redirectTo
 		}
 	});
 }
