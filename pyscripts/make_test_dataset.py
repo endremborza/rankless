@@ -90,15 +90,25 @@ class WFler:
     def __call__(self, jso):
         if jso.get("cited_by_count", 0) < self.minc:
             return False
-        if jso[PUBY] < self.miny:
+        try:
+            if jso[PUBY] < self.miny:
+                return False
+        except KeyError:
             return False
+
         for a in jso.get("authorships", []):
-            if any(i["id"] in self.oa_ids for i in a["institutions"]):
-                self.insts.extend(i["id"] for i in a["institutions"])
+            if any(i.get("id") in self.oa_ids for i in a["institutions"]):
+                self.insts.extend(i.get("id") for i in a["institutions"])
+
                 self.sources.extend(
-                    (l["source"] or {}).get("id") for l in jso["locations"]
+                    (l.get("source") or {}).get("id") for l in jso["locations"]
                 )
-                self.authors.append(a["author"]["id"])
+
+                try:
+                    self.authors.append(a["author"]["id"])
+                except KeyError:
+                    pass
+
                 return True
         return False
 
@@ -113,7 +123,6 @@ class WFler:
 
 
 if __name__ == "__main__":
-
     intro_oa_ids = get_inst_ids(inst_names)
     micro_oa_ids = intro_oa_ids[:8]
     nano_oa_ids = intro_oa_ids[:3]
