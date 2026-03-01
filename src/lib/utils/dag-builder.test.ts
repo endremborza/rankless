@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeSeen } from './dag-builder';
+import { computeSeen, decomposeComponents, classifyComponentLayers } from './dag-builder';
 import type { RefTree } from '$lib/tree-types';
 
 const leaf: RefTree = 'Leaf';
@@ -97,5 +97,69 @@ describe('computeSeen', () => {
 		expect(seen[2].children.has(A)).toBe(true); // promotion must not erase child
 		expect(seen[3].children.has(A)).toBe(true);
 		expect(seen[A].level).toBe(1); // promoted
+	});
+});
+
+describe('decomposeComponents', () => {
+	it('disconnected sub-graphs produce separate components', () => {
+		const dag = node({
+			1: node({ 2: leaf }),
+			3: node({ 4: leaf })
+		});
+		const seen = computeSeen(dag);
+		const components = decomposeComponents(seen);
+		expect(components.length).toBe(2);
+		expect(components[0].length).toBe(2);
+		expect(components[1].length).toBe(2);
+
+		const flat = components.flat().sort((a, b) => a - b);
+		expect(flat).toEqual([1, 2, 3, 4]);
+	});
+
+	it('connected graph produces single component', () => {
+		const dag = node({
+			1: node({ 3: leaf }),
+			2: node({ 3: leaf })
+		});
+		const seen = computeSeen(dag);
+		const components = decomposeComponents(seen);
+		expect(components.length).toBe(1);
+		expect(components[0].sort((a, b) => a - b)).toEqual([1, 2, 3]);
+	});
+
+	it('sorted by size descending', () => {
+		const dag = node({
+			1: leaf,
+			2: node({ 3: node({ 4: leaf }) })
+		});
+		const seen = computeSeen(dag);
+		const components = decomposeComponents(seen);
+		expect(components.length).toBe(2);
+		expect(components[0].length).toBe(3);
+		expect(components[1].length).toBe(1);
+	});
+});
+
+describe('classifyComponentLayers', () => {
+	it('classifies top, mid, bottom correctly', () => {
+		// 1 → 2 → 3, where 3 is authored
+		const dag = node({ 1: node({ 2: node({ 3: leaf }) }) });
+		const seen = computeSeen(dag);
+		const authored = new Set([3]);
+		const layers = classifyComponentLayers([1, 2, 3], seen, (w) => authored.has(w));
+
+		expect(layers.top).toEqual([1]);
+		expect(layers.mid).toEqual([2]);
+		expect(layers.bottom).toEqual([3]);
+	});
+
+	it('all root children go to top when not authored', () => {
+		const dag = node({ 1: leaf, 2: leaf });
+		const seen = computeSeen(dag);
+		const layers = classifyComponentLayers([1, 2], seen, () => false);
+
+		expect(layers.top.sort()).toEqual([1, 2]);
+		expect(layers.mid).toEqual([]);
+		expect(layers.bottom).toEqual([]);
 	});
 });

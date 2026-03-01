@@ -36,3 +36,63 @@ export function computeSeen(t: RefTree): SeenMap {
 	build(t, seen, 0, 0);
 	return seen;
 }
+
+export function decomposeComponents(seen: SeenMap): number[][] {
+	const allWids = Object.keys(seen).map(Number);
+	const visited = new Set<number>();
+	const components: number[][] = [];
+
+	for (const start of allWids) {
+		if (visited.has(start)) continue;
+		const component: number[] = [];
+		const queue = [start];
+		visited.add(start);
+		while (queue.length) {
+			const wid = queue.pop()!;
+			component.push(wid);
+			const meta = seen[wid];
+			if (!meta) continue;
+			for (const neighbor of meta.parents) {
+				if (neighbor !== 0 && !visited.has(neighbor)) {
+					visited.add(neighbor);
+					queue.push(neighbor);
+				}
+			}
+			for (const neighbor of meta.children) {
+				if (!visited.has(neighbor)) {
+					visited.add(neighbor);
+					queue.push(neighbor);
+				}
+			}
+		}
+		components.push(component);
+	}
+
+	components.sort((a, b) => b.length - a.length);
+	return components;
+}
+
+export type ComponentLayers = { top: number[]; mid: number[]; bottom: number[] };
+
+export function classifyComponentLayers(
+	wids: number[],
+	seen: SeenMap,
+	isAuthoredFn: (wid: number) => boolean
+): ComponentLayers {
+	const top: number[] = [];
+	const mid: number[] = [];
+	const bottom: number[] = [];
+
+	for (const wid of wids) {
+		if (isAuthoredFn(wid)) {
+			bottom.push(wid);
+		} else {
+			const meta = seen[wid];
+			const hasOnlyRoot = !meta || [...meta.parents].every(p => p === 0);
+			if (hasOnlyRoot) top.push(wid);
+			else mid.push(wid);
+		}
+	}
+
+	return { top, mid, bottom };
+}
