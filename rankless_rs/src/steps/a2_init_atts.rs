@@ -323,11 +323,14 @@ impl Stowage {
         self.add_barr::<VarAttBuilder, _>(wids, &format!("{}-wikipedia", E::NAME));
     }
 
-    fn add_work_atts(&self, winf: Arc<LoadedIdMap<ET<Works>>>) -> LoadedIdMap<ET<Works>> {
-        WorkAttWriter::new(winf.clone())
+    fn add_work_atts(
+        &self,
+        winf: Arc<LoadedIdMap<ET<Works>>>,
+    ) -> (LoadedIdMap<ET<Works>>, Box<[ET<Years>]>) {
+        let wyears = WorkAttWriter::new(winf.clone())
             .para(self.read_csv_objs(Works::NAME, MAIN_NAME))
             .post(self);
-        Arc::into_inner(winf).unwrap()
+        (Arc::into_inner(winf).unwrap(), wyears)
     }
 
     fn add_ship_relations(&self) -> LoadedIdMap<ET<Works>> {
@@ -485,9 +488,10 @@ impl WorkAttWriter {
         }
     }
 
-    fn post(self, stowage: &Stowage) {
+    fn post(self, stowage: &Stowage) -> Box<[ET<Years>]> {
         let wyname = "work-years";
-        stowage.add_iter_owned::<FixAttBuilder, _, _>(iter_mboxa(self.wyears), Some(wyname));
+        let wyears = self.wyears.into_inner().unwrap();
+        stowage.add_iter_owned::<FixAttBuilder, _, _>(wyears.iter().copied(), Some(wyname));
         stowage.declare_link::<Works, Years>(wyname);
         stowage.declare_iter::<VarAttBuilder, _, _, Works, NameMarker>(
             iter_mboxa(self.wnames),
@@ -497,6 +501,7 @@ impl WorkAttWriter {
             iter_mboxa(self.wdois),
             "work-dois",
         );
+        wyears
     }
 }
 
@@ -730,6 +735,10 @@ where
             att_interface,
             p: PhantomData,
         }
+    }
+
+    fn take_arr(self) -> Box<[TT]> {
+        self.data_worker.attribute_arr.into_inner().unwrap()
     }
 }
 
@@ -1025,7 +1034,7 @@ where
 }
 
 pub fn main(mut stowage: Stowage) -> io::Result<()> {
-    let works_interface = {
+    let (works_interface, wyears) = {
         let winf = stowage.add_ship_relations();
         stowage.add_work_atts(winf.into())
     };
@@ -1077,12 +1086,34 @@ pub fn main(mut stowage: Stowage) -> io::Result<()> {
         "source-area-fields",
         AreaFields::NAME,
     )?;
-    stowage.multi_object_property::<ReferencedWork, Works, _, _, _>(
-        &works_interface,
-        &works_interface,
-        "work-references",
-        works::atts::referenced_works,
-    )?;
+    {
+        let refs = GenWorker::new(
+            GenObjAttWorker::<'_, Works, Works, Vec<NET<Works>>, _, _>::new(
+                &works_interface,
+                &works_interface,
+            ),
+        )
+        .para(stowage.read_csv_objs::<ReferencedWork>(
+            Works::NAME,
+            works::atts::referenced_works,
+        ))
+        .worker
+        .take_arr();
+        let mut n_inversions = 0usize;
+        stowage.add_iter_owned::<VarAttBuilder, _, _>(
+            refs.into_vec().into_iter().enumerate().map(|(citing_dm, cited)| {
+                let cy = wyears[citing_dm];
+                if cy > 0 {
+                    n_inversions +=
+                        cited.iter().filter(|&&d| wyears[d.to_usize()] > cy).count();
+                }
+                cited.into_boxed_slice()
+            }),
+            Some("work-references"),
+        );
+        stowage.declare_link::<Works, Works>("work-references");
+        println!("Year inversions (ref year > citing year): {n_inversions}");
+    }
     stowage.multi_object_property::<Location, Works, _, _, _>(
         &works_interface,
         &sources_interface,
