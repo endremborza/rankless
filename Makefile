@@ -56,6 +56,9 @@ rm-prof:
 extend_csvs lib_data_generation bm live_monitoring report sitemap_validation alpha_test survey_result_export log_parsing nobel start_comparison sql_comparison_eval:
 	python3 -m pyscripts.$@
 
+hit-paper-analysis field-citation-ratio:
+	python3 notebooks/$@.py
+
 
 cache_big_prep cache_big_read cache_do_rest cache_validate_all cache_validate_bigs:
 	python3 -m pyscripts.cache_prompting $@
