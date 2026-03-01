@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
 	import {
-		formatReference,
 		toBibtexFile,
 		type CitationStyle
 	} from '$lib/utils/reference-format';
@@ -11,10 +10,9 @@
 	export let entityAtts: EntityAttsForLinks;
 	export let discAuthorNames: Record<string, string>;
 
-	let sortBy: 'year' | 'citations' = 'year';
-	let minCitations = 0;
-	let citationStyle: CitationStyle = 'chicago';
-	let includeDoi = true;
+	export let sortBy: 'year' | 'citations' = 'year';
+	export let minCitations = 0;
+	export let citationStyle: CitationStyle = 'html';
 
 	$: filtered = papers
 		.filter(p => p.citations >= minCitations)
@@ -47,15 +45,11 @@
 		<label>
 			Style:
 			<select bind:value={citationStyle}>
+				<option value="html">HTML</option>
 				<option value="chicago">Chicago</option>
 				<option value="apa">APA</option>
 				<option value="mla">MLA</option>
 			</select>
-		</label>
-
-		<label class="checkbox-label">
-			<input type="checkbox" bind:checked={includeDoi} />
-			DOI
 		</label>
 
 		<button on:click={handleCopyBibtex}>Copy BibTeX</button>
@@ -90,12 +84,6 @@
 
 	.num-input {
 		width: 50px;
-	}
-
-	.checkbox-label {
-		display: flex;
-		align-items: center;
-		gap: 3px;
 	}
 
 	button {
