@@ -24,3 +24,4 @@ __pycache__
 draft*.ipynb
 notebooks/draft*
 svg-exports
+test-results
