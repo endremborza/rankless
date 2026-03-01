@@ -41,6 +41,8 @@
 	},
 	"type": "module",
 	"dependencies": {
+		"@types/better-sqlite3": "^7.6.13",
+		"better-sqlite3": "^12.6.2",
 		"cytoscape": "^3.33.1",
 		"cytoscape-fcose": "^2.2.0"
 	}
