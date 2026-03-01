@@ -144,7 +144,7 @@ if __name__ == "__main__":
         .rename("hit_id")
         .to_frame()
         .assign(
-            year=pd.Series(gr.load_arr_work_years()) + START_YEAR,
+            year=pd.Series(gr.load_arr_work_years()).astype(int) + START_YEAR,
             citations=pd.Series(gr.load_arr_work_citing_counts()),
         )
     )
