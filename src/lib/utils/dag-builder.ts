@@ -37,39 +37,40 @@ export function computeSeen(t: RefTree): SeenMap {
 	return seen;
 }
 
-export function decomposeComponents(seen: SeenMap): number[][] {
-	const allWids = Object.keys(seen).map(Number);
-	const visited = new Set<number>();
-	const components: number[][] = [];
+export function buildSubgraphs(
+	seen: SeenMap,
+	paperMap: Record<number, { year: number }>,
+	groupSize = 2
+): number[][] {
+	const topWids = Object.keys(seen)
+		.map(Number)
+		.filter(w => {
+			const meta = seen[w];
+			return meta && [...meta.parents].every(p => p === 0);
+		})
+		.sort((a, b) => (paperMap[b]?.year ?? 0) - (paperMap[a]?.year ?? 0));
 
-	for (const start of allWids) {
-		if (visited.has(start)) continue;
-		const component: number[] = [];
-		const queue = [start];
-		visited.add(start);
+	const subgraphs: number[][] = [];
+	for (let i = 0; i < topWids.length; i += groupSize) {
+		const roots = topWids.slice(i, i + groupSize);
+		const rootSet = new Set(topWids);
+		const collected = new Set<number>();
+		const queue = [...roots];
+		for (const r of roots) collected.add(r);
 		while (queue.length) {
 			const wid = queue.pop()!;
-			component.push(wid);
 			const meta = seen[wid];
 			if (!meta) continue;
-			for (const neighbor of meta.parents) {
-				if (neighbor !== 0 && !visited.has(neighbor)) {
-					visited.add(neighbor);
-					queue.push(neighbor);
-				}
-			}
-			for (const neighbor of meta.children) {
-				if (!visited.has(neighbor)) {
-					visited.add(neighbor);
-					queue.push(neighbor);
+			for (const child of meta.children) {
+				if (!collected.has(child) && !rootSet.has(child)) {
+					collected.add(child);
+					queue.push(child);
 				}
 			}
 		}
-		components.push(component);
+		subgraphs.push([...collected]);
 	}
-
-	components.sort((a, b) => b.length - a.length);
-	return components;
+	return subgraphs;
 }
 
 export type ComponentLayers = { top: number[]; mid: number[]; bottom: number[] };
