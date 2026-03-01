@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { APP_NAME, REL_TYPES } from '$lib/constants';
-	import { prettifyRoot, formatNumber, pluralize } from '$lib/text-format-util';
+	import { prettifyRoot, pluralize } from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
@@ -8,7 +8,6 @@
 	import FullQc from '$lib/components/FullQc.svelte';
 	import YearTicks from '$lib/components/YearTicks.svelte';
 	import RandTreeLink from '$lib/components/RandTreeLink.svelte';
-	import HoverI from '$lib/components/HoverI.svelte';
 	import HoverBlock from '$lib/components/HoverBlock.svelte';
 	import WorldMapSvg from '$lib/components/WorldMapSvg.svelte';
 	import ConceptMap from '$lib/components/ConceptMap.svelte';
@@ -148,7 +147,7 @@
 				fullHeight={ticksHeight}
 			/>
 		</div>
-		{#if data.conf.rootType === 'authors' && data.view.meta?.anyHits === '1'}
+		{#if data.conf.rootType === 'authors'}
 			<a href="/author-papers/{data.conf.semanticId}" class="explore-card shadowy marged padded">
 				<div>
 					<h3>Paper Profile & Citation Paths</h3>
