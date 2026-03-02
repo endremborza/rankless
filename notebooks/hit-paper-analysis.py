@@ -37,15 +37,19 @@ def gini(x: np.ndarray) -> float:
     return float((2 * (idx * x).sum() / (n * x.sum())) - (n + 1) / n)
 
 
-def build_figure(year_counts, sf_raw, author_hits) -> str:
-    """Render the three-panel figure and return a base64-encoded PNG."""
-    fig = plt.figure(figsize=(17, 6), facecolor=BG)
+def build_figure(year_counts, sf_raw, author_hits, citations) -> str:
+    """Render the four-panel figure and return a base64-encoded PNG."""
+    fig = plt.figure(figsize=(17, 9), facecolor=BG)
     gs = gridspec.GridSpec(
-        1, 3, figure=fig, left=0.05, right=0.98, top=0.82, bottom=0.14, wspace=0.38
+        2, 3, figure=fig, left=0.05, right=0.98, top=0.88, bottom=0.10,
+        wspace=0.38, hspace=0.35
     )
 
-    axes = [fig.add_subplot(gs[i]) for i in range(3)]
-    for ax in axes:
+    axes = [fig.add_subplot(gs[0, i]) for i in range(3)]
+    ax_hist = fig.add_subplot(gs[1, :])
+    all_axes = axes + [ax_hist]
+
+    for ax in all_axes:
         ax.set_facecolor(PANEL)
         for spine in ax.spines.values():
             spine.set_edgecolor(BORDER)
@@ -89,6 +93,12 @@ def build_figure(year_counts, sf_raw, author_hits) -> str:
     ax_l.set_xlabel("Cumulative share of entities")
     ax_l.set_ylabel("Cumulative share of hit papers")
     ax_l.legend(fontsize=7, framealpha=0, labelcolor=TEXT, loc="upper left")
+
+    # Histogram of citation counts (log10 scale)
+    ax_hist.hist(np.log10(citations + 1), bins=50, color=BLUE, edgecolor=BORDER, linewidth=0.5)
+    ax_hist.set_title("Citation Count Distribution (log₁₀)", color=TEXT, fontsize=9, pad=6)
+    ax_hist.set_xlabel("log₁₀(citing citations + 1)")
+    ax_hist.set_ylabel("Hit papers")
 
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=110, facecolor=BG)
@@ -181,7 +191,7 @@ if __name__ == "__main__":
         ("Gini (Years)", f"{gini(year_counts.values):.3f}"),
     ]
 
-    img_b64 = build_figure(year_counts, sf_raw, author_hits)
+    img_b64 = build_figure(year_counts, sf_raw, author_hits, hit_df["citations"].values)
     html = build_html(img_b64, stat_items)
 
     out_path = "docs/hit-paper-dist.html"
