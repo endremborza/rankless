@@ -24,7 +24,9 @@ const MIN_NEEDED: usize = 15;
 const TOP_TOPIC: usize = 3;
 const TOP_PCTILE: f64 = 0.05;
 const SF_YEAR_MIN_PAPERS: usize = 500;
-const SF_YEAR_BLEND: f64 = 0.8;
+const W_SF: f64 = 0.1;
+const W_YEAR: f64 = 0.1;
+const W_SF_YEAR: f64 = 1.0 - W_SF - W_YEAR;
 const SCORE_THRESHOLD: f64 = 3.0;
 const NOBEL_MULTIPLIER: f64 = 2.0;
 
@@ -78,6 +80,7 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     );
 
     let year_bms = compute_year_bms(&w_years, &cc_interface);
+    let sf_bms = compute_sf_bms(&w_sfs.0, &cc_interface);
     let sf_year_bms = compute_sf_year_bms(&w_sfs.0, &w_years, &cc_interface, &year_bms);
 
     let nobeled_works = get_nobeled_works(&starc, &w_years);
@@ -107,7 +110,7 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         } else {
             1.0
         };
-        let bm = paper_bm(&w_sfs.0[wid], year, &sf_year_bms, &year_bms);
+        let bm = paper_bm(&w_sfs.0[wid], year, &sf_year_bms, &sf_bms, &year_bms);
         let score = if bm > 0.0 {
             cc_n as f64 / bm * multiplier
         } else {
@@ -175,7 +178,7 @@ fn compute_year_bms(w_years: &[ET<Years>], ccs: &[CCUI]) -> Box<[f64]> {
     }
     groups
         .iter_mut()
-        .map(|g| top_pctile_median(g))
+        .map(|g| top_pctile(g))
         .collect::<Vec<_>>()
         .into()
 }
@@ -198,7 +201,7 @@ fn compute_sf_year_bms(
         .into_iter()
         .map(|((sf, yr), mut v)| {
             let bm = if v.len() >= SF_YEAR_MIN_PAPERS {
-                SF_YEAR_BLEND * top_pctile_median(&mut v) + (1.0 - SF_YEAR_BLEND) * year_bms[yr]
+                top_pctile(&mut v)
             } else {
                 year_bms[yr]
             };
@@ -207,27 +210,45 @@ fn compute_sf_year_bms(
         .collect()
 }
 
+fn compute_sf_bms(w_sfs: &[Box<[ET<Subfields>]>], ccs: &[CCUI]) -> HashMap<usize, f64> {
+    let mut groups: HashMap<usize, Vec<CCUI>> = HashMap::new();
+    for (wid, sfs) in w_sfs.iter().enumerate() {
+        for sf in sfs.iter() {
+            groups.entry(sf.to_usize()).or_default().push(ccs[wid]);
+        }
+    }
+    groups
+        .into_iter()
+        .map(|(sf, mut v)| (sf, top_pctile(&mut v)))
+        .collect()
+}
+
 fn paper_bm(
     sfs: &[ET<Subfields>],
     year: usize,
     sf_year_bms: &HashMap<(usize, usize), f64>,
+    sf_bms: &HashMap<usize, f64>,
     year_bms: &[f64],
 ) -> f64 {
     if sfs.is_empty() {
         return year_bms[year];
     }
-    let sum: f64 = sfs
+    let n = sfs.len() as f64;
+    let yr_bm = year_bms[year];
+    let sf_year_avg = sfs
         .iter()
-        .map(|sf| {
-            *sf_year_bms
-                .get(&(sf.to_usize(), year))
-                .unwrap_or(&year_bms[year])
-        })
-        .sum();
-    sum / sfs.len() as f64
+        .map(|sf| *sf_year_bms.get(&(sf.to_usize(), year)).unwrap_or(&yr_bm))
+        .sum::<f64>()
+        / n;
+    let sf_avg = sfs
+        .iter()
+        .map(|sf| *sf_bms.get(&sf.to_usize()).unwrap_or(&yr_bm))
+        .sum::<f64>()
+        / n;
+    W_SF_YEAR * sf_year_avg + W_SF * sf_avg + W_YEAR * yr_bm
 }
 
-fn top_pctile_median(ccs: &mut Vec<CCUI>) -> f64 {
+fn top_pctile(ccs: &mut Vec<CCUI>) -> f64 {
     if ccs.is_empty() {
         return 0.0;
     }
