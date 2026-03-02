@@ -135,10 +135,6 @@ class FieldCitationModel:
         )
 
 
-def _infer_year_base(raw_years: np.ndarray) -> int:
-    return 1900 if raw_years.max() > 50 else 2000
-
-
 def compute_top_pct_stats(
     gr: GenReaderExt, min_papers: int = MIN_GROUP_SIZE
 ) -> pd.DataFrame:
@@ -154,8 +150,7 @@ def compute_top_pct_stats(
     sf_sizes = gr.load_varr_subfield_works_sizes()
     sf_ancestors = gr.load_arr_subfield_ancestors()
 
-    year_base = _infer_year_base(wyears)
-    cal_years = wyears.astype(np.int16) + year_base
+    cal_years = wyears.astype(np.int16)
 
     rows = []
     offset = 0
@@ -198,23 +193,23 @@ def export_html(
     field_names: list[str],
     output_path: str,
 ) -> None:
-    """Export per-subfield citation timeline charts to a single HTML file."""
+    """Export per-subfield citation timeline charts in a flexbox grid."""
     import plotly.graph_objects as go
 
     subfields = sorted(stats["subfield"].unique())
-    n_sfs = len(subfields)
+    figs_html = []
 
-    fig = go.Figure()
-
-    for i, sf in enumerate(subfields):
+    for sf in subfields:
         sf_data = stats[stats["subfield"] == sf].sort_values("year")
-        visible = i == 0
+        field_id = int(sf_data["field"].iloc[0])
+        title = f"{sf_names[sf]}<br><span style='color:gray;font-size:0.8em'>({field_names[field_id]})</span>"
+
+        fig = go.Figure()
         fig.add_trace(
             go.Scatter(
                 x=sf_data["year"],
                 y=sf_data["mean_cites"],
                 name="Mean",
-                visible=visible,
                 line=dict(color="steelblue"),
             )
         )
@@ -223,50 +218,42 @@ def export_html(
                 x=sf_data["year"],
                 y=sf_data["median_cites"],
                 name="Median",
-                visible=visible,
                 line=dict(color="tomato"),
             )
         )
-
-    def _title(sf: int) -> str:
-        field_id = int(stats[stats["subfield"] == sf]["field"].iloc[0])
-        return f"{sf_names[sf]}  <span style='color:gray;font-size:0.8em'>({field_names[field_id]})</span>"
-
-    buttons = []
-    for i, sf in enumerate(subfields):
-        visibility = [False] * (n_sfs * 2)
-        visibility[i * 2] = True
-        visibility[i * 2 + 1] = True
-        buttons.append(
-            dict(
-                label=sf_names[sf],
-                method="update",
-                args=[{"visible": visibility}, {"title": _title(sf)}],
-            )
+        fig.update_layout(
+            title=title,
+            xaxis_title="Year",
+            yaxis_title="Citations (top 10%)",
+            height=400,
+            width=550,
+            margin=dict(l=50, r=50, t=80, b=50),
+            showlegend=True,
         )
+        figs_html.append(fig.to_html(include_plotlyjs=False, div_id=f"fig-{sf}"))
 
-    fig.update_layout(
-        title=_title(subfields[0]),
-        xaxis_title="Publication Year",
-        yaxis_title="Citations (top 10%)",
-        height=500,
-        updatemenus=[
-            dict(
-                buttons=buttons,
-                direction="down",
-                showactive=True,
-                x=0.0,
-                xanchor="left",
-                y=1.18,
-                yanchor="top",
-            )
-        ],
-    )
-
-    html = fig.to_html(include_plotlyjs="cdn", full_html=True)
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {{ font-family: sans-serif; margin: 20px; }}
+        .container {{ display: flex; flex-wrap: wrap; gap: 20px; }}
+        .figure {{ min-width: 550px; flex: 1 1 550px; }}
+    </style>
+</head>
+<body>
+    <h1>Field Citation Ratios</h1>
+    <div class="container">
+        {"".join(f'<div class="figure">{fig_html}</div>' for fig_html in figs_html)}
+    </div>
+</body>
+</html>
+"""
     with open(output_path, "w") as f:
         f.write(html)
-    print(f"Exported {n_sfs} subfields → {output_path}")
+    print(f"Exported {len(subfields)} subfields → {output_path}")
 
 
 def build_flat_data(
