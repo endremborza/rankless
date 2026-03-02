@@ -41,8 +41,15 @@ def build_figure(year_counts, sf_raw, author_hits, citations) -> str:
     """Render the four-panel figure and return a base64-encoded PNG."""
     fig = plt.figure(figsize=(17, 9), facecolor=BG)
     gs = gridspec.GridSpec(
-        2, 3, figure=fig, left=0.05, right=0.98, top=0.88, bottom=0.10,
-        wspace=0.38, hspace=0.35
+        2,
+        3,
+        figure=fig,
+        left=0.05,
+        right=0.98,
+        top=0.88,
+        bottom=0.10,
+        wspace=0.38,
+        hspace=0.35,
     )
 
     axes = [fig.add_subplot(gs[0, i]) for i in range(3)]
@@ -95,8 +102,12 @@ def build_figure(year_counts, sf_raw, author_hits, citations) -> str:
     ax_l.legend(fontsize=7, framealpha=0, labelcolor=TEXT, loc="upper left")
 
     # Histogram of citation counts (log10 scale)
-    ax_hist.hist(np.log10(citations + 1), bins=50, color=BLUE, edgecolor=BORDER, linewidth=0.5)
-    ax_hist.set_title("Citation Count Distribution (log₁₀)", color=TEXT, fontsize=9, pad=6)
+    ax_hist.hist(
+        np.log10(citations + 1), bins=50, color=BLUE, edgecolor=BORDER, linewidth=0.5
+    )
+    ax_hist.set_title(
+        "Citation Count Distribution (log₁₀)", color=TEXT, fontsize=9, pad=6
+    )
     ax_hist.set_xlabel("log₁₀(citing citations + 1)")
     ax_hist.set_ylabel("Hit papers")
 
@@ -150,12 +161,13 @@ if __name__ == "__main__":
     sf_names = list(gr.get_names(EntC.SUBFIELDS))
 
     hpm = load_map("hit-papers", Steps.DERIVE_LINKS3)
+    wyears = pd.Series(gr.load_arr_work_years()).astype(int) + START_YEAR
     hit_df = (
         pd.Series(hpm)
         .rename("hit_id")
         .to_frame()
         .assign(
-            year=pd.Series(gr.load_arr_work_years()).astype(int) + START_YEAR,
+            year=wyears,
             citations=pd.Series(gr.load_arr_work_citing_counts()),
         )
     )
@@ -174,6 +186,7 @@ if __name__ == "__main__":
     ).loc[filter_wdf]
 
     year_counts = hit_df["year"].value_counts().sort_index()
+    all_wid_year_counts = wyears.value_counts()
 
     sf_raw = work_subfields.groupby("val")["idx"].nunique().sort_values(ascending=False)
     sf_raw.index = [
