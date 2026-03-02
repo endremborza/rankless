@@ -20,13 +20,13 @@ use dmove::{
 use hashbrown::{HashMap, HashSet};
 
 const MIN_UNIVERSAL: usize = 5000;
-const MIN_NEEDED: usize = 10;
+const MIN_NEEDED: usize = 15;
 const TOP_TOPIC: usize = 3;
-const TOP_PCTILE: f64 = 0.10;
+const TOP_PCTILE: f64 = 0.05;
 const SF_YEAR_MIN_PAPERS: usize = 500;
 const SF_YEAR_BLEND: f64 = 0.8;
-const SCORE_THRESHOLD: f64 = 2.0;
-const NOBEL_MULTIPLIER: f64 = 1.5;
+const SCORE_THRESHOLD: f64 = 3.0;
+const NOBEL_MULTIPLIER: f64 = 2.0;
 
 type CCUI = ET<MAA<Works, CiteCountMarker>>;
 
@@ -235,13 +235,7 @@ fn top_pctile_median(ccs: &mut Vec<CCUI>) -> f64 {
     let top_n = ((ccs.len() as f64 * TOP_PCTILE).ceil() as usize)
         .max(1)
         .min(ccs.len());
-    let top = &ccs[..top_n];
-    if top_n >= 2 && top_n % 2 == 0 {
-        let mid = top_n / 2;
-        (top[mid - 1].to_usize() as f64 + top[mid].to_usize() as f64) / 2.0
-    } else {
-        top[top_n / 2].to_usize() as f64
-    }
+    ccs[top_n - 1].to_usize() as f64
 }
 
 fn get_limits<E, I, I2, U>(n: usize, it: I, ccs: &Box<[CCUI]>) -> Box<[CCUI]>
