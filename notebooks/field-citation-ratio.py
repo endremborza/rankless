@@ -139,7 +139,8 @@ def compute_top_pct_stats(
 ) -> pd.DataFrame:
     """
     For each (subfield, year) pair with >= min_papers works, compute mean and
-    median citations over the top 10% of papers (by citation count).
+    median citations over the top 10% of papers (by citation count), excluding
+    the top 5 outliers.
 
     Uses the subfield→works reverse index to avoid expanding the full flat table.
     """
@@ -167,6 +168,12 @@ def compute_top_pct_stats(
             yr_cites = cites[years == yr]
             if len(yr_cites) < min_papers:
                 continue
+
+            # Remove top 5 papers to avoid outlier skew
+            if len(yr_cites) > 5:
+                sorted_idx = np.argsort(-yr_cites)  # descending order
+                yr_cites = yr_cites[sorted_idx[5:]]
+
             threshold = np.quantile(yr_cites, 1 - TOP_PERCENTILE)
             top = yr_cites[yr_cites >= threshold]
             rows.append(
@@ -188,58 +195,73 @@ def export_html(
     field_names: list[str],
     output_path: str,
 ) -> None:
-    """Export per-subfield citation timeline charts in a flexbox grid."""
-    import base64
-    import io
+    """Export per-subfield citation timeline charts using Altair."""
+    import json
 
-    import matplotlib.pyplot as plt
+    import altair as alt
 
     subfields = sorted(stats["subfield"].unique())
-    figs_html = []
+    chart_specs = []
 
     for sf in subfields:
         sf_data = stats[stats["subfield"] == sf].sort_values("year")
         field_id = int(sf_data["field"].iloc[0])
+        title = f"{sf_names[sf]} ({field_names[field_id]})"
 
-        fig, ax = plt.subplots(figsize=(6, 4), dpi=100)
-        ax.plot(sf_data["year"], sf_data["mean_cites"], color="steelblue", label="Mean", marker="o", markersize=4)
-        ax.plot(sf_data["year"], sf_data["median_cites"], color="tomato", label="Median", marker="s", markersize=4)
-        ax.set_xlabel("Year")
-        ax.set_ylabel("Citations (top 10%)")
-        ax.set_title(f"{sf_names[sf]}\n({field_names[field_id]})", fontsize=11)
-        ax.legend()
-        ax.grid(True, alpha=0.3)
+        # Prepare data for Altair (melt to long format)
+        df = sf_data[["year", "mean_cites", "median_cites"]].copy()
+        df = df.melt(id_vars=["year"], var_name="metric", value_name="citations")
 
-        # Encode as base64 data URL
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", bbox_inches="tight", dpi=100)
-        buf.seek(0)
-        img_b64 = base64.b64encode(buf.read()).decode()
-        plt.close(fig)
+        chart = (
+            alt.Chart(df)
+            .mark_line(point=True)
+            .encode(
+                x=alt.X("year:Q", title="Year"),
+                y=alt.Y("citations:Q", title="Citations (top 10%)"),
+                color=alt.Color("metric:N", scale=alt.Scale(scheme="set1")),
+            )
+            .properties(width=500, height=250, title=title)
+        )
 
-        figs_html.append(f'<img src="data:image/png;base64,{img_b64}" alt="fig-{sf}">')
+        chart_specs.append(chart.to_dict())
 
-    html = f"""<!DOCTYPE html>
+    # Create HTML with grid layout
+    html_content = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
+    <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
     <style>
-        body {{ font-family: sans-serif; margin: 20px; }}
-        .container {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(550px, 1fr)); gap: 20px; }}
-        .figure {{ display: flex; justify-content: center; }}
-        .figure img {{ max-width: 100%; height: auto; }}
+        body { font-family: sans-serif; margin: 20px; }
+        .container { display: grid; grid-template-columns: repeat(auto-fit, minmax(550px, 1fr)); gap: 20px; }
+        .chart { border: 1px solid #eee; padding: 10px; border-radius: 4px; }
     </style>
 </head>
 <body>
     <h1>Field Citation Ratios</h1>
     <div class="container">
-        {"".join(f'<div class="figure">{fig_html}</div>' for fig_html in figs_html)}
-    </div>
+"""
+
+    for i in range(len(chart_specs)):
+        html_content += f'        <div class="chart" id="vis{i}"></div>\n'
+
+    html_content += """    </div>
+    <script type="text/javascript">
+"""
+
+    for i, spec in enumerate(chart_specs):
+        spec_json = json.dumps(spec)
+        html_content += f"        vegaEmbed('#vis{i}', {spec_json});\n"
+
+    html_content += """    </script>
 </body>
 </html>
 """
+
     with open(output_path, "w") as f:
-        f.write(html)
+        f.write(html_content)
     print(f"Exported {len(subfields)} subfields → {output_path}")
 
 
