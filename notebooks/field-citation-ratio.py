@@ -189,7 +189,10 @@ def export_html(
     output_path: str,
 ) -> None:
     """Export per-subfield citation timeline charts in a flexbox grid."""
-    import plotly.graph_objects as go
+    import base64
+    import io
+
+    import matplotlib.pyplot as plt
 
     subfields = sorted(stats["subfield"].unique())
     figs_html = []
@@ -197,45 +200,34 @@ def export_html(
     for sf in subfields:
         sf_data = stats[stats["subfield"] == sf].sort_values("year")
         field_id = int(sf_data["field"].iloc[0])
-        title = f"{sf_names[sf]}<br><span style='color:gray;font-size:0.8em'>({field_names[field_id]})</span>"
 
-        fig = go.Figure()
-        fig.add_trace(
-            go.Scatter(
-                x=sf_data["year"],
-                y=sf_data["mean_cites"],
-                name="Mean",
-                line=dict(color="steelblue"),
-            )
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=sf_data["year"],
-                y=sf_data["median_cites"],
-                name="Median",
-                line=dict(color="tomato"),
-            )
-        )
-        fig.update_layout(
-            title=title,
-            xaxis_title="Year",
-            yaxis_title="Citations (top 10%)",
-            height=400,
-            width=550,
-            margin=dict(l=50, r=50, t=80, b=50),
-            showlegend=True,
-        )
-        figs_html.append(fig.to_html(include_plotlyjs=False, div_id=f"fig-{sf}"))
+        fig, ax = plt.subplots(figsize=(6, 4), dpi=100)
+        ax.plot(sf_data["year"], sf_data["mean_cites"], color="steelblue", label="Mean", marker="o", markersize=4)
+        ax.plot(sf_data["year"], sf_data["median_cites"], color="tomato", label="Median", marker="s", markersize=4)
+        ax.set_xlabel("Year")
+        ax.set_ylabel("Citations (top 10%)")
+        ax.set_title(f"{sf_names[sf]}\n({field_names[field_id]})", fontsize=11)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+
+        # Encode as base64 data URL
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", bbox_inches="tight", dpi=100)
+        buf.seek(0)
+        img_b64 = base64.b64encode(buf.read()).decode()
+        plt.close(fig)
+
+        figs_html.append(f'<img src="data:image/png;base64,{img_b64}" alt="fig-{sf}">')
 
     html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
         body {{ font-family: sans-serif; margin: 20px; }}
-        .container {{ display: flex; flex-wrap: wrap; gap: 20px; }}
-        .figure {{ min-width: 550px; flex: 1 1 550px; }}
+        .container {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(550px, 1fr)); gap: 20px; }}
+        .figure {{ display: flex; justify-content: center; }}
+        .figure img {{ max-width: 100%; height: auto; }}
     </style>
 </head>
 <body>
