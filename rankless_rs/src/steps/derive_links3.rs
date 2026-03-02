@@ -19,12 +19,14 @@ use dmove::{
 };
 use hashbrown::{HashMap, HashSet};
 
-const MIN_FOR_HIT: usize = 40;
-const MIN_FOR_NOBEL: usize = 5;
-const TOP_TOPIC: usize = 20;
-const TOP_SUBFIELD: usize = 100;
-const TOP_YEAR: usize = 50;
-const TOP_ALL_TIME: usize = 30_000;
+const MIN_UNIVERSAL: usize = 5000;
+const MIN_NEEDED: usize = 10;
+const TOP_TOPIC: usize = 3;
+const TOP_PCTILE: f64 = 0.10;
+const SF_YEAR_MIN_PAPERS: usize = 500;
+const SF_YEAR_BLEND: f64 = 0.8;
+const SCORE_THRESHOLD: f64 = 2.0;
+const NOBEL_MULTIPLIER: f64 = 1.5;
 
 type CCUI = ET<MAA<Works, CiteCountMarker>>;
 
@@ -41,7 +43,7 @@ where
     );
 }
 
-pub fn get_nobeled_works(stowage: &Stowage, w_years: &Box<[ET<Years>]>) -> HashSet<ET<Works>> {
+pub fn get_nobeled_works(stowage: &Stowage, w_years: &[ET<Years>]) -> HashSet<ET<Works>> {
     let author_nobels = stowage.get_entity_interface::<AuthorNobels, QuickestBox>();
     let mut nobeled_works = HashSet::new();
     for (wid, w_aids) in stowage
@@ -63,17 +65,11 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     let starc = Arc::new(stowage);
     para_multi_gen_run!(work_count, Sources, Institutions, Authors, Subfields, Topics; starc)
         .last();
-    let cc_interface = starc.get_entity_interface::<MAA<Works, CiteCountMarker>, QuickestBox>();
 
+    let cc_interface = starc.get_entity_interface::<MAA<Works, CiteCountMarker>, QuickestBox>();
     let w_sfs = starc.get_entity_interface::<WorkSubfields, QuickestVBox>();
     let w_topics = starc.get_entity_interface::<WorkTopics, QuickestVBox>();
     let w_years = starc.get_entity_interface::<WorkYears, QuickestBox>();
-
-    let sf_limits = get_limits::<Subfields, _, _, _>(
-        TOP_SUBFIELD,
-        w_sfs.0.iter().map(|e| e.iter().map(|se| *se)),
-        &cc_interface,
-    );
 
     let topic_limits = get_limits::<Topics, _, _, _>(
         TOP_TOPIC,
@@ -81,51 +77,50 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         &cc_interface,
     );
 
-    let year_limits = get_limits::<Years, _, _, _>(
-        TOP_YEAR,
-        w_years.iter().map(|e| vec![*e].into_iter()),
-        &cc_interface,
-    );
-
-    let mut theap = BinaryHeap::new();
-    cc_interface.iter().for_each(|e| theap.push(*e));
-    let global_limit = topn(theap, TOP_ALL_TIME);
+    let year_bms = compute_year_bms(&w_years, &cc_interface);
+    let sf_year_bms = compute_sf_year_bms(&w_sfs.0, &w_years, &cc_interface, &year_bms);
 
     let nobeled_works = get_nobeled_works(&starc, &w_years);
 
     let doi_interface = starc.get_entity_interface::<WorkDois, QuickestVBox>();
     let name_interface = starc.get_entity_interface::<WorksNames, ReadIter>();
-    let mut hit_names = vec!["Unknown".to_string()]; //TODO: 0 id is unknown, but all this needing to map to
-                                                     //u64 is unnecessary here
+    let mut hit_names = vec!["Unknown".to_string()];
     let mut hit_dois = vec!["".to_string()];
     let mut hit_ccounts = vec![0];
     let mut hit_wids = vec![vec![].into_boxed_slice()];
     let this_year = YearInterface::parse(FINAL_YEAR);
+
     let hit_papers = name_interface.enumerate().filter_map(|(wid, name)| {
         if w_years[wid] >= this_year {
             return None;
         }
         let widt = ET::<Works>::from_usize(wid);
         let wcc = cc_interface[wid];
-        let reaches_abs_minimum = wcc.to_usize() >= MIN_FOR_HIT;
-        let reaches_any_sf_limit = w_sfs.0[wid].iter().any(|e| sf_limits[e.to_usize()] <= wcc);
+        let cc_n = wcc.to_usize();
+        let year = w_years[wid].to_usize();
+
         let reaches_any_topic_limit = w_topics.0[wid]
             .iter()
             .any(|e| topic_limits[e.to_usize()] <= wcc);
-        let wyear = w_years[wid];
-        let has_nobel = nobeled_works.contains(&widt);
-        let qualifies_with_nobel = has_nobel & (wcc.to_usize() >= MIN_FOR_NOBEL);
+        let multiplier = if nobeled_works.contains(&widt) {
+            NOBEL_MULTIPLIER
+        } else {
+            1.0
+        };
+        let bm = paper_bm(&w_sfs.0[wid], year, &sf_year_bms, &year_bms);
+        let score = if bm > 0.0 {
+            cc_n as f64 / bm * multiplier
+        } else {
+            0.0
+        };
 
-        if qualifies_with_nobel
-            || (reaches_abs_minimum
-                && (wcc >= global_limit
-                    || wcc >= year_limits[wyear.to_usize()]
-                    || reaches_any_sf_limit
-                    || reaches_any_topic_limit))
-        {
+        let qualifies = (cc_n >= MIN_NEEDED)
+            & (cc_n >= MIN_UNIVERSAL || reaches_any_topic_limit || score >= SCORE_THRESHOLD);
+
+        if qualifies {
             hit_names.push(name);
             hit_dois.push(doi_interface.0[wid].to_string());
-            hit_ccounts.push(wcc.to_usize());
+            hit_ccounts.push(cc_n);
             //TODO: unnecessary but low cost - hit_papers contains the exact same info
             //but this is so that something that is a Box<[wid]> can be assigned to hit-papers
             //as in memory wid store for trees
@@ -171,6 +166,82 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     );
     starc.write_code()?;
     Ok(())
+}
+
+fn compute_year_bms(w_years: &[ET<Years>], ccs: &[CCUI]) -> Box<[f64]> {
+    let mut groups = init_empty_slice::<Years, Vec<CCUI>>();
+    for (wid, yr) in w_years.iter().enumerate() {
+        groups[yr.to_usize()].push(ccs[wid]);
+    }
+    groups
+        .iter_mut()
+        .map(|g| top_pctile_median(g))
+        .collect::<Vec<_>>()
+        .into()
+}
+
+fn compute_sf_year_bms(
+    w_sfs: &[Box<[ET<Subfields>]>],
+    w_years: &[ET<Years>],
+    ccs: &[CCUI],
+    year_bms: &[f64],
+) -> HashMap<(usize, usize), f64> {
+    let mut groups: HashMap<(usize, usize), Vec<CCUI>> = HashMap::new();
+    for (wid, sfs) in w_sfs.iter().enumerate() {
+        let yr = w_years[wid].to_usize();
+        let cc = ccs[wid];
+        for sf in sfs.iter() {
+            groups.entry((sf.to_usize(), yr)).or_default().push(cc);
+        }
+    }
+    groups
+        .into_iter()
+        .map(|((sf, yr), mut v)| {
+            let bm = if v.len() >= SF_YEAR_MIN_PAPERS {
+                SF_YEAR_BLEND * top_pctile_median(&mut v) + (1.0 - SF_YEAR_BLEND) * year_bms[yr]
+            } else {
+                year_bms[yr]
+            };
+            ((sf, yr), bm)
+        })
+        .collect()
+}
+
+fn paper_bm(
+    sfs: &[ET<Subfields>],
+    year: usize,
+    sf_year_bms: &HashMap<(usize, usize), f64>,
+    year_bms: &[f64],
+) -> f64 {
+    if sfs.is_empty() {
+        return year_bms[year];
+    }
+    let sum: f64 = sfs
+        .iter()
+        .map(|sf| {
+            *sf_year_bms
+                .get(&(sf.to_usize(), year))
+                .unwrap_or(&year_bms[year])
+        })
+        .sum();
+    sum / sfs.len() as f64
+}
+
+fn top_pctile_median(ccs: &mut Vec<CCUI>) -> f64 {
+    if ccs.is_empty() {
+        return 0.0;
+    }
+    ccs.sort_unstable_by(|a, b| b.cmp(a));
+    let top_n = ((ccs.len() as f64 * TOP_PCTILE).ceil() as usize)
+        .max(1)
+        .min(ccs.len());
+    let top = &ccs[..top_n];
+    if top_n >= 2 && top_n % 2 == 0 {
+        let mid = top_n / 2;
+        (top[mid - 1].to_usize() as f64 + top[mid].to_usize() as f64) / 2.0
+    } else {
+        top[top_n / 2].to_usize() as f64
+    }
 }
 
 fn get_limits<E, I, I2, U>(n: usize, it: I, ccs: &Box<[CCUI]>) -> Box<[CCUI]>
