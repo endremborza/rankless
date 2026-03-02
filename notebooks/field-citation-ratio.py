@@ -1,24 +1,24 @@
 """
-Field Citation Ratio model.
+Field Citation Ratio analysis.
 
 Fits a per-subfield power-law citation model:
     citations ≈ alpha[subfield] * age^beta[subfield]
 
-alpha (softplus-constrained): citation volume/rate for the subfield
-beta  (sigmoid-constrained, ∈ (0,1)): citation growth exponent over time
+Default: export citation timeline HTML to docs/field-citations.html.
+Pass --fit to train the model instead.
 """
 
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-import torch
-import torch.nn.functional as F
-from tqdm import tqdm
-
 
 from ccl_science_data.common import EntC
 from ccl_science_data.gen_reader_ext import GenReaderExt
+
+
+MIN_GROUP_SIZE = 20
+TOP_PERCENTILE = 0.10
 
 
 @dataclass
@@ -37,27 +37,19 @@ class FitConfig:
 class FlatData:
     """Per-(work, subfield) arrays ready for model fitting."""
 
-    flat_sfs: np.ndarray  # subfield ID per row
-    flat_cites: np.ndarray  # citation count per row
-    flat_ages: np.ndarray  # paper age in years per row
+    flat_sfs: np.ndarray
+    flat_cites: np.ndarray
+    flat_ages: np.ndarray
     n_subfields: int
-    valid_inds: np.ndarray  # row indices passing all filters
+    valid_inds: np.ndarray
     dropped_subfields: frozenset
 
 
 class FieldCitationModel:
-    """
-    Per-subfield power-law citation model fit via SGD (MSE loss).
-
-    Parameters alpha and beta are indexed by subfield ID, with NaN for
-    subfields that were dropped during data preparation.
-    """
+    """Per-subfield power-law citation model: cites ≈ alpha * age^beta."""
 
     def __init__(
-        self,
-        alpha: np.ndarray,
-        beta: np.ndarray,
-        dropped_subfields: frozenset,
+        self, alpha: np.ndarray, beta: np.ndarray, dropped_subfields: frozenset
     ) -> None:
         self.alpha = alpha
         self.beta = beta
@@ -68,9 +60,12 @@ class FieldCitationModel:
         cls,
         data: FlatData,
         config: FitConfig = FitConfig(),
-        device: torch.device | None = None,
+        device=None,
         seed: int | None = None,
     ) -> "FieldCitationModel":
+        import torch
+        import torch.nn.functional as F
+
         if device is None:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -92,7 +87,7 @@ class FieldCitationModel:
         for step in range(config.n_steps):
             rng.shuffle(valid_inds)
             sumloss = 0.0
-            for i in tqdm(batch_starts, desc=f"step {step}"):
+            for i in batch_starts:
                 stinds = valid_inds[i : i + bs]
                 subset_long = torch.from_numpy(data.flat_sfs[stinds]).to(device).long()
                 t_wsufs.zero_().scatter_(1, subset_long.unsqueeze(1), 1.0)
@@ -132,68 +127,187 @@ class FieldCitationModel:
         return cls(alpha_np, beta_np, data.dropped_subfields)
 
     def predict(self, subfield_ids: np.ndarray, ages: np.ndarray) -> np.ndarray:
-        """Expected citation count for given subfield IDs and paper ages."""
         return self.alpha[subfield_ids] * ages ** self.beta[subfield_ids]
 
     def to_frame(self, subfield_names: list[str]) -> pd.DataFrame:
-        """DataFrame of per-subfield alpha/beta, indexed by name."""
         return pd.DataFrame(
-            {"alpha": self.alpha, "beta": self.beta},
-            index=subfield_names,
+            {"alpha": self.alpha, "beta": self.beta}, index=subfield_names
         )
+
+
+def _infer_year_base(raw_years: np.ndarray) -> int:
+    return 1900 if raw_years.max() > 50 else 2000
+
+
+def compute_top_pct_stats(
+    gr: GenReaderExt, min_papers: int = MIN_GROUP_SIZE
+) -> pd.DataFrame:
+    """
+    For each (subfield, year) pair with >= min_papers works, compute mean and
+    median citations over the top 10% of papers (by citation count).
+
+    Uses the subfield→works reverse index to avoid expanding the full flat table.
+    """
+    wyears = gr.load_arr_work_years()
+    wcits = gr.load_arr_work_citing_counts()
+    sf_targets = gr.load_varr_subfield_works_targets()
+    sf_sizes = gr.load_varr_subfield_works_sizes()
+    sf_ancestors = gr.load_arr_subfield_ancestors()
+
+    year_base = _infer_year_base(wyears)
+    cal_years = wyears.astype(np.int16) + year_base
+
+    rows = []
+    offset = 0
+    for sf_id, sf_size in enumerate(sf_sizes):
+        sz = int(sf_size)
+        if sz == 0:
+            offset += sz
+            continue
+
+        wids = sf_targets[offset : offset + sz]
+        years = cal_years[wids]
+        cites = wcits[wids]
+        offset += sz
+
+        field_id = int(sf_ancestors[sf_id])
+
+        for yr in np.unique(years):
+            yr_cites = cites[years == yr]
+            if len(yr_cites) < min_papers:
+                continue
+            threshold = np.quantile(yr_cites, 1 - TOP_PERCENTILE)
+            top = yr_cites[yr_cites >= threshold]
+            rows.append(
+                {
+                    "subfield": sf_id,
+                    "year": int(yr),
+                    "field": field_id,
+                    "mean_cites": float(top.mean()),
+                    "median_cites": float(np.median(top)),
+                    "n_papers": int(len(yr_cites)),
+                }
+            )
+
+    return pd.DataFrame(rows)
+
+
+def export_html(
+    stats: pd.DataFrame,
+    sf_names: list[str],
+    field_names: list[str],
+    output_path: str,
+) -> None:
+    """Export per-subfield citation timeline charts to a single HTML file."""
+    import plotly.graph_objects as go
+
+    subfields = sorted(stats["subfield"].unique())
+    n_sfs = len(subfields)
+
+    fig = go.Figure()
+
+    for i, sf in enumerate(subfields):
+        sf_data = stats[stats["subfield"] == sf].sort_values("year")
+        visible = i == 0
+        fig.add_trace(
+            go.Scatter(
+                x=sf_data["year"],
+                y=sf_data["mean_cites"],
+                name="Mean",
+                visible=visible,
+                line=dict(color="steelblue"),
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=sf_data["year"],
+                y=sf_data["median_cites"],
+                name="Median",
+                visible=visible,
+                line=dict(color="tomato"),
+            )
+        )
+
+    def _title(sf: int) -> str:
+        field_id = int(stats[stats["subfield"] == sf]["field"].iloc[0])
+        return f"{sf_names[sf]}  <span style='color:gray;font-size:0.8em'>({field_names[field_id]})</span>"
+
+    buttons = []
+    for i, sf in enumerate(subfields):
+        visibility = [False] * (n_sfs * 2)
+        visibility[i * 2] = True
+        visibility[i * 2 + 1] = True
+        buttons.append(
+            dict(
+                label=sf_names[sf],
+                method="update",
+                args=[{"visible": visibility}, {"title": _title(sf)}],
+            )
+        )
+
+    fig.update_layout(
+        title=_title(subfields[0]),
+        xaxis_title="Publication Year",
+        yaxis_title="Citations (top 10%)",
+        height=500,
+        updatemenus=[
+            dict(
+                buttons=buttons,
+                direction="down",
+                showactive=True,
+                x=0.0,
+                xanchor="left",
+                y=1.18,
+                yanchor="top",
+            )
+        ],
+    )
+
+    html = fig.to_html(include_plotlyjs="cdn", full_html=True)
+    with open(output_path, "w") as f:
+        f.write(html)
+    print(f"Exported {n_sfs} subfields → {output_path}")
 
 
 def build_flat_data(
     wyears: np.ndarray,
     wcits: np.ndarray,
     flat_sfs: np.ndarray,
-    wsf_sis: np.ndarray,
+    wsf_sizes: np.ndarray,
     n_subfields: int,
     config: FitConfig = FitConfig(),
 ) -> FlatData:
-    """
-    Build per-(work, subfield) flat arrays and apply outlier filters.
-
-    Each work appears once per subfield it is assigned to. Subfields with
-    too few papers or citations are dropped entirely from training.
-    """
+    """Build per-(work, subfield) flat arrays and apply outlier filters."""
     act_year = wyears.max()
-    n = flat_sfs.shape[0]
-    print(n)
-    flat_cites = np.zeros(n, dtype=wcits.dtype)
-    flat_ages = np.zeros(n, dtype=np.float16)
-
-    i = 0
-    for wi, wsf_size in enumerate(tqdm(wsf_sis, desc="flattening")):
-        age = act_year - wyears[wi]
-        for _ in range(wsf_size):
-            flat_cites[i] = wcits[wi]
-            flat_ages[i] = age
-            i += 1
+    work_ids = np.repeat(np.arange(len(wyears)), wsf_sizes)
+    flat_cites = wcits[work_ids]
+    flat_ages = (act_year - wyears[work_ids]).astype(np.float16)
 
     filt = (flat_cites > 0) & (
         flat_cites < np.quantile(wcits, 1 - config.discard_global_top)
     )
 
-    dropped = []
-    for sfid in tqdm(range(n_subfields), desc="filtering subfields"):
-        sf_mask = flat_sfs == sfid
-        if (
-            sf_mask.sum() < config.min_papers
-            or flat_cites[sf_mask].sum() < config.min_cites
-        ):
-            dropped.append(sfid)
-            filt &= ~sf_mask
-            continue
-        filt &= ~(
-            sf_mask
-            & (
-                flat_cites
-                >= np.quantile(flat_cites[sf_mask], 1 - config.discard_sf_top)
-            )
-        )
+    # Sort by subfield for O(n log n) grouping instead of O(n * n_sfs)
+    sort_idx = np.argsort(flat_sfs, kind="stable")
+    sorted_sfs = flat_sfs[sort_idx]
+    sorted_cites = flat_cites[sort_idx]
+    boundaries = np.searchsorted(sorted_sfs, np.arange(n_subfields + 1))
 
-    print(f"training rows: {filt.sum() / 1e6:.2f}M  dropped subfields: {len(dropped)}")
+    dropped = []
+    sf_filt = np.ones(len(flat_sfs), dtype=bool)
+
+    for sfid in range(n_subfields):
+        lo, hi = int(boundaries[sfid]), int(boundaries[sfid + 1])
+        sf_cites = sorted_cites[lo:hi]
+        if len(sf_cites) < config.min_papers or sf_cites.sum() < config.min_cites:
+            dropped.append(sfid)
+            sf_filt[sort_idx[lo:hi]] = False
+            continue
+        q = np.quantile(sf_cites, 1 - config.discard_sf_top)
+        outlier_orig_idx = sort_idx[lo:hi][sf_cites >= q]
+        sf_filt[outlier_orig_idx] = False
+
+    filt &= sf_filt
     return FlatData(
         flat_sfs=flat_sfs,
         flat_cites=flat_cites,
@@ -226,23 +340,34 @@ def residuals_by_age(
     )
 
 
-if __name__ == "__main__":
-    gr = GenReaderExt(".")
+def run_fit(gr: GenReaderExt) -> None:
+    """Train the model and print diagnostics."""
     wyears = gr.load_arr_work_years()
     wcits = gr.load_arr_work_citing_counts()
     flat_sfs = gr.load_varr_work_subfields_targets()
-    wsfs_sizes = gr.load_varr_work_subfields_sizes()
+    wsf_sizes = gr.load_varr_work_subfields_sizes()
     tsufs = gr.load_arr_topic_subfields()
 
     config = FitConfig()
-    data = build_flat_data(wyears, wcits, flat_sfs, wsfs_sizes, tsufs.max() + 1, config)
+    data = build_flat_data(
+        wyears, wcits, flat_sfs, wsf_sizes, int(tsufs.max()) + 1, config
+    )
     model = FieldCitationModel.fit(data, config)
 
     names = list(gr.get_names(EntC.SUBFIELDS))
     pdf = model.to_frame(names).sort_values("alpha", ascending=False)
-    print(pdf.head(20))
-    print(pdf.tail(30))
-    print(pdf.corr())
+    print(pdf.dropna().head(20))
+    print(residuals_by_age(model, data, config))
 
-    diag = residuals_by_age(model, data, config)
-    print(diag)
+
+if __name__ == "__main__":
+    import sys
+
+    gr = GenReaderExt(".")
+    if "--fit" in sys.argv:
+        run_fit(gr)
+    else:
+        sf_names = list(gr.get_names(EntC.SUBFIELDS))
+        field_names = list(gr.get_names(EntC.FIELDS))
+        stats = compute_top_pct_stats(gr)
+        export_html(stats, sf_names, field_names, "docs/field-citations.html")
