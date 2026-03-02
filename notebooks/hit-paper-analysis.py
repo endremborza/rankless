@@ -74,6 +74,7 @@ def build_figure(year_counts, sf_raw, author_hits) -> str:
     for vals, label, color in [
         (np.sort(author_hits.values), "Authors", BLUE),
         (np.sort(sf_raw.values), "Subfields", "#f59e0b"),
+        (np.sort(year_counts.values), "Years", "#8b5cf6"),
     ]:
         cumshare = np.cumsum(vals) / vals.sum()
         ax_l.plot(
@@ -177,6 +178,7 @@ if __name__ == "__main__":
         ("Year Range", f"{int(hit_df['year'].min())}–{int(hit_df['year'].max())}"),
         ("Gini (Authors)", f"{gini(author_hits.values):.3f}"),
         ("Gini (Subfields)", f"{gini(sf_raw.values):.3f}"),
+        ("Gini (Years)", f"{gini(year_counts.values):.3f}"),
     ]
 
     img_b64 = build_figure(year_counts, sf_raw, author_hits)
