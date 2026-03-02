@@ -664,7 +664,7 @@ fn read_deser_obj<T: DeserializeOwned>(root: &Path, main_path: &str, sub_path: &
             .to_str()
             .unwrap(),
     )
-    .unwrap();
+    .expect(&format!("{main_path}/{sub_path} read failed"));
     let reader = ReaderBuilder::new().from_reader(gz_buf);
     ObjIter::new(reader, main_path, sub_path)
 }
