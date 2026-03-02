@@ -37,22 +37,22 @@ def gini(x: np.ndarray) -> float:
     return float((2 * (idx * x).sum() / (n * x.sum())) - (n + 1) / n)
 
 
-def build_figure(year_counts, sf_raw, author_hits, citations) -> str:
-    """Render the four-panel figure and return a base64-encoded PNG."""
-    fig = plt.figure(figsize=(17, 9), facecolor=BG)
+def build_figure(year_counts, sf_raw, author_hits, citations, hit_rate) -> str:
+    """Render the five-panel figure and return a base64-encoded PNG."""
+    fig = plt.figure(figsize=(22, 9), facecolor=BG)
     gs = gridspec.GridSpec(
         2,
-        3,
+        4,
         figure=fig,
         left=0.05,
         right=0.98,
         top=0.88,
         bottom=0.10,
-        wspace=0.38,
+        wspace=0.32,
         hspace=0.35,
     )
 
-    axes = [fig.add_subplot(gs[0, i]) for i in range(3)]
+    axes = [fig.add_subplot(gs[0, i]) for i in range(4)]
     ax_hist = fig.add_subplot(gs[1, :])
     all_axes = axes + [ax_hist]
 
@@ -64,7 +64,7 @@ def build_figure(year_counts, sf_raw, author_hits, citations) -> str:
         ax.xaxis.label.set_color(MUTED)
         ax.yaxis.label.set_color(MUTED)
 
-    ax_t, ax_s, ax_l = axes
+    ax_t, ax_s, ax_l, ax_r = axes
     year_min, year_max = int(year_counts.index.min()), int(year_counts.index.max())
 
     ax_t.bar(year_counts.index, year_counts.values, color=BLUE, width=0.8)
@@ -100,6 +100,12 @@ def build_figure(year_counts, sf_raw, author_hits, citations) -> str:
     ax_l.set_xlabel("Cumulative share of entities")
     ax_l.set_ylabel("Cumulative share of hit papers")
     ax_l.legend(fontsize=7, framealpha=0, labelcolor=TEXT, loc="upper left")
+
+    ax_r.plot(hit_rate.index, hit_rate.values * 100, color=BLUE, linewidth=1.5, marker="o", markersize=3)
+    ax_r.set_title("Hit Rate by Year", color=TEXT, fontsize=9, pad=6)
+    ax_r.set_xlabel("Year")
+    ax_r.set_ylabel("Hit papers (%)")
+    ax_r.set_xlim(year_min - 1, year_max + 1)
 
     # Histogram of citation counts (log10 scale)
     ax_hist.hist(
@@ -186,7 +192,8 @@ if __name__ == "__main__":
     ).loc[filter_wdf]
 
     year_counts = hit_df["year"].value_counts().sort_index()
-    all_wid_year_counts = wyears.value_counts()
+    all_wid_year_counts = wyears.value_counts().sort_index()
+    hit_rate = year_counts / all_wid_year_counts
 
     sf_raw = work_subfields.groupby("val")["idx"].nunique().sort_values(ascending=False)
     sf_raw.index = [
@@ -204,7 +211,7 @@ if __name__ == "__main__":
         ("Gini (Years)", f"{gini(year_counts.values):.3f}"),
     ]
 
-    img_b64 = build_figure(year_counts, sf_raw, author_hits, hit_df["citations"].values)
+    img_b64 = build_figure(year_counts, sf_raw, author_hits, hit_df["citations"].values, hit_rate)
     html = build_html(img_b64, stat_items)
 
     out_path = "docs/hit-paper-dist.html"
