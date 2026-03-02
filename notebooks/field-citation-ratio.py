@@ -12,10 +12,9 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-
 from ccl_science_data.common import EntC
 from ccl_science_data.gen_reader_ext import GenReaderExt
-
+from tqdm import tqdm
 
 MIN_GROUP_SIZE = 20
 TOP_PERCENTILE = 0.10
@@ -23,8 +22,8 @@ TOP_PERCENTILE = 0.10
 
 @dataclass
 class FitConfig:
-    discard_global_top: float = 0.01
-    discard_sf_top: float = 0.01
+    discard_global_top: float = 0.005
+    discard_sf_top: float = 0.005
     min_papers: int = 30
     min_cites: int = 120
     batch_size: int = 200_000
@@ -150,18 +149,15 @@ def compute_top_pct_stats(
     sf_sizes = gr.load_varr_subfield_works_sizes()
     sf_ancestors = gr.load_arr_subfield_ancestors()
 
-    cal_years = wyears.astype(np.int16)
-
     rows = []
     offset = 0
-    for sf_id, sf_size in enumerate(sf_sizes):
+    for sf_id, sf_size in tqdm(list(enumerate(sf_sizes))):
         sz = int(sf_size)
         if sz == 0:
-            offset += sz
             continue
 
         wids = sf_targets[offset : offset + sz]
-        years = cal_years[wids]
+        years = wyears[wids]
         cites = wcits[wids]
         offset += sz
 
@@ -183,7 +179,6 @@ def compute_top_pct_stats(
                     "n_papers": int(len(yr_cites)),
                 }
             )
-
     return pd.DataFrame(rows)
 
 
