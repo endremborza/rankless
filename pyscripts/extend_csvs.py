@@ -3,14 +3,8 @@ from pathlib import Path
 
 import pandas as pd
 import polars as pl
-from ccl_science_data.common import (
-    PUBY,
-    ComC,
-    EntC,
-    get_csv_path,
-    get_last_filter,
-    parse_id,
-)
+from ccl_science_data.common import PUBY, get_csv_path, get_last_filter, parse_id
+from ccl_science_data.gen import ComC, EntC
 
 _EXTERN = Path(__file__).parent.parent / "extern"
 
