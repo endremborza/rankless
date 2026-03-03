@@ -19,7 +19,7 @@ use crate::{
             HitPapers, HitPapersCiteCounts, HitPapersDois, HitPapersNames, HitPapersWids,
         },
     },
-    steps::derive_links3::{get_nobeled_works, work_count},
+    steps::derive_links3::get_nobeled_works,
     CiteCountMarker, NameExtensionMarker, NameMarker, QuickestBox, QuickestNumbered, QuickestVBox,
     ReadIter, SemanticIdMarker, Stowage,
 };
@@ -94,7 +94,6 @@ impl MarkedAttribute<NameExtensionMarker> for HitPapers {
 }
 
 pub fn main(stowage: Stowage) -> io::Result<()> {
-    work_count::<Countries>(&stowage);
     let hit_map = stowage.get_entity_interface::<HitPapers, QuickestNumbered>();
     let wcc = stowage.get_entity_interface::<WorkCitingCounts, QuickestBox>();
     let wor_refs = stowage.get_entity_interface::<WorkReferences, QuickestVBox>();
