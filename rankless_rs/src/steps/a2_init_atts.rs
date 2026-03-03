@@ -1093,22 +1093,26 @@ pub fn main(mut stowage: Stowage) -> io::Result<()> {
                 &works_interface,
             ),
         )
-        .para(stowage.read_csv_objs::<ReferencedWork>(
-            Works::NAME,
-            works::atts::referenced_works,
-        ))
+        .para(stowage.read_csv_objs::<ReferencedWork>(Works::NAME, works::atts::referenced_works))
         .worker
         .take_arr();
         let mut n_inversions = 0usize;
         stowage.add_iter_owned::<VarAttBuilder, _, _>(
-            refs.into_vec().into_iter().enumerate().map(|(citing_dm, cited)| {
-                let cy = wyears[citing_dm];
-                if cy > 0 {
-                    n_inversions +=
-                        cited.iter().filter(|&&d| wyears[d.to_usize()] > cy).count();
-                }
-                cited.into_boxed_slice()
-            }),
+            refs.into_vec()
+                .into_iter()
+                .enumerate()
+                .map(|(citing_dm, cited)| {
+                    let cy = wyears[citing_dm];
+                    let mut out = Vec::new();
+                    for refed_wid in cited.into_iter() {
+                        if (cy > 0) & (wyears[refed_wid.to_usize()] > cy) {
+                            n_inversions += 1;
+                        } else {
+                            out.push(refed_wid);
+                        }
+                    }
+                    out.into_boxed_slice()
+                }),
             Some("work-references"),
         );
         stowage.declare_link::<Works, Works>("work-references");
