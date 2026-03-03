@@ -168,21 +168,20 @@ def compute_top_pct_stats(
             yr_cites = cites[years == yr]
             if len(yr_cites) < min_papers:
                 continue
-
-            # Remove top 5 papers to avoid outlier skew
-            if len(yr_cites) > 5:
-                sorted_idx = np.argsort(-yr_cites)  # descending order
-                yr_cites = yr_cites[sorted_idx[5:]]
-
             threshold = np.quantile(yr_cites, 1 - TOP_PERCENTILE)
             top = yr_cites[yr_cites >= threshold]
+            if len(top) < min_papers:
+                continue
+
+            median = np.median(top)
+            mean = np.mean(top[top < median * 3])
             rows.append(
                 {
                     "subfield": sf_id,
-                    "year": int(yr),
+                    "year": int(yr) + 1950,
                     "field": field_id,
-                    "mean_cites": float(top.mean()),
-                    "median_cites": float(np.median(top)),
+                    "mean_cites": float(mean),
+                    "median_cites": float(median),
                     "n_papers": int(len(yr_cites)),
                 }
             )
@@ -200,7 +199,10 @@ def export_html(
 
     import altair as alt
 
-    subfields = sorted(stats["subfield"].unique())
+    subfields = (
+        # stats.groupby("subfield")["n_papers"].sum().sort_values(ascending=False).index
+        sorted(stats["subfield"].unique(), key=lambda e: sf_names[e])
+    )
     chart_specs = []
 
     for sf in subfields:
