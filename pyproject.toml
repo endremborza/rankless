@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "ccl-science-data",
     "matplotlib>=3.10.8",
-    "pandas>=3.0.1",
+    "pandas[aws, parquet]>=3.0.1",
     "psycopg>=3.3.3",
     "psycopg2>=2.9.11",
     "python-dotenv>=1.2.1",
