@@ -20,14 +20,14 @@ use dmove::{
 use hashbrown::{HashMap, HashSet};
 
 const MIN_UNIVERSAL: usize = 5000;
-const MIN_NEEDED: usize = 15;
+const MIN_NEEDED: usize = 10;
 const TOP_TOPIC: usize = 3;
-const TOP_PCTILE: f64 = 0.05;
-const SF_YEAR_MIN_PAPERS: usize = 500;
-const W_SF: f64 = 0.1;
-const W_YEAR: f64 = 0.1;
+const TOP_PCTILE: f64 = 0.01;
+const SF_YEAR_MIN_PAPERS: usize = 400;
+const W_SF: f64 = 0.005;
+const W_YEAR: f64 = 0.12;
 const W_SF_YEAR: f64 = 1.0 - W_SF - W_YEAR;
-const SCORE_THRESHOLD: f64 = 3.0;
+const SCORE_THRESHOLD: f64 = 1.5;
 const NOBEL_MULTIPLIER: f64 = 2.0;
 
 type CCUI = ET<MAA<Works, CiteCountMarker>>;
