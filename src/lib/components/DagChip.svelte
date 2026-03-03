@@ -6,7 +6,6 @@
 		getPaperHighlights,
 		type PaperHighlight
 	} from '$lib/utils/paper-helpers';
-	import { pluralize } from '$lib/text-format-util';
 	import { createEventDispatcher } from 'svelte';
 
 	export let paper: Paper | undefined;
@@ -119,8 +118,6 @@
 						&nbsp;et al.
 					{/if}
 				</div>
-			{:else if paper.authorships.length > 0}
-				<div class="chip-authors">{pluralize('author', paper.authorships.length)}</div>
 			{/if}
 		</div>
 	{/if}

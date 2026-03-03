@@ -7,19 +7,6 @@ export type PaperHighlight = {
 	label?: string; // for prestigious: actual source name
 };
 
-export function resolveAuthorName(
-	ship: PaperAuthorship,
-	entityAtts: EntityAttsForLinks,
-	discAuthorNames: Record<string, string>
-): string {
-	const prefix = ship.author[0];
-	const id = ship.author.slice(1);
-	if (prefix === 'F') {
-		return entityAtts.authors?.[id]?.name ?? 'Unknown';
-	}
-	return discAuthorNames[id] ?? `Unknown - disc ${ship.author}`;
-}
-
 export function resolveAuthorNameOrNull(
 	ship: PaperAuthorship,
 	entityAtts: EntityAttsForLinks,
@@ -95,6 +82,22 @@ export function isAuthored(
 		if (s.author[0] !== 'F') return false;
 		return entityAtts.authors?.[s.author.slice(1)]?.semantic_id === authorSemId;
 	});
+}
+
+export function logMissingAuthors(
+	papers: Paper[],
+	entityAtts: EntityAttsForLinks,
+	discAuthorNames: Record<string, string>
+): void {
+	const missing = new Set<string>();
+	for (const paper of papers) {
+		for (const ship of paper.authorships) {
+			if (resolveAuthorNameOrNull(ship, entityAtts, discAuthorNames) === null) {
+				missing.add(ship.author);
+			}
+		}
+	}
+	if (missing.size) console.warn('Missing author IDs:', [...missing]);
 }
 
 export function getPaperHighlights(

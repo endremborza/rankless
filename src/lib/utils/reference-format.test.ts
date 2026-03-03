@@ -109,4 +109,36 @@ describe('formatAuthorNames', () => {
 		const result = formatAuthorNames(['Alice Smith', 'Bob Jones'], 'mla');
 		expect(result).toContain('and');
 	});
+
+	it('forceEtAl appends et al. for apa', () => {
+		const result = formatAuthorNames(['Alice Smith'], 'apa', true);
+		expect(result).toContain('et al.');
+	});
+
+	it('forceEtAl appends et al. for chicago', () => {
+		const result = formatAuthorNames(['Alice Smith', 'Bob Jones'], 'chicago', true);
+		expect(result).toContain('et al.');
+		expect(result).not.toContain('& Bob');
+	});
+});
+
+describe('formatReference with unknown authors', () => {
+	it('omits author when all are unknown', () => {
+		const p = makePaper({ authorships: [{ author: 'F99', insts: [] }] });
+		const ref = formatReference(p, baseAtts, {}, 'html');
+		expect(ref).not.toContain('Unknown');
+		expect(ref).not.toContain('author');
+	});
+
+	it('adds et al. when some authors are unknown', () => {
+		const p = makePaper({
+			authorships: [
+				{ author: 'F1', insts: [] },
+				{ author: 'F99', insts: [] }
+			]
+		});
+		const ref = formatReference(p, baseAtts, {}, 'html');
+		expect(ref).toContain('Smith');
+		expect(ref).toContain('et al.');
+	});
 });
