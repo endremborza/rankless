@@ -1,8 +1,9 @@
 include .env
 export
 
-hello:
-	echo "no fuckup here!"
+py-build:
+	sudo apt install libpq-dev
+	uv sync
 
 include rankless_rs/Makefile
 
