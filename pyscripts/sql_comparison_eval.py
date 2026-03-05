@@ -20,6 +20,12 @@ from ccl_science_data.common import EntC, load_map
 from tqdm import tqdm
 
 from pyscripts.cache_prompting import RTC, BatchRequester, get_specs_and_ys
+from pyscripts.tree_diff import (
+    METRICS,
+    make_diff_df,
+    metric_stats,
+    top_source_stats,
+)
 
 FLASK_URL = "http://localhost:5000/impact-tree"
 SQL_COMP_DIR = Path("sql-yardstick")
@@ -29,7 +35,6 @@ PLOT_PATH = SQL_COMP_DIR / "timing-plot.png"
 MEMORY_PLOT_PATH = SQL_COMP_DIR / "memory-plot.png"
 RUST_CONTAINER = "rankless-rust"
 PG_PYTHON_CONTAINER = "rankless-pg-python"
-METRICS = ["linkCount", "sourceCount"]
 SUPPORTED_ETYPES = {
     EntC.AUTHORS,
     EntC.INSTITUTIONS,
@@ -39,7 +44,6 @@ SUPPORTED_ETYPES = {
     EntC.TOPICS,
     EntC.WORKS,
 }
-RELERR_MAX = 0.05
 
 
 # ── memory tracking ──────────────────────────────────────────────────────────
@@ -155,77 +159,6 @@ def translate_tree(
     return translated
 
 
-# ── tree / diff ───────────────────────────────────────────────────────────────
-
-
-def _flatten(children: dict, prefix: tuple = ()) -> list[dict]:
-    rows = []
-    for k, v in children.items():
-        path = (*prefix, k)
-        if "children" in v:
-            rows.extend(_flatten(v["children"], path))
-        rows.append(
-            {m: v.get(m, 0) for m in METRICS}
-            | {"path": "-".join(map(str, path))}
-            | {
-                "topSourceId": v.get("topSourceId"),
-                "topSourceLinks": v.get("topSourceLinks", 0),
-            }
-        )
-    return rows
-
-
-_EMPTY_COLS = [*METRICS, "topSourceId", "topSourceLinks"]
-
-
-def _rows_to_df(rows: list[dict]) -> pd.DataFrame:
-    if rows:
-        return pd.DataFrame(rows).set_index("path")
-    return pd.DataFrame(columns=_EMPTY_COLS, index=pd.Index([], name="path"))
-
-
-def make_diff_df(flask_dic: dict, rs_dic: dict) -> pd.DataFrame:
-    flask_df = _rows_to_df(_flatten(flask_dic["children"])).add_prefix("flask_")
-    rs_df = _rows_to_df(_flatten(rs_dic["tree"]["children"]))
-    return flask_df.join(rs_df, how="outer").fillna(0)
-
-
-# ── metrics ───────────────────────────────────────────────────────────────────
-
-
-def _metric_stats(df: pd.DataFrame, col: str) -> dict | None:
-    """Stats on RS-present nodes (col > 0); symmetric rel error over all, pearson over matched."""
-    rs_nodes = df.loc[df[col] > 0]
-    flask_col = f"flask_{col}"
-    matched = rs_nodes.loc[rs_nodes[flask_col] > 0]
-    pearson = matched[col].corr(matched[flask_col]) if len(matched) >= 2 else np.nan
-    mid = (rs_nodes[col] + rs_nodes[flask_col]) / 2.0
-    relerr = (rs_nodes[col] - rs_nodes[flask_col]).abs() / mid.replace(0, np.nan)
-    if relerr.mean() > RELERR_MAX:
-        return None
-    return {
-        "pearson": float(pearson) if pd.notna(pearson) else None,
-        "relerr": float(relerr.mean()) if len(relerr) > 0 else None,
-        "n_missing": int((rs_nodes[flask_col] == 0).sum()),
-    }
-
-
-def _top_source_stats(df: pd.DataFrame) -> dict:
-    """Match rate of topSourceId and rel error of topSourceLinks on nodes present on both sides."""
-    both = df.loc[(df["topSourceLinks"] > 0) & (df["flask_topSourceLinks"] > 0)]
-    if both.empty:
-        return {"id_match_rate": None, "link_relerr": None}
-    id_match_rate = float((both["topSourceId"] == both["flask_topSourceId"]).mean())
-    mid = (both["topSourceLinks"] + both["flask_topSourceLinks"]) / 2.0
-    link_relerr = float(
-        (
-            (both["topSourceLinks"] - both["flask_topSourceLinks"]).abs()
-            / mid.replace(0, np.nan)
-        ).mean()
-    )
-    return {"id_match_rate": id_match_rate, "link_relerr": link_relerr}
-
-
 # ── data model ────────────────────────────────────────────────────────────────
 
 
@@ -258,7 +191,7 @@ class ReproEvaluator:
                 if not all(et in SUPPORTED_ETYPES for et in bd_etypes):
                     continue
                 bd_label = ";".join(
-                    f'{b["attributeType"]}-{"S" if b["sourceSide"] else "T"}'
+                    f"{b['attributeType']}-{'S' if b['sourceSide'] else 'T'}"
                     for b in bds
                 )
                 flask_bds = [
@@ -286,13 +219,19 @@ class ReproEvaluator:
                     flask_json["children"] = translate_tree(
                         flask_json["children"], bds, self.oa_dm_maps
                     )
+                    rs_json = rs_resp.json()
                     yield CompResult(
                         root_type=root_type,
                         bd_label=bd_label,
                         citation_count=ccount,
                         flask_time=flask_resp.elapsed.total_seconds(),
                         rs_time=rs_resp.elapsed.total_seconds(),
-                        diff_df=make_diff_df(flask_json, rs_resp.json()),
+                        diff_df=make_diff_df(
+                            flask_json["children"],
+                            "flask",
+                            rs_json["tree"]["children"],
+                            "rs",
+                        ),
                     )
                 except Exception as e:
                     yield CompResult(
@@ -314,11 +253,11 @@ def build_summary_df(results: list[CompResult]) -> pd.DataFrame:
     for cr in results:
         if cr.error:
             continue
-        lc = _metric_stats(cr.diff_df, METRICS[0])
-        sc = _metric_stats(cr.diff_df, METRICS[1])
+        lc = metric_stats(cr.diff_df, METRICS[0], "rs", "flask")
+        sc = metric_stats(cr.diff_df, METRICS[1], "rs", "flask")
         if lc is None or sc is None:
             continue
-        ts = _top_source_stats(cr.diff_df)
+        ts = top_source_stats(cr.diff_df, "rs", "flask")
         rows.append(
             {
                 "root_type": cr.root_type,
@@ -453,7 +392,7 @@ def plot_timing(results: list[CompResult], out_path: Path) -> None:
             r.error
             or r.flask_time <= 0
             or r.rs_time <= 0
-            or _metric_stats(r.diff_df, METRICS[0]) is None
+            or metric_stats(r.diff_df, METRICS[0], "rs", "flask") is None
         ):
             continue
         bd_depth = len(r.bd_label.split(";"))
@@ -560,22 +499,22 @@ def save_markdown(
 ) -> None:
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     lines = [
-        f"# Reproduction Eval Report",
-        f"",
+        "# Reproduction Eval Report",
+        "",
         f"**{ts}** | {totals['n_comparisons']} comparisons, {totals['n_errors']} errors",
-        f"",
-        f"## Summary",
-        f"",
-        f"| Metric | Value |",
-        f"|--------|-------|",
+        "",
+        "## Summary",
+        "",
+        "| Metric | Value |",
+        "|--------|-------|",
     ]
     for k, v in totals.items():
         lines.append(f"| {k} | {_fmt_val(k, v)} |")
 
     lines += [
-        f"",
-        f"## By root type x breakdown",
-        f"",
+        "",
+        "## By root type x breakdown",
+        "",
     ]
 
     cols = [
@@ -608,31 +547,31 @@ def save_markdown(
         lines.append("| " + " | ".join(cells) + " |")
 
     lines += [
-        f"",
-        f"## Timing",
-        f"",
-        f"| Backend | Total (s) |",
-        f"|---------|-----------|",
+        "",
+        "## Timing",
+        "",
+        "| Backend | Total (s) |",
+        "|---------|-----------|",
         f"| Flask (PG) | {totals['total_flask_time']:.1f} |",
         f"| Rust | {totals['total_rs_time']:.1f} |",
         f"| Ratio (PG/RS) | {totals['total_duration_ratio']:.1f}x |",
-        f"",
+        "",
         f"![Response time scaling]({PLOT_PATH.name})",
-        f"",
+        "",
     ]
 
     if mem_stats:
         lines += [
-            f"## Memory Usage",
-            f"",
-            f"| Metric | Rust | Flask (PG) |",
-            f"|--------|------|------------|",
+            "## Memory Usage",
+            "",
+            "| Metric | Rust | Flask (PG) |",
+            "|--------|------|------------|",
             f"| Peak (MiB) | {mem_stats['rust_peak_mib']:.0f} | {mem_stats['flask_peak_mib']:.0f} |",
             f"| Mean (MiB) | {mem_stats['rust_mean_mib']:.0f} | {mem_stats['flask_mean_mib']:.0f} |",
             f"| Samples | {mem_stats['n_mem_samples']} | — |",
-            f"",
+            "",
             f"![Memory usage over time]({MEMORY_PLOT_PATH.name})",
-            f"",
+            "",
         ]
 
     REPORT_PATH.write_text("\n".join(lines) + "\n")
