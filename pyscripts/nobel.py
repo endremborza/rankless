@@ -45,8 +45,8 @@ SCIENCE_CATEGORIES = {"Physics", "Chemistry", "Physiology or Medicine", "Economi
 # (surname, wrong_first_name): known false matches where two different people
 # share the same surname and first initial, evading automated checks.
 KNOWN_FALSE_FIRST_NAMES = {
-    ("kantorovich", "lev"),   # Leonid Kantorovich ≠ Lev Kantorovich
-    ("boyle", "william"),     # Willard S. Boyle ≠ William S. Boyle
+    ("kantorovich", "lev"),  # Leonid Kantorovich ≠ Lev Kantorovich
+    ("boyle", "william"),  # Willard S. Boyle ≠ William S. Boyle
 }
 
 
@@ -398,9 +398,12 @@ class NobelMatcher:
                 + W_SUBFIELD * sf_sim
                 + W_BOOST * self.impact_boost[c["imp_pos"]]
             )
-            scored.append(
-                {"imp_pos": c["imp_pos"], "name_score": c["name_score"], "final_score": final}
-            )
+            ad = {
+                "imp_pos": c["imp_pos"],
+                "name_score": c["name_score"],
+                "final_score": final,
+            }
+            scored.append(ad)
         scored.sort(key=lambda x: x["final_score"], reverse=True)
         for result in scored:
             if result["final_score"] < FINAL_SCORE_THRESHOLD:
