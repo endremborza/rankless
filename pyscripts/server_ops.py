@@ -98,6 +98,83 @@ def build_server() -> None:
     subprocess.run(["cargo", "build", "--release"], check=True)
 
 
+# ── Docker container server ───────────────────────────────────────────────────
+
+RUST_DOCKERFILE = "sql-yardstick/docker/Dockerfile.rust"
+
+
+@dataclass
+class DockerServer:
+    """Rust server running inside a Docker container, port-mapped to the host."""
+
+    container: str
+    image: str
+    host_port: int
+    data_root: Path
+    dockerfile: str = RUST_DOCKERFILE
+    memory: str = "16g"
+    cpus: str = "8"
+
+    @property
+    def base_url(self) -> str:
+        return f"http://127.0.0.1:{self.host_port}"
+
+    @property
+    def spec_url(self) -> str:
+        return f"{self.base_url}/v1/specs"
+
+    def build_image(self) -> None:
+        _docker(["build", "-f", self.dockerfile, "-t", self.image, "."])
+
+    def stop(self) -> None:
+        subprocess.run(["docker", "rm", "-f", self.container], capture_output=True)
+
+    def start(self) -> None:
+        self.stop()
+        _docker(
+            [
+                "run",
+                "-d",
+                "--name",
+                self.container,
+                "--memory",
+                self.memory,
+                "--cpus",
+                self.cpus,
+                "-p",
+                f"{self.host_port}:3038",
+                "-v",
+                f"{self.data_root}:/data/oa-root:ro",
+                self.image,
+            ]
+        )
+
+    def wait_ready(self, max_attempts: int = 500) -> None:
+        for _ in tqdm(range(max_attempts), desc=f"waiting for {self.container}"):
+            try:
+                r = requests.get(self.spec_url, timeout=5)
+                if r.ok:
+                    return
+            except Exception:
+                pass
+            time.sleep(3)
+        raise TimeoutError(
+            f"Container {self.container} not ready after {max_attempts * 3}s"
+        )
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.stop()
+
+
+def _docker(args: list) -> None:
+    cmd = ["docker", *[str(a) for a in args]]
+    print("$", " ".join(cmd))
+    subprocess.run(cmd, check=True)
+
+
 def current_branch() -> str:
     return subprocess.check_output(["git", "branch", "--show-current"]).decode().strip()
 
