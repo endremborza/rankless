@@ -38,7 +38,7 @@ class BatchRequester:
                 for i, v in enumerate(ss)
             ]
         )
-        resdf = get_resdf(specs, addr, 100)
+        resdf = get_resdf(self.specs, addr, 100)
         self.urled_sample: pd.DataFrame = (
             resdf.merge(tid_df)
             .loc[lambda df: df["citations"] >= min_citations, :]
