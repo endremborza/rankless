@@ -101,6 +101,7 @@ def build_server() -> None:
 # ── Docker container server ───────────────────────────────────────────────────
 
 RUST_DOCKERFILE = "sql-yardstick/docker/Dockerfile.rust"
+TARGET_PORT = 3000
 
 
 @dataclass
@@ -142,7 +143,7 @@ class DockerServer:
                 "--cpus",
                 self.cpus,
                 "-p",
-                f"{self.host_port}:3038",
+                f"{self.host_port}:{TARGET_PORT}",
                 "-v",
                 f"{self.data_root}:/data/oa-root:ro",
                 self.image,
