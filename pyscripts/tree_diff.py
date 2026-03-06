@@ -70,7 +70,7 @@ def metric_stats(df: pd.DataFrame, col: str, label_a: str, label_b: str) -> dict
     return {
         "pearson": float(pearson) if pd.notna(pearson) else None,
         "relerr": float(relerr.mean()) if len(relerr) > 0 else None,
-        "n_missing": int((nodes_a[col_b] == 0).sum()),
+        "missing_in_b": int((nodes_a[col_b] == 0).sum()),
     }
 
 
