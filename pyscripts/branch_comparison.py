@@ -49,6 +49,7 @@ from pyscripts.stow_ops import RebuildLevel, StowManager
 from pyscripts.tree_diff import make_diff_df
 
 MAIN_BRANCH = "rankless-main"
+MAIN_BRANCH = "bring-on"
 PORT_A = 3038
 PORT_B = 3039
 MEMORY_LIMIT = "10g"
@@ -102,7 +103,9 @@ class BranchComparator:
         self.url_a = url_a
         self.url_b = url_b
         self.specs_dict, _ = get_specs_and_ys(url_a)
-        self.sample_df = BatchRequester(min_citations=min_citations, addr=url_a).urled_sample
+        self.sample_df = BatchRequester(
+            min_citations=min_citations, addr=url_a
+        ).urled_sample
 
     def iter_comparisons(self, e_per_bin: int = 4) -> Iterator[CompResult]:
         bins = [1_000, 5_000, 10_000, 30_000, 100_000, 200_000]
@@ -121,12 +124,15 @@ class BranchComparator:
             for tid, tree_spec in enumerate(self.specs_dict[rt]):
                 bds = tree_spec["breakdowns"]
                 bd_label = ";".join(
-                    f"{b['attributeType']}-{'S' if b['sourceSide'] else 'T'}" for b in bds
+                    f"{b['attributeType']}-{'S' if b['sourceSide'] else 'T'}"
+                    for b in bds
                 )
                 url_a = re.sub(r"tid=\d+", f"tid={tid}", row["url"])
                 url_b = url_a.replace(self.url_a, self.url_b, 1)
                 ccount = int(row["citations"])
-                logger.debug("comparing %s/%s tid=%d ccount=%d", rt, bd_label, tid, ccount)
+                logger.debug(
+                    "comparing %s/%s tid=%d ccount=%d", rt, bd_label, tid, ccount
+                )
                 try:
                     resp_a = requests.get(url_a, timeout=120)
                     resp_b = requests.get(url_b, timeout=120)
@@ -148,13 +154,17 @@ class BranchComparator:
                         time_a=resp_a.elapsed.total_seconds(),
                         time_b=resp_b.elapsed.total_seconds(),
                         diff_df=make_diff_df(
-                            json_a["tree"]["children"], "a",
-                            json_b["tree"]["children"], "b",
+                            json_a["tree"]["children"],
+                            "a",
+                            json_b["tree"]["children"],
+                            "b",
                         ),
                     )
                 except Exception as e:
                     logger.warning("error for %s/%s tid=%d: %s", rt, bd_label, tid, e)
-                    yield CompResult(rt, bd_label, ccount, 0.0, 0.0, pd.DataFrame(), error=str(e))
+                    yield CompResult(
+                        rt, bd_label, ccount, 0.0, 0.0, pd.DataFrame(), error=str(e)
+                    )
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
@@ -232,8 +242,12 @@ def run_comparison(
     plot_paths = [p for p in [timing_plot, accuracy_plot] if p.exists()]
 
     print_report(grouped_df, totals, label_a, label_b)
-    save_markdown(grouped_df, totals, label_a, label_b, artifacts_dir / "report.md", plot_paths)
-    save_html(grouped_df, totals, label_a, label_b, artifacts_dir / "report.html", plot_paths)
+    save_markdown(
+        grouped_df, totals, label_a, label_b, artifacts_dir / "report.md", plot_paths
+    )
+    save_html(
+        grouped_df, totals, label_a, label_b, artifacts_dir / "report.html", plot_paths
+    )
 
 
 if __name__ == "__main__":
@@ -244,16 +258,24 @@ if __name__ == "__main__":
     )
     rvals = [r.value for r in RebuildLevel]
     parser.add_argument(
-        "--rebuild-a", default="pipeline", choices=rvals,
+        "--rebuild-a",
+        default="pipeline",
+        choices=rvals,
         help="Rebuild level for branch A (default: pipeline)",
     )
     parser.add_argument(
-        "--rebuild-b", default="pipeline", choices=rvals,
+        "--rebuild-b",
+        default="pipeline",
+        choices=rvals,
         help="Rebuild level for branch B (default: pipeline)",
     )
-    parser.add_argument("--samples", type=int, default=4, help="Entities per citation-count bin")
     parser.add_argument(
-        "--artifacts", type=Path, default=ARTIFACTS_ROOT,
+        "--samples", type=int, default=4, help="Entities per citation-count bin"
+    )
+    parser.add_argument(
+        "--artifacts",
+        type=Path,
+        default=ARTIFACTS_ROOT,
         help=f"Output directory (default: {ARTIFACTS_ROOT})",
     )
     args = parser.parse_args()
