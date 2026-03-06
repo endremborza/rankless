@@ -19,10 +19,10 @@ STOW_ROOT = Path("/tmp/rankless-stow")
 
 
 class RebuildLevel(str, Enum):
-    none = "none"          # no build; use existing Docker image + existing/stowed data
-    binary = "binary"      # rebuild binary + Docker image; use existing data, clear cache
+    none = "none"  # no build; use existing Docker image + existing/stowed data
+    binary = "binary"  # rebuild binary + Docker image; use existing data, clear cache
     pipeline = "pipeline"  # rebuild binary + run make filter; stash result; build image
-    full = "full"          # rebuild binary + make to-csv + make filter; stash; build image
+    full = "full"  # rebuild binary + make to-csv + make filter; stash; build image
 
 
 @dataclass
@@ -48,7 +48,17 @@ class StowManager:
         dest = self._label_path(label)
         dest.mkdir(parents=True, exist_ok=True)
         subprocess.run(
-            ["rsync", "-a", "--delete", f"{self.data_root}/", str(dest)],
+            [
+                "rsync",
+                "--exclude",
+                "*.csv.gz",
+                "--exclude",
+                "cache",
+                "-a",
+                "--delete",
+                f"{self.data_root}/",
+                str(dest),
+            ],
             check=True,
         )
         print(f"[stow] {label} ← {self.data_root}")
