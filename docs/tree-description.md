@@ -167,8 +167,11 @@ SvelteKit app; SSR via `+page.server.ts` files; all visualizations are hand-writ
 
 | File | Role |
 |------|------|
-| `cache_prompting.py` | Pre-warms server cache; identifies high-citation entities needing special handling |
-| `bm.py` | Benchmark suite: spawns Rust backend, measures latency/throughput/memory |
+| `cache_prompting.py` | Shared query infrastructure: `BatchRequester`, `get_specs_and_ys`, `get_resdf`, URL generation; `addr` param configurable for any server instance |
+| `server_ops.py` | `ServerProcess` (start/stop/wait_ready), `build_server()`, `current_branch()`, `checkout()`; shared by `bm.py` and `branch_comparison.py` |
+| `stow_ops.py` | `StowManager`: stash/restore compiled binary and pipeline artifacts per branch label; `RebuildLevel` enum |
+| `bm.py` | Benchmark suite: spawns Rust backend, measures latency/throughput/memory across branches |
+| `branch_comparison.py` | Branch-to-branch comparison: correctness (MD5 match rate) + timing ratio; see `docs/comparisons-and-benchmarking.md` |
 | `deploy.py` | Automates EC2 deployment: Nginx, systemd, SSL (Let's Encrypt), code push |
 | `live_monitoring.py` | Health monitoring: response-time checks (<1.2s), distributed alert swarm, email alerts |
 | `log_parsing.py` | Parses Nginx access logs for hourly performance reports |
@@ -180,9 +183,9 @@ SvelteKit app; SSR via `+page.server.ts` files; all visualizations are hand-writ
 | `survey_result_export.py` | Exports survey responses |
 | `alpha_test.py` | Alpha-release test utilities |
 | `nobel.py` | Nobel laureate data utilities |
-| `start_comparison.py` | Starts Flask+Rust comparison backends |
+| `start_comparison.py` | Starts Flask+Rust comparison backends via Docker |
 | `svg_export.py` | Exports visualizations as SVG |
-| `sql_comparison_eval.py` | SQL vs Rust correctness/benchmark comparisons (see sql-yardstick/) |
+| `sql_comparison_eval.py` | SQL vs Rust correctness/benchmark comparisons (see `sql-yardstick/`) |
 
 ---
 
