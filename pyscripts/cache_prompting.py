@@ -30,11 +30,11 @@ class BatchRequester:
         self.addr = addr
         self.big_limit = big_limit
         self.ext_dic = {}
-        specs, _ = get_specs_and_ys(addr)
+        self.specs, _ = get_specs_and_ys(addr)
         tid_df = pd.DataFrame(
             [
                 {RTC: k, TIDC: i, BDSC: len(v["breakdowns"])}
-                for k, ss in specs.items()
+                for k, ss in self.specs.items()
                 for i, v in enumerate(ss)
             ]
         )
@@ -138,7 +138,7 @@ def add_be_urls(df, year=1950, addr: str = DEFAULT_ADDR):
 def get_resdf(specs, addr: str = DEFAULT_ADDR, step_size=100, max_n=25_000):
     resdfs = []
     for r in specs.keys():
-        for ss in tqdm(range(0, max_n, step_size), r):
+        for ss in range(0, max_n, step_size):
             rjs = requests.get(f"{addr}/v1/slice/{r}/{ss}/{ss + step_size}").json()
             if len(rjs) == 0:
                 break
@@ -150,13 +150,8 @@ def get_resdf(specs, addr: str = DEFAULT_ADDR, step_size=100, max_n=25_000):
 
 
 def get_specs_and_ys(addr: str = DEFAULT_ADDR):
-    for _ in tqdm(range(100)):
-        try:
-            sd = requests.get(f"{addr}/v1/specs").json()
-            return sd["specs"], sd["yearBreaks"]
-        except:
-            time.sleep(15)
-    raise RuntimeError("no server")
+    sd = requests.get(f"{addr}/v1/specs").json()
+    return sd["specs"], sd["yearBreaks"]
 
 
 def validate(urls):

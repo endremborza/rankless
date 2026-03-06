@@ -4,13 +4,36 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import requests
 from tqdm import tqdm
 
 DEFAULT_BINARY = Path("target/release/rankless-server")
 DEFAULT_PORT = 3038
+
+
+def _base_url(port: int) -> str:
+    return f"http://127.0.0.1:{port}"
+
+
+def _wait_for_url(
+    spec_url: str,
+    max_attempts: int,
+    desc: str,
+    dead_check: Optional[Callable[[], bool]] = None,
+) -> None:
+    for _ in tqdm(range(max_attempts), desc=desc):
+        try:
+            r = requests.get(spec_url, timeout=5)
+            if r.ok:
+                return
+        except Exception:
+            pass
+        if dead_check and not dead_check():
+            raise RuntimeError("Server process died")
+        time.sleep(3)
+    raise TimeoutError(f"Server at {spec_url} not ready after {max_attempts * 3}s")
 
 
 @dataclass
@@ -21,7 +44,7 @@ class ServerConfig:
 
     @property
     def base_url(self) -> str:
-        return f"http://127.0.0.1:{self.port}"
+        return _base_url(self.port)
 
     @property
     def spec_url(self) -> str:
@@ -61,17 +84,11 @@ class ServerProcess:
         )
 
     def wait_ready(self, max_attempts: int = 500) -> None:
-        for _ in tqdm(range(max_attempts), desc="waiting for server"):
-            try:
-                r = requests.get(self.config.spec_url, timeout=5)
-                if r.ok:
-                    return
-            except Exception:
-                pass
-            assert self._proc and self._proc.poll() is None, "Server process died"
-            time.sleep(3)
-        raise TimeoutError(
-            f"Server at {self.config.base_url} not ready after {max_attempts * 3}s"
+        _wait_for_url(
+            self.config.spec_url,
+            max_attempts,
+            desc=f"waiting for {self.config.base_url}",
+            dead_check=lambda: self._proc is not None and self._proc.poll() is None,
         )
 
     def stop(self) -> str:
@@ -118,7 +135,7 @@ class DockerServer:
 
     @property
     def base_url(self) -> str:
-        return f"http://127.0.0.1:{self.host_port}"
+        return _base_url(self.host_port)
 
     @property
     def spec_url(self) -> str:
@@ -151,17 +168,7 @@ class DockerServer:
         )
 
     def wait_ready(self, max_attempts: int = 500) -> None:
-        for _ in tqdm(range(max_attempts), desc=f"waiting for {self.container}"):
-            try:
-                r = requests.get(self.spec_url, timeout=5)
-                if r.ok:
-                    return
-            except Exception:
-                pass
-            time.sleep(3)
-        raise TimeoutError(
-            f"Container {self.container} not ready after {max_attempts * 3}s"
-        )
+        _wait_for_url(self.spec_url, max_attempts, desc=f"waiting for {self.container}")
 
     def __enter__(self):
         return self

@@ -29,7 +29,7 @@ import requests
 from ccl_science_data.common import oa_root
 from tqdm import tqdm
 
-from pyscripts.cache_prompting import BatchRequester, RTC, get_specs_and_ys
+from pyscripts.cache_prompting import BatchRequester, RTC
 from pyscripts.comparison_report import (
     ARTIFACTS_ROOT,
     CompResult,
@@ -102,10 +102,9 @@ class BranchComparator:
     def __init__(self, url_a: str, url_b: str, min_citations: int = 1_000) -> None:
         self.url_a = url_a
         self.url_b = url_b
-        self.specs_dict, _ = get_specs_and_ys(url_a)
-        self.sample_df = BatchRequester(
-            min_citations=min_citations, addr=url_a
-        ).urled_sample
+        requester = BatchRequester(min_citations=min_citations, addr=url_a)
+        self.specs_dict = requester.specs
+        self.sample_df = requester.urled_sample
 
     def iter_comparisons(self, e_per_bin: int = 4) -> Iterator[CompResult]:
         bins = [1_000, 5_000, 10_000, 30_000, 100_000, 200_000]
