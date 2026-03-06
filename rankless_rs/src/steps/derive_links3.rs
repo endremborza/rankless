@@ -4,7 +4,7 @@ use crate::{
     common::{init_empty_slice, MainWorkMarker},
     env_consts::FINAL_YEAR,
     gen::{
-        a1_entity_mapping::{Authors, Institutions, Sources, Subfields, Topics, Works},
+        a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{AuthorNobels, WorkDois, WorkTopics, WorkYears, WorksNames},
         derive_links1::{WorkFilteredAuthors, WorkSubfields},
         derive_links2::AuthorWorks,
@@ -65,7 +65,7 @@ pub fn get_nobeled_works(stowage: &Stowage, w_years: &[ET<Years>]) -> HashSet<ET
 
 pub fn main(stowage: Stowage) -> std::io::Result<()> {
     let starc = Arc::new(stowage);
-    para_multi_gen_run!(work_count, Sources, Institutions, Authors, Subfields, Topics; starc)
+    para_multi_gen_run!(work_count, Sources, Institutions, Authors, Subfields, Topics, Countries; starc)
         .last();
 
     let cc_interface = starc.get_entity_interface::<MAA<Works, CiteCountMarker>, QuickestBox>();
