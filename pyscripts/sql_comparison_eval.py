@@ -25,11 +25,14 @@ from pyscripts.cache_prompting import RTC, BatchRequester, get_specs_and_ys
 from pyscripts.comparison_report import (
     ARTIFACTS_ROOT,
     CompResult,
+    MemoryTracker,
     build_grouped_df,
+    build_mem_stats,
     build_summary_df,
     build_totals,
     logger,
     plot_accuracy,
+    plot_memory,
     plot_timing,
     print_report,
     save_html,
@@ -40,6 +43,10 @@ from pyscripts.tree_diff import make_diff_df
 
 FLASK_URL = "http://localhost:5000/impact-tree"
 RUST_URL = "http://localhost:3038"
+
+RUST_CONTAINER = "rankless-rust"
+PG_PYTHON_CONTAINER = "rankless-pg-python"
+CONTAINER_LABELS = {RUST_CONTAINER: "rs", PG_PYTHON_CONTAINER: "flask"}
 
 SUPPORTED_ETYPES = {
     EntC.AUTHORS,
@@ -193,7 +200,11 @@ if __name__ == "__main__":
         .drop_duplicates([RTC, "oa_id"])
     )
 
+    mem_tracker = MemoryTracker(CONTAINER_LABELS)
+    mem_tracker.start()
     results = list(ReproEvaluator().iter_comparisons(decorated_df))
+    mem_tracker.stop()
+    mem_stats = build_mem_stats(mem_tracker.samples)
 
     summary_df = build_summary_df(results)
     grouped_df = build_grouped_df(summary_df)
@@ -204,10 +215,18 @@ if __name__ == "__main__":
 
     timing_plot = artifacts_dir / "timing_plot.png"
     accuracy_plot = artifacts_dir / "accuracy_plot.png"
+    memory_plot = artifacts_dir / "memory_plot.png"
     plot_timing(results, "flask", "rs", timing_plot)
     plot_accuracy(grouped_df, "flask", "rs", accuracy_plot)
-    plot_paths = [p for p in [timing_plot, accuracy_plot] if p.exists()]
+    plot_memory(mem_tracker.samples, memory_plot)
+    plot_paths = [p for p in [timing_plot, accuracy_plot, memory_plot] if p.exists()]
 
     print_report(grouped_df, totals, "flask", "rs")
-    save_markdown(grouped_df, totals, "flask", "rs", artifacts_dir / "report.md", plot_paths)
-    save_html(grouped_df, totals, "flask", "rs", artifacts_dir / "report.html", plot_paths)
+    save_markdown(
+        grouped_df, totals, "flask", "rs", artifacts_dir / "report.md", plot_paths,
+        mem_stats=mem_stats,
+    )
+    save_html(
+        grouped_df, totals, "flask", "rs", artifacts_dir / "report.html", plot_paths,
+        mem_stats=mem_stats,
+    )

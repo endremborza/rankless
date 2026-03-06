@@ -9,7 +9,10 @@ sql_comparison_eval.py (Flask/PG vs Rust).
 """
 
 import logging
-from dataclasses import dataclass
+import subprocess
+import threading
+import time
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -34,6 +37,85 @@ class CompResult:
     time_b: float
     diff_df: pd.DataFrame
     error: str | None = None
+
+
+@dataclass
+class MemSample:
+    elapsed: float
+    values: dict[str, float]  # display_label -> MiB
+
+
+def _parse_mem_mib(s: str) -> float:
+    s = s.split("/")[0].strip()
+    if "GiB" in s:
+        return float(s.replace("GiB", "")) * 1024
+    if "MiB" in s:
+        return float(s.replace("MiB", ""))
+    if "KiB" in s:
+        return float(s.replace("KiB", "")) / 1024
+    return 0.0
+
+
+class MemoryTracker:
+    """Poll docker container memory usage at a fixed interval.
+
+    containers: {container_name: display_label}
+    """
+
+    def __init__(self, containers: dict[str, str], interval: float = 2.0) -> None:
+        self.containers = containers
+        self.samples: list[MemSample] = []
+        self._interval = interval
+        self._stop = threading.Event()
+        self._t0 = 0.0
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def start(self) -> None:
+        self._t0 = time.monotonic()
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join()
+
+    def _poll(self) -> MemSample:
+        r = subprocess.run(
+            [
+                "docker", "stats", "--no-stream", "--format",
+                "{{.Name}}\t{{.MemUsage}}",
+                *self.containers.keys(),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        values: dict[str, float] = {label: 0.0 for label in self.containers.values()}
+        for line in r.stdout.splitlines():
+            parts = line.split("\t")
+            if len(parts) != 2:
+                continue
+            name, usage = parts
+            for cname, label in self.containers.items():
+                if cname in name:
+                    values[label] = _parse_mem_mib(usage)
+                    break
+        return MemSample(time.monotonic() - self._t0, values)
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            self.samples.append(self._poll())
+            self._stop.wait(self._interval)
+
+
+def build_mem_stats(samples: list[MemSample]) -> dict:
+    if not samples:
+        return {}
+    labels = list(samples[0].values.keys())
+    stats: dict = {"n_mem_samples": len(samples)}
+    for label in labels:
+        vals = [s.values[label] for s in samples]
+        stats[f"{label}_peak_mib"] = max(vals)
+        stats[f"{label}_mean_mib"] = sum(vals) / len(vals)
+    return stats
 
 
 def setup_logging(log_path: Path) -> None:
@@ -261,6 +343,28 @@ def plot_accuracy(
     logger.info("accuracy plot → %s", out_path)
 
 
+def plot_memory(samples: list[MemSample], out_path: Path) -> None:
+    if not samples:
+        return
+    labels = list(samples[0].values.keys())
+    elapsed = [s.elapsed for s in samples]
+    palette = ["#e45756", "#4c78a8", "#54a24b", "#f58518"]
+
+    fig, ax = plt.subplots(figsize=(9, 4))
+    for i, label in enumerate(labels):
+        ax.plot(elapsed, [s.values[label] for s in samples],
+                color=palette[i % len(palette)], label=label)
+    ax.set_xlabel("Elapsed time (s)")
+    ax.set_ylabel("Memory usage (MiB)")
+    ax.set_title("Container memory usage during evaluation")
+    ax.legend()
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    logger.info("memory plot → %s", out_path)
+
+
 # ── markdown ──────────────────────────────────────────────────────────────────
 
 
@@ -271,6 +375,7 @@ def save_markdown(
     label_b: str,
     out_path: Path,
     plot_paths: list[Path] | None = None,
+    mem_stats: dict | None = None,
 ) -> None:
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     cols = _col_spec(label_a, label_b)
@@ -306,6 +411,22 @@ def save_markdown(
             else:
                 cells.append(str(val))
         lines.append("| " + " | ".join(cells) + " |")
+
+    if mem_stats:
+        labels = [k.removesuffix("_peak_mib") for k in mem_stats if k.endswith("_peak_mib")]
+        header = "| Metric | " + " | ".join(labels) + " |"
+        sep = "|--------|" + "|".join("---" for _ in labels) + "|"
+        peak_row = "| Peak (MiB) | " + " | ".join(
+            f"{mem_stats[f'{l}_peak_mib']:.0f}" for l in labels
+        ) + " |"
+        mean_row = "| Mean (MiB) | " + " | ".join(
+            f"{mem_stats[f'{l}_mean_mib']:.0f}" for l in labels
+        ) + " |"
+        lines += [
+            "", "## Memory Usage", "",
+            f"Samples: {mem_stats['n_mem_samples']}",
+            "", header, sep, peak_row, mean_row, "",
+        ]
 
     if plot_paths:
         lines += ["", "## Plots", ""]
@@ -389,6 +510,7 @@ def save_html(
     label_b: str,
     out_path: Path,
     plot_paths: list[Path] | None = None,
+    mem_stats: dict | None = None,
 ) -> None:
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     cols = _col_spec(label_a, label_b)
@@ -428,6 +550,21 @@ def save_html(
         )
         plots_html = f'<div class="plots">{figures}</div>'
 
+    mem_html = ""
+    if mem_stats:
+        mem_labels = [k.removesuffix("_peak_mib") for k in mem_stats if k.endswith("_peak_mib")]
+        mem_thead = "<tr><th>Metric</th>" + "".join(f"<th>{l}</th>" for l in mem_labels) + "</tr>"
+        peak_cells = "".join(f"<td>{mem_stats[f'{l}_peak_mib']:.0f}</td>" for l in mem_labels)
+        mean_cells = "".join(f"<td>{mem_stats[f'{l}_mean_mib']:.0f}</td>" for l in mem_labels)
+        mem_html = (
+            "<h2>Memory Usage</h2>"
+            f"<p>Samples: {mem_stats['n_mem_samples']}</p>"
+            f"<table><thead>{mem_thead}</thead><tbody>"
+            f"<tr><td>Peak (MiB)</td>{peak_cells}</tr>"
+            f"<tr><td>Mean (MiB)</td>{mean_cells}</tr>"
+            "</tbody></table>"
+        )
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -444,6 +581,7 @@ def save_html(
 <h2>By root type × breakdown</h2>
 <table><thead>{thead}</thead>
 <tbody>{"".join(tbody_rows)}</tbody></table>
+{mem_html}
 <h2>Plots</h2>
 {plots_html}
 </body>

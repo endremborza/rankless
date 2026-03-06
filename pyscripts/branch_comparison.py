@@ -33,11 +33,14 @@ from pyscripts.cache_prompting import BatchRequester, RTC
 from pyscripts.comparison_report import (
     ARTIFACTS_ROOT,
     CompResult,
+    MemoryTracker,
     build_grouped_df,
+    build_mem_stats,
     build_summary_df,
     build_totals,
     logger,
     plot_accuracy,
+    plot_memory,
     plot_timing,
     print_report,
     save_html,
@@ -181,8 +184,12 @@ def run_comparison(
     setup_logging(artifacts_dir / "comparison.log")
     logger.info("comparing A=%s vs B=%s", branch_a, branch_b)
 
+    label_a = re.sub(r"[^a-zA-Z0-9._-]", "-", branch_a)
+    label_b = re.sub(r"[^a-zA-Z0-9._-]", "-", branch_b)
+
     stow = StowManager()
     original_branch = current_branch()
+    mem_tracker: MemoryTracker | None = None
 
     try:
         for branch, rb in [(branch_a, rebuild_a), (branch_b, rebuild_b)]:
@@ -214,7 +221,12 @@ def run_comparison(
         server_b.wait_ready()
 
         comparator = BranchComparator(url_a=server_a.base_url, url_b=server_b.base_url)
+        mem_tracker = MemoryTracker(
+            {server_a.container: label_a, server_b.container: label_b}
+        )
+        mem_tracker.start()
         results = list(comparator.iter_comparisons(e_per_bin))
+        mem_tracker.stop()
 
         server_a.stop()
         server_b.stop()
@@ -223,10 +235,6 @@ def run_comparison(
         if current_branch() != original_branch:
             checkout(original_branch)
 
-    # sanitise branch names for use as display labels and in filenames
-    label_a = re.sub(r"[^a-zA-Z0-9._-]", "-", branch_a)
-    label_b = re.sub(r"[^a-zA-Z0-9._-]", "-", branch_b)
-
     summary_df = build_summary_df(results)
     grouped_df = build_grouped_df(summary_df)
     totals = build_totals(results, summary_df)
@@ -234,18 +242,25 @@ def run_comparison(
     summary_df.to_csv(artifacts_dir / "summary.csv", index=False)
     grouped_df.to_csv(artifacts_dir / "grouped.csv", index=False)
 
+    mem_stats = build_mem_stats(mem_tracker.samples) if mem_tracker else {}
+
     timing_plot = artifacts_dir / "timing_plot.png"
     accuracy_plot = artifacts_dir / "accuracy_plot.png"
+    memory_plot = artifacts_dir / "memory_plot.png"
     plot_timing(results, label_a, label_b, timing_plot)
     plot_accuracy(grouped_df, label_a, label_b, accuracy_plot)
-    plot_paths = [p for p in [timing_plot, accuracy_plot] if p.exists()]
+    if mem_tracker:
+        plot_memory(mem_tracker.samples, memory_plot)
+    plot_paths = [p for p in [timing_plot, accuracy_plot, memory_plot] if p.exists()]
 
     print_report(grouped_df, totals, label_a, label_b)
     save_markdown(
-        grouped_df, totals, label_a, label_b, artifacts_dir / "report.md", plot_paths
+        grouped_df, totals, label_a, label_b, artifacts_dir / "report.md", plot_paths,
+        mem_stats=mem_stats,
     )
     save_html(
-        grouped_df, totals, label_a, label_b, artifacts_dir / "report.html", plot_paths
+        grouped_df, totals, label_a, label_b, artifacts_dir / "report.html", plot_paths,
+        mem_stats=mem_stats,
     )
 
 
