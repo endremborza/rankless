@@ -2,14 +2,20 @@ FROM ubuntu:24.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgcc-s1 \
+        socat \
     && rm -rf /var/lib/apt/lists/*
 
-# Binary is copied from the pre-built release artifact.
-# Build from project root: docker build -f sql-yardstick/docker/Dockerfile.rust .
 COPY target/release/rankless-server /app/rankless-server
 
-# OA data directory mounted at runtime: -v /path/to/oa-root:/data/oa-root
 ENV OA_ROOT=/data/oa-root
 
-ENTRYPOINT ["/app/rankless-server"]
+# Create a small helper script to run both
+# Start the forwarder in the background
+# It listens on 0.0.0.0:3000 and sends to 127.0.0.1:3038
+RUN echo '#!/bin/bash\n\
+socat TCP-LISTEN:3000,fork,reuseaddr TCP:127.0.0.1:3038 &\n\
+\n\
+exec /app/rankless-server "$@"' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["/data/oa-root"]
