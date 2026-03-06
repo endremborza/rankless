@@ -19,9 +19,9 @@ use crate::{
             HitPapers, HitPapersCiteCounts, HitPapersDois, HitPapersNames, HitPapersWids,
         },
     },
-    steps::derive_links3::{get_nobeled_works, work_count},
-    CiteCountMarker, NameExtensionMarker, NameMarker, QuickestBox, QuickestNumbered, QuickestVBox,
-    ReadIter, SemanticIdMarker, Stowage,
+    steps::derive_links3::{get_nobeled_works, COORD_MIN_CITES, COORD_MIN_PAPERS},
+    CiteCountMarker, CoordinateMarker, NameExtensionMarker, NameMarker, PageFilterMarker,
+    QuickestBox, QuickestNumbered, QuickestVBox, ReadIter, SemanticIdMarker, Stowage,
 };
 
 // Metric weights for scoring hit-paper connections.
@@ -94,7 +94,6 @@ impl MarkedAttribute<NameExtensionMarker> for HitPapers {
 }
 
 pub fn main(stowage: Stowage) -> io::Result<()> {
-    work_count::<Countries>(&stowage);
     let hit_map = stowage.get_entity_interface::<HitPapers, QuickestNumbered>();
     let wcc = stowage.get_entity_interface::<WorkCitingCounts, QuickestBox>();
     let wor_refs = stowage.get_entity_interface::<WorkReferences, QuickestVBox>();
@@ -190,6 +189,23 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         once_out.into_iter(),
         Some("author-citing-hits-once"),
     );
+
+    let hp_ccs = parc
+        .0
+        .get_entity_interface::<HitPapersCiteCounts, QuickestBox>();
+    let hit_coords: Vec<[f64; 2]> = hp_ccs
+        .iter()
+        .map(|&cc| {
+            let cf = f64::max(cc as f64, COORD_MIN_CITES);
+            [cf.ln(), cf / COORD_MIN_PAPERS]
+        })
+        .collect();
+    let hit_filter: Vec<u8> = vec![1u8; hp_ccs.len()];
+    parc.0
+        .ditf::<CoordinateMarker, HitPapers, _>(hit_coords, "coordinates");
+    parc.0
+        .ditf::<PageFilterMarker, HitPapers, _>(hit_filter, "page-filter");
+
     parc.0.write_code()?;
     Ok(())
 }

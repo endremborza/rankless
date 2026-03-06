@@ -12,7 +12,6 @@ use crate::{
         a2_init_atts::{AuthorNobels, WorkDois, WorkTopics, WorkYears, WorksNames},
         derive_links1::{WorkFilteredAuthors, WorkSubfields},
         derive_links2::{AuthorWorks, SourceStats},
-        derive_links3::HitPapers,
     },
     steps::{
         a1_entity_mapping::{YearInterface, Years},
@@ -37,8 +36,8 @@ const W_YEAR: f64 = 0.1;
 const W_SF_YEAR: f64 = 1.0 - W_SF - W_YEAR;
 const SCORE_THRESHOLD: f64 = 3.0;
 const NOBEL_MULTIPLIER: f64 = 2.0;
-const COORD_MIN_CITES: f64 = 1.0;
-const COORD_MIN_PAPERS: f64 = 3.0;
+pub const COORD_MIN_CITES: f64 = 1.0;
+pub const COORD_MIN_PAPERS: f64 = 3.0;
 const N_PEERS: usize = 5;
 const N_COORD_CANDIDATES: usize = 1000;
 
@@ -104,7 +103,10 @@ impl Ord for PeerCandidate {
 macro_rules! entity_coords_filter {
     ($stowage:expr, $E:ty, |$i:ident, $c:ident, $p:ident| $extra:expr) => {{
         let cites = $stowage.get_marked_interface::<$E, CiteCountMarker, QuickestBox>();
-        let wcounts = $stowage.get_marked_interface::<$E, WorkCountMarker, QuickestBox>();
+        let wcounts: Vec<usize> = $stowage
+            .get_entity_interface::<MAA<$E, MainWorkMarker>, ReadIter>()
+            .map(|works| works.len())
+            .collect();
         let n = cites.len();
         let mut coords = Vec::with_capacity(n);
         let mut filter = Vec::with_capacity(n);
@@ -113,7 +115,7 @@ macro_rules! entity_coords_filter {
             .enumerate()
         {
             let $c = cites[$i].to_usize();
-            let $p = wcounts[$i].to_usize();
+            let $p = wcounts[$i];
             let cf = $c as f64;
             coords.push([
                 f64::max(cf, COORD_MIN_CITES).ln(),
@@ -388,15 +390,6 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
 
     starc.add_iter_owned::<Data64MappedEntityBuilder, _, _>(hit_papers, Some("hit-papers"));
 
-    let hit_coords: Vec<[f64; 2]> = hit_ccounts
-        .iter()
-        .map(|&cc| {
-            let cf = f64::max(cc as f64, COORD_MIN_CITES);
-            [cf.ln(), cf / COORD_MIN_PAPERS]
-        })
-        .collect();
-    let hit_filter: Vec<u8> = vec![1u8; hit_ccounts.len()];
-
     starc.add_iter_owned::<VarAttBuilder, _, _>(hit_names.into_iter(), Some("hit-papers-names"));
     starc.add_iter_owned::<VarAttBuilder, _, _>(hit_dois.into_iter(), Some("hit-papers-dois"));
     starc.add_iter_owned::<VarAttBuilder, _, _>(hit_wids.into_iter(), Some("hit-papers-wids"));
@@ -423,9 +416,6 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
             && *author_yearly_papers[i].iter().max().unwrap_or(&0) < 300
             && !AUTHOR_BLACKLIST.contains(&author_oa_ids[i])
     });
-
-    starc.ditf::<CoordinateMarker, HitPapers, _>(hit_coords, "coordinates");
-    starc.ditf::<PageFilterMarker, HitPapers, _>(hit_filter, "page-filter");
 
     println!("computing author peers");
     compute_author_peers(&starc, &author_coords, &author_filter);
