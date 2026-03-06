@@ -32,7 +32,7 @@ use tokio::{net::TcpListener, sync::Notify};
 
 use muwo_search::SearchEngine;
 use rankless_rs::{
-    common::{MainEntity, NET},
+    common::MainEntity,
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
         a2_init_atts::{AuthorOrcids, DiscardedAuthorsNames, WorkBiblios, WorkDois},
@@ -64,7 +64,6 @@ const SEARCH_SIZE: usize = 20;
 const MAX_SLICE: usize = 40_000;
 const CACHEABLE_FROM: u32 = 10_000;
 const N_THREADS: usize = 16;
-const UPPER_LIMIT: u32 = u32::MAX;
 const ETYPE_ENC: [&str; 7] = [
     Institutions::NAME,
     Authors::NAME,
@@ -260,56 +259,28 @@ struct KDItem {
     id: usize,
 }
 
-trait PrepFilter: RootInterfaceable + Sized {
-    //TODO: move to dmove steps, so that gets is not needed
-    fn filter_sr(sr: &SearchResult, _gets: &Getters, _entif: &RootInterfaces<Self>) -> bool {
-        (sr.full_name.trim().len() > 0)
-            & (sr.semantic_id.trim().len() > 0)
-            & (sr.papers > 1)
-            & (sr.citations > 2)
-            & (sr.citations <= UPPER_LIMIT)
-    }
-
+trait IsTop: RootInterfaceable + Sized {
     fn is_top(_sr: &SearchResult) -> bool {
         true
     }
 }
 
-macro_rules! i_fil {
-    ($($t:ty),*) => {
-        $(impl PrepFilter for $t {})*
-    };
-}
+impl IsTop for Countries {}
+impl IsTop for Subfields {}
 
-i_fil!(Countries, Subfields);
-
-impl PrepFilter for HitPapers {
-    fn filter_sr(_sr: &SearchResult, _gets: &Getters, _entif: &RootInterfaces<Self>) -> bool {
-        true
-    }
+impl IsTop for HitPapers {
     fn is_top(_sr: &SearchResult) -> bool {
         false
     }
 }
 
-impl PrepFilter for Authors {
-    fn filter_sr(sr: &SearchResult, _gets: &Getters, entif: &RootInterfaces<Self>) -> bool {
-        let max_yearly_pcount = *entif.yearly_papers[sr.dm_id].iter().max().unwrap_or(&0);
-        let is_not_paper_mill = (sr.papers < 10_000) & (max_yearly_pcount < 300);
-        (sr.full_name.trim().len() > 0)
-            & (sr.semantic_id.trim().len() > 0)
-            & (sr.papers > 1)
-            & (sr.citations > 2)
-            & is_not_paper_mill
-            & !(consts::AUTHOR_BLACKLIST.contains(&sr.oa_id))
-    }
-
+impl IsTop for Authors {
     fn is_top(sr: &SearchResult) -> bool {
         consts::FIN_AUTHORS.contains(&sr.semantic_id.as_str())
     }
 }
 
-impl PrepFilter for Institutions {
+impl IsTop for Institutions {
     fn is_top(sr: &SearchResult) -> bool {
         const FIN_UNIS: [&str; 2] = ["budapesti-corvinus-egyetem", "tse"];
         let min_citations: u32 = 8_000_000;
@@ -317,24 +288,7 @@ impl PrepFilter for Institutions {
     }
 }
 
-impl PrepFilter for Sources {
-    fn filter_sr(sr: &SearchResult, gets: &Getters, _entif: &RootInterfaces<Self>) -> bool {
-        let id = NET::<Sources>::from_usize(sr.dm_id);
-        let mut best_q = 5;
-        for ty8 in YearInterface::iter() {
-            let q = *gets.sqy(&(id, ty8));
-            if q != 0 {
-                best_q = min(best_q, q);
-            }
-        }
-        (sr.full_name.trim().len() > 0)
-            & (sr.semantic_id.trim().len() > 0)
-            & (sr.papers > 10)
-            & (sr.citations > 20)
-            & (sr.citations <= UPPER_LIMIT)
-            & (best_q <= 2)
-    }
-
+impl IsTop for Sources {
     fn is_top(sr: &SearchResult) -> bool {
         consts::FIN_SOURCES.contains(&sr.semantic_id.as_str())
     }
@@ -536,7 +490,7 @@ impl PreAttResultExtension {
 impl NameState {
     fn new<E>(entif: &RootInterfaces<E>, gets: &Getters) -> Self
     where
-        E: RootInterfaceable + PrepFilter + DistinctionText + MetaMapGetter,
+        E: RootInterfaceable + IsTop + DistinctionText + MetaMapGetter,
     {
         let responses = Self::get_resps(entif, gets);
         let now = std::time::Instant::now();
@@ -553,7 +507,7 @@ impl NameState {
         let (mut means, mut vars) = ([0.0, 0.0], [0.0, 0.0]);
         let float_n = f64::from(responses.len() as u32);
         for (i, res) in responses.iter().enumerate() {
-            let kd_rec = get_arr_base(res);
+            let kd_rec = entif.coordinates[res.dm_id];
             for j in 0..kd_rec.len() {
                 means[j] += kd_rec[j] / float_n;
             }
@@ -603,7 +557,7 @@ impl NameState {
 
     fn get_resps<E>(entif: &RootInterfaces<E>, gets: &Getters) -> Box<[SearchResult]>
     where
-        E: RootInterfaceable + PrepFilter + DistinctionText + MetaMapGetter,
+        E: RootInterfaceable + IsTop + DistinctionText + MetaMapGetter,
     {
         let dist_txt = <E as DistinctionText>::get_distinction_text_arr(entif, gets);
         let ext_txt = &entif.name_exts.0;
@@ -614,6 +568,7 @@ impl NameState {
             .zip(entif.sem_ids.0.iter())
             .zip(dist_txt.to_vec().into_iter())
             .enumerate()
+            .filter(|(i, _)| entif.page_filter[*i] > 0)
             .map(|(i, ((name, semantic_id), dist_txt))| {
                 let ext = if ext_txt.len() > i {
                     ext_txt[i].to_string()
@@ -630,7 +585,6 @@ impl NameState {
                     gets,
                 )
             })
-            .filter(|sr| E::filter_sr(sr, gets, entif))
             .collect();
         responses.sort_by_key(|e| u32::MAX - e.citations);
         responses.into()
@@ -711,7 +665,7 @@ fn get_state_tr_ed_kv<E>(
 ) -> StateKv
 where
     E: RootInterfaceable
-        + PrepFilter
+        + IsTop
         + MainEntity
         + NamespacedEntity
         + DistinctionText
@@ -726,7 +680,7 @@ where
     let entities = nstate
         .responses
         .iter()
-        .filter(|e| <E as PrepFilter>::is_top(e))
+        .filter(|e| <E as IsTop>::is_top(e))
         .map(|e| e.clone())
         .collect();
     let tr = TopResult { name, entities };
@@ -1186,15 +1140,11 @@ fn cache_header(mins: usize) -> HeaderMap {
     headers
 }
 
-fn get_arr_base(res: &SearchResult) -> [f64; 2] {
-    [
+fn get_query_arr(res: &SearchResult, state: &NameState) -> [f64; 2] {
+    let mut rec = [
         f64::from(max(res.citations, 1)).ln(),
         f64::from(res.citations) / f64::from(max(res.papers, 3)),
-    ]
-}
-
-fn get_query_arr(res: &SearchResult, state: &NameState) -> [f64; 2] {
-    let mut rec = get_arr_base(res);
+    ];
     for i in 0..rec.len() {
         rec[i] -= state.means[i];
         rec[i] /= state.vars[i].sqrt();

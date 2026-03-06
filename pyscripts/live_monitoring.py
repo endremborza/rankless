@@ -118,10 +118,12 @@ def post_success():
 def try_restarting_fe():
     if ALLOW_FE_RESTART:
         try:
-            rolling_restart_live_fe()
+            p = multiprocessing.Process(target=rolling_restart_live_fe)
+            p.start()
+            p.join(timeout=180)
             time.sleep(20)
-        except:
-            print("failed restarting frontent")
+        except Exception as e:
+            print(f"failed restarting frontend {e}")
 
 
 if __name__ == "__main__":

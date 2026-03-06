@@ -58,6 +58,9 @@ pub struct Top15AuthorMarker;
 pub struct Top3CitingTopicMarker;
 pub struct Top3JournalMarker;
 pub struct Top3AffCountryMarker;
+pub struct CoordinateMarker;
+pub struct PageFilterMarker;
+pub struct PeerAuthorMarker;
 
 pub struct EmptyAttributeEntity<T> {
     p: PhantomData<T>,
@@ -654,6 +657,18 @@ pub fn init_empty_slice<E: Entity, T: Default>() -> Box<[T]> {
 pub fn code_path(suffix: &str) -> String {
     //TODO: this WET knows gen path :(
     format!("rankless_rs/src/gen/{}.rs", suffix)
+}
+
+pub fn reverse_id<E>(stowage: &Stowage) -> Box<[BigId]>
+where
+    E: MainEntity + NamespacedEntity,
+{
+    let interface = stowage.get_entity_interface::<E, QuickestNumbered>();
+    let mut out = init_empty_slice::<E, BigId>();
+    for (k, v) in interface.0 {
+        out[v.to_usize()] = k;
+    }
+    out
 }
 
 fn read_deser_obj<T: DeserializeOwned>(root: &Path, main_path: &str, sub_path: &str) -> ObjIter<T> {

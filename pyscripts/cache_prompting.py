@@ -3,6 +3,7 @@ import json
 import re
 import sys
 import time
+from urllib.parse import quote_plus
 from datetime import datetime
 from multiprocessing import Pool
 
@@ -10,7 +11,7 @@ import pandas as pd
 import requests
 from tqdm import tqdm
 
-addr = "http://127.0.0.1:3038"
+DEFAULT_ADDR = "http://127.0.0.1:3038"
 year = 1950
 
 SIDC = "semanticId"
@@ -20,25 +21,31 @@ BDSC = "bds"
 
 
 class BatchRequester:
-    def __init__(self, min_citations=100_000, big_limit=80_000_000 * 4) -> None:
+    def __init__(
+        self,
+        min_citations=100_000,
+        big_limit=80_000_000 * 4,
+        addr: str = DEFAULT_ADDR,
+    ) -> None:
+        self.addr = addr
         self.big_limit = big_limit
         self.ext_dic = {}
-        specs, _ = get_specs_and_ys()
+        self.specs, _ = get_specs_and_ys(addr)
         tid_df = pd.DataFrame(
             [
                 {RTC: k, TIDC: i, BDSC: len(v["breakdowns"])}
-                for k, ss in specs.items()
+                for k, ss in self.specs.items()
                 for i, v in enumerate(ss)
             ]
         )
-        resdf = get_resdf(specs, 100)
+        resdf = get_resdf(self.specs, addr, 100)
         self.urled_sample: pd.DataFrame = (
             resdf.merge(tid_df)
             .loc[lambda df: df["citations"] >= min_citations, :]
             .assign(cut_basis=lambda df: df["citations"] * df["bds"])
             .sort_values("cut_basis", ascending=False)
             .rename(columns={"dm_id": "index"})
-            .pipe(add_be_urls, year)
+            .pipe(add_be_urls, year, addr)
         )
 
         self.big_urls = self.urled_sample.loc[
@@ -95,8 +102,9 @@ class BatchRequester:
             print(f"done in {round((time.time() - s) / 60 / 60, 2)} hours")
 
 
-def urlify(s):
-    return f"{addr}/v1/trees/{s[RTC]}/{s[SIDC]}?tid={s[TIDC]}&year={year}"
+def _urlify(s, year: int, addr: str) -> str:
+    qsid = quote_plus(s[SIDC])
+    return f"{addr}/v1/trees/{s[RTC]}/{qsid}?tid={s[TIDC]}&year={year}"
 
 
 def parse_url(url):
@@ -123,15 +131,15 @@ def resp_pipe(url):
     return {"fail": url}
 
 
-def add_be_urls(df, year=1950):
-    return df.assign(url=df.apply(urlify, axis=1))
+def add_be_urls(df, year=1950, addr: str = DEFAULT_ADDR):
+    return df.assign(url=df.apply(lambda s: _urlify(s, year, addr), axis=1))
 
 
-def get_resdf(specs, step_size=100, max_n=25_000):
+def get_resdf(specs, addr: str = DEFAULT_ADDR, step_size=100, max_n=25_000):
     resdfs = []
     for r in specs.keys():
-        for ss in tqdm(range(0, max_n, step_size), r):
-            rjs = requests.get(f"{addr}/v1/slice/{r}/{ss}/{ss+step_size}").json()
+        for ss in range(0, max_n, step_size):
+            rjs = requests.get(f"{addr}/v1/slice/{r}/{ss}/{ss + step_size}").json()
             if len(rjs) == 0:
                 break
             resdfs.append(
@@ -141,14 +149,9 @@ def get_resdf(specs, step_size=100, max_n=25_000):
     return pd.concat(resdfs).drop_duplicates()
 
 
-def get_specs_and_ys():
-    for _ in tqdm(range(100)):
-        try:
-            sd = requests.get(f"{addr}/v1/specs").json()
-            return sd["specs"], sd["yearBreaks"]
-        except:
-            time.sleep(15)
-    raise RuntimeError("no server")
+def get_specs_and_ys(addr: str = DEFAULT_ADDR):
+    sd = requests.get(f"{addr}/v1/specs").json()
+    return sd["specs"], sd["yearBreaks"]
 
 
 def validate(urls):
@@ -156,7 +159,6 @@ def validate(urls):
 
 
 if __name__ == "__main__":
-
     do_big_prep = "cache_big_prep" in sys.argv
     do_big_read = "cache_big_read" in sys.argv
     do_rest = "cache_do_rest" in sys.argv

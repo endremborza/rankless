@@ -133,8 +133,3 @@ pub const FIN_AUTHORS: [&str; 79] = [
     "elinor-ostrom",         // Prize in Economic Sciences
 ];
 
-pub const AUTHOR_BLACKLIST: [u64; 3] = [
-    5030786976, //Lynnette Nathalie Lyzwinski
-    5036138197, //David S. Gokhin
-    5034807195, //Shadi Yarandi
-];

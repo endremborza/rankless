@@ -16,7 +16,7 @@ CLI tool that ingests OpenAlex/Scopus CSV dumps and produces binary data files c
 |------|------|
 | `src/lib.rs` | Module root; exports public API; dispatches pipeline steps |
 | `src/main.rs` | CLI entry; reads `OA_ROOT` env; calls `lib::runner()` |
-| `src/common.rs` | `Stowage` (file/data manager), marker traits, type aliases, parsing utils |
+| `src/common.rs` | `Stowage` (file/data manager), marker traits (`CoordinateMarker`, `PageFilterMarker`, `PeerAuthorMarker`), `reverse_id` utility, type aliases, parsing utils |
 | `src/env_consts.rs` | Config constants: year ranges, thresholds |
 | `src/data_consts.rs` | Dataset-level lookup tables |
 | `src/oa_structs.rs` | OpenAlex JSON schema structs (Work, Author, Institution, …) |
@@ -29,7 +29,7 @@ CLI tool that ingests OpenAlex/Scopus CSV dumps and produces binary data files c
 | `src/steps/a2_init_atts.rs` | Initialize attributes: DOIs, ORCIDs, bibliographic info, topics, locations; Levenshtein-based author name dedup; Nobel laureate category (u8 per author, 0=none, 1=Physics, 2=Chemistry, 3=Medicine, 4=Economics) from `authors/nobel.csv.gz` |
 | `src/steps/derive_links1.rs` | work→subfields, work→institutions, work→countries |
 | `src/steps/derive_links2.rs` | work→sources; top source per work |
-| `src/steps/derive_links3.rs` | Coauthor networks; hit papers (highly-cited in entity domain) |
+| `src/steps/derive_links3.rs` | Coauthor networks; hit papers (highly-cited in entity domain); 2D coordinates (`[ln(max(cites,1)), cites/max(papers,3)]`) and page filter for all entity types; author peer discovery (5 closest by coordinate proximity + subfield similarity) |
 | `src/steps/derive_links4.rs` | Per-entity hit-paper sorted lists; author citing-hit sets (direct + once-removed, top-50 by composite score: cite count, source prestige, distance); Nobel laureate direct connections boosted by `NOBEL_MULTIPLIER` to bias their top-50 toward directly-cited hit papers |
 | `src/steps/derive_links5.rs` | Institutional relationships; era records; top-15 author stats |
 | `src/gen/` | Generated Rust source (entity/attribute/link definitions); do not edit manually |
@@ -42,7 +42,7 @@ Hierarchical tree data structures and query logic. Provides `Getters` interface 
 
 | File | Role |
 |------|------|
-| `src/interfacing.rs` | Core `Getters` struct; loads data interfaces; tree traversal; `make_interfaces!` macro setup |
+| `src/interfacing.rs` | Core `Getters` struct; loads data interfaces; tree traversal; `make_interfaces!` macro setup; `RootInterfaces` includes `coordinates` and `page_filter` fields |
 | `src/io.rs` | `TreeRunManager` (threaded query execution), `CacheKey`/`CacheValue`, `TreeResponse`, attribute label management; `WT = ET<Works>` alias |
 | `src/path_finder.rs` | Citation path graph traversal; `RefGraph` trait; `author_to_work_paths()` |
 | `src/ids.rs` | ID encoding/decoding; `AttributeLabelUnion` for heterogeneous entity IDs |
@@ -63,7 +63,7 @@ Axum server on port 3038. Loads pre-processed binary data; answers tree queries,
 
 | File | Role |
 |------|------|
-| `src/main.rs` | Routes: `/v1/query`, `/v1/search`, `/v1/specs`, geo-coord endpoint; initializes `Getters` for Authors/Institutions/Subfields/Countries/Sources/HitPapers; pre-computed cache (`CACHEABLE_FROM=10k`); mimalloc allocator; KD-tree for institution geo |
+| `src/main.rs` | Routes: `/v1/query`, `/v1/search`, `/v1/specs`, geo-coord endpoint; initializes `Getters` for Authors/Institutions/Subfields/Countries/Sources/HitPapers; pre-computed cache (`CACHEABLE_FROM=10k`); mimalloc allocator; KD-tree using pre-computed coordinates; `IsTop` trait for selecting featured entities; page filter loaded from pipeline |
 | `src/consts.rs` | `MAX_HITS=80`, `PORT=3038`, `SEARCH_SIZE=20`, `MAX_SLICE=40k`, `N_THREADS=16` |
 
 ---
@@ -167,8 +167,11 @@ SvelteKit app; SSR via `+page.server.ts` files; all visualizations are hand-writ
 
 | File | Role |
 |------|------|
-| `cache_prompting.py` | Pre-warms server cache; identifies high-citation entities needing special handling |
-| `bm.py` | Benchmark suite: spawns Rust backend, measures latency/throughput/memory |
+| `cache_prompting.py` | Shared query infrastructure: `BatchRequester`, `get_specs_and_ys`, `get_resdf`, URL generation; `addr` param configurable for any server instance |
+| `server_ops.py` | `ServerProcess` (start/stop/wait_ready), `build_server()`, `current_branch()`, `checkout()`; shared by `bm.py` and `branch_comparison.py` |
+| `stow_ops.py` | `StowManager`: stash/restore compiled binary and pipeline artifacts per branch label; `RebuildLevel` enum |
+| `bm.py` | Benchmark suite: spawns Rust backend, measures latency/throughput/memory across branches |
+| `branch_comparison.py` | Branch-to-branch comparison: correctness (MD5 match rate) + timing ratio; see `docs/comparisons-and-benchmarking.md` |
 | `deploy.py` | Automates EC2 deployment: Nginx, systemd, SSL (Let's Encrypt), code push |
 | `live_monitoring.py` | Health monitoring: response-time checks (<1.2s), distributed alert swarm, email alerts |
 | `log_parsing.py` | Parses Nginx access logs for hourly performance reports |
@@ -180,9 +183,9 @@ SvelteKit app; SSR via `+page.server.ts` files; all visualizations are hand-writ
 | `survey_result_export.py` | Exports survey responses |
 | `alpha_test.py` | Alpha-release test utilities |
 | `nobel.py` | Nobel laureate data utilities |
-| `start_comparison.py` | Starts Flask+Rust comparison backends |
+| `start_comparison.py` | Starts Flask+Rust comparison backends via Docker |
 | `svg_export.py` | Exports visualizations as SVG |
-| `sql_comparison_eval.py` | SQL vs Rust correctness/benchmark comparisons (see sql-yardstick/) |
+| `sql_comparison_eval.py` | SQL vs Rust correctness/benchmark comparisons (see `sql-yardstick/`) |
 
 ---
 

@@ -7,11 +7,11 @@ use crate::{
 };
 use rankless_rs::{
     common::{
-        init_empty_slice, BeS, HitWorkMarker, MainEntity, MainWorkMarker, MarkedBackendLoader,
-        NumberedEntity, QuickAttPair, QuickMap, QuickestBox, QuickestVBox, Stowage,
-        Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker,
-        Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader, YearlyCitationsMarker,
-        YearlyPapersMarker, NET,
+        reverse_id, BeS, CoordinateMarker, HitWorkMarker, MainEntity,
+        MainWorkMarker, MarkedBackendLoader, NumberedEntity, PageFilterMarker, QuickAttPair,
+        QuickMap, QuickestBox, QuickestVBox, Stowage, Top15AuthorMarker, Top3AffCountryMarker,
+        Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker, Top3PaperTopicMarker,
+        WorkLoader, YearlyCitationsMarker, YearlyPapersMarker, NET,
     },
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
@@ -33,7 +33,7 @@ use rankless_rs::{
         derive_links1::{CountryInsts, WorkPeriods},
         derive_links2::{EraRec, Top15Rec, Top3Rec},
     },
-    CiteCountMarker, NameExtensionMarker, NameMarker, QuickestNumbered, ReadFixIter,
+    CiteCountMarker, NameExtensionMarker, NameMarker, ReadFixIter,
     SemanticIdMarker, WorkCountMarker,
 };
 
@@ -319,7 +319,9 @@ make_ent_interfaces!(
     top_aff_countries - Top3AffCountryMarker | Top3Rec<Countries>,
     top_paper_topic - Top3PaperTopicMarker | Top3Rec<Topics>,
     top_citing_sfc - Top3CitingSfMarker | Top3Rec<Subfields>,
-    top_paper_sfc - Top3PaperSfMarker | Top3Rec<Subfields>;;
+    top_paper_sfc - Top3PaperSfMarker | Top3Rec<Subfields>,
+    coordinates - CoordinateMarker | [f64; 2],
+    page_filter - PageFilterMarker | u8;;
     oa_id; MainEntity, NamespacedEntity
     // inst_rels - InstRelMarker | [InstRelation; N_RELS];;
     // ref_sfc : RefSubfieldsConcentrationMarker,
@@ -582,18 +584,6 @@ impl RefGraph for Getters {
     fn get_cites(&self, wid: WT) -> &[WT] {
         self.citing(wid)
     }
-}
-
-fn reverse_id<E>(stowage: &Stowage) -> Box<[BigId]>
-where
-    E: MainEntity + NamespacedEntity,
-{
-    let interface = stowage.get_entity_interface::<E, QuickestNumbered>();
-    let mut out = init_empty_slice::<E, BigId>();
-    for (k, v) in interface.0 {
-        out[v.to_usize()] = k;
-    }
-    out
 }
 
 fn update_stats<E>(

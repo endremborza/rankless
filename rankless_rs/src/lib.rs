@@ -15,8 +15,9 @@ mod semantic_ids;
 pub mod steps;
 
 pub use common::{
-    CiteCountMarker, NameExtensionMarker, NameMarker, QuickestBox, QuickestNumbered, QuickestVBox,
-    ReadFixIter, ReadIter, SemanticIdMarker, Stowage, WorkCountMarker,
+    CiteCountMarker, CoordinateMarker, NameExtensionMarker, NameMarker, PageFilterMarker,
+    PeerAuthorMarker, QuickestBox, QuickestNumbered, QuickestVBox, ReadFixIter, ReadIter,
+    SemanticIdMarker, Stowage, WorkCountMarker,
 };
 
 macro_rules! mods_as_comms {
