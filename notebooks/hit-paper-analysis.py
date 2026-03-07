@@ -102,7 +102,14 @@ def build_figure(year_counts, sf_raw, author_hits, citations, hit_rate) -> str:
     ax_l.set_ylabel("Cumulative share of hit papers")
     ax_l.legend(fontsize=7, framealpha=0, labelcolor=TEXT, loc="upper left")
 
-    ax_r.plot(hit_rate.index, hit_rate.values * 100, color=BLUE, linewidth=1.5, marker="o", markersize=3)
+    ax_r.plot(
+        hit_rate.index,
+        hit_rate.values * 100,
+        color=BLUE,
+        linewidth=1.5,
+        marker="o",
+        markersize=3,
+    )
     ax_r.set_title("Hit Rate by Year", color=TEXT, fontsize=9, pad=6)
     ax_r.set_xlabel("Year")
     ax_r.set_ylabel("Hit papers (%)")
@@ -198,9 +205,8 @@ if __name__ == "__main__":
     hit_rate = year_counts / all_wid_year_counts
 
     # Citation threshold analysis
-    hit_papers_above_threshold = (hit_df["citations"] > CITATION_THRESHOLD).sum()
-    all_papers_above_threshold = (all_citations > CITATION_THRESHOLD).sum()
-    all_papers_at_or_above_threshold = (all_citations >= CITATION_THRESHOLD).sum()
+    hit_papers_above_threshold = (hit_df["citations"] >= CITATION_THRESHOLD).sum()
+    all_papers_above_threshold = (all_citations >= CITATION_THRESHOLD).sum()
 
     hit_rate_above = (
         hit_papers_above_threshold / len(hit_df) * 100 if len(hit_df) > 0 else 0
@@ -225,12 +231,19 @@ if __name__ == "__main__":
         ("Gini (Authors)", f"{gini(author_hits.values):.3f}"),
         ("Gini (Subfields)", f"{gini(sf_raw.values):.3f}"),
         ("Gini (Years)", f"{gini(year_counts.values):.3f}"),
-        (f"Hit Papers >{CITATION_THRESHOLD} cites", f"{hit_papers_above_threshold:,} ({hit_rate_above:.1f}%)"),
-        (f"All Papers >{CITATION_THRESHOLD} cites", f"{all_papers_above_threshold:,} ({all_rate_above:.1f}%)"),
-        (f"All Papers ≥{CITATION_THRESHOLD} cites", f"{all_papers_at_or_above_threshold:,}"),
+        (
+            f"Hit Papers >{CITATION_THRESHOLD} cites",
+            f"{hit_papers_above_threshold:,} ({hit_rate_above:.1f}%)",
+        ),
+        (
+            f"All Papers >{CITATION_THRESHOLD} cites",
+            f"{all_papers_above_threshold:,} ({all_rate_above:.1f}%)",
+        ),
     ]
 
-    img_b64 = build_figure(year_counts, sf_raw, author_hits, hit_df["citations"].values, hit_rate)
+    img_b64 = build_figure(
+        year_counts, sf_raw, author_hits, hit_df["citations"].values, hit_rate
+    )
     html = build_html(img_b64, stat_items)
 
     out_path = "docs/hit-paper-dist.html"
