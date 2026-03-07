@@ -32,7 +32,7 @@ use tokio::{net::TcpListener, sync::Notify};
 
 use muwo_search::SearchEngine;
 use rankless_rs::{
-    common::MainEntity,
+    common::{CitSubfieldsArrayMarker, MainEntity, PeerAuthorMarker},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
         a2_init_atts::{AuthorOrcids, DiscardedAuthorsNames, WorkBiblios, WorkDois},
@@ -47,7 +47,7 @@ use rankless_rs::{
 use rankless_trees::{
     extensions::DistinctionText,
     interfacing::{
-        Getters, MetaMapGetter, NodeInterfaceable, NodeInterfaces, RootInterfaceable,
+        FixAtt, Getters, MetaMapGetter, NodeInterfaceable, NodeInterfaces, RootInterfaceable,
         RootInterfaces,
     },
     io::{
@@ -84,8 +84,50 @@ type InstTrm = TreeRunManager<(
 )>;
 type Coords = [f64; 2];
 type NameStateMap = HashMap<&'static str, NameState>;
-type StatesT = State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>, Arc<InstTrm>)>;
+type StatesT = State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>, Arc<InstTrm>, Arc<AuthorPeerData>)>;
 type StateKv = (&'static str, (NameState, TopResult, EntityDescription));
+
+const N_SUBFIELDS: usize = Subfields::N;
+const N_PEER_SUBFIELDS: usize = 5;
+
+struct AuthorPeerData {
+    peers: Box<[<Authors as FixAtt<PeerAuthorMarker>>::FT]>,
+    cit_subfields: Box<[<Authors as FixAtt<CitSubfieldsArrayMarker>>::FT]>,
+}
+
+#[derive(Serialize)]
+struct PeerSubfieldInfo {
+    name: String,
+    #[serde(rename = "semanticId")]
+    semantic_id: String,
+    #[serde(rename = "dmId")]
+    dm_id: usize,
+}
+
+#[derive(Serialize)]
+struct PeerAuthorEntry {
+    name: String,
+    #[serde(rename = "semanticId")]
+    semantic_id: String,
+    papers: u32,
+    citations: u32,
+    #[serde(rename = "subfieldCitations")]
+    subfield_citations: Vec<usize>,
+    #[serde(rename = "yearlyPapers")]
+    yearly_papers: EraRec,
+    #[serde(rename = "yearlyCites")]
+    yearly_cites: EraRec,
+    #[serde(rename = "startYear")]
+    start_year: RawYear,
+}
+
+#[derive(Serialize)]
+struct AuthorPeersResp {
+    #[serde(rename = "topSubfields")]
+    top_subfields: Vec<PeerSubfieldInfo>,
+    peers: Vec<PeerAuthorEntry>,
+    hero: PeerAuthorEntry,
+}
 
 #[derive(Deserialize)]
 struct BasicQ {
@@ -608,6 +650,7 @@ fn get_rest(
     Arc<InstTrm>,
     Vec<EntityDescription>,
     Vec<TopResult>,
+    Arc<AuthorPeerData>,
 ) {
     let gets = Arc::new(Getters::new(Arc::new(stowage)));
     let mux_satts: Arc<Mutex<AttributeLabelUnion>> = Arc::new(Mutex::new(HashMap::new()));
@@ -615,6 +658,16 @@ fn get_rest(
     let mut ns_map: NameStateMap = HashMap::new();
     let mut tops = Vec::new();
     let mut descriptions = Vec::new();
+    let author_peer_data = {
+        let stow = &gets.stowage;
+        let peers = <Authors as FixAtt<PeerAuthorMarker>>::load(stow);
+        let cit_subfields = <Authors as FixAtt<CitSubfieldsArrayMarker>>::load(stow);
+        print_mem_use("loaded author peer data");
+        Arc::new(AuthorPeerData {
+            peers,
+            cit_subfields,
+        })
+    };
     {
         print_mem_use("pre thread starts");
         let arg_tup = (gets.clone(), mux_satts.clone(), cv_pair.clone());
@@ -634,7 +687,7 @@ fn get_rest(
     let asatts = Arc::new(satts);
     let tm: Arc<InstTrm> = TreeRunManager::new(gets, asatts.clone(), N_THREADS);
     print_mem_use("got tm");
-    (ns_map, asatts, tm, descriptions, tops)
+    (ns_map, asatts, tm, descriptions, tops, author_peer_data)
 }
 
 fn print_mem_use(suff: &str) {
@@ -701,7 +754,8 @@ async fn main() {
     let now = std::time::Instant::now();
     println!("reading from path: {}", path);
     let stowage = Stowage::new(&path);
-    let (ns_map, satts, tree_manager, entity_descriptions, tops) = get_rest(stowage);
+    let (ns_map, satts, tree_manager, entity_descriptions, tops, author_peer_data) =
+        get_rest(stowage);
     let ns_map_arc: Arc<NameStateMap> = ns_map.into();
 
     let response_api = Router::new()
@@ -711,10 +765,11 @@ async fn main() {
         .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))
         .route("/orcid/:orcid_id", get(orcid_get))
         .route("/paper-profile/:asem", get(paper_profile))
+        .route("/author-peers/:asem", get(author_peers_get))
         .route("/trees/:root_type/:semantic_id", get(tree_get))
         .route("/shallows/:root_type", get(shallows_get))
         .route("/works/:etype/:semantic_id/:from", get(works_get))
-        .with_state((ns_map_arc, satts, tree_manager.clone()));
+        .with_state((ns_map_arc, satts, tree_manager.clone(), author_peer_data));
 
     let count_api = static_router(&entity_descriptions);
     let specs_api = static_router(&tree_manager.specs);
@@ -785,7 +840,7 @@ async fn tree_get(
     states: StatesT,
 ) -> (HeaderMap, Json<Option<TreeResponse>>) {
     let mut tq = tree_q.0;
-    let (ns_map, _, tm) = states.0;
+    let (ns_map, _, tm, _) = states.0;
     if let Some(nstate) = ns_map.get(root_type.as_str()) {
         if (root_type == HitPapers::NAME) & (semantic_id == "all") {
             tq.cacheable = Some(true);
@@ -947,6 +1002,95 @@ async fn paper_profile(
         papers,
     };
     (cache_header(60), Json(out).into_response())
+}
+
+fn build_peer_entry(
+    rid: usize,
+    dm_id: usize,
+    astates: &NameState,
+    apd: &AuthorPeerData,
+    sf_indices: &[usize],
+) -> PeerAuthorEntry {
+    let sr = &astates.responses[rid];
+    let ext = &astates.exts[rid];
+    let sf_cits: Vec<usize> = sf_indices
+        .iter()
+        .map(|&si| apd.cit_subfields[dm_id][si])
+        .collect();
+    PeerAuthorEntry {
+        name: sr.name.clone(),
+        semantic_id: sr.semantic_id.clone(),
+        papers: sr.papers,
+        citations: sr.citations,
+        subfield_citations: sf_cits,
+        yearly_papers: ext.yearly_papers,
+        yearly_cites: ext.yearly_cites,
+        start_year: ext.start_year,
+    }
+}
+
+async fn author_peers_get(
+    Path(author_sem_id): Path<String>,
+    states: StatesT,
+) -> (HeaderMap, Response) {
+    let astates = states.0 .0.get(Authors::NAME).unwrap();
+    let apd = &states.0 .3;
+    let satts = &states.0 .1;
+
+    let Some(aid_sv) = astates.semantic_id_map.get(&author_sem_id) else {
+        return (
+            HeaderMap::new(),
+            (StatusCode::NOT_FOUND, "no such entity").into_response(),
+        );
+    };
+    let hero_dm = aid_sv.dm_id;
+    let hero_rid = aid_sv.result_id;
+
+    let sf_atts = &satts[Subfields::NAME];
+    let mut sf_indices: Vec<usize> = Vec::new();
+    let mut seen_sfs = HashSet::new();
+    for pre in astates.prep_exts[hero_rid].prime_relations.iter() {
+        if (pre.rel_type == 0 || pre.rel_type == 1) && pre.etype_id == 2 {
+            let sf_dm = pre.dm_id as usize;
+            if sf_dm < N_SUBFIELDS && seen_sfs.insert(sf_dm) {
+                sf_indices.push(sf_dm);
+            }
+        }
+    }
+    sf_indices.truncate(N_PEER_SUBFIELDS);
+
+    let top_subfields: Vec<PeerSubfieldInfo> = sf_indices
+        .iter()
+        .map(|&si| {
+            let att = &sf_atts[si];
+            PeerSubfieldInfo {
+                name: att.name.clone(),
+                semantic_id: att.semantic_id.clone(),
+                dm_id: si,
+            }
+        })
+        .collect();
+
+    let hero = build_peer_entry(hero_rid, hero_dm, astates, apd, &sf_indices);
+
+    let peers: Vec<PeerAuthorEntry> = apd.peers[hero_dm]
+        .iter()
+        .filter(|&&pid| pid != 0)
+        .filter_map(|&pid| {
+            let peer_dm = pid as usize;
+            astates
+                .dm_id_to_result_id
+                .get(&peer_dm)
+                .map(|&rid| build_peer_entry(rid, peer_dm, astates, apd, &sf_indices))
+        })
+        .collect();
+
+    let resp = AuthorPeersResp {
+        top_subfields,
+        peers,
+        hero,
+    };
+    (cache_header(60), Json(resp).into_response())
 }
 
 async fn name_get(
