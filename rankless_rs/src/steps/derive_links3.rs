@@ -26,7 +26,7 @@ use dmove::{
 };
 use hashbrown::{HashMap, HashSet};
 
-const MIN_UNIVERSAL: usize = 5000;
+const MIN_UNIVERSAL: usize = 500;
 const MIN_NEEDED: usize = 10;
 const TOP_TOPIC: usize = 3;
 const TOP_PCTILE: f64 = 0.01;
