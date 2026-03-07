@@ -352,6 +352,7 @@
 		flex-wrap: wrap;
 		gap: 6px;
 		margin-bottom: 4px;
+		justify-content: center;
 	}
 
 	.summary-badge {
@@ -411,6 +412,7 @@
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		opacity: 0.5;
+		text-align: center;
 	}
 
 	.chips {
@@ -418,6 +420,7 @@
 		flex-wrap: wrap;
 		gap: 6px;
 		padding-bottom: 2px;
+		justify-content: center;
 	}
 
 	.chip-wrap {
@@ -431,6 +434,7 @@
 		cursor: pointer;
 		text-decoration: underline;
 		text-underline-offset: 2px;
+		text-align: center;
 	}
 
 	.expand-link:hover {
@@ -459,6 +463,12 @@
 	}
 
 	@media (min-width: 1200px) {
+		.impact-dag {
+			gap: 20px;
+			max-width: 1100px;
+			margin-inline: auto;
+		}
+
 		.level-label {
 			font-size: 1.15rem;
 		}
@@ -467,8 +477,17 @@
 			font-size: 0.85rem;
 		}
 
+		.chips {
+			gap: 10px;
+		}
+
 		.chip-wrap {
 			flex-basis: 300px;
+			max-width: 480px;
+		}
+
+		.level-section {
+			gap: 10px;
 		}
 	}
 </style>
