@@ -147,7 +147,7 @@
 				fullHeight={ticksHeight}
 			/>
 		</div>
-		{#if data.conf.rootType === 'authors-hidden'}
+		{#if data.conf.rootType === 'authors'}
 			<a href="/author-papers/{data.conf.semanticId}" class="explore-card shadowy marged padded">
 				<div>
 					<h3>Paper Profile & Citation Paths</h3>
