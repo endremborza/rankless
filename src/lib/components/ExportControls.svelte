@@ -6,7 +6,8 @@
 	} from '$lib/utils/reference-format';
 	import { copyToClipboard, downloadTextFile } from '$lib/utils/clipboard-download';
 
-	export let papers: Paper[];
+	export let filteredPapers: Paper[];
+	export let totalCount: number;
 	export let entityAtts: EntityAttsForLinks;
 	export let discAuthorNames: Record<string, string>;
 
@@ -14,16 +15,12 @@
 	export let minCitations = 0;
 	export let citationStyle: CitationStyle = 'html';
 
-	$: filtered = papers
-		.filter(p => p.citations >= minCitations)
-		.sort((a, b) => sortBy === 'citations' ? b.citations - a.citations : b.year - a.year);
-
 	function handleCopyBibtex() {
-		copyToClipboard(toBibtexFile(filtered, entityAtts, discAuthorNames));
+		copyToClipboard(toBibtexFile(filteredPapers, entityAtts, discAuthorNames));
 	}
 
 	function handleDownloadBibtex() {
-		downloadTextFile('papers.bib', toBibtexFile(filtered, entityAtts, discAuthorNames));
+		downloadTextFile('papers.bib', toBibtexFile(filteredPapers, entityAtts, discAuthorNames));
 	}
 </script>
 
@@ -57,7 +54,7 @@
 	</div>
 
 	{#if minCitations > 0}
-		<span class="filter-note">{filtered.length} of {papers.length} papers shown</span>
+		<span class="filter-note">{filteredPapers.length} of {totalCount} papers shown</span>
 	{/if}
 </div>
 
