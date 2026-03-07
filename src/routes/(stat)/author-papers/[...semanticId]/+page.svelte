@@ -3,13 +3,16 @@
 	import { APP_NAME } from '$lib/constants';
 	import type { PaperProfileResp } from '$lib/tree-types';
 	import { buildPaperMap, isAuthored } from '$lib/utils/paper-helpers';
+	import type { AuthorPeersResp } from '$lib/tree-types';
 	import PaperRainbow from '$lib/components/PaperRainbow.svelte';
 	import ImpactDag from '$lib/components/ImpactDag.svelte';
 	import AllWorks from '$lib/components/AllWorks.svelte';
+	import AuthorPeers from '$lib/components/AuthorPeers.svelte';
 
 	export let data: {
 		name: string;
 		profile: PaperProfileResp | null;
+		peersData: AuthorPeersResp | null;
 		semanticId: string;
 		paperText: string;
 		citeText: string;
@@ -127,6 +130,13 @@
 	{/if}
 </div>
 
+{#if data.peersData && data.peersData.peers.length > 0}
+	<div class="shadowy padded marged">
+		<h2>Author Peers</h2>
+		<AuthorPeers data={data.peersData} />
+	</div>
+{/if}
+
 <div class="shadowy padded marged">
 	<div class="works-header">
 		<h2>All Works</h2>
@@ -225,6 +235,7 @@
 
 	h2 {
 		margin-bottom: 8px;
+		text-align: center;
 	}
 
 	.status {
