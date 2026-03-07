@@ -185,8 +185,7 @@ struct NameState {
     responses: Box<[SearchResult]>,
     exts: Box<[ResultExtension]>,
     prep_exts: Box<[PreAttResultExtension]>,
-    means: Box<Coords>,
-    vars: Box<Coords>,
+    coords: Box<[Coords]>,
     pub semantic_id_map: HashMap<String, SemVal>,
     pub oa_id_map: HashMap<usize, usize>,
     pub dm_id_to_result_id: HashMap<usize, usize>,
@@ -551,13 +550,9 @@ impl NameState {
         let mut semantic_id_map = HashMap::new();
         let mut oa_id_map = HashMap::new();
         let mut kdt_base = Vec::new();
-        let (mut means, mut vars) = ([0.0, 0.0], [0.0, 0.0]);
-        let float_n = f64::from(responses.len() as u32);
         for (i, res) in responses.iter().enumerate() {
+            // Coordinates are pre-normalized in the pipeline over the page-filtered set.
             let kd_rec = entif.coordinates[res.dm_id];
-            for j in 0..kd_rec.len() {
-                means[j] += kd_rec[j] / float_n;
-            }
             kdt_base.push(kd_rec);
             let dm_id = res.dm_id;
             let oa_id = entif.oa_id[dm_id as usize];
@@ -571,20 +566,8 @@ impl NameState {
             );
         }
 
-        for rec in kdt_base.iter_mut() {
-            for i in 0..rec.len() {
-                rec[i] -= means[i];
-                vars[i] += rec[i].powi(2) / float_n;
-            }
-        }
-
-        for rec in kdt_base.iter_mut() {
-            for i in 0..rec.len() {
-                rec[i] /= vars[i].sqrt();
-            }
-        }
-
-        let query_tree = tree_from_iter(kdt_base);
+        let coords: Box<[Coords]> = kdt_base.into_boxed_slice();
+        let query_tree = tree_from_iter(coords.iter().copied().collect());
         let dm_id_to_result_id =
             HashMap::from_iter(responses.iter().enumerate().map(|(i, res)| (res.dm_id, i)));
 
@@ -597,8 +580,7 @@ impl NameState {
             oa_id_map,
             query_tree,
             dm_id_to_result_id,
-            means: means.into(),
-            vars: vars.into(),
+            coords,
         }
     }
 
@@ -897,7 +879,7 @@ async fn view_get(
             let i = sem_val.result_id;
             let srs = &state.responses[i];
             let ext = &state.exts[i];
-            let query = get_query_arr(&srs, &state);
+            let query = state.coords[i];
             let n_close = min(state.responses.len() / 20, 500);
             let mut closes = state.query_tree.nearests(&query, n_close);
             let mut rng = StdRng::seed_from_u64(742);
@@ -1284,17 +1266,6 @@ fn cache_header(mins: usize) -> HeaderMap {
     headers
 }
 
-fn get_query_arr(res: &SearchResult, state: &NameState) -> [f64; 2] {
-    let mut rec = [
-        f64::from(max(res.citations, 1)).ln(),
-        f64::from(res.citations) / f64::from(max(res.papers, 3)),
-    ];
-    for i in 0..rec.len() {
-        rec[i] -= state.means[i];
-        rec[i] /= state.vars[i].sqrt();
-    }
-    rec
-}
 
 fn static_router<O: Serialize>(o: &O) -> Router {
     let arc: Arc<str> = Arc::from(serde_json::to_string(o).unwrap().as_str());

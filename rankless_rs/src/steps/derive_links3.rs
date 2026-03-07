@@ -119,10 +119,34 @@ macro_rules! entity_coords_filter {
             let cf = $c as f64;
             coords.push([
                 f64::max(cf, COORD_MIN_CITES).ln(),
-                cf / f64::max($p as f64, COORD_MIN_PAPERS),
+                f64::max($p as f64, COORD_MIN_PAPERS).ln(),
             ]);
             let base = name.trim().len() > 0 && $p > 1 && $c > 2;
             filter.push(if base && { $extra } { 1u8 } else { 0u8 });
+        }
+        // Normalize in-place over the page-filtered subset so the server and peer
+        // computation can use stored coords directly without recomputing statistics.
+        {
+            let pf_n = filter.iter().filter(|&&f| f > 0).count() as f64;
+            let mut means = [0.0f64; 2];
+            for (i, &f) in filter.iter().enumerate() {
+                if f > 0 {
+                    means[0] += coords[i][0] / pf_n;
+                    means[1] += coords[i][1] / pf_n;
+                }
+            }
+            let mut vars = [0.0f64; 2];
+            for (i, &f) in filter.iter().enumerate() {
+                if f > 0 {
+                    vars[0] += (coords[i][0] - means[0]).powi(2) / pf_n;
+                    vars[1] += (coords[i][1] - means[1]).powi(2) / pf_n;
+                }
+            }
+            let stds = [vars[0].sqrt().max(1e-10), vars[1].sqrt().max(1e-10)];
+            for c in coords.iter_mut() {
+                c[0] = (c[0] - means[0]) / stds[0];
+                c[1] = (c[1] - means[1]) / stds[1];
+            }
         }
         $stowage.ditf::<CoordinateMarker, $E, _>(coords.clone(), "coordinates");
         $stowage.ditf::<PageFilterMarker, $E, _>(filter.clone(), "page-filter");
@@ -241,33 +265,17 @@ fn select_peers(
     out
 }
 
-fn compute_author_peers(stowage: &Stowage, raw_coords: &[[f64; 2]], filter: &[u8]) {
+fn compute_author_peers(stowage: &Stowage, coords: &[[f64; 2]], filter: &[u8]) {
     let citing_sfs = stowage.get_marked_interface::<Authors, Top3CitingSfMarker, QuickestBox>();
     let paper_sfs = stowage.get_marked_interface::<Authors, Top3PaperSfMarker, QuickestBox>();
 
+    // Coordinates are pre-normalized by entity_coords_filter! over the page-filtered set.
     let mut entries: Vec<(usize, [f64; 2])> = filter
         .iter()
         .enumerate()
         .filter(|(_, &f)| f > 0)
-        .map(|(i, _)| (i, raw_coords[i]))
+        .map(|(i, _)| (i, coords[i]))
         .collect();
-
-    let n = entries.len() as f64;
-    let mut means = [0.0f64; 2];
-    for (_, c) in &entries {
-        means[0] += c[0] / n;
-        means[1] += c[1] / n;
-    }
-    let mut vars = [0.0f64; 2];
-    for (_, c) in &entries {
-        vars[0] += (c[0] - means[0]).powi(2) / n;
-        vars[1] += (c[1] - means[1]).powi(2) / n;
-    }
-    let stds = [vars[0].sqrt().max(1e-10), vars[1].sqrt().max(1e-10)];
-    for (_, c) in &mut entries {
-        c[0] = (c[0] - means[0]) / stds[0];
-        c[1] = (c[1] - means[1]) / stds[1];
-    }
 
     // Build per-subfield sorted lists: sf_dm_id → [(author_dm_id, norm_coord)].
     // NET<Subfields> = u8 (N=254), so 256 slots covers all valid dm_ids.
@@ -301,13 +309,13 @@ fn compute_author_peers(stowage: &Stowage, raw_coords: &[[f64; 2]], filter: &[u8
     entries.sort_by(|a, b| a.1[0].partial_cmp(&b.1[0]).unwrap_or(Ordering::Equal));
 
     // dm_id → index in sorted entries (needed for fallback coord_candidates).
-    let mut dm_to_si = vec![0usize; raw_coords.len()];
+    let mut dm_to_si = vec![0usize; coords.len()];
     for (si, &(dm_id, _)) in entries.iter().enumerate() {
         dm_to_si[dm_id] = si;
     }
 
     let half_window = N_COORD_CANDIDATES / 2;
-    let mut peers = vec![[0u16; N_PEERS]; raw_coords.len()];
+    let mut peers = vec![[0u16; N_PEERS]; coords.len()];
     for &(dm_id, ref_coord) in &entries {
         let hero_citing = &citing_sfs[dm_id];
         let hero_paper = &paper_sfs[dm_id];
