@@ -13,6 +13,7 @@ from ccl_science_data.common import EntC, Steps, load_map
 from ccl_science_data.gen_reader_ext import GenReaderExt
 
 START_YEAR = 1950
+CITATION_THRESHOLD = 500
 
 BG = "#0f1117"
 PANEL = "#1a1d27"
@@ -168,13 +169,14 @@ if __name__ == "__main__":
 
     hpm = load_map("hit-papers", Steps.DERIVE_LINKS3)
     wyears = pd.Series(gr.load_arr_work_years()).astype(int) + START_YEAR
+    all_citations = pd.Series(gr.load_arr_work_citing_counts())
     hit_df = (
         pd.Series(hpm)
         .rename("hit_id")
         .to_frame()
         .assign(
             year=wyears,
-            citations=pd.Series(gr.load_arr_work_citing_counts()),
+            citations=all_citations,
         )
     )
 
@@ -195,6 +197,20 @@ if __name__ == "__main__":
     all_wid_year_counts = wyears.value_counts().sort_index()
     hit_rate = year_counts / all_wid_year_counts
 
+    # Citation threshold analysis
+    hit_papers_above_threshold = (hit_df["citations"] > CITATION_THRESHOLD).sum()
+    all_papers_above_threshold = (all_citations > CITATION_THRESHOLD).sum()
+    all_papers_at_or_above_threshold = (all_citations >= CITATION_THRESHOLD).sum()
+
+    hit_rate_above = (
+        hit_papers_above_threshold / len(hit_df) * 100 if len(hit_df) > 0 else 0
+    )
+    all_rate_above = (
+        all_papers_above_threshold / len(all_citations) * 100
+        if len(all_citations) > 0
+        else 0
+    )
+
     sf_raw = work_subfields.groupby("val")["idx"].nunique().sort_values(ascending=False)
     sf_raw.index = [
         sf_names[i] if i < len(sf_names) else f"sf_{i}" for i in sf_raw.index
@@ -209,6 +225,9 @@ if __name__ == "__main__":
         ("Gini (Authors)", f"{gini(author_hits.values):.3f}"),
         ("Gini (Subfields)", f"{gini(sf_raw.values):.3f}"),
         ("Gini (Years)", f"{gini(year_counts.values):.3f}"),
+        (f"Hit Papers >{CITATION_THRESHOLD} cites", f"{hit_papers_above_threshold:,} ({hit_rate_above:.1f}%)"),
+        (f"All Papers >{CITATION_THRESHOLD} cites", f"{all_papers_above_threshold:,} ({all_rate_above:.1f}%)"),
+        (f"All Papers ≥{CITATION_THRESHOLD} cites", f"{all_papers_at_or_above_threshold:,}"),
     ]
 
     img_b64 = build_figure(year_counts, sf_raw, author_hits, hit_df["citations"].values, hit_rate)
