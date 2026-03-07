@@ -228,3 +228,26 @@ export type OaPaperResp = {
 	year: number;
 	authors: { name: string; link: string; institutions: string[] }[];
 };
+
+export type PeerSubfield = {
+	name: string;
+	semanticId: string;
+	dmId: number;
+};
+
+export type PeerAuthorEntry = {
+	name: string;
+	semanticId: string;
+	papers: number;
+	citations: number;
+	subfieldCitations: number[];
+	yearlyPapers: number[];
+	yearlyCites: number[];
+	startYear: number;
+};
+
+export type AuthorPeersResp = {
+	topSubfields: PeerSubfield[];
+	peers: PeerAuthorEntry[];
+	hero: PeerAuthorEntry;
+};
