@@ -132,18 +132,113 @@ macro_rules! entity_coords_filter {
 
 fn sf_overlap(a: &Top3Rec<Subfields>, b: &Top3Rec<Subfields>) -> u32 {
     let mut count = 0u32;
-    for &(_, aid) in a {
-        if aid == 0 {
+    for &(a_count, aid) in a {
+        if a_count == 0 {
             continue;
         }
-        for &(_, bid) in b {
-            if aid == bid {
+        for &(b_count, bid) in b {
+            if b_count > 0 && aid == bid {
                 count += 1;
                 break;
             }
         }
     }
     count
+}
+
+// Returns up to N_COORD_CANDIDATES nearest neighbours of entries[si] by Euclidean
+// distance in the 2-D coordinate space, using the sorted order of entries on axis 0
+// to prune. Safe to call as a fallback but should not be the primary candidate source:
+// for extreme outliers the threshold can inflate (via high-d1 candidates filling the
+// heap early) and allow authors with very different citation counts to pass the x-prune.
+fn coord_candidates(
+    si: usize,
+    ref_coord: [f64; 2],
+    entries: &[(usize, [f64; 2])],
+) -> BinaryHeap<CoordCandidate> {
+    let mut heap: BinaryHeap<CoordCandidate> = BinaryHeap::new();
+    let mut lo = si as isize - 1;
+    let mut hi = si + 1;
+    loop {
+        let lo_valid = lo >= 0;
+        let hi_valid = hi < entries.len();
+        if !lo_valid && !hi_valid {
+            break;
+        }
+        let lo_d0 = if lo_valid {
+            (entries[lo as usize].1[0] - ref_coord[0]).abs()
+        } else {
+            f64::MAX
+        };
+        let hi_d0 = if hi_valid {
+            (entries[hi].1[0] - ref_coord[0]).abs()
+        } else {
+            f64::MAX
+        };
+        let (cand_si, is_lo) = if lo_d0 <= hi_d0 {
+            (lo as usize, true)
+        } else {
+            (hi, false)
+        };
+        let d0 = entries[cand_si].1[0] - ref_coord[0];
+        let d0_sq = d0 * d0;
+        let threshold = if heap.len() >= N_COORD_CANDIDATES {
+            heap.peek().unwrap().sq_dist
+        } else {
+            f64::MAX
+        };
+        if d0_sq > threshold {
+            break;
+        }
+        let d1 = entries[cand_si].1[1] - ref_coord[1];
+        let sq_dist = d0_sq + d1 * d1;
+        if sq_dist < threshold {
+            if heap.len() >= N_COORD_CANDIDATES {
+                heap.pop();
+            }
+            heap.push(CoordCandidate {
+                sq_dist,
+                idx: cand_si,
+            });
+        }
+        if is_lo {
+            lo -= 1;
+        } else {
+            hi += 1;
+        }
+    }
+    heap
+}
+
+// From a set of (cand_dm_id, sq_dist) candidates already known to be field-relevant,
+// selects the N_PEERS best by (sf_overlap descending, sq_dist ascending).
+fn select_peers(
+    dm_id: usize,
+    candidates: &[(usize, f64)],
+    citing_sfs: &[Top3Rec<Subfields>],
+    paper_sfs: &[Top3Rec<Subfields>],
+) -> [u16; N_PEERS] {
+    let mut heap: BinaryHeap<PeerCandidate> = BinaryHeap::new();
+    for &(cand_dm_id, sq_dist) in candidates {
+        let sim = sf_overlap(&citing_sfs[dm_id], &citing_sfs[cand_dm_id])
+            + sf_overlap(&paper_sfs[dm_id], &paper_sfs[cand_dm_id]);
+        let pc = PeerCandidate {
+            neg_similarity: -(sim as i32),
+            coord_dist_sq: sq_dist,
+            dm_id: cand_dm_id as u16,
+        };
+        if heap.len() < N_PEERS || pc < *heap.peek().unwrap() {
+            if heap.len() >= N_PEERS {
+                heap.pop();
+            }
+            heap.push(pc);
+        }
+    }
+    let mut out = [0u16; N_PEERS];
+    for (i, pc) in heap.into_sorted_vec().into_iter().enumerate() {
+        out[i] = pc.dm_id;
+    }
+    out
 }
 
 fn compute_author_peers(stowage: &Stowage, raw_coords: &[[f64; 2]], filter: &[u8]) {
@@ -174,88 +269,91 @@ fn compute_author_peers(stowage: &Stowage, raw_coords: &[[f64; 2]], filter: &[u8
         c[1] = (c[1] - means[1]) / stds[1];
     }
 
+    // Build per-subfield sorted lists: sf_dm_id → [(author_dm_id, norm_coord)].
+    // NET<Subfields> = u8 (N=254), so 256 slots covers all valid dm_ids.
+    // These are the primary candidate source: field-first guarantees all candidates
+    // share at least one top subfield with the hero, eliminating the coordinate-only
+    // contamination by field-unrelated authors.
+    const N_SFS: usize = 256;
+    let mut sf_to_entries: Vec<Vec<(usize, [f64; 2])>> = vec![Vec::new(); N_SFS];
+    for &(dm_id, coord) in &entries {
+        let mut seen_sfs = [usize::MAX; 6];
+        let mut n_seen = 0usize;
+        for t3 in [&citing_sfs[dm_id], &paper_sfs[dm_id]] {
+            for &(count, sf_id) in t3.iter() {
+                if count == 0 {
+                    continue;
+                }
+                let sf = sf_id.to_usize();
+                if seen_sfs[..n_seen].contains(&sf) {
+                    continue;
+                }
+                seen_sfs[n_seen] = sf;
+                n_seen += 1;
+                sf_to_entries[sf].push((dm_id, coord));
+            }
+        }
+    }
+    for list in &mut sf_to_entries {
+        list.sort_by(|a, b| a.1[0].partial_cmp(&b.1[0]).unwrap_or(Ordering::Equal));
+    }
+
     entries.sort_by(|a, b| a.1[0].partial_cmp(&b.1[0]).unwrap_or(Ordering::Equal));
 
+    // dm_id → index in sorted entries (needed for fallback coord_candidates).
+    let mut dm_to_si = vec![0usize; raw_coords.len()];
+    for (si, &(dm_id, _)) in entries.iter().enumerate() {
+        dm_to_si[dm_id] = si;
+    }
+
+    let half_window = N_COORD_CANDIDATES / 2;
     let mut peers = vec![[0u16; N_PEERS]; raw_coords.len()];
-    for si in 0..entries.len() {
-        let (dm_id, ref_coord) = entries[si];
-        let mut coord_heap: BinaryHeap<CoordCandidate> = BinaryHeap::new();
-        let mut lo = si as isize - 1;
-        let mut hi = si + 1;
+    for &(dm_id, ref_coord) in &entries {
+        let hero_citing = &citing_sfs[dm_id];
+        let hero_paper = &paper_sfs[dm_id];
 
-        loop {
-            let lo_valid = lo >= 0;
-            let hi_valid = hi < entries.len();
-            if !lo_valid && !hi_valid {
-                break;
-            }
-            let lo_d0 = if lo_valid {
-                (entries[lo as usize].1[0] - ref_coord[0]).abs()
-            } else {
-                f64::MAX
-            };
-            let hi_d0 = if hi_valid {
-                (entries[hi].1[0] - ref_coord[0]).abs()
-            } else {
-                f64::MAX
-            };
-            let (cand_si, is_lo) = if lo_d0 <= hi_d0 {
-                (lo as usize, true)
-            } else {
-                (hi, false)
-            };
+        // --- Candidate selection (field-first) ---
+        // For each of the hero's top subfields, take the half_window nearest authors
+        // above and below in sorted ln_cites order. All candidates share at least one
+        // top subfield with the hero, so field relevance is guaranteed by construction.
+        let mut seen: HashSet<usize> = HashSet::new();
+        seen.insert(dm_id);
+        let mut candidates: Vec<(usize, f64)> = Vec::new();
 
-            let d0 = entries[cand_si].1[0] - ref_coord[0];
-            let d0_sq = d0 * d0;
-            let threshold = if coord_heap.len() >= N_COORD_CANDIDATES {
-                coord_heap.peek().unwrap().sq_dist
-            } else {
-                f64::MAX
-            };
-            if d0_sq > threshold {
-                break;
-            }
-
-            let d1 = entries[cand_si].1[1] - ref_coord[1];
-            let sq_dist = d0_sq + d1 * d1;
-            if sq_dist < threshold {
-                if coord_heap.len() >= N_COORD_CANDIDATES {
-                    coord_heap.pop();
+        for t3 in [hero_citing, hero_paper] {
+            for &(count, sf_id) in t3.iter() {
+                if count == 0 {
+                    continue;
                 }
-                coord_heap.push(CoordCandidate {
-                    sq_dist,
-                    idx: cand_si,
-                });
-            }
-
-            if is_lo {
-                lo -= 1;
-            } else {
-                hi += 1;
-            }
-        }
-
-        let mut peer_heap: BinaryHeap<PeerCandidate> = BinaryHeap::new();
-        for cc in coord_heap.into_iter() {
-            let (cand_dm_id, _) = entries[cc.idx];
-            let sim = sf_overlap(&citing_sfs[dm_id], &citing_sfs[cand_dm_id])
-                + sf_overlap(&paper_sfs[dm_id], &paper_sfs[cand_dm_id]);
-            let pc = PeerCandidate {
-                neg_similarity: -(sim as i32),
-                coord_dist_sq: cc.sq_dist,
-                dm_id: cand_dm_id as u16,
-            };
-            if peer_heap.len() < N_PEERS || pc < *peer_heap.peek().unwrap() {
-                if peer_heap.len() >= N_PEERS {
-                    peer_heap.pop();
+                let list = &sf_to_entries[sf_id.to_usize()];
+                let pos = list.partition_point(|&(_, c)| c[0] < ref_coord[0]);
+                let lo = pos.saturating_sub(half_window);
+                let hi = (pos + half_window).min(list.len());
+                for &(cand_dm_id, cand_coord) in &list[lo..hi] {
+                    if !seen.insert(cand_dm_id) {
+                        continue;
+                    }
+                    let d0 = cand_coord[0] - ref_coord[0];
+                    let d1 = cand_coord[1] - ref_coord[1];
+                    candidates.push((cand_dm_id, d0 * d0 + d1 * d1));
                 }
-                peer_heap.push(pc);
             }
         }
 
-        for (pi, pc) in peer_heap.into_sorted_vec().into_iter().enumerate() {
-            peers[dm_id][pi] = pc.dm_id;
+        // --- Fallback: coordinate-only search when field-matched pool is thin ---
+        // This preserves output for authors in niche fields with few filtered peers.
+        if candidates.len() < N_PEERS {
+            let si = dm_to_si[dm_id];
+            for cc in coord_candidates(si, ref_coord, &entries) {
+                let (cand_dm_id, _) = entries[cc.idx];
+                if seen.insert(cand_dm_id) {
+                    candidates.push((cand_dm_id, cc.sq_dist));
+                }
+            }
         }
+
+        // --- Peer selection from candidates ---
+        peers[dm_id] = select_peers(dm_id, &candidates, &citing_sfs, &paper_sfs);
     }
 
     println!("computed peers for {} filtered authors", entries.len());
