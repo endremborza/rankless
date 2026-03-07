@@ -84,7 +84,12 @@ type InstTrm = TreeRunManager<(
 )>;
 type Coords = [f64; 2];
 type NameStateMap = HashMap<&'static str, NameState>;
-type StatesT = State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>, Arc<InstTrm>, Arc<AuthorPeerData>)>;
+type StatesT = State<(
+    Arc<NameStateMap>,
+    Arc<AttributeLabelUnion>,
+    Arc<InstTrm>,
+    Arc<AuthorPeerData>,
+)>;
 type StateKv = (&'static str, (NameState, TopResult, EntityDescription));
 
 const N_SUBFIELDS: usize = Subfields::N;
@@ -717,12 +722,7 @@ fn get_state_tr_ed_kv<E>(
     ),
 ) -> StateKv
 where
-    E: RootInterfaceable
-        + IsTop
-        + MainEntity
-        + NamespacedEntity
-        + DistinctionText
-        + MetaMapGetter,
+    E: RootInterfaceable + IsTop + MainEntity + NamespacedEntity + DistinctionText + MetaMapGetter,
 {
     let (gets_clone, au_clone, shared_cvp) = full_tup.clone();
     let name = E::NAME.to_string();
@@ -1238,7 +1238,7 @@ fn paper_out(
                     year: YearInterface::reverse(prize_rec.1),
                 },
             );
-            (format!("F{aid}"), gets.fshipis(*aid))
+            (format!("F{aid}"), gets.fshipis(ship_id))
         } else {
             let aid = gets.dshipa(&ship_id);
             let name = disc_name_handler
@@ -1246,7 +1246,7 @@ fn paper_out(
                 .unwrap_or("Unknown".to_string());
             let full_aid = format!("D{aid}");
             discarded_author_name_map.insert(full_aid.clone(), name);
-            (full_aid, gets.dshipis(*aid))
+            (full_aid, gets.dshipis(ship_id))
         };
         let mut insts = Vec::new();
         for iid in insts_slice {
