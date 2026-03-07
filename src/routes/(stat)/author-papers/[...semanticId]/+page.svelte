@@ -83,7 +83,7 @@
 	}
 
 	async function handleUnClaim(doi: string) {
-		data.claimedDois = data.claimedDois.filter(d => d !== doi);
+		data.claimedDois = data.claimedDois.filter((d) => d !== doi);
 		await fetch('/api/papers/claim', {
 			method: 'DELETE',
 			headers: { 'Content-Type': 'application/json' },
@@ -114,7 +114,7 @@
 {/if}
 
 <div class="shadowy padded marged">
-	<h2>Citation Impact</h2>
+	<h2>Immediate Impact</h2>
 	{#if dagEmpty}
 		<p class="status">No citation impact paths found for this author.</p>
 	{:else if data.profile}
@@ -144,7 +144,11 @@
 			<a href="/logout" class="auth-link" data-sveltekit-preload-data="off">Logout</a>
 		{:else if data.hasOrcid && !user}
 			<div class="login-prompt">
-				<a href="/login?returnTo=/author-papers/{data.semanticId}" class="auth-link" data-sveltekit-preload-data="off">Login with ORCID</a>
+				<a
+					href="/login?returnTo=/author-papers/{data.semanticId}"
+					class="auth-link"
+					data-sveltekit-preload-data="off">Login with ORCID</a
+				>
 				<span class="login-hint">to disown or claim papers</span>
 			</div>
 		{/if}
