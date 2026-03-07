@@ -63,7 +63,7 @@ Axum server on port 3038. Loads pre-processed binary data; answers tree queries,
 
 | File | Role |
 |------|------|
-| `src/main.rs` | Routes: `/v1/query`, `/v1/search`, `/v1/specs`, geo-coord endpoint; initializes `Getters` for Authors/Institutions/Subfields/Countries/Sources/HitPapers; pre-computed cache (`CACHEABLE_FROM=10k`); mimalloc allocator; KD-tree using pre-computed coordinates; `IsTop` trait for selecting featured entities; page filter loaded from pipeline |
+| `src/main.rs` | Routes: `/v1/query`, `/v1/search`, `/v1/specs`, `/v1/author-peers/:semid`, geo-coord endpoint; initializes `Getters` for Authors/Institutions/Subfields/Countries/Sources/HitPapers; loads `AuthorPeerData` (peers + per-subfield citations) at startup; pre-computed cache (`CACHEABLE_FROM=10k`); mimalloc allocator; KD-tree using pre-computed coordinates; `IsTop` trait for selecting featured entities; page filter loaded from pipeline |
 | `src/consts.rs` | `MAX_HITS=80`, `PORT=3038`, `SEARCH_SIZE=20`, `MAX_SLICE=40k`, `N_THREADS=16` |
 
 ---
@@ -139,7 +139,8 @@ SvelteKit app; SSR via `+page.server.ts` files; all visualizations are hand-writ
 | `ImpactDag.svelte` | Citation impact DAG: connected-component decomposition with sub-graph navigation, three-layer layout (citing/intermediate/authored), collapsed mid-layer, expand/collapse, SVG bezier edges, swipe + keyboard nav |
 | `DagChip.svelte` | Individual paper chip for ImpactDag: title, year, badges (standout/prestigious/nobel), expandable details |
 | `AllWorks.svelte` | Paginated author paper list with client-side fetch, disown/undo UI (owner only) |
-| `ExportControls.svelte` | Sort, filter, citation style, BibTeX copy/download controls for paper lists |
+| `ExportControls.svelte` | Sort, filter, citation style, BibTeX copy/download controls; receives pre-filtered list from AllWorks |
+| `AuthorPeers.svelte` | Peer author comparison table: subfield citation heatmap + sparkline decade timeline |
 | `WorkElem.svelte` | Single paper display |
 | `SearchResults.svelte` | Search autocomplete results |
 | `ScrollyGraph.svelte` / `ScrollySank.svelte` | Scrollytelling visualizations |

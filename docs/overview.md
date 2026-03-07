@@ -20,16 +20,17 @@ Each searchable entity has a hero page built around **production** (its papers) 
 - **Research Space** — field-to-field network based on author co-occurrence; reveals likely future publication venues.
 - **Collaborator Network** — co-authorship graph scoped to an author's frequent collaborators.
 - **Geographical Impact Map** — citation flows by country; optionally colored by specialization vs. baseline.
+- **Author Peers** — comparison table of an author against their 5 closest peers (by coordinate proximity + subfield similarity); subfield citation heatmap with color-scaled opacity, sparkline decade timeline, total papers/citations.
 
 ## Architecture
 
 **Processing (`rankless_rs`):** Ingests OpenAlex/Scopus CSV dumps through a six-step pipeline (entity mapping → attribute init → link derivation). Uses `dmove`/`dmove_macro` metaprogramming to generate Rust source tailored to the dataset, producing optimized binary data files. See `docs/metaprogramming-make.md` for the build orchestration details.
 
-**Backend (`rankless_server`):** Axum HTTP server (port 3038) over pre-processed binary data. Custom partial-string search (`muwo_search`). Proactive cache pre-warming (`pyscripts/cache_prompting.py`) for high-traffic entities. KD-tree for institution geo queries.
+**Backend (`rankless_server`):** Axum HTTP server (port 3038) over pre-processed binary data. Custom partial-string search (`muwo_search`). Proactive cache pre-warming (`pyscripts/cache_prompting.py`) for high-traffic entities. KD-tree for institution geo queries. Author peers endpoint (`/author-peers/:semid`) pre-loads peer arrays and per-subfield citation counts at startup.
 
 **Tree library (`rankless_trees`):** Hierarchical query engine with thread pool (`TreeRunManager`), citation path finder (`path_finder.rs`), and in-memory caching.
 
-**Frontend (`src/`):** SvelteKit/Svelte with SSR. All visualizations hand-written SVG; Cytoscape.js the only external viz dependency. ORCID authentication integrated into author-papers pages (login redirects back to same page). SQLite (better-sqlite3, WAL mode) stores paper disown/claim actions per ORCID user. Dark mode responsive, color scheme defined in `src/routes/styles.css`
+**Frontend (`src/`):** SvelteKit/Svelte with SSR. All visualizations hand-written SVG; Cytoscape.js the only external viz dependency. ORCID authentication integrated into author-papers pages (login redirects back to same page). SQLite (better-sqlite3, WAL mode) stores paper disown/claim actions per ORCID user. Author-papers page includes paper profile (standout papers, citation impact DAG), author peers comparison, and paginated works list with export controls. Dark mode responsive, color scheme defined in `src/routes/styles.css`
 
 **Deployment (`pyscripts/deploy.py`):** Linux, systemd (Rust backend + Bun frontend), Nginx reverse proxy, Let's Encrypt SSL. Live monitoring via distributed alert swarm (`live_monitoring.py`). Nginx logs parsed hourly for performance reports.
 
