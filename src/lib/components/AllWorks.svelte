@@ -63,7 +63,8 @@
 	{#if !initialLoaded}
 		<p class="status">Loading papers...</p>
 	{:else}
-		<ExportControls papers={activePapers} {entityAtts} {discAuthorNames}
+		<ExportControls filteredPapers={displayPapers} totalCount={activePapers.length}
+			{entityAtts} {discAuthorNames}
 			bind:sortBy bind:minCitations bind:citationStyle />
 
 		<div class="paper-list">
@@ -77,9 +78,6 @@
 							</span>
 						{:else}
 							<span class="paper-ref">{formatReference(paper, entityAtts, discAuthorNames, citationStyle)}</span>
-							<span class="paper-meta">
-								{#if paper.citations > 0}{paper.citations} indexed citations{/if}
-							</span>
 						{/if}
 					</div>
 					{#if isOwner}
