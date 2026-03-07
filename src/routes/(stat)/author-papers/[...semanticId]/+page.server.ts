@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import type { View, PaperProfileResp, SearchResult } from '$lib/tree-types';
+import type { View, PaperProfileResp, SearchResult, AuthorPeersResp } from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
 import { BE_URL } from '$lib/constants';
 import { pluralize } from '$lib/text-format-util';
@@ -11,14 +11,18 @@ export const ssr = true;
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const semanticId = params.semanticId;
 	const urlFriendlySemId = tf.urlFriendlify(semanticId);
-	const [view, profile]: [View, PaperProfileResp | null] = await Promise.all([
-		fetch(`${BE_URL}/views/authors/${urlFriendlySemId}`)
-			.then((res) => res.json())
-			.catch(() => error(404, 'Not found')),
-		fetch(`${BE_URL}/paper-profile/${urlFriendlySemId}`)
-			.then((res) => res.json())
-			.catch(() => null),
-	]);
+	const [view, profile, peersData]: [View, PaperProfileResp | null, AuthorPeersResp | null] =
+		await Promise.all([
+			fetch(`${BE_URL}/views/authors/${urlFriendlySemId}`)
+				.then((res) => res.json())
+				.catch(() => error(404, 'Not found')),
+			fetch(`${BE_URL}/paper-profile/${urlFriendlySemId}`)
+				.then((res) => res.json())
+				.catch(() => null),
+			fetch(`${BE_URL}/author-peers/${urlFriendlySemId}`)
+				.then((res) => (res.ok ? res.json() : null))
+				.catch(() => null),
+		]);
 	if (!view) error(404, 'Not found');
 
 	let isOwner = false;
@@ -43,6 +47,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	return {
 		name: view.name,
 		profile,
+		peersData,
 		semanticId,
 		paperText: pluralize('paper', view.papers),
 		citeText: pluralize('indexed citation', view.citations),
