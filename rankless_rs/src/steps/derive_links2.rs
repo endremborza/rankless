@@ -7,11 +7,10 @@ use std::{
     mem::replace,
     ops::AddAssign,
     sync::Arc,
-    thread::{self, JoinHandle},
 };
 
 use dmove::{
-    reverse_prefixed_n, ByteFixArrayInterface, DowncastingBuilder, Entity, FixAttBuilder,
+    par_join, reverse_prefixed_n, ByteFixArrayInterface, DowncastingBuilder, Entity, FixAttBuilder,
     MarkedAttribute, NamespacedEntity, UnsignedNumber, VarAttBuilder, VarAttIterator,
     VariableSizeAttribute, VattArrPair, ET, MAA,
 };
@@ -96,11 +95,6 @@ pub struct CiteDeriver {
     pub journal_vals: Arc<[u32]>,
     pub wcountries: Box<[Box<[ET<Countries>]>]>,
     pub w_top_source: Box<[ET<Sources>]>,
-}
-
-struct CdManager {
-    cd: Arc<CiteDeriver>,
-    threads: Vec<JoinHandle<()>>,
 }
 
 struct SelfExtender<T> {
@@ -562,33 +556,6 @@ impl CiteDeriver {
     }
 }
 
-impl CdManager {
-    //TODO: this could be replaced with the parallel macro
-    fn new(cd: CiteDeriver) -> Self {
-        Self {
-            cd: Arc::new(cd),
-            threads: Vec::new(),
-        }
-    }
-
-    fn send<F, A>(&mut self, f: F, arg: A)
-    where
-        F: Fn(&CiteDeriver, A) + Send + 'static,
-        A: Send + Clone + 'static,
-    {
-        let ac = self.cd.clone();
-        let arg_c = arg.clone();
-        self.threads.push(thread::spawn(move || f(&ac, arg_c)));
-    }
-
-    fn join(&mut self) {
-        let ot = std::mem::replace(&mut self.threads, Vec::new());
-        ot.into_iter().for_each(|t| {
-            t.join().unwrap();
-        });
-    }
-}
-
 impl TopSorter {
     fn cmp<T>(&self, l: &(usize, T), r: &(usize, T)) -> Ordering
     where
@@ -734,21 +701,21 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     cd.stowage.declare::<Countries, MainWorkMarker>(cwo_name);
 
     cd.q_ccs();
-    let mut cdm = CdManager::new(cd);
-    cdm.send(CiteDeriver::author_paths, a_inverter.data.clone());
-    cdm.send(
-        CiteDeriver::cite_count::<Institutions>,
+    let cd_arc = Arc::new(cd);
+    let (a, i, sf) = (
+        a_inverter.data.clone(),
         i_inverter.data.clone(),
-    );
-    cdm.send(CiteDeriver::cite_count::<Countries>, country_works.into());
-    cdm.send(
-        CiteDeriver::cite_count::<Subfields>,
         sf_inferter.data.clone(),
     );
-    cdm.send(CiteDeriver::cite_count_read::<Topics>, ());
-    cdm.join();
-    cdm.cd.stowage.write_code()?;
-    let cd = Arc::into_inner(cdm.cd).unwrap();
+    par_join!(
+        { let cd = cd_arc.clone(); move || cd.author_paths(a) },
+        { let cd = cd_arc.clone(); move || cd.cite_count::<Institutions>(i) },
+        { let cd = cd_arc.clone(); move || cd.cite_count::<Countries>(country_works.into()) },
+        { let cd = cd_arc.clone(); move || cd.cite_count::<Subfields>(sf) },
+        { let cd = cd_arc.clone(); move || cd.cite_count_read::<Topics>(()) },
+    );
+    cd_arc.stowage.write_code()?;
+    let cd = Arc::into_inner(cd_arc).unwrap();
     let stowage = cd.stowage;
     let interface = stowage.get_entity_interface::<WorksCiting, ReadIter>();
     let wc_name = "work-citing-counts";
