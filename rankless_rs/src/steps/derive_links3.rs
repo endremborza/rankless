@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::BinaryHeap, ops::AddAssign, sync::Arc};
+use std::{cmp::Ordering, collections::BinaryHeap, ops::AddAssign, sync::{Arc, Mutex}};
 
 use crate::{
     common::{
@@ -20,6 +20,7 @@ use dmove::{
     MarkedAttribute, NamespacedEntity, UnsignedNumber, VarAttBuilder, VariableSizeAttribute, ET,
     MAA,
 };
+use dmove::para::Worker;
 use hashbrown::{HashMap, HashSet};
 
 const MIN_UNIVERSAL: usize = 500;
@@ -74,6 +75,52 @@ impl Ord for PeerCandidate {
         self.dist_sq
             .partial_cmp(&other.dist_sq)
             .unwrap_or(Ordering::Equal)
+    }
+}
+
+struct PeerWorker {
+    entries: Arc<Vec<(usize, [f64; 2])>>,
+    cit_sfs: Arc<Box<[AuthorCitSfArr]>>,
+    dm_to_rank: Arc<Vec<usize>>,
+    sf_weights: [f64; N_PEER_SF_DIMS],
+    n: usize,
+    peers: Arc<Mutex<Vec<[AuthorId; N_PEERS]>>>,
+}
+
+impl Worker<(usize, [f64; 2])> for PeerWorker {
+    fn proc(&self, (dm_id, ref_coord): (usize, [f64; 2])) {
+        let rank = self.dm_to_rank[dm_id];
+        let lo = ((rank as f64 - self.n as f64 * CANDIDATE_PCTILE_LOW) as isize).max(0) as usize;
+        let hi =
+            ((rank as f64 + self.n as f64 * CANDIDATE_PCTILE_HIGH + 1.0) as usize).min(self.n);
+        let hero_arr = &self.cit_sfs[dm_id];
+        let top_sfs = top_k_sf_indices(hero_arr);
+        let mut heap: BinaryHeap<PeerCandidate> = BinaryHeap::new();
+        for i in lo..hi {
+            let (cand_dm_id, cand_coord) = self.entries[i];
+            if cand_dm_id == dm_id {
+                continue;
+            }
+            let dist_sq = peer_sq_dist(
+                ref_coord,
+                cand_coord,
+                hero_arr,
+                &self.cit_sfs[cand_dm_id],
+                &top_sfs,
+                &self.sf_weights,
+            );
+            if heap.len() < N_PEERS || dist_sq < heap.peek().unwrap().dist_sq {
+                if heap.len() >= N_PEERS {
+                    heap.pop();
+                }
+                heap.push(PeerCandidate { dist_sq, dm_id: cand_dm_id as AuthorId });
+            }
+        }
+        let mut out = [AuthorId::default(); N_PEERS];
+        for (i, pc) in heap.into_sorted_vec().into_iter().enumerate() {
+            out[i] = pc.dm_id;
+        }
+        self.peers.lock().unwrap()[dm_id] = out;
     }
 }
 
@@ -178,7 +225,9 @@ fn peer_sq_dist(
 }
 
 fn compute_author_peers(stowage: &Stowage, coords: &[[f64; 2]], filter: &[u8]) {
-    let cit_sfs = stowage.get_marked_interface::<Authors, CitSubfieldsArrayMarker, QuickestBox>();
+    let cit_sfs = Arc::new(
+        stowage.get_marked_interface::<Authors, CitSubfieldsArrayMarker, QuickestBox>(),
+    );
 
     // Sort filtered authors by normalized ln_cites (coord[0]) to enable percentile windows.
     let mut entries: Vec<(usize, [f64; 2])> = filter
@@ -199,39 +248,19 @@ fn compute_author_peers(stowage: &Stowage, coords: &[[f64; 2]], filter: &[u8]) {
     let sf_weights: [f64; N_PEER_SF_DIMS] =
         core::array::from_fn(|k| 2.0 * 0.9f64.powi(k as i32));
 
-    let mut peers = vec![[AuthorId::default(); N_PEERS]; coords.len()];
-    for &(dm_id, ref_coord) in &entries {
-        let rank = dm_to_rank[dm_id];
-        let lo = ((rank as f64 - n as f64 * CANDIDATE_PCTILE_LOW) as isize).max(0) as usize;
-        let hi = ((rank as f64 + n as f64 * CANDIDATE_PCTILE_HIGH + 1.0) as usize).min(n);
-
-        let hero_arr = &cit_sfs[dm_id];
-        let top_sfs = top_k_sf_indices(hero_arr);
-
-        let mut heap: BinaryHeap<PeerCandidate> = BinaryHeap::new();
-        for i in lo..hi {
-            let (cand_dm_id, cand_coord) = entries[i];
-            if cand_dm_id == dm_id {
-                continue;
-            }
-            let dist_sq =
-                peer_sq_dist(ref_coord, cand_coord, hero_arr, &cit_sfs[cand_dm_id], &top_sfs, &sf_weights);
-            let pc = PeerCandidate { dist_sq, dm_id: cand_dm_id as AuthorId };
-            if heap.len() < N_PEERS || dist_sq < heap.peek().unwrap().dist_sq {
-                if heap.len() >= N_PEERS {
-                    heap.pop();
-                }
-                heap.push(pc);
-            }
-        }
-
-        let mut out = [AuthorId::default(); N_PEERS];
-        for (i, pc) in heap.into_sorted_vec().into_iter().enumerate() {
-            out[i] = pc.dm_id;
-        }
-        peers[dm_id] = out;
+    let peers_out = Arc::new(Mutex::new(vec![[AuthorId::default(); N_PEERS]; coords.len()]));
+    let entries_arc = Arc::new(entries);
+    PeerWorker {
+        entries: entries_arc.clone(),
+        cit_sfs,
+        dm_to_rank: Arc::new(dm_to_rank),
+        sf_weights,
+        n,
+        peers: peers_out.clone(),
     }
+    .para(entries_arc.iter().copied());
 
+    let peers = Arc::try_unwrap(peers_out).unwrap().into_inner().unwrap();
     println!("computed peers for {} filtered authors", n);
     stowage.ditf::<PeerAuthorMarker, Authors, _>(peers, "peers");
 }
