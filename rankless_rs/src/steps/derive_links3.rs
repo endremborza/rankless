@@ -48,12 +48,14 @@ pub const AUTHOR_BLACKLIST: [u64; 3] = [
 ];
 
 type CCUI = ET<MAA<Works, CiteCountMarker>>;
+type AuthorId = ET<Authors>;
+type AuthorCitSfArr = ET<MAA<Authors, CitSubfieldsArrayMarker>>;
 
 // dist_sq stored as the "key": max-heap keeps the worst (largest dist) at the top,
 // so we can efficiently evict the furthest candidate when the heap is full.
 struct PeerCandidate {
     dist_sq: f64,
-    dm_id: u16,
+    dm_id: AuthorId,
 }
 
 impl PartialEq for PeerCandidate {
@@ -131,7 +133,7 @@ macro_rules! entity_coords_filter {
 
 // Returns indices of the top-N_PEER_SF_DIMS subfields by citation count, sorted descending.
 // Weight index 0 (highest weight) corresponds to the subfield with the most citations.
-fn top_k_sf_indices(arr: &[usize; 253]) -> [usize; N_PEER_SF_DIMS] {
+fn top_k_sf_indices(arr: &AuthorCitSfArr) -> [usize; N_PEER_SF_DIMS] {
     let mut top = [(0usize, 0usize); N_PEER_SF_DIMS]; // (val, sf_idx)
     let mut min_val = 0usize;
     let mut min_pos = 0;
@@ -158,8 +160,8 @@ fn top_k_sf_indices(arr: &[usize; 253]) -> [usize; N_PEER_SF_DIMS] {
 fn peer_sq_dist(
     coord_a: [f64; 2],
     coord_b: [f64; 2],
-    arr_a: &[usize; 253],
-    arr_b: &[usize; 253],
+    arr_a: &AuthorCitSfArr,
+    arr_b: &AuthorCitSfArr,
     top_sfs: &[usize; N_PEER_SF_DIMS],
     weights: &[f64; N_PEER_SF_DIMS],
 ) -> f64 {
@@ -197,7 +199,7 @@ fn compute_author_peers(stowage: &Stowage, coords: &[[f64; 2]], filter: &[u8]) {
     let sf_weights: [f64; N_PEER_SF_DIMS] =
         core::array::from_fn(|k| 2.0 * 0.9f64.powi(k as i32));
 
-    let mut peers = vec![[0u16; N_PEERS]; coords.len()];
+    let mut peers = vec![[AuthorId::default(); N_PEERS]; coords.len()];
     for &(dm_id, ref_coord) in &entries {
         let rank = dm_to_rank[dm_id];
         let lo = ((rank as f64 - n as f64 * CANDIDATE_PCTILE_LOW) as isize).max(0) as usize;
@@ -214,7 +216,7 @@ fn compute_author_peers(stowage: &Stowage, coords: &[[f64; 2]], filter: &[u8]) {
             }
             let dist_sq =
                 peer_sq_dist(ref_coord, cand_coord, hero_arr, &cit_sfs[cand_dm_id], &top_sfs, &sf_weights);
-            let pc = PeerCandidate { dist_sq, dm_id: cand_dm_id as u16 };
+            let pc = PeerCandidate { dist_sq, dm_id: cand_dm_id as AuthorId };
             if heap.len() < N_PEERS || dist_sq < heap.peek().unwrap().dist_sq {
                 if heap.len() >= N_PEERS {
                     heap.pop();
@@ -223,7 +225,7 @@ fn compute_author_peers(stowage: &Stowage, coords: &[[f64; 2]], filter: &[u8]) {
             }
         }
 
-        let mut out = [0u16; N_PEERS];
+        let mut out = [AuthorId::default(); N_PEERS];
         for (i, pc) in heap.into_sorted_vec().into_iter().enumerate() {
             out[i] = pc.dm_id;
         }
