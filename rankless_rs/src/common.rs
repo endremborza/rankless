@@ -19,9 +19,9 @@ use tqdm::{Iter, Tqdm};
 
 use dmove::{
     BackendLoading, BigId, CompactEntity, Entity, FixAttIterator, FixWriteSizeEntity, LoadedIdMap,
-    MainBuilder, MappableEntity, MarkedAttribute, MetaIntegrator, NamespacedEntity, UnsignedNumber,
-    VarAttBuilder, VarAttIterator, VarBox, VarSizedAttributeElement, VariableSizeAttribute,
-    VattArrPair, VattReadingMap, ET, MAA,
+    Locators, MainBuilder, MappableEntity, MarkedAttribute, MetaIntegrator, NamespacedEntity,
+    UnsignedNumber, VarAttBuilder, VarAttIterator, VarBox, VarSizedAttributeElement,
+    VariableSizeAttribute, VattArrPair, VattReadingMap, ET, MAA,
 };
 
 pub type StowReader = Reader<BufReader<GzDecoder<File>>>;
@@ -103,61 +103,84 @@ macro_rules! add_parent_parsed_id_traits {
     }
 }
 
-//TODO: wet with interfacing
 #[macro_export]
 macro_rules! make_interface_struct {
+    // 4-category compat: delegates to 5-category with empty loc group
     ($IT:ident, $($e_key:ident > $e_t:ty),*;$($f_key:ident => $f_t:ty),*; $($v_key:ident -> $v_t:ty),*; $($m_key:ident >> $m_t:ty),*) => {
+        $crate::make_interface_struct!($IT, $($e_key > $e_t),*; $($f_key => $f_t),*; $($v_key -> $v_t),*;; $($m_key >> $m_t),*);
+    };
+    // 5-category canonical (e, f, v, loc, m)
+    ($IT:ident, $($e_key:ident > $e_t:ty),*;$($f_key:ident => $f_t:ty),*; $($v_key:ident -> $v_t:ty),*; $($loc_key:ident loc $loc_t:ty),*; $($m_key:ident >> $m_t:ty),*) => {
         pub struct $IT {
             $(pub $e_key: BeS<QuickAttPair, MAA<$e_t, MainWorkMarker>>,)*
             $(pub $f_key: BeS<QuickestBox, $f_t>,)*
             $(pub $v_key: BeS<QuickAttPair, $v_t>,)*
+            $(pub $loc_key: std::sync::Arc<dmove::Locators<$loc_t>>,)*
             $(pub $m_key: BeS<QuickMap, $m_t>,)*
         }
 
         impl $IT {
-            fn new(stowage: Arc<Stowage>) -> Self {
+            fn new(stowage: std::sync::Arc<Stowage>) -> Self {
                 $(
-                    let stowage_clone = Arc::clone(&stowage);
-                    let $e_key = std::thread::spawn( move || {
+                    let stowage_clone = std::sync::Arc::clone(&stowage);
+                    let $e_key = std::thread::spawn(move || {
                         <$e_t as WorkLoader>::load_work_interface(stowage_clone)
                     });
                 )*
                 $(
-                    let stowage_clone = Arc::clone(&stowage);
-                    let $f_key = std::thread::spawn( move || {
+                    let stowage_clone = std::sync::Arc::clone(&stowage);
+                    let $f_key = std::thread::spawn(move || {
                         stowage_clone.get_entity_interface::<$f_t, QuickestBox>()
                     });
                 )*
                 $(
-                    let stowage_clone = Arc::clone(&stowage);
-                    let $v_key = std::thread::spawn( move || {
+                    let stowage_clone = std::sync::Arc::clone(&stowage);
+                    let $v_key = std::thread::spawn(move || {
                         stowage_clone.get_entity_interface::<$v_t, QuickAttPair>()
                     });
                 )*
                 $(
-                    let stowage_clone = Arc::clone(&stowage);
-                    let $m_key = std::thread::spawn( move || {
+                    let stowage_clone = std::sync::Arc::clone(&stowage);
+                    let $loc_key = std::thread::spawn(move || {
+                        $crate::common::get_locator::<$loc_t>(&stowage_clone)
+                    });
+                )*
+                $(
+                    let stowage_clone = std::sync::Arc::clone(&stowage);
+                    let $m_key = std::thread::spawn(move || {
                         stowage_clone.get_entity_interface::<$m_t, QuickMap>()
                     });
                 )*
                 Self {
-                    $($e_key: $e_key.join().expect("Thread panicked")),*,
-                    $($f_key: $f_key.join().expect("Thread panicked")),*,
-                    $($v_key: $v_key.join().expect("Thread panicked")),*,
-                    $($m_key: $m_key.join().expect("Thread panicked")),*
+                    $($e_key: $e_key.join().expect("Thread panicked"),)*
+                    $($f_key: $f_key.join().expect("Thread panicked"),)*
+                    $($v_key: $v_key.join().expect("Thread panicked"),)*
+                    $($loc_key: $loc_key.join().expect("Thread panicked"),)*
+                    $($m_key: $m_key.join().expect("Thread panicked"),)*
                 }
             }
 
-            fn _fake() -> Self {
-                    Self {
-                        $($f_key: Vec::new().into()),*,
-                        $($e_key: VattArrPair::empty()),*,
-                        $($v_key: VattArrPair::empty()),*,
-                        $($m_key: HashMap::new().into()),*
-                    }
+            pub fn fake() -> Self {
+                Self {
+                    $($f_key: Vec::new().into(),)*
+                    $($e_key: VattArrPair::empty(),)*
+                    $($v_key: VattArrPair::empty(),)*
+                    $($loc_key: dmove::Locators::<$loc_t>::empty().into(),)*
+                    $($m_key: HashMap::new().into(),)*
+                }
             }
         }
     };
+}
+
+pub fn get_locator<E>(stowage: &Stowage) -> std::sync::Arc<Locators<E>>
+where
+    Locators<E>: BackendLoading<E>,
+    E: NamespacedEntity + VariableSizeAttribute,
+    ET<E>: VarSizedAttributeElement,
+{
+    let path = stowage.path_from_ns(E::NS);
+    <Locators<E> as BackendLoading<E>>::load_backend(&path).into()
 }
 
 macro_rules! pathfields_fn {

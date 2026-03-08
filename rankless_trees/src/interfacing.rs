@@ -38,7 +38,7 @@ use rankless_rs::{
 };
 
 use dmove::{
-    BackendLoading, BigId, ByteArrayInterface, ByteFixArrayInterface, CompactEntity, Entity,
+    BigId, ByteArrayInterface, ByteFixArrayInterface, CompactEntity, Entity,
     EntityImmutableRefMapperBackend, Locators, MappableEntity, MarkedAttribute, NamespacedEntity,
     UnsignedNumber, VaST, VarAttBuilder, VarBox, VarSizedAttributeElement, VariableSizeAttribute,
     VattArrPair, ET, MAA,
@@ -48,7 +48,6 @@ use rand::Rng;
 
 const SPEC_CORR_RATE: f64 = 0.45;
 
-type VB<E> = BeS<QuickAttPair, E>;
 type FB<E> = BeS<QuickestBox, E>;
 type MB<E> = BeS<QuickMap, E>;
 
@@ -65,67 +64,13 @@ pub struct Getters {
 
 macro_rules! make_interfaces {
     ($($e_key:ident > $e_t:ty),*;$($f_key:ident => $f_t:ty),*; $($v_key:ident -> $v_t:ty),*; $($loc_key:ident loc $loc_t:ty),*; $($m_key:ident >> $m_t:ty),*) => {
-        struct Interfaces {
-            $($e_key: VB<MAA<$e_t, MainWorkMarker>>,)*
-            $($f_key: FB<$f_t>,)*
-            $($v_key: VB<$v_t>,)*
-            $($m_key: MB<$m_t>,)*
-            $($loc_key: Arc<Locators<$loc_t>>,)*
-        }
-
-        impl Interfaces {
-            fn new(stowage: Arc<Stowage>) -> Self {
-
-                $(
-                    let stowage_clone = Arc::clone(&stowage);
-                    let $e_key = std::thread::spawn( move || {
-                        <$e_t as WorkLoader>::load_work_interface(stowage_clone)
-                    });
-                )*
-                $(
-                    let stowage_clone = Arc::clone(&stowage);
-                    let $f_key = std::thread::spawn( move || {
-                        stowage_clone.get_entity_interface::<$f_t, QuickestBox>()
-                    });
-                )*
-                $(
-                    let stowage_clone = Arc::clone(&stowage);
-                    let $v_key = std::thread::spawn( move || {
-                        stowage_clone.get_entity_interface::<$v_t, QuickAttPair>()
-                    });
-                )*
-                $(
-                    let stowage_clone = Arc::clone(&stowage);
-                    let $m_key = std::thread::spawn( move || {
-                        stowage_clone.get_entity_interface::<$m_t, QuickMap>()
-                    });
-                )*
-                $(
-                    let stowage_clone = Arc::clone(&stowage);
-                    let $loc_key = std::thread::spawn( move || {
-                        get_locator::<$loc_t>(&stowage_clone)
-                    });
-                )*
-
-                Self {
-                    $($e_key: $e_key.join().expect("Thread panicked")),*,
-                    $($f_key: $f_key.join().expect("Thread panicked")),*,
-                    $($v_key: $v_key.join().expect("Thread panicked")),*,
-                    $($m_key: $m_key.join().expect("Thread panicked")),*,
-                    $($loc_key: $loc_key.join().expect("Thread panicked")),*,
-                }
-            }
-
-            fn fake() -> Self {
-                    Self {
-                        $($f_key: Vec::new().into()),*,
-                        $($e_key: VattArrPair::empty()),*,
-                        $($v_key: VattArrPair::empty()),*,
-                        $($loc_key: Locators::<$loc_t>::empty().into()),*,
-                        $($m_key: HashMap::new().into()),*
-                    }
-            }
-        }
+        rankless_rs::make_interface_struct!(Interfaces,
+            $($e_key > $e_t),*;
+            $($f_key => $f_t),*;
+            $($v_key -> $v_t),*;
+            $($loc_key loc $loc_t),*;
+            $($m_key >> $m_t),*
+        );
 
         impl Getters {
 
@@ -482,17 +427,6 @@ impl Getters {
             orcid_authors: HashSet::new(),
         }
     }
-}
-
-fn get_locator<E>(stowage: &Stowage) -> Arc<Locators<E>>
-where
-    Locators<E>: BackendLoading<E>,
-    E: NamespacedEntity,
-    E: VariableSizeAttribute,
-    ET<E>: VarSizedAttributeElement,
-{
-    let path = stowage.path_from_ns(E::NS);
-    return <Locators<E> as BackendLoading<E>>::load_backend(&path).into();
 }
 
 impl<T, Mark> StringAtt<Mark> for T where T: VarAtt<Mark, VT = String> {}
