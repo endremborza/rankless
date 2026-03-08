@@ -34,6 +34,16 @@ where
 }
 
 #[macro_export]
+macro_rules! par_join {
+    ($($f:expr),+ $(,)?) => {{
+        std::thread::scope(|s| {
+            let handles = [$( s.spawn($f) ),+];
+            handles.map(|h| h.join().expect("thread panicked"))
+        })
+    }};
+}
+
+#[macro_export]
 macro_rules! para_multi_gen_run {
     ($fun: ident, $($t: ident),*; $parc: expr) => {
         {
