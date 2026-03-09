@@ -11,7 +11,7 @@ Two comparison modes exist:
 | Mode | Script | Purpose |
 |------|--------|---------|
 | **Branch comparison** | `pyscripts/branch_comparison.py` | Two Docker containers (one per branch), structural tree diff — correctness + timing |
-| **SQL comparison** | `pyscripts/sql_comparison_eval.py` | Flask/PostgreSQL vs Rust — structural diff, Pearson correlation, relative error |
+| **SQL comparison** | `pyscripts/sql_comparison.py` | Flask/PostgreSQL vs Rust — structural diff, Pearson correlation, relative error |
 
 Both produce identical artifact sets via the shared `pyscripts/comparison_report.py` module.
 
@@ -20,7 +20,7 @@ Both produce identical artifact sets via the shared `pyscripts/comparison_report
 ## Shared Infrastructure
 
 ### `pyscripts/comparison_report.py`
-Shared analysis and reporting — used by both comparison scripts:
+Shared analysis and reporting — used by both comparison scripts. Also exports `open_report(html_path)` which attempts to open the result in Firefox (silently ignored if unavailable).
 - `CompResult` — dataclass with `time_a`, `time_b`, `diff_df` (always `"a_"`/`"b_"` prefixed columns)
 - `setup_logging(log_path)` — attaches DEBUG file handler + INFO console handler to `rankless.comparison` logger
 - `build_summary_df(results)` — per-query metrics: Pearson, rel-error, missing nodes
@@ -133,18 +133,49 @@ make bm
 ## SQL / Reference Comparison
 
 ```bash
-make start_comparison   # start Docker containers (Rust + Flask/PG)
-make sql_comparison_eval
+make sql_comparison
+
+# With options:
+python -m pyscripts.sql_comparison --rebuild-rust binary   # default: rebuild binary + Docker image
+python -m pyscripts.sql_comparison --rebuild-rust none     # reuse existing image
+python -m pyscripts.sql_comparison --rebuild-sql           # also rebuild Flask/PG container
+python -m pyscripts.sql_comparison --no-keep-sql           # stop Flask/PG after run
+python -m pyscripts.sql_comparison --samples 8
 ```
 
-`pyscripts/start_comparison.py` — builds and starts:
-- `rankless-rust` — current binary on host network port 3038
-- `rankless-pg-python` — Flask + PostgreSQL on port 5000
-
-`pyscripts/sql_comparison_eval.py` — structural comparison:
-- OA→DM ID translation via `translate_tree` for fair key comparison
+`pyscripts/sql_comparison.py` — unified script managing both containers:
+- Rust: `rankless-rust-sql` container on port 3038 (rebuilt per `--rebuild-rust` level, stopped after run)
+- Flask/PG: `rankless-pg-python` container on port 5000 (kept running between runs by default)
+- `FlaskPgServer.is_running()` — skips start if Flask container is already up
+- OA→DM ID translation via `_translate_tree` for fair key comparison
 - `label_a="flask"`, `label_b="rs"` — time ratio = flask/rs (>1 means flask is slower)
-- Produces the same artifact set as branch comparison (see Artifacts table above)
+- Memory tracked via `docker stats` for both containers
+- Opens `report.html` in Firefox on completion (silently skipped if unavailable)
+
+### Rebuild levels (--rebuild-rust)
+
+| Level | Binary | Pipeline | Docker image | Use when |
+|-------|--------|----------|--------------|---------|
+| `none` | — | — | existing | nothing changed |
+| `binary` | rebuild | existing data | rebuilt | server/tree code changed (**default**) |
+| `pipeline` | rebuild | `make filter` | rebuilt | pipeline code changed |
+| `full` | rebuild | `make complete` | rebuilt | input data changed |
+
+### Fast iteration workflow
+
+```bash
+# First run: Flask/PG container starts and stays alive
+python -m pyscripts.sql_comparison
+
+# After editing Rust code — only rebuilds binary + Docker image:
+python -m pyscripts.sql_comparison
+
+# After pipeline code change:
+python -m pyscripts.sql_comparison --rebuild-rust pipeline
+
+# Force Flask/PG rebuild (e.g. after SQL schema change):
+python -m pyscripts.sql_comparison --rebuild-sql
+```
 
 ---
 
@@ -156,14 +187,24 @@ make sql_comparison_eval
 python -m pyscripts.branch_comparison --rebuild-a binary --rebuild-b binary
 ```
 
-### Subsequent run (no rebuild)
+### Subsequent branch comparison (no rebuild)
 
 ```bash
 python -m pyscripts.branch_comparison --rebuild-a none --rebuild-b none
 ```
 
-### After pipeline code change
+### After pipeline code change (branch comparison)
 
 ```bash
 python -m pyscripts.branch_comparison --rebuild-a pipeline --rebuild-b pipeline
+```
+
+### Iterating on Rust server code against SQL baseline
+
+```bash
+# First run: starts Flask/PG container (slow), runs comparison, keeps Flask alive
+python -m pyscripts.sql_comparison
+
+# Edit Rust code, then re-run — Flask container reused, only Rust image rebuilt
+python -m pyscripts.sql_comparison
 ```

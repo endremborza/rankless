@@ -39,6 +39,7 @@ from pyscripts.comparison_report import (
     build_summary_df,
     build_totals,
     logger,
+    open_report,
     plot_accuracy,
     plot_memory,
     plot_timing,
@@ -263,15 +264,17 @@ def run_comparison(
         plot_paths,
         mem_stats=mem_stats,
     )
+    html_path = artifacts_dir / "report.html"
     save_html(
         grouped_df,
         totals,
         label_a,
         label_b,
-        artifacts_dir / "report.html",
+        html_path,
         plot_paths,
         mem_stats=mem_stats,
     )
+    open_report(html_path)
 
 
 if __name__ == "__main__":

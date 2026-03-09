@@ -5,7 +5,7 @@ called with label_a="a", label_b="b"). Display labels (e.g. "rs", "flask",
 branch names) are passed separately to reporting functions.
 
 Used by branch_comparison.py (branch A vs branch B) and
-sql_comparison_eval.py (Flask/PG vs Rust).
+sql_comparison.py (Flask/PG vs Rust).
 """
 
 import logging
@@ -648,3 +648,10 @@ def save_html(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(html)
     logger.info("HTML report → %s", out_path)
+
+
+def open_report(html_path: Path) -> None:
+    try:
+        subprocess.Popen(["firefox", str(html_path)])
+    except Exception:
+        pass
