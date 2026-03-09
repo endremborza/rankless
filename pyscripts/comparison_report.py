@@ -162,7 +162,7 @@ def build_summary_df(results: list[CompResult]) -> pd.DataFrame:
         lc = metric_stats(cr.diff_df, METRICS[0], "a", "b")
         sc = metric_stats(cr.diff_df, METRICS[1], "a", "b")
         if lc is None or sc is None:
-            logger.debug("skipped %s/%s (relerr too high)", cr.root_type, cr.bd_label)
+            logger.debug("skipped %s/%s (empty diff)", cr.root_type, cr.bd_label)
             continue
         ts = top_source_stats(cr.diff_df, "a", "b")
         rows.append(
