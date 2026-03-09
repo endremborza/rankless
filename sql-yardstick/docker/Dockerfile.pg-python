@@ -27,7 +27,6 @@ RUN chmod +x /entrypoint.sh
 # OA data directory mounted at runtime: -v /path/to/oa-root:/data/oa-root
 # ccl_science_data source mounted at runtime: -v /path/to/ccl-science-data:/ccl-science-data
 ENV OA_ROOT=/data/oa-root
-ENV RANKLESS_ENV=micro
 ENV PG_CONSTR=postgresql://rankless:rankless@127.0.0.1:5432/rankless
 ENV FLASK_HOST=0.0.0.0
 ENV PYTHONPATH=/ccl-science-data
