@@ -19,8 +19,8 @@ use tqdm::{Iter, Tqdm};
 
 use dmove::{
     BackendLoading, BigId, CompactEntity, Entity, FixAttIterator, FixWriteSizeEntity, LoadedIdMap,
-    Locators, MainBuilder, MappableEntity, MarkedAttribute, MetaIntegrator, NamespacedEntity,
-    UnsignedNumber, VarAttBuilder, VarAttIterator, VarBox, VarSizedAttributeElement,
+    Locators, MainBuilder, MappableEntity, MarkedAttribute, MetaIntegrator, MmapSlice,
+    NamespacedEntity, UnsignedNumber, VarAttBuilder, VarAttIterator, VarBox, VarSizedAttributeElement,
     VariableSizeAttribute, VattArrPair, VattReadingMap, ET, MAA,
 };
 
@@ -225,6 +225,7 @@ where
 pub struct QuickestNumbered {}
 pub struct QuickMap {}
 pub struct QuickestBox {}
+pub struct MmapBox {}
 pub struct QuickAttPair {}
 pub struct QuickestVBox {}
 pub struct VarFile {}
@@ -501,6 +502,13 @@ where
     E: CompactEntity,
 {
     type BE = Box<[E::T]>;
+}
+
+impl<E> BackendSelector<E> for MmapBox
+where
+    E: FixWriteSizeEntity,
+{
+    type BE = MmapSlice<E::T>;
 }
 
 impl<E> BackendSelector<E> for QuickestVBox
