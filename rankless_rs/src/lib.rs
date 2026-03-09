@@ -15,7 +15,7 @@ mod semantic_ids;
 pub mod steps;
 
 pub use common::{
-    CiteCountMarker, CoordinateMarker, NameExtensionMarker, NameMarker, PageFilterMarker,
+    CiteCountMarker, CoordinateMarker, MmapBox, NameExtensionMarker, NameMarker, PageFilterMarker,
     PeerAuthorMarker, QuickestBox, QuickestNumbered, QuickestVBox, ReadFixIter, ReadIter,
     SemanticIdMarker, Stowage, WorkCountMarker,
 };
