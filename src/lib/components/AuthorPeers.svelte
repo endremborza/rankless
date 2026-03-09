@@ -14,10 +14,6 @@
 		return 0.1 + 0.9 * (val / max);
 	}
 
-	function sparkBars(entry: PeerAuthorEntry): { papers: number[]; cites: number[] } {
-		return { papers: entry.yearlyPapers, cites: entry.yearlyCites };
-	}
-
 	function sparkMax(entries: PeerAuthorEntry[]): { papers: number; cites: number } {
 		return {
 			papers: Math.max(1, ...entries.flatMap((e) => e.yearlyPapers)),
@@ -27,12 +23,48 @@
 
 	$: sMax = sparkMax(allEntries);
 
+	const STOP = /^(and|of|the|in|for|a|an|at|by|to)$/i;
+
 	function abbrSfName(name: string): string {
-		const words = name.split(/\s+/);
-		if (words.length <= 2 || name.length <= 18) return name;
-		return words.map((w) => (/^(and|of|the|in|for)$/i.test(w) ? '' : w[0])).filter(Boolean).join('');
+		const significant = name.split(/\s+/).filter((w) => !STOP.test(w));
+		if (significant.length === 0) return name.slice(0, 5);
+		if (significant.length === 1) return significant[0].slice(0, 5);
+		return significant.map((w) => w[0]).join('');
+	}
+
+	let hoveredTooltip: number | null = null;
+	let stuckTooltip: number | null = null;
+	let tooltipX = 0;
+	let tooltipY = 0;
+
+	$: activeTooltip = stuckTooltip ?? hoveredTooltip;
+
+	function setPos(el: Element) {
+		const r = el.getBoundingClientRect();
+		tooltipX = r.left + r.width / 2;
+		tooltipY = r.top;
+	}
+
+	function onEnter(si: number, e: MouseEvent) {
+		hoveredTooltip = si;
+		if (stuckTooltip === null) setPos(e.currentTarget as HTMLElement);
+	}
+
+	function onLeave() {
+		hoveredTooltip = null;
+	}
+
+	function onBtnClick(si: number, e: MouseEvent) {
+		if (stuckTooltip === si) {
+			stuckTooltip = null;
+		} else {
+			stuckTooltip = si;
+			setPos(e.currentTarget as HTMLElement);
+		}
 	}
 </script>
+
+<svelte:window on:click={() => (stuckTooltip = null)} />
 
 <div class="peers-table-wrap">
 	<table class="peers-table">
@@ -40,8 +72,15 @@
 			<tr>
 				<th class="name-col">Author</th>
 				{#each data.topSubfields as sf, si}
-					<th class="sf-col" title={sf.name}>
-						<a href="/subfields/{sf.semanticId}">{abbrSfName(sf.name)}</a>
+					<th
+						class="sf-col"
+						on:mouseenter={(e) => onEnter(si, e)}
+						on:mouseleave={onLeave}
+					>
+						<button
+							class="sf-header-btn"
+							on:click|stopPropagation={(e) => onBtnClick(si, e)}
+						>{abbrSfName(sf.name)}</button>
 					</th>
 				{/each}
 				<th class="spark-col">Last Decade</th>
@@ -52,7 +91,6 @@
 		<tbody>
 			{#each allEntries as entry, ei}
 				{@const isHero = ei === 0}
-				{@const bars = sparkBars(entry)}
 				<tr class:hero-row={isHero}>
 					<td class="name-cell">
 						{#if isHero}
@@ -71,26 +109,14 @@
 						</td>
 					{/each}
 					<td class="spark-cell">
-						<svg viewBox="0 0 {bars.papers.length} 2" class="sparkline" preserveAspectRatio="none">
-							{#each bars.cites as c, i}
-								<rect
-									x={i}
-									y={0}
-									width={0.8}
-									height={c / sMax.cites}
-									class="cite-bar"
-								/>
+						<svg viewBox="0 0 {entry.yearlyPapers.length} 2" class="sparkline" preserveAspectRatio="none">
+							{#each entry.yearlyCites as c, i}
+								<rect x={i} y={0} width={0.8} height={c / sMax.cites} class="cite-bar" />
 							{/each}
-							{#each bars.papers as p, i}
-								<rect
-									x={i}
-									y={1}
-									width={0.8}
-									height={p / sMax.papers}
-									class="paper-bar"
-								/>
+							{#each entry.yearlyPapers as p, i}
+								<rect x={i} y={1} width={0.8} height={p / sMax.papers} class="paper-bar" />
 							{/each}
-							<line x1={0} x2={bars.papers.length} y1={1} y2={1} class="axis" />
+							<line x1={0} x2={entry.yearlyPapers.length} y1={1} y2={1} class="axis" />
 						</svg>
 					</td>
 					<td class="stat-cell">{formatNumber(entry.papers)}</td>
@@ -100,6 +126,15 @@
 		</tbody>
 	</table>
 </div>
+
+{#if activeTooltip !== null}
+	<div
+		class="sf-tooltip"
+		style="left:{tooltipX}px; top:{tooltipY}px;"
+	>
+		{data.topSubfields[activeTooltip].name}
+	</div>
+{/if}
 
 <style>
 	.peers-table-wrap {
@@ -123,13 +158,34 @@
 		border-bottom: 1px solid rgba(var(--color-range-15), 0.15);
 	}
 
-	thead th a {
+	.sf-header-btn {
+		background: none;
+		border: none;
+		padding: 0;
+		font: inherit;
 		color: inherit;
-		text-decoration: none;
+		cursor: pointer;
+		text-transform: inherit;
+		letter-spacing: inherit;
 	}
 
-	thead th a:hover {
-		text-decoration: underline;
+	.sf-header-btn:hover {
+		opacity: 0.8;
+	}
+
+	.sf-tooltip {
+		position: fixed;
+		transform: translateX(-50%) translateY(calc(-100% - 6px));
+		background: #222;
+		color: #fff;
+		padding: 6px 10px;
+		border-radius: 4px;
+		font-size: 0.82rem;
+		white-space: nowrap;
+		z-index: 100;
+		pointer-events: none;
+		text-transform: none;
+		letter-spacing: 0;
 	}
 
 	.name-col {
@@ -214,7 +270,8 @@
 			padding: 7px 10px;
 		}
 
-		.sf-cell, .stat-cell {
+		.sf-cell,
+		.stat-cell {
 			font-size: 0.9rem;
 		}
 
