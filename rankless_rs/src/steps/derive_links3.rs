@@ -53,7 +53,10 @@ const N_PEER_SF_DIMS: usize = 10;
 const N_PCA_DIMS: usize = 10;
 const N_EMBED_DIMS: usize = N_PCA_DIMS + 2;
 type EmbedDim = typenum::U12;
-const _: () = assert!(N_EMBED_DIMS == 12, "EmbedDim typenum alias must match N_EMBED_DIMS");
+const _: () = assert!(
+    N_EMBED_DIMS == 12,
+    "EmbedDim typenum alias must match N_EMBED_DIMS"
+);
 // Number of citation-rank deciles; each decile gets its own KD-tree.
 const N_DECILES: usize = 20;
 // KNN candidates requested per decile tree in Phase 2.
@@ -176,7 +179,10 @@ impl Worker<(usize, [f64; 2])> for PeerWorker {
                 if heap.len() >= N_PEERS {
                     heap.pop();
                 }
-                heap.push(PeerCandidate { dist_sq, dm_id: *cand_dm_id });
+                heap.push(PeerCandidate {
+                    dist_sq,
+                    dm_id: *cand_dm_id,
+                });
             }
         }
         let mut out = [AuthorId::default(); N_PEERS];
@@ -376,7 +382,10 @@ pub fn compute_sf_pca(cit_sfs: &[AuthorCitSfArr], filter: &[u8]) -> PcaResult {
         .take(N_PCA_DIMS)
         .map(|&i| eigen.eigenvalues[i])
         .collect();
-    println!("[pca] top {} eigenvalues: {:?}", N_PCA_DIMS, top_eigenvalues);
+    println!(
+        "[pca] top {} eigenvalues: {:?}",
+        N_PCA_DIMS, top_eigenvalues
+    );
     let top_components: Vec<Vec<f64>> = order
         .iter()
         .take(N_PCA_DIMS)
@@ -410,9 +419,7 @@ pub fn compute_sf_pca(cit_sfs: &[AuthorCitSfArr], filter: &[u8]) -> PcaResult {
                                 let dot: f64 = comps[k]
                                     .iter()
                                     .enumerate()
-                                    .map(|(sf, &c)| {
-                                        c * ((x[sf].max(1) as f64).ln() - means[sf])
-                                    })
+                                    .map(|(sf, &c)| c * ((x[sf].max(1) as f64).ln() - means[sf]))
                                     .sum();
                                 (dot / scales[k]) as f32
                             });
@@ -436,7 +443,11 @@ pub fn compute_sf_pca(cit_sfs: &[AuthorCitSfArr], filter: &[u8]) -> PcaResult {
 
     PcaResult {
         projections,
-        components: PcaComponents { means, components: top_components, scales },
+        components: PcaComponents {
+            means,
+            components: top_components,
+            scales,
+        },
     }
 }
 
@@ -483,8 +494,7 @@ fn compute_author_peers(stowage: &Stowage, coords: &[[f64; 2]], filter: &[u8]) {
         dm_to_rank[dm_id] = rank;
     }
 
-    let sf_weights: [f64; N_PEER_SF_DIMS] =
-        core::array::from_fn(|k| 2.0 * 0.9f64.powi(k as i32));
+    let sf_weights: [f64; N_PEER_SF_DIMS] = core::array::from_fn(|k| 2.0 * 0.9f64.powi(k as i32));
 
     let t0 = std::time::Instant::now();
     let pca = compute_sf_pca(&cit_sfs, filter);
