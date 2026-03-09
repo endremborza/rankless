@@ -356,8 +356,18 @@ where
     }
 
     fn add_iters(self, stowage: &Stowage) {
-        let cisu_vec = self.citing_subfields.vec.into_iter().map(|e| e.0).collect();
-        let pasu_vec = self.paper_subfields.vec.into_iter().map(|e| e.0).collect();
+        let cisu_vec: Vec<[u32; Subfields::N]> = self
+            .citing_subfields
+            .vec
+            .into_iter()
+            .map(|e| e.0.map(|v| v as u32))
+            .collect();
+        let pasu_vec: Vec<[u32; Subfields::N]> = self
+            .paper_subfields
+            .vec
+            .into_iter()
+            .map(|e| e.0.map(|v| v as u32))
+            .collect();
 
         stowage.ditf::<CitSubfieldsArrayMarker, E, _>(cisu_vec, "cit-subfields");
         stowage.ditf::<RefSubfieldsArrayMarker, E, _>(pasu_vec, "ref-subfields");
