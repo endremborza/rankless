@@ -1,11 +1,5 @@
 use std::{
-    cmp::Ordering,
-    fmt::Debug,
-    hash::Hash,
-    io,
-    iter::Enumerate,
-    mem::replace,
-    ops::AddAssign,
+    cmp::Ordering, fmt::Debug, hash::Hash, io, iter::Enumerate, mem::replace, ops::AddAssign,
     sync::Arc,
 };
 
@@ -67,7 +61,7 @@ pub struct InstRelation {
     pub start: YT,
     pub end: YT,
     pub inst: IT,
-    pub papers: u16,
+    pub papers: u32,
     pub citations: u32,
 }
 
@@ -718,11 +712,26 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         sf_inferter.data.clone(),
     );
     par_join!(
-        { let cd = cd_arc.clone(); move || cd.author_paths(a) },
-        { let cd = cd_arc.clone(); move || cd.cite_count::<Institutions>(i) },
-        { let cd = cd_arc.clone(); move || cd.cite_count::<Countries>(country_works.into()) },
-        { let cd = cd_arc.clone(); move || cd.cite_count::<Subfields>(sf) },
-        { let cd = cd_arc.clone(); move || cd.cite_count_read::<Topics>(()) },
+        {
+            let cd = cd_arc.clone();
+            move || cd.author_paths(a)
+        },
+        {
+            let cd = cd_arc.clone();
+            move || cd.cite_count::<Institutions>(i)
+        },
+        {
+            let cd = cd_arc.clone();
+            move || cd.cite_count::<Countries>(country_works.into())
+        },
+        {
+            let cd = cd_arc.clone();
+            move || cd.cite_count::<Subfields>(sf)
+        },
+        {
+            let cd = cd_arc.clone();
+            move || cd.cite_count_read::<Topics>(())
+        },
     );
     cd_arc.stowage.write_code()?;
     let cd = Arc::into_inner(cd_arc).unwrap();
