@@ -5,6 +5,8 @@ use std::{
     path::PathBuf,
 };
 
+use memmap2::Mmap;
+
 use crate::{
     common::{
         get_type_name, get_uscale, ByteFixArrayInterface, Entity, MainBuilder, MappableEntity,
@@ -41,6 +43,11 @@ where
     file: File,
     buf: [u8; MAX_FIXBUF],
     p: PhantomData<E>,
+}
+
+pub struct MmapSlice<V> {
+    mmap: Mmap,
+    _marker: PhantomData<V>,
 }
 
 pub trait FixWriteSizeEntity: Entity {
@@ -97,6 +104,33 @@ where
             file,
             buf: [0; MAX_FIXBUF],
             p: PhantomData,
+        }
+    }
+}
+
+impl<V: ByteFixArrayInterface> MmapSlice<V> {
+    pub fn row(&self, idx: usize) -> V {
+        let start = idx * V::S;
+        V::from_fbytes(&self.mmap[start..start + V::S])
+    }
+
+    pub fn len(&self) -> usize {
+        self.mmap.len() / V::S
+    }
+}
+
+impl<E, V> BackendLoading<E> for MmapSlice<V>
+where
+    E: FixWriteSizeEntity<FWT = V> + Entity<T = V>,
+    V: ByteFixArrayInterface,
+{
+    fn load_backend(path: &PathBuf) -> Self {
+        let fp = path.join(E::NAME);
+        let file = File::open(&fp).expect(fp.to_str().unwrap());
+        let mmap = unsafe { Mmap::map(&file).expect(fp.to_str().unwrap()) };
+        Self {
+            mmap,
+            _marker: PhantomData,
         }
     }
 }
