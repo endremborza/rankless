@@ -140,6 +140,7 @@ where
     T: ByteFixArrayInterface,
 {
     fn setup(builder: &MainBuilder, name: &str) -> Self {
+        assert!(T::S <= MAX_FIXBUF);
         let full_path = builder.parent_root.join(name);
         let file = File::create(&full_path).expect(full_path.to_str().unwrap());
         Self {
