@@ -33,29 +33,29 @@ async function explore(page: Page, url: string, level: number) {
 	}
 
 	const options = await currentSelect.locator('option').all();
-    const optionValues = await Promise.all(options.map(o => o.getAttribute('value')));
+	const optionValues = await Promise.all(options.map(o => o.getAttribute('value')));
 
 	for (const value of optionValues) {
 		if (!value) continue;
 
-        await currentSelect.selectOption({ value });
-        await page.waitForLoadState('networkidle');
+		await currentSelect.selectOption({ value });
+		await page.waitForLoadState('networkidle');
 
-        // After selecting, collect the current state of all selects
-        const allSelects = await selects.all();
-        const currentPathValues = [];
-        const semanticPathTexts = [];
+		// After selecting, collect the current state of all selects
+		const allSelects = await selects.all();
+		const currentPathValues = [];
+		const semanticPathTexts = [];
 
-        for(let i = 0; i <= level && i < allSelects.length; i++) {
-            const selectedValue = await allSelects[i].inputValue();
-            currentPathValues.push(selectedValue);
+		for (let i = 0; i <= level && i < allSelects.length; i++) {
+			const selectedValue = await allSelects[i].inputValue();
+			currentPathValues.push(selectedValue);
 
-            const selectedOptionText = await allSelects[i].locator('option:checked').textContent();
-            semanticPathTexts.push(selectedOptionText || '');
-        }
+			const selectedOptionText = await allSelects[i].locator('option:checked').textContent();
+			semanticPathTexts.push(selectedOptionText || '');
+		}
 
 		const key = `${url}-${level}`;
-        optionTrees[key] = (optionTrees[key] || []).concat(currentPathValues.join(' > '));
+		optionTrees[key] = (optionTrees[key] || []).concat(currentPathValues.join(' > '));
 		semanticDescriptions[key] = (semanticDescriptions[key] || []).concat(semanticPathTexts.join(' > ').replace(/\\n/g, '').replace(/\s+/g, ' ').trim());
 
 		await explore(page, url, level + 1);
@@ -74,9 +74,9 @@ test.describe('Breakdown selection', () => {
 			}
 		}
 
-		fs.writeFileSync('breakdown-option-trees.json', JSON.stringify(optionTrees, null, 2));
+		fs.writeFileSync('logs/breakdown-option-trees.json', JSON.stringify(optionTrees, null, 2));
 		fs.writeFileSync(
-			'breakdown-semantic-descriptions.json',
+			'logs/breakdown-semantic-descriptions.json',
 			JSON.stringify(semanticDescriptions, null, 2)
 		);
 	});
