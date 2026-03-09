@@ -66,7 +66,7 @@ Data directory stashing via rsync:
 
 ## Artifacts
 
-Both comparison scripts write the same set of artifacts to `docs/comparison-artifacts/{timestamp}-{slug}/`:
+Both comparison scripts write the same set of artifacts to `logs/comparison-artifacts/{timestamp}-{slug}/`:
 
 | File | Purpose | Committable |
 |------|---------|-------------|
