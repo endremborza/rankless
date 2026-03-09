@@ -14,7 +14,7 @@ use axum::{
 use dmove::{
     para::{set_and_notify, wait_for_data_copy, AcTuple},
     para_multi_gen_run, reverse_prefixed_n, ByteArrayInterface, Entity, EntityMutableMapperBackend,
-    NamespacedEntity, UnsignedNumber, VattReadingArcMap, ET,
+    MmapSlice, NamespacedEntity, UnsignedNumber, VattReadingArcMap, ET,
 };
 use hashbrown::{HashMap, HashSet};
 use kd_tree::{KdPoint, KdTree};
@@ -32,7 +32,7 @@ use tokio::{net::TcpListener, sync::Notify};
 
 use muwo_search::SearchEngine;
 use rankless_rs::{
-    common::{CitSubfieldsArrayMarker, MainEntity, PeerAuthorMarker},
+    common::{CitSubfieldsArrayMarker, MainEntity, MmapBox, PeerAuthorMarker},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
         a2_init_atts::{AuthorOrcids, DiscardedAuthorsNames, WorkBiblios, WorkDois},
@@ -97,7 +97,7 @@ const N_PEER_SUBFIELDS: usize = 5;
 
 struct AuthorPeerData {
     peers: Box<[<Authors as FixAtt<PeerAuthorMarker>>::FT]>,
-    cit_subfields: Box<[<Authors as FixAtt<CitSubfieldsArrayMarker>>::FT]>,
+    cit_subfields: MmapSlice<<Authors as FixAtt<CitSubfieldsArrayMarker>>::FT>,
 }
 
 #[derive(Serialize)]
@@ -117,7 +117,7 @@ struct PeerAuthorEntry {
     papers: u32,
     citations: u32,
     #[serde(rename = "subfieldCitations")]
-    subfield_citations: Vec<usize>,
+    subfield_citations: Vec<u32>,
     #[serde(rename = "yearlyPapers")]
     yearly_papers: EraRec,
     #[serde(rename = "yearlyCites")]
@@ -185,7 +185,6 @@ struct NameState {
     responses: Box<[SearchResult]>,
     exts: Box<[ResultExtension]>,
     prep_exts: Box<[PreAttResultExtension]>,
-    coords: Box<[Coords]>,
     pub semantic_id_map: HashMap<String, SemVal>,
     pub oa_id_map: HashMap<usize, usize>,
     pub dm_id_to_result_id: HashMap<usize, usize>,
@@ -240,6 +239,8 @@ struct SearchResult {
     oa_id: u64,
     #[serde(rename = "dmId")]
     dm_id: usize,
+    #[serde(skip_serializing)]
+    coord: Coords,
     #[serde(rename = "distinctText", skip_serializing_if = "Option::is_none")]
     distinct_text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -355,6 +356,7 @@ impl SearchResult {
         ext: String,
         semantic_id: String,
         distinct_text: Option<String>,
+        coord: Coords,
         entif: &RootInterfaces<E>,
         gets: &Getters,
     ) -> Self
@@ -371,6 +373,7 @@ impl SearchResult {
             name,
             semantic_id,
             distinct_text,
+            coord,
             papers,
             citations: entif.ccounts[i].to_usize() as u32,
             oa_id: entif.oa_id[i],
@@ -551,9 +554,7 @@ impl NameState {
         let mut oa_id_map = HashMap::new();
         let mut kdt_base = Vec::new();
         for (i, res) in responses.iter().enumerate() {
-            // Coordinates are pre-normalized in the pipeline over the page-filtered set.
-            let kd_rec = entif.coordinates[res.dm_id];
-            kdt_base.push(kd_rec);
+            kdt_base.push(res.coord);
             let dm_id = res.dm_id;
             let oa_id = entif.oa_id[dm_id as usize];
             oa_id_map.insert(oa_id.to_usize(), i);
@@ -566,8 +567,7 @@ impl NameState {
             );
         }
 
-        let coords: Box<[Coords]> = kdt_base.into_boxed_slice();
-        let query_tree = tree_from_iter(coords.iter().copied().collect());
+        let query_tree = tree_from_iter(kdt_base);
         let dm_id_to_result_id =
             HashMap::from_iter(responses.iter().enumerate().map(|(i, res)| (res.dm_id, i)));
 
@@ -580,7 +580,6 @@ impl NameState {
             oa_id_map,
             query_tree,
             dm_id_to_result_id,
-            coords,
         }
     }
 
@@ -610,6 +609,7 @@ impl NameState {
                     ext,
                     semantic_id.to_string(),
                     dist_txt,
+                    entif.coordinates[i],
                     entif,
                     gets,
                 )
@@ -648,7 +648,8 @@ fn get_rest(
     let author_peer_data = {
         let stow = &gets.stowage;
         let peers = <Authors as FixAtt<PeerAuthorMarker>>::load(stow);
-        let cit_subfields = <Authors as FixAtt<CitSubfieldsArrayMarker>>::load(stow);
+        let cit_subfields =
+            stow.get_marked_interface::<Authors, CitSubfieldsArrayMarker, MmapBox>();
         print_mem_use("loaded author peer data");
         Arc::new(AuthorPeerData {
             peers,
@@ -879,7 +880,7 @@ async fn view_get(
             let i = sem_val.result_id;
             let srs = &state.responses[i];
             let ext = &state.exts[i];
-            let query = state.coords[i];
+            let query = state.responses[i].coord;
             let n_close = min(state.responses.len() / 20, 500);
             let mut closes = state.query_tree.nearests(&query, n_close);
             let mut rng = StdRng::seed_from_u64(742);
@@ -995,9 +996,9 @@ fn build_peer_entry(
 ) -> PeerAuthorEntry {
     let sr = &astates.responses[rid];
     let ext = &astates.exts[rid];
-    let sf_cits: Vec<usize> = sf_indices
+    let sf_cits: Vec<u32> = sf_indices
         .iter()
-        .map(|&si| apd.cit_subfields[dm_id][si])
+        .map(|&si| apd.cit_subfields.row(dm_id)[si] as u32)
         .collect();
     PeerAuthorEntry {
         name: sr.name.clone(),
