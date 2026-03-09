@@ -138,7 +138,7 @@ where
     {
         let map_path = PathBuf::from(id_map_path);
         if !map_path.is_file() {
-            File::create(&map_path).unwrap();
+            File::create(&map_path).expect(&format!("can't create {map_path:?}"));
         }
         Self {
             map_path,
