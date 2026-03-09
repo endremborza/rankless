@@ -6,12 +6,11 @@ entities via both backends, and evaluates correctness and timing.
 Usage:
     python -m pyscripts.sql_comparison_eval
 
-Artifacts are written to docs/comparison-artifacts/sql-{timestamp}/.
+Artifacts are written to logs/comparison-artifacts/sql-{timestamp}/.
 """
 
 import re
 from datetime import datetime
-from pathlib import Path
 
 import pandas as pd
 import requests
@@ -95,7 +94,9 @@ def translate_tree(
         dm_key = oa_to_dm.get(str(k), str(k))
         new_v = dict(v)
         if "children" in new_v:
-            new_v["children"] = translate_tree(new_v["children"], breakdowns, maps, depth + 1)
+            new_v["children"] = translate_tree(
+                new_v["children"], breakdowns, maps, depth + 1
+            )
         translated[dm_key] = new_v
     return translated
 
@@ -117,10 +118,12 @@ class ReproEvaluator:
                 if not all(et in SUPPORTED_ETYPES for et in bd_etypes):
                     continue
                 bd_label = ";".join(
-                    f"{b['attributeType']}-{'S' if b['sourceSide'] else 'T'}" for b in bds
+                    f"{b['attributeType']}-{'S' if b['sourceSide'] else 'T'}"
+                    for b in bds
                 )
                 flask_bds = [
-                    {"node": b["attributeType"], "sourceSide": b["sourceSide"]} for b in bds
+                    {"node": b["attributeType"], "sourceSide": b["sourceSide"]}
+                    for b in bds
                 ]
                 root_id = (
                     _id_to_cc(int(row["oa_id"]))
@@ -134,7 +137,9 @@ class ReproEvaluator:
                 }
                 ccount: int = row["citations"]
                 url = re.sub(r"tid=\d", f"tid={tid}", row["url"])
-                logger.debug("comparing %s/%s tid=%d ccount=%d", root_type, bd_label, tid, ccount)
+                logger.debug(
+                    "comparing %s/%s tid=%d ccount=%d", root_type, bd_label, tid, ccount
+                )
 
                 try:
                     flask_resp = requests.post(FLASK_URL, json=payload)
@@ -158,14 +163,24 @@ class ReproEvaluator:
                         time_a=flask_resp.elapsed.total_seconds(),
                         time_b=rs_resp.elapsed.total_seconds(),
                         diff_df=make_diff_df(
-                            flask_json["children"], "a",
-                            rs_json["tree"]["children"], "b",
+                            flask_json["children"],
+                            "a",
+                            rs_json["tree"]["children"],
+                            "b",
                         ),
                     )
                 except Exception as e:
-                    logger.warning("error for %s/%s tid=%d: %s", root_type, bd_label, tid, e)
+                    logger.warning(
+                        "error for %s/%s tid=%d: %s", root_type, bd_label, tid, e
+                    )
                     yield CompResult(
-                        root_type, bd_label, ccount, 0.0, 0.0, pd.DataFrame(), error=str(e)
+                        root_type,
+                        bd_label,
+                        ccount,
+                        0.0,
+                        0.0,
+                        pd.DataFrame(),
+                        error=str(e),
                     )
 
 
@@ -223,10 +238,20 @@ if __name__ == "__main__":
 
     print_report(grouped_df, totals, "flask", "rs")
     save_markdown(
-        grouped_df, totals, "flask", "rs", artifacts_dir / "report.md", plot_paths,
+        grouped_df,
+        totals,
+        "flask",
+        "rs",
+        artifacts_dir / "report.md",
+        plot_paths,
         mem_stats=mem_stats,
     )
     save_html(
-        grouped_df, totals, "flask", "rs", artifacts_dir / "report.html", plot_paths,
+        grouped_df,
+        totals,
+        "flask",
+        "rs",
+        artifacts_dir / "report.html",
+        plot_paths,
         mem_stats=mem_stats,
     )

@@ -14,7 +14,7 @@ Options:
     --samples N          Entities per citation-count bin (default: 4)
     --artifacts PATH     Output directory (default: docs/comparison-artifacts)
 
-See docs/comparisons-and-benchmarking.md for full explanation.
+See logs/comparisons-and-benchmarking.md for full explanation.
 """
 
 import argparse
@@ -255,11 +255,21 @@ def run_comparison(
 
     print_report(grouped_df, totals, label_a, label_b)
     save_markdown(
-        grouped_df, totals, label_a, label_b, artifacts_dir / "report.md", plot_paths,
+        grouped_df,
+        totals,
+        label_a,
+        label_b,
+        artifacts_dir / "report.md",
+        plot_paths,
         mem_stats=mem_stats,
     )
     save_html(
-        grouped_df, totals, label_a, label_b, artifacts_dir / "report.html", plot_paths,
+        grouped_df,
+        totals,
+        label_a,
+        label_b,
+        artifacts_dir / "report.html",
+        plot_paths,
         mem_stats=mem_stats,
     )
 

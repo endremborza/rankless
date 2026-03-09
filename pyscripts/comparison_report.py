@@ -12,7 +12,7 @@ import logging
 import subprocess
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -23,7 +23,7 @@ import seaborn as sns
 
 from pyscripts.tree_diff import METRICS, metric_stats, top_source_stats
 
-ARTIFACTS_ROOT = Path("docs/comparison-artifacts")
+ARTIFACTS_ROOT = Path("logs/comparison-artifacts")
 
 logger = logging.getLogger("rankless.comparison")
 
@@ -81,7 +81,10 @@ class MemoryTracker:
     def _poll(self) -> MemSample:
         r = subprocess.run(
             [
-                "docker", "stats", "--no-stream", "--format",
+                "docker",
+                "stats",
+                "--no-stream",
+                "--format",
                 "{{.Name}}\t{{.MemUsage}}",
                 *self.containers.keys(),
             ],
@@ -136,9 +139,18 @@ def setup_logging(log_path: Path) -> None:
 # ── analysis ──────────────────────────────────────────────────────────────────
 
 _EMPTY_SUMMARY_COLS = [
-    "root_type", "bd_label", "citation_count", "time_a", "time_b",
-    "pearson_lc", "pearson_sc", "relerr_lc", "relerr_sc",
-    "missing_in_b", "ts_id_match", "ts_link_relerr",
+    "root_type",
+    "bd_label",
+    "citation_count",
+    "time_a",
+    "time_b",
+    "pearson_lc",
+    "pearson_sc",
+    "relerr_lc",
+    "relerr_sc",
+    "missing_in_b",
+    "ts_id_match",
+    "ts_link_relerr",
 ]
 
 
@@ -153,20 +165,22 @@ def build_summary_df(results: list[CompResult]) -> pd.DataFrame:
             logger.debug("skipped %s/%s (relerr too high)", cr.root_type, cr.bd_label)
             continue
         ts = top_source_stats(cr.diff_df, "a", "b")
-        rows.append({
-            "root_type": cr.root_type,
-            "bd_label": cr.bd_label,
-            "citation_count": cr.citation_count,
-            "time_a": cr.time_a,
-            "time_b": cr.time_b,
-            "pearson_lc": lc["pearson"],
-            "pearson_sc": sc["pearson"],
-            "relerr_lc": lc["relerr"],
-            "relerr_sc": sc["relerr"],
-            "missing_in_b": lc["missing_in_b"],
-            "ts_id_match": ts["id_match_rate"],
-            "ts_link_relerr": ts["link_relerr"],
-        })
+        rows.append(
+            {
+                "root_type": cr.root_type,
+                "bd_label": cr.bd_label,
+                "citation_count": cr.citation_count,
+                "time_a": cr.time_a,
+                "time_b": cr.time_b,
+                "pearson_lc": lc["pearson"],
+                "pearson_sc": sc["pearson"],
+                "relerr_lc": lc["relerr"],
+                "relerr_sc": sc["relerr"],
+                "missing_in_b": lc["missing_in_b"],
+                "ts_id_match": ts["id_match_rate"],
+                "ts_link_relerr": ts["link_relerr"],
+            }
+        )
     return pd.DataFrame(rows) if rows else pd.DataFrame(columns=_EMPTY_SUMMARY_COLS)
 
 
@@ -219,7 +233,11 @@ def _totals_spec(label_a: str, label_b: str) -> list[tuple]:
         ("n_errors", "Errors", str),
         ("total_time_a", f"Total time ({label_a})", lambda v: f"{v:.1f}s"),
         ("total_time_b", f"Total time ({label_b})", lambda v: f"{v:.1f}s"),
-        ("time_ratio_a_over_b", f"Time ratio ({label_a}/{label_b})", lambda v: f"{v:.2f}×"),
+        (
+            "time_ratio_a_over_b",
+            f"Time ratio ({label_a}/{label_b})",
+            lambda v: f"{v:.2f}×",
+        ),
         ("mean_pearson_lc", "Mean Pearson (link count)", lambda v: f"{v:.4f}"),
         ("mean_pearson_sc", "Mean Pearson (source count)", lambda v: f"{v:.4f}"),
         ("mean_relerr_lc", "Mean rel-error (link count)", lambda v: f"{v:.2%}"),
@@ -278,7 +296,14 @@ def plot_timing(
             continue
         bd_depth = len(r.bd_label.split(";"))
         for label, t in [(label_a, r.time_a), (label_b, r.time_b)]:
-            rows.append({"backend": label, "bd_depth": bd_depth, "citations": r.citation_count, "time_s": t})
+            rows.append(
+                {
+                    "backend": label,
+                    "bd_depth": bd_depth,
+                    "citations": r.citation_count,
+                    "time_s": t,
+                }
+            )
     if not rows:
         return
     df = pd.DataFrame(rows).assign(
@@ -305,7 +330,8 @@ def plot_timing(
     g.set_titles("Breakdown depth: {col_name}")
     g.figure.suptitle(
         f"{label_a} vs {label_b}: response time by entity size and breakdown depth",
-        y=1.03, fontsize=12,
+        y=1.03,
+        fontsize=12,
     )
     g.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -328,14 +354,19 @@ def plot_accuracy(
         (axes[1], "relerr_sc", "Source count rel-error"),
     ]:
         vals = by_type[col] * 100
-        colors = ["#54a24b" if v < 1 else "#f58518" if v < 5 else "#e45756" for v in vals.values]
+        colors = [
+            "#54a24b" if v < 1 else "#f58518" if v < 5 else "#e45756"
+            for v in vals.values
+        ]
         ax.barh(by_type.index, vals, color=colors)
         ax.set_xlabel("Mean relative error (%)")
         ax.set_title(title)
         ax.axvline(1, color="#54a24b", linestyle="--", linewidth=0.8, alpha=0.7)
         ax.axvline(5, color="#e45756", linestyle="--", linewidth=0.8, alpha=0.7)
         ax.set_xlim(left=0)
-    fig.suptitle(f"{label_a} vs {label_b}: structural accuracy by entity type", fontsize=12)
+    fig.suptitle(
+        f"{label_a} vs {label_b}: structural accuracy by entity type", fontsize=12
+    )
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
@@ -352,8 +383,12 @@ def plot_memory(samples: list[MemSample], out_path: Path) -> None:
 
     fig, ax = plt.subplots(figsize=(9, 4))
     for i, label in enumerate(labels):
-        ax.plot(elapsed, [s.values[label] for s in samples],
-                color=palette[i % len(palette)], label=label)
+        ax.plot(
+            elapsed,
+            [s.values[label] for s in samples],
+            color=palette[i % len(palette)],
+            label=label,
+        )
     ax.set_xlabel("Elapsed time (s)")
     ax.set_ylabel("Memory usage (MiB)")
     ax.set_title("Container memory usage during evaluation")
@@ -413,19 +448,32 @@ def save_markdown(
         lines.append("| " + " | ".join(cells) + " |")
 
     if mem_stats:
-        labels = [k.removesuffix("_peak_mib") for k in mem_stats if k.endswith("_peak_mib")]
+        labels = [
+            k.removesuffix("_peak_mib") for k in mem_stats if k.endswith("_peak_mib")
+        ]
         header = "| Metric | " + " | ".join(labels) + " |"
         sep = "|--------|" + "|".join("---" for _ in labels) + "|"
-        peak_row = "| Peak (MiB) | " + " | ".join(
-            f"{mem_stats[f'{l}_peak_mib']:.0f}" for l in labels
-        ) + " |"
-        mean_row = "| Mean (MiB) | " + " | ".join(
-            f"{mem_stats[f'{l}_mean_mib']:.0f}" for l in labels
-        ) + " |"
+        peak_row = (
+            "| Peak (MiB) | "
+            + " | ".join(f"{mem_stats[f'{l}_peak_mib']:.0f}" for l in labels)
+            + " |"
+        )
+        mean_row = (
+            "| Mean (MiB) | "
+            + " | ".join(f"{mem_stats[f'{l}_mean_mib']:.0f}" for l in labels)
+            + " |"
+        )
         lines += [
-            "", "## Memory Usage", "",
+            "",
+            "## Memory Usage",
+            "",
             f"Samples: {mem_stats['n_mem_samples']}",
-            "", header, sep, peak_row, mean_row, "",
+            "",
+            header,
+            sep,
+            peak_row,
+            mean_row,
+            "",
         ]
 
     if plot_paths:
@@ -552,10 +600,20 @@ def save_html(
 
     mem_html = ""
     if mem_stats:
-        mem_labels = [k.removesuffix("_peak_mib") for k in mem_stats if k.endswith("_peak_mib")]
-        mem_thead = "<tr><th>Metric</th>" + "".join(f"<th>{l}</th>" for l in mem_labels) + "</tr>"
-        peak_cells = "".join(f"<td>{mem_stats[f'{l}_peak_mib']:.0f}</td>" for l in mem_labels)
-        mean_cells = "".join(f"<td>{mem_stats[f'{l}_mean_mib']:.0f}</td>" for l in mem_labels)
+        mem_labels = [
+            k.removesuffix("_peak_mib") for k in mem_stats if k.endswith("_peak_mib")
+        ]
+        mem_thead = (
+            "<tr><th>Metric</th>"
+            + "".join(f"<th>{l}</th>" for l in mem_labels)
+            + "</tr>"
+        )
+        peak_cells = "".join(
+            f"<td>{mem_stats[f'{l}_peak_mib']:.0f}</td>" for l in mem_labels
+        )
+        mean_cells = "".join(
+            f"<td>{mem_stats[f'{l}_mean_mib']:.0f}</td>" for l in mem_labels
+        )
         mem_html = (
             "<h2>Memory Usage</h2>"
             f"<p>Samples: {mem_stats['n_mem_samples']}</p>"
@@ -575,7 +633,7 @@ def save_html(
 </head>
 <body>
 <h1>Comparison: <code>{label_a}</code> vs <code>{label_b}</code></h1>
-<p class="meta">{ts} &middot; {totals['n_comparisons']} comparisons, {totals['n_errors']} errors</p>
+<p class="meta">{ts} &middot; {totals["n_comparisons"]} comparisons, {totals["n_errors"]} errors</p>
 <h2>Summary</h2>
 <div class="summary-grid">{cards}</div>
 <h2>By root type × breakdown</h2>
