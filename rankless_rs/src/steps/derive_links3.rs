@@ -250,13 +250,13 @@ macro_rules! entity_coords_filter {
 // Returns indices of the top-N_PEER_SF_DIMS subfields by citation count, sorted descending.
 // Weight index 0 (highest weight) corresponds to the subfield with the most citations.
 fn top_k_sf_indices(arr: &AuthorCitSfArr) -> [usize; N_PEER_SF_DIMS] {
-    let mut top = [(0usize, 0usize); N_PEER_SF_DIMS]; // (val, sf_idx)
-    let mut min_val = 0usize;
+    let mut top = [(0, 0usize); N_PEER_SF_DIMS]; // (val, sf_idx)
+    let mut min_val = 0;
     let mut min_pos = 0;
     for (sf, &v) in arr.iter().enumerate() {
         if v > min_val {
             top[min_pos] = (v, sf);
-            min_val = usize::MAX;
+            min_val = u32::MAX;
             min_pos = 0;
             for k in 0..N_PEER_SF_DIMS {
                 if top[k].0 < min_val {
