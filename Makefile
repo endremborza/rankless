@@ -54,7 +54,7 @@ rm-prof:
 	rm default_*.profraw
 	rm ./*/default_*.profraw
 
-extend_csvs lib_data_generation bm live_monitoring report sitemap_validation alpha_test survey_result_export log_parsing nobel start_comparison sql_comparison_eval:
+extend_csvs lib_data_generation bm live_monitoring report sitemap_validation survey_result_export log_parsing nobel start_comparison sql_comparison_eval:
 	python3 -m pyscripts.$@
 
 hit-paper-analysis field-citation-ratio:
@@ -66,20 +66,6 @@ cache_big_prep cache_big_read cache_do_rest cache_validate_all cache_validate_bi
 
 pull_live_certs sync_fe_to_alpha sync_fe_to_live sync_fe_to_local setup_local_test bump_v bump_v_minor rolling_restart_live_fe new_small_alpha new_large_alpha:
 	python3 -c "from pyscripts.deploy import $@;$@()"
-
-set-full:
-	cp bak-gen-full/* rankless_rs/src/gen/
-	./set-env full
-
-set-mini:
-	./set-env mini
-
-set-micro:
-	./set-env micro
-
-set-nano:
-	rm rankless_rs/src/gen/*
-	./set-env nano
 
 complete: to-csv filter extend_csvs rankless_rs/src/gen/derive_links5.rs lib_data_generation
 	@echo Complete
