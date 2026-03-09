@@ -123,16 +123,21 @@ def main():
         conn.execute(sa.text("CREATE SCHEMA public"))
         conn.commit()
 
+    loaded_ids: dict[str, set] = {}
     for ent in MAINS + FMAINS:
         filt = filter_dic.get(ent)
+        ids: set = set()
         for df in tqdm(iter_dfs(ent, chunk=100_000), desc=ent):
             fdf = df_fixer(df, ent).set_index(IDC)
             if filt is not None:
                 fdf = fdf.loc[fdf.index.isin(filt)]
+            ids.update(fdf.index)
             fdf.to_sql(ent, con, if_exists="append")
+        ids.add(0)
         pd.DataFrame({IDC: [0], DN: ["Unknown"]}).to_sql(
             ent, con, if_exists="append", index=False
         )
+        loaded_ids[ent] = ids
 
     sub_cols: dict[str, list] = {}
     for ent, sub in SUBS:
@@ -144,15 +149,15 @@ def main():
                 fdf = do_filtering(
                     fdf,
                     col,
-                    filter_dic.get(target),
+                    loaded_ids.get(target),
                     leave_zeroes=sub == EntC.AUTHORSHIPS,
                 )
-            fdf = do_filtering(fdf, PARID, filter_dic.get(ent))
+            fdf = do_filtering(fdf, PARID, loaded_ids.get(ent))
             if sub == EntC.AUTHORSHIPS:
                 fdf = parse_ships(fdf).assign(
                     **{
                         _ik: lambda df: np.where(
-                            df[_ik].isin(filter_dic[EntC.INSTITUTIONS]), df[_ik], 0
+                            df[_ik].isin(loaded_ids[EntC.INSTITUTIONS]), df[_ik], 0
                         )
                     }
                 )
