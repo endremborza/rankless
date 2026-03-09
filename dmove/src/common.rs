@@ -16,7 +16,7 @@ use crate::{var_size_attributes::VaST, VarSizedAttributeElement};
 
 pub const MAX_BUF: usize = 0x1000;
 pub const MAX_NUMBUF: usize = 0x20;
-pub const MAX_FIXBUF: usize = 0x800;
+pub const MAX_FIXBUF: usize = 0x400;
 
 const PACK_NAME: &'static str = "dmove";
 
