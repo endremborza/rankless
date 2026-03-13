@@ -66,12 +66,14 @@ def metric_stats(df: pd.DataFrame, col: str, label_a: str, label_b: str) -> dict
         return None
     matched = nodes_a.loc[nodes_a[col_b] > 0]
     pearson = matched[col_a].corr(matched[col_b]) if len(matched) >= 2 else np.nan
-    mid = (nodes_a[col_a] + nodes_a[col_b]) / 2.0
-    relerr = (nodes_a[col_a] - nodes_a[col_b]).abs() / mid.replace(0, np.nan)
+    mid = (matched[col_a] + matched[col_b]) / 2.0
+    relerr = (matched[col_a] - matched[col_b]).abs() / mid.replace(0, np.nan)
+    n_missing = int((nodes_a[col_b] == 0).sum())
+    missing_ratio = n_missing / len(nodes_a) if len(nodes_a) > 0 else 0.0
     return {
         "pearson": float(pearson) if pd.notna(pearson) else None,
-        "relerr": float(relerr.mean()) if len(relerr) > 0 else None,
-        "missing_in_b": int((nodes_a[col_b] == 0).sum()),
+        "relerr": float(relerr.mean()) if len(matched) > 0 else None,
+        "missing_ratio": missing_ratio,
     }
 
 

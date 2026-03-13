@@ -148,7 +148,7 @@ _EMPTY_SUMMARY_COLS = [
     "pearson_sc",
     "relerr_lc",
     "relerr_sc",
-    "missing_in_b",
+    "missing_ratio",
     "ts_id_match",
     "ts_link_relerr",
 ]
@@ -176,7 +176,7 @@ def build_summary_df(results: list[CompResult]) -> pd.DataFrame:
                 "pearson_sc": sc["pearson"],
                 "relerr_lc": lc["relerr"],
                 "relerr_sc": sc["relerr"],
-                "missing_in_b": lc["missing_in_b"],
+                "missing_ratio": lc["missing_ratio"],
                 "ts_id_match": ts["id_match_rate"],
                 "ts_link_relerr": ts["link_relerr"],
             }
@@ -195,7 +195,7 @@ def build_grouped_df(summary_df: pd.DataFrame) -> pd.DataFrame:
             pearson_sc=("pearson_sc", "mean"),
             relerr_lc=("relerr_lc", "mean"),
             relerr_sc=("relerr_sc", "mean"),
-            missing_in_b=("missing_in_b", "sum"),
+            missing_ratio=("missing_ratio", "mean"),
             ts_id_match=("ts_id_match", "mean"),
             ts_link_relerr=("ts_link_relerr", "mean"),
         )
@@ -218,7 +218,7 @@ def build_totals(results: list[CompResult], summary_df: pd.DataFrame) -> dict:
         "mean_pearson_sc": float(summary_df["pearson_sc"].mean()),
         "mean_relerr_lc": float(summary_df["relerr_lc"].mean()),
         "mean_relerr_sc": float(summary_df["relerr_sc"].mean()),
-        "total_missing_in_b": int(summary_df["missing_in_b"].sum()),
+        "mean_missing_ratio": float(summary_df["missing_ratio"].mean()),
         "mean_ts_id_match": float(summary_df["ts_id_match"].mean()),
         "mean_ts_link_relerr": float(summary_df["ts_link_relerr"].mean()),
     }
@@ -242,7 +242,7 @@ def _totals_spec(label_a: str, label_b: str) -> list[tuple]:
         ("mean_pearson_sc", "Mean Pearson (source count)", lambda v: f"{v:.4f}"),
         ("mean_relerr_lc", "Mean rel-error (link count)", lambda v: f"{v:.2%}"),
         ("mean_relerr_sc", "Mean rel-error (source count)", lambda v: f"{v:.2%}"),
-        ("total_missing_in_b", f"Nodes only in {label_a}", str),
+        ("mean_missing_ratio", f"Mean missing-in-{label_b} ratio", lambda v: f"{v:.1%}"),
         ("mean_ts_id_match", "Top-source ID match rate", lambda v: f"{v:.1%}"),
         ("mean_ts_link_relerr", "Top-source link rel-error", lambda v: f"{v:.2%}"),
     ]
@@ -258,7 +258,7 @@ def _col_spec(label_a: str, label_b: str) -> list[tuple]:
         ("pearson_sc", "r(SC)", lambda v: f"{v:.3f}"),
         ("relerr_lc", "err(LC)", lambda v: f"{v:.2%}"),
         ("relerr_sc", "err(SC)", lambda v: f"{v:.2%}"),
-        ("missing_in_b", f"only-{label_a}", None),
+        ("missing_ratio", f"miss%({label_b})", lambda v: f"{v:.1%}"),
         ("ts_id_match", "TopID%", lambda v: f"{v:.0%}"),
         ("ts_link_relerr", "TopLnkErr", lambda v: f"{v:.2%}"),
     ]
@@ -544,6 +544,8 @@ def _td_class(col: str, val) -> str:
         return "good" if val > 0.99 else "warn" if val > 0.95 else "bad"
     if "relerr" in col:
         return "good" if val < 0.01 else "warn" if val < 0.05 else "bad"
+    if "missing_ratio" in col:
+        return "good" if val < 0.1 else "warn" if val < 0.5 else "bad"
     if "ts_id_match" in col:
         return "good" if val > 0.9 else "warn" if val > 0.7 else "bad"
     if "ts_link_relerr" in col:
