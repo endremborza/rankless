@@ -24,9 +24,9 @@ use crate::{
     CiteCountMarker, QuickestBox, QuickestVBox, ReadIter, Stowage, WorkCountMarker,
 };
 use dmove::{
-    para::Worker, para_multi_gen_run, BigId, Data64MappedEntityBuilder, DowncastingBuilder, Entity,
-    MarkedAttribute, NamespacedEntity, UnsignedNumber, VarAttBuilder, VariableSizeAttribute, ET,
-    MAA,
+    par_join, para::Worker, para_multi_gen_run, BigId, Data64MappedEntityBuilder,
+    DowncastingBuilder, Entity, MarkedAttribute, NamespacedEntity, UnsignedNumber, VarAttBuilder,
+    VariableSizeAttribute, ET, MAA,
 };
 use hashbrown::{HashMap, HashSet};
 
@@ -583,8 +583,11 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         &cc_interface,
     );
 
-    let year_bms = compute_year_bms(&w_years, &cc_interface);
-    let sf_bms = compute_sf_bms(&w_sfs.0, &cc_interface);
+    let (year_bms, sf_bms) = std::thread::scope(|s| {
+        let h1 = s.spawn(|| compute_year_bms(&w_years, &cc_interface));
+        let h2 = s.spawn(|| compute_sf_bms(&w_sfs.0, &cc_interface));
+        (h1.join().unwrap(), h2.join().unwrap())
+    });
     let sf_year_bms = compute_sf_year_bms(&w_sfs.0, &w_years, &cc_interface, &year_bms);
 
     let nobeled_works = get_nobeled_works(&starc, &w_years);
@@ -673,14 +676,16 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         Some("hit-papers-cite-counts"),
     );
 
-    entity_coords_filter!(starc, Institutions, |_i, _c, _p| true);
-    entity_coords_filter!(starc, Subfields, |_i, _c, _p| true);
-    entity_coords_filter!(starc, Countries, |_i, _c, _p| true);
-
     let source_stats = starc.get_entity_interface::<SourceStats, QuickestBox>();
-    entity_coords_filter!(starc, Sources, |i, c, p| {
-        p > 10 && c > 20 && source_stats[i].1 <= 2
-    });
+    par_join!(
+        { let s = starc.clone(); move || { entity_coords_filter!(s, Institutions, |_i, _c, _p| true); } },
+        { let s = starc.clone(); move || { entity_coords_filter!(s, Subfields, |_i, _c, _p| true); } },
+        { let s = starc.clone(); move || { entity_coords_filter!(s, Countries, |_i, _c, _p| true); } },
+        {
+            let s = starc.clone();
+            move || { entity_coords_filter!(s, Sources, |i, c, p| p > 10 && c > 20 && source_stats[i].1 <= 2); }
+        },
+    );
 
     let author_yearly_papers =
         starc.get_marked_interface::<Authors, YearlyPapersMarker, QuickestBox>();
