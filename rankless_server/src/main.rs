@@ -23,7 +23,9 @@ use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
 use std::{
     cmp::{max, min},
+    fs,
     net::SocketAddr,
+    path::PathBuf,
     sync::{Arc, Mutex},
     thread::sleep,
     time,
@@ -178,6 +180,57 @@ struct TopResult {
 struct EntityDescription {
     name: String,
     count: usize,
+}
+
+fn fnv64(iter: impl Iterator<Item = impl AsRef<[u8]>>) -> u64 {
+    const BASIS: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x00000100000001b3;
+    let mut h = BASIS;
+    for chunk in iter {
+        for &b in chunk.as_ref() {
+            h ^= b as u64;
+            h = h.wrapping_mul(PRIME);
+        }
+    }
+    h
+}
+
+fn try_load_engine<const S: usize>(
+    bin_path: &PathBuf,
+    stamp_path: &PathBuf,
+    key: u64,
+) -> Option<SearchEngine<S>> {
+    let raw = fs::read(stamp_path).ok()?;
+    let stamp_key = u64::from_ne_bytes(raw.try_into().ok()?);
+    if stamp_key != key {
+        let _ = fs::remove_file(bin_path);
+        let _ = fs::remove_file(stamp_path);
+        return None;
+    }
+    let mut file = fs::File::open(bin_path).ok()?;
+    SearchEngine::try_load(&mut file)
+}
+
+fn save_engine<const S: usize>(
+    engine: &SearchEngine<S>,
+    bin_path: &PathBuf,
+    stamp_path: &PathBuf,
+    cache_dir: &PathBuf,
+    key: u64,
+) {
+    if let Err(e) = fs::create_dir_all(cache_dir) {
+        println!("search cache: could not create dir: {e}");
+        return;
+    }
+    let result = (|| -> std::io::Result<()> {
+        engine.save(&mut fs::File::create(bin_path)?)?;
+        fs::write(stamp_path, key.to_ne_bytes())
+    })();
+    if let Err(e) = result {
+        println!("search cache: write failed: {e}");
+        let _ = fs::remove_file(bin_path);
+        let _ = fs::remove_file(stamp_path);
+    }
 }
 
 struct NameState {
@@ -542,13 +595,26 @@ impl NameState {
         E: RootInterfaceable + IsTop + DistinctionText + MetaMapGetter,
     {
         let responses = Self::get_resps(entif, gets);
+        let cache_dir = gets.stowage.path_from_ns("search-cache");
+        let stem = format!("{}-s{SEARCH_SIZE}", E::NAME);
+        let bin_path = cache_dir.join(format!("{stem}.bin"));
+        let stamp_path = cache_dir.join(format!("{stem}.stamp"));
+        let key = fnv64(responses.iter().map(|r| r.full_name.as_bytes()));
         let now = std::time::Instant::now();
-        let engine = SearchEngine::new(responses.iter().map(|e| e.full_name.clone()));
+        let (engine, from_cache) = match try_load_engine(&bin_path, &stamp_path, key) {
+            Some(e) => (e, true),
+            None => {
+                let e = SearchEngine::new(responses.iter().map(|r| r.full_name.clone()));
+                save_engine(&e, &bin_path, &stamp_path, &cache_dir, key);
+                (e, false)
+            }
+        };
         println!(
-            "search engine for {} (n={}) in {}s",
+            "search engine for {} (n={}) in {}s ({})",
             E::NAME,
             responses.len(),
-            now.elapsed().as_secs()
+            now.elapsed().as_secs(),
+            if from_cache { "cached" } else { "built" }
         );
         let mut semantic_id_map = HashMap::new();
         let mut oa_id_map = HashMap::new();
