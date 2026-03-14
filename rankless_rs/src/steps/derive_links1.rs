@@ -214,12 +214,15 @@ where
 }
 
 pub fn main(mut stowage: Stowage) -> io::Result<()> {
-    InvertedMultiLink::<WorkReferences>::from_stowage(&stowage)
-        .stow_as_work_link(&stowage, "works-citing");
-    InvertedMultiLink::<WorkTopics>::from_stowage(&stowage)
-        .stow_as_work_link(&stowage, "topic-works");
-    InvertedMultiLink::<WorkSources>::from_stowage(&stowage)
-        .stow_as_work_link(&stowage, "source-works");
+    let (wr, wt, ws) = std::thread::scope(|s| {
+        let h1 = s.spawn(|| InvertedMultiLink::<WorkReferences>::from_stowage(&stowage));
+        let h2 = s.spawn(|| InvertedMultiLink::<WorkTopics>::from_stowage(&stowage));
+        let h3 = s.spawn(|| InvertedMultiLink::<WorkSources>::from_stowage(&stowage));
+        (h1.join().unwrap(), h2.join().unwrap(), h3.join().unwrap())
+    });
+    wr.stow_as_work_link(&stowage, "works-citing");
+    wt.stow_as_work_link(&stowage, "topic-works");
+    ws.stow_as_work_link(&stowage, "source-works");
 
     collapse_links::<WorkTopics, TopicSubfields>(&mut stowage, "work-subfields");
 
