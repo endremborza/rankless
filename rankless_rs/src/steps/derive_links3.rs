@@ -678,13 +678,10 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
 
     let source_stats = starc.get_entity_interface::<SourceStats, QuickestBox>();
     par_join!(
-        { let s = starc.clone(); move || { entity_coords_filter!(s, Institutions, |_i, _c, _p| true); } },
-        { let s = starc.clone(); move || { entity_coords_filter!(s, Subfields, |_i, _c, _p| true); } },
-        { let s = starc.clone(); move || { entity_coords_filter!(s, Countries, |_i, _c, _p| true); } },
-        {
-            let s = starc.clone();
-            move || { entity_coords_filter!(s, Sources, |i, c, p| p > 10 && c > 20 && source_stats[i].1 <= 2); }
-        },
+        || { entity_coords_filter!(starc, Institutions, |_i, _c, _p| true); },
+        || { entity_coords_filter!(starc, Subfields, |_i, _c, _p| true); },
+        || { entity_coords_filter!(starc, Countries, |_i, _c, _p| true); },
+        || { entity_coords_filter!(starc, Sources, |i, c, p| p > 10 && c > 20 && source_stats[i].1 <= 2); },
     );
 
     let author_yearly_papers =
