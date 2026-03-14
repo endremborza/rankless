@@ -1,6 +1,6 @@
-use std::io;
+use std::{io, sync::Arc};
 
-use dmove::{MarkedAttribute, UnsignedNumber, VarAttBuilder, ET};
+use dmove::{par_join, MarkedAttribute, UnsignedNumber, VarAttBuilder, ET};
 
 use crate::{
     common::{
@@ -46,25 +46,6 @@ mark_empty!(
     Top3PaperSfMarker => Top3Rec<Subfields>
 );
 
-impl Stowage {
-    fn write_all_sem_ids(&self) {
-        self.write_semantic_id::<Authors>();
-        self.write_semantic_id::<Institutions>();
-        self.write_semantic_id::<Sources>();
-        self.write_semantic_id::<Subfields>();
-        let citer = self
-            .get_entity_interface::<CountryCodesThree, ReadFixIter>()
-            .zip(self.get_entity_interface::<CountryCodes, ReadFixIter>())
-            .map(|(e3, e2)| {
-                if e3 != [0; 3] {
-                    String::from_utf8(e3.into()).unwrap().to_lowercase()
-                } else {
-                    String::from_utf8(e2.into()).unwrap().to_lowercase()
-                }
-            });
-        self.decsem::<Countries, _>(citer);
-    }
-}
 
 impl CiteDeriver {
     fn hit_paper_atts(&self) {
@@ -107,7 +88,29 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let wts = stowage.get_entity_interface::<WorkTopSource, QuickestBox>();
     let cd = CiteDeriver::new(stowage, wts);
     cd.hit_paper_atts();
-    cd.stowage.write_all_sem_ids();
-    cd.stowage.write_code()?;
+    let sarc = Arc::new(cd.stowage);
+    par_join!(
+        { let s = sarc.clone(); move || s.write_semantic_id::<Authors>() },
+        { let s = sarc.clone(); move || s.write_semantic_id::<Institutions>() },
+        { let s = sarc.clone(); move || s.write_semantic_id::<Sources>() },
+        { let s = sarc.clone(); move || s.write_semantic_id::<Subfields>() },
+        {
+            let s = sarc.clone();
+            move || {
+                let citer = s
+                    .get_entity_interface::<CountryCodesThree, ReadFixIter>()
+                    .zip(s.get_entity_interface::<CountryCodes, ReadFixIter>())
+                    .map(|(e3, e2)| {
+                        if e3 != [0; 3] {
+                            String::from_utf8(e3.into()).unwrap().to_lowercase()
+                        } else {
+                            String::from_utf8(e2.into()).unwrap().to_lowercase()
+                        }
+                    });
+                s.decsem::<Countries, _>(citer)
+            }
+        },
+    );
+    Arc::try_unwrap(sarc).ok().unwrap().write_code()?;
     Ok(())
 }
