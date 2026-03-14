@@ -25,3 +25,6 @@ draft*.ipynb
 notebooks/draft*
 svg-exports
 test-results
+local-moks/
+logs/
+paper-gen/
