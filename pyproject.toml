@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "boto3>=1.42.61",
     "ccl-science-data",
+    "jinja2>=3.1.6",
     "matplotlib>=3.10.8",
     "pandas[aws, parquet]>=3.0.1",
     "psycopg>=3.3.3",

@@ -73,7 +73,7 @@ Axum server on port 3038. Loads pre-processed binary data; answers tree queries,
 | Crate | Role |
 |-------|------|
 | `dmove` / `dmove_macro` | Metaprogramming: generates entity/attribute/link Rust source tailored to dataset shape; see `docs/metaprogramming-make.md` |
-| `muwo_search` | Custom partial-string search engine for scholarly entity names |
+| `muwo_search` | Custom partial-string search engine for scholarly entity names. Files: `lib.rs` (trie/engine core), `io.rs` (binary serialization: `SearchEngine::save`/`try_load`), `fixed_heap.rs` (FixedHeap), `merging.rs` (merge utilities), `tests.rs` (all unit tests) |
 
 ---
 
