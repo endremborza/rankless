@@ -22,9 +22,10 @@ use crate::{
     steps::a1_entity_mapping::{iter_authorships, Qs, RawYear, SourceArea, YearInterface, Years},
 };
 use dmove::{
-    para::Worker, BigId, DiscoMapEntityBuilder, DowncastingBuilder, DowncastingPrefixedVarBuilder,
-    Entity, EntityImmutableMapperBackend, FixAttBuilder, LoadedIdMap, MappableEntity,
-    MetaIntegrator, NamespacedEntity, UnsignedNumber, VarAttBuilder, ET,
+    par_join, para::Worker, BigId, DiscoMapEntityBuilder, DowncastingBuilder,
+    DowncastingPrefixedVarBuilder, Entity, EntityImmutableMapperBackend, FixAttBuilder,
+    LoadedIdMap, MappableEntity, MetaIntegrator, NamespacedEntity, UnsignedNumber, VarAttBuilder,
+    ET,
 };
 use levenshtein::levenshtein;
 use serde::{de::DeserializeOwned, Deserialize};
@@ -95,12 +96,6 @@ struct BoxRoller<T, E> {
     phantom: PhantomData<fn() -> E>,
 }
 
-struct StrWriter<'a> {
-    stowage: &'a Stowage,
-    main: &'static str,
-    sub: &'static str,
-}
-
 struct GenObjAttWorker<'a, Source, Target, StoredOfTarget, SourceIF, TargetIF>
 where
     Source: MainEntity,
@@ -167,7 +162,7 @@ where
 }
 
 impl Stowage {
-    fn add_source_qs<SIF, YIF>(&mut self, sources_interface: &SIF, years_interface: &YIF)
+    fn add_source_qs<SIF, YIF>(&self, sources_interface: &SIF, years_interface: &YIF)
     where
         YIF: EntityImmutableMapperBackend<Years>,
         SIF: EntityImmutableMapperBackend<Sources>,
@@ -189,7 +184,7 @@ impl Stowage {
     }
 
     fn add_inst_atts(
-        &mut self,
+        &self,
     ) -> (
         BeS<QuickestNumbered, Institutions>,
         BeS<QuickestNumbered, Countries>,
@@ -257,7 +252,7 @@ impl Stowage {
         (iif, coif)
     }
 
-    fn add_author_atts(&mut self) {
+    fn add_author_atts(&self) {
         let aif = self.get_entity_interface::<Authors, QuickestNumbered>();
         self.add_nobels(&aif);
         let mut names = init_empty_slice::<Authors, String>();
@@ -303,7 +298,7 @@ impl Stowage {
         self.add_barr::<DowncastingBuilder, _>(raw_works, "author-raw-work-counts");
     }
 
-    fn add_theme_atts<E, F>(&mut self, ifs: &BeS<QuickestNumbered, E>, gatt: F)
+    fn add_theme_atts<E, F>(&self, ifs: &BeS<QuickestNumbered, E>, gatt: F)
     where
         E: NumberedEntity<T = ET<E>>,
         ET<E>: UnsignedNumber,
@@ -397,12 +392,11 @@ impl Stowage {
     }
 
     fn object_property<CsvObj, Source, Target, SIF, TIF>(
-        &mut self,
+        &self,
         source_interface: &SIF,
         target_interface: &TIF,
         fatt_name: &str,
-    ) -> io::Result<usize>
-    where
+    ) where
         CsvObj: ObjAttGetter<Target> + ParsedId + DeserializeOwned + Send,
         Source: MainEntity,
         Target: Entity + MappableEntity,
@@ -422,17 +416,15 @@ impl Stowage {
             MAIN_NAME,
         );
         self.declare_link::<Source, Target>(fatt_name);
-        Ok(0)
     }
 
     fn multi_object_property<CsvObj, Source, Target, SIF, TIF>(
-        &mut self,
+        &self,
         source_interface: &SIF,
         target_interface: &TIF,
         fatt_name: &str,
         sub: &str,
-    ) -> io::Result<usize>
-    where
+    ) where
         CsvObj: ObjAttGetter<Target> + ParsedId + DeserializeOwned + Send,
         Source: MainEntity,
         Target: MainEntity,
@@ -451,15 +443,14 @@ impl Stowage {
             sub,
         );
         self.declare_link::<Source, Target>(fatt_name);
-        Ok(0)
     }
 
-    fn add_empty_name_ext<T: Entity>(&mut self) {
+    fn add_empty_name_ext<T: Entity>(&self) {
         let name = get_name_ext_name::<T>();
         self.add_empty_something::<T, NameExtensionMarker>(&name);
     }
 
-    fn add_empty_something<E: Entity, Marker>(&mut self, name: &str) {
+    fn add_empty_something<E: Entity, Marker>(&self, name: &str) {
         //TODO: this takes memory (and some space) for no fucking reason
         let iter = (0..E::N).map(|_| "".to_string());
         self.declare_iter::<VarAttBuilder, _, _, E, Marker>(iter, name)
@@ -644,64 +635,6 @@ impl Worker<Biblio> for WorkBiblioWriter {
         if new_bib != BiblioInfo::default() {
             self.biblios.lock().unwrap()[w_ind] = new_bib;
         }
-    }
-}
-
-impl<'a> StrWriter<'a> {
-    fn new(stowage: &'a Stowage) -> Self {
-        Self {
-            stowage,
-            main: "",
-            sub: "",
-        }
-    }
-
-    fn set_path(&mut self, main: &'static str, sub: &'static str) -> &mut Self {
-        self.main = main;
-        self.sub = sub;
-        self
-    }
-
-    fn write_name<CsvObj, Source>(&mut self) -> BeS<QuickestNumbered, Source>
-    where
-        CsvObj: DeserializeOwned + ParsedId + AttGetter<String, NameMarker> + Send,
-        Source: MainEntity + NamespacedEntity,
-    {
-        let interface = self
-            .stowage
-            .get_entity_interface::<Source, QuickestNumbered>();
-        let prop_name = &get_name_name::<Source>();
-        self.write_meta::<Source, CsvObj, NameMarker>(&interface, prop_name);
-        interface
-    }
-
-    fn write_name_ext<CsvObj, E>(&mut self, interface: &BeS<QuickestNumbered, E>)
-    where
-        CsvObj: DeserializeOwned + ParsedId + AttGetter<String, NameExtensionMarker> + Send,
-        E: MainEntity + NamespacedEntity,
-    {
-        let prop_name = &get_name_ext_name::<E>();
-        self.write_meta::<E, CsvObj, NameExtensionMarker>(interface, prop_name);
-    }
-
-    fn write_meta<E, CsvObj, Marker>(
-        &mut self,
-        interface: &BeS<QuickestNumbered, E>,
-        prop_name: &str,
-    ) where
-        CsvObj: DeserializeOwned + ParsedId + AttGetter<String, Marker> + Send,
-        E: MainEntity + NamespacedEntity,
-    {
-        if self.main.is_empty() {
-            self.set_path(E::NAME, MAIN_NAME);
-        }
-        let winit = GenWorker::new(DataAttWorker::<E, String, _>::new(interface));
-        self.stowage
-            .property_writer::<_, VarAttBuilder, CsvObj, _, _, _, _, Marker, _>(
-                winit, prop_name, self.main, self.sub,
-            );
-        self.set_path("", "");
-        self.stowage.declare::<E, Marker>(&prop_name);
     }
 }
 
@@ -1033,79 +966,106 @@ where
     }
 }
 
-pub fn main(mut stowage: Stowage) -> io::Result<()> {
+fn write_entity_name<CsvObj, E>(stowage: &Stowage) -> BeS<QuickestNumbered, E>
+where
+    CsvObj: DeserializeOwned + ParsedId + AttGetter<String, NameMarker> + Send,
+    E: MainEntity + NamespacedEntity,
+{
+    let interface = stowage.get_entity_interface::<E, QuickestNumbered>();
+    let prop_name = get_name_name::<E>();
+    let winit = GenWorker::new(DataAttWorker::<E, String, _>::new(&interface));
+    stowage.property_writer::<_, VarAttBuilder, CsvObj, _, _, _, _, NameMarker, _>(
+        winit,
+        &prop_name,
+        E::NAME,
+        MAIN_NAME,
+    );
+    stowage.declare::<E, NameMarker>(&prop_name);
+    interface
+}
+
+fn write_entity_name_ext<CsvObj, E>(stowage: &Stowage, interface: &BeS<QuickestNumbered, E>)
+where
+    CsvObj: DeserializeOwned + ParsedId + AttGetter<String, NameExtensionMarker> + Send,
+    E: MainEntity + NamespacedEntity,
+{
+    let prop_name = get_name_ext_name::<E>();
+    let winit = GenWorker::new(DataAttWorker::<E, String, _>::new(interface));
+    stowage.property_writer::<_, VarAttBuilder, CsvObj, _, _, _, _, NameExtensionMarker, _>(
+        winit,
+        &prop_name,
+        E::NAME,
+        MAIN_NAME,
+    );
+    stowage.declare::<E, NameExtensionMarker>(&prop_name);
+}
+
+pub fn main(stowage: Stowage) -> io::Result<()> {
     let (works_interface, wyears) = {
         let winf = stowage.add_ship_relations();
         stowage.add_work_atts(winf.into())
     };
-    let (insts_interface, countries_interface) = stowage.add_inst_atts();
-    stowage.add_author_atts();
-    let mut str_writer = StrWriter::new(&stowage);
-    let domains_interface = str_writer.write_name::<FieldLike, Domains>();
-    let fields_interface = str_writer.write_name::<FieldLike, Fields>();
-    let subfields_interface = str_writer.write_name::<FieldLike, Subfields>();
-    let sources_interface = str_writer.write_name::<Source, Sources>();
-    let topics_interface = str_writer.write_name::<NamedEntity, Topics>();
+    let sarc = Arc::new(stowage);
 
-    str_writer.write_name_ext::<Institution, Institutions>(&insts_interface); //TODO: move to inst
-                                                                              //atts
-    str_writer.write_name_ext::<Source, Sources>(&sources_interface);
+    // Wave 1: parallel heavy CSV reads (institutions, authors, 5 entity name tables)
+    let ((insts_interface, countries_interface), domains_interface, fields_interface, subfields_interface, sources_interface, topics_interface) =
+        std::thread::scope(|s| {
+            s.spawn(|| sarc.add_author_atts());
+            let h1 = s.spawn(|| sarc.add_inst_atts());
+            let h3 = s.spawn(|| write_entity_name::<FieldLike, Domains>(&sarc));
+            let h4 = s.spawn(|| write_entity_name::<FieldLike, Fields>(&sarc));
+            let h5 = s.spawn(|| write_entity_name::<FieldLike, Subfields>(&sarc));
+            let h6 = s.spawn(|| write_entity_name::<Source, Sources>(&sarc));
+            let h7 = s.spawn(|| write_entity_name::<NamedEntity, Topics>(&sarc));
+            (
+                h1.join().unwrap(),
+                h3.join().unwrap(),
+                h4.join().unwrap(),
+                h5.join().unwrap(),
+                h6.join().unwrap(),
+                h7.join().unwrap(),
+            )
+        });
 
-    stowage.add_theme_atts::<Subfields, _>(&subfields_interface, field_id_parse);
-    stowage.add_theme_atts::<Topics, _>(&topics_interface, oa_id_parse);
+    // Wave 2: parallel name extensions, theme attrs, empty exts, source qs
+    par_join!(
+        || write_entity_name_ext::<Institution, Institutions>(&sarc, &insts_interface),
+        || write_entity_name_ext::<Source, Sources>(&sarc, &sources_interface),
+        || sarc.add_theme_atts::<Subfields, _>(&subfields_interface, field_id_parse),
+        || sarc.add_theme_atts::<Topics, _>(&topics_interface, oa_id_parse),
+        || sarc.add_empty_name_ext::<Authors>(),
+        || sarc.add_empty_name_ext::<Countries>(),
+        || sarc.add_empty_name_ext::<Subfields>(),
+        || sarc.add_source_qs(&sources_interface, &YearInterface {}),
+    );
 
-    stowage.add_empty_name_ext::<Authors>();
-    stowage.add_empty_name_ext::<Countries>();
-    stowage.add_empty_name_ext::<Subfields>();
-
-    stowage.add_source_qs(&sources_interface, &YearInterface {});
-    stowage.object_property::<Institution, Institutions, Countries, _, _>(
-        &insts_interface,
-        &countries_interface,
-        "inst-countries",
-    )?;
-    stowage.object_property::<SubField, Subfields, _, _, _>(
-        &subfields_interface,
-        &fields_interface,
-        "subfield-ancestors",
-    )?;
-    stowage.object_property::<Field, Fields, _, _, _>(
-        &fields_interface,
-        &domains_interface,
-        "field-ancestors",
-    )?;
-    stowage.object_property::<Topic, Topics, _, _, _>(
-        &topics_interface,
-        &subfields_interface,
-        "topic-subfields",
-    )?;
-    let area_fields_interface = stowage.get_entity_interface::<AreaFields, QuickestNumbered>();
-    stowage.multi_object_property::<SourceArea, Sources, _, _, _>(
-        &sources_interface,
-        &area_fields_interface,
-        "source-area-fields",
-        AreaFields::NAME,
-    )?;
-    {
-        let refs = GenWorker::new(
-            GenObjAttWorker::<'_, Works, Works, Vec<NET<Works>>, _, _>::new(
-                &works_interface,
-                &works_interface,
-            ),
-        )
-        .para(stowage.read_csv_objs::<ReferencedWork>(Works::NAME, works::atts::referenced_works))
-        .worker
-        .take_arr();
-        let mut n_inversions = 0usize;
-        stowage.add_iter_owned::<VarAttBuilder, _, _>(
-            refs.into_vec()
-                .into_iter()
-                .enumerate()
-                .map(|(citing_dm, cited)| {
+    // Wave 3: parallel property writes, multi-object properties, and work-references
+    let area_fields_interface = sarc.get_entity_interface::<AreaFields, QuickestNumbered>();
+    par_join!(
+        || sarc.object_property::<Institution, Institutions, Countries, _, _>(&insts_interface, &countries_interface, "inst-countries"),
+        || sarc.object_property::<SubField, Subfields, _, _, _>(&subfields_interface, &fields_interface, "subfield-ancestors"),
+        || sarc.object_property::<Field, Fields, _, _, _>(&fields_interface, &domains_interface, "field-ancestors"),
+        || sarc.object_property::<Topic, Topics, _, _, _>(&topics_interface, &subfields_interface, "topic-subfields"),
+        || sarc.multi_object_property::<SourceArea, Sources, _, _, _>(&sources_interface, &area_fields_interface, "source-area-fields", AreaFields::NAME),
+        || sarc.multi_object_property::<Location, Works, _, _, _>(&works_interface, &sources_interface, "work-sources", works::atts::locations),
+        || sarc.multi_object_property::<WorkTopic, Works, _, _, _>(&works_interface, &topics_interface, "work-topics", works::atts::topics),
+        || {
+            let refs = GenWorker::new(
+                GenObjAttWorker::<'_, Works, Works, Vec<NET<Works>>, _, _>::new(
+                    &works_interface,
+                    &works_interface,
+                ),
+            )
+            .para(sarc.read_csv_objs::<ReferencedWork>(Works::NAME, works::atts::referenced_works))
+            .worker
+            .take_arr();
+            let mut n_inversions = 0usize;
+            sarc.add_iter_owned::<VarAttBuilder, _, _>(
+                refs.into_vec().into_iter().enumerate().map(|(citing_dm, cited)| {
                     let cy = wyears[citing_dm];
                     let mut out = Vec::new();
                     for refed_wid in cited.into_iter() {
-                        if (cy > 0) & (wyears[refed_wid.to_usize()] > cy) {
+                        if cy > 0 && wyears[refed_wid.to_usize()] > cy {
                             n_inversions += 1;
                         } else {
                             out.push(refed_wid);
@@ -1113,25 +1073,14 @@ pub fn main(mut stowage: Stowage) -> io::Result<()> {
                     }
                     out.into_boxed_slice()
                 }),
-            Some("work-references"),
-        );
-        stowage.declare_link::<Works, Works>("work-references");
-        println!("Year inversions (ref year > citing year): {n_inversions}");
-    }
-    stowage.multi_object_property::<Location, Works, _, _, _>(
-        &works_interface,
-        &sources_interface,
-        "work-sources",
-        works::atts::locations,
-    )?;
-    stowage.multi_object_property::<WorkTopic, Works, _, _, _>(
-        &works_interface,
-        &topics_interface,
-        "work-topics",
-        works::atts::topics,
-    )?;
+                Some("work-references"),
+            );
+            sarc.declare_link::<Works, Works>("work-references");
+            println!("Year inversions (ref year > citing year): {n_inversions}");
+        },
+    );
 
-    stowage.write_code()?;
+    Arc::try_unwrap(sarc).ok().unwrap().write_code()?;
     Ok(())
 }
 
