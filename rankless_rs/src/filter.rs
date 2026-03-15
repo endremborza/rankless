@@ -18,13 +18,19 @@ use crate::{
 
 use dmove::BigId;
 
+pub const FIX_AUTHORS: [BigId; 7] = [
+    5064297795, //
+    5005839111, //
+    5078032253, //
+    5045634725, //
+    5082456380, //
+    5017880363, //
+    5042797356, //
+];
+
 const MAX_AUTHORS: usize = 20;
 const MIN_CITATIONS: usize = 1;
 const WORK_KINDS: [&str; 3] = ["article", "book", "review"];
-
-const FIX_AUTHORS: [BigId; 6] = [
-    5064297795, 5005839111, 5078032253, 5045634725, 5082456380, 5017880363,
-];
 
 const FORCE_DROP_INSTS: [BigId; 2] = [4210095297, 4210109586];
 
@@ -80,6 +86,7 @@ impl FilterBase for ReferencedWork {
 impl FilterBase for Location {
     const ENTITY_ATT: &'static str = works::atts::locations;
     const MIN: usize = MIN_PAPERS_FOR_SOURCE as usize;
+    const FILTER_TARGETS: bool = false;
 
     fn iter_edges(&self) -> Vec<[String; 2]> {
         match &self.source_id {
