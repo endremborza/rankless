@@ -29,9 +29,13 @@ for filp in sorted((oa_root / StowC.filter_steps).iterdir()):
             misses = wids.copy()
             for _ in tqdm(range(100_000), desc=f"reading {efil}"):
                 arr = np.frombuffer(fp.read(8 * N), dtype=np_dtype(64))
+                if len(arr) == 0:
+                    break
                 misses.difference_update(arr)
             for wid in misses:
                 filtered_works.append([filp.name, wid])
+
+print("total works in api: ", len(wids))
 
 
 print(
