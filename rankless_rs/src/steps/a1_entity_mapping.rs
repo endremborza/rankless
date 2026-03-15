@@ -1,4 +1,4 @@
-use std::{io, ops::AddAssign, sync::Arc, thread};
+use std::{io, sync::Arc, thread};
 
 use hashbrown::HashSet;
 use serde::{de::DeserializeOwned, Deserialize};
@@ -58,7 +58,7 @@ impl ShipIterator {
 
 impl SourceArea {
     pub fn raw_area_id(&self) -> BigId {
-        short_string_to_u64(&self.area.clone().unwrap_or("".to_string()))
+        short_string_to_u64(self.area.as_deref().unwrap_or(""))
     }
 }
 
@@ -185,29 +185,43 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         }));
     }
 
-    ids_from_atts::<SourceArea, _>(&starc, "area-fields", sources::C, |e| Some(e.raw_area_id()));
-    ids_from_atts::<Institution, _>(&starc, "countries", institutions::C, |e| {
-        Some(short_string_to_u64(
-            &e.country_code.unwrap_or("".to_string()),
-        ))
-    });
+    {
+        let sc = starc.clone();
+        threads.push(thread::spawn(move || {
+            ids_from_atts::<SourceArea, _>(&sc, "area-fields", sources::C, |e| {
+                Some(e.raw_area_id())
+            });
+        }));
+    }
+    {
+        let sc = starc.clone();
+        threads.push(thread::spawn(move || {
+            ids_from_atts::<Institution, _>(&sc, "countries", institutions::C, |e| {
+                Some(short_string_to_u64(e.country_code.as_deref().unwrap_or("")))
+            });
+        }));
+    }
+    {
+        let sc = starc.clone();
+        threads.push(thread::spawn(move || {
+            entities_from_iter(
+                &sc,
+                "cities",
+                sc.read_csv_objs::<Geo>(institutions::C, institutions::atts::geo)
+                    .map(|e| short_string_to_u64(e.city.as_deref().unwrap_or(""))),
+                None,
+            );
+        }));
+    }
 
-    entities_from_iter(
-        &starc,
-        "cities",
-        starc
-            .read_csv_objs::<Geo>(institutions::C, institutions::atts::geo)
-            .map(|e| short_string_to_u64(&e.city.unwrap_or("".to_string()))),
-        None,
-    );
     let mut filt_ship_n = 0;
     let mut disc_ship_n = 0;
     for ship in iter_authorships(&starc) {
         if let Some(raw_a_oaid) = ship.author_id {
             if author_filter.contains(&oa_id_parse_opt(&raw_a_oaid).unwrap()) {
-                filt_ship_n.add_assign(1);
+                filt_ship_n += 1;
             } else {
-                disc_ship_n.add_assign(1);
+                disc_ship_n += 1;
             }
         }
     }

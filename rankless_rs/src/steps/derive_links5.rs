@@ -90,25 +90,22 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     cd.hit_paper_atts();
     let sarc = Arc::new(cd.stowage);
     par_join!(
-        { let s = sarc.clone(); move || s.write_semantic_id::<Authors>() },
-        { let s = sarc.clone(); move || s.write_semantic_id::<Institutions>() },
-        { let s = sarc.clone(); move || s.write_semantic_id::<Sources>() },
-        { let s = sarc.clone(); move || s.write_semantic_id::<Subfields>() },
-        {
-            let s = sarc.clone();
-            move || {
-                let citer = s
-                    .get_entity_interface::<CountryCodesThree, ReadFixIter>()
-                    .zip(s.get_entity_interface::<CountryCodes, ReadFixIter>())
-                    .map(|(e3, e2)| {
-                        if e3 != [0; 3] {
-                            String::from_utf8(e3.into()).unwrap().to_lowercase()
-                        } else {
-                            String::from_utf8(e2.into()).unwrap().to_lowercase()
-                        }
-                    });
-                s.decsem::<Countries, _>(citer)
-            }
+        || sarc.write_semantic_id::<Authors>(),
+        || sarc.write_semantic_id::<Institutions>(),
+        || sarc.write_semantic_id::<Sources>(),
+        || sarc.write_semantic_id::<Subfields>(),
+        || {
+            let citer = sarc
+                .get_entity_interface::<CountryCodesThree, ReadFixIter>()
+                .zip(sarc.get_entity_interface::<CountryCodes, ReadFixIter>())
+                .map(|(e3, e2)| {
+                    if e3 != [0; 3] {
+                        String::from_utf8(e3.into()).unwrap().to_lowercase()
+                    } else {
+                        String::from_utf8(e2.into()).unwrap().to_lowercase()
+                    }
+                });
+            sarc.decsem::<Countries, _>(citer)
         },
     );
     Arc::try_unwrap(sarc).ok().unwrap().write_code()?;
