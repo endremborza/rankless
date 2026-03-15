@@ -13,6 +13,7 @@ use crate::{
         init_empty_slice, reverse_id, CitSubfieldsArrayMarker, CoordinateMarker, MainWorkMarker,
         NameMarker, PageFilterMarker, PeerAuthorMarker, YearlyPapersMarker,
     },
+    filter::FIX_AUTHORS,
     env_consts::FINAL_YEAR,
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
@@ -688,9 +689,10 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         starc.get_marked_interface::<Authors, YearlyPapersMarker, QuickestBox>();
     let author_oa_ids = reverse_id::<Authors>(&starc);
     let (author_coords, author_filter) = entity_coords_filter!(starc, Authors, |i, _c, p| {
-        p < 10_000
-            && *author_yearly_papers[i].iter().max().unwrap_or(&0) < 300
-            && !AUTHOR_BLACKLIST.contains(&author_oa_ids[i])
+        FIX_AUTHORS.contains(&author_oa_ids[i])
+            || (p < 10_000
+                && *author_yearly_papers[i].iter().max().unwrap_or(&0) < 300
+                && !AUTHOR_BLACKLIST.contains(&author_oa_ids[i]))
     });
 
     println!("computing author peers");
