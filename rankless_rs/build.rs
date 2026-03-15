@@ -1,10 +1,9 @@
 use std::{env, ops::AddAssign};
 
 fn main() {
-    // println!("cargo:rerun-if-changed=build.rs");
-    // println!("cargo:rerun-if-changed=data.txt");
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-env-changed=RANKLESS_ENV");
     let path = std::path::Path::new("src").join("env_consts.rs");
-    // std::fs::write(&path, "pub const {}: {} = {}").unwrap();
 
     let rankless_env = env::var_os("RANKLESS_ENV").unwrap_or("full".into());
     let envs = vec!["nano", "micro", "mini"];
@@ -17,7 +16,7 @@ fn main() {
         e_ind.add_assign(1);
     }
 
-    let year = 2025;
+    let year = 2026;
     let start_year = 1950;
     let env_dependent_vars = vec![
         ("FINAL_YEAR", [year, year, year, year]),
@@ -37,5 +36,8 @@ fn main() {
     for e_var in env_dependent_vars.iter() {
         env_lines.push(format!("pub const {}: u16 = {};", e_var.0, e_var.1[e_ind]))
     }
-    std::fs::write(&path, env_lines.join("\n")).unwrap();
+    let new_content = env_lines.join("\n");
+    if std::fs::read_to_string(&path).unwrap_or_default() != new_content {
+        std::fs::write(&path, new_content).unwrap();
+    }
 }
