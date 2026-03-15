@@ -18,14 +18,15 @@ use crate::{
 
 use dmove::BigId;
 
+// for testing
 pub const FIX_AUTHORS: [BigId; 7] = [
-    5064297795, //
-    5005839111, //
-    5078032253, //
-    5045634725, //
-    5082456380, //
-    5017880363, //
-    5042797356, //
+    5064297795, // César A. Hidalgo
+    5005839111, // Balázs Lengyel
+    5078032253, // Orsolya Vásárhelyi
+    5045634725, // Attila Chikán
+    5082456380, // Vera Messing
+    5017880363, // Gábor Békés
+    5042797356, // Endre Márk Borza
 ];
 
 const MAX_AUTHORS: usize = 20;
