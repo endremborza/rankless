@@ -34,4 +34,8 @@ for filp in sorted((oa_root / StowC.filter_steps).iterdir()):
                 filtered_works.append([filp.name, wid])
 
 
-print(pd.DataFrame(filtered_works, columns=["fid", "wid"])["fid"].value_counts())
+print(
+    pd.DataFrame(filtered_works, columns=["fid", "wid"])["fid"]
+    .value_counts()
+    .sort_index()
+)
