@@ -36,7 +36,7 @@ use muwo_search::SearchEngine;
 use rankless_rs::{
     common::{CitSubfieldsArrayMarker, MainEntity, MmapBox, PeerAuthorMarker},
     gen::{
-        a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
+        a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{AuthorOrcids, DiscardedAuthorsNames, WorkBiblios, WorkDois},
         derive_links3::HitPapers,
     },
@@ -180,6 +180,13 @@ struct TopResult {
 struct EntityDescription {
     name: String,
     count: usize,
+}
+
+#[derive(Serialize)]
+struct CountsResponse {
+    entities: Vec<EntityDescription>,
+    total_citations: u64,
+    total_works: usize,
 }
 
 fn fnv64(iter: impl Iterator<Item = impl AsRef<[u8]>>) -> u64 {
@@ -701,7 +708,7 @@ fn get_rest(
     NameStateMap,
     Arc<AttributeLabelUnion>,
     Arc<InstTrm>,
-    Vec<EntityDescription>,
+    CountsResponse,
     Vec<TopResult>,
     Arc<AuthorPeerData>,
 ) {
@@ -710,7 +717,6 @@ fn get_rest(
     let cv_pair = AcTuple::<Option<f64>>::default();
     let mut ns_map: NameStateMap = HashMap::new();
     let mut tops = Vec::new();
-    let mut descriptions = Vec::new();
     let author_peer_data = {
         let stow = &gets.stowage;
         let peers = <Authors as FixAtt<PeerAuthorMarker>>::load(stow);
@@ -722,7 +728,8 @@ fn get_rest(
             cit_subfields,
         })
     };
-    {
+    let counts_response = {
+        let mut descriptions = Vec::new();
         print_mem_use("pre thread starts");
         let arg_tup = (gets.clone(), mux_satts.clone(), cv_pair.clone());
         let ei_ns_kvs = para_multi_gen_run!(get_state_tr_ed_kv, Institutions, Authors, Subfields, Countries, Sources, HitPapers; arg_tup);
@@ -735,13 +742,18 @@ fn get_rest(
             descriptions.push(ed);
             ns_map.insert(name, nstate);
         }
-    }
+        CountsResponse {
+            entities: descriptions,
+            total_citations: ccount as u64,
+            total_works: Works::N,
+        }
+    };
     print_mem_use("after ei ns map");
     let satts = Arc::into_inner(mux_satts).unwrap().into_inner().unwrap();
     let asatts = Arc::new(satts);
     let tm: Arc<InstTrm> = TreeRunManager::new(gets, asatts.clone(), N_THREADS);
     print_mem_use("got tm");
-    (ns_map, asatts, tm, descriptions, tops, author_peer_data)
+    (ns_map, asatts, tm, counts_response, tops, author_peer_data)
 }
 
 fn print_mem_use(suff: &str) {
@@ -803,7 +815,7 @@ async fn main() {
     let now = std::time::Instant::now();
     println!("reading from path: {}", path);
     let stowage = Stowage::new(&path);
-    let (ns_map, satts, tree_manager, entity_descriptions, tops, author_peer_data) =
+    let (ns_map, satts, tree_manager, counts_response, tops, author_peer_data) =
         get_rest(stowage);
     let ns_map_arc: Arc<NameStateMap> = ns_map.into();
 
@@ -820,7 +832,7 @@ async fn main() {
         .route("/works/:etype/:semantic_id/:from", get(works_get))
         .with_state((ns_map_arc, satts, tree_manager.clone(), author_peer_data));
 
-    let count_api = static_router(&entity_descriptions);
+    let count_api = static_router(&counts_response);
     let specs_api = static_router(&tree_manager.specs);
 
     let tops_api = Router::new()
