@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import requests
-from ccl_science_data.common import EntC, oa_root, StowC, np_dtype
+from ccl_science_data.common import EntC, oa_root, StowC, np_dtype, iter_dfs, parse_id
 from tqdm import tqdm
 
 pref = "https://openalex.org/works/W"
@@ -21,6 +21,15 @@ kind = EntC.WORKS
 N = 1_000_000
 
 filtered_works = []
+
+in_dfs = []
+
+for wdf in tqdm(iter_dfs(kind, cols=["id"])):
+    in_dfs.append(wdf["id"].pipe(parse_id).loc[lambda s: s.isin(wids)])
+
+in_df = pd.concat(in_dfs)
+
+print(in_df, in_df.shape)
 
 for filp in sorted((oa_root / StowC.filter_steps).iterdir()):
     efil = filp / kind
