@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import requests
-from ccl_science_data.common import EntC, oa_root, StowC, np_dtype, iter_dfs, parse_id
+from ccl_science_data.common import EntC, StowC, iter_dfs, np_dtype, oa_root, parse_id
 from tqdm import tqdm
 
 pref = "https://openalex.org/works/W"
@@ -16,7 +16,11 @@ for page in tqdm(range(1, 10), desc="get works"):
         break
     results += obj["results"]
 
-wids = set([np.uint64(int(r["id"][len(pref) :])) for r in results])
+res_df = (
+    pd.DataFrame(results).assign(wid=lambda df: parse_id(df["id"])).set_index("wid")
+)
+
+wids = set(res_df.index)
 kind = EntC.WORKS
 N = 1_000_000
 
@@ -28,8 +32,7 @@ for wdf in tqdm(iter_dfs(kind, cols=["id"])):
     in_dfs.append(wdf["id"].pipe(parse_id).loc[lambda s: s.isin(wids)])
 
 in_df = pd.concat(in_dfs)
-
-print(in_df, in_df.shape)
+print(in_df.values, in_df.shape)
 
 for filp in sorted((oa_root / StowC.filter_steps).iterdir()):
     efil = filp / kind
