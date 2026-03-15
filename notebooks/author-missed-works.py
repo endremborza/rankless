@@ -15,7 +15,6 @@ from ccl_science_data.common import (
 )
 from tqdm import tqdm
 
-pref = "https://openalex.org/works/W"
 oa_id = 5102416863
 
 api_url = f"https://api.openalex.org/works?filter=author.id:A{oa_id}"
@@ -30,10 +29,11 @@ for page in tqdm(range(1, 10), desc="get works"):
 res_df = (
     pd.DataFrame(results).assign(wid=lambda df: parse_id(df["id"])).set_index("wid")
 )
-
 owidbs = [owid.encode() for owid in res_df["id"]]
-
 wids = set(res_df.index)
+
+print("total works in api: ", len(wids))
+
 kind = EntC.WORKS
 
 
@@ -72,11 +72,13 @@ for filp in sorted((oa_root / StowC.filter_steps).iterdir()):
             for wid in misses:
                 filtered_works.append([filp.name, wid])
 
-print("total works in api: ", len(wids))
 
-
+print("filters")
 print(
     pd.DataFrame(filtered_works, columns=["fid", "wid"])["fid"]
     .value_counts()
+    .rename("filtered")
+    .to_frame()
+    .assign(remained=lambda df: len(wids) - df["filtered"])
     .sort_index()
 )
