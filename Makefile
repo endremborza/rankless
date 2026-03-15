@@ -54,10 +54,10 @@ rm-prof:
 	rm default_*.profraw
 	rm ./*/default_*.profraw
 
-extend_csvs lib_data_generation bm live_monitoring report sitemap_validation survey_result_export log_parsing nobel start_comparison sql_comparison_eval:
+extend_csvs lib_data_generation bm live_monitoring report sitemap_validation survey_result_export log_parsing nobel sql_comparison:
 	python3 -m pyscripts.$@
 
-hit-paper-analysis field-citation-ratio:
+hit-paper-analysis field-citation-ratio author-missed-works:
 	python3 notebooks/$@.py
 
 
@@ -97,10 +97,6 @@ restart-service:
 
 test-server:
 	time curl localhost:3038/v1/names/authors?q=ces
-
-backup-gens:
-	mkdir -p rankless_rs/src/gen/$(RANKLESS_ENV)/
-	cp rankless_rs/src/gen_* rankless_rs/src/gen/$(RANKLESS_ENV)/
 
 nuke:
 	rm -rf $(OA_ROOT)
