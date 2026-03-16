@@ -99,11 +99,10 @@ impl WVecPair {
     }
     fn reset(&mut self) {
         unsafe {
+            // neither type needs dropping
             self.sources.set_len(0);
             self.targets.set_len(0);
         }
-        // self.sources.reset();
-        // self.targets.reset();
     }
 
     fn add(&mut self, e: &WorkWInd, other: &Self, other_tind: usize) {
@@ -385,7 +384,7 @@ where
     CE: NumberedEntity,
 {
     fn into(self) -> BufSerChildren {
-        childern_from_flat_vec(self)
+        children_from_flat_vec(self)
     }
 }
 
@@ -427,7 +426,7 @@ where
     BufSerChildren::Nodes(tree_map)
 }
 
-fn childern_from_flat_vec<E, C>(v: Vec<DisJTree<E, C>>) -> BufSerChildren
+fn children_from_flat_vec<E, C>(v: Vec<DisJTree<E, C>>) -> BufSerChildren
 where
     E: NumberedEntity,
     C: Collapsing,
