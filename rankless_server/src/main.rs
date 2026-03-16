@@ -571,15 +571,11 @@ impl PreAttResultExtension {
             .filter_map(|sr| {
                 let etype = ETYPE_ENC[sr.etype_id as usize];
                 let att = &satts[etype][sr.dm_id.to_usize()];
-                let mut semantic_id = "".to_string();
-                if let Some(rstate) = nstates.get(etype) {
-                    if let Some(_) = rstate.semantic_id_map.get(&att.semantic_id) {
-                        semantic_id = att.semantic_id.clone();
-                    } else {
-                        semantic_id = "".to_string();
-                        // return None;
-                    }
-                }
+                let semantic_id = nstates
+                    .get(etype)
+                    .and_then(|rstate| rstate.semantic_id_map.get(&att.semantic_id))
+                    .map(|_| att.semantic_id.clone())
+                    .unwrap_or_default();
                 Some(PostAttRelatedEntity {
                     semantic_id,
                     name: att.name.clone(),
@@ -674,7 +670,7 @@ impl NameState {
                 let ext = if ext_txt.len() > i {
                     ext_txt[i].to_string()
                 } else {
-                    "".to_string()
+                    String::new()
                 };
                 SearchResult::new(
                     i,
@@ -903,7 +899,7 @@ async fn tree_get(
     let mut tq = tree_q.0;
     let (ns_map, _, tm, _) = states.0;
     if let Some(nstate) = ns_map.get(root_type.as_str()) {
-        if (root_type == HitPapers::NAME) & (semantic_id == "all") {
+        if (root_type == HitPapers::NAME) && (semantic_id == "all") {
             tq.cacheable = Some(true);
             //TODO: all hit papers
             // let resp = Json(tm.get_single_resp(tq, &root_type, HitPapers::N + 1));
@@ -1160,8 +1156,8 @@ async fn name_get(
     states: StatesT,
 ) -> (HeaderMap, Response) {
     if let Some(state) = states.0 .0.get(etype.as_str()) {
-        let q_string = q.q.clone().unwrap_or("".to_string());
-        let top_n_inds = state.engine.query(&q_string);
+        let q_string = q.q.as_deref().unwrap_or("");
+        let top_n_inds = state.engine.query(q_string);
         let resp: Json<Vec<SearchResult>> = Json(
             top_n_inds
                 .into_iter()
@@ -1187,7 +1183,7 @@ async fn works_get(
         let psid = parse_semantic_id(sem_id);
         if let Some(sem_val) = state.semantic_id_map.get(&psid) {
             if let Some(work_arr) = states.2.state.gets.works_of_entity(sem_val.dm_id, etype) {
-                if work_arr.len() > 0 {
+                if !work_arr.is_empty() {
                     let start = min(pstart, work_arr.len() - 1);
                     let wids = work_arr[start..].iter().take(MAX_WORKS).map(WT::to_usize);
                     let resp = get_paper_set_resp(wids, states.2.clone());
