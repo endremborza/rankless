@@ -549,7 +549,7 @@ where
         };
         let content_slice = &mut buf[..endidx];
         targets.read_exact(content_slice).unwrap();
-        bvec.extend(content_slice.iter());
+        bvec.extend_from_slice(content_slice);
         remaining_count -= endidx;
     }
     <E as Entity>::T::from_bytes(&bvec)

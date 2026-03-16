@@ -294,7 +294,7 @@ where
     fn to_fbytes(&self) -> Box<[u8]> {
         let mut out = Vec::with_capacity(Self::S);
         for e in self.iter() {
-            out.extend(e.to_fbytes().iter())
+            out.extend_from_slice(&e.to_fbytes())
         }
         out.into()
     }
@@ -320,7 +320,7 @@ macro_rules! iter_ba_impl {
             fn to_bytes(&self) -> Box<[u8]> {
                 let mut out = Vec::new();
                 for e in self.iter() {
-                    out.extend(e.to_fbytes().iter())
+                    out.extend_from_slice(&e.to_fbytes())
                 }
                 out.into()
             }
@@ -400,14 +400,14 @@ num_impl!(u8, u16, u32, u64, u128, f32, f64, usize);
 iter_ba_impl!(Box<[T]>, Vec<T>, Rc<[T]>, Arc<[T]>);
 
 pub fn camel_case(s: &str) -> String {
-    let mut out = "".to_string();
+    let mut out = String::new();
     let mut next_big = true;
     for mut c in s.chars() {
         if next_big {
             c = c.to_uppercase().next().unwrap();
             next_big = false;
         }
-        if "-_0123456789".chars().any(|e| e == c) {
+        if matches!(c, '-' | '_' | '0'..='9') {
             next_big = true;
         } else {
             out.push(c);
@@ -440,8 +440,8 @@ fn clean_name(base_name: String) -> String {
     let mut clean_blocks = Vec::new(); // x::y::v<a::b::c> -> x, y, v<cleaned>
     while let Some(mut elem) = base_iter.next() {
         let (mut lc, mut rc) = (0, 0);
-        let mut presub = "".to_string();
-        let mut sub = "".to_string();
+        let mut presub = String::new();
+        let mut sub = String::new();
         loop {
             for chr in elem.chars() {
                 if chr == '<' {
