@@ -109,7 +109,7 @@ impl AddSemId for Source {
         }
         out.push(self.display_name.clone());
         out.sort_by_key(|e| e.len());
-        out.iter().map(semantify).collect()
+        out.iter().map(|s| semantify(s)).collect()
     }
 }
 
@@ -131,12 +131,12 @@ impl AddSemId for Institution {
             format!(
                 "{} {}",
                 base_name.trim(),
-                self.country_code.as_ref().unwrap_or(&"".to_string())
+                self.country_code.as_deref().unwrap_or("")
             )
             .to_string(),
         );
         out.sort_by_key(|e| e.len());
-        out.iter().map(semantify).collect()
+        out.iter().map(|s| semantify(s)).collect()
     }
 }
 
@@ -154,7 +154,7 @@ impl DoIfNot<String> for HashSet<String> {
     }
 }
 
-pub fn semantify(s: &String) -> String {
+pub fn semantify(s: &str) -> String {
     StackWordSet::new(s).to_words().join("-")
 }
 

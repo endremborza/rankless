@@ -377,7 +377,7 @@ impl ParsedId for FieldLike {
 impl ParsedId for Geo {
     fn get_parsed_id(&self) -> Option<BigId> {
         Some(short_string_to_u64(
-            &self.country_code.clone().unwrap_or("".to_string()),
+            self.country_code.as_deref().unwrap_or(""),
         ))
     }
 }

@@ -104,7 +104,7 @@ impl FilterBase for PersonAuthorship {
     const FILTER_TARGETS: bool = true;
 
     fn iter_edges(&self) -> Vec<[String; 2]> {
-        if self.author.len() > 0 {
+        if !self.author.is_empty() {
             vec![[self.parent_id.to_string(), self.author.to_string()]]
         } else {
             Vec::new()
