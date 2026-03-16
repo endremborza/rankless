@@ -592,7 +592,7 @@ fn get_gen_basis(prefix: &str, i: usize) -> String {
     format!("{prefix}<E{i}, N{i}, S{i}>")
 }
 
-fn get_stack_type_elems(in_types: &Vec<String>) -> Vec<String> {
+fn get_stack_type_elems(in_types: &[String]) -> Vec<String> {
     let mut type_iter = in_types.iter().rev();
     let mut child = type_iter.next().expect("at least one type needed").clone();
     let mut stack_type_elems: Vec<String> = vec![child.clone()];
