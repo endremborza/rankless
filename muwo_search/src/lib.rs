@@ -85,7 +85,6 @@ struct PrepLeaf {
 struct IndexedWord {
     word: Vec<u8>,
     outer_idx: usize,
-    _inner_idx: usize, //TODO/improvement: use this somehow
 }
 
 trait Construct {
@@ -133,10 +132,10 @@ impl TrieLeaves {
     }
 }
 
-impl Into<Vec<IndType>> for QueryResult {
-    fn into(mut self) -> Vec<IndType> {
-        extend_sorted(&mut self.perfect, self.partial);
-        self.perfect
+impl From<QueryResult> for Vec<IndType> {
+    fn from(mut val: QueryResult) -> Self {
+        extend_sorted(&mut val.perfect, val.partial);
+        val.perfect
     }
 }
 
@@ -281,7 +280,7 @@ impl QueriableLevel for TrieLeaves {
 }
 
 impl<const S: usize> PrepTrieRoot<S> {
-    fn finalize(mut self, char_array: &Vec<u8>) -> TrieNodeRoot<S> {
+    fn finalize(mut self, char_array: &[u8]) -> TrieNodeRoot<S> {
         self.out.sort();
         let out = self.out;
         let children = child_into(self.children, |c| c.finalize(char_array));
@@ -325,11 +324,11 @@ impl<const S: usize> PrepTrieRoot<S> {
 }
 
 impl<const S: usize> PrepTrieL1<S> {
-    fn finalize(mut self, char_array: &Vec<u8>) -> TrieNodeL1<S> {
+    fn finalize(mut self, char_array: &[u8]) -> TrieNodeL1<S> {
         self.out.sort();
         let out = self.out;
         let children = child_into(self.children, |mut c| {
-            c.sort_by_key(|tl| tl.suffix.cut(&char_array));
+            c.sort_by_key(|tl| tl.suffix.cut(char_array));
             c.into_iter()
                 .map(|mut leaf| {
                     leaf.ids.sort();
@@ -542,7 +541,6 @@ fn get_idxed_words<I: Iterator<Item = String>>(haystacks: I) -> Vec<IndexedWord>
             let this_break = wstack.break_array[break_n] as usize;
             idxed_words.push(IndexedWord {
                 word: wstack.char_array[last_break..this_break].to_vec(),
-                _inner_idx: break_n,
                 outer_idx: hi,
             });
             last_break = this_break;
@@ -551,20 +549,8 @@ fn get_idxed_words<I: Iterator<Item = String>>(haystacks: I) -> Vec<IndexedWord>
     idxed_words
 }
 
-fn _n_unique<T: PartialEq + Ord>(arr: &mut [T]) -> u8 {
-    //TODO/improvement: use this for better matches
-    arr.sort();
-    let mut o = 0;
-    for (i, e) in arr.iter().enumerate().skip(1) {
-        if e != &arr[i - 1] {
-            o.add_assign(1);
-        }
-    }
-    o
-}
-
-fn get_suffix(word: &Vec<u8>) -> Vec<u8> {
-    word.iter().skip(BRANCHING_LEVELS).map(|e| *e).collect()
+fn get_suffix(word: &[u8]) -> Vec<u8> {
+    word[BRANCHING_LEVELS..].to_vec()
 }
 
 fn get_overlap<T: PartialEq>(suffix: &[T], word: &[T]) -> usize {

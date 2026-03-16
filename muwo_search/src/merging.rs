@@ -45,22 +45,22 @@ where
     v
 }
 
-pub fn merge_box_into_sorted_vec<T>(left_vec: &mut Vec<T>, right_barr: &Box<[T]>)
+pub fn merge_box_into_sorted_vec<T>(left_vec: &mut Vec<T>, right_barr: &[T])
 where
     T: PartialOrd + Copy,
 {
-    merge_into_sorted_vec(left_vec, right_barr.clone().into_vec());
+    merge_into_sorted_vec(left_vec, right_barr.to_vec());
 }
 
 pub fn merge_into_sorted_vec<T>(left_vec: &mut Vec<T>, mut right_vec: Vec<T>)
 where
     T: PartialOrd + Copy,
 {
-    if left_vec.len() == 0 {
+    if left_vec.is_empty() {
         let _ = std::mem::replace(left_vec, right_vec);
         return;
     }
-    if right_vec.len() == 0 {
+    if right_vec.is_empty() {
         return;
     }
     let mut li = 0;
@@ -183,7 +183,7 @@ where
 
 /// gets i so that arr\[..i\] all true, arr\[i..\] all false
 pub fn log_search<T, F: Fn(&T) -> bool>(arr: &[T], f: F) -> usize {
-    if arr.len() == 0 {
+    if arr.is_empty() {
         return 0;
     }
     let (mut l, mut r) = (0, arr.len());
@@ -201,11 +201,11 @@ pub fn log_search<T, F: Fn(&T) -> bool>(arr: &[T], f: F) -> usize {
     l
 }
 
-pub fn logfound<T>(v: &Vec<T>, val: T) -> bool
+pub fn logfound<T>(v: &[T], val: T) -> bool
 where
     T: PartialOrd,
 {
-    let li = log_search(&v[0..v.len()], |e| *e < val);
+    let li = log_search(v, |e| *e < val);
     if li < v.len() {
         return v[li] == val;
     }
