@@ -258,6 +258,7 @@
 		min-width: 0;
 		padding-top: 0;
 		padding-right: 0;
+		padding-bottom: 25svh;
 		max-height: 55svh;
 		overflow-y: scroll;
 	}
