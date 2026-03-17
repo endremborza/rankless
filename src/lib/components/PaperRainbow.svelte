@@ -24,7 +24,9 @@
 	let intervalSetup: number;
 	let scrollTimeout: ReturnType<typeof setTimeout>;
 
-	$: chartPapers = papers.filter((p) => p.yearlyCites && p.yearlyCites.length > 0);
+	$: chartPapers = papers
+		.filter((p) => p.yearlyCites && p.yearlyCites.length > 0)
+		.toSorted((a, b) => b.citations - a.citations);
 
 	function getVisInds(papers: tt.Paper[], first: number) {
 		const inds = [];
