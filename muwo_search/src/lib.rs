@@ -425,10 +425,12 @@ impl<const S: usize> CustomTrie<S> {
                 let mut prefs =
                     self.prefix_tree
                         .query_prefiltered(word, &self.char_array, &matches);
-                let ins =
-                    self.inner_tree
-                        .query_inners_prefiltered(word, &self.char_array, &matches);
-                merge_into_sorted_vec(&mut prefs.partial, ins);
+                if word.len() > 1 {
+                    let ins =
+                        self.inner_tree
+                            .query_inners_prefiltered(word, &self.char_array, &matches);
+                    merge_into_sorted_vec(&mut prefs.partial, ins);
+                }
                 matches = prefs;
                 bs = be;
             }
@@ -549,8 +551,8 @@ fn get_idxed_words<I: Iterator<Item = String>>(haystacks: I) -> Vec<IndexedWord>
     idxed_words
 }
 
-fn get_suffix(word: &[u8]) -> Vec<u8> {
-    word[BRANCHING_LEVELS..].to_vec()
+fn get_suffix(word: &[u8]) -> &[u8] {
+    word.get(BRANCHING_LEVELS..).unwrap_or_default()
 }
 
 fn get_overlap<T: PartialEq>(suffix: &[T], word: &[T]) -> usize {

@@ -172,6 +172,49 @@ fn serialization_rejects_wrong_s() {
 }
 
 #[test]
+fn middle_initial() {
+    let haystacks = vec!["Michael Smith", "Michael A Smith"];
+    let engine: SearchEngine<TEST_SIZE> =
+        SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
+
+    // both match when the initial is absent from the query
+    let r = engine.query("michael smith");
+    assert!(r.contains(&0) && r.contains(&1));
+
+    // query with the initial should exclude the one without it
+    let r = engine.query("michael a smith");
+    assert_eq!(r, vec![1]);
+
+    // standalone single-char query finds the one with that initial first
+    let r = engine.query("a");
+    assert_eq!(r[0], 1);
+}
+
+#[test]
+fn handles_empty_and_short_strings() {
+    // engine with empty haystacks should not panic
+    let haystacks = vec!["", "hello", "world"];
+    let engine: SearchEngine<TEST_SIZE> =
+        SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
+    assert_eq!(engine.query("hello")[0], 1);
+    assert_eq!(engine.query("world")[0], 2);
+
+    // single-char words (length-1 after processing) should not panic
+    let haystacks = vec!["a", "bb", "ccc"];
+    let engine: SearchEngine<TEST_SIZE> =
+        SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
+    assert!(engine.query("bb").contains(&1));
+    assert!(engine.query("cc").contains(&2));
+
+    // multi-word haystack where one token is a single char should not panic
+    let haystacks = vec!["x foo", "bar"];
+    let engine: SearchEngine<TEST_SIZE> =
+        SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
+    assert_eq!(engine.query("foo")[0], 0);
+    assert_eq!(engine.query("bar")[0], 1);
+}
+
+#[test]
 fn lincoln() {
     //because it assumes to that results for words are all sorted
     let haystacks = vec![
