@@ -1,4 +1,4 @@
-use std::{collections::HashSet, f64, sync::Arc};
+use std::{f64, sync::Arc};
 
 use crate::{
     ids::AttributeLabelUnion,
@@ -7,11 +7,11 @@ use crate::{
 };
 use rankless_rs::{
     common::{
-        reverse_id, BeS, CoordinateMarker, HitWorkMarker, MainEntity,
-        MainWorkMarker, MarkedBackendLoader, NumberedEntity, PageFilterMarker, QuickAttPair,
-        QuickMap, QuickestBox, QuickestVBox, Stowage, Top15AuthorMarker, Top3AffCountryMarker,
-        Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker, Top3PaperTopicMarker,
-        WorkLoader, YearlyCitationsMarker, YearlyPapersMarker, NET,
+        reverse_id, BeS, CoordinateMarker, HitWorkMarker, MainEntity, MainWorkMarker,
+        MarkedBackendLoader, NumberedEntity, PageFilterMarker, QuickAttPair, QuickMap, QuickestBox,
+        QuickestVBox, Stowage, Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker,
+        Top3JournalMarker, Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader,
+        YearlyCitationsMarker, YearlyPapersMarker, NET,
     },
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
@@ -30,11 +30,11 @@ use rankless_rs::{
     },
     steps::{
         a1_entity_mapping::YearInterface,
+        a2_init_atts::OrcidType,
         derive_links1::{CountryInsts, WorkPeriods},
         derive_links2::{EraRec, Top15Rec, Top3Rec},
     },
-    CiteCountMarker, NameExtensionMarker, NameMarker, ReadFixIter,
-    SemanticIdMarker, WorkCountMarker,
+    CiteCountMarker, NameExtensionMarker, NameMarker, SemanticIdMarker, WorkCountMarker,
 };
 
 use dmove::{
@@ -59,7 +59,6 @@ pub struct Getters {
     pub hit_papers: Box<[WT]>,
     pub hit_wid_map: HashMap<WT, usize>,
     pub orcid_map: HashMap<ET<AuthorOrcids>, usize>,
-    pub orcid_authors: HashSet<usize>,
 }
 
 macro_rules! make_interfaces {
@@ -225,6 +224,7 @@ make_interfaces!(
     fshipa => AuthorshipFilteredAuthor,
     dshipa => AuthorshipDiscardedAuthor,
     author_prizes => AuthorNobels,
+    author_orcids => AuthorOrcids,
     raw_cites => AuthorRawCites,
     raw_works => AuthorRawWorkCounts,
     hit_bms => HitPapersBenchmarks;
@@ -373,18 +373,16 @@ impl Getters {
         let hit_wid_map: HashMap<WT, usize> =
             HashMap::from_iter(hit_papers.iter().enumerate().map(|(hwi, e)| (*e, hwi)));
         let mut orcid_map = HashMap::new();
-        let mut orcid_authors = HashSet::new();
-        let na_orcid: ET<AuthorOrcids> = <ET<AuthorOrcids> as Default>::default();
-        stowage
-            .get_entity_interface::<AuthorOrcids, ReadFixIter>()
+        let ifs = Interfaces::new(stowage.clone());
+        let na_orcid = OrcidType::default();
+        ifs.author_orcids
+            .iter()
             .enumerate()
-            .for_each(|(ai, orcid_id)| {
-                if orcid_id != na_orcid {
-                    orcid_map.insert(orcid_id, ai);
-                    orcid_authors.insert(ai);
+            .for_each(|(aid, orcid_id)| {
+                if orcid_id != &na_orcid {
+                    orcid_map.insert(*orcid_id, aid);
                 }
             });
-        let ifs = Interfaces::new(stowage.clone());
         println!("loaded full Getters");
         Self {
             ifs,
@@ -394,7 +392,6 @@ impl Getters {
             hit_papers,
             hit_wid_map,
             orcid_map,
-            orcid_authors,
         }
     }
 
@@ -425,7 +422,6 @@ impl Getters {
             hit_papers: Vec::new().into(),
             hit_wid_map: HashMap::new(),
             orcid_map: HashMap::new(),
-            orcid_authors: HashSet::new(),
         }
     }
 }
@@ -496,17 +492,19 @@ impl MetaMapGetter for Authors {
         } else {
             "0"
         };
-        let has_orcid = if gets.orcid_authors.contains(&id) {
-            "1"
+        let na_orcid: ET<AuthorOrcids> = <ET<AuthorOrcids> as Default>::default();
+        let orcid_o = gets.author_orcids(&id);
+        let orcid = if orcid_o == &na_orcid {
+            ""
         } else {
-            "0"
+            std::str::from_utf8(orcid_o).unwrap_or("")
         };
         let kvs = vec![
             ("wikiSlug", slug),
             ("rawCites", gets.raw_cites(&id).to_string()),
             ("rawPapers", gets.raw_works(&id).to_string()),
             ("anyHits", any_hits.to_string()),
-            ("hasOrcid", has_orcid.to_string()),
+            ("orcid", orcid.to_string()),
         ];
         Some(HashMap::from_iter(kvs.into_iter()))
     }
