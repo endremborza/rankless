@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { page } from '$app/stores';
 	import { APP_NAME } from '$lib/constants';
 	import type { PaperProfileResp } from '$lib/tree-types';
 	import { buildPaperMap, isAuthored } from '$lib/utils/paper-helpers';
@@ -16,15 +15,14 @@
 		semanticId: string;
 		paperText: string;
 		citeText: string;
+		orcid: string;
 		isOwner: boolean;
-		hasOrcid: boolean;
 		disownedWids: number[];
 		claimedDois: string[];
 		mergedPairs: [number, number][];
 		authorMergeRequests: AuthorMergeRequest[];
 	};
 
-	$: user = $page.data.user;
 	$: papers = data.profile?.papers.papers ?? [];
 	$: entityAtts = data.profile?.papers.entityAtts ?? {};
 	$: discAuthorNames = data.profile?.papers.discAuthorNames ?? {};
