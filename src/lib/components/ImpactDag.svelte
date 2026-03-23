@@ -196,7 +196,7 @@
 
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <div class="impact-dag" bind:this={containerEl} on:touchstart={onTouchStart} on:touchend={onTouchEnd}>
-	{#if summary.nobelCount > 0 || summary.prestigiousCount > 0 || summary.standoutCount > 0}
+	{#if summary.nobelCount > 0 || summary.prestigiousCount > 0 || summary.hitCount > 0}
 		<div class="summary-labels">
 			{#if summary.nobelCount > 0}
 				<span class="summary-badge hl-nobel">{summary.nobelCount} by Nobel laureates</span>
@@ -204,8 +204,8 @@
 			{#if summary.prestigiousCount > 0}
 				<span class="summary-badge hl-prestigious">{summary.prestigiousCount} from Science/Nature</span>
 			{/if}
-			{#if summary.standoutCount > 0}
-				<span class="summary-badge hl-hit">{summary.standoutCount} standout</span>
+			{#if summary.hitCount > 0}
+				<span class="summary-badge hl-hit">{summary.hitCount} hit</span>
 			{/if}
 		</div>
 	{/if}

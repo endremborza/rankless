@@ -4,7 +4,7 @@ import { PRESTIGIOUS_SOURCE_SEM_IDS } from '$lib/utils/paper-helpers';
 export type ImpactSummary = {
 	nobelCount: number;
 	prestigiousCount: number;
-	standoutCount: number;
+	hitCount: number;
 };
 
 export function computeImpactSummary(
@@ -15,13 +15,13 @@ export function computeImpactSummary(
 ): ImpactSummary {
 	let nobelCount = 0;
 	let prestigiousCount = 0;
-	let standoutCount = 0;
+	let hitCount = 0;
 
 	for (const wid of impactedWids) {
 		const paper = paperMap[wid];
 		if (!paper) continue;
 
-		if (paper.isHit) standoutCount++;
+		if (paper.isHit) hitCount++;
 
 		const sourceAtt = entityAtts.sources?.[String(paper.source)];
 		if (sourceAtt?.semantic_id && PRESTIGIOUS_SOURCE_SEM_IDS.has(sourceAtt.semantic_id)) {
@@ -38,5 +38,5 @@ export function computeImpactSummary(
 		}
 	}
 
-	return { nobelCount, prestigiousCount, standoutCount };
+	return { nobelCount, prestigiousCount, hitCount };
 }

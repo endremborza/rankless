@@ -78,6 +78,7 @@ export type Paper = {
 	yearlyCites?: number[];
 	biblio?: PaperBiblio;
 	isHit: boolean;
+	hitBm?: number;
 };
 
 export type EntityAttLabel = { name: string; semantic_id: string; spec_baseline: number };
