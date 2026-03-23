@@ -98,6 +98,12 @@ export type PaperProfileResp = {
 	papers: PaperSetResp;
 };
 
+export type AuthorMergeRequest = {
+	other_semantic_id: string;
+	note: string | null;
+	created_at: string;
+};
+
 export type RootType = 'authors' | 'institutions' | 'sources' | 'countries' | 'subfields' | 'hit-papers';
 export type EntityType = RootType | 'works' | 'topics' | 'qs';
 export type SearchResult = {
