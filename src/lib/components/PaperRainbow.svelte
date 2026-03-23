@@ -350,10 +350,9 @@
 			<summary>What are hit papers?</summary>
 			<p>
 				Hit papers significantly outperform the citation benchmark for their cohort. A paper
-				qualifies if it has ≥500 total citations, reaches the top citation threshold in at least one
-				of its research topics, or achieves ≥1.5× the top-1% citation benchmark for papers published
-				in the same subfield and year. Works cited by Nobel Prize recipients receive a 2×
-				multiplier.
+				qualifies if it has ≥500 total citations, achieves ≥1.5× the top-1% citation benchmark for
+				papers published in the same subfield and year, or reaches the top citation threshold in at
+				least one of its specific research topics.
 			</p>
 		</details>
 
