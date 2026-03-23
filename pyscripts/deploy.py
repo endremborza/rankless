@@ -9,7 +9,7 @@ from pathlib import Path
 import boto3
 import pandas as pd
 from dotenv import load_dotenv
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 
 load_dotenv()
 
@@ -17,7 +17,6 @@ SERIVCE_DIR = ".config/systemd/user"
 SSL_ETC_DIR = "/etc/letsencrypt/live"
 LOCAL_SSL_TAR = "ssl_dir.tar.gz"
 AMI_IMG_CSV = "ami-imgs.csv"
-TEST_BRANCH = "mini-subset"
 
 MAIN_DOMAIN = "rankless.org"
 
@@ -29,6 +28,7 @@ APTS = [
     "python3-certbot-nginx",
     "nginx",
     "btop",
+    "systemd-oomd",
 ]
 
 
@@ -368,6 +368,7 @@ class Transper:
             "curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash"
         )
         self.ssh.prun("source .nvm/nvm.sh; nvm install --lts")
+        self.ssh.prun("systemctl enable --now systemd-oomd")
 
     def sync_txt(self, txt, name, dir):
         p = Path(name)
