@@ -27,7 +27,7 @@
 	}>();
 
 	const HIGHLIGHT_DEFS: Record<string, { label: string; cls: string }> = {
-		hit: { label: 'Standout', cls: 'hl-hit' },
+		hit: { label: 'Hit', cls: 'hl-hit' },
 		prestigious: { label: 'Prestigious', cls: 'hl-prestigious' },
 		nobel: { label: 'Nobel', cls: 'hl-nobel' }
 	};
