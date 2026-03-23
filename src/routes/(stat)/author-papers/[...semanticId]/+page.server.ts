@@ -5,6 +5,7 @@ import * as tf from '$lib/tree-functions';
 import { BE_URL } from '$lib/constants';
 import { pluralize } from '$lib/text-format-util';
 import { PaperDb } from '$lib/server/db';
+import type { AuthorMergeRequest } from '$lib/tree-types';
 
 export const ssr = true;
 
@@ -21,24 +22,37 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 				.catch(() => null),
 			fetch(`${BE_URL}/author-peers/${urlFriendlySemId}`)
 				.then((res) => (res.ok ? res.json() : null))
-				.catch(() => null),
+				.catch(() => null)
 		]);
 	if (!view) error(404, 'Not found');
 
 	let isOwner = false;
 	let disownedWids: number[] = [];
 	let claimedDois: string[] = [];
+	let mergedPairs: [number, number][] = [];
+	let authorMergeRequests: AuthorMergeRequest[] = [];
 
 	if (locals.user) {
-		try {
-			const orcidResp: SearchResult = await fetch(`${BE_URL}/orcid/${locals.user.orcid}`).then(r => r.json());
-			isOwner = orcidResp.semanticId === semanticId;
-		} catch {
-			// orcid lookup failed — not an owner
+		// Use cached semanticId when available; fall back to live ORCID lookup
+		// TODO: why would it not be available?
+		if (locals.user.semanticId) {
+			isOwner = locals.user.semanticId === semanticId;
+		} else {
+			try {
+				const orcidResp: SearchResult = await fetch(
+					`${BE_URL}/orcid/${locals.user.orcid}`
+				).then((r) => r.json());
+				isOwner = orcidResp.semanticId === semanticId;
+			} catch {
+				// ORCID lookup failed — not an owner
+			}
 		}
+
 		if (isOwner) {
 			disownedWids = PaperDb.getDisownedWids(locals.user.orcid);
 			claimedDois = PaperDb.getClaimedDois(locals.user.orcid);
+			mergedPairs = PaperDb.getMergedPairs(locals.user.orcid);
+			authorMergeRequests = PaperDb.getAuthorMergeRequests(locals.user.orcid);
 		}
 	}
 
@@ -54,6 +68,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		isOwner,
 		hasOrcid,
 		disownedWids,
-		claimedDois
+		claimedDois,
+		mergedPairs,
+		authorMergeRequests
 	};
 };
