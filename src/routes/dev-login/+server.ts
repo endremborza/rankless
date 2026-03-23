@@ -10,6 +10,7 @@ import { setSession } from '$lib/server/session';
  * Usage:
  *   /dev-login?orcid=0000-0002-8804-4520&name=Test&returnTo=/
  *
+ *
  * To test owner features on a large author profile:
  *   /dev-login?orcid=0000-0002-8804-4520&name=Test&semanticId=<target-semid>&returnTo=/author-papers/<target-semid>
  *
@@ -22,9 +23,9 @@ export const GET: RequestHandler = (event) => {
 	return setSession(
 		event,
 		{
-			orcid: p.get('orcid') ?? '',
-			name: p.get('name') ?? 'Dev User',
-			semanticId: p.get('semanticId') ?? undefined
+			orcid: p.get('orcid') ?? '0000-0003-4255-0492',
+			name: p.get('name') ?? 'Robert Langer',
+			semanticId: p.get('semanticId') ?? 'robert-langer'
 		},
 		p.get('returnTo') ?? '/'
 	);
