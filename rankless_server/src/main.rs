@@ -278,6 +278,8 @@ struct PaperOut {
     biblio: Option<ET<WorkBiblios>>,
     #[serde(rename = "isHit")]
     is_hit: bool,
+    #[serde(rename = "hitBm", skip_serializing_if = "Option::is_none")]
+    hit_bm: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -811,8 +813,7 @@ async fn main() {
     let now = std::time::Instant::now();
     println!("reading from path: {}", path);
     let stowage = Stowage::new(&path);
-    let (ns_map, satts, tree_manager, counts_response, tops, author_peer_data) =
-        get_rest(stowage);
+    let (ns_map, satts, tree_manager, counts_response, tops, author_peer_data) = get_rest(stowage);
     let ns_map_arc: Arc<NameStateMap> = ns_map.into();
 
     let response_api = Router::new()
@@ -1250,10 +1251,12 @@ fn paper_out(
 ) -> PaperOut {
     let mut yearly_cites = None;
     let mut is_hit = false;
+    let mut hit_bm = None;
     let (name, doi) = if let Some(hwid) = gets.hit_wid_map.get(&WT::from_usize(wid)) {
         let name = String::from_utf8(gets.hit_names(*hwid).to_vec()).unwrap();
         let doi = String::from_utf8(gets.hit_dois(*hwid).to_vec()).unwrap();
         yearly_cites = Some(gets.hit_yearlies(*hwid).into());
+        hit_bm = Some(gets.hit_bms(hwid).to_usize() as u32);
         is_hit = true;
         (name, doi)
     } else {
@@ -1329,6 +1332,7 @@ fn paper_out(
         source,
         authorships,
         is_hit,
+        hit_bm,
     }
 }
 
@@ -1340,7 +1344,6 @@ fn cache_header(mins: usize) -> HeaderMap {
     );
     headers
 }
-
 
 fn static_router<O: Serialize>(o: &O) -> Router {
     let arc: Arc<str> = Arc::from(serde_json::to_string(o).unwrap().as_str());
