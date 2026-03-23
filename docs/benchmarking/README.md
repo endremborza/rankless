@@ -188,3 +188,35 @@ Run timestamp: `2026-03-09 19:10` | 82 comparisons across 22 query configuration
 
 ![Memory Plot](micro/memory_plot.png)
 
+## 2nd round of SQL Comparison Robustness checks
+
+### 2026-03-18 — Primary benchmark (used in paper)
+
+792 queries across 5 entity types (authors, institutions, countries, sources, subfields) and 32 breakdown configurations with 1–4 hierarchy levels.
+
+Slightly larger mini set: 224k papers, 783k citations
+
+| Metric | PostgreSQL + Flask | Rankless (Rust) | Ratio |
+|--------|-------------------|-----------------|-------|
+| Total query time | 6,402.3 s | 98.0 s | 65.3× |
+| Peak memory | 4,222 MiB | 1,225 MiB | 3.4× |
+| Mean memory | 1,069 MiB | 1,026 MiB | 1.0× |
+
+**Correctness:** 20/32 configurations achieve Pearson r > 0.99 with relative error < 2% on source counts. Remaining configs involve source-level cross-entity aggregation paths where the two systems' aggregation strategies diverge (overall mean relative error ~5%).
+
+**Per-query average:** ~124 ms (Rust) vs ~8.1 s (Flask).
+
+### 2026-03-19 — Validation run
+
+503 queries, subset of configurations. Confirms the architectural gap holds across runs.
+
+Slightly larger micro set: 224k papers, 783k citations
+
+
+| Metric | PostgreSQL + Flask | Rankless (Rust) | Ratio |
+|--------|-------------------|-----------------|-------|
+| Total query time | 2,622.9 s | 47.1 s | 55.7× |
+| Peak memory | 4,857 MiB | 815 MiB | 6.0× |
+
+Lower speedup ratio reflects a different configuration mix (fewer deep-hierarchy queries). Higher memory ratio reflects lighter Rust cache load.
+
