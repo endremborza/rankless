@@ -1,42 +1,31 @@
 import type { RequestEvent } from '@sveltejs/kit';
-import { serialize, parse } from 'cookie';
 
 const COOKIE_NAME = 'session';
 
-export function getSession(event: RequestEvent) {
-	const cookies = parse(event.request.headers.get('cookie') || '');
-	return cookies[COOKIE_NAME] ? JSON.parse(cookies[COOKIE_NAME]) : null;
-}
-
-export function setSession(_event: RequestEvent, data: SessionUserData, redirectTo = '/') {
-	return new Response(null, {
-		status: 302,
-		headers: {
-			'Set-Cookie': serialize(COOKIE_NAME, JSON.stringify(data), {
-				path: '/',
-				httpOnly: true,
-				sameSite: 'lax',
-				maxAge: 60 * 60 * 24 // 1 day
-			}),
-			Location: redirectTo
-		}
-	});
-}
-
-export function clearSession() {
-	return new Response(null, {
-		status: 302,
-		headers: {
-			'Set-Cookie': serialize(COOKIE_NAME, '', {
-				path: '/',
-				expires: new Date(0)
-			}),
-			Location: '/'
-		}
-	});
-}
+const COOKIE_OPTS = {
+	path: '/',
+	httpOnly: true,
+	sameSite: 'lax' as const,
+	maxAge: 60 * 60 * 24 // 1 day
+};
 
 export type SessionUserData = {
 	orcid: string;
-	name: string
+	name: string;
+	semanticId?: string;
+};
+
+export function getSession(event: RequestEvent): SessionUserData | null {
+	const raw = event.cookies.get(COOKIE_NAME);
+	return raw ? JSON.parse(raw) : null;
+}
+
+export function setSession(event: RequestEvent, data: SessionUserData, redirectTo = '/'): Response {
+	event.cookies.set(COOKIE_NAME, JSON.stringify(data), COOKIE_OPTS);
+	return new Response(null, { status: 302, headers: { Location: redirectTo } });
+}
+
+export function clearSession(event: RequestEvent): Response {
+	event.cookies.delete(COOKIE_NAME, { path: '/' });
+	return new Response(null, { status: 302, headers: { Location: '/' } });
 }
