@@ -13,8 +13,8 @@ use crate::{
         init_empty_slice, reverse_id, CitSubfieldsArrayMarker, CoordinateMarker, MainWorkMarker,
         NameMarker, PageFilterMarker, PeerAuthorMarker, YearlyPapersMarker,
     },
-    filter::FIX_AUTHORS,
     env_consts::FINAL_YEAR,
+    filter::FIX_AUTHORS,
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{AuthorNobels, WorkDois, WorkTopics, WorkYears, WorksNames},
@@ -598,6 +598,7 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     let mut hit_names = vec!["Unknown".to_string()];
     let mut hit_dois = vec!["".to_string()];
     let mut hit_ccounts = vec![0];
+    let mut hit_bms = vec![0usize];
     let mut hit_wids = vec![vec![].into_boxed_slice()];
     let this_year = YearInterface::parse(FINAL_YEAR);
 
@@ -632,6 +633,7 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
             hit_names.push(name);
             hit_dois.push(doi_interface.0[wid].to_string());
             hit_ccounts.push(cc_n);
+            hit_bms.push(bm.round() as usize);
             //TODO: unnecessary but low cost - hit_papers contains the exact same info
             //but this is so that something that is a Box<[wid]> can be assigned to hit-papers
             //as in memory wid store for trees
@@ -676,13 +678,27 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         hit_ccounts.into_iter(),
         Some("hit-papers-cite-counts"),
     );
+    starc.add_iter_owned::<DowncastingBuilder, _, _>(
+        hit_bms.into_iter(),
+        Some("hit-papers-benchmarks"),
+    );
 
     let source_stats = starc.get_entity_interface::<SourceStats, QuickestBox>();
     par_join!(
-        || { entity_coords_filter!(starc, Institutions, |_i, _c, _p| true); },
-        || { entity_coords_filter!(starc, Subfields, |_i, _c, _p| true); },
-        || { entity_coords_filter!(starc, Countries, |_i, _c, _p| true); },
-        || { entity_coords_filter!(starc, Sources, |i, c, p| p > 10 && c > 20 && source_stats[i].1 <= 2); },
+        || {
+            entity_coords_filter!(starc, Institutions, |_i, _c, _p| true);
+        },
+        || {
+            entity_coords_filter!(starc, Subfields, |_i, _c, _p| true);
+        },
+        || {
+            entity_coords_filter!(starc, Countries, |_i, _c, _p| true);
+        },
+        || {
+            entity_coords_filter!(starc, Sources, |i, c, p| p > 10
+                && c > 20
+                && source_stats[i].1 <= 2);
+        },
     );
 
     let author_yearly_papers =
