@@ -8,19 +8,26 @@
 	import { onMount, tick } from 'svelte';
 	import { slide } from 'svelte/transition';
 
+	import { page } from '$app/state';
 	import type { RootType } from '$lib/tree-types';
 	import { LATEST_YEAR, ROOT_TYPES } from '$lib/constants';
 	import { prettifyRoot } from '$lib/text-format-util';
 	import { resultsHidden } from '$lib/stores';
 
-	export let data: { surveyShouldPrompt: boolean };
+	export let data: {
+		surveyShouldPrompt: boolean;
+		user: { orcid: string; name: string; semanticId?: string } | null;
+	};
 	let options: RootType[] = ROOT_TYPES.filter((e) => e != 'hit-papers');
 	let cat: RootType = options[0];
 
 	let mounted = false;
 	let dropdownOpen = false;
+	let userMenuOpen = false;
 	// let innerWidth = 900;
 	let innerWidth: number;
+
+	$: loginReturnTo = page.url.pathname + page.url.search;
 
 	$: visibleCount = innerWidth >= 600 ? options.length : innerWidth >= 500 ? 3 : 0;
 	$: visibleOptions = options.slice(0, visibleCount);
@@ -59,6 +66,7 @@
 
 	afterNavigate(() => {
 		dropdownOpen = false;
+		userMenuOpen = false;
 		resultsHidden.set(true);
 	});
 
@@ -133,6 +141,43 @@
 			{/if}
 		</nav>
 
+		<div class="header-auth">
+			{#if data.user}
+				<div class="dropdown">
+					<button
+						class="user-btn"
+						class:active={userMenuOpen}
+						on:click|stopPropagation={() => (userMenuOpen = !userMenuOpen)}
+					>
+						{data.user.name.split(' ')[0]} &#9662;
+					</button>
+					{#if userMenuOpen}
+						<div class="dropdown-menu user-menu" transition:slide={{ duration: 150, axis: 'y' }}>
+							{#if data.user.semanticId}
+								<a
+									class="dropdown-item"
+									href="/author-papers/{data.user.semanticId}"
+									on:click={() => (userMenuOpen = false)}>My Profile</a
+								>
+							{/if}
+							<a
+								class="dropdown-item logout-item"
+								href="/logout"
+								data-sveltekit-preload-data="off"
+								on:click={() => (userMenuOpen = false)}>Logout</a
+							>
+						</div>
+					{/if}
+				</div>
+			{:else}
+				<a
+					class="login-btn"
+					href="/login?returnTo={encodeURIComponent(loginReturnTo)}"
+					data-sveltekit-preload-data="off">Login</a
+				>
+			{/if}
+		</div>
+
 		<button class="header-search" on:click={toggleSearch} aria-label="Toggle search">
 			{#if $resultsHidden}
 				<svg viewBox="-10 -10 60 50" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -157,7 +202,13 @@
 	{/if}
 
 	<SearchResults {searchTerm} {cat} />
-	<div id="main-content" on:click={() => (dropdownOpen = false)}>
+	<div
+		id="main-content"
+		on:click={() => {
+			dropdownOpen = false;
+			userMenuOpen = false;
+		}}
+	>
 		<slot />
 	</div>
 	<div id="main-foot">
@@ -268,6 +319,66 @@
 		font-weight: bold;
 	}
 
+	.header-auth {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+		margin-left: auto;
+		margin-right: 4px;
+	}
+
+	.login-btn {
+		font-size: 0.8rem;
+		padding: 5px 10px;
+		border-radius: var(--borad);
+		color: var(--color-theme-darkgrey);
+		text-decoration: none;
+		border: 1px solid transparent;
+		transition: background-color 0.15s, color 0.15s;
+	}
+
+	.login-btn:hover {
+		background-color: var(--color-theme-lightblue);
+		color: var(--color-theme-darkblue);
+	}
+
+	.user-btn {
+		background: none;
+		border: none;
+		font-family: inherit;
+		font-size: 0.85rem;
+		padding: 5px 10px;
+		cursor: pointer;
+		color: var(--color-theme-darkgrey);
+		border-radius: var(--borad);
+		transition: background-color 0.15s, color 0.15s;
+		white-space: nowrap;
+		max-width: 120px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.user-btn:hover,
+	.user-btn.active {
+		background-color: var(--color-theme-lightblue);
+		color: var(--color-theme-darkblue);
+	}
+
+	.user-menu {
+		right: 0;
+		left: auto;
+	}
+
+	/* user menu uses <a> elements, ensure they look like dropdown buttons */
+	.user-menu :global(a.dropdown-item) {
+		display: block;
+		text-decoration: none;
+	}
+
+	.logout-item {
+		opacity: 0.6;
+	}
+
 	.header-search {
 		background: none;
 		border: none;
@@ -277,7 +388,6 @@
 		justify-content: center;
 		flex-shrink: 0;
 		padding: 4px;
-		margin-left: auto;
 	}
 
 	.header-search svg {
