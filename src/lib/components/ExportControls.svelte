@@ -1,10 +1,8 @@
 <script lang="ts">
 	import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
-	import {
-		toBibtexFile,
-		type CitationStyle
-	} from '$lib/utils/reference-format';
+	import { toBibtexFile, type CitationStyle } from '$lib/utils/reference-format';
 	import { copyToClipboard, downloadTextFile } from '$lib/utils/clipboard-download';
+	import { COMPLETE_YEAR, LATEST_YEAR } from '$lib/constants';
 
 	export let filteredPapers: Paper[];
 	export let totalCount: number;
@@ -13,6 +11,8 @@
 
 	export let sortBy: 'year' | 'citations' = 'year';
 	export let minCitations = 0;
+	export let minYear = COMPLETE_YEAR;
+	export let topN = 0;
 	export let citationStyle: CitationStyle = 'html';
 
 	function handleCopyBibtex() {
@@ -22,6 +22,8 @@
 	function handleDownloadBibtex() {
 		downloadTextFile('papers.bib', toBibtexFile(filteredPapers, entityAtts, discAuthorNames));
 	}
+
+	$: isFiltered = minCitations > 0 || minYear > 0 || topN > 0;
 </script>
 
 <div class="export-controls">
@@ -39,6 +41,23 @@
 			<input type="number" min="0" bind:value={minCitations} class="num-input" />
 		</label>
 
+		<label title="Hide papers published before this year">
+			Since:
+			<input
+				type="number"
+				min={COMPLETE_YEAR}
+				max={LATEST_YEAR}
+				bind:value={minYear}
+				placeholder="year"
+				class="num-input year-input"
+			/>
+		</label>
+
+		<label title="Show only top N papers by citation count (0 = all)">
+			Top N:
+			<input type="number" min="0" bind:value={topN} placeholder="all" class="num-input" />
+		</label>
+
 		<label>
 			Style:
 			<select bind:value={citationStyle}>
@@ -53,7 +72,7 @@
 		<button on:click={handleDownloadBibtex}>Download .bib</button>
 	</div>
 
-	{#if minCitations > 0}
+	{#if isFiltered}
 		<span class="filter-note">{filteredPapers.length} of {totalCount} papers shown</span>
 	{/if}
 </div>
@@ -73,7 +92,8 @@
 		font-size: 0.75rem;
 	}
 
-	select, .num-input {
+	select,
+	.num-input {
 		margin-left: 0.2rem;
 		font-size: 0.75rem;
 		padding: 2px 4px;
@@ -81,6 +101,10 @@
 
 	.num-input {
 		width: 50px;
+	}
+
+	.year-input {
+		width: 66px;
 	}
 
 	button {
@@ -107,7 +131,8 @@
 			font-size: 0.9rem;
 		}
 
-		select, .num-input {
+		select,
+		.num-input {
 			font-size: 0.85rem;
 		}
 
