@@ -56,8 +56,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		}
 	}
 
-	const hasOrcid = view.meta?.hasOrcid === '1';
-
 	return {
 		name: view.name,
 		profile,
@@ -66,7 +64,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		paperText: pluralize('paper', view.papers),
 		citeText: pluralize('indexed citation', view.citations),
 		isOwner,
-		hasOrcid,
+		orcid: view.meta?.orcid || '',
 		disownedWids,
 		claimedDois,
 		mergedPairs,
