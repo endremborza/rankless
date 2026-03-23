@@ -44,6 +44,8 @@ const MIN_TOPIC_SCORE: f64 = 0.7;
 const MIN_RATE: f64 = 0.8;
 const MIN_LEN: usize = 10;
 
+pub type OrcidType = [u8; 19];
+
 #[derive(Deserialize)]
 struct SourceQ {
     publication_year: u16,
@@ -257,7 +259,7 @@ impl Stowage {
         self.add_nobels(&aif);
         let mut names = init_empty_slice::<Authors, String>();
         let mut wiki_slugs = init_empty_slice::<Authors, String>();
-        let mut orcids = init_empty_slice::<Authors, [u8; 19]>();
+        let mut orcids = init_empty_slice::<Authors, OrcidType>();
         let mut raw_cites = init_empty_slice::<Authors, usize>();
         let mut raw_works = init_empty_slice::<Authors, usize>();
         let discarded_name_iter = self
@@ -1008,24 +1010,30 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let sarc = Arc::new(stowage);
 
     // Wave 1: parallel heavy CSV reads (institutions, authors, 5 entity name tables)
-    let ((insts_interface, countries_interface), domains_interface, fields_interface, subfields_interface, sources_interface, topics_interface) =
-        std::thread::scope(|s| {
-            s.spawn(|| sarc.add_author_atts());
-            let h1 = s.spawn(|| sarc.add_inst_atts());
-            let h3 = s.spawn(|| write_entity_name::<FieldLike, Domains>(&sarc));
-            let h4 = s.spawn(|| write_entity_name::<FieldLike, Fields>(&sarc));
-            let h5 = s.spawn(|| write_entity_name::<FieldLike, Subfields>(&sarc));
-            let h6 = s.spawn(|| write_entity_name::<Source, Sources>(&sarc));
-            let h7 = s.spawn(|| write_entity_name::<NamedEntity, Topics>(&sarc));
-            (
-                h1.join().unwrap(),
-                h3.join().unwrap(),
-                h4.join().unwrap(),
-                h5.join().unwrap(),
-                h6.join().unwrap(),
-                h7.join().unwrap(),
-            )
-        });
+    let (
+        (insts_interface, countries_interface),
+        domains_interface,
+        fields_interface,
+        subfields_interface,
+        sources_interface,
+        topics_interface,
+    ) = std::thread::scope(|s| {
+        s.spawn(|| sarc.add_author_atts());
+        let h1 = s.spawn(|| sarc.add_inst_atts());
+        let h3 = s.spawn(|| write_entity_name::<FieldLike, Domains>(&sarc));
+        let h4 = s.spawn(|| write_entity_name::<FieldLike, Fields>(&sarc));
+        let h5 = s.spawn(|| write_entity_name::<FieldLike, Subfields>(&sarc));
+        let h6 = s.spawn(|| write_entity_name::<Source, Sources>(&sarc));
+        let h7 = s.spawn(|| write_entity_name::<NamedEntity, Topics>(&sarc));
+        (
+            h1.join().unwrap(),
+            h3.join().unwrap(),
+            h4.join().unwrap(),
+            h5.join().unwrap(),
+            h6.join().unwrap(),
+            h7.join().unwrap(),
+        )
+    });
 
     // Wave 2: parallel name extensions, theme attrs, empty exts, source qs
     par_join!(
@@ -1042,13 +1050,44 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     // Wave 3: parallel property writes, multi-object properties, and work-references
     let area_fields_interface = sarc.get_entity_interface::<AreaFields, QuickestNumbered>();
     par_join!(
-        || sarc.object_property::<Institution, Institutions, Countries, _, _>(&insts_interface, &countries_interface, "inst-countries"),
-        || sarc.object_property::<SubField, Subfields, _, _, _>(&subfields_interface, &fields_interface, "subfield-ancestors"),
-        || sarc.object_property::<Field, Fields, _, _, _>(&fields_interface, &domains_interface, "field-ancestors"),
-        || sarc.object_property::<Topic, Topics, _, _, _>(&topics_interface, &subfields_interface, "topic-subfields"),
-        || sarc.multi_object_property::<SourceArea, Sources, _, _, _>(&sources_interface, &area_fields_interface, "source-area-fields", AreaFields::NAME),
-        || sarc.multi_object_property::<Location, Works, _, _, _>(&works_interface, &sources_interface, "work-sources", works::atts::locations),
-        || sarc.multi_object_property::<WorkTopic, Works, _, _, _>(&works_interface, &topics_interface, "work-topics", works::atts::topics),
+        || sarc.object_property::<Institution, Institutions, Countries, _, _>(
+            &insts_interface,
+            &countries_interface,
+            "inst-countries"
+        ),
+        || sarc.object_property::<SubField, Subfields, _, _, _>(
+            &subfields_interface,
+            &fields_interface,
+            "subfield-ancestors"
+        ),
+        || sarc.object_property::<Field, Fields, _, _, _>(
+            &fields_interface,
+            &domains_interface,
+            "field-ancestors"
+        ),
+        || sarc.object_property::<Topic, Topics, _, _, _>(
+            &topics_interface,
+            &subfields_interface,
+            "topic-subfields"
+        ),
+        || sarc.multi_object_property::<SourceArea, Sources, _, _, _>(
+            &sources_interface,
+            &area_fields_interface,
+            "source-area-fields",
+            AreaFields::NAME
+        ),
+        || sarc.multi_object_property::<Location, Works, _, _, _>(
+            &works_interface,
+            &sources_interface,
+            "work-sources",
+            works::atts::locations
+        ),
+        || sarc.multi_object_property::<WorkTopic, Works, _, _, _>(
+            &works_interface,
+            &topics_interface,
+            "work-topics",
+            works::atts::topics
+        ),
         || {
             let refs = GenWorker::new(
                 GenObjAttWorker::<'_, Works, Works, Vec<NET<Works>>, _, _>::new(
@@ -1061,18 +1100,21 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
             .take_arr();
             let mut n_inversions = 0usize;
             sarc.add_iter_owned::<VarAttBuilder, _, _>(
-                refs.into_vec().into_iter().enumerate().map(|(citing_dm, cited)| {
-                    let cy = wyears[citing_dm];
-                    let mut out = Vec::new();
-                    for refed_wid in cited.into_iter() {
-                        if cy > 0 && wyears[refed_wid.to_usize()] > cy {
-                            n_inversions += 1;
-                        } else {
-                            out.push(refed_wid);
+                refs.into_vec()
+                    .into_iter()
+                    .enumerate()
+                    .map(|(citing_dm, cited)| {
+                        let cy = wyears[citing_dm];
+                        let mut out = Vec::new();
+                        for refed_wid in cited.into_iter() {
+                            if cy > 0 && wyears[refed_wid.to_usize()] > cy {
+                                n_inversions += 1;
+                            } else {
+                                out.push(refed_wid);
+                            }
                         }
-                    }
-                    out.into_boxed_slice()
-                }),
+                        out.into_boxed_slice()
+                    }),
                 Some("work-references"),
             );
             sarc.declare_link::<Works, Works>("work-references");
