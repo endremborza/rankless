@@ -1105,17 +1105,17 @@ async fn author_peers_get(
     let hero_rid = aid_sv.result_id;
 
     let sf_atts = &satts[Subfields::NAME];
-    let mut sf_indices: Vec<usize> = Vec::new();
-    let mut seen_sfs = HashSet::new();
-    for pre in astates.prep_exts[hero_rid].prime_relations.iter() {
-        if (pre.rel_type == 0 || pre.rel_type == 1) && pre.etype_id == 2 {
-            let sf_dm = pre.dm_id as usize;
-            if sf_dm < N_SUBFIELDS && seen_sfs.insert(sf_dm) {
-                sf_indices.push(sf_dm);
-            }
-        }
-    }
-    sf_indices.truncate(N_PEER_SUBFIELDS);
+    let sf_row = apd.cit_subfields.row(hero_dm);
+    let mut sf_scores: Vec<(usize, u32)> = (0..N_SUBFIELDS)
+        .map(|si| (si, sf_row[si]))
+        .filter(|(_, c)| *c > 0)
+        .collect();
+    sf_scores.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+    let sf_indices: Vec<usize> = sf_scores
+        .into_iter()
+        .take(N_PEER_SUBFIELDS)
+        .map(|(si, _)| si)
+        .collect();
 
     let top_subfields: Vec<PeerSubfieldInfo> = sf_indices
         .iter()
