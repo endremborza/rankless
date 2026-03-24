@@ -16,9 +16,17 @@
 	const yBase = 12;
 	const maxN = 5;
 	const fontSize = 0.5;
+	const bmThreshold = 5;
+	const globalMinCites = 500;
 	let highlighted = 0;
 	let normalizeX = false;
 	let normalizeY = false;
+	let sortByOverperf = false;
+
+	function overperf(p: tt.Paper): number {
+		if (!p.hitBm || p.hitBm < 5) return 0;
+		return p.citations / p.hitBm;
+	}
 	let expandedSet: Set<number> = new Set();
 
 	let listContainer: HTMLUListElement;
@@ -29,7 +37,7 @@
 
 	$: chartPapers = papers
 		.filter((p) => p.yearlyCites && p.yearlyCites.length > 0)
-		.toSorted((a, b) => b.citations - a.citations);
+		.toSorted((a, b) => (sortByOverperf ? overperf(b) - overperf(a) : b.citations - a.citations));
 
 	$: globalMinYear =
 		chartPapers.length > 0 ? Math.min(...chartPapers.map((p) => p.year)) : LATEST_YEAR - 1;
@@ -226,7 +234,8 @@
 
 	onMount(() => {
 		intervalSetup = setInterval(() => {
-			if (chartPapers.length > 0) highlighted = (highlighted + 1) % chartPapers.length;
+			const top = Math.min(maxN, chartPapers.length);
+			if (top > 0) highlighted = (highlighted + 1) % top;
 		}, 1200);
 		listItemElements = Array.from(listContainer.querySelectorAll('li[data-index]'));
 		listContainer.addEventListener('scroll', onScrollDebounced);
@@ -249,6 +258,10 @@
 				<label>
 					<input type="checkbox" bind:checked={normalizeX} />
 					normalize lifespan (0→100%)
+				</label>
+				<label>
+					<input type="checkbox" bind:checked={sortByOverperf} />
+					sort by overperformance
 				</label>
 			</div>
 			<svg
@@ -350,9 +363,9 @@
 			<summary>What are hit papers?</summary>
 			<p>
 				Hit papers significantly outperform the citation benchmark for their cohort. A paper
-				qualifies if it has ≥500 total citations, achieves ≥1.5× the top-1% citation benchmark for
-				papers published in the same subfield and year, or reaches the top citation threshold in at
-				least one of its specific research topics.
+				qualifies if it has ≥{globalMinCites} total citations, achieves ≥1.5× the top-1% citation benchmark
+				for papers published in the same subfield and year, or reaches the top citation threshold in
+				at least one of its specific research topics.
 			</p>
 		</details>
 
@@ -405,19 +418,19 @@
 									</span>
 								</div>
 							{/if}
-							{#if paper.hitBm && paper.hitBm >= 10}
+							{#if paper.hitBm && paper.hitBm >= bmThreshold}
 								<div class="detail-row">
 									<span class="detail-label">Top-1% benchmark:</span>
 									<span>{formatNumber(paper.hitBm)} citations</span>
 								</div>
 								<div class="detail-row selection-basis">
 									<span class="detail-label">Performance:</span>
-									<span>{(paper.citations / paper.hitBm).toFixed(1)}× above cohort benchmark</span>
+									<span>{overperf(paper).toFixed(1)}× above cohort benchmark</span>
 								</div>
-							{:else}
+							{:else if paper.citations >= globalMinCites}
 								<div class="detail-row selection-basis">
 									<span class="detail-label">Selection:</span>
-									<span>Universal threshold (≥500 citations)</span>
+									<span>Universal threshold (≥{globalMinCites} citations)</span>
 								</div>
 							{/if}
 						</div>
