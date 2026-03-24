@@ -79,6 +79,7 @@ export type Paper = {
 	biblio?: PaperBiblio;
 	isHit: boolean;
 	hitBm?: number;
+	hitSemId?: string;
 };
 
 export type EntityAttLabel = { name: string; semantic_id: string; spec_baseline: number };
