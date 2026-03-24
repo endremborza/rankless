@@ -573,10 +573,22 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     para_multi_gen_run!(work_count, Sources, Institutions, Authors, Subfields, Topics, Countries; starc)
         .last();
 
-    let cc_interface = starc.get_entity_interface::<MAA<Works, CiteCountMarker>, QuickestBox>();
-    let w_sfs = starc.get_entity_interface::<WorkSubfields, QuickestVBox>();
-    let w_topics = starc.get_entity_interface::<WorkTopics, QuickestVBox>();
-    let w_years = starc.get_entity_interface::<WorkYears, QuickestBox>();
+    let (cc_interface, w_sfs, w_topics, w_years, doi_interface) = std::thread::scope(|s| {
+        let h_cc =
+            s.spawn(|| starc.get_entity_interface::<MAA<Works, CiteCountMarker>, QuickestBox>());
+        let h_sfs = s.spawn(|| starc.get_entity_interface::<WorkSubfields, QuickestVBox>());
+        let h_topics = s.spawn(|| starc.get_entity_interface::<WorkTopics, QuickestVBox>());
+        let h_years = s.spawn(|| starc.get_entity_interface::<WorkYears, QuickestBox>());
+        let h_doi = s.spawn(|| starc.get_entity_interface::<WorkDois, QuickestVBox>());
+        (
+            h_cc.join().unwrap(),
+            h_sfs.join().unwrap(),
+            h_topics.join().unwrap(),
+            h_years.join().unwrap(),
+            h_doi.join().unwrap(),
+        )
+    });
+    let nobeled_works = get_nobeled_works(&starc, &w_years);
 
     let topic_limits = get_limits::<Topics, _, _, _>(
         TOP_TOPIC,
@@ -591,9 +603,6 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     });
     let sf_year_bms = compute_sf_year_bms(&w_sfs.0, &w_years, &cc_interface, &year_bms);
 
-    let nobeled_works = get_nobeled_works(&starc, &w_years);
-
-    let doi_interface = starc.get_entity_interface::<WorkDois, QuickestVBox>();
     let name_interface = starc.get_entity_interface::<WorksNames, ReadIter>();
     let mut hit_names = vec!["Unknown".to_string()];
     let mut hit_dois = vec!["".to_string()];
