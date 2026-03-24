@@ -1,8 +1,6 @@
 <script lang="ts">
 	import type { AttributeLabels, AttributeLabel, OaPaperResp } from '$lib/tree-types';
 	import { onMount } from 'svelte';
-	import HoverI from './HoverI.svelte';
-	import HoverBlock from './HoverBlock.svelte';
 	import { getCachedPaper, setCachedPaper } from '$lib/stores';
 
 	export let workId: number;
@@ -14,7 +12,7 @@
 	let title = '';
 	let doi = '';
 	let abstract = '';
-	let abstractDetails = false;
+	let abstractExpanded = false;
 	let y = 0;
 	let authors: { name: string; link: string; isOfInst: boolean }[] = [];
 	let localCount = 0;
@@ -126,19 +124,14 @@
 			<p class="hover-s"><a {href} target="_blank">{@html title} ({y})</a></p>
 		</row>
 		{#if abstract}
-			<row>
-				<h4 class="hover-m">Abstract:</h4>
-				<span class="hover-s">
-					{#if abstract.length > 80}
-						{abstract.slice(0, 80)}... <HoverI bind:hoverToggle={abstractDetails} />
-						<HoverBlock show={abstractDetails} style="bottom: 20px; right: 20px; width: 80%;"
-							>{abstract}</HoverBlock
-						>
-					{:else}
-						{abstract}
-					{/if}
-				</span>
-			</row>
+			<div class="abstract-section">
+				<p class="abstract-text" class:expanded={abstractExpanded}>{abstract}</p>
+				{#if abstract.length > 300}
+					<button class="expand-btn" on:click={() => (abstractExpanded = !abstractExpanded)}>
+						{abstractExpanded ? '▴ less' : '▾ more'}
+					</button>
+				{/if}
+			</div>
 		{/if}
 		{#if authors.length > 0}
 			<row>
@@ -191,6 +184,56 @@
 		line-clamp: 3;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
+	}
+
+	.abstract-section {
+		font-size: min(0.85rem, 2.2vw);
+		padding: 0 calc(var(--unified-padding) / 2);
+	}
+
+	.abstract-text {
+		display: -webkit-box;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		margin: 0;
+		line-height: 1.5;
+		opacity: 0.85;
+	}
+
+	.abstract-text.expanded {
+		display: block;
+		overflow: visible;
+		-webkit-line-clamp: unset;
+		line-clamp: unset;
+	}
+
+	.expand-btn {
+		background: none;
+		border: none;
+		padding: 2px 0;
+		font-size: 0.75rem;
+		opacity: 0.5;
+		cursor: pointer;
+		color: inherit;
+	}
+
+	.expand-btn:hover {
+		opacity: 0.9;
+	}
+
+	@media (min-width: 1100px) {
+		.abstract-text {
+			display: block;
+			overflow: visible;
+			-webkit-line-clamp: unset;
+			line-clamp: unset;
+		}
+
+		.expand-btn {
+			display: none;
+		}
 	}
 
 	row {
