@@ -498,34 +498,34 @@ impl PreAttResultExtension {
                 let mut prime_relations = Vec::new();
                 let mut hit_papers = Vec::new();
                 let mut author_collabs = Vec::new();
+                add_to_relations::<Subfields, _>(
+                    &entif.top_paper_sfc[i],
+                    &mut prime_relations,
+                    0,
+                );
+                add_to_relations::<Subfields, _>(
+                    &entif.top_citing_sfc[i],
+                    &mut prime_relations,
+                    1,
+                );
+                add_to_relations::<Topics, _>(
+                    &entif.top_paper_topic[i],
+                    &mut prime_relations,
+                    2,
+                );
+                add_to_relations::<Countries, _>(
+                    &entif.top_aff_countries[i],
+                    &mut prime_relations,
+                    3,
+                );
+                add_to_relations::<Sources, _>(&entif.top_journals[i], &mut prime_relations, 4);
+                const TA_RTYPE: u8 = 5;
+                add_to_relations::<Authors, _>(
+                    &entif.top_authors[i],
+                    &mut prime_relations,
+                    TA_RTYPE,
+                );
                 if E::NAME != HitPapers::NAME {
-                    add_to_relations::<Subfields, _>(
-                        &entif.top_paper_sfc[i],
-                        &mut prime_relations,
-                        0,
-                    );
-                    add_to_relations::<Subfields, _>(
-                        &entif.top_citing_sfc[i],
-                        &mut prime_relations,
-                        1,
-                    );
-                    add_to_relations::<Topics, _>(
-                        &entif.top_paper_topic[i],
-                        &mut prime_relations,
-                        2,
-                    );
-                    add_to_relations::<Countries, _>(
-                        &entif.top_aff_countries[i],
-                        &mut prime_relations,
-                        3,
-                    );
-                    add_to_relations::<Sources, _>(&entif.top_journals[i], &mut prime_relations, 4);
-                    const TA_RTYPE: u8 = 5;
-                    add_to_relations::<Authors, _>(
-                        &entif.top_authors[i],
-                        &mut prime_relations,
-                        TA_RTYPE,
-                    );
                     let author_dm_ids: Vec<u32> = prime_relations
                         .iter()
                         .filter(|e| e.rel_type == TA_RTYPE)
