@@ -498,26 +498,8 @@ impl PreAttResultExtension {
                 let mut prime_relations = Vec::new();
                 let mut hit_papers = Vec::new();
                 let mut author_collabs = Vec::new();
-                add_to_relations::<Subfields, _>(
-                    &entif.top_paper_sfc[i],
-                    &mut prime_relations,
-                    0,
-                );
-                add_to_relations::<Subfields, _>(
-                    &entif.top_citing_sfc[i],
-                    &mut prime_relations,
-                    1,
-                );
-                add_to_relations::<Topics, _>(
-                    &entif.top_paper_topic[i],
-                    &mut prime_relations,
-                    2,
-                );
-                add_to_relations::<Countries, _>(
-                    &entif.top_aff_countries[i],
-                    &mut prime_relations,
-                    3,
-                );
+                add_to_relations::<Subfields, _>(&entif.top_paper_sfc[i], &mut prime_relations, 0);
+                add_to_relations::<Subfields, _>(&entif.top_citing_sfc[i], &mut prime_relations, 1);
                 add_to_relations::<Sources, _>(&entif.top_journals[i], &mut prime_relations, 4);
                 const TA_RTYPE: u8 = 5;
                 add_to_relations::<Authors, _>(
@@ -525,30 +507,40 @@ impl PreAttResultExtension {
                     &mut prime_relations,
                     TA_RTYPE,
                 );
-                if E::NAME != HitPapers::NAME {
-                    let author_dm_ids: Vec<u32> = prime_relations
-                        .iter()
-                        .filter(|e| e.rel_type == TA_RTYPE)
-                        .map(|e| e.dm_id)
-                        .collect();
-                    author_dm_ids
-                        .iter()
-                        .take(author_dm_ids.len() - 1)
-                        .enumerate()
-                        .for_each(|(si, said)| {
-                            let coll_nums = gets.coathors(*said);
-                            for ti in (si + 1)..author_dm_ids.len() {
-                                let taid = author_dm_ids[ti];
-                                let mut coll_num = 0;
-                                for (ctaid, n) in coll_nums {
-                                    if ctaid.to_usize() == taid.to_usize() {
-                                        coll_num = *n;
-                                        break;
-                                    }
+                let author_dm_ids: Vec<u32> = prime_relations
+                    .iter()
+                    .filter(|e| e.rel_type == TA_RTYPE)
+                    .map(|e| e.dm_id)
+                    .collect();
+                author_dm_ids
+                    .iter()
+                    .take(author_dm_ids.len() - 1)
+                    .enumerate()
+                    .for_each(|(si, said)| {
+                        let coll_nums = gets.coathors(*said);
+                        for ti in (si + 1)..author_dm_ids.len() {
+                            let taid = author_dm_ids[ti];
+                            let mut coll_num = 0;
+                            for (ctaid, n) in coll_nums {
+                                if ctaid.to_usize() == taid.to_usize() {
+                                    coll_num = *n;
+                                    break;
                                 }
-                                author_collabs.push(coll_num);
                             }
-                        });
+                            author_collabs.push(coll_num);
+                        }
+                    });
+                if E::NAME != HitPapers::NAME {
+                    add_to_relations::<Countries, _>(
+                        &entif.top_aff_countries[i],
+                        &mut prime_relations,
+                        3,
+                    );
+                    add_to_relations::<Topics, _>(
+                        &entif.top_paper_topic[i],
+                        &mut prime_relations,
+                        2,
+                    );
                     if let Some(hits) = entif.hit_works.0.get(i) {
                         hits.iter()
                             .take(MAX_HITS)
@@ -1333,7 +1325,11 @@ fn paper_out(
         year: YearInterface::reverse(*gets.year(&wid)),
         name,
         hit_sem_id: if is_hit {
-            Some(if doi.is_empty() { format!("W{}", wid) } else { doi.clone() })
+            Some(if doi.is_empty() {
+                format!("W{}", wid)
+            } else {
+                doi.clone()
+            })
         } else {
             None
         },
