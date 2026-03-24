@@ -280,6 +280,8 @@ struct PaperOut {
     is_hit: bool,
     #[serde(rename = "hitBm", skip_serializing_if = "Option::is_none")]
     hit_bm: Option<u32>,
+    #[serde(rename = "hitSemId", skip_serializing_if = "Option::is_none")]
+    hit_sem_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -686,6 +688,11 @@ impl NameState {
                 )
             })
             .collect();
+        for res in &mut responses {
+            if res.semantic_id.is_empty() {
+                res.semantic_id = format!("W{}", res.oa_id);
+            }
+        }
         responses.sort_by_key(|e| u32::MAX - e.citations);
         responses.into()
     }
@@ -1325,6 +1332,11 @@ fn paper_out(
         wid,
         year: YearInterface::reverse(*gets.year(&wid)),
         name,
+        hit_sem_id: if is_hit {
+            Some(if doi.is_empty() { format!("W{}", wid) } else { doi.clone() })
+        } else {
+            None
+        },
         doi,
         citations: gets.wccount(wid) as u32,
         yearly_cites,
