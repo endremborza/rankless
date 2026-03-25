@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatNumber } from '$lib/text-format-util';
+	import { pluralize } from '$lib/text-format-util';
 	import { BE_REMOTE_URL } from '$lib/constants';
 	import type { RootType, SearchResult } from '$lib/tree-types';
 	import { entToLink } from '$lib/tree-functions';
@@ -20,8 +20,7 @@
 		delayedTerm = searchTerm;
 		try {
 			const res = await fetch(
-				`${BE_REMOTE_URL}/names/${cat}?` +
-					new URLSearchParams({ q: searchTerm }).toString()
+				`${BE_REMOTE_URL}/names/${cat}?` + new URLSearchParams({ q: searchTerm }).toString()
 			);
 			const l: SearchResult[] = await res.json();
 			if (delayedTerm == searchTerm) {
@@ -54,12 +53,14 @@
 	{#each searchResults as searchResult}
 		<a class="result-card shadowy padded" href={entToLink(searchResult)}>
 			<h3 style="font-size: {getHeaderFontSize(searchResult.name.length)};">
-				{searchResult.name}
+				{@html searchResult.name}
 			</h3>
 			<span
-				>{formatNumber(searchResult.papers, 0)} papers,
-				{formatNumber(searchResult.citations, 0)} citations {#if searchResult.distinctText != undefined}<br
-					/>{searchResult.distinctText}{/if}</span
+				>{#if cat !== 'hit-papers'}{pluralize('paper', searchResult.papers)},
+				{/if}{pluralize(
+					'citation',
+					searchResult.citations
+				)}{#if searchResult.distinctText != undefined}<br />{searchResult.distinctText}{/if}</span
 			>
 		</a>
 	{/each}
