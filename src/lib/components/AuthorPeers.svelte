@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { AuthorPeersResp, PeerAuthorEntry } from '$lib/tree-types';
+	import type { AuthorPeersResp } from '$lib/tree-types';
 	import { formatNumber } from '$lib/text-format-util';
 
 	export let data: AuthorPeersResp;
