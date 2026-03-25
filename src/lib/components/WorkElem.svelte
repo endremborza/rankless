@@ -1,15 +1,13 @@
 <script lang="ts">
 	import type { AttributeLabels, AttributeLabel, OaPaperResp } from '$lib/tree-types';
 	import { onMount } from 'svelte';
-	import { getCachedPaper, setCachedPaper } from '$lib/stores';
-	import { reconstructAbstractFromInvIndex } from '$lib/utils/paper-helpers';
+	import { getCachedPaper, prefetchPaper } from '$lib/stores';
 
 	export let workId: number;
 	export let citeText: string;
 	export let attributeLabels: AttributeLabels;
 	export let instId: number | undefined;
 
-	let placeholder = 'Loading...';
 	let title = '';
 	let doi = '';
 	let abstract = '';
@@ -20,8 +18,8 @@
 
 	let paperResp: OaPaperResp | undefined;
 	let mounted = false;
-
-	$: paperResp = getCachedPaper(workId);
+	let activeWorkId = 0;
+	const placeholder = 'Loading top paper...';
 
 	function getInstInfo(labels: AttributeLabels, id: number | undefined): [AttributeLabel, number] {
 		let instAtts: AttributeLabel = { name: '', oaId: -1, specBaseline: 0 };
@@ -41,7 +39,6 @@
 	$: instName = instAtts.name || '';
 	$: fullInstName = instName.length > 50 ? 'affiliated' : `from ${instName}`;
 	$: oaLink = `https://openalex.org/works/W${workId}`;
-	$: errMsg = `Failed to load top paper from OpenAlex <a href="${oaLink}">link</a>`;
 	$: href = doi.length > 0 ? doi : oaLink;
 
 	$: updateByWorkId(workId);
@@ -69,41 +66,24 @@
 		}
 		authors = outAuthors.sort((l, r) => Number(r.isOfInst) - Number(l.isOfInst));
 	}
+
 	function updateByWorkId(workId: number) {
-		if (!mounted || workId == 0 || paperResp != undefined) return;
-		let oaUrl = `https://api.openalex.org/works/W${workId}?select=publication_year,title,doi,authorships,abstract_inverted_index`;
-		fetch(oaUrl)
-			.then((resp) => {
-				resp
-					.json()
-					.then((o) => {
-						let abstract = reconstructAbstractFromInvIndex(o.abstract_inverted_index) ?? '';
-						let authors = [];
-						for (let aship of o.authorships) {
-							let institutions = [];
-							for (let aff of aship.institutions || []) {
-								institutions.push(aff.id);
-							}
-							let lElems = aship.author.id.split('/');
-							let link = `/oa-id/${lElems[lElems.length - 1]}`;
-							authors.push({ name: aship.author.display_name, link, institutions });
-						}
-						paperResp = {
-							title: o.title,
-							doi: o.doi || '',
-							year: o.publication_year,
-							abstract,
-							authors
-						};
-						setCachedPaper(workId, paperResp);
-					})
-					.catch(() => {
-						placeholder = errMsg;
-					});
-			})
-			.catch(() => {
-				placeholder = errMsg;
-			});
+		activeWorkId = workId;
+		const cached = getCachedPaper(workId);
+		if (cached != undefined) {
+			paperResp = cached;
+			return;
+		}
+		title = '';
+		authors = [];
+		abstract = '';
+		abstractExpanded = false;
+		paperResp = undefined;
+		if (!mounted || workId == 0) return;
+		prefetchPaper(workId, () => {
+			if (activeWorkId !== workId) return;
+			paperResp = getCachedPaper(workId);
+		});
 	}
 
 	onMount(() => {
