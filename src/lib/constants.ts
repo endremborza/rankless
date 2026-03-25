@@ -36,6 +36,8 @@ export const HIGH_OP = 80;
 export const LOW_OP = 25;
 export const FONT_SIZE_PX = 16;
 
+export const WIDE_LAYOUT_PX = 900; // mirrors @media (min-width: 900px) in styles.css
+
 export const DEFAULT_LIMIT_N = 10;
 export const MAX_LEVEL_COUNT = 4;
 export const COMPLETE_YEAR = 1950;
