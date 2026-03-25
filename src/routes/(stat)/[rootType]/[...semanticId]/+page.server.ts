@@ -5,11 +5,14 @@ import * as tf from '$lib/tree-functions';
 import { BE_URL, COMPLETE_YEAR, REL_TYPES, ROOT_TYPES } from '$lib/constants';
 import { pluralize, SEMANTIC_CONF } from '$lib/text-format-util';
 import { getExternalUrl, semIdResolver } from '$lib/route-functions';
+import { PaperDb } from '$lib/server/db';
 
 
 export const ssr = true;
 
-export const load: PageServerLoad = async ({ params, url }) => {
+const INITIAL_WORKS = 20;
+
+export const load: PageServerLoad = async ({ params, url, locals }) => {
 	let { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(params, url, "");
 	const view: tt.View = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => res.json())
@@ -39,8 +42,81 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	let prefixText = SEMANTIC_CONF[rootType]?.start || '';
 	let metaDescriptions = `Breaking down the academic impact of ${prefixText.toLowerCase()} ${view.name} - ( ${paperText}, ${citeText} )`;
 
+	// Author-specific data (null/empty defaults for all other entity types)
+	let profile: tt.PaperProfileResp | null = null;
+	let peersData: tt.AuthorPeersResp | null = null;
+	let initialPapers: tt.Paper[] = [];
+	let initialEntityAtts: tt.EntityAttsForLinks = {};
+	let initialDiscAuthorNames: Record<string, string> = {};
+	let initialTotalPapers = 0;
+	let initialWorksSliceEnd = 0;
+	let isOwner = false;
+	let disownedWids: number[] = [];
+	let claimedDois: string[] = [];
+	let mergedPairs: [number, number][] = [];
+	let authorMergeRequests: tt.AuthorMergeRequest[] = [];
+
+	if (rootType === 'authors') {
+		const urlFriendlySemId = tf.urlFriendlify(semanticId);
+		const [profileResp, peersResp, worksResp]: [
+			tt.PaperProfileResp | null,
+			tt.AuthorPeersResp | null,
+			tt.PaginatedPaperSetResp | null
+		] = await Promise.all([
+			fetch(`${BE_URL}/paper-profile/${urlFriendlySemId}`)
+				.then((r) => r.json())
+				.catch(() => null),
+			fetch(`${BE_URL}/author-peers/${urlFriendlySemId}`)
+				.then((r) => (r.ok ? r.json() : null))
+				.catch(() => null),
+			fetch(`${BE_URL}/works/authors/${urlFriendlySemId}/0`)
+				.then((r) => r.json())
+				.catch(() => null)
+		]);
+
+		profile = profileResp;
+		peersData = peersResp;
+
+		if (worksResp) {
+			initialPapers = worksResp.resp.papers.slice(0, INITIAL_WORKS);
+			initialEntityAtts = worksResp.resp.entityAtts;
+			initialDiscAuthorNames = worksResp.resp.discAuthorNames;
+			initialTotalPapers = worksResp.totalPapers;
+			initialWorksSliceEnd = initialPapers.length;
+		}
+
+		if (locals.user) {
+			if (locals.user.semanticId) {
+				isOwner = locals.user.semanticId === semanticId;
+			} else {
+				try {
+					const orcidResp: tt.SearchResult = await fetch(
+						`${BE_URL}/orcid/${locals.user.orcid}`
+					).then((r) => r.json());
+					isOwner = orcidResp.semanticId === semanticId;
+				} catch {
+					// ORCID lookup failed — not an owner
+				}
+			}
+
+			if (isOwner) {
+				disownedWids = PaperDb.getDisownedWids(locals.user.orcid);
+				claimedDois = PaperDb.getClaimedDois(locals.user.orcid);
+				mergedPairs = PaperDb.getMergedPairs(locals.user.orcid);
+				authorMergeRequests = PaperDb.getAuthorMergeRequests(locals.user.orcid);
+			}
+		}
+	}
+
 	if (view) {
-		return { view, conf, treeSpecs, selectionState: spec.selectionState, tree, atts, svgLink, shallowed, aboutParagraph, metaDescriptions, paperText, citeText, prefixText };
+		return {
+			view, conf, treeSpecs, selectionState: spec.selectionState, tree, atts, svgLink,
+			shallowed, aboutParagraph, metaDescriptions, paperText, citeText, prefixText,
+			profile, peersData,
+			initialPapers, initialEntityAtts, initialDiscAuthorNames,
+			initialTotalPapers, initialWorksSliceEnd,
+			isOwner, disownedWids, claimedDois, mergedPairs, authorMergeRequests,
+		};
 	}
 
 	error(404, 'Not found');
@@ -88,7 +164,7 @@ function getSemantifyers(rootName: string, rootType: tt.RootType, paperText: num
 			[
 				'paper-topics',
 				semFunMaker(
-					`Recurrent topics in ${rootName}’s work include `,
+					`Recurrent topics in ${rootName}'s work include `,
 					(r) => `${r.bold} (${pluralize('paper', r.score)})`
 				)
 			],
@@ -207,6 +283,22 @@ function getSemantifyers(rootName: string, rootType: tt.RootType, paperText: num
 				semFunMaker(`Some of the most active scholars covering ${rootName} are `, (r) => r.link)
 			]
 		];
+	} else if (rootType == 'hit-papers') {
+		return [
+			['paper-authors', semFunMaker('Written by ', (r) => r.link)],
+			[
+				'paper-fields',
+				semFunMaker('covering the research area of ', (r) => r.link)
+			],
+			[
+				'citing-fields',
+				semFunMaker(
+					'It is primarily cited by scholars working on ',
+					(r) => `${r.link} (${pluralize('citation', r.score)})`
+				)
+			],
+			['paper-journals', semFunMaker('Published in ', (r) => r.link)]
+		];
 	}
 
 	return [];
@@ -221,6 +313,11 @@ function getFootText(rootType: tt.RootType, view: tt.View, semanticId: string) {
 	} else if (rootType == 'countries') {
 		let oecLink = `https://oec.world/en/profile/country/${semanticId}`
 		return `You can explore the trade impact of ${view.name}, by visiting their  <a href="${oecLink}" target="_blank" class="ali">OEC page</a>.`
+	} else if (rootType == 'hit-papers') {
+		if (!semanticId.startsWith('W')) {
+			return `This paper is also available at <a href="https://doi.org/${semanticId}" target="_blank" class="ali">doi.org/${semanticId}</a>.`
+		}
+		return `This paper is also catalogued at <a href="https://openalex.org/${semanticId}" target="_blank" class="ali">OpenAlex</a>.`
 	}
 	return ''
 }
@@ -242,7 +339,8 @@ function getSemanticRels(
 	}
 	const out: string[] = [];
 	for (const [relK, relSemantifyer] of semantifyers) {
-		out.push(relSemantifyer(relationsMap[relK]));
+		const result = relSemantifyer(relationsMap[relK]);
+		if (result.trim()) out.push(result);
 	}
 
 	let postText = sentenceJoiner(out);
@@ -253,7 +351,7 @@ function getSemanticRels(
 		countries: `In recent decades scholars affiliated with institutions in ${rootName} have published ${paperText}, which have received a total of ${citeText}`,
 		subfields: `${paperText} covering ${rootName} have received a total of ${citeText} since ${COMPLETE_YEAR}`,
 		sources: `The ${paperText} published in ${rootName} in the last decades have received a total of ${citeText}`,
-		'hit-papers': `The paper ${rootName} received a total of ${citeText}`
+		'hit-papers': `This paper, published in ${view.startYear}, received ${citeText}`
 	};
 	return {
 		prefix: prefixes[rootType],
@@ -264,6 +362,7 @@ function getSemanticRels(
 }
 
 function commaAndjoin(parts: string[]) {
+	if (parts.length === 0) return '';
 	let lastN = parts.length - 1;
 	if (lastN == 0) return parts[lastN];
 	return [parts.slice(0, lastN).join(', '), parts[lastN]].join(' and ');
@@ -300,4 +399,3 @@ function getTopRels(view: tt.View) {
 	out.push(sub);
 	return out;
 }
-
