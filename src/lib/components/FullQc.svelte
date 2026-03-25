@@ -2,7 +2,7 @@
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 	import { pluralize } from '$lib/text-format-util';
-	import { MAX_LEVEL_COUNT, BE_REMOTE_URL } from '$lib/constants';
+	import { MAX_LEVEL_COUNT, BE_REMOTE_URL, WIDE_LAYOUT_PX } from '$lib/constants';
 
 	import QuercusBranches from '$lib/components/QuercusBranches.svelte';
 	import PathLevelInfoBox from '$lib/components/PathLevelInfoBox.svelte';
@@ -14,6 +14,7 @@
 	import { replaceState } from '$app/navigation';
 	import { debounce } from '$lib/util';
 	import HoverBlock from './HoverBlock.svelte';
+	import { stripHtml } from '$lib/utils/paper-helpers';
 
 	export let conf: tt.FullTreeConfig;
 	export let selectedQcRootId: number;
@@ -338,7 +339,7 @@
 				<BrokenFittedText
 					height={headerShape.height * 0.7}
 					width={headerShape.width * 0.8}
-					text={rootName || ''}
+					text={stripHtml(rootName) || ''}
 					anchor={'center'}
 					bottomAligned={false}
 					x={headerShape.x + headerShape.width / 2}
@@ -445,7 +446,7 @@
 				delay={highlightDelay}
 				{armingPath}
 				bind:showPaper
-				hasSpaceForPaper={containerWidth > 600}
+				hasSpaceForPaper={containerWidth > WIDE_LAYOUT_PX}
 			/>
 		</div>
 	{/if}
