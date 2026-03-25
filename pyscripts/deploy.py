@@ -339,12 +339,13 @@ class Transper:
             self.ssh.run(f"sudo chown -R www-data:www-data {cd}")
         self.be_service = ServiceMan(be_service_name, sshc)
         self.sync_txt("test", "___test", self.inst_home)
+        self.bun_exc = f"{self.inst_home}/bun/bin/bun"
 
-    def get_node_v(self):
-        return self.ssh.run("source .nvm/nvm.sh;nvm version").strip()
+    def bun_run(self, comm):
+        self.ssh.prun(f"{self.bun_exc} {comm}")
 
     def validate(self, backend=True):
-        print(self.get_node_v())
+        self.bun_run("--version")
         if backend:
             self.ssh.prun("source .profile;cargo --version")
 
@@ -362,12 +363,7 @@ class Transper:
             self.ssh.prun(
                 "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
             )
-        if bun:
-            self.ssh.prun("curl -fsSL https://bun.sh/install | bash")
-        self.ssh.prun(
-            "curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash"
-        )
-        self.ssh.prun("source .nvm/nvm.sh; nvm install --lts")
+        self.ssh.prun("curl -fsSL https://bun.sh/install | bash")
         self.ssh.prun("systemctl enable --now systemd-oomd")
 
     def sync_txt(self, txt, name, dir):
@@ -397,13 +393,7 @@ class Transper:
             for sport, suff in zip(FE_BUILD_PORTS_STARTS, FE_BUILD_NAMES)
         ]
         for conf in confs:
-            if bun:
-                comm = f"%h/.bun/bin/bun run {conf.build_dir()}/"
-            else:
-                node_version = self.get_node_v()
-                comm = (
-                    f"%h/.nvm/versions/node/{node_version}/bin/node {conf.build_dir()}"
-                )
+            comm = f"%h/.bun/bin/bun run {conf.build_dir()}/"
             fe_service_txt = (
                 f"""[Unit]
     Description=Rankless Frontend {conf.suffix} %i
@@ -646,7 +636,7 @@ upstream {BE_UPSTREAM} {{
         self.update_env()
 
     def build_js(self):
-        self._depcomm("source ~/.nvm/nvm.sh;npm install;npm run build")
+        self._depcomm(f"{self.bun_exc} install;{self.bun_exc} run build")
 
     def build_rs(self):
         self._depcomm("cargo build --release")

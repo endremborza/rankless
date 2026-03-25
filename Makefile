@@ -10,6 +10,9 @@ include rankless_rs/Makefile
 download-snapshot:
 	aws s3 sync "s3://openalex" $(OA_SNAPSHOT) --no-sign-request
 
+get-release-notes:
+	curl -s https://openalex.s3.amazonaws.com/RELEASE_NOTES.txt | head -50
+
 build-prep:
 	cargo build --release -p dmove-macro
 	./target/release/dmove-macro -p rankless_rs make-setup
@@ -43,7 +46,7 @@ test-rs:
 	rm ./*/default_*.profraw
 
 test-js:
-	npm run test
+	bun run test
 	cat logs/paragraph_texts.txt | xxclip
 
 test: test-rs test-js
