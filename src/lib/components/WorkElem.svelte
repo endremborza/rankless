@@ -261,7 +261,7 @@
 		height: 100%;
 		display: flex;
 		flex-direction: column;
-		justify-content: center;
+		justify-content: flex-start;
 		gap: calc(var(--unified-padding) / 2);
 		align-items: stretch;
 		overflow-y: auto;
