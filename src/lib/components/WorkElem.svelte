@@ -2,6 +2,7 @@
 	import type { AttributeLabels, AttributeLabel, OaPaperResp } from '$lib/tree-types';
 	import { onMount } from 'svelte';
 	import { getCachedPaper, setCachedPaper } from '$lib/stores';
+	import { reconstructAbstractFromInvIndex } from '$lib/utils/paper-helpers';
 
 	export let workId: number;
 	export let citeText: string;
@@ -76,13 +77,7 @@
 				resp
 					.json()
 					.then((o) => {
-						let aWords = [];
-						for (const [word, idxs] of Object.entries(o.abstract_inverted_index || {})) {
-							for (const i of idxs) {
-								aWords[i] = word;
-							}
-						}
-						let abstract = aWords.join(' ');
+						let abstract = reconstructAbstractFromInvIndex(o.abstract_inverted_index) ?? '';
 						let authors = [];
 						for (let aship of o.authorships) {
 							let institutions = [];

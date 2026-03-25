@@ -2,6 +2,34 @@ import type { Paper, PaperAuthorship, EntityAttsForLinks } from '$lib/tree-types
 
 export const PRESTIGIOUS_SOURCE_SEM_IDS = new Set(['science', 'nature']);
 
+export function stripHtml(html: string): string {
+	return html.replace(/<[^>]*>/g, '');
+}
+
+export function reconstructAbstractFromInvIndex(
+	idx: Record<string, number[]> | null | undefined
+): string | null {
+	if (!idx) return null;
+	const words: string[] = [];
+	for (const [word, positions] of Object.entries(idx)) {
+		for (const pos of positions) words[pos] = word;
+	}
+	const result = words.join(' ');
+	return result || null;
+}
+
+export async function fetchOaAbstract(semanticId: string): Promise<string | null> {
+	const url = semanticId.startsWith('W')
+		? `https://api.openalex.org/works/${semanticId}?select=abstract_inverted_index`
+		: `https://api.openalex.org/works/https://doi.org/${semanticId}?select=abstract_inverted_index`;
+	try {
+		const d = await fetch(url).then((r) => r.json());
+		return reconstructAbstractFromInvIndex(d?.abstract_inverted_index);
+	} catch {
+		return null;
+	}
+}
+
 export type PaperHighlight = {
 	key: string; // 'authored' | 'hit' | 'prestigious'
 	label?: string; // for prestigious: actual source name
