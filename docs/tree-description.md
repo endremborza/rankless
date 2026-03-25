@@ -131,12 +131,12 @@ SvelteKit app; SSR via `+page.server.ts` files; all visualizations are hand-writ
 | Component | Role |
 |-----------|------|
 | `TreeSvg.svelte` | Main hierarchical breakdown tree (SVG) |
-| `ConceptMap.svelte` | Research space field-to-field network |
+| `ConceptMap.svelte` | Research space field-to-field network; hides infobox on hit-paper pages |
 | `AuthorNetwork.svelte` | Co-authorship network (Cytoscape layout) |
-| `WorldMapSvg.svelte` | Geographical citation impact map |
+| `WorldMapSvg.svelte` | Geographical citation impact map; hides infobox on hit-paper pages |
 | `TileTreeMap.svelte` | Treemap alternative view |
-| `PaperRainbow.svelte` | Hit paper citation area chart with scrollable list; expanded paper shows `HitPaperBreakdown` |
-| `HitPaperBreakdown.svelte` | Lazy-loaded citation breakdown panel for a single hit paper: fetches `/trees/hit-papers/{semId}` and renders a TileTreeMap with link to full hit-paper profile page |
+| `PaperRainbow.svelte` | Hit paper citation area chart with scrollable list; cite map view has dropdown for breakdown type and specialization toggle (uses `--control-bar-*` CSS vars); accepts optional `treeSpecs` prop |
+| `HitPaperBreakdown.svelte` | Lazy-loaded citation breakdown for a single hit paper: fetches `/trees/hit-papers/{semId}`; accepts `treeId`, `isSpec`, `treeSpec` props; uses `flatFromResp` for specialization; renders TileTreeMap (maxPad=3) |
 | `ImpactDag.svelte` | Citation impact DAG: connected-component decomposition with sub-graph navigation, three-layer layout (citing/intermediate/authored), collapsed mid-layer, expand/collapse, SVG bezier edges, swipe + keyboard nav |
 | `DagChip.svelte` | Individual paper chip for ImpactDag: title, year, badges (standout/prestigious/nobel), expandable details |
 | `AllWorks.svelte` | Paginated author paper list with client-side fetch, disown/undo UI (owner only); shows "breakdown →" link for hit papers in HTML mode |
@@ -146,8 +146,10 @@ SvelteKit app; SSR via `+page.server.ts` files; all visualizations are hand-writ
 | `SearchResults.svelte` | Search autocomplete results |
 | `ScrollyGraph.svelte` / `ScrollySank.svelte` | Scrollytelling visualizations |
 | `TimelineViz.svelte` | Year-based timeline |
-| `PathLevelInfoBox.svelte` / `MidpathBar.svelte` | Citation/collaboration path UI |
+| `PathLevelInfoBox.svelte` / `MidpathBar.svelte` | Citation/collaboration path UI; auto-loads paper on wide screens |
 | `HeadControl.svelte` | Navigation header |
+| `Toc.svelte` | Sticky page-section nav; uses `--header-height` and `--control-bar-*` CSS variables |
+| `FlatOutFrame.svelte` | Frame for flat views (WorldMap, ConceptMap); `showInfobox` prop hides sidebar; title uses `{@html rootName}` |
 
 ### Server Utilities
 
