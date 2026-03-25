@@ -3,12 +3,15 @@
 	import { getColor, getColorArr } from '$lib/style-util';
 	import { formatNumber } from '$lib/text-format-util';
 	import type * as tt from '$lib/tree-types';
-	import { resolveAuthorNameOrNull, resolveSourceName } from '$lib/utils/paper-helpers';
+	import * as tf from '$lib/tree-functions';
+	import { resolveAuthorNameOrNull, resolveSourceName, stripHtml } from '$lib/utils/paper-helpers';
+	import HitPaperBreakdown from './HitPaperBreakdown.svelte';
 	import { onMount } from 'svelte';
 
 	export let papers: tt.Paper[];
 	export let entityAtts: tt.EntityAttsForLinks = {};
 	export let discAuthorNames: Record<string, string> = {};
+	export let treeSpecs: tt.TreeSpecs | undefined = undefined;
 
 	const xPad = 2;
 	const yPad = 2.5;
@@ -22,6 +25,40 @@
 	let normalizeX = false;
 	let normalizeY = false;
 	let sortByOverperf = false;
+	let viewMode: 'lines' | 'breakdown' = 'lines';
+
+	let breakdownTreeId = 0;
+	let breakdownIsSpec = false;
+
+	type BreakdownOption = { key: string; label: string; treeId: number };
+
+	$: breakdownOptions = getBreakdownOptionsList(treeSpecs);
+
+	function getBreakdownOptionsList(specs: tt.TreeSpecs | undefined): BreakdownOption[] {
+		if (!specs) return [];
+		const hpSpecs = specs.specs['hit-papers'];
+		if (!hpSpecs) return [];
+		const bdOptions = tf.getBreakdownOptions(specs, 'hit-papers', 1);
+		const opts: BreakdownOption[] = [];
+		for (const [key, val] of Object.entries(bdOptions)) {
+			if (val.treeSpecs.length === 0) continue;
+			const etype = key.split('-')[0];
+			opts.push({ key, label: etype, treeId: val.treeSpecs[0] });
+		}
+		return opts;
+	}
+
+	$: if (
+		breakdownOptions.length > 0 &&
+		!breakdownOptions.find((o) => o.treeId === breakdownTreeId)
+	) {
+		breakdownTreeId = breakdownOptions[0].treeId;
+	}
+
+	$: breakdownTreeSpec =
+		treeSpecs && treeSpecs.specs['hit-papers']
+			? treeSpecs.specs['hit-papers'][breakdownTreeId]
+			: undefined;
 
 	function overperf(p: tt.Paper): number {
 		if (!p.hitBm || p.hitBm < 5) return 0;
@@ -134,7 +171,8 @@
 			const markerX = normX ? 0 : startYear / xScale;
 			pubMarks.push({ x: markerX, year: paper.year, color: getColor(rate), row: vi % 2 });
 
-			const pathName = paper.name.length > 28 ? paper.name.slice(0, 25) + '...' : paper.name;
+			const plainName = stripHtml(paper.name);
+			const pathName = plainName.length > 28 ? plainName.slice(0, 25) + '...' : plainName;
 
 			figPapers.push({
 				i,
@@ -183,6 +221,20 @@
 	function fixHighlight(i: number) {
 		clearInterval(intervalSetup);
 		highlighted = i;
+	}
+
+	function switchToBreakdown() {
+		viewMode = 'breakdown';
+		clearInterval(intervalSetup);
+	}
+
+	function switchToLines() {
+		viewMode = 'lines';
+		clearInterval(intervalSetup);
+		intervalSetup = setInterval(() => {
+			const top = Math.min(maxN, chartPapers.length);
+			if (top > 0) highlighted = (highlighted + 1) % top;
+		}, 1200);
 	}
 
 	function getLiStyle(i: number, visInds: number[], hl: number) {
@@ -251,110 +303,149 @@
 	{#if chartPapers.length > 0}
 		<div class="chart-area">
 			<div class="chart-controls">
-				<label>
-					<input type="checkbox" bind:checked={normalizeY} />
-					normalize citations (0→100%)
-				</label>
-				<label>
-					<input type="checkbox" bind:checked={normalizeX} />
-					normalize lifespan (0→100%)
-				</label>
-				<label>
-					<input type="checkbox" bind:checked={sortByOverperf} />
-					sort by overperformance
-				</label>
+				<div class="view-toggle">
+					<button class="toggle-btn" class:active={viewMode === 'lines'} on:click={switchToLines}
+						>citation timeline</button
+					>
+					<button
+						class="toggle-btn"
+						class:active={viewMode === 'breakdown'}
+						on:click={switchToBreakdown}>citation breakdown</button
+					>
+				</div>
+				{#if viewMode === 'lines'}
+					<label>
+						<input type="checkbox" bind:checked={normalizeY} />
+						normalize citations (0→100%)
+					</label>
+					<label>
+						<input type="checkbox" bind:checked={normalizeX} />
+						normalize lifespan (0→100%)
+					</label>
+					<label>
+						<input type="checkbox" bind:checked={sortByOverperf} />
+						sort by overperformance
+					</label>
+				{:else if breakdownOptions.length > 0}
+					<select bind:value={breakdownTreeId} class="breakdown-select" aria-label="Breakdown type">
+						{#each breakdownOptions as opt}
+							<option value={opt.treeId}>{opt.label}</option>
+						{/each}
+					</select>
+					<label>
+						<input type="checkbox" bind:checked={breakdownIsSpec} />
+						specialization
+					</label>
+				{/if}
 			</div>
-			<svg
-				viewBox="{fb.xMin} {fb.yMin} {fb.width} {fb.height}"
-				style="aspect-ratio: {fb.aspect.toFixed(3)};"
-			>
-				<!-- Y-axis grid lines -->
-				<g stroke="var(--color-text)" stroke-width="0.015" opacity="0.15">
-					{#each fb.yTicks as tick}
-						<line x1="0" y1={tick.y} x2={xBase} y2={tick.y} />
-					{/each}
-				</g>
-
-				<!-- Paper citation lines (cumulative) -->
-				{#each fb.figPapers as paper}
-					<path
-						role="region"
-						fill="none"
-						stroke={getColor(paper.rate)}
-						stroke-width={paper.i === highlighted ? 0.18 : 0.1}
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d={paper.path}
-						opacity={paper.i === highlighted ? 1.0 : 0.4}
-						id="hit-paper-path-{paper.i}"
-						on:mouseover={() => fixHighlight(paper.i)}
-						on:focus={() => fixHighlight(paper.i)}
-					/>
-				{/each}
-
-				<!-- Highlighted paper name follows the line via textPath -->
-				{#if highlightedVis !== undefined}
-					{@const hp = fb.figPapers[highlightedVis]}
-					<text font-size="0.4" style="fill: {getColor(hp.rate)}" dy="-0.28">
-						<textPath href="#hit-paper-path-{hp.i}" startOffset="3%" text-anchor="start"
-							>{hp.pathName}</textPath
-						>
-					</text>
+			{#if viewMode === 'breakdown'}
+				{@const hp = chartPapers[highlighted]}
+				{#if hp?.hitSemId}
+					<div class="breakdown-view" style="aspect-ratio: {fb.aspect.toFixed(3)};">
+						<HitPaperBreakdown
+							semanticId={hp.hitSemId}
+							treeId={breakdownTreeId}
+							isSpec={breakdownIsSpec}
+							treeSpec={breakdownTreeSpec}
+						/>
+						<a href="/hit-papers/{hp.hitSemId}" class="profile-link">full profile →</a>
+					</div>
+				{:else}
+					<p class="no-breakdown">No breakdown available for this paper.</p>
 				{/if}
-
-				<!-- X axis baseline and ticks -->
-				<g
-					stroke-width="0.03"
-					stroke="var(--color-text)"
-					fill="var(--color-text)"
-					font-size={fontSize}
+			{:else}
+				<svg
+					viewBox="{fb.xMin} {fb.yMin} {fb.width} {fb.height}"
+					style="aspect-ratio: {fb.aspect.toFixed(3)};"
 				>
-					<path d="M 0 0 h {xBase}" />
-					{#each fb.yearTicks as tick}
-						<path d="M {tick.x} 0 v 0.35" />
-						{#if tick.name !== undefined}
-							<text x={tick.x} y="0.9" text-anchor="middle">{tick.name}</text>
-						{/if}
-					{/each}
-				</g>
+					<!-- Y-axis grid lines -->
+					<g stroke="var(--color-text)" stroke-width="0.015" opacity="0.15">
+						{#each fb.yTicks as tick}
+							<line x1="0" y1={tick.y} x2={xBase} y2={tick.y} />
+						{/each}
+					</g>
 
-				<!-- Paper publication year markers (only when x is calendar-aligned) -->
-				{#if !fb.normX}
-					{#each fb.pubMarks as mark}
-						<line
-							x1={mark.x}
-							y1="0"
-							x2={mark.x}
-							y2="0.45"
-							stroke={mark.color}
-							stroke-width="0.09"
+					<!-- Paper citation lines (cumulative) -->
+					{#each fb.figPapers as paper}
+						<path
+							role="region"
+							fill="none"
+							stroke={getColor(paper.rate)}
+							stroke-width={paper.i === highlighted ? 0.18 : 0.1}
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							d={paper.path}
+							opacity={paper.i === highlighted ? 1.0 : 0.4}
+							id="hit-paper-path-{paper.i}"
+							on:mouseover={() => fixHighlight(paper.i)}
+							on:focus={() => fixHighlight(paper.i)}
 						/>
-						<text
-							x={mark.x}
-							y={mark.row === 0 ? 1.65 : 2.15}
-							text-anchor="middle"
-							font-size="0.38"
-							style="fill: {mark.color}"
-							stroke="none">{mark.year}</text
-						>
 					{/each}
-				{/if}
 
-				<!-- Y-axis ticks and labels -->
-				<g fill="var(--color-text)" font-size="0.65">
-					{#each fb.yTicks as tick}
-						<line
-							x1={xBase}
-							y1={tick.y}
-							x2={xBase + 0.4}
-							y2={tick.y}
-							stroke="var(--color-text)"
-							stroke-width="0.025"
-						/>
-						<text x={xBase + 0.55} y={tick.y + 0.15} text-anchor="start">{tick.label}</text>
-					{/each}
-				</g>
-			</svg>
+					<!-- Highlighted paper name follows the line via textPath -->
+					{#if highlightedVis !== undefined}
+						{@const hp = fb.figPapers[highlightedVis]}
+						<text font-size="0.4" style="fill: {getColor(hp.rate)}" dy="-0.28">
+							<textPath href="#hit-paper-path-{hp.i}" startOffset="3%" text-anchor="start"
+								>{hp.pathName}</textPath
+							>
+						</text>
+					{/if}
+
+					<!-- X axis baseline and ticks -->
+					<g
+						stroke-width="0.03"
+						stroke="var(--color-text)"
+						fill="var(--color-text)"
+						font-size={fontSize}
+					>
+						<path d="M 0 0 h {xBase}" />
+						{#each fb.yearTicks as tick}
+							<path d="M {tick.x} 0 v 0.35" />
+							{#if tick.name !== undefined}
+								<text x={tick.x} y="0.9" text-anchor="middle">{tick.name}</text>
+							{/if}
+						{/each}
+					</g>
+
+					<!-- Paper publication year markers (only when x is calendar-aligned) -->
+					{#if !fb.normX}
+						{#each fb.pubMarks as mark}
+							<line
+								x1={mark.x}
+								y1="0"
+								x2={mark.x}
+								y2="0.45"
+								stroke={mark.color}
+								stroke-width="0.09"
+							/>
+							<text
+								x={mark.x}
+								y={mark.row === 0 ? 1.65 : 2.15}
+								text-anchor="middle"
+								font-size="0.38"
+								style="fill: {mark.color}"
+								stroke="none">{mark.year}</text
+							>
+						{/each}
+					{/if}
+
+					<!-- Y-axis ticks and labels -->
+					<g fill="var(--color-text)" font-size="0.65">
+						{#each fb.yTicks as tick}
+							<line
+								x1={xBase}
+								y1={tick.y}
+								x2={xBase + 0.4}
+								y2={tick.y}
+								stroke="var(--color-text)"
+								stroke-width="0.025"
+							/>
+							<text x={xBase + 0.55} y={tick.y + 0.15} text-anchor="start">{tick.label}</text>
+						{/each}
+					</g>
+				</svg>
+			{/if}
 		</div>
 	{/if}
 
@@ -399,6 +490,13 @@
 						<span class="paper-cites">{formatNumber(paper.citations)} citations</span>
 						{#if authors}<span class="paper-authors">{authors}</span>{/if}
 						{#if source}<span class="paper-source">{source}</span>{/if}
+						{#if paper.hitSemId}
+							<a
+								href="/hit-papers/{paper.hitSemId}"
+								class="paper-profile-link"
+								on:click|stopPropagation={() => {}}>profile →</a
+							>
+						{/if}
 					</div>
 					{#if expanded}
 						<div class="paper-details">
@@ -456,10 +554,12 @@
 
 	.chart-controls {
 		display: flex;
-		gap: 16px;
+		gap: 10px;
 		flex-wrap: wrap;
-		font-size: 0.8rem;
+		align-items: center;
+		font-size: var(--control-bar-font);
 		opacity: 0.75;
+		padding: var(--control-bar-pad-v) 0;
 	}
 
 	.chart-controls label {
@@ -467,6 +567,85 @@
 		align-items: center;
 		gap: 6px;
 		cursor: pointer;
+	}
+
+	.view-toggle {
+		display: flex;
+		gap: 2px;
+		border: 1px solid rgba(var(--color-range-15), 0.2);
+		border-radius: var(--control-bar-pill-radius);
+		overflow: hidden;
+		flex-shrink: 0;
+	}
+
+	.toggle-btn {
+		background: none;
+		border: none;
+		font-family: inherit;
+		font-size: var(--control-bar-font);
+		padding: var(--control-bar-pill-pad);
+		cursor: pointer;
+		color: inherit;
+		opacity: 0.5;
+		transition: opacity 0.15s, background 0.15s;
+	}
+
+	.toggle-btn.active {
+		opacity: 1;
+		background: rgba(var(--color-range-15), 0.1);
+	}
+
+	.breakdown-select {
+		font-family: inherit;
+		font-size: var(--control-bar-font);
+		padding: var(--control-bar-pill-pad);
+		border-radius: var(--control-bar-pill-radius);
+		border: 1px solid rgba(var(--color-range-15), 0.2);
+		background: none;
+		color: inherit;
+		cursor: pointer;
+	}
+
+	.breakdown-view {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-height: 280px;
+		width: 100%;
+	}
+
+	.profile-link {
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--color-theme-blue);
+		text-decoration: none;
+		align-self: flex-end;
+		opacity: 0.8;
+		transition: opacity 0.15s;
+	}
+
+	.profile-link:hover {
+		opacity: 1;
+	}
+
+	.no-breakdown {
+		font-size: 0.8rem;
+		opacity: 0.4;
+		padding: 20px 0;
+		text-align: center;
+	}
+
+	.paper-profile-link {
+		font-size: 0.7rem;
+		color: var(--color-theme-blue);
+		text-decoration: none;
+		opacity: 0.6;
+		flex-shrink: 0;
+		transition: opacity 0.15s;
+	}
+
+	.paper-profile-link:hover {
+		opacity: 1;
 	}
 
 	svg {
