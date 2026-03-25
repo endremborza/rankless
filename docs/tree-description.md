@@ -135,10 +135,11 @@ SvelteKit app; SSR via `+page.server.ts` files; all visualizations are hand-writ
 | `AuthorNetwork.svelte` | Co-authorship network (Cytoscape layout) |
 | `WorldMapSvg.svelte` | Geographical citation impact map |
 | `TileTreeMap.svelte` | Treemap alternative view |
-| `PaperRainbow.svelte` | Hit paper citation area chart with scrollable list |
+| `PaperRainbow.svelte` | Hit paper citation area chart with scrollable list; expanded paper shows `HitPaperBreakdown` |
+| `HitPaperBreakdown.svelte` | Lazy-loaded citation breakdown panel for a single hit paper: fetches `/trees/hit-papers/{semId}` and renders a TileTreeMap with link to full hit-paper profile page |
 | `ImpactDag.svelte` | Citation impact DAG: connected-component decomposition with sub-graph navigation, three-layer layout (citing/intermediate/authored), collapsed mid-layer, expand/collapse, SVG bezier edges, swipe + keyboard nav |
 | `DagChip.svelte` | Individual paper chip for ImpactDag: title, year, badges (standout/prestigious/nobel), expandable details |
-| `AllWorks.svelte` | Paginated author paper list with client-side fetch, disown/undo UI (owner only) |
+| `AllWorks.svelte` | Paginated author paper list with client-side fetch, disown/undo UI (owner only); shows "breakdown →" link for hit papers in HTML mode |
 | `ExportControls.svelte` | Sort, filter, citation style, BibTeX copy/download controls; receives pre-filtered list from AllWorks |
 | `AuthorPeers.svelte` | Peer author comparison table: subfield citation heatmap + sparkline decade timeline |
 | `WorkElem.svelte` | Single paper display |
