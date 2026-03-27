@@ -339,7 +339,7 @@ class Transper:
             self.ssh.run(f"sudo chown -R www-data:www-data {cd}")
         self.be_service = ServiceMan(be_service_name, sshc)
         self.sync_txt("test", "___test", self.inst_home)
-        self.bun_exc = f"{self.inst_home}/bun/bin/bun"
+        self.bun_exc = f"{self.inst_home}/.bun/bin/bun"
 
     def bun_run(self, comm):
         self.ssh.prun(f"{self.bun_exc} {comm}")
