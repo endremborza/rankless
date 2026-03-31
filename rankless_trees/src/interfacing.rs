@@ -34,7 +34,8 @@ use rankless_rs::{
         derive_links1::{CountryInsts, WorkPeriods},
         derive_links2::{EraRec, Top15Rec, Top3Rec},
     },
-    CiteCountMarker, NameExtensionMarker, NameMarker, SemanticIdMarker, WorkCountMarker,
+    CiteCountMarker, NameExtensionMarker, NameMarker, PeerMarker, SemanticIdMarker,
+    WorkCountMarker, N_PEERS,
 };
 
 use dmove::{
@@ -151,7 +152,9 @@ macro_rules! make_interfaces {
 
 //TODO/clarity wet pattern
 macro_rules! make_ent_interfaces {
-    ($S:ident, $T:ident,
+    (
+        $S:ident,
+        $T:ident,
         $($f_key:ident => $f_mark:ty),*;
         $($r_key:ident -> $r_mark:ty),*;
         $($var_key:ident - $var_mark:ty = $var_t:ty),*;
@@ -161,7 +164,7 @@ macro_rules! make_ent_interfaces {
         $($p_trait:ident),*
 
     ) => {
-        pub struct $S<T> where T: $T
+        pub struct $S<T> where T: $T $(+ $p_trait)*
         {
             $(pub $f_key: VarBox<String>),*,
             $(pub $r_key: Box<[<T as NumAtt<$r_mark>>::Num]>),*
@@ -185,7 +188,7 @@ macro_rules! make_ent_interfaces {
             }
         }
 
-        pub trait $T: Entity
+        pub trait $T: Entity $(+ $p_trait)*
             $( + StringAtt<$f_mark>)*
             $( + NumAtt<$r_mark>)*
             $( + VarAtt<$var_mark, VT=$var_t>)*
@@ -193,7 +196,7 @@ macro_rules! make_ent_interfaces {
             $( + FloatAtt<$float_mark>)*
         {}
 
-        impl <T> $T for T where T: Entity
+        impl <T> $T for T where T: Entity $(+ $p_trait)*
             $( + StringAtt<$f_mark>)*
             $( + NumAtt<$r_mark>)*
             $( + VarAtt<$var_mark, VT=$var_t>)*
@@ -267,7 +270,8 @@ make_ent_interfaces!(
     top_citing_sfc - Top3CitingSfMarker | Top3Rec<Subfields>,
     top_paper_sfc - Top3PaperSfMarker | Top3Rec<Subfields>,
     coordinates - CoordinateMarker | [f64; 2],
-    page_filter - PageFilterMarker | u8;;
+    page_filter - PageFilterMarker | u8,
+    peers - PeerMarker | [NET<Self>; N_PEERS];;
     oa_id; MainEntity, NamespacedEntity
     // inst_rels - InstRelMarker | [InstRelation; N_RELS];;
     // ref_sfc : RefSubfieldsConcentrationMarker,
