@@ -17,8 +17,7 @@ use dmove::{
     MmapSlice, NamespacedEntity, UnsignedNumber, VattReadingArcMap, ET,
 };
 use hashbrown::{HashMap, HashSet};
-use kd_tree::{KdPoint, KdTree};
-use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
 use std::{
@@ -34,7 +33,7 @@ use tokio::{net::TcpListener, sync::Notify};
 
 use muwo_search::SearchEngine;
 use rankless_rs::{
-    common::{CitSubfieldsArrayMarker, MainEntity, MmapBox, PeerAuthorMarker},
+    common::{CitSubfieldsArrayMarker, MainEntity, MmapBox},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{AuthorOrcids, DiscardedAuthorsNames, WorkBiblios, WorkDois},
@@ -44,7 +43,7 @@ use rankless_rs::{
         a1_entity_mapping::{Qs, RawYear, YearInterface, Years},
         derive_links2::EraRec,
     },
-    Stowage,
+    Stowage, N_PEERS,
 };
 use rankless_trees::{
     extensions::DistinctionText,
@@ -84,7 +83,6 @@ type InstTrm = TreeRunManager<(
     Sources,
     HitPapers,
 )>;
-type Coords = [f64; 2];
 type NameStateMap = HashMap<&'static str, NameState>;
 type StatesT = State<(
     Arc<NameStateMap>,
@@ -98,7 +96,6 @@ const N_SUBFIELDS: usize = Subfields::N;
 const N_PEER_SUBFIELDS: usize = 5;
 
 struct AuthorPeerData {
-    peers: Box<[<Authors as FixAtt<PeerAuthorMarker>>::FT]>,
     cit_subfields: MmapSlice<<Authors as FixAtt<CitSubfieldsArrayMarker>>::FT>,
 }
 
@@ -248,7 +245,7 @@ struct NameState {
     pub semantic_id_map: HashMap<String, SemVal>,
     pub oa_id_map: HashMap<usize, usize>,
     pub dm_id_to_result_id: HashMap<usize, usize>,
-    query_tree: KdTree<KDItem>,
+    peers: Box<[[u32; N_PEERS]]>,
 }
 
 #[derive(Clone)]
@@ -303,8 +300,6 @@ struct SearchResult {
     oa_id: u64,
     #[serde(rename = "dmId")]
     dm_id: usize,
-    #[serde(skip_serializing)]
-    coord: Coords,
     #[serde(rename = "distinctText", skip_serializing_if = "Option::is_none")]
     distinct_text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -365,11 +360,6 @@ struct PreAttResultExtension {
     author_network: Box<[u8]>,
 }
 
-struct KDItem {
-    point: Coords,
-    id: usize,
-}
-
 trait IsTop: RootInterfaceable + Sized {
     fn is_top(_sr: &SearchResult) -> bool {
         true
@@ -405,14 +395,6 @@ impl IsTop for Sources {
     }
 }
 
-impl KdPoint for KDItem {
-    type Scalar = f64;
-    type Dim = typenum::U2;
-    fn at(&self, k: usize) -> f64 {
-        self.point[k]
-    }
-}
-
 impl SearchResult {
     fn new<E>(
         i: usize,
@@ -420,7 +402,6 @@ impl SearchResult {
         ext: String,
         semantic_id: String,
         distinct_text: Option<String>,
-        coord: Coords,
         entif: &RootInterfaces<E>,
         gets: &Getters,
     ) -> Self
@@ -437,7 +418,6 @@ impl SearchResult {
             name,
             semantic_id,
             distinct_text,
-            coord,
             papers,
             citations: entif.ccounts[i].to_usize() as u32,
             oa_id: entif.oa_id[i],
@@ -615,11 +595,11 @@ impl NameState {
             now.elapsed().as_secs(),
             if from_cache { "cached" } else { "built" }
         );
-        let mut semantic_id_map = HashMap::new();
-        let mut oa_id_map = HashMap::new();
-        let mut kdt_base = Vec::new();
+        let n = responses.len();
+        let mut semantic_id_map = HashMap::with_capacity(n);
+        let mut oa_id_map = HashMap::with_capacity(n);
+        let mut dm_id_to_result_id = HashMap::with_capacity(n);
         for (i, res) in responses.iter().enumerate() {
-            kdt_base.push(res.coord);
             let dm_id = res.dm_id;
             let oa_id = entif.oa_id[dm_id as usize];
             oa_id_map.insert(oa_id.to_usize(), i);
@@ -630,11 +610,14 @@ impl NameState {
                     dm_id,
                 },
             );
+            dm_id_to_result_id.insert(dm_id, i);
         }
 
-        let query_tree = tree_from_iter(kdt_base);
-        let dm_id_to_result_id =
-            HashMap::from_iter(responses.iter().enumerate().map(|(i, res)| (res.dm_id, i)));
+        let peers: Box<[[u32; N_PEERS]]> = entif
+            .peers
+            .iter()
+            .map(|arr| arr.map(|e| e.to_usize() as u32).try_into().unwrap())
+            .collect();
 
         Self {
             engine: engine.into(),
@@ -643,8 +626,8 @@ impl NameState {
             responses,
             semantic_id_map,
             oa_id_map,
-            query_tree,
             dm_id_to_result_id,
+            peers,
         }
     }
 
@@ -674,7 +657,6 @@ impl NameState {
                     ext,
                     semantic_id.to_string(),
                     dist_txt,
-                    entif.coordinates[i],
                     entif,
                     gets,
                 )
@@ -716,14 +698,10 @@ fn get_rest(
     let mut tops = Vec::new();
     let author_peer_data = {
         let stow = &gets.stowage;
-        let peers = <Authors as FixAtt<PeerAuthorMarker>>::load(stow);
         let cit_subfields =
             stow.get_marked_interface::<Authors, CitSubfieldsArrayMarker, MmapBox>();
         print_mem_use("loaded author peer data");
-        Arc::new(AuthorPeerData {
-            peers,
-            cit_subfields,
-        })
+        Arc::new(AuthorPeerData { cit_subfields })
     };
     let counts_response = {
         let mut descriptions = Vec::new();
@@ -954,16 +932,15 @@ async fn view_get(
             let i = sem_val.result_id;
             let srs = &state.responses[i];
             let ext = &state.exts[i];
-            let query = state.responses[i].coord;
-            let n_close = min(state.responses.len() / 20, 500);
-            let mut closes = state.query_tree.nearests(&query, n_close);
-            let mut rng = StdRng::seed_from_u64(742);
-            closes.shuffle(&mut rng);
-            let similars = closes
+            let similars = state.peers[sem_val.dm_id]
                 .iter()
-                .take(8)
-                .filter(|e| e.item.id != i)
-                .map(|e| state.responses[e.item.id].clone())
+                .filter(|&&pid| pid != 0)
+                .filter_map(|&pid| {
+                    state
+                        .dm_id_to_result_id
+                        .get(&(pid as usize))
+                        .map(|&rid| state.responses[rid].clone())
+                })
                 .collect();
 
             let vr = ViewResult {
@@ -1130,7 +1107,7 @@ async fn author_peers_get(
 
     let hero = build_peer_entry(hero_rid, hero_dm, astates, apd, &sf_indices);
 
-    let peers: Vec<PeerAuthorEntry> = apd.peers[hero_dm]
+    let peers: Vec<PeerAuthorEntry> = astates.peers[hero_dm]
         .iter()
         .filter(|&&pid| pid != 0)
         .filter_map(|&pid| {
@@ -1360,15 +1337,6 @@ fn static_router<O: Serialize>(o: &O) -> Router {
 
 fn parse_semantic_id(id: String) -> String {
     id.replace("%2F", "/")
-}
-
-fn tree_from_iter(v: Vec<[f64; 2]>) -> KdTree<KDItem> {
-    KdTree::build_by_ordered_float(
-        v.into_iter()
-            .enumerate()
-            .map(|(id, point)| KDItem { id, point })
-            .collect(),
-    )
 }
 
 fn add_to_relations<RE, T>(arr: &[(u32, T)], prels: &mut Vec<PreAttRelatedEntity>, rel_type: u8)
