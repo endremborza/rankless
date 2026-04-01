@@ -144,19 +144,6 @@ impl Default for SfDistRec {
     }
 }
 
-impl Stowage {
-    pub fn ditf<Marker, E, T>(&self, v: Vec<T>, suff: &str)
-    where
-        E: Entity,
-        T: ByteFixArrayInterface,
-    {
-        self.declare_iter::<FixAttBuilder, _, _, E, Marker>(
-            v.into_iter(),
-            &format!("{}-{suff}", E::NAME),
-        );
-    }
-}
-
 impl InstRelation {
     fn new(inst: ET<Institutions>) -> Self {
         Self {
