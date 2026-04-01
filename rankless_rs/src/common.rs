@@ -18,10 +18,11 @@ use serde::{de::DeserializeOwned, Serialize};
 use tqdm::{Iter, Tqdm};
 
 use dmove::{
-    BackendLoading, BigId, CompactEntity, Entity, FixAttIterator, FixWriteSizeEntity, LoadedIdMap,
-    Locators, MainBuilder, MappableEntity, MarkedAttribute, MetaIntegrator, MmapSlice,
-    NamespacedEntity, UnsignedNumber, VarAttBuilder, VarAttIterator, VarBox, VarSizedAttributeElement,
-    VariableSizeAttribute, VattArrPair, VattReadingMap, ET, MAA,
+    BackendLoading, BigId, ByteFixArrayInterface, CompactEntity, Entity, FixAttBuilder,
+    FixAttIterator, FixWriteSizeEntity, LoadedIdMap, Locators, MainBuilder, MappableEntity,
+    MarkedAttribute, MetaIntegrator, MmapSlice, NamespacedEntity, UnsignedNumber, VarAttBuilder,
+    VarAttIterator, VarBox, VarSizedAttributeElement, VariableSizeAttribute, VattArrPair,
+    VattReadingMap, ET, MAA,
 };
 
 pub type StowReader = Reader<BufReader<GzDecoder<File>>>;
@@ -394,6 +395,17 @@ impl Stowage {
     {
         self.add_iter_owned::<B, I, E>(iter, Some(name));
         self.declare::<S, M>(name)
+    }
+
+    pub fn ditf<Marker, E, T>(&self, v: Vec<T>, suff: &str)
+    where
+        E: Entity,
+        T: ByteFixArrayInterface,
+    {
+        self.declare_iter::<FixAttBuilder, _, _, E, Marker>(
+            v.into_iter(),
+            &format!("{}-{suff}", E::NAME),
+        );
     }
 
     pub fn read_csv_objs<T: DeserializeOwned>(
