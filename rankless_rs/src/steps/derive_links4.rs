@@ -18,6 +18,7 @@ use crate::{
             HitPapers, HitPapersCiteCounts, HitPapersDois, HitPapersNames, HitPapersWids,
         },
     },
+    peers,
     steps::derive_links3::{get_nobeled_works, COORD_MIN_CITES, COORD_MIN_PAPERS},
     CiteCountMarker, CoordinateMarker, NameExtensionMarker, NameMarker, PageFilterMarker,
     QuickestBox, QuickestNumbered, QuickestVBox, ReadIter, SemanticIdMarker, Stowage,
@@ -111,8 +112,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let mut direct = init_empty_slice::<Authors, HashMap<ET<HitPapers>, u64>>();
     let mut once_removed = init_empty_slice::<Authors, HashMap<ET<HitPapers>, u64>>();
 
-    let hp_entries: Vec<(BigId, ET<HitPapers>)> =
-        parc.1.0.iter().map(|(&k, &v)| (k, v)).collect();
+    let hp_entries: Vec<(BigId, ET<HitPapers>)> = parc.1 .0.iter().map(|(&k, &v)| (k, v)).collect();
     std::thread::scope(|scope| {
         let hp = hp_entries.as_slice();
         let wref = &wor_refs;
@@ -129,8 +129,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
             scope.spawn(move || {
                 for &(hp_wid_big, hp_id) in hp {
                     let hp_widu = hp_wid_big.to_usize();
-                    let hp_authors: HashSet<ET<Authors>> =
-                        wa.0[hp_widu].iter().copied().collect();
+                    let hp_authors: HashSet<ET<Authors>> = wa.0[hp_widu].iter().copied().collect();
                     let mut base_score =
                         citing_score(par.2[hp_widu], ss_r[wts_r[hp_widu] as usize]);
                     if nb.contains(&ET::<Works>::from_usize(hp_widu)) {
@@ -180,23 +179,31 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
 
     // Select top-50 hit papers per author across both direct and once-removed,
     // then split back into the two output attributes.
-    let (direct_out, once_out) = direct.iter_mut().zip(once_removed.iter_mut()).map(|(dm, orm)| {
-        let dm = mem::take(dm);
-        let orm = mem::take(orm);
-        let mut heap = FixedHeap::<Reverse<(u64, ET<HitPapers>)>, TOP_HIT_PAPERS>::new();
-        for (&hp_id, &score) in dm.iter().chain(orm.iter()) {
-            heap.push_unique(Reverse((score, hp_id)));
-        }
-        let top: HashSet<ET<HitPapers>> =
-            heap.into_iter().map(|Reverse((_, hp_id))| hp_id).collect();
-        let mut direct_v: Vec<ET<HitPapers>> =
-            dm.into_iter().filter_map(|(hp, _)| top.contains(&hp).then_some(hp)).collect();
-        let mut once_v: Vec<ET<HitPapers>> =
-            orm.into_iter().filter_map(|(hp, _)| top.contains(&hp).then_some(hp)).collect();
-        direct_v.sort();
-        once_v.sort();
-        (direct_v.into_boxed_slice(), once_v.into_boxed_slice())
-    }).unzip::<_, _, Vec<_>, Vec<_>>();
+    let (direct_out, once_out) = direct
+        .iter_mut()
+        .zip(once_removed.iter_mut())
+        .map(|(dm, orm)| {
+            let dm = mem::take(dm);
+            let orm = mem::take(orm);
+            let mut heap = FixedHeap::<Reverse<(u64, ET<HitPapers>)>, TOP_HIT_PAPERS>::new();
+            for (&hp_id, &score) in dm.iter().chain(orm.iter()) {
+                heap.push_unique(Reverse((score, hp_id)));
+            }
+            let top: HashSet<ET<HitPapers>> =
+                heap.into_iter().map(|Reverse((_, hp_id))| hp_id).collect();
+            let mut direct_v: Vec<ET<HitPapers>> = dm
+                .into_iter()
+                .filter_map(|(hp, _)| top.contains(&hp).then_some(hp))
+                .collect();
+            let mut once_v: Vec<ET<HitPapers>> = orm
+                .into_iter()
+                .filter_map(|(hp, _)| top.contains(&hp).then_some(hp))
+                .collect();
+            direct_v.sort();
+            once_v.sort();
+            (direct_v.into_boxed_slice(), once_v.into_boxed_slice())
+        })
+        .unzip::<_, _, Vec<_>, Vec<_>>();
 
     parc.0.add_iter_owned::<VarAttBuilder, _, _>(
         direct_out.into_iter(),
@@ -218,8 +225,9 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         })
         .collect();
     let hit_filter: Vec<u8> = vec![1u8; hp_ccs.len()];
-    parc.0
-        .ditf::<CoordinateMarker, HitPapers, _>(hit_coords, "coordinates");
+    peers::compute_peers::<HitPapers>(&parc.0, &hit_coords, &hit_filter, 10, |_, _, ca, cb| {
+        peers::coord_sq_dist(ca, cb)
+    });
     parc.0
         .ditf::<PageFilterMarker, HitPapers, _>(hit_filter, "page-filter");
 

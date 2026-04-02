@@ -11,13 +11,14 @@ pub mod env_consts;
 mod filter;
 pub mod gen;
 mod oa_structs;
+pub mod peers;
 mod semantic_ids;
 pub mod steps;
 
 pub use common::{
-    CiteCountMarker, CoordinateMarker, MmapBox, NameExtensionMarker, NameMarker, PageFilterMarker,
-    PeerMarker, QuickestBox, QuickestNumbered, QuickestVBox, ReadFixIter, ReadIter,
-    SemanticIdMarker, Stowage, WorkCountMarker, N_PEERS,
+    CiteCountMarker, MmapBox, NameExtensionMarker, NameMarker, PageFilterMarker, PeerMarker,
+    QuickestBox, QuickestNumbered, QuickestVBox, ReadFixIter, ReadIter, SemanticIdMarker, Stowage,
+    WorkCountMarker, N_PEERS,
 };
 
 macro_rules! mods_as_comms {

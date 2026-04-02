@@ -7,11 +7,11 @@ use crate::{
 };
 use rankless_rs::{
     common::{
-        reverse_id, BeS, CoordinateMarker, HitWorkMarker, MainEntity, MainWorkMarker,
-        MarkedBackendLoader, NumberedEntity, PageFilterMarker, QuickAttPair, QuickMap, QuickestBox,
-        QuickestVBox, Stowage, Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker,
-        Top3JournalMarker, Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader,
-        YearlyCitationsMarker, YearlyPapersMarker, NET,
+        reverse_id, BeS, HitWorkMarker, MainEntity, MainWorkMarker, MarkedBackendLoader,
+        NumberedEntity, PageFilterMarker, QuickAttPair, QuickMap, QuickestBox, QuickestVBox,
+        Stowage, Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker,
+        Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader, YearlyCitationsMarker,
+        YearlyPapersMarker, NET,
     },
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
@@ -269,7 +269,6 @@ make_ent_interfaces!(
     top_paper_topic - Top3PaperTopicMarker | Top3Rec<Topics>,
     top_citing_sfc - Top3CitingSfMarker | Top3Rec<Subfields>,
     top_paper_sfc - Top3PaperSfMarker | Top3Rec<Subfields>,
-    coordinates - CoordinateMarker | [f64; 2],
     page_filter - PageFilterMarker | u8,
     peers - PeerMarker | [NET<Self>; N_PEERS];;
     oa_id; MainEntity, NamespacedEntity
