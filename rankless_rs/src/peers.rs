@@ -4,7 +4,7 @@ use kd_tree::{KdPoint, KdTree};
 use nalgebra::{DMatrix, SymmetricEigen};
 use typenum;
 
-use dmove::{ByteFixArrayInterface, Entity, UnsignedNumber, ET};
+use dmove::{ByteFixArrayInterface, UnsignedNumber, ET};
 
 use crate::{
     common::{NumberedEntity, PeerMarker, NET, N_PEERS},
@@ -12,50 +12,91 @@ use crate::{
 };
 
 pub const N_PEER_SF_DIMS: usize = 10;
-pub const W_PEER_COORD: f64 = 1.0;
 pub const W_PEER_SF: f64 = 1.0;
 pub const W_PEER_RATE: f64 = 0.5;
 pub const W_PEER_GEO: f64 = 0.3;
 pub const W_PEER_COUNTRY: f64 = 0.5;
 pub const W_PEER_TEMPORAL: f64 = 0.4;
 
-const N_PCA_DIMS: usize = 10;
-const N_EMBED_DIMS: usize = N_PCA_DIMS + 2;
 const N_DECILES: usize = 20;
 const K_TREE: usize = 500;
 
-type EmbedDim = typenum::U12;
+// --- Prefilter embed types ---
+//
+// Each entity type provides a `Point` associated type in `PeerConfig`.
+// Embed2 is the default for 2D prefiltering (e.g. [ln_cites, ln_papers] for authors).
+// Adding a 3rd dimension (e.g. temporal centroid) means switching to Embed3 —
+// change `type Point = Embed2` to `type Point = Embed3` in the concrete impl.
 
-struct CoordKdPoint {
-    dm_id: usize,
-    coord: [f64; 2],
+#[derive(Clone)]
+pub struct Embed1 {
+    pub coord: f32,
+    pub dm_id: usize,
 }
 
-struct PeerKdPoint {
-    point: [f32; N_EMBED_DIMS],
-    dm_id: usize,
+#[derive(Clone)]
+pub struct Embed2 {
+    pub coords: [f32; 2],
+    pub dm_id: usize,
 }
+
+#[derive(Clone)]
+pub struct Embed3 {
+    pub coords: [f32; 3],
+    pub dm_id: usize,
+}
+
+impl KdPoint for Embed1 {
+    type Scalar = f32;
+    type Dim = typenum::U1;
+    fn at(&self, _: usize) -> f32 {
+        self.coord
+    }
+}
+
+impl KdPoint for Embed2 {
+    type Scalar = f32;
+    type Dim = typenum::U2;
+    fn at(&self, k: usize) -> f32 {
+        self.coords[k]
+    }
+}
+
+impl KdPoint for Embed3 {
+    type Scalar = f32;
+    type Dim = typenum::U3;
+    fn at(&self, k: usize) -> f32 {
+        self.coords[k]
+    }
+}
+
+pub trait PeerPoint: KdPoint<Scalar = f32> + Clone + Sync {
+    fn dm_id(&self) -> usize;
+}
+
+impl PeerPoint for Embed1 {
+    fn dm_id(&self) -> usize {
+        self.dm_id
+    }
+}
+impl PeerPoint for Embed2 {
+    fn dm_id(&self) -> usize {
+        self.dm_id
+    }
+}
+impl PeerPoint for Embed3 {
+    fn dm_id(&self) -> usize {
+        self.dm_id
+    }
+}
+
+// --- Candidate heap ---
 
 pub struct PeerCandidate {
     pub dist_sq: f64,
     pub dm_id: usize,
 }
 
-impl KdPoint for CoordKdPoint {
-    type Scalar = f64;
-    type Dim = typenum::U2;
-    fn at(&self, k: usize) -> f64 {
-        self.coord[k]
-    }
-}
-
-impl KdPoint for PeerKdPoint {
-    type Scalar = f32;
-    type Dim = EmbedDim;
-    fn at(&self, k: usize) -> f32 {
-        self.point[k]
-    }
-}
 impl PartialEq for PeerCandidate {
     fn eq(&self, other: &Self) -> bool {
         self.dist_sq == other.dist_sq
@@ -75,9 +116,144 @@ impl Ord for PeerCandidate {
     }
 }
 
-pub fn coord_sq_dist(a: [f64; 2], b: [f64; 2]) -> f64 {
-    (a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)
+// --- PeerConfig trait ---
+//
+// Concrete impls live in the step files (derive3, derive4).
+// Each impl carries its pre-loaded data and provides:
+//   - filter: which entities participate
+//   - rank_val: primary sort key for decile construction
+//   - point: embed for KD-tree prefilter
+//   - dist: full distance metric between entity indices
+
+pub trait PeerConfig: Sync {
+    type E: NumberedEntity + Sync;
+    type Point: PeerPoint;
+
+    fn n(&self) -> usize;
+    fn filter(&self) -> &[u8];
+    fn rank_val(&self, idx: usize) -> f32;
+    fn point(&self, idx: usize) -> Self::Point;
+    fn dist(&self, a: usize, b: usize) -> f64;
+
+    fn n_deciles(&self) -> usize {
+        N_DECILES
+    }
+    fn k_candidates(&self) -> usize {
+        K_TREE
+    }
 }
+
+pub fn compute_peers<C>(stowage: &Stowage, config: &C)
+where
+    C: PeerConfig,
+    ET<C::E>: UnsignedNumber,
+    [NET<C::E>; N_PEERS]: ByteFixArrayInterface,
+    <C::Point as KdPoint>::Dim: Sync,
+{
+    let filter = config.filter();
+    let n = config.n();
+
+    let mut entries: Vec<(usize, f32)> = (0..n)
+        .filter(|&i| filter[i] > 0)
+        .map(|i| (i, config.rank_val(i)))
+        .collect();
+    entries.sort_unstable_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal));
+
+    let n_filtered = entries.len();
+    let n_dec = config.n_deciles().max(1);
+    let chunk = (n_filtered + n_dec - 1) / n_dec;
+    let decile_starts: Vec<usize> = (0..n_dec).map(|d| (d * chunk).min(n_filtered)).collect();
+
+    let mut dm_to_rank = vec![0usize; n];
+    for (rank, &(dm_id, _)) in entries.iter().enumerate() {
+        dm_to_rank[dm_id] = rank;
+    }
+
+    let t0 = std::time::Instant::now();
+    let trees: Vec<KdTree<C::Point>> = (0..n_dec)
+        .map(|d| {
+            let lo = decile_starts[d];
+            let hi = ((d + 1) * chunk).min(n_filtered);
+            KdTree::build_by_ordered_float(
+                entries[lo..hi]
+                    .iter()
+                    .map(|&(dm_id, _)| config.point(dm_id))
+                    .collect(),
+            )
+        })
+        .collect();
+    println!(
+        "[peers {}] {} trees ({} filtered): {:.2?}",
+        <C::E as dmove::Entity>::NAME,
+        n_dec,
+        n_filtered,
+        t0.elapsed()
+    );
+
+    let k_cand = config.k_candidates();
+    let select = |dm_id: usize| -> [NET<C::E>; N_PEERS] {
+        let rank = dm_to_rank[dm_id];
+        let dec = decile_starts
+            .partition_point(|&s| s <= rank)
+            .saturating_sub(1);
+        let d_lo = dec.saturating_sub(1);
+        let d_hi = (dec + 1).min(trees.len() - 1);
+        let query = config.point(dm_id);
+        let mut heap = BinaryHeap::<PeerCandidate>::new();
+        for d in d_lo..=d_hi {
+            for hit in trees[d].nearests(&query, k_cand) {
+                let cid = hit.item.dm_id();
+                if cid != dm_id {
+                    let dist = config.dist(dm_id, cid);
+                    if heap.len() < N_PEERS || dist < heap.peek().unwrap().dist_sq {
+                        if heap.len() >= N_PEERS {
+                            heap.pop();
+                        }
+                        heap.push(PeerCandidate {
+                            dist_sq: dist,
+                            dm_id: cid,
+                        });
+                    }
+                }
+            }
+        }
+        let mut out = [NET::<C::E>::default(); N_PEERS];
+        for (i, pc) in heap.into_sorted_vec().into_iter().enumerate() {
+            out[i] = NET::<C::E>::from_usize(pc.dm_id);
+        }
+        out
+    };
+
+    let mut peers_out = vec![[NET::<C::E>::default(); N_PEERS]; n];
+    let t1 = std::time::Instant::now();
+    let n_threads = std::thread::available_parallelism().map_or(1, |p| p.get());
+    let tc = (n_filtered + n_threads - 1) / n_threads;
+    std::thread::scope(|s| {
+        entries
+            .chunks(tc)
+            .map(|slice| {
+                s.spawn(|| {
+                    slice
+                        .iter()
+                        .map(|&(dm_id, _)| (dm_id, select(dm_id)))
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .flat_map(|h| h.join().unwrap())
+            .for_each(|(dm_id, arr)| peers_out[dm_id] = arr);
+    });
+    println!(
+        "[peers {}] parallel phase: {:.2?}",
+        <C::E as dmove::Entity>::NAME,
+        t1.elapsed()
+    );
+
+    stowage.ditf::<PeerMarker, C::E, _>(peers_out, "peers");
+}
+
+// --- Distance utilities ---
 
 pub fn sf_log_dist(
     arr_a: &[u32],
@@ -124,6 +300,8 @@ pub fn geo_sq_dist(a: (f64, f64), b: (f64, f64)) -> f64 {
     let cos_avg = ((a.0 + b.0) / 2.0).to_radians().cos();
     dlat * dlat + (dlon * cos_avg) * (dlon * cos_avg)
 }
+
+// --- Prefilter embed helpers ---
 
 pub fn top_k_sf_indices(arr: &[u32]) -> [usize; N_PEER_SF_DIMS] {
     let mut top = [(0u32, 0usize); N_PEER_SF_DIMS];
@@ -206,7 +384,9 @@ pub fn compute_career_centroids<const N: usize>(
     centroids
 }
 
-pub fn normalize_coords_inplace(coords: &mut [[f64; 2]], filter: &[u8]) {
+/// Normalizes a 2D embedding array in-place using filtered entries only.
+/// Used for the author prefilter embed [ln_cites, ln_papers].
+pub fn normalize_2d_inplace(embeds: &mut [[f64; 2]], filter: &[u8]) {
     let pf_n = filter.iter().filter(|&&f| f > 0).count() as f64;
     if pf_n == 0.0 {
         return;
@@ -214,45 +394,22 @@ pub fn normalize_coords_inplace(coords: &mut [[f64; 2]], filter: &[u8]) {
     let mut means = [0.0f64; 2];
     for (i, &f) in filter.iter().enumerate() {
         if f > 0 {
-            means[0] += coords[i][0] / pf_n;
-            means[1] += coords[i][1] / pf_n;
+            means[0] += embeds[i][0] / pf_n;
+            means[1] += embeds[i][1] / pf_n;
         }
     }
     let mut vars = [0.0f64; 2];
     for (i, &f) in filter.iter().enumerate() {
         if f > 0 {
-            vars[0] += (coords[i][0] - means[0]).powi(2) / pf_n;
-            vars[1] += (coords[i][1] - means[1]).powi(2) / pf_n;
+            vars[0] += (embeds[i][0] - means[0]).powi(2) / pf_n;
+            vars[1] += (embeds[i][1] - means[1]).powi(2) / pf_n;
         }
     }
     let stds = [vars[0].sqrt().max(1e-10), vars[1].sqrt().max(1e-10)];
-    for c in coords.iter_mut() {
-        c[0] = (c[0] - means[0]) / stds[0];
-        c[1] = (c[1] - means[1]) / stds[1];
+    for e in embeds.iter_mut() {
+        e[0] = (e[0] - means[0]) / stds[0];
+        e[1] = (e[1] - means[1]) / stds[1];
     }
-}
-
-fn build_rank_index(filter: &[u8], coords: &[[f64; 2]]) -> (Vec<(usize, [f64; 2])>, Vec<usize>) {
-    let mut entries: Vec<(usize, [f64; 2])> = filter
-        .iter()
-        .enumerate()
-        .filter(|(_, &f)| f > 0)
-        .map(|(i, _)| (i, coords[i]))
-        .collect();
-    entries.sort_unstable_by(|a, b| a.1[0].partial_cmp(&b.1[0]).unwrap_or(Ordering::Equal));
-    let mut dm_to_rank = vec![0usize; coords.len()];
-    for (rank, &(dm_id, _)) in entries.iter().enumerate() {
-        dm_to_rank[dm_id] = rank;
-    }
-    (entries, dm_to_rank)
-}
-
-fn make_peer_embed(coord: [f64; 2], pca: &[f32; N_PCA_DIMS]) -> [f32; N_EMBED_DIMS] {
-    let mut point = [0f32; N_EMBED_DIMS];
-    point[0] = coord[0] as f32;
-    point[1] = coord[1] as f32;
-    point[2..].copy_from_slice(pca);
-    point
 }
 
 fn compute_sf_pca<const N_SF: usize>(
@@ -389,214 +546,4 @@ fn compute_sf_pca<const N_SF: usize>(
     }
     println!("[pca] projections done");
     projections
-}
-
-fn build_decile_trees(
-    entries: &[(usize, [f64; 2])],
-    pca_projs: &[[f32; N_PCA_DIMS]],
-    n_deciles: usize,
-) -> (Vec<KdTree<PeerKdPoint>>, Vec<usize>) {
-    let n = entries.len();
-    let chunk = (n + n_deciles - 1) / n_deciles;
-    let mut trees = Vec::with_capacity(n_deciles);
-    let mut decile_starts = Vec::with_capacity(n_deciles);
-    for d in 0..n_deciles {
-        let lo = (d * chunk).min(n);
-        let hi = ((d + 1) * chunk).min(n);
-        decile_starts.push(lo);
-        trees.push(KdTree::build_by_ordered_float(
-            entries[lo..hi]
-                .iter()
-                .map(|&(dm_id, coord)| PeerKdPoint {
-                    point: make_peer_embed(coord, &pca_projs[dm_id]),
-                    dm_id,
-                })
-                .collect(),
-        ));
-    }
-    (trees, decile_starts)
-}
-
-/// Peer selection using PCA-projected decile KD-trees for candidate retrieval.
-/// Intended for large entity sets (e.g. Authors ~4M) where coord-only prefiltering is insufficient.
-pub fn compute_pca_peers<E, const N_SF: usize>(
-    stowage: &Stowage,
-    coords: &[[f64; 2]],
-    filter: &[u8],
-    cit_sfs: &[[u32; N_SF]],
-    dist: impl Fn(usize, usize, [f64; 2], [f64; 2]) -> f64 + Sync,
-) where
-    E: Entity + Sync,
-    ET<E>: UnsignedNumber,
-    [ET<E>; N_PEERS]: ByteFixArrayInterface,
-{
-    let (entries, dm_to_rank) = build_rank_index(filter, coords);
-    let n = entries.len();
-
-    let t0 = std::time::Instant::now();
-    let pca_projs = compute_sf_pca(cit_sfs, filter);
-    println!("[peers] PCA: {:.2?}", t0.elapsed());
-
-    let t1 = std::time::Instant::now();
-    let (decile_trees, decile_starts) = build_decile_trees(&entries, &pca_projs, N_DECILES);
-    println!(
-        "[peers] {} decile trees ({} filtered): {:.2?}",
-        N_DECILES,
-        n,
-        t1.elapsed()
-    );
-
-    let select = |dm_id: usize, coord: [f64; 2]| -> [ET<E>; N_PEERS] {
-        let rank = dm_to_rank[dm_id];
-        let dec = decile_starts
-            .partition_point(|&s| s <= rank)
-            .saturating_sub(1);
-        let d_lo = dec.saturating_sub(1);
-        let d_hi = (dec + 1).min(decile_trees.len() - 1);
-        let query_pt = PeerKdPoint {
-            point: make_peer_embed(coord, &pca_projs[dm_id]),
-            dm_id,
-        };
-        let mut heap = BinaryHeap::<PeerCandidate>::new();
-        for d in d_lo..=d_hi {
-            for hit in decile_trees[d].nearests(&query_pt, K_TREE) {
-                let cid = hit.item.dm_id;
-                if cid != dm_id {
-                    let d = dist(dm_id, cid, coord, coords[cid]);
-                    if heap.len() < N_PEERS || d < heap.peek().unwrap().dist_sq {
-                        if heap.len() >= N_PEERS {
-                            heap.pop();
-                        }
-                        heap.push(PeerCandidate {
-                            dist_sq: d,
-                            dm_id: cid,
-                        });
-                    }
-                }
-            }
-        }
-        let mut out = [ET::<E>::default(); N_PEERS];
-        for (i, pc) in heap.into_sorted_vec().into_iter().enumerate() {
-            out[i] = ET::<E>::from_usize(pc.dm_id);
-        }
-        out
-    };
-
-    let mut peers_out = vec![[ET::<E>::default(); N_PEERS]; coords.len()];
-    let t2 = std::time::Instant::now();
-    let n_threads = std::thread::available_parallelism().map_or(1, |p| p.get());
-    let tc = (n + n_threads - 1) / n_threads;
-    std::thread::scope(|s| {
-        entries
-            .chunks(tc)
-            .map(|slice| {
-                s.spawn(|| {
-                    slice
-                        .iter()
-                        .map(|&(dm_id, coord)| (dm_id, select(dm_id, coord)))
-                        .collect::<Vec<_>>()
-                })
-            })
-            .collect::<Vec<_>>()
-            .into_iter()
-            .flat_map(|h| h.join().unwrap())
-            .for_each(|(dm_id, arr)| peers_out[dm_id] = arr);
-    });
-    println!(
-        "[peers] parallel phase ({} filtered): {:.2?}",
-        n,
-        t2.elapsed()
-    );
-
-    stowage.ditf::<PeerMarker, E, _>(peers_out, "peers");
-}
-
-/// Peer selection using 2D coordinate KD-tree for candidate retrieval.
-/// Suitable for smaller entity sets (Institutions, Subfields, Countries, Sources, HitPapers).
-pub fn compute_peers<E>(
-    stowage: &Stowage,
-    coords: &[[f64; 2]],
-    filter: &[u8],
-    n_deciles: usize,
-    dist: impl Fn(usize, usize, [f64; 2], [f64; 2]) -> f64 + Sync,
-) where
-    E: NumberedEntity,
-{
-    let (entries, dm_to_rank) = build_rank_index(filter, coords);
-    let n = entries.len();
-    let n_dec = n_deciles.max(1);
-    let chunk = (n + n_dec - 1) / n_dec;
-    let decile_starts: Vec<usize> = (0..n_dec).map(|d| (d * chunk).min(n)).collect();
-    let trees: Vec<KdTree<CoordKdPoint>> = decile_starts
-        .iter()
-        .enumerate()
-        .map(|(d, &lo)| {
-            let hi = ((d + 1) * chunk).min(n);
-            KdTree::build_by_ordered_float(
-                entries[lo..hi]
-                    .iter()
-                    .map(|&(dm_id, coord)| CoordKdPoint { dm_id, coord })
-                    .collect(),
-            )
-        })
-        .collect();
-
-    let select = |dm_id: usize, coord: [f64; 2]| -> [NET<E>; N_PEERS] {
-        let rank = dm_to_rank[dm_id];
-        let dec = decile_starts
-            .partition_point(|&s| s <= rank)
-            .saturating_sub(1);
-        let d_lo = dec.saturating_sub(1);
-        let d_hi = (dec + 1).min(trees.len() - 1);
-        let query = CoordKdPoint { dm_id, coord };
-        let mut heap = BinaryHeap::<PeerCandidate>::new();
-        for d in d_lo..=d_hi {
-            for hit in trees[d].nearests(&query, K_TREE) {
-                if hit.item.dm_id != dm_id {
-                    let d = dist(dm_id, hit.item.dm_id, coord, hit.item.coord);
-                    if heap.len() < N_PEERS || d < heap.peek().unwrap().dist_sq {
-                        if heap.len() >= N_PEERS {
-                            heap.pop();
-                        }
-                        heap.push(PeerCandidate {
-                            dist_sq: d,
-                            dm_id: hit.item.dm_id,
-                        });
-                    }
-                }
-            }
-        }
-        let mut out = [NET::<E>::default(); N_PEERS];
-        for (i, pc) in heap.into_sorted_vec().into_iter().enumerate() {
-            out[i] = NET::<E>::from_usize(pc.dm_id);
-        }
-        out
-    };
-
-    let mut peers_out = vec![[NET::<E>::default(); N_PEERS]; coords.len()];
-    if n > 10_000 {
-        let n_threads = std::thread::available_parallelism().map_or(1, |p| p.get());
-        let tc = (n + n_threads - 1) / n_threads;
-        std::thread::scope(|s| {
-            entries
-                .chunks(tc)
-                .map(|slice| {
-                    s.spawn(|| {
-                        slice
-                            .iter()
-                            .map(|&(dm_id, coord)| (dm_id, select(dm_id, coord)))
-                            .collect::<Vec<_>>()
-                    })
-                })
-                .collect::<Vec<_>>()
-                .into_iter()
-                .flat_map(|h| h.join().unwrap())
-                .for_each(|(dm_id, arr)| peers_out[dm_id] = arr);
-        });
-    } else {
-        for &(dm_id, coord) in &entries {
-            peers_out[dm_id] = select(dm_id, coord);
-        }
-    }
-    stowage.ditf::<PeerMarker, E, _>(peers_out, "peers");
 }
