@@ -72,7 +72,11 @@ fn main() {
         MakeSetup { fast } => {
             create_dir_all(&gen_mod_dir).unwrap();
             let (profile_flag, rustflags, out_file) = if *fast {
-                ("--profile gen-debug", "RUSTFLAGS=\"-A dead_code -A unused\"", "Makefile.fast")
+                (
+                    "--profile gen-debug",
+                    "RUSTFLAGS=\"-A dead_code -A unused\"",
+                    "Makefile.fast",
+                )
             } else {
                 (
                     "--profile gen-release",
@@ -84,7 +88,7 @@ fn main() {
             let mut last_gen = "".to_string();
             let mut make_comms = Vec::new();
             for step in steps.iter() {
-                let step_mod = rs_file_name(&steps_mod_dir, step);
+                let step_mod = step_rs_file_name(&steps_mod_dir, step);
                 let gen_mod = rs_file_name(&gen_mod_dir, step);
                 make_comms.push(format!(
                     "{gen_mod}: {step_mod} {last_gen}
@@ -124,6 +128,14 @@ fn rs_file_name(src_path: &Path, name: &str) -> String {
         .to_str()
         .unwrap()
         .to_string()
+}
+
+fn step_rs_file_name(src_path: &Path, name: &str) -> String {
+    let dir_mod = src_path.join(name).join(MOD_STEM).with_extension("rs");
+    if dir_mod.exists() {
+        return dir_mod.to_str().unwrap().to_string();
+    }
+    rs_file_name(src_path, name)
 }
 
 fn pub_mods_to_file(mod_dir: &Path, steps: &Vec<&String>) {
