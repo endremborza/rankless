@@ -311,6 +311,21 @@ where
     }
 }
 
+impl ByteFixArrayInterface for bool {
+    const S: usize = 1;
+    fn to_fbytes(&self) -> Box<[u8]> {
+        if *self {
+            [1].into()
+        } else {
+            [0].into()
+        }
+    }
+
+    fn from_fbytes(buf: &[u8]) -> Self {
+        buf[0] > 0
+    }
+}
+
 macro_rules! iter_ba_impl {
     ($($iter_type:ty),*) => {
         $(impl<T> ByteArrayInterface for $iter_type
