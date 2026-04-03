@@ -1,6 +1,6 @@
 use std::{io, sync::Arc};
 
-use dmove::{par_join, reverse_prefixed_n, MarkedAttribute, UnsignedNumber, VarAttBuilder, ET};
+use dmove::{reverse_prefixed_n, MarkedAttribute, UnsignedNumber, VarAttBuilder, ET};
 use hashbrown::HashMap;
 
 use crate::{
@@ -11,8 +11,7 @@ use crate::{
     },
     env_consts::FINAL_YEAR,
     gen::{
-        a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
-        a2_init_atts::{CountryCodes, CountryCodesThree},
+        a1_entity_mapping::{Authors, Countries, Sources, Subfields, Topics},
         derive_links2::WorkTopSource,
         derive_links3::HitPapers,
     },
@@ -20,7 +19,7 @@ use crate::{
         a1_entity_mapping::YearInterface,
         derive_links2::{inc_year, CiteDeriver, EraRec, Top15Rec, Top3Rec},
     },
-    QuickestBox, QuickestNumbered, ReadFixIter, Stowage, WorkCountMarker,
+    QuickestBox, QuickestNumbered, Stowage, WorkCountMarker,
 };
 
 macro_rules! mark_empty {
@@ -146,25 +145,6 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let cd = CiteDeriver::new(stowage, wts);
     cd.hit_paper_atts();
     let sarc = Arc::new(cd.stowage);
-    par_join!(
-        || sarc.write_semantic_id::<Authors>(),
-        || sarc.write_semantic_id::<Institutions>(),
-        || sarc.write_semantic_id::<Sources>(),
-        || sarc.write_semantic_id::<Subfields>(),
-        || {
-            let citer = sarc
-                .get_entity_interface::<CountryCodesThree, ReadFixIter>()
-                .zip(sarc.get_entity_interface::<CountryCodes, ReadFixIter>())
-                .map(|(e3, e2)| {
-                    if e3 != [0; 3] {
-                        String::from_utf8(e3.into()).unwrap().to_lowercase()
-                    } else {
-                        String::from_utf8(e2.into()).unwrap().to_lowercase()
-                    }
-                });
-            sarc.decsem::<Countries, _>(citer)
-        },
-    );
     Arc::try_unwrap(sarc).ok().unwrap().write_code()?;
     Ok(())
 }
