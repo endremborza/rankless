@@ -29,11 +29,6 @@ use crate::{
         derive_links1::{WorkFilteredAuthors, WorkInstitutions, WorkSubfields, WorksCiting},
     },
     make_interface_struct,
-    oa_structs::{
-        post::{Institution, Source},
-        FieldLike, NamedEntity,
-    },
-    semantic_ids::SemCsvObj,
     steps::{
         a1_entity_mapping::{Qs, Years},
         derive_links1::{multi_inverter, InvertedMultiLink},
@@ -597,21 +592,6 @@ impl Default for InstRelation {
     }
 }
 
-impl SemCsvObj for Authors {
-    type CsvObj = NamedEntity;
-}
-
-impl SemCsvObj for Subfields {
-    type CsvObj = FieldLike;
-}
-
-impl SemCsvObj for Sources {
-    type CsvObj = Source;
-}
-
-impl SemCsvObj for Institutions {
-    type CsvObj = Institution;
-}
 
 impl IRelAdder for Sources {}
 
