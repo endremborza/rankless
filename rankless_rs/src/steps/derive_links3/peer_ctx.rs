@@ -4,7 +4,7 @@ use dmove::{
 };
 
 use crate::{
-    common::{CitSubfieldsArrayMarker, YearlyPapersMarker},
+    common::CitSubfieldsArrayMarker,
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields},
         a2_init_atts::{InstCountries, InstLocs},
