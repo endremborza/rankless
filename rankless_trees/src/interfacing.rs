@@ -24,7 +24,7 @@ use rankless_rs::{
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
         derive_links2::{SourceStats, WorkCountries, WorkTopSource},
-        derive_links3::{Coauthors, HitPapers, HitPapersBenchmarks, HitPapersDois, HitPapersNames},
+        derive_links3::{Coauthors, HitPapers, HitPapersBenchmarks},
         derive_links4::{AuthorCitingHitsDirect, AuthorCitingHitsOnce},
         derive_links5::HitPaperYearlyCitations,
     },
@@ -245,8 +245,6 @@ make_interfaces!(
     coathors -> Coauthors,
     author_citing_direct -> AuthorCitingHitsDirect,
     author_citing_once -> AuthorCitingHitsOnce,
-    hit_names -> HitPapersNames,
-    hit_dois -> HitPapersDois,
     hit_yearlies -> HitPaperYearlyCitations,
     country_insts -> CountryInsts;
     dan_locators loc DiscardedAuthorsNames,
