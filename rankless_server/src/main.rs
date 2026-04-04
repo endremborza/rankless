@@ -289,14 +289,12 @@ struct PaperProfileResp {
 
 #[derive(Serialize, Clone)]
 struct SearchResult {
-    //TODO: this is stored both here and in AttributeLabelUnion
-    //redundant memory usage
     name: String,
     #[serde(rename = "semanticId")]
     semantic_id: String,
     #[serde(skip_serializing)]
     full_name: String,
-    #[serde(skip_serializing)]
+    #[serde(rename = "oaId")]
     oa_id: u64,
     #[serde(rename = "dmId")]
     dm_id: usize,
@@ -662,11 +660,6 @@ impl NameState {
                 )
             })
             .collect();
-        for res in &mut responses {
-            if res.semantic_id.is_empty() {
-                res.semantic_id = format!("W{}", res.oa_id);
-            }
-        }
         responses.sort_by_key(|e| u32::MAX - e.citations);
         responses.into()
     }
@@ -1228,9 +1221,19 @@ fn paper_out(
     let mut yearly_cites = None;
     let mut is_hit = false;
     let mut hit_bm = None;
-    let (name, doi) = if let Some(hwid) = gets.hit_wid_map.get(&WT::from_usize(wid)) {
-        let name = String::from_utf8(gets.hit_names(*hwid).to_vec()).unwrap();
-        let doi = String::from_utf8(gets.hit_dois(*hwid).to_vec()).unwrap();
+    let mut hit_sem_id = None;
+    let (name, doi) = if let (Some(hwid), Some(hit_attlu)) = (
+        gets.hit_wid_map.get(&WT::from_usize(wid)),
+        att_union.get(HitPapers::NAME),
+    ) {
+        let hit_atts = hit_attlu[*hwid].clone();
+        let name = hit_atts.name;
+        hit_sem_id = Some(hit_atts.semantic_id.clone());
+        let doi = if hit_atts.semantic_id.starts_with("W") {
+            hit_atts.semantic_id
+        } else {
+            String::new()
+        };
         yearly_cites = Some(gets.hit_yearlies(*hwid).into());
         hit_bm = Some(gets.hit_bms(hwid).to_usize() as u32);
         is_hit = true;
@@ -1301,15 +1304,7 @@ fn paper_out(
         wid,
         year: YearInterface::reverse(*gets.year(&wid)),
         name,
-        hit_sem_id: if is_hit {
-            Some(if doi.is_empty() {
-                format!("W{}", wid)
-            } else {
-                doi.clone()
-            })
-        } else {
-            None
-        },
+        hit_sem_id,
         doi,
         citations: gets.wccount(wid) as u32,
         yearly_cites,
