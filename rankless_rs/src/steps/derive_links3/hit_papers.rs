@@ -1,15 +1,12 @@
 use std::collections::BinaryHeap;
 
-use dmove::{BigId, ByteFixArrayInterface, CompactEntity, Entity, MarkedAttribute, NamespacedEntity, UnsignedNumber, ET, MAA};
-use hashbrown::HashMap;
-use hashbrown::HashSet;
+use dmove::{Entity, UnsignedNumber, ET, MAA};
+use hashbrown::{HashMap, HashSet};
 
 use crate::{
-    common::{init_empty_slice, MainWorkMarker},
+    common::init_empty_slice,
     gen::{
-        a1_entity_mapping::{Authors, Works},
-        a2_init_atts::{AuthorNobels, WorkYears},
-        derive_links1::WorkFilteredAuthors,
+        a1_entity_mapping::Works, a2_init_atts::AuthorNobels, derive_links1::WorkFilteredAuthors,
     },
     steps::a1_entity_mapping::Years,
     CiteCountMarker, QuickestBox, ReadIter, Stowage,
