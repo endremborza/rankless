@@ -1,75 +1,42 @@
 use std::collections::BinaryHeap;
 
-use dmove::{
-    CompactEntity, Entity, MarkedAttribute, NamespacedEntity, UnsignedNumber, VarAttBuilder, ET,
-    MAA,
-};
+use dmove::{Entity, NamespacedEntity, VarAttBuilder};
 use hashbrown::HashSet;
 use muwo_search::StackWordSet;
-use serde::de::DeserializeOwned;
 
 use crate::{
-    common::{init_empty_slice, MainEntity, ParsedId, MAIN_NAME},
-    oa_structs::{
-        post::{read_post_str_arr, Institution, Source},
-        FieldLike, NamedEntity,
-    },
-    QuickestNumbered, ReadFixIter, SemanticIdMarker, Stowage, WorkCountMarker,
+    common::{init_empty_slice, MainEntity},
+    SemanticIdMarker, Stowage,
 };
 
-pub trait SemCsvObj {
-    type CsvObj: DeserializeOwned + ParsedId + AddSemId;
-}
-
-pub trait AddSemId {
-    fn get_names(&self) -> Vec<String>;
-}
-
-trait DoIfNot<T> {
-    fn ifnotin<F>(&mut self, e: T, f: F) -> bool
-    where
-        F: FnMut(T);
-}
-
 impl Stowage {
-    pub fn write_semantic_id<E>(&self)
+    /// `wcounts` drives priority: high-work-count entities claim their preferred semantic ID first.
+    pub fn write_semantic_id<E>(&self, wcounts: &[usize], names: &[Vec<String>])
     where
-        E: MainEntity + NamespacedEntity + MarkedAttribute<WorkCountMarker> + SemCsvObj,
-        MAA<E, WorkCountMarker>: NamespacedEntity + CompactEntity,
-        ET<MAA<E, WorkCountMarker>>: UnsignedNumber,
+        E: MainEntity + NamespacedEntity,
     {
-        let mut id_ops = init_empty_slice::<E, Vec<String>>();
-        let interface = self.get_entity_interface::<E, QuickestNumbered>();
-        for o in self.read_csv_objs::<E::CsvObj>(E::NAME, MAIN_NAME) {
-            if let Some(oid) = o.get_parsed_id() {
-                if let Some(eid) = interface.0.get(&oid) {
-                    id_ops[eid.to_usize()] = o.get_names();
-                }
+        let mut eid_heap = BinaryHeap::new();
+        let mut sem_set = HashSet::new();
+        for (eid, name_vec) in names.iter().enumerate() {
+            if !name_vec.is_empty() {
+                eid_heap.push((wcounts[eid], eid));
             }
         }
-        let wcounts = self.get_entity_interface::<MAA<E, WorkCountMarker>, ReadFixIter>();
-        let mut miss_heap = BinaryHeap::new();
-        let mut sem_set = HashSet::new();
-        for (eid, wc) in wcounts.enumerate() {
-            miss_heap.push((wc, eid));
-        }
+
         let suffs = get_suffs();
         let mut ids = init_empty_slice::<E, String>();
-        while let Some((_wc, eid)) = miss_heap.pop() {
-            let id_opts_vec = &id_ops[eid];
-            if id_opts_vec.len() == 0 {
-                if _wc.to_usize() > 0 {
-                    println!("missing: {}({eid})", E::NAME);
-                }
+        while let Some((_, eid)) = eid_heap.pop() {
+            let id_opts_vec = &names[eid];
+            if id_opts_vec.is_empty() {
                 continue;
             }
-            let for_suff = id_opts_vec.iter().last().unwrap();
-            for sid in id_ops[eid]
+            let for_suff = id_opts_vec.last().unwrap().clone();
+            for sid in id_opts_vec
                 .clone()
                 .into_iter()
-                .chain(suffs.iter().map(|e| for_suff.to_owned() + e))
+                .chain(suffs.iter().map(|e| for_suff.clone() + e))
             {
-                if sem_set.ifnotin(sid, |e| ids[eid] = e) {
+                if ifnotin(&mut sem_set, sid, |e| ids[eid] = e) {
                     break;
                 }
             }
@@ -89,73 +56,20 @@ impl Stowage {
     }
 }
 
-impl AddSemId for NamedEntity {
-    fn get_names(&self) -> Vec<String> {
-        vec![semantify(&self.display_name)]
-    }
-}
-
-impl AddSemId for FieldLike {
-    fn get_names(&self) -> Vec<String> {
-        vec![semantify(&self.display_name)]
-    }
-}
-
-impl AddSemId for Source {
-    fn get_names(&self) -> Vec<String> {
-        let mut out = read_post_str_arr(&self.alternate_titles);
-        if let Some(abb) = &self.abbreviated_title {
-            out.push(abb.clone());
-        }
-        out.push(self.display_name.clone());
-        out.sort_by_key(|e| e.len());
-        out.iter().map(|s| semantify(s)).collect()
-    }
-}
-
-impl AddSemId for Institution {
-    fn get_names(&self) -> Vec<String> {
-        let mut out = read_post_str_arr(&self.display_name_acronyms);
-        out.extend(read_post_str_arr(&self.display_name_alternatives).into_iter());
-        let base_name = self.display_name.clone();
-        out.push(base_name.clone());
-        const PREF: &str = "University of ";
-        const SUFF: &str = " University";
-        if base_name.starts_with(PREF) {
-            out.push(base_name[PREF.len()..].to_string())
-        }
-        if base_name.ends_with(SUFF) {
-            out.push(base_name[..base_name.len() - SUFF.len()].to_string())
-        }
-        out.push(
-            format!(
-                "{} {}",
-                base_name.trim(),
-                self.country_code.as_deref().unwrap_or("")
-            )
-            .to_string(),
-        );
-        out.sort_by_key(|e| e.len());
-        out.iter().map(|s| semantify(s)).collect()
-    }
-}
-
-impl DoIfNot<String> for HashSet<String> {
-    fn ifnotin<F>(&mut self, e: String, mut f: F) -> bool
-    where
-        F: FnMut(String),
-    {
-        if !self.contains(&e) {
-            self.insert(e.clone());
-            f(e);
-            return true;
-        }
-        false
-    }
-}
-
 pub fn semantify(s: &str) -> String {
     StackWordSet::new(s).to_words().join("-")
+}
+
+fn ifnotin<F>(set: &mut HashSet<String>, e: String, mut f: F) -> bool
+where
+    F: FnMut(String),
+{
+    if !set.contains(&e) {
+        set.insert(e.clone());
+        f(e);
+        return true;
+    }
+    false
 }
 
 fn get_suffs() -> Vec<String> {
