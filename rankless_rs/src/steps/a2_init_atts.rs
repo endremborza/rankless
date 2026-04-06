@@ -454,7 +454,7 @@ impl Stowage {
 
     fn add_empty_something<E: Entity, Marker>(&self, name: &str) {
         //TODO: this takes memory (and some space) for no fucking reason
-        let iter = (0..E::N).map(|_| "".to_string());
+        let iter = (0..=E::N).map(|_| String::new());
         self.declare_iter::<VarAttBuilder, _, _, E, Marker>(iter, name)
     }
 
