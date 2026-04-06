@@ -973,6 +973,7 @@ dependencies = [
  "levenshtein",
  "muwo-search",
  "nalgebra",
+ "ordered-float",
  "serde",
  "serde_json",
  "serde_path_to_error",
