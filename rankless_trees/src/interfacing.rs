@@ -259,8 +259,7 @@ make_ent_interfaces!(
     names => NameMarker, name_exts => NameExtensionMarker, sem_ids => SemanticIdMarker;
     wcounts -> WorkCountMarker, ccounts -> CiteCountMarker;
     hit_works - HitWorkMarker = Box<[ET<HitPapers>]>;
-    yearly_papers - YearlyPapersMarker | EraRec, //TODO - shouldn't these types be possible to
-                                                 //deduce?
+    yearly_papers - YearlyPapersMarker | EraRec,
     yearly_cites - YearlyCitationsMarker | EraRec,
     top_journals - Top3JournalMarker | Top3Rec<Sources>,
     top_authors - Top15AuthorMarker | Top15Rec<Authors>,
