@@ -1,7 +1,6 @@
 use std::{
     cmp::{Ordering, Reverse},
     collections::BinaryHeap,
-    ops::Deref,
     sync::Arc,
     usize,
 };
@@ -10,6 +9,8 @@ use kd_tree::{KdPoint, KdTree};
 use muwo_search::{FixedHeap, Mined};
 use nalgebra::{DMatrix, SymmetricEigen};
 use typenum;
+
+use dmove::UnsignedNumber;
 
 use crate::{
     common::{NumberedEntity, PeerMarker, NET},
@@ -48,7 +49,6 @@ pub trait PeerCalculator {
     const EMBED_DIMS: usize;
     const N_CANDIDATES: usize;
     const N_PARTITIONS: usize = 1;
-    const N_PEERS: usize = 10;
     fn get_embedding_basis(&self) -> Box<[Self::EmbBasis]>;
     fn final_distance_calc(&self, ind: usize, candidate_ind: usize) -> f64;
 }
@@ -113,12 +113,12 @@ impl<const D: usize> PcaComponents<D> {
 
 impl<const D: usize, T> PartitionedTrees<D, T>
 where
-    T: Ord + Deref + Copy,
+    T: Ord + Copy,
     Embed<D>: KdPoint,
     <Embed<D> as KdPoint>::Scalar: Ord,
 {
     fn new(
-        ndim_order_base: Box<[[f32; D]]>,
+        ndim_order_base: &[[f32; D]],
         n_partitions: usize,
         filtered_entries: &[(T, usize)],
     ) -> Self {
@@ -146,7 +146,7 @@ where
             .collect();
         let partition_start_points = partition_start_inds
             .iter()
-            .map(|&e| *filtered_entries[e].0)
+            .map(|&e| filtered_entries[e].0)
             .collect();
         Self {
             partition_start_points,
@@ -178,14 +178,17 @@ where
     }
 }
 
-pub fn compute_peers<const D: usize, C, ST>(
+pub fn compute_peers<const D: usize, const N_PEERS: usize, C, ST>(
     stowage: &Stowage,
     calculator: &C,
     filter: &[bool],
     order_basis: Box<[ST]>,
 ) where
-    C: PeerCalculator<EmbBasis = [f32; D]>,
-    ST: Ord + Deref + Copy,
+    C: PeerCalculator<EmbBasis = [f32; D]> + Sync,
+    ST: Ord + Copy + Sync,
+    Embed<D>: KdPoint,
+    <Embed<D> as KdPoint>::Scalar: Ord,
+    <Embed<D> as KdPoint>::Dim: Sync,
 {
     let mut filtered_entries: Vec<(ST, usize)> = order_basis
         .iter()
@@ -197,9 +200,9 @@ pub fn compute_peers<const D: usize, C, ST>(
         filtered_entries.sort_unstable();
     }
     let ndim_order_base = calculator.get_embedding_basis();
-    let parted_trees = PartitionedTrees::new(ndim_order_base, C::N_PARTITIONS, &filtered_entries);
+    let parted_trees = PartitionedTrees::new(&ndim_order_base, C::N_PARTITIONS, &filtered_entries);
 
-    let mut peers_out = vec![[NET::<C::E>::default(); C::N_PEERS]; filter.len()];
+    let mut peers_out = vec![[NET::<C::E>::default(); N_PEERS]; filter.len()];
     let t1 = std::time::Instant::now();
     let tc = get_chunk_size(filtered_entries.len());
     std::thread::scope(|s| {
@@ -209,13 +212,19 @@ pub fn compute_peers<const D: usize, C, ST>(
                 s.spawn(|| {
                     slice
                         .iter()
-                        .map(|&(dm_id, _)| {
-                            let arr = [NET::<C::E>::default(); C::N_PEERS];
-                            //TODO: iterate over the candidates, and use the
-                            //final_distance_calc method of the calculator to create the final
-                            //peer array
-                            let candidates = parted_trees.query();
-                            for c in candidates {}
+                        .map(|&(st_val, dm_id)| {
+                            let embed = Embed { coords: ndim_order_base[dm_id], eid: dm_id };
+                            let candidates =
+                                parted_trees.query(st_val, embed, C::N_CANDIDATES);
+                            let mut heap =
+                                FixedHeap::<(f64, usize), { N_PEERS }>::new();
+                            for c in candidates {
+                                heap.push_unique((calculator.final_distance_calc(dm_id, c), c));
+                            }
+                            let mut arr = [NET::<C::E>::default(); N_PEERS];
+                            for (k, (_, cid)) in heap.into_iter().enumerate() {
+                                arr[k] = NET::<C::E>::from_usize(cid);
+                            }
                             (dm_id, arr)
                         })
                         .collect::<Vec<_>>()
@@ -332,7 +341,7 @@ fn top_k_indices<const K: usize, T>(arr: &[T]) -> [usize; K]
 where
     T: Ord + Mined + Copy,
 {
-    let mut h = FixedHeap::<(Reverse<T>, usize), 10>::new();
+    let mut h = FixedHeap::<(Reverse<T>, usize), K>::new();
     for (i, v) in arr.iter().enumerate() {
         h.push_unique((Reverse(*v), i));
     }
