@@ -368,7 +368,7 @@ class Transper:
             "curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash"
         )
         self.ssh.prun("source .nvm/nvm.sh; nvm install --lts")
-        self.ssh.prun("systemctl enable --now systemd-oomd")
+        self.ssh.prun("sudo systemctl enable --now systemd-oomd")
 
     def sync_txt(self, txt, name, dir):
         p = Path(name)
