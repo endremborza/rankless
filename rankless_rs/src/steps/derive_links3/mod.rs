@@ -199,20 +199,25 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     // Peers
 
     let inst_ctx = peer_ctx::InstPeerCtx::new(&starc, inst_filter, &inst_wcounts);
-    peers::compute_peers(&*starc, &inst_ctx);
+    peers::compute_peers::<_, 10, _, _>(&*starc, &inst_ctx, &inst_ctx.filter, &inst_wcounts);
 
     let sf_ctx = peer_ctx::SfPeerCtx::new(&starc, sf_filter, &sf_wcounts);
-    peers::compute_peers(&*starc, &sf_ctx);
+    peers::compute_peers::<_, 10, _, _>(&*starc, &sf_ctx, &sf_ctx.filter, &sf_wcounts);
 
     let country_ctx = peer_ctx::CountryPeerCtx::new(&starc, country_filter, &country_wcounts);
-    peers::compute_peers(&*starc, &country_ctx);
+    peers::compute_peers::<_, 10, _, _>(
+        &*starc,
+        &country_ctx,
+        &country_ctx.filter,
+        &country_wcounts,
+    );
 
     let source_ctx = peer_ctx::SourcePeerCtx::new(&starc, source_filter, &source_wcounts);
-    peers::compute_peers(&*starc, &source_ctx);
+    peers::compute_peers::<_, 10, _, _>(&*starc, &source_ctx, &source_ctx.filter, &source_wcounts);
 
     println!("computing author peers");
     let author_ctx = AuthorPeerCtx::new(&starc, author_filter, &author_wcounts, &w_years);
-    peers::compute_peers(&*starc, &author_ctx);
+    peers::compute_peers::<_, 10, _, _>(&*starc, &author_ctx, &author_ctx.filter, &author_wcounts);
 
     starc.write_code()?;
     Ok(())

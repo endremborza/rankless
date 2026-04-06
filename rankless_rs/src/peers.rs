@@ -1,13 +1,12 @@
 use std::{
     cmp::{Ordering, Reverse},
-    collections::BinaryHeap,
     sync::Arc,
-    usize,
 };
 
 use kd_tree::{KdPoint, KdTree};
 use muwo_search::{FixedHeap, Mined};
 use nalgebra::{DMatrix, SymmetricEigen};
+use ordered_float::FloatCore;
 use typenum;
 
 use dmove::UnsignedNumber;
@@ -27,8 +26,12 @@ where
     trees: Box<[KdTree<Embed<D>>]>,
 }
 
+pub struct Embed<const D: usize> {
+    pub coords: [f32; D],
+    pub eid: usize,
+}
+
 struct PcaComponents<const D: usize> {
-    eigenvalues: [f32; D],
     scales: [f32; D],
     components: [Vec<f32>; D],
 }
@@ -36,11 +39,6 @@ struct PcaComponents<const D: usize> {
 struct FilterConf<const D: usize> {
     filtered_inds: Vec<usize>,
     means: [f32; D],
-}
-
-struct Embed<const D: usize> {
-    pub coords: [f32; D],
-    pub eid: usize,
 }
 
 pub trait PeerCalculator {
@@ -69,10 +67,12 @@ macro_rules! impl_kdpoint {
 }
 
 impl_kdpoint!(
+    1 => typenum::U1,
     2 => typenum::U2,
     3 => typenum::U3,
     4 => typenum::U4,
-    8 => typenum::U8
+    8 => typenum::U8,
+    10 => typenum::U10
 );
 
 impl<const D: usize> FilterConf<D> {
@@ -103,11 +103,7 @@ impl<const D: usize> PcaComponents<D> {
             components[i] = eigen.eigenvectors.column(i).iter().copied().collect();
         }
         println!("[pca] top {D} eigenvalues: {:?}", eigenvalues);
-        PcaComponents {
-            eigenvalues,
-            scales,
-            components,
-        }
+        PcaComponents { scales, components }
     }
 }
 
@@ -115,7 +111,7 @@ impl<const D: usize, T> PartitionedTrees<D, T>
 where
     T: Ord + Copy,
     Embed<D>: KdPoint,
-    <Embed<D> as KdPoint>::Scalar: Ord,
+    <Embed<D> as KdPoint>::Scalar: FloatCore,
 {
     fn new(
         ndim_order_base: &[[f32; D]],
@@ -133,7 +129,7 @@ where
             .enumerate()
             .map(|(d, &lo)| {
                 let hi = ((d + 1) * chunk).min(n_filtered);
-                KdTree::build(
+                KdTree::build_by_ordered_float(
                     filtered_entries[lo..hi]
                         .iter()
                         .map(|&(_v, i)| Embed {
@@ -164,30 +160,51 @@ where
             .saturating_sub(1);
         let p_lo = part.saturating_sub(1);
         let p_hi = (part + 1).min(self.partition_start_points.len() - 1);
-        let mut heap = BinaryHeap::<(<Embed<D> as KdPoint>::Scalar, usize)>::new();
+        let mut hits: Vec<(<Embed<D> as KdPoint>::Scalar, usize)> = Vec::new();
         for p in p_lo..=p_hi {
             for hit in self.trees[p].nearests(&embed, n) {
                 let cid = hit.item.eid;
-                let dist = hit.squared_distance;
                 if cid != embed.eid {
-                    heap.push((dist, cid));
+                    hits.push((hit.squared_distance, cid));
                 }
             }
         }
-        heap.into_iter().take(n).map(|(_, i)| i).collect()
+        hits.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
+        hits.into_iter().take(n).map(|(_, i)| i).collect()
     }
+}
+
+pub fn compute_top_sfs<const ID: usize, const OD: usize>(arrs: &[[u32; ID]]) -> Vec<[usize; OD]> {
+    arrs.iter().map(|arr| top_k_indices::<OD, _>(arr)).collect()
+}
+
+pub fn compute_sf_totals<const D: usize>(arrs: &[[u32; D]]) -> Vec<f64> {
+    arrs.iter()
+        .map(|arr| arr.iter().map(|&v| v as f64).sum())
+        .collect()
+}
+
+pub fn geo_sq_dist(a: (f64, f64), b: (f64, f64)) -> f64 {
+    (a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)
+}
+
+pub(crate) fn compute_log_pca_box<const IN_DIM: usize, const OUT_DIM: usize>(
+    arrs: &[[u32; IN_DIM]],
+    filter: &[bool],
+) -> Box<[[f32; OUT_DIM]]> {
+    compute_log_pca(arrs, filter).into_boxed_slice()
 }
 
 pub fn compute_peers<const D: usize, const N_PEERS: usize, C, ST>(
     stowage: &Stowage,
     calculator: &C,
     filter: &[bool],
-    order_basis: Box<[ST]>,
+    order_basis: &[ST],
 ) where
     C: PeerCalculator<EmbBasis = [f32; D]> + Sync,
     ST: Ord + Copy + Sync,
     Embed<D>: KdPoint,
-    <Embed<D> as KdPoint>::Scalar: Ord,
+    <Embed<D> as KdPoint>::Scalar: FloatCore,
     <Embed<D> as KdPoint>::Dim: Sync,
 {
     let mut filtered_entries: Vec<(ST, usize)> = order_basis
@@ -213,11 +230,12 @@ pub fn compute_peers<const D: usize, const N_PEERS: usize, C, ST>(
                     slice
                         .iter()
                         .map(|&(st_val, dm_id)| {
-                            let embed = Embed { coords: ndim_order_base[dm_id], eid: dm_id };
-                            let candidates =
-                                parted_trees.query(st_val, embed, C::N_CANDIDATES);
-                            let mut heap =
-                                FixedHeap::<(f64, usize), { N_PEERS }>::new();
+                            let embed = Embed {
+                                coords: ndim_order_base[dm_id],
+                                eid: dm_id,
+                            };
+                            let candidates = parted_trees.query(st_val, embed, C::N_CANDIDATES);
+                            let mut heap = FixedHeap::<(f64, usize), { N_PEERS }>::new();
                             for c in candidates {
                                 heap.push_unique((calculator.final_distance_calc(dm_id, c), c));
                             }
