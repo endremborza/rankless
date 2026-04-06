@@ -22,7 +22,7 @@ rankless_rs/src/gen/derive_links2.rs: rankless_rs/src/steps/derive_links2.rs ran
 	RUSTFLAGS="-C target-cpu=native -A dead_code -A unused" cargo run -p rankless-rs --profile gen-release -- derive_links2
 	./target/release/dmove-macro -p rankless_rs post-run -s derive_links2
 
-rankless_rs/src/gen/derive_links3.rs: rankless_rs/src/steps/derive_links3.rs rankless_rs/src/gen/derive_links2.rs
+rankless_rs/src/gen/derive_links3.rs: rankless_rs/src/steps/derive_links3/mod.rs rankless_rs/src/gen/derive_links2.rs
 	./target/release/dmove-macro -p rankless_rs pre-build -s derive_links3
 	RUSTFLAGS="-C target-cpu=native -A dead_code -A unused" cargo build -p rankless-rs --profile gen-release
 	RUSTFLAGS="-C target-cpu=native -A dead_code -A unused" cargo run -p rankless-rs --profile gen-release -- derive_links3
