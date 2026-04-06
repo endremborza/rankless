@@ -1,19 +1,33 @@
+use core::f32;
+
 use dmove::{
-    ByteFixArrayInterface, CompactEntity, MarkedAttribute, NamespacedEntity, UnsignedNumber, ET,
-    MAA,
+    ByteFixArrayInterface, CompactEntity, Entity, MarkedAttribute, NamespacedEntity,
+    UnsignedNumber, ET, MAA,
 };
 
 use crate::{
-    common::CitSubfieldsArrayMarker,
+    common::{init_empty_slice, CitSubfieldsArrayMarker},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields},
-        a2_init_atts::{InstCountries, InstLocs},
+        a2_init_atts::{InstCountries, InstLocs, WorkYears},
+        derive_links2::AuthorWorks,
     },
     peers::{self, Embed2, PeerConfig},
-    CiteCountMarker, QuickestBox, Stowage,
+    steps::a1_entity_mapping::Years,
+    CiteCountMarker, QuickestBox, ReadIter, Stowage,
 };
 
 use super::{COORD_MIN_CITES, COORD_MIN_PAPERS};
+
+pub const N_PEER_SF_DIMS: usize = 10;
+pub const W_PEER_SF: f64 = 1.0;
+pub const W_PEER_RATE: f64 = 0.5;
+pub const W_PEER_GEO: f64 = 0.3;
+pub const W_PEER_COUNTRY: f64 = 0.5;
+pub const W_PEER_TEMPORAL: f64 = 0.4;
+
+const N_DECILES: usize = 20;
+const K_TREE: usize = 500;
 
 // Entity-typed cit-subfields array aliases
 pub(super) type InstCitSfsArr = ET<MAA<Institutions, CitSubfieldsArrayMarker>>;
@@ -24,7 +38,7 @@ pub(super) type AuthorCitSfsArr = ET<MAA<Authors, CitSubfieldsArrayMarker>>;
 
 pub(super) struct InstPeerCtx {
     pub n: usize,
-    pub filter: Vec<u8>,
+    pub filter: Vec<bool>,
     pub embeds: Vec<[f32; 2]>,
     pub cit_sfs: Box<[InstCitSfsArr]>,
     pub top_sfs: Vec<[usize; peers::N_PEER_SF_DIMS]>,
@@ -36,7 +50,7 @@ pub(super) struct InstPeerCtx {
 
 pub struct AuthorPeerCtx {
     pub n: usize,
-    pub filter: Vec<u8>,
+    pub filter: Vec<bool>,
     pub embeds: Vec<[f32; 2]>,
     pub cit_sfs: Box<[AuthorCitSfsArr]>,
     pub top_sfs: Vec<[usize; peers::N_PEER_SF_DIMS]>,
@@ -46,7 +60,7 @@ pub struct AuthorPeerCtx {
 
 pub(super) struct SfPeerCtx {
     pub n: usize,
-    pub filter: Vec<u8>,
+    pub filter: Vec<bool>,
     pub embeds: Vec<[f32; 2]>,
     pub cit_sfs: Box<[SfCitSfsArr]>,
     pub top_sfs: Vec<[usize; peers::N_PEER_SF_DIMS]>,
@@ -55,7 +69,7 @@ pub(super) struct SfPeerCtx {
 
 pub(super) struct CountryPeerCtx {
     pub n: usize,
-    pub filter: Vec<u8>,
+    pub filter: Vec<bool>,
     pub embeds: Vec<[f32; 2]>,
     pub cit_sfs: Box<[CountryCitSfsArr]>,
     pub top_sfs: Vec<[usize; peers::N_PEER_SF_DIMS]>,
@@ -64,7 +78,7 @@ pub(super) struct CountryPeerCtx {
 
 pub(super) struct SourcePeerCtx {
     pub n: usize,
-    pub filter: Vec<u8>,
+    pub filter: Vec<bool>,
     pub embeds: Vec<[f32; 2]>,
     pub cit_sfs: Box<[SourceCitSfsArr]>,
     pub top_sfs: Vec<[usize; peers::N_PEER_SF_DIMS]>,
@@ -72,30 +86,32 @@ pub(super) struct SourcePeerCtx {
     pub sf_weights: [f64; peers::N_PEER_SF_DIMS],
 }
 
-// Builds [ln_cites, ln_papers] embeds (f64), normalizes, converts to f32.
-fn build_embeds<E>(stowage: &Stowage, wcounts: &[usize], filter: &[u8]) -> Vec<[f32; 2]>
+fn build_embeds<E>(stowage: &Stowage, wcounts: &[usize], filter: &[bool]) -> Vec<[f32; 2]>
 where
     E: MarkedAttribute<CiteCountMarker>,
     MAA<E, CiteCountMarker>: NamespacedEntity + CompactEntity,
     ET<MAA<E, CiteCountMarker>>: UnsignedNumber + ByteFixArrayInterface,
 {
     let cites = stowage.get_marked_interface::<E, CiteCountMarker, QuickestBox>();
-    let mut raw: Vec<[f64; 2]> = cites
+    let raw: Vec<[Option<f32>; 2]> = cites
         .iter()
         .enumerate()
         .map(|(i, &cc)| {
-            [
-                (cc.to_usize() as f64).max(COORD_MIN_CITES).ln(),
-                (wcounts[i] as f64).max(COORD_MIN_PAPERS).ln(),
-            ]
+            if filter[i] {
+                [
+                    Some((cc.to_usize() as f64).max(COORD_MIN_CITES).ln() as f32),
+                    Some((wcounts[i] as f64).max(COORD_MIN_PAPERS).ln() as f32),
+                ]
+            } else {
+                [None, None]
+            }
         })
         .collect();
-    peers::normalize_2d_inplace(&mut raw, filter);
-    raw.iter().map(|&e| [e[0] as f32, e[1] as f32]).collect()
+    peers::normalize_opt_arr(raw)
 }
 
 impl InstPeerCtx {
-    pub(super) fn new(stowage: &Stowage, filter: Vec<u8>, wcounts: &[usize]) -> Self {
+    pub(super) fn new(stowage: &Stowage, filter: Vec<bool>, wcounts: &[usize]) -> Self {
         let embeds = build_embeds::<Institutions>(stowage, wcounts, &filter);
         let n = embeds.len();
         let cit_sfs =
@@ -119,7 +135,7 @@ impl InstPeerCtx {
 }
 
 impl SfPeerCtx {
-    pub(super) fn new(stowage: &Stowage, filter: Vec<u8>, wcounts: &[usize]) -> Self {
+    pub(super) fn new(stowage: &Stowage, filter: Vec<bool>, wcounts: &[usize]) -> Self {
         let embeds = build_embeds::<Subfields>(stowage, wcounts, &filter);
         let n = embeds.len();
         let cit_sfs =
@@ -137,7 +153,7 @@ impl SfPeerCtx {
 }
 
 impl CountryPeerCtx {
-    pub(super) fn new(stowage: &Stowage, filter: Vec<u8>, wcounts: &[usize]) -> Self {
+    pub(super) fn new(stowage: &Stowage, filter: Vec<bool>, wcounts: &[usize]) -> Self {
         let embeds = build_embeds::<Countries>(stowage, wcounts, &filter);
         let n = embeds.len();
         let cit_sfs =
@@ -155,7 +171,7 @@ impl CountryPeerCtx {
 }
 
 impl SourcePeerCtx {
-    pub(super) fn new(stowage: &Stowage, filter: Vec<u8>, wcounts: &[usize]) -> Self {
+    pub(super) fn new(stowage: &Stowage, filter: Vec<bool>, wcounts: &[usize]) -> Self {
         let embeds = build_embeds::<Sources>(stowage, wcounts, &filter);
         let n = embeds.len();
         let cit_sfs =
@@ -175,18 +191,33 @@ impl SourcePeerCtx {
 }
 
 impl AuthorPeerCtx {
-    pub fn new<const N: usize>(
+    pub fn new(
         stowage: &Stowage,
-        filter: Vec<u8>,
+        filter: Vec<bool>,
         wcounts: &[usize],
-        yearly_papers: &[[u32; N]],
+        w_years: Box<[ET<WorkYears>]>,
     ) -> Self {
         let embeds = build_embeds::<Authors>(stowage, wcounts, &filter);
         let n = embeds.len();
         let cit_sfs =
             stowage.get_marked_interface::<Authors, CitSubfieldsArrayMarker, QuickestBox>();
         let top_sfs = peers::compute_top_sfs(&*cit_sfs);
-        let career_centroids = peers::compute_career_centroids(yearly_papers, &filter);
+        let mut career_centroids_o = init_empty_slice::<Authors, [Option<f32>; 1]>();
+        for (aid, aworks) in stowage
+            .get_entity_interface::<AuthorWorks, ReadIter>()
+            .enumerate()
+        {
+            let mut yearly_papers = [0; Years::N + 1];
+            for wid in aworks {
+                let wind = w_years[wid.to_usize()].to_usize();
+                yearly_papers[wind] += 1;
+            }
+            career_centroids_o[aid] = [peers::compute_career_centroid(&yearly_papers)];
+        }
+        let career_centroids = peers::normalize_opt_arr(career_centroids_o.to_vec())
+            .into_iter()
+            .map(|e| e[0])
+            .collect();
         Self {
             n,
             filter,

@@ -1,9 +1,8 @@
 use std::{ops::AddAssign, sync::Arc};
 
 use dmove::{
-    para_multi_gen_run, BigId, Data64MappedEntityBuilder, DowncastingBuilder, Entity,
-    MarkedAttribute, NamespacedEntity, UnsignedNumber, VarAttBuilder, VarSizedAttributeElement,
-    VariableSizeAttribute, ET, MAA,
+    BigId, Data64MappedEntityBuilder, DowncastingBuilder, Entity, MarkedAttribute,
+    NamespacedEntity, UnsignedNumber, VarAttBuilder, VariableSizeAttribute, ET, MAA,
 };
 use hashbrown::HashMap;
 
@@ -12,16 +11,14 @@ use crate::{
     env_consts::FINAL_YEAR,
     filter::FIX_AUTHORS,
     gen::{
-        a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
-        a2_init_atts::{
-            CountryCodes, CountryCodesThree, WorkDois, WorkTopics, WorkYears, WorksNames,
-        },
+        a1_entity_mapping::{Authors, Institutions, Sources, Subfields, Topics, Works},
+        a2_init_atts::{WorkDois, WorkTopics, WorkYears, WorksNames},
         derive_links1::WorkSubfields,
         derive_links2::{AuthorWorks, SourceStats},
     },
     peers,
-    steps::a1_entity_mapping::{YearInterface, Years},
-    CiteCountMarker, QuickestBox, QuickestVBox, ReadFixIter, ReadIter, Stowage, WorkCountMarker,
+    steps::a1_entity_mapping::YearInterface,
+    CiteCountMarker, QuickestBox, QuickestVBox, ReadIter, Stowage, WorkCountMarker,
 };
 
 mod entity_sem_ids;
@@ -31,32 +28,13 @@ mod peer_ctx;
 pub use hit_papers::get_nobeled_works;
 pub use peer_ctx::AuthorPeerCtx;
 
-pub const COORD_MIN_CITES: f64 = 1.0;
-pub const COORD_MIN_PAPERS: f64 = 3.0;
-
 pub const AUTHOR_BLACKLIST: [u64; 3] = [
     5030786976, //Lynnette Nathalie Lyzwinski
     5036138197, //David S. Gokhin
     5034807195, //Shadi Yarandi
 ];
 
-fn work_count<E>(stowage: &Stowage)
-where
-    E: MarkedAttribute<MainWorkMarker>,
-    MAA<E, MainWorkMarker>: Entity<T = Box<[ET<Works>]>> + NamespacedEntity + VariableSizeAttribute,
-{
-    dec_work_count(
-        stowage,
-        stowage
-            .get_entity_interface::<MAA<E, MainWorkMarker>, ReadIter>()
-            .map(|e| e.len()),
-    );
-}
-
-fn dec_work_count<E, I>(stowage: &Stowage, it: I)
-where
-    I: Iterator<Item = usize>,
-{
+pub(super) fn dec_work_count<E: Entity, I: Iterator<Item = usize>>(stowage: &Stowage, it: I) {
     stowage.declare_iter::<DowncastingBuilder, _, _, E, WorkCountMarker>(
         it,
         &format!("{}-work-count", E::NAME),
@@ -184,46 +162,41 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         Some("hit-papers-benchmarks"),
     );
 
-    // --- Page filters + semantic IDs ---
+    // --- Page filters, work counts, and semantic IDs ---
 
     let source_stats = starc.get_entity_interface::<SourceStats, QuickestBox>();
-    let (inst_filter, inst_wcounts) =
-        filters::compute_page_filter::<Institutions, _>(&starc, |_, _, _| true);
-    let (sf_filter, sf_wcounts) =
-        filters::compute_page_filter::<Subfields, _>(&starc, |_, _, _| true);
-    let (source_filter, source_wcounts) =
-        filters::compute_page_filter::<Sources, _>(&starc, |i, c, p| {
-            p > 10 && c > 20 && source_stats[i].1 <= 2
-        });
+    let (inst_filter, inst_wcounts) = entity_sem_ids::page_filter::<Institutions, _, _>(
+        &starc,
+        |_, _, _| true,
+        entity_sem_ids::institution_sem_names,
+    );
+    let (sf_filter, sf_wcounts) = entity_sem_ids::page_filter::<Subfields, _, _>(
+        &starc,
+        |_, _, _| true,
+        entity_sem_ids::basic_sem_names,
+    );
+    let (source_filter, source_wcounts) = entity_sem_ids::page_filter::<Sources, _, _>(
+        &starc,
+        |i, c, p| p > 10 && c > 20 && source_stats[i].1 <= 2,
+        entity_sem_ids::source_sem_names,
+    );
 
     let author_oa_ids = reverse_id::<Authors>(&starc);
     let author_yearly_papers =
         starc.get_marked_interface::<Authors, YearlyPapersMarker, QuickestBox>();
-    let (author_filter, author_wcounts) =
-        filters::compute_page_filter::<Authors, _>(&starc, |i, _c, p| {
+    let (author_filter, author_wcounts) = entity_sem_ids::page_filter::<Authors, _, _>(
+        &starc,
+        |i, _c, p| {
             FIX_AUTHORS.contains(&author_oa_ids[i])
                 || (p < 10_000
                     && *author_yearly_papers[i].iter().max().unwrap_or(&0) < 300
                     && !AUTHOR_BLACKLIST.contains(&author_oa_ids[i]))
-        });
+        },
+        entity_sem_ids::basic_sem_names,
+    );
+    let (country_filter, country_wcounts) = entity_sem_ids::country_page_filter(&starc);
 
-    // Countries use ISO codes as semantic IDs (not SemCsvObj)
-    let (country_filter, country_wcounts) =
-        filters::build_filter_and_wcounts::<Countries, _>(&starc, |_, _, _| true);
-    let cc3 = starc.get_entity_interface::<CountryCodesThree, ReadFixIter>();
-    let cc2 = starc.get_entity_interface::<CountryCodes, ReadFixIter>();
-    let country_sem_ids = cc3.zip(cc2).enumerate().map(|(i, (e3, e2))| {
-        if country_filter[i] {
-            String::new()
-        } else if e3 != [0; 3] {
-            String::from_utf8(e3.into()).unwrap().to_lowercase()
-        } else {
-            String::from_utf8(e2.into()).unwrap().to_lowercase()
-        }
-    });
-    starc.decsem::<Countries, _>(country_sem_ids);
-
-    // Peer shit
+    // Peers
 
     let inst_ctx = peer_ctx::InstPeerCtx::new(&starc, inst_filter, &inst_wcounts);
     peers::compute_peers(&*starc, &inst_ctx);
@@ -238,14 +211,22 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     peers::compute_peers(&*starc, &source_ctx);
 
     println!("computing author peers");
-    let author_ctx = AuthorPeerCtx::new(
-        &starc,
-        author_filter,
-        &author_wcounts,
-        &*author_yearly_papers,
-    );
+    let author_ctx = AuthorPeerCtx::new(&starc, author_filter, &author_wcounts, &w_years);
     peers::compute_peers(&*starc, &author_ctx);
 
     starc.write_code()?;
     Ok(())
+}
+
+fn work_count<E>(stowage: &Stowage)
+where
+    E: MarkedAttribute<MainWorkMarker>,
+    MAA<E, MainWorkMarker>: Entity<T = Box<[ET<Works>]>> + NamespacedEntity + VariableSizeAttribute,
+{
+    dec_work_count::<E, _>(
+        stowage,
+        stowage
+            .get_entity_interface::<MAA<E, MainWorkMarker>, ReadIter>()
+            .map(|e| e.len()),
+    );
 }
