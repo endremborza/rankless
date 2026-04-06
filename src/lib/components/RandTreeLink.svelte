@@ -39,4 +39,4 @@
 	$: pref = SEMANTIC_CONF[rootType].start;
 </script>
 
-<a {href}>Breakdown of academic impact, for {pref.toLowerCase()} <b>{name}</b></a>
+<a {href}>Breakdown of academic impact, for {pref.toLowerCase()} <b>{@html name}</b></a>

@@ -37,6 +37,7 @@ pub const SEM_DIR: &str = "semantic-ids";
 // pub const QC_CONF: &str = "qc-specs";
 
 pub const ID_PREFIX: &str = "https://openalex.org/";
+pub const N_PEERS: usize = 10;
 
 pub struct NameMarker;
 pub struct NameExtensionMarker;
@@ -60,7 +61,7 @@ pub struct Top3JournalMarker;
 pub struct Top3AffCountryMarker;
 pub struct CoordinateMarker;
 pub struct PageFilterMarker;
-pub struct PeerAuthorMarker;
+pub struct PeerMarker;
 
 pub struct EmptyAttributeEntity<T> {
     p: PhantomData<T>,

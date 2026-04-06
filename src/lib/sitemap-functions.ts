@@ -22,6 +22,7 @@ export async function respsFromLinks(links: { url: string, name: RootType }[]): 
 export async function getLinks(start: number, end: number): Promise<{ url: string, name: RootType }[]> {
 	return fetch(`${BE_URL}/counts`).then((r) =>
 		r.json().then((entities) => {
+			if (!Array.isArray(entities)) return [];
 			let out: { url: string; name: RootType }[] = [];
 			entities.forEach((e: { count: number; name: string }) => {
 				if (e.count > start && e.name != 'hit-papers') {
@@ -31,12 +32,13 @@ export async function getLinks(start: number, end: number): Promise<{ url: strin
 			});
 			return out;
 		})
-	);
+	).catch(() => []);
 }
 
 export async function getMaxPage(stepSize: number): Promise<number> {
 	return fetch(`${BE_URL}/counts`).then((r) =>
 		r.json().then((entities) => {
+			if (!Array.isArray(entities)) return 0;
 			let max = 0;
 			entities.forEach((e: { count: number; name: string }) => {
 				let maxPage = Math.floor(e.count / stepSize);
@@ -46,5 +48,5 @@ export async function getMaxPage(stepSize: number): Promise<number> {
 			});
 			return max;
 		})
-	);
+	).catch(() => 0);
 }

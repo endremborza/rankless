@@ -16,8 +16,8 @@ pub mod steps;
 
 pub use common::{
     CiteCountMarker, CoordinateMarker, MmapBox, NameExtensionMarker, NameMarker, PageFilterMarker,
-    PeerAuthorMarker, QuickestBox, QuickestNumbered, QuickestVBox, ReadFixIter, ReadIter,
-    SemanticIdMarker, Stowage, WorkCountMarker,
+    PeerMarker, QuickestBox, QuickestNumbered, QuickestVBox, ReadFixIter, ReadIter,
+    SemanticIdMarker, Stowage, WorkCountMarker, N_PEERS,
 };
 
 macro_rules! mods_as_comms {
@@ -46,4 +46,12 @@ pub fn runner(comm: &str, root_str: &str, in_root_o: Option<String>) -> io::Resu
     }
     subrun(comm, stowage)
 }
-mods_as_comms!(a1_entity_mapping, a2_init_atts, derive_links1, derive_links2, derive_links3, derive_links4, derive_links5);
+mods_as_comms!(
+    a1_entity_mapping,
+    a2_init_atts,
+    derive_links1,
+    derive_links2,
+    derive_links3,
+    derive_links4,
+    derive_links5
+);

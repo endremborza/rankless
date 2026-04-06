@@ -12,6 +12,10 @@
 	export let disownedWids: Set<number> = new Set();
 	export let mergedPairs: [number, number][] = [];
 	export let isOwner = false;
+	// SSR-provided initial batch — skips the first client fetch when non-empty
+	export let initialPapers: Paper[] = [];
+	export let initialSliceEnd: number = 0;
+	export let initialTotalPapers: number = 0;
 
 	type MergeEvent = { keep: number; drop: number };
 	const dispatch = createEventDispatcher<{
@@ -26,6 +30,7 @@
 	let sliceEnd = 0;
 	let loading = false;
 	let initialLoaded = false;
+	let ownerUnlocked = false;
 
 	let sortBy: 'year' | 'citations' = 'year';
 	let minCitations = 0;
@@ -56,12 +61,22 @@
 	}
 
 	onMount(async () => {
-		await fetchPage(0);
-		initialLoaded = true;
+		if (initialPapers.length > 0) {
+			papers = initialPapers;
+			sliceEnd = initialSliceEnd;
+			totalPapers = initialTotalPapers;
+			initialLoaded = true;
+		} else {
+			await fetchPage(0);
+			initialLoaded = true;
+		}
 	});
 
 	function loadMore() {
-		if (!loading && sliceEnd < totalPapers) fetchPage(sliceEnd);
+		if (!loading && sliceEnd < totalPapers) {
+			ownerUnlocked = true;
+			fetchPage(sliceEnd);
+		}
 	}
 
 	$: mergedDrops = new Set(mergedPairs.map(([, d]) => d));
@@ -98,7 +113,6 @@
 	function selectMergeTarget(target: Paper) {
 		if (mergingWid === null) return;
 		const source = papers.find((p) => p.wid === mergingWid)!;
-		// Default: higher citations paper is kept
 		const keep = source.citations >= target.citations ? source.wid : target.wid;
 		const drop = keep === source.wid ? target.wid : source.wid;
 		mergeConfirm = { keep, drop };
@@ -120,10 +134,15 @@
 		? {
 				keep: papers.find((p) => p.wid === mergeConfirm!.keep),
 				drop: papers.find((p) => p.wid === mergeConfirm!.drop)
-		  }
+			}
 		: null;
 
-	$: showOwnerActions = isOwner && citationStyle === 'html';
+	$: showOwnerActions = isOwner && ownerUnlocked && citationStyle === 'html';
+	$: loadMoreLabel = (() => {
+		const count = `${sliceEnd} of ${totalPapers}`;
+		if (isOwner && !ownerUnlocked) return `Load more & suggest changes (${count})`;
+		return `Load more (${count})`;
+	})();
 </script>
 
 <div class="all-works">
@@ -146,9 +165,10 @@
 			{@const sourcePaper = papers.find((p) => p.wid === mergingWid)}
 			<div class="merge-mode-bar">
 				<span
-					>Merging: <em>{sourcePaper?.name ?? mergingWid}</em> — click another paper to select target</span
+					>Merging: <em>{sourcePaper?.name ?? mergingWid}</em> — click another paper to select
+					target</span
 				>
-				<button class="cancel-btn" on:click={cancelMerge}>Cancel</button>
+				<button class="btn-sm" on:click={cancelMerge}>Cancel</button>
 			</div>
 		{/if}
 
@@ -162,7 +182,7 @@
 							>{mergeConfirmPapers.keep.citations} cites · {mergeConfirmPapers.keep.year}</span
 						>
 					</div>
-					<button class="swap-btn" on:click={swapMergeKeepDrop} title="Swap keep/drop">⇄</button>
+					<button class="btn-sm icon" on:click={swapMergeKeepDrop} title="Swap keep/drop">⇄</button>
 					<div class="merge-paper">
 						<span class="merge-label dropped">Drop</span>
 						<span class="merge-title">{mergeConfirmPapers.drop.name}</span>
@@ -176,8 +196,8 @@
 					apply it to all figures.
 				</p>
 				<div class="merge-confirm-actions">
-					<button class="confirm-btn" on:click={confirmMerge}>Confirm merge</button>
-					<button class="cancel-btn" on:click={cancelMerge}>Cancel</button>
+					<button class="btn-sm confirm" on:click={confirmMerge}>Confirm merge</button>
+					<button class="btn-sm" on:click={cancelMerge}>Cancel</button>
 				</div>
 			</div>
 		{/if}
@@ -195,6 +215,7 @@
 							<span class="paper-meta">
 								{#if paper.citations > 0}{paper.citations} indexed citations{/if}
 								{#if mergeCount > 0}<span class="merge-badge">+{mergeCount} merged</span>{/if}
+								{#if paper.hitSemId}<a href="/hit-papers/{paper.hitSemId}" class="hit-page-link">breakdown →</a>{/if}
 							</span>
 						{:else}
 							<span class="paper-ref"
@@ -204,15 +225,15 @@
 					</div>
 					{#if showOwnerActions}
 						{#if isMergingSource}
-							<button class="cancel-btn" on:click={cancelMerge}>Cancel</button>
+							<button class="btn-sm" on:click={cancelMerge}>Cancel</button>
 						{:else if mergingWid !== null}
-							<button class="merge-here-btn" on:click={() => selectMergeTarget(paper)}
+							<button class="btn-sm active-bg" on:click={() => selectMergeTarget(paper)}
 								>Merge here</button
 							>
 						{:else}
 							<div class="paper-actions">
-								<button class="action-btn" on:click={() => startMerge(paper.wid)}>Merge</button>
-								<button class="action-btn disown" on:click={() => dispatch('disown', paper.wid)}
+								<button class="btn-sm" on:click={() => startMerge(paper.wid)}>Merge</button>
+								<button class="btn-sm muted" on:click={() => dispatch('disown', paper.wid)}
 									>Disown</button
 								>
 							</div>
@@ -222,7 +243,7 @@
 			{/each}
 		</div>
 
-		{#if mergedDropPapers.length > 0 && isOwner}
+		{#if mergedDropPapers.length > 0 && isOwner && ownerUnlocked}
 			<details class="merged-section">
 				<summary>Merged ({mergedDropPapers.length})</summary>
 				<div class="paper-list dimmed">
@@ -239,7 +260,7 @@
 							</div>
 							{#if keepWid !== undefined}
 								<button
-									class="action-btn"
+									class="btn-sm"
 									on:click={() => dispatch('unmerge', { keep: keepWid, drop: paper.wid })}
 									>Unmerge</button
 								>
@@ -250,7 +271,7 @@
 			</details>
 		{/if}
 
-		{#if disownedPapersList.length > 0 && isOwner}
+		{#if disownedPapersList.length > 0 && isOwner && ownerUnlocked}
 			<details class="disowned-section">
 				<summary>Disowned ({disownedPapersList.length})</summary>
 				<div class="paper-list dimmed">
@@ -263,7 +284,7 @@
 									>{paper.year}{#if source} · {source}{/if}</span
 								>
 							</div>
-							<button class="action-btn" on:click={() => dispatch('undisown', paper.wid)}
+							<button class="btn-sm" on:click={() => dispatch('undisown', paper.wid)}
 								>Undo</button
 							>
 						</div>
@@ -274,7 +295,7 @@
 
 		{#if sliceEnd < totalPapers}
 			<button class="load-more" on:click={loadMore} disabled={loading}>
-				{loading ? 'Loading...' : `Load more (${sliceEnd} of ${totalPapers})`}
+				{loading ? 'Loading...' : loadMoreLabel}
 			</button>
 		{/if}
 	{/if}
@@ -316,7 +337,7 @@
 	}
 
 	.paper-ref {
-		font-size: 0.85rem;
+		font-size: var(--text-base);
 		line-height: 1.3;
 	}
 
@@ -334,11 +355,20 @@
 	}
 
 	.paper-meta {
-		font-size: 0.7rem;
+		font-size: var(--text-xs);
 		opacity: 0.5;
 		display: flex;
 		gap: 6px;
 		align-items: center;
+	}
+
+	.hit-page-link {
+		color: var(--color-text);
+		text-decoration: none;
+	}
+
+	.hit-page-link:hover {
+		opacity: 0.8;
 	}
 
 	.merge-badge {
@@ -355,57 +385,6 @@
 		flex-shrink: 0;
 	}
 
-	.action-btn {
-		flex-shrink: 0;
-		font-size: 0.65rem;
-		padding: 2px 8px;
-		border-radius: 3px;
-		border: 1px solid rgba(var(--color-range-15), 0.15);
-		background: none;
-		cursor: pointer;
-		color: var(--color-text);
-		opacity: 0.5;
-	}
-
-	.action-btn:hover {
-		opacity: 1;
-	}
-
-	.action-btn.disown {
-		opacity: 0.35;
-	}
-
-	.merge-here-btn {
-		flex-shrink: 0;
-		font-size: 0.65rem;
-		padding: 2px 8px;
-		border-radius: 3px;
-		border: 1px solid rgba(var(--color-range-15), 0.3);
-		background: rgba(var(--color-range-15), 0.05);
-		cursor: pointer;
-		color: var(--color-text);
-	}
-
-	.merge-here-btn:hover {
-		background: rgba(var(--color-range-15), 0.12);
-	}
-
-	.cancel-btn {
-		flex-shrink: 0;
-		font-size: 0.65rem;
-		padding: 2px 8px;
-		border-radius: 3px;
-		border: 1px solid rgba(var(--color-range-15), 0.15);
-		background: none;
-		cursor: pointer;
-		color: var(--color-text);
-		opacity: 0.6;
-	}
-
-	.cancel-btn:hover {
-		opacity: 1;
-	}
-
 	.merge-mode-bar {
 		display: flex;
 		align-items: center;
@@ -414,7 +393,7 @@
 		padding: 8px 10px;
 		border-radius: 4px;
 		border: 1px dashed rgba(var(--color-range-15), 0.25);
-		font-size: 0.75rem;
+		font-size: var(--text-sm);
 	}
 
 	.merge-mode-bar em {
@@ -429,7 +408,7 @@
 		padding: 10px 12px;
 		border-radius: 4px;
 		border: 1px solid rgba(var(--color-range-15), 0.2);
-		font-size: 0.75rem;
+		font-size: var(--text-sm);
 	}
 
 	.merge-confirm-papers {
@@ -446,7 +425,7 @@
 	}
 
 	.merge-label {
-		font-size: 0.6rem;
+		font-size: var(--text-xs);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		opacity: 0.6;
@@ -461,33 +440,17 @@
 	}
 
 	.merge-title {
-		font-size: 0.75rem;
+		font-size: var(--text-sm);
 		line-height: 1.2;
 	}
 
 	.merge-meta {
-		font-size: 0.65rem;
+		font-size: var(--text-xs);
 		opacity: 0.5;
 	}
 
-	.swap-btn {
-		flex-shrink: 0;
-		background: none;
-		border: 1px solid rgba(var(--color-range-15), 0.2);
-		border-radius: 3px;
-		cursor: pointer;
-		font-size: 1rem;
-		padding: 2px 6px;
-		color: var(--color-text);
-		opacity: 0.6;
-	}
-
-	.swap-btn:hover {
-		opacity: 1;
-	}
-
 	.merge-note {
-		font-size: 0.65rem;
+		font-size: var(--text-xs);
 		opacity: 0.45;
 		margin: 0;
 		font-style: italic;
@@ -498,20 +461,6 @@
 		gap: 8px;
 	}
 
-	.confirm-btn {
-		font-size: 0.7rem;
-		padding: 3px 12px;
-		border-radius: 3px;
-		border: 1px solid rgba(var(--color-range-15), 0.25);
-		background: none;
-		cursor: pointer;
-		color: var(--color-text);
-	}
-
-	.confirm-btn:hover {
-		background: rgba(var(--color-range-15), 0.08);
-	}
-
 	.load-more {
 		align-self: center;
 		padding: 6px 16px;
@@ -519,8 +468,9 @@
 		border: 1px solid rgba(var(--color-range-15), 0.2);
 		background: none;
 		cursor: pointer;
-		font-size: 0.8rem;
+		font-size: var(--text-sm);
 		color: var(--color-text);
+		font-family: inherit;
 	}
 
 	.load-more:hover:not(:disabled) {

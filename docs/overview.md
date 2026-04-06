@@ -21,6 +21,7 @@ Each searchable entity has a hero page built around **production** (its papers) 
 - **Collaborator Network** — co-authorship graph scoped to an author's frequent collaborators.
 - **Geographical Impact Map** — citation flows by country; optionally colored by specialization vs. baseline.
 - **Author Peers** — comparison table of an author against their 5 closest peers (by coordinate proximity + subfield similarity); subfield citation heatmap with color-scaled opacity, sparkline decade timeline, total papers/citations.
+- **Hit Paper Breakdown** — lazy-loaded citation breakdown panel for individual standout papers: TileTreeMap of citing entities (shown inline when a paper is expanded in PaperRainbow or via the dedicated `/hit-papers/{semId}` profile page).
 
 ## Architecture
 
@@ -30,7 +31,7 @@ Each searchable entity has a hero page built around **production** (its papers) 
 
 **Tree library (`rankless_trees`):** Hierarchical query engine with thread pool (`TreeRunManager`), citation path finder (`path_finder.rs`), and in-memory caching.
 
-**Frontend (`src/`):** SvelteKit/Svelte with SSR. All visualizations hand-written SVG; Cytoscape.js the only external viz dependency. ORCID authentication integrated into author-papers pages (login redirects back to same page). SQLite (better-sqlite3, WAL mode) stores paper disown/claim actions per ORCID user. Author-papers page includes paper profile (standout papers, citation impact DAG), author peers comparison, and paginated works list with export controls. Dark mode responsive, color scheme defined in `src/routes/styles.css`
+**Frontend (`src/`):** SvelteKit/Svelte with SSR. All visualizations hand-written SVG; Cytoscape.js the only external viz dependency. ORCID authentication integrated into author profile pages (login redirects back to same page). SQLite (better-sqlite3, WAL mode) stores paper disown/claim actions per ORCID user. The main entity profile page (`/[rootType]/[...semanticId]`) handles all entity types: for authors it SSR-loads paper-profile, author-peers, and an initial 20-paper works batch in parallel with the tree, then renders FullQc (impact tree, dominant), PaperRainbow (standout papers, with inline HitPaperBreakdown panel per paper), AuthorPeers, geography/research-space/co-author-network sections, and a paginated AllWorks list (hit papers show a "breakdown →" link to their profile page). Owner paper-management actions (disown/merge/claim) unlock after the first "Load more" click. Hit-paper profiles (`/hit-papers/{semId}`) use DOI as semantic ID with `W{oa_id}` fallback for papers without DOIs; they show a publication year, external DOI/OpenAlex link, and the standard FullQc citation tree. A sticky TOC links all sections. The separate `/author-papers/:semId` page retains the citation impact DAG (ImpactDag) and is not prominently linked in v1 public profiles. Dark mode responsive, color scheme defined in `src/routes/styles.css`
 
 **Deployment (`pyscripts/deploy.py`):** Linux, systemd (Rust backend + Bun frontend), Nginx reverse proxy, Let's Encrypt SSL. Live monitoring via distributed alert swarm (`live_monitoring.py`). Nginx logs parsed hourly for performance reports.
 

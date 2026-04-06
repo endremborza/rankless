@@ -5,7 +5,7 @@
 	import { getSpecMetricObject, type SpecInfo } from '$lib/metric-calculation';
 	import WorkElem from './WorkElem.svelte';
 	import LoadingCircle from './LoadingCircle.svelte';
-	import { getCachedPaper } from '$lib/stores';
+	import { prefetchPaper } from '$lib/stores';
 
 	export let path: PathInTree;
 	export let treeSpec: TreeSpec;
@@ -102,15 +102,25 @@
 		return nodes;
 	}
 
-	function showIfAllowed(hasSpace: boolean, leaf) {
-		if (hasSpace && getCachedPaper(leaf?.topSourceId) != undefined) {
-			showPaper = true;
+	function scheduleAutoShow(hasSpace: boolean, leaf: { sourceCount: number; topSourceId: number }) {
+		if (!hasSpace || (leaf?.sourceCount || 0) === 0) return;
+		showPaper = true;
+	}
+
+	function preloadArmedPaper(path: PathInTree | null) {
+		if (!path || !hasSpaceForPaper) return;
+		let node = rootNode;
+		for (const childId of path) {
+			if (!node?.children) return;
+			node = node.children[childId];
 		}
+		if (node?.topSourceId) prefetchPaper(node.topSourceId);
 	}
 
 	$: pathNodes = getNodes(path || [], rootNode, attributeLabels, treeSpec);
 	$: leaf = pathNodes[pathNodes.length - 1];
-	$: showIfAllowed(hasSpaceForPaper, leaf);
+	$: scheduleAutoShow(hasSpaceForPaper, leaf);
+	$: preloadArmedPaper(armingPath);
 	$: expanded = showPaper && (leaf.sourceCount || 0) > 0;
 	$: citePrefix =
 		path.length > 0 && (leaf.linkCount || 0) > 0
@@ -121,12 +131,9 @@
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <!-- svelte-ignore a11y-mouse-events-have-key-events -->
 <div
-	class="plibox-container shadowy {showPaper ? '' : 'clickable'}"
+	class="plibox-container shadowy"
 	role="none"
 	tabindex="-1"
-	on:click={() => {
-		showPaper = true;
-	}}
 >
 	<span class="load-indicator">
 		<LoadingCircle isArming={armingPath != null} {delay} />
@@ -148,8 +155,8 @@
 		<div class="paper-container">
 			{#if expanded}
 				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} />
-			{:else if (leaf.sourceCount || 0) > 0}
-				<p><button class="clickable">Find Top Paper</button></p>
+			{:else if (leaf.sourceCount || 0) > 0 && !hasSpaceForPaper}
+				<button class="show-paper-btn" on:click={() => (showPaper = true)}>Show top paper</button>
 			{/if}
 		</div>
 	{/if}
@@ -166,11 +173,6 @@
 		word-break: break-word;
 		overflow-wrap: break-word;
 		text-align: center;
-	}
-
-	button {
-		padding: 0.5rem;
-		margin: var(--unified-margin);
 	}
 
 	.plibox-container {
@@ -203,5 +205,31 @@
 		position: absolute;
 		top: var(--unified-padding);
 		right: var(--unified-padding);
+	}
+
+	.show-paper-btn {
+		display: block;
+		width: fit-content;
+		margin: var(--unified-padding) auto 0;
+		background: none;
+		border: 1px solid rgba(var(--color-range-15), 0.2);
+		border-radius: var(--control-bar-pill-radius);
+		padding: var(--control-bar-pill-pad);
+		font-family: inherit;
+		font-size: var(--control-bar-font);
+		cursor: pointer;
+		color: inherit;
+		opacity: 0.6;
+		transition: opacity 0.15s;
+	}
+
+	.show-paper-btn:hover {
+		opacity: 1;
+	}
+
+	@media (min-width: 900px) {
+		.show-paper-btn {
+			display: none;
+		}
 	}
 </style>

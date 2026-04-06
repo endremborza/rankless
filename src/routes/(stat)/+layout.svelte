@@ -18,7 +18,7 @@
 		surveyShouldPrompt: boolean;
 		user: { orcid: string; name: string; semanticId?: string } | null;
 	};
-	let options: RootType[] = ROOT_TYPES.filter((e) => e != 'hit-papers');
+	let options: RootType[] = ROOT_TYPES;
 	let cat: RootType = options[0];
 
 	let mounted = false;
@@ -156,7 +156,7 @@
 							{#if data.user.semanticId}
 								<a
 									class="dropdown-item"
-									href="/author-papers/{data.user.semanticId}"
+									href="/authors/{data.user.semanticId}"
 									on:click={() => (userMenuOpen = false)}>My Profile</a
 								>
 							{/if}
@@ -408,7 +408,7 @@
 
 	#search-bar {
 		position: sticky;
-		top: 48px;
+		top: var(--header-height);
 		z-index: 24;
 		background-color: var(--color-theme-white);
 		padding: 8px 3vw;

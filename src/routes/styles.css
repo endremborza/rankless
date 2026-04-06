@@ -52,6 +52,17 @@
 	--unified-margin: min(min(27px, 2vw), 3.7svh);
 	--unified-padding: 18px;
 	--borad: 6px;
+
+	--text-xs: 0.65rem;
+	--text-sm: 0.75rem;
+	--text-base: 0.85rem;
+
+	--header-height: 47px;
+	--control-bar-font: 0.82rem;
+	--control-bar-pad-v: 6px;
+	--control-bar-pad-h: var(--unified-margin, 12px);
+	--control-bar-pill-pad: 3px 10px;
+	--control-bar-pill-radius: 10px;
 }
 :root {
 	--text-bg: #ffffff;
@@ -241,6 +252,34 @@ g {
 	background: var(--highlight-text);
 	color: var(--text-bg);
 }
+
+.btn-sm {
+	font-size: var(--text-xs);
+	padding: 2px 8px;
+	border-radius: 3px;
+	border: 1px solid rgba(var(--color-range-15), 0.18);
+	background: none;
+	cursor: pointer;
+	color: var(--color-text);
+	font-family: inherit;
+	flex-shrink: 0;
+	opacity: 0.6;
+	transition: opacity 0.12s, background 0.12s;
+}
+.btn-sm:hover { opacity: 1; }
+.btn-sm.muted { opacity: 0.35; }
+.btn-sm.confirm {
+	padding: 3px 12px;
+	opacity: 1;
+}
+.btn-sm.confirm:hover { background: rgba(var(--color-range-15), 0.08); }
+.btn-sm.active-bg {
+	background: rgba(var(--color-range-15), 0.06);
+	border-color: rgba(var(--color-range-15), 0.28);
+	opacity: 1;
+}
+.btn-sm.active-bg:hover { background: rgba(var(--color-range-15), 0.12); }
+.btn-sm.icon { font-size: 1rem; padding: 2px 6px; }
 
 .fof-container {
 	width: 100%;

@@ -3,11 +3,11 @@
 	"version": "2.7.0",
 	"private": true,
 	"scripts": {
-		"dev": "vite dev --host",
+		"dev": "bun --bun run vite dev --host",
 		"ngrok": "ngrok http --domain=stork-settled-spider.ngrok-free.app 5173",
 		"data-ngrok": "ngrok http --domain=stork-settled-spider.ngrok-free.app 8000",
-		"build": "vite build",
-		"preview": "vite preview",
+		"build": "bun --bun run vite build",
+		"preview": "bun --bun run vite preview",
 		"deploy": "echo www.rankless.org > build/CNAME && touch build/.nojekyll && gh-pages -d build -t true -b rankless-page -o rankless",
 		"alpha": "vite build && touch build/.nojekyll && gh-pages -d build -t true",
 		"test": "playwright test",
@@ -41,8 +41,6 @@
 	},
 	"type": "module",
 	"dependencies": {
-		"@types/better-sqlite3": "^7.6.13",
-		"better-sqlite3": "^12.6.2",
 		"cytoscape": "^3.33.1",
 		"cytoscape-fcose": "^2.2.0"
 	}

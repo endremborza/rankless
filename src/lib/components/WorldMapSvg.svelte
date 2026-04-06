@@ -236,6 +236,7 @@
 			bind:treeId
 			bind:resp
 			bind:isSpec
+			showInfobox={conf.rootType !== 'hit-papers'}
 			{infoPath}
 		>
 			<div class="world-map-container">
@@ -300,7 +301,7 @@
 			</div>
 		</FlatOutFrame>
 	</div>
-	<p class="text-s">{getMapText(conf.rootType, rootName, isSpec, isRefSide)}</p>
+	<p class="text-s">{@html getMapText(conf.rootType, rootName, isSpec, isRefSide)}</p>
 </div>
 
 <style>

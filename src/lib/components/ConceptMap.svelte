@@ -250,6 +250,7 @@
 			bind:flatOut
 			bind:isSpec
 			bind:showPaper
+			showInfobox={conf.rootType !== 'hit-papers'}
 			{infoPath}
 		>
 			<!-- svelte-ignore a11y-mouse-events-have-key-events -->
@@ -328,7 +329,7 @@
 			</div>
 		</FlatOutFrame>
 	</div>
-	<p class="text-s">{getNetworkText(conf.rootType, rootName, isSpec, sourceSide)}</p>
+	<p class="text-s">{@html getNetworkText(conf.rootType, rootName, isSpec, sourceSide)}</p>
 </div>
 
 <style>

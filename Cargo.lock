@@ -987,7 +987,6 @@ dependencies = [
  "axum",
  "dmove",
  "hashbrown 0.14.5",
- "kd-tree",
  "mimalloc",
  "muwo-search",
  "rand",
@@ -997,7 +996,6 @@ dependencies = [
  "serde_json",
  "socket2",
  "tokio",
- "typenum",
 ]
 
 [[package]]

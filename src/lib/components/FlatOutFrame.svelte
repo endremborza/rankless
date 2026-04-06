@@ -24,6 +24,7 @@
 			: indsByEntityType[l1Type][0];
 	export let backupNames: Record<number, string> = {};
 	export let showPaper = false;
+	export let showInfobox = true;
 
 	let mounted = false;
 	let selectedBreakdowns = tf.getDefaultBreakdowns(treeSpecs.specs[conf.rootType][treeId]);
@@ -90,7 +91,7 @@
 
 <div class="papered-figure-container">
 	<div class="figure-container frame-top-half">
-		<h3>{titlePrefix} {titleSuffix} {rootName}</h3>
+		<h3>{titlePrefix} {titleSuffix} {@html rootName}</h3>
 		<div class="control-block">
 			{#if Object.keys(levelOptions).length > 1}
 				<select
@@ -115,20 +116,22 @@
 		</div>
 		<slot />
 	</div>
-	<div class="infobox-container">
-		{#if resp != undefined}
-			<PathLevelInfoBox
-				path={infoPath}
-				rootNode={resp.tree}
-				{rootName}
-				treeSpec={currentTreeSpec}
-				{rootId}
-				attributeLabels={resp.atts}
-				{backupNames}
-				bind:showPaper
-			/>
-		{/if}
-	</div>
+	{#if showInfobox}
+		<div class="infobox-container">
+			{#if resp != undefined}
+				<PathLevelInfoBox
+					path={infoPath}
+					rootNode={resp.tree}
+					{rootName}
+					treeSpec={currentTreeSpec}
+					{rootId}
+					attributeLabels={resp.atts}
+					{backupNames}
+					bind:showPaper
+				/>
+			{/if}
+		</div>
+	{/if}
 </div>
 
 <style>
