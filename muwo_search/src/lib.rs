@@ -5,7 +5,7 @@ mod merging;
 mod tests;
 
 use deunicode::deunicode;
-pub use fixed_heap::FixedHeap;
+pub use fixed_heap::{FixedHeap, Maxed, Mined};
 pub use merging::{
     log_search, ordered_calls, sorted_iters_to_arr, ArrExtender, ExtendableArr, OrderedMapper,
 };
@@ -14,7 +14,7 @@ use merging::{logfound, merge_box_into_sorted_vec, merge_into_sorted_vec};
 use std::cmp::min;
 use std::convert::TryInto;
 use std::fmt::Debug;
-use std::{ops::AddAssign, usize};
+use std::ops::AddAssign;
 
 type IndType = u32;
 
