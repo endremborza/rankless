@@ -92,7 +92,7 @@ pub(super) fn country_page_filter(stowage: &Stowage) -> (Vec<bool>, Vec<usize>) 
     let cc2 = stowage.get_entity_interface::<CountryCodes, ReadFixIter>();
     let wcounts: Vec<usize> = stowage
         .get_entity_interface::<MAA<Countries, MainWorkMarker>, ReadIter>()
-        .map(|works: Vec<ET<Works>>| works.len())
+        .map(|works: Box<[ET<Works>]>| works.len())
         .collect();
 
     let mut filter = Vec::new();
