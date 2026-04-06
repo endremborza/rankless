@@ -13,8 +13,9 @@ use axum::{
 };
 use dmove::{
     para::{set_and_notify, wait_for_data_copy, AcTuple},
-    para_multi_gen_run, reverse_prefixed_n, ByteArrayInterface, Entity, EntityMutableMapperBackend,
-    MmapSlice, NamespacedEntity, UnsignedNumber, VattReadingArcMap, ET,
+    para_multi_gen_run, reverse_prefixed_n, ByteArrayInterface, Entity,
+    EntityImmutableRefMapperBackend, EntityMutableMapperBackend, MmapSlice, NamespacedEntity,
+    UnsignedNumber, VattReadingArcMap, ET,
 };
 use hashbrown::{HashMap, HashSet};
 use rand::seq::SliceRandom;
@@ -642,7 +643,7 @@ impl NameState {
             .zip(entif.sem_ids.0.iter())
             .zip(dist_txt.to_vec().into_iter())
             .enumerate()
-            .filter(|(i, _)| entif.page_filter[*i] > 0)
+            .filter(|(i, _)| !entif.sem_ids.0[*i].is_empty())
             .map(|(i, ((name, semantic_id), dist_txt))| {
                 let ext = if ext_txt.len() > i {
                     ext_txt[i].to_string()
