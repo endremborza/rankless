@@ -8,7 +8,7 @@ use dmove::{
 };
 
 use crate::{
-    common::{init_empty_slice, EmptyAttributeEntity, HitWorkMarker, MainWorkMarker},
+    common::{init_empty_slice, reverse_id, EmptyAttributeEntity, HitWorkMarker, MainWorkMarker},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{WorkReferences, WorkYears},
@@ -18,10 +18,10 @@ use crate::{
             HitPapers, HitPapersCiteCounts, HitPapersDois, HitPapersNames, HitPapersWids,
         },
     },
-    peers,
-    steps::derive_links3::{get_nobeled_works, COORD_MIN_CITES, COORD_MIN_PAPERS},
-    CiteCountMarker, CoordinateMarker, NameExtensionMarker, NameMarker, PageFilterMarker,
-    QuickestBox, QuickestNumbered, QuickestVBox, ReadIter, SemanticIdMarker, Stowage,
+    peers::{self, PeerCalculator},
+    steps::derive_links3::get_nobeled_works,
+    CiteCountMarker, NameExtensionMarker, NameMarker, QuickestBox, QuickestNumbered, QuickestVBox,
+    ReadIter, Stowage,
 };
 
 // Metric weights for scoring hit-paper connections.
@@ -77,10 +77,6 @@ impl MarkedAttribute<NameMarker> for HitPapers {
     type AttributeEntity = HitPapersNames;
 }
 
-impl MarkedAttribute<SemanticIdMarker> for HitPapers {
-    type AttributeEntity = HitPapersDois;
-}
-
 impl MarkedAttribute<CiteCountMarker> for HitPapers {
     type AttributeEntity = HitPapersCiteCounts;
 }
@@ -91,6 +87,41 @@ impl MarkedAttribute<MainWorkMarker> for HitPapers {
 
 impl MarkedAttribute<NameExtensionMarker> for HitPapers {
     type AttributeEntity = EmptyAttributeEntity<String>;
+}
+
+struct HitPaperPeerCtx {
+    pub filter: Vec<bool>,
+    cit_counts: Box<[ET<HitPapersCiteCounts>]>,
+}
+
+impl HitPaperPeerCtx {
+    fn new(stowage: &Stowage) -> Self {
+        let cit_counts = stowage.get_entity_interface::<HitPapersCiteCounts, QuickestBox>();
+        let filter = vec![true; cit_counts.len()];
+        Self { filter, cit_counts }
+    }
+
+    fn ln_cites(&self, idx: usize) -> f32 {
+        (self.cit_counts[idx].to_usize() as f32).max(1.0).ln()
+    }
+}
+
+impl PeerCalculator for HitPaperPeerCtx {
+    type E = HitPapers;
+    type EmbBasis = [f32; 1];
+    const EMBED_DIMS: usize = 1;
+    const N_CANDIDATES: usize = 10_000;
+
+    fn get_embedding_basis(&self) -> Box<[Self::EmbBasis]> {
+        self.cit_counts
+            .iter()
+            .map(|c| [c.to_usize() as f32])
+            .collect()
+    }
+
+    fn final_distance_calc(&self, a: usize, b: usize) -> f64 {
+        (self.ln_cites(a) - self.ln_cites(b)).powi(2) as f64
+    }
 }
 
 pub fn main(stowage: Stowage) -> io::Result<()> {
@@ -214,22 +245,22 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         Some("author-citing-hits-once"),
     );
 
-    let hp_ccs = parc
+    let hp_oa_ids = reverse_id::<HitPapers>(&parc.0);
+    let hit_sem_ids = parc
         .0
-        .get_entity_interface::<HitPapersCiteCounts, QuickestBox>();
-    let hit_coords: Vec<[f64; 2]> = hp_ccs
-        .iter()
-        .map(|&cc| {
-            let cf = f64::max(cc as f64, COORD_MIN_CITES);
-            [cf.ln(), cf / COORD_MIN_PAPERS]
-        })
-        .collect();
-    let hit_filter: Vec<u8> = vec![1u8; hp_ccs.len()];
-    peers::compute_peers::<HitPapers>(&parc.0, &hit_coords, &hit_filter, 10, |_, _, ca, cb| {
-        peers::coord_sq_dist(ca, cb)
-    });
-    parc.0
-        .ditf::<PageFilterMarker, HitPapers, _>(hit_filter, "page-filter");
+        .get_entity_interface::<HitPapersDois, ReadIter>()
+        .enumerate()
+        .map(|(i, doi)| {
+            if doi.is_empty() {
+                format!("W{}", hp_oa_ids[i])
+            } else {
+                doi
+            }
+        });
+    parc.0.decsem::<HitPapers, _>(hit_sem_ids);
+    let hp_ctx = HitPaperPeerCtx::new(&parc.0);
+    let hp_ccounts: Vec<usize> = hp_ctx.cit_counts.iter().map(|c| c.to_usize()).collect();
+    peers::compute_peers::<1, 10, _, _>(&parc.0, &hp_ctx, &hp_ctx.filter, &hp_ccounts);
 
     parc.0.write_code()?;
     Ok(())
