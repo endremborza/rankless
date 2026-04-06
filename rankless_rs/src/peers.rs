@@ -97,10 +97,10 @@ impl<const D: usize> PcaComponents<D> {
                 .partial_cmp(&eigen.eigenvalues[a])
                 .unwrap_or(Ordering::Equal)
         });
-        for i in order.into_iter().take(D) {
-            eigenvalues[i] = eigen.eigenvalues[i];
+        for (i, ei) in order.into_iter().take(D).enumerate() {
+            eigenvalues[i] = eigen.eigenvalues[ei];
             scales[i] = eigenvalues[i].sqrt().max(1e-10);
-            components[i] = eigen.eigenvectors.column(i).iter().copied().collect();
+            components[i] = eigen.eigenvectors.column(ei).iter().copied().collect();
         }
         println!("[pca] top {D} eigenvalues: {:?}", eigenvalues);
         PcaComponents { scales, components }
