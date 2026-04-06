@@ -363,8 +363,8 @@ class Transper:
             self.ssh.prun(
                 "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
             )
+        self.ssh.prun("sudo systemctl enable --now systemd-oomd")
         self.ssh.prun("curl -fsSL https://bun.sh/install | bash")
-        self.ssh.prun("systemctl enable --now systemd-oomd")
 
     def sync_txt(self, txt, name, dir):
         p = Path(name)
