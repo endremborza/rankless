@@ -8,8 +8,8 @@ use crate::{
 use rankless_rs::{
     common::{
         reverse_id, BeS, HitWorkMarker, MainEntity, MainWorkMarker, MarkedBackendLoader,
-        NumberedEntity, PageFilterMarker, QuickAttPair, QuickMap, QuickestBox, QuickestVBox,
-        Stowage, Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker,
+        NumberedEntity, QuickAttPair, QuickMap, QuickestBox, QuickestVBox, Stowage,
+        Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker,
         Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader, YearlyCitationsMarker,
         YearlyPapersMarker, NET,
     },
@@ -259,7 +259,8 @@ make_ent_interfaces!(
     names => NameMarker, name_exts => NameExtensionMarker, sem_ids => SemanticIdMarker;
     wcounts -> WorkCountMarker, ccounts -> CiteCountMarker;
     hit_works - HitWorkMarker = Box<[ET<HitPapers>]>;
-    yearly_papers - YearlyPapersMarker | EraRec,
+    yearly_papers - YearlyPapersMarker | EraRec, //TODO - shouldn't these types be possible to
+                                                 //deduce?
     yearly_cites - YearlyCitationsMarker | EraRec,
     top_journals - Top3JournalMarker | Top3Rec<Sources>,
     top_authors - Top15AuthorMarker | Top15Rec<Authors>,
@@ -267,7 +268,6 @@ make_ent_interfaces!(
     top_paper_topic - Top3PaperTopicMarker | Top3Rec<Topics>,
     top_citing_sfc - Top3CitingSfMarker | Top3Rec<Subfields>,
     top_paper_sfc - Top3PaperSfMarker | Top3Rec<Subfields>,
-    page_filter - PageFilterMarker | u8,
     peers - PeerMarker | [NET<Self>; N_PEERS];;
     oa_id; MainEntity, NamespacedEntity
     // inst_rels - InstRelMarker | [InstRelation; N_RELS];;

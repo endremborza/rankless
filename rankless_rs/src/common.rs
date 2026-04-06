@@ -60,7 +60,6 @@ pub struct Top15AuthorMarker;
 pub struct Top3CitingTopicMarker;
 pub struct Top3JournalMarker;
 pub struct Top3AffCountryMarker;
-pub struct PageFilterMarker;
 pub struct PeerMarker;
 
 pub struct EmptyAttributeEntity<T> {
