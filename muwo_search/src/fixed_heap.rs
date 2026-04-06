@@ -1,5 +1,6 @@
 use std::cmp::Reverse;
 
+//smallest S: usize kept
 pub struct FixedHeap<T, const S: usize> {
     pub arr: [T; S],
 }
@@ -96,7 +97,7 @@ macro_rules! max_impl {
     };
 }
 
-max_impl!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, f32, f64);
+max_impl!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, f32, f64, usize);
 
 impl<T1, T2> Maxed for (T1, T2)
 where
