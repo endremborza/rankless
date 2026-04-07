@@ -127,6 +127,7 @@
 					{rootId}
 					attributeLabels={resp.atts}
 					{backupNames}
+					hasSpaceForPaper={true}
 					bind:showPaper
 				/>
 			{/if}
