@@ -108,7 +108,7 @@
 	}
 
 	function preloadArmedPaper(path: PathInTree | null) {
-		if (!path || !hasSpaceForPaper) return;
+		if (!path) return;
 		let node = rootNode;
 		for (const childId of path) {
 			if (!node?.children) return;
@@ -121,6 +121,7 @@
 	$: leaf = pathNodes[pathNodes.length - 1];
 	$: scheduleAutoShow(hasSpaceForPaper, leaf);
 	$: preloadArmedPaper(armingPath);
+	$: if (leaf?.topSourceId) prefetchPaper(leaf.topSourceId);
 	$: expanded = showPaper && (leaf.sourceCount || 0) > 0;
 	$: citePrefix =
 		path.length > 0 && (leaf.linkCount || 0) > 0
