@@ -126,22 +126,30 @@
 		const wid = e.detail;
 		disownedSet.add(wid);
 		disownedSet = disownedSet;
-		await fetch('/api/papers/disown', {
+		const resp = await fetch('/api/papers/disown', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ wid })
 		});
+		if (!resp.ok) {
+			disownedSet.delete(wid);
+			disownedSet = disownedSet;
+		}
 	}
 
 	async function handleUndisown(e: CustomEvent<number>) {
 		const wid = e.detail;
 		disownedSet.delete(wid);
 		disownedSet = disownedSet;
-		await fetch('/api/papers/disown', {
+		const resp = await fetch('/api/papers/disown', {
 			method: 'DELETE',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ wid })
 		});
+		if (!resp.ok) {
+			disownedSet.add(wid);
+			disownedSet = disownedSet;
+		}
 	}
 
 	async function handleMerge(e: CustomEvent<{ keep: number; drop: number }>) {
@@ -264,11 +272,17 @@
 		<!-- svelte-ignore a11y-mouse-events-have-key-events -->
 		<div id="nametag">
 			<h1>{@html data.view.name}</h1>
-			{#if rawPapers > 0 || rawCites > 0}
+			{#if isHitPaper}
 				<div>
-					<span
-						>{pluralize('total paper', rawPapers)} · {pluralize('total citation', rawCites)}</span
-					>
+					<span>{data.citeText}</span>
+				</div>
+			{:else if rawCites > 0}
+				<div>
+					<span>{pluralize('total citation', rawCites)}</span>
+					{#if isAuthor && authoredHitPapers.length > 0}
+						·
+						<a href="#papers">{pluralize('hit paper', authoredHitPapers.length)}</a>
+					{/if}
 					<br />
 					<span class="indexed-subtext"
 						>{pluralize('paper', data.view.papers)}, {pluralize('citation', data.view.citations)}
@@ -307,7 +321,7 @@
 			<details id="abstract" bind:open={abstractExpanded}>
 				<summary><h2>Abstract</h2></summary>
 				{#if hitPaperAbstract}
-					<p>{hitPaperAbstract}</p>
+					<p class="abstract-text" class:abstract-truncated={!abstractExpanded}>{hitPaperAbstract}</p>
 				{:else}
 					<p class="abstract-loading">loading...</p>
 				{/if}
@@ -644,6 +658,13 @@
 		font-size: 0.9rem;
 		line-height: 1.6;
 		opacity: 0.85;
+	}
+
+	.abstract-text.abstract-truncated {
+		display: -webkit-box;
+		-webkit-line-clamp: 4;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
 	}
 
 	.abstract-loading {
