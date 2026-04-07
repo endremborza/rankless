@@ -13,9 +13,8 @@ use axum::{
 };
 use dmove::{
     para::{set_and_notify, wait_for_data_copy, AcTuple},
-    para_multi_gen_run, reverse_prefixed_n, ByteArrayInterface, Entity,
-    EntityImmutableRefMapperBackend, EntityMutableMapperBackend, MmapSlice, NamespacedEntity,
-    UnsignedNumber, VattReadingArcMap, ET,
+    para_multi_gen_run, reverse_prefixed_n, ByteArrayInterface, Entity, EntityMutableMapperBackend,
+    MmapSlice, NamespacedEntity, UnsignedNumber, VattReadingArcMap, ET,
 };
 use hashbrown::{HashMap, HashSet};
 use rand::seq::SliceRandom;
