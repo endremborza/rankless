@@ -183,6 +183,10 @@ export function getDefaultYear(rt: tt.RootType) {
 	return 2020
 }
 
+export function hasYearFilter(rt: tt.RootType): boolean {
+	return rt !== 'hit-papers';
+}
+
 function nodeToConfStr(node: tt.BareNode): string {
 	let l1cs = [];
 	let l2cs = [];

@@ -380,18 +380,20 @@
 						bind:checked={isGlobalSpecialization}
 						text={'Specialization'}
 					/>
-					<HeadControl
-						bind:hoverToggle={showFilterHover}
-						interactText={false}
-						checked={false}
-						text={`since`}
-					>
-						<select bind:value={conf.year} aria-label="Since year"
-							>{#each treeSpecs.yearBreaks as y}
-								<option>{y}</option>
-							{/each}
-						</select>
-					</HeadControl>
+					{#if tf.hasYearFilter(conf.rootType)}
+						<HeadControl
+							bind:hoverToggle={showFilterHover}
+							interactText={false}
+							checked={false}
+							text={`since`}
+						>
+							<select bind:value={conf.year} aria-label="Since year"
+								>{#each treeSpecs.yearBreaks as y}
+									<option>{y}</option>
+								{/each}
+							</select>
+						</HeadControl>
+					{/if}
 				</div>
 			{/if}
 			{#each levelOutSpecs || [] as levelSpec, index}

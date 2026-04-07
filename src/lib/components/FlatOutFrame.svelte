@@ -106,12 +106,14 @@
 					{/each}
 				</select>
 			{/if}
-			Since
-			<select bind:value={year} aria-label="Since year"
-				>{#each treeSpecs.yearBreaks as y}
-					<option>{y}</option>
-				{/each}
-			</select>
+			{#if tf.hasYearFilter(conf.rootType)}
+				Since
+				<select bind:value={year} aria-label="Since year"
+					>{#each treeSpecs.yearBreaks as y}
+						<option>{y}</option>
+					{/each}
+				</select>
+			{/if}
 			<input type="checkbox" bind:checked={isSpec} /> Specialization
 		</div>
 		<slot />
