@@ -139,6 +139,11 @@ struct BasicQ {
     q: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct WorksQ {
+    n: Option<usize>,
+}
+
 #[derive(Serialize)]
 struct ViewResult {
     #[serde(flatten)]
@@ -427,7 +432,11 @@ impl SearchResult {
 }
 
 impl ResultExtension {
-    fn from_resps<E>(responses: &Box<[SearchResult]>, entif: &RootInterfaces<E>) -> Box<[Self]>
+    fn from_resps<E>(
+        responses: &Box<[SearchResult]>,
+        entif: &RootInterfaces<E>,
+        gets: &Getters,
+    ) -> Box<[Self]>
     where
         E: RootInterfaceable,
     {
@@ -446,9 +455,11 @@ impl ResultExtension {
                     }
                 }
             }
-            // let get_rem = |arr: &Box<[EraRec]>| arr[i].iter().skip(sy_ind).map(|e| *e).collect();
-            // let yearly_cites = get_rem(&entif.yearly_cites);
-            // let yearly_papers = get_rem(&entif.yearly_papers);
+            if E::NAME == HitPapers::NAME {
+                //TODO: this shows the crazy indexing of gets
+                let wid = gets.hit_papers[i];
+                sy_ind = gets.year(&wid.to_usize()).to_usize();
+            }
 
             out.push(Self {
                 start_year: YearInterface::reverse(sy_ind as ET<Years>),
@@ -620,7 +631,7 @@ impl NameState {
 
         Self {
             engine: engine.into(),
-            exts: ResultExtension::from_resps(&responses, entif),
+            exts: ResultExtension::from_resps(&responses, entif, gets),
             prep_exts: PreAttResultExtension::from_resps(&responses, entif, gets),
             responses,
             semantic_id_map,
@@ -1147,16 +1158,19 @@ async fn name_get(
 
 async fn works_get(
     Path((etype, sem_id, pstart)): Path<(String, String, usize)>,
+    Query(wq): Query<WorksQ>,
     states: StatesT,
 ) -> (HeaderMap, Response) {
-    const MAX_WORKS: usize = 400;
+    let page_size =
+        wq.n.unwrap_or(consts::WORKS_PAGE_SIZE_MAX)
+            .min(consts::WORKS_PAGE_SIZE_MAX);
     if let Some(state) = states.0 .0.get(etype.as_str()) {
         let psid = parse_semantic_id(sem_id);
         if let Some(sem_val) = state.semantic_id_map.get(&psid) {
             if let Some(work_arr) = states.2.state.gets.works_of_entity(sem_val.dm_id, etype) {
                 if !work_arr.is_empty() {
                     let start = min(pstart, work_arr.len() - 1);
-                    let wids = work_arr[start..].iter().take(MAX_WORKS).map(WT::to_usize);
+                    let wids = work_arr[start..].iter().take(page_size).map(WT::to_usize);
                     let resp = get_paper_set_resp(wids, states.2.clone());
                     let out = PaginatedPaperSetResp {
                         resp,
