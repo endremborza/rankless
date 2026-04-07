@@ -10,7 +10,7 @@ import { PaperDb } from '$lib/server/db';
 
 export const ssr = true;
 
-const INITIAL_WORKS = 20;
+const INITIAL_WORKS_N = 20;
 
 export const load: PageServerLoad = async ({ params, url, locals }) => {
 	let { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(params, url, "");
@@ -69,7 +69,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 			fetch(`${BE_URL}/author-peers/${urlFriendlySemId}`)
 				.then((r) => (r.ok ? r.json() : null))
 				.catch(() => null),
-			fetch(`${BE_URL}/works/authors/${urlFriendlySemId}/0`)
+			fetch(`${BE_URL}/works/authors/${urlFriendlySemId}/0?n=${INITIAL_WORKS_N}`)
 				.then((r) => r.json())
 				.catch(() => null)
 		]);
@@ -78,11 +78,11 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		peersData = peersResp;
 
 		if (worksResp) {
-			initialPapers = worksResp.resp.papers.slice(0, INITIAL_WORKS);
+			initialPapers = worksResp.resp.papers;
 			initialEntityAtts = worksResp.resp.entityAtts;
 			initialDiscAuthorNames = worksResp.resp.discAuthorNames;
 			initialTotalPapers = worksResp.totalPapers;
-			initialWorksSliceEnd = initialPapers.length;
+			initialWorksSliceEnd = worksResp.sliceStart + worksResp.resp.papers.length;
 		}
 
 		if (locals.user) {
@@ -141,7 +141,7 @@ function semFunMaker(prefix: string, fun: (r: DecoratedRelated) => string) {
 function toDecorated(r: tt.RelatedEntity): DecoratedRelated {
 	let bold = `<b>${r.name}</b>`;
 	let link = bold;
-	if (ROOT_TYPES.includes(r.etype as tt.RootType)) {
+	if (ROOT_TYPES.includes(r.etype as tt.RootType) && r.semanticId.length > 0) {
 		let href = tf.entToLink({ rootType: r.etype as tt.RootType, semanticId: r.semanticId });
 		link = `<a class="ali" href="${href}">${r.name}</a>`;
 	}
