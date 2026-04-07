@@ -53,16 +53,16 @@ test: test-rs test-js
 	echo OK
 
 extend_csvs lib_data_generation bm live_monitoring report sitemap_validation survey_result_export log_parsing nobel sql_comparison:
-	python3 -m pyscripts.$@
+	uv run -m pyscripts.$@
 
 hit-paper-analysis field-citation-ratio author-missed-works:
-	python3 notebooks/$@.py
+	uv run notebooks/$@.py
 
 cache_big_prep cache_big_read cache_do_rest cache_validate_all cache_validate_bigs:
-	python3 -m pyscripts.cache_prompting $@
+	uv run -m pyscripts.cache_prompting $@
 
 pull_live_certs sync_fe_to_alpha sync_fe_to_live sync_fe_to_local setup_local_test bump_v bump_v_minor rolling_restart_live_fe new_small_alpha new_large_alpha:
-	python3 -c "from pyscripts.deploy import $@;$@()"
+	echo "from pyscripts.deploy import $@;$@()" | uv run -
 
 complete: to-csv filter extend_csvs rankless_rs/src/gen/derive_links5.rs lib_data_generation
 	@echo Complete
