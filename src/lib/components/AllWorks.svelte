@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { createEventDispatcher, onMount } from 'svelte';
+	import { createEventDispatcher } from 'svelte';
 	import { BE_REMOTE_URL, COMPLETE_YEAR } from '$lib/constants';
 	import type { Paper, EntityAttsForLinks, PaginatedPaperSetResp } from '$lib/tree-types';
 	import { resolveSourceName } from '$lib/utils/paper-helpers';
@@ -42,10 +42,15 @@
 	let mergingWid: number | null = null;
 	let mergeConfirm: { keep: number; drop: number } | null = null;
 
-	async function fetchPage(from: number) {
+	const INITIAL_PAGE_SIZE = 20;
+	const MORE_PAGE_SIZE = 200;
+
+	async function fetchPage(from: number, pageSize: number) {
 		loading = true;
 		try {
-			const resp = await fetch(`${BE_REMOTE_URL}/works/authors/${semanticId}/${from}`);
+			const resp = await fetch(
+				`${BE_REMOTE_URL}/works/authors/${semanticId}/${from}?n=${pageSize}`
+			);
 			const data: PaginatedPaperSetResp = await resp.json();
 			papers = [...papers, ...data.resp.papers];
 			totalPapers = data.totalPapers;
@@ -60,22 +65,35 @@
 		}
 	}
 
-	onMount(async () => {
-		if (initialPapers.length > 0) {
+	let activeSemanticId = '';
+
+	async function loadInitial(id: string) {
+		initialLoaded = false;
+		papers = [];
+		sliceEnd = 0;
+		totalPapers = 0;
+		ownerUnlocked = false;
+		if (initialPapers.length > 0 && id === semanticId) {
 			papers = initialPapers;
 			sliceEnd = initialSliceEnd;
 			totalPapers = initialTotalPapers;
-			initialLoaded = true;
 		} else {
-			await fetchPage(0);
-			initialLoaded = true;
+			await fetchPage(0, INITIAL_PAGE_SIZE);
 		}
-	});
+		if (id !== semanticId) return; // navigated away during fetch
+		initialLoaded = true;
+		if (totalPapers > 0 && sliceEnd >= totalPapers) ownerUnlocked = true;
+	}
 
-	function loadMore() {
+	$: if (semanticId !== activeSemanticId) {
+		activeSemanticId = semanticId;
+		loadInitial(semanticId);
+	}
+
+	async function loadMore() {
 		if (!loading && sliceEnd < totalPapers) {
-			ownerUnlocked = true;
-			fetchPage(sliceEnd);
+			await fetchPage(sliceEnd, MORE_PAGE_SIZE);
+			if (totalPapers > 0 && sliceEnd >= totalPapers) ownerUnlocked = true;
 		}
 	}
 
@@ -134,13 +152,14 @@
 		? {
 				keep: papers.find((p) => p.wid === mergeConfirm!.keep),
 				drop: papers.find((p) => p.wid === mergeConfirm!.drop)
-			}
+		  }
 		: null;
 
 	$: showOwnerActions = isOwner && ownerUnlocked && citationStyle === 'html';
+	$: allLoaded = sliceEnd >= totalPapers && initialLoaded;
 	$: loadMoreLabel = (() => {
 		const count = `${sliceEnd} of ${totalPapers}`;
-		if (isOwner && !ownerUnlocked) return `Load more & suggest changes (${count})`;
+		if (isOwner && !ownerUnlocked) return `Load all to suggest changes (${count})`;
 		return `Load more (${count})`;
 	})();
 </script>
@@ -161,12 +180,17 @@
 			bind:citationStyle
 		/>
 
+		{#if !allLoaded}
+			<button class="load-more load-more-top" on:click={loadMore} disabled={loading}>
+				{loading ? 'Loading...' : loadMoreLabel}
+			</button>
+		{/if}
+
 		{#if mergingWid !== null}
 			{@const sourcePaper = papers.find((p) => p.wid === mergingWid)}
 			<div class="merge-mode-bar">
 				<span
-					>Merging: <em>{sourcePaper?.name ?? mergingWid}</em> — click another paper to select
-					target</span
+					>Merging: <em>{sourcePaper?.name ?? mergingWid}</em> — click another paper to select target</span
 				>
 				<button class="btn-sm" on:click={cancelMerge}>Cancel</button>
 			</div>
@@ -203,19 +227,26 @@
 		{/if}
 
 		<div class="paper-list">
-			{#each displayPapers as paper (paper.wid)}
+			{#each displayPapers as paper, idx (paper.wid)}
 				{@const mergeCount = mergedKeepCounts.get(paper.wid) ?? 0}
 				{@const isMergingSource = mergingWid === paper.wid}
 				<div class="paper-row" class:merging-source={isMergingSource}>
 					<div class="paper-info">
 						{#if citationStyle === 'html'}
 							<span class="paper-ref"
-								>{@html formatReference(paper, entityAtts, discAuthorNames, 'html')}</span
+								><span class="paper-num">{idx + 1}.</span>{@html formatReference(
+									paper,
+									entityAtts,
+									discAuthorNames,
+									'html'
+								)}</span
 							>
 							<span class="paper-meta">
 								{#if paper.citations > 0}{paper.citations} indexed citations{/if}
 								{#if mergeCount > 0}<span class="merge-badge">+{mergeCount} merged</span>{/if}
-								{#if paper.hitSemId}<a href="/hit-papers/{paper.hitSemId}" class="hit-page-link">breakdown →</a>{/if}
+								{#if paper.hitSemId}<a href="/hit-papers/{paper.hitSemId}" class="hit-page-link"
+										>breakdown →</a
+									>{/if}
 							</span>
 						{:else}
 							<span class="paper-ref"
@@ -284,16 +315,14 @@
 									>{paper.year}{#if source} · {source}{/if}</span
 								>
 							</div>
-							<button class="btn-sm" on:click={() => dispatch('undisown', paper.wid)}
-								>Undo</button
-							>
+							<button class="btn-sm" on:click={() => dispatch('undisown', paper.wid)}>Undo</button>
 						</div>
 					{/each}
 				</div>
 			</details>
 		{/if}
 
-		{#if sliceEnd < totalPapers}
+		{#if !allLoaded}
 			<button class="load-more" on:click={loadMore} disabled={loading}>
 				{loading ? 'Loading...' : loadMoreLabel}
 			</button>
@@ -496,6 +525,17 @@
 
 	.dimmed {
 		opacity: 0.5;
+	}
+
+	.paper-num {
+		opacity: 0.65;
+		margin-right: 4px;
+		flex-shrink: 0;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.load-more-top {
+		align-self: flex-start;
 	}
 
 	.status {
