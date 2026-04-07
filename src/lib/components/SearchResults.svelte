@@ -5,9 +5,11 @@
 	import { entToLink } from '$lib/tree-functions';
 	import { onMount } from 'svelte';
 	import { resultsHidden } from '$lib/stores';
+	import HitPaperExplainer from './HitPaperExplainer.svelte';
 
 	export let searchTerm: string;
 	export let cat: RootType;
+	export let disclaimerPosition: 'top' | 'bottom' = 'bottom';
 
 	let mounted = false;
 	let delayedTerm = '';
@@ -50,6 +52,11 @@
 </script>
 
 <div class="search-results" style="display: {currentHidden ? 'none' : 'flex'};">
+	{#if cat === 'hit-papers' && disclaimerPosition === 'top'}
+		<div class="disclaimer-wrap">
+			<HitPaperExplainer />
+		</div>
+	{/if}
 	{#each searchResults as searchResult}
 		<a class="result-card shadowy padded" href={entToLink(searchResult)}>
 			<h3 style="font-size: {getHeaderFontSize(searchResult.name.length)};">
@@ -64,6 +71,11 @@
 			>
 		</a>
 	{/each}
+	{#if cat === 'hit-papers' && disclaimerPosition === 'bottom'}
+		<div class="disclaimer-wrap">
+			<HitPaperExplainer />
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -115,5 +127,13 @@
 
 	.result-card > span {
 		font-size: 0.9rem;
+	}
+
+	.disclaimer-wrap {
+		width: 100%;
+		padding: 12px 20px;
+		box-sizing: border-box;
+		background: var(--text-bg-2);
+		border: solid var(--color-theme-darkblue) 1px;
 	}
 </style>

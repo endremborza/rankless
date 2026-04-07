@@ -6,6 +6,7 @@
 	import * as tf from '$lib/tree-functions';
 	import { resolveAuthorNameOrNull, resolveSourceName, stripHtml } from '$lib/utils/paper-helpers';
 	import HitPaperBreakdown from './HitPaperBreakdown.svelte';
+	import HitPaperExplainer from './HitPaperExplainer.svelte';
 	import { onMount } from 'svelte';
 
 	export let papers: tt.Paper[];
@@ -418,16 +419,7 @@
 	{/if}
 
 	<div class="sidebar">
-		<details class="hit-info">
-			<summary>What are hit papers?</summary>
-			<p>
-				Hit papers significantly outperform the citation benchmark for their cohort. A paper
-				qualifies if it has ≥{globalMinCites} total citations, achieves ≥1.5× the top-1% citation threshold
-				for papers in the same subfield and year (this is the <em>minimum</em> needed to enter the top
-				1%, not the average within it), or reaches the top citation threshold in at least one of its
-				specific research topics.
-			</p>
-		</details>
+		<HitPaperExplainer />
 
 		<ol id="paper-list" bind:this={listContainer}>
 			{#each chartPapers as paper, i}
@@ -633,24 +625,6 @@
 
 	li {
 		transition: all 400ms;
-	}
-
-	.hit-info {
-		font-size: 0.8rem;
-		opacity: 0.8;
-		margin-bottom: 8px;
-	}
-
-	.hit-info summary {
-		cursor: pointer;
-		font-weight: 600;
-		padding: 4px 0;
-	}
-
-	.hit-info p {
-		margin-top: 6px;
-		line-height: 1.4;
-		padding-left: 4px;
 	}
 
 	#paper-list {
