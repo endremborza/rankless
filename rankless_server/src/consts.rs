@@ -1,3 +1,5 @@
+pub const WORKS_PAGE_SIZE_MAX: usize = 400;
+
 pub const FIN_SOURCES: [&str; 50] = [
     "psychological-review",
     "water-research",
