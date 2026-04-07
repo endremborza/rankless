@@ -78,8 +78,14 @@ where
         let c = cites[i].to_usize();
         let p = wcounts[i];
         let base = !name.trim().is_empty() && p > 1 && c > 2;
-        filter.push(base && extra_filter(i, c, p));
-        name_candidates.push(name_fn(&name, &ext));
+        let final_filter_val = base && extra_filter(i, c, p);
+        let sem_candidates = if final_filter_val {
+            name_fn(&name, &ext)
+        } else {
+            Vec::new()
+        };
+        filter.push(final_filter_val);
+        name_candidates.push(sem_candidates);
     }
 
     dec_work_count::<E, _>(stowage, wcounts.iter().copied());
@@ -105,7 +111,7 @@ pub(super) fn country_page_filter(stowage: &Stowage) -> (Vec<bool>, Vec<usize>) 
         } else {
             String::new()
         };
-        filter.push(iso.is_empty());
+        filter.push(!iso.is_empty());
         sem_ids.push(iso);
     }
 
