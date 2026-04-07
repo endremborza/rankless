@@ -22,8 +22,7 @@
 	const bmThreshold = 5;
 	const globalMinCites = 500;
 	let highlighted = 0;
-	let normalizeX = false;
-	let normalizeY = false;
+	let alignTrajectories = false;
 	let sortByOverperf = false;
 	let viewMode: 'lines' | 'breakdown' = 'lines';
 
@@ -69,7 +68,6 @@
 	let listContainer: HTMLUListElement;
 	let listItemElements: HTMLLIElement[] = [];
 	let firstVisible: number | null = null;
-	let intervalSetup: ReturnType<typeof setInterval>;
 	let scrollTimeout: ReturnType<typeof setTimeout>;
 
 	$: chartPapers = papers
@@ -117,13 +115,7 @@
 		return [0.25, 0.5, 0.75, 1].map((f) => Math.round(f * yMax));
 	}
 
-	function getFigureBasis(
-		ps: tt.Paper[],
-		inds: number[],
-		globalMin: number,
-		normX: boolean,
-		normY: boolean
-	) {
+	function getFigureBasis(ps: tt.Paper[], inds: number[], globalMin: number, align: boolean) {
 		const nVis = inds.length;
 		const yearSpan = LATEST_YEAR - globalMin;
 		const xScale = Math.max(yearSpan - 1, 1) / xBase;
@@ -135,12 +127,8 @@
 		const yMin = -height + yPad;
 
 		let yMax = 0;
-		if (!normY) {
-			for (const i of inds) yMax = Math.max(yMax, ps[i].citations);
-			if (yMax === 0) yMax = 1;
-		} else {
-			yMax = 1;
-		}
+		for (const i of inds) yMax = Math.max(yMax, ps[i].citations);
+		if (yMax === 0) yMax = 1;
 		const yScale = yMax / yBase;
 
 		const figPapers: FigPaper[] = [];
@@ -161,14 +149,14 @@
 
 			for (let y = 0; y < yc.length && y < lifespan; y++) {
 				cumSum += yc[y];
-				const xPos = normX ? (y / Math.max(lifespan - 1, 1)) * xBase : (startYear + y) / xScale;
-				const yVal = normY ? -(cumSum / Math.max(paper.citations, 1)) * yBase : -(cumSum / yScale);
+				const xPos = ((align ? 0 : startYear) + y) / xScale;
+				const yVal = -(cumSum / yScale);
 				endX = xPos;
 				endY = yVal;
 				pBasis.push(`${y === 0 ? 'M' : 'L'} ${xPos.toFixed(3)} ${yVal.toFixed(3)}`);
 			}
 
-			const markerX = normX ? 0 : startYear / xScale;
+			const markerX = align ? 0 : startYear / xScale;
 			pubMarks.push({ x: markerX, year: paper.year, color: getColor(rate), row: vi % 2 });
 
 			const plainName = stripHtml(paper.name);
@@ -189,9 +177,11 @@
 		}
 
 		const yearTicks: { name?: string | number; x: number }[] = [];
-		if (normX) {
-			yearTicks.push({ name: 'pub.', x: 0 }, { name: 'now', x: xBase });
-			for (const p of [25, 50, 75]) yearTicks.push({ x: (p / 100) * xBase });
+		if (align) {
+			yearTicks.push({ name: 'pub.', x: 0 });
+			for (let i = 1; i < yearSpan - 1; i++) {
+				yearTicks.push({ name: '', x: i / xScale });
+			}
 		} else {
 			yearTicks.push({ name: globalMin, x: 0 }, { name: LATEST_YEAR, x: xBase });
 			const toT = (i: number, k: number) => i === Math.floor((k * yearSpan) / 3);
@@ -204,37 +194,23 @@
 		}
 
 		const yTicks: YTick[] = [];
-		if (normY) {
-			for (let k = 1; k <= 4; k++) {
-				const frac = k / 4;
-				yTicks.push({ label: (frac * 100).toFixed(0) + '%', y: -frac * yBase });
-			}
-		} else {
-			for (const val of niceYTickSteps(yMax)) {
-				yTicks.push({ label: formatNumber(val), y: -(val / yMax) * yBase });
-			}
+		for (const val of niceYTickSteps(yMax)) {
+			yTicks.push({ label: formatNumber(val), y: -(val / yMax) * yBase });
 		}
 
-		return { width, height, xMin, yMin, figPapers, yearTicks, yTicks, pubMarks, aspect, normX };
+		return { width, height, xMin, yMin, figPapers, yearTicks, yTicks, pubMarks, aspect, align };
 	}
 
 	function fixHighlight(i: number) {
-		clearInterval(intervalSetup);
 		highlighted = i;
 	}
 
 	function switchToBreakdown() {
 		viewMode = 'breakdown';
-		clearInterval(intervalSetup);
 	}
 
 	function switchToLines() {
 		viewMode = 'lines';
-		clearInterval(intervalSetup);
-		intervalSetup = setInterval(() => {
-			const top = Math.min(maxN, chartPapers.length);
-			if (top > 0) highlighted = (highlighted + 1) % top;
-		}, 1200);
 	}
 
 	function getLiStyle(i: number, visInds: number[], hl: number) {
@@ -285,17 +261,13 @@
 	}
 
 	onMount(() => {
-		intervalSetup = setInterval(() => {
-			const top = Math.min(maxN, chartPapers.length);
-			if (top > 0) highlighted = (highlighted + 1) % top;
-		}, 1200);
 		listItemElements = Array.from(listContainer.querySelectorAll('li[data-index]'));
 		listContainer.addEventListener('scroll', onScrollDebounced);
 		updateFirstVisible();
 	});
 
 	$: visInds = getVisInds(chartPapers, firstVisible ?? 0);
-	$: fb = getFigureBasis(chartPapers, visInds, globalMinYear, normalizeX, normalizeY);
+	$: fb = getFigureBasis(chartPapers, visInds, globalMinYear, alignTrajectories);
 	$: highlightedVis = visInds.includes(highlighted) ? highlighted - visInds[0] : undefined;
 </script>
 
@@ -315,12 +287,8 @@
 				</div>
 				{#if viewMode === 'lines'}
 					<label>
-						<input type="checkbox" bind:checked={normalizeY} />
-						normalize citations (0→100%)
-					</label>
-					<label>
-						<input type="checkbox" bind:checked={normalizeX} />
-						normalize lifespan (0→100%)
+						<input type="checkbox" bind:checked={alignTrajectories} />
+						align trajectories
 					</label>
 					<label>
 						<input type="checkbox" bind:checked={sortByOverperf} />
@@ -409,7 +377,7 @@
 					</g>
 
 					<!-- Paper publication year markers (only when x is calendar-aligned) -->
-					{#if !fb.normX}
+					{#if !fb.align}
 						{#each fb.pubMarks as mark}
 							<line
 								x1={mark.x}
@@ -454,9 +422,10 @@
 			<summary>What are hit papers?</summary>
 			<p>
 				Hit papers significantly outperform the citation benchmark for their cohort. A paper
-				qualifies if it has ≥{globalMinCites} total citations, achieves ≥1.5× the top-1% citation benchmark
-				for papers published in the same subfield and year, or reaches the top citation threshold in
-				at least one of its specific research topics.
+				qualifies if it has ≥{globalMinCites} total citations, achieves ≥1.5× the top-1% citation threshold
+				for papers in the same subfield and year (this is the <em>minimum</em> needed to enter the top
+				1%, not the average within it), or reaches the top citation threshold in at least one of its
+				specific research topics.
 			</p>
 		</details>
 
