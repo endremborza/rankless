@@ -31,6 +31,7 @@ use levenshtein::levenshtein;
 use serde::{de::DeserializeOwned, Deserialize};
 use std::{
     cmp::min,
+    collections::HashMap,
     io,
     marker::PhantomData,
     sync::{Arc, Mutex},
@@ -195,8 +196,8 @@ impl Stowage {
         let iif: BeS<QuickestNumbered, Institutions> =
             self.get_entity_interface::<Institutions, QuickestNumbered>();
         let coif = self.get_entity_interface::<Countries, QuickestNumbered>();
-        let mut cinames = init_empty_slice::<Cities, String>();
-        let mut conames = init_empty_slice::<Countries, String>();
+        let mut ciname_counts = init_empty_slice::<Cities, HashMap<String, u32>>();
+        let mut coname_counts = init_empty_slice::<Countries, HashMap<String, u32>>();
         let mut ccs = init_empty_slice::<Countries, [u8; 2]>();
         let mut cities = init_empty_slice::<Institutions, ET<Cities>>();
         let mut locs = init_empty_slice::<Institutions, (f64, f64)>();
@@ -207,11 +208,12 @@ impl Stowage {
             let coid = coif.0.get(&rcoid).unwrap();
             if *coid > 0 {
                 ccs[coid.to_usize()] = rcoid.to_le_bytes()[..2].try_into().unwrap();
-                cinames[cid.to_usize()] = cgeo.city.unwrap_or_default();
-                //'Türkiye': 'Turkey' confusion can happen here
-                //TODO make it so that the one appearing most often is the one actually being used
-                //at the end for countries and cities
-                conames[coid.to_usize()] = cgeo.country.unwrap_or_default();
+                *ciname_counts[cid.to_usize()]
+                    .entry(cgeo.city.unwrap_or_default())
+                    .or_insert(0) += 1;
+                *coname_counts[coid.to_usize()]
+                    .entry(cgeo.country.unwrap_or_default())
+                    .or_insert(0) += 1;
             }
             if let Some(iid) = iif.0.get(&oa_id_parse(&cgeo.parent_id.unwrap())) {
                 let iid_u = iid.to_usize();
@@ -245,8 +247,15 @@ impl Stowage {
                 [0; 3]
             })
             .collect::<Vec<[u8; 3]>>();
-        add_name_box::<Countries>(self, conames);
-        add_name_box::<Cities>(self, cinames);
+        let pick_best = |counts: Box<[HashMap<String, u32>]>| -> Box<[String]> {
+            counts
+                .into_vec()
+                .into_iter()
+                .map(|m| m.into_iter().max_by_key(|(_, c)| *c).map(|(k, _)| k).unwrap_or_default())
+                .collect()
+        };
+        add_name_box::<Countries>(self, pick_best(coname_counts));
+        add_name_box::<Cities>(self, pick_best(ciname_counts));
         add_name_box::<Institutions>(self, inames);
         self.add_barr::<FixAttBuilder, _>(ccs, "country-codes");
         self.add_iter_owned::<FixAttBuilder, _, _>(cc3s.into_iter(), Some("country-codes-three"));
