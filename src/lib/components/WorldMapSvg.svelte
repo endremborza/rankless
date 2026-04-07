@@ -60,8 +60,6 @@
 	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints, pullerRate);
 	$: updateTreeId(indsByEntityType);
 
-	const fixNameForPaths = (s: string) => s; //(s == 'Türkiye' ? 'Turkey' : s);
-	const fixNameForData = (s: string) => s; //(s == 'Turkey' ? 'Türkiye' : s);
 	const getColorRate = (r: number) => r * (maxColorRate - minColorRate) + minColorRate;
 	const getOpaRate = (r: number) => r * (maxOp - minOp) + minOp;
 
@@ -69,8 +67,7 @@
 		treeId = inds.countries[0];
 	}
 	function varNamer(s: string, suffix: string) {
-		let sn = fixNameForPaths(s);
-		return `--${sn.toLowerCase().replaceAll(' ', '-')}-${suffix}`;
+		return `--${s.toLowerCase().replaceAll(' ', '-')}-${suffix}`;
 	}
 
 	function getClassStyles(
@@ -147,7 +144,7 @@
 	function setHover(cc: string) {
 		return () => {
 			if (!clicked) {
-				highlighted = fixNameForData(cc);
+				highlighted = cc;
 				if (highlighted in countryLevels && highlighted != '') {
 					infoPath = [countryLevels[highlighted].id];
 					if (maxw != undefined && minw != undefined) {
