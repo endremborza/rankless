@@ -2,19 +2,17 @@ use dmove::{MappableEntity, NamespacedEntity, MarkedAttribute, VariableSizeAttri
 
 pub struct HitPaperYearlyCitations { }
 
-pub struct CountriesSemanticIds { }
-
-pub struct SourcesSemanticIds { }
+pub struct HitPapersTopPaperAuthors { }
 
 pub struct HitPapersEra { }
 
-pub struct InstitutionsSemanticIds { }
+pub struct HitPapersTopPaperSubfields { }
 
-pub struct SubfieldsSemanticIds { }
+pub struct HitPapersTopJournals { }
 
-pub struct AuthorsSemanticIds { }
+pub struct HitPapersTopCitingSubfields { }
 
-impl Entity for HitPapersEra { type T = [u32; 11]; const N: usize = 320995; const NAME: & str = "hit-papers-era"; }
+impl Entity for HitPapersEra { type T = [u32; 11]; const N: usize = 346883; const NAME: & str = "hit-papers-era"; }
 
 impl MappableEntity for HitPapersEra { type KeyType = usize; }
 
@@ -22,7 +20,7 @@ impl NamespacedEntity for HitPapersEra { const NS: & str = "derive_links5"; }
 
 impl MarkedAttribute<crate::common::YearlyCitationsMarker> for crate::gen::derive_links3::HitPapers { type AttributeEntity = HitPapersEra; }
 
-impl Entity for HitPaperYearlyCitations { type T = Box<[u32]>; const N: usize = 320995; const NAME: & str = "hit-paper-yearly-citations"; }
+impl Entity for HitPaperYearlyCitations { type T = Box<[u32]>; const N: usize = 346883; const NAME: & str = "hit-paper-yearly-citations"; }
 
 impl MappableEntity for HitPaperYearlyCitations { type KeyType = usize; }
 
@@ -30,52 +28,34 @@ impl VariableSizeAttribute for HitPaperYearlyCitations { type SizeType = u8; typ
 
 impl NamespacedEntity for HitPaperYearlyCitations { const NS: & str = "derive_links5"; }
 
-impl Entity for AuthorsSemanticIds { type T = String; const N: usize = 4175973; const NAME: & str = "authors-semantic-ids"; }
+impl Entity for HitPapersTopJournals { type T = [(u32, u16); 3]; const N: usize = 346883; const NAME: & str = "hit-papers-top-journals"; }
 
-impl MappableEntity for AuthorsSemanticIds { type KeyType = usize; }
+impl MappableEntity for HitPapersTopJournals { type KeyType = usize; }
 
-impl VariableSizeAttribute for AuthorsSemanticIds { type SizeType = u8; type LocType = u32; }
+impl NamespacedEntity for HitPapersTopJournals { const NS: & str = "derive_links5"; }
 
-impl NamespacedEntity for AuthorsSemanticIds { const NS: & str = "derive_links5"; }
+impl MarkedAttribute<crate::common::Top3JournalMarker> for crate::gen::derive_links3::HitPapers { type AttributeEntity = HitPapersTopJournals; }
 
-impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_mapping::Authors { type AttributeEntity = AuthorsSemanticIds; }
+impl Entity for HitPapersTopPaperAuthors { type T = [(u32, u32); 25]; const N: usize = 346883; const NAME: & str = "hit-papers-top-paper-authors"; }
 
-impl Entity for InstitutionsSemanticIds { type T = String; const N: usize = 33245; const NAME: & str = "institutions-semantic-ids"; }
+impl MappableEntity for HitPapersTopPaperAuthors { type KeyType = usize; }
 
-impl MappableEntity for InstitutionsSemanticIds { type KeyType = usize; }
+impl NamespacedEntity for HitPapersTopPaperAuthors { const NS: & str = "derive_links5"; }
 
-impl VariableSizeAttribute for InstitutionsSemanticIds { type SizeType = u8; type LocType = u32; }
+impl MarkedAttribute<crate::common::Top15AuthorMarker> for crate::gen::derive_links3::HitPapers { type AttributeEntity = HitPapersTopPaperAuthors; }
 
-impl NamespacedEntity for InstitutionsSemanticIds { const NS: & str = "derive_links5"; }
+impl Entity for HitPapersTopPaperSubfields { type T = [(u32, u8); 3]; const N: usize = 346883; const NAME: & str = "hit-papers-top-paper-subfields"; }
 
-impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_mapping::Institutions { type AttributeEntity = InstitutionsSemanticIds; }
+impl MappableEntity for HitPapersTopPaperSubfields { type KeyType = usize; }
 
-impl Entity for SourcesSemanticIds { type T = String; const N: usize = 41067; const NAME: & str = "sources-semantic-ids"; }
+impl NamespacedEntity for HitPapersTopPaperSubfields { const NS: & str = "derive_links5"; }
 
-impl MappableEntity for SourcesSemanticIds { type KeyType = usize; }
+impl MarkedAttribute<crate::common::Top3PaperSfMarker> for crate::gen::derive_links3::HitPapers { type AttributeEntity = HitPapersTopPaperSubfields; }
 
-impl VariableSizeAttribute for SourcesSemanticIds { type SizeType = u16; type LocType = u32; }
+impl Entity for HitPapersTopCitingSubfields { type T = [(u32, u8); 3]; const N: usize = 346883; const NAME: & str = "hit-papers-top-citing-subfields"; }
 
-impl NamespacedEntity for SourcesSemanticIds { const NS: & str = "derive_links5"; }
+impl MappableEntity for HitPapersTopCitingSubfields { type KeyType = usize; }
 
-impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_mapping::Sources { type AttributeEntity = SourcesSemanticIds; }
+impl NamespacedEntity for HitPapersTopCitingSubfields { const NS: & str = "derive_links5"; }
 
-impl Entity for SubfieldsSemanticIds { type T = String; const N: usize = 254; const NAME: & str = "subfields-semantic-ids"; }
-
-impl MappableEntity for SubfieldsSemanticIds { type KeyType = usize; }
-
-impl VariableSizeAttribute for SubfieldsSemanticIds { type SizeType = u8; type LocType = u16; }
-
-impl NamespacedEntity for SubfieldsSemanticIds { const NS: & str = "derive_links5"; }
-
-impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_mapping::Subfields { type AttributeEntity = SubfieldsSemanticIds; }
-
-impl Entity for CountriesSemanticIds { type T = String; const N: usize = 233; const NAME: & str = "countries-semantic-ids"; }
-
-impl MappableEntity for CountriesSemanticIds { type KeyType = usize; }
-
-impl VariableSizeAttribute for CountriesSemanticIds { type SizeType = u8; type LocType = u16; }
-
-impl NamespacedEntity for CountriesSemanticIds { const NS: & str = "derive_links5"; }
-
-impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_mapping::Countries { type AttributeEntity = CountriesSemanticIds; }
+impl MarkedAttribute<crate::common::Top3CitingSfMarker> for crate::gen::derive_links3::HitPapers { type AttributeEntity = HitPapersTopCitingSubfields; }
