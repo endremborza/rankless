@@ -208,6 +208,9 @@ impl Stowage {
             if *coid > 0 {
                 ccs[coid.to_usize()] = rcoid.to_le_bytes()[..2].try_into().unwrap();
                 cinames[cid.to_usize()] = cgeo.city.unwrap_or_default();
+                //'Türkiye': 'Turkey' confusion can happen here
+                //TODO make it so that the one appearing most often is the one actually being used
+                //at the end for countries and cities
                 conames[coid.to_usize()] = cgeo.country.unwrap_or_default();
             }
             if let Some(iid) = iif.0.get(&oa_id_parse(&cgeo.parent_id.unwrap())) {
