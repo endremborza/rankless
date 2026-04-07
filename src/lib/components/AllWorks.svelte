@@ -233,21 +233,21 @@
 				<div class="paper-row" class:merging-source={isMergingSource}>
 					<div class="paper-info">
 						{#if citationStyle === 'html'}
-							<span class="paper-ref"
-								><span class="paper-num">{idx + 1}.</span>{@html formatReference(
-									paper,
-									entityAtts,
-									discAuthorNames,
-									'html'
-								)}</span
-							>
-							<span class="paper-meta">
-								{#if paper.citations > 0}{paper.citations} indexed citations{/if}
-								{#if mergeCount > 0}<span class="merge-badge">+{mergeCount} merged</span>{/if}
-								{#if paper.hitSemId}<a href="/hit-papers/{paper.hitSemId}" class="hit-page-link"
-										>breakdown →</a
-									>{/if}
-							</span>
+							<div class="numbered-paper">
+								<span class="paper-num">{idx + 1}.</span>
+								<div>
+									<span class="paper-ref"
+										>{@html formatReference(paper, entityAtts, discAuthorNames, 'html')}</span
+									>
+									<span class="paper-meta">
+										{#if paper.citations > 0}{paper.citations} indexed citations{/if}
+										{#if mergeCount > 0}<span class="merge-badge">+{mergeCount} merged</span>{/if}
+										{#if paper.hitSemId}<a href="/hit-papers/{paper.hitSemId}" class="hit-page-link"
+												>breakdown →</a
+											>{/if}
+									</span>
+								</div>
+							</div>
 						{:else}
 							<span class="paper-ref"
 								>{formatReference(paper, entityAtts, discAuthorNames, citationStyle)}</span
@@ -386,6 +386,7 @@
 	.paper-meta {
 		font-size: var(--text-xs);
 		opacity: 0.5;
+		margin-left: var(--text-m);
 		display: flex;
 		gap: 6px;
 		align-items: center;
@@ -527,10 +528,15 @@
 		opacity: 0.5;
 	}
 
+	.numbered-paper {
+		display: flex;
+	}
+
 	.paper-num {
 		opacity: 0.65;
-		margin-right: 4px;
-		flex-shrink: 0;
+		margin-right: 10px;
+		width: 3rem;
+		text-align: right;
 		font-variant-numeric: tabular-nums;
 	}
 
