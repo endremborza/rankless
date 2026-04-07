@@ -1,12 +1,38 @@
+import { browser } from '$app/environment';
 import { writable } from 'svelte/store';
 import type { OaPaperResp } from '$lib/tree-types';
 import { reconstructAbstractFromInvIndex } from '$lib/utils/paper-helpers';
 
 export const resultsHidden = writable(true);
 
+const LS_KEY = 'rankless:papers';
+const MAX_CACHE = 300;
+
 const paperCache = new Map<number, OaPaperResp>();
 const fetchingSet = new Set<number>();
 const pendingCallbacks = new Map<number, Array<() => void>>();
+
+if (browser) {
+	try {
+		const raw = localStorage.getItem(LS_KEY);
+		if (raw) {
+			const entries = JSON.parse(raw) as [number, OaPaperResp][];
+			for (const [k, v] of entries) paperCache.set(k, v);
+		}
+	} catch {
+		// corrupted storage — start fresh
+	}
+}
+
+function persistCache() {
+	try {
+		let entries = [...paperCache.entries()];
+		if (entries.length > MAX_CACHE) entries = entries.slice(-MAX_CACHE);
+		localStorage.setItem(LS_KEY, JSON.stringify(entries));
+	} catch {
+		// quota exceeded — ignore
+	}
+}
 
 export function getCachedPaper(id: number) {
 	return paperCache.get(id);
@@ -44,6 +70,7 @@ export function prefetchPaper(workId: number, onDone?: () => void) {
 				abstract: reconstructAbstractFromInvIndex(o.abstract_inverted_index) ?? '',
 				authors
 			});
+			if (browser) persistCache();
 			pendingCallbacks.get(workId)?.forEach((cb) => cb());
 			pendingCallbacks.delete(workId);
 		})
