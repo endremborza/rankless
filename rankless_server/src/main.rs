@@ -33,7 +33,9 @@ use tokio::{net::TcpListener, sync::Notify};
 
 use muwo_search::SearchEngine;
 use rankless_rs::{
-    common::{CitSubfieldsArrayMarker, MainEntity, MmapBox},
+    common::{
+        CitSubfieldsArrayMarker, HIndexMarker, MainEntity, MmapBox, QuickestBox, YearCentroidMarker,
+    },
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{AuthorOrcids, DiscardedAuthorsNames, WorkBiblios, WorkDois},
@@ -97,6 +99,8 @@ const N_PEER_SUBFIELDS: usize = 5;
 
 struct AuthorPeerData {
     cit_subfields: MmapSlice<<Authors as FixAtt<CitSubfieldsArrayMarker>>::FT>,
+    h_indices: Box<[u32]>,
+    year_centroids: Box<[f32]>,
 }
 
 #[derive(Serialize)]
@@ -123,6 +127,11 @@ struct PeerEntry {
     yearly_cites: EraRec,
     #[serde(rename = "startYear")]
     start_year: RawYear,
+    #[serde(rename = "hIndex")]
+    h_index: u32,
+    #[serde(rename = "yearCentroid")]
+    year_centroid: f32,
+    country: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -704,8 +713,15 @@ fn get_rest(
         let stow = &gets.stowage;
         let cit_subfields =
             stow.get_marked_interface::<Authors, CitSubfieldsArrayMarker, MmapBox>();
+        let h_indices = stow.get_marked_interface::<Authors, HIndexMarker, QuickestBox>();
+        let year_centroids =
+            stow.get_marked_interface::<Authors, YearCentroidMarker, QuickestBox>();
         print_mem_use("loaded author peer data");
-        Arc::new(AuthorPeerData { cit_subfields })
+        Arc::new(AuthorPeerData {
+            cit_subfields,
+            h_indices,
+            year_centroids,
+        })
     };
     let counts_response = {
         let mut descriptions = Vec::new();
@@ -1047,6 +1063,7 @@ fn build_peer_entry(
     dm_id: usize,
     astates: &NameState,
     apd: &AuthorPeerData,
+    satts: &AttributeLabelUnion,
     sf_indices: &[usize],
 ) -> PeerEntry {
     let sr = &astates.responses[rid];
@@ -1055,6 +1072,16 @@ fn build_peer_entry(
         .iter()
         .map(|&si| apd.cit_subfields.row(dm_id)[si] as u32)
         .collect();
+    let country = astates.prep_exts[rid]
+        .prime_relations
+        .iter()
+        .find(|r| r.rel_type == 3)
+        .and_then(|r| {
+            satts
+                .get(ETYPE_ENC[r.etype_id as usize])
+                .and_then(|labels| labels.get(r.dm_id as usize))
+                .map(|l| l.name.clone())
+        });
     PeerEntry {
         name: sr.name.clone(),
         semantic_id: sr.semantic_id.clone(),
@@ -1064,6 +1091,9 @@ fn build_peer_entry(
         yearly_papers: ext.yearly_papers,
         yearly_cites: ext.yearly_cites,
         start_year: ext.start_year,
+        h_index: apd.h_indices.get(dm_id).copied().unwrap_or(0),
+        year_centroid: apd.year_centroids.get(dm_id).copied().unwrap_or(0.0),
+        country,
     }
 }
 
@@ -1109,7 +1139,7 @@ async fn author_peers_get(
         })
         .collect();
 
-    let hero = build_peer_entry(hero_rid, hero_dm, astates, apd, &sf_indices);
+    let hero = build_peer_entry(hero_rid, hero_dm, astates, apd, satts, &sf_indices);
 
     let peers: Vec<PeerEntry> = astates.peers[hero_dm]
         .iter()
@@ -1119,7 +1149,7 @@ async fn author_peers_get(
             astates
                 .dm_id_to_result_id
                 .get(&peer_dm)
-                .map(|&rid| build_peer_entry(rid, peer_dm, astates, apd, &sf_indices))
+                .map(|&rid| build_peer_entry(rid, peer_dm, astates, apd, satts, &sf_indices))
         })
         .collect();
 

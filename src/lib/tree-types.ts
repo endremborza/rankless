@@ -252,6 +252,9 @@ export type PeerEntry = {
 	yearlyPapers: number[];
 	yearlyCites: number[];
 	startYear: number;
+	hIndex: number;
+	yearCentroid: number;
+	country: string | null;
 };
 
 export type EntityPeersResp = {
