@@ -1,15 +1,13 @@
-use dmove::{Entity, UnsignedNumber, ET, MAA};
+use dmove::{ET, MAA};
 
 use crate::{
-    common::{init_empty_slice, CitSubfieldsArrayMarker, YearCentroidMarker},
+    common::{CitSubfieldsArrayMarker, YearCentroidMarker},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields},
-        a2_init_atts::{InstCountries, InstLocs, WorkYears},
-        derive_links2::AuthorWorks,
+        a2_init_atts::{InstCountries, InstLocs},
     },
     peers::{self, PeerCalculator},
-    steps::a1_entity_mapping::Years,
-    QuickestBox, ReadFixIter, ReadIter, Stowage,
+    QuickestBox, ReadFixIter, Stowage,
 };
 
 pub const N_PEER_SF_DIMS: usize = 10;
