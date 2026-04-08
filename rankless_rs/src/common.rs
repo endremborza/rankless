@@ -61,6 +61,8 @@ pub struct Top3CitingTopicMarker;
 pub struct Top3JournalMarker;
 pub struct Top3AffCountryMarker;
 pub struct PeerMarker;
+pub struct HIndexMarker;
+pub struct YearCentroidMarker;
 
 pub struct EmptyAttributeEntity<T> {
     p: PhantomData<T>,
