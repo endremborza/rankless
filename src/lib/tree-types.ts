@@ -254,7 +254,7 @@ export type PeerAuthorEntry = {
 	startYear: number;
 };
 
-export type AuthorPeersResp = {
+export type EntityPeersResp = {
 	topSubfields: PeerSubfield[];
 	peers: PeerAuthorEntry[];
 	hero: PeerAuthorEntry;
