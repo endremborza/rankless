@@ -309,9 +309,9 @@
 	}
 </script>
 
-<div class="papered-figure-container">
+<div class="papered-figure-container {fixHeight ? 'wide-screen-heighted' : ''}">
 	<div
-		class="figure-container {fixHeight ? 'tree-fixer' : ''}"
+		class="figure-container"
 		bind:clientWidth={containerWidth}
 		bind:clientHeight={containerHeight}
 	>
@@ -476,12 +476,8 @@
 		position: absolute;
 	}
 
-	.tree-fixer {
-		height: 85svh;
-	}
-
 	@media (max-width: 899px) {
-		.tree-fixer {
+		.figure-container {
 			height: 75svh;
 			flex: none;
 		}

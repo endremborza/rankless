@@ -321,7 +321,9 @@
 			<details id="abstract" bind:open={abstractExpanded}>
 				<summary><h2>Abstract</h2></summary>
 				{#if hitPaperAbstract}
-					<p class="abstract-text" class:abstract-truncated={!abstractExpanded}>{hitPaperAbstract}</p>
+					<p class="abstract-text" class:abstract-truncated={!abstractExpanded}>
+						{hitPaperAbstract}
+					</p>
 				{:else}
 					<p class="abstract-loading">loading...</p>
 				{/if}
