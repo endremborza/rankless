@@ -28,3 +28,4 @@ test-results
 local-moks/
 logs/
 paper-gen/
+.claude
