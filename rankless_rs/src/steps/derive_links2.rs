@@ -14,10 +14,11 @@ use tqdm::{Iter, Tqdm};
 
 use crate::{
     common::{
-        init_empty_slice, BeS, CitSubfieldsArrayMarker, InstRelMarker, MainWorkMarker,
-        NumberedEntity, QuickAttPair, QuickMap, RefSubfieldsArrayMarker, Top15AuthorMarker,
-        Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker,
-        Top3PaperTopicMarker, WorkLoader, YearlyCitationsMarker, YearlyPapersMarker, NET,
+        init_empty_slice, BeS, CitSubfieldsArrayMarker, HIndexMarker, InstRelMarker,
+        MainWorkMarker, NumberedEntity, QuickAttPair, QuickMap, RefSubfieldsArrayMarker,
+        Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker,
+        Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader, YearCentroidMarker,
+        YearlyCitationsMarker, YearlyPapersMarker, NET,
     },
     env_consts::{FINAL_YEAR, START_YEAR},
     gen::{
@@ -29,6 +30,7 @@ use crate::{
         derive_links1::{WorkFilteredAuthors, WorkInstitutions, WorkSubfields, WorksCiting},
     },
     make_interface_struct,
+    peers::compute_career_centroid,
     steps::{
         a1_entity_mapping::{Qs, Years},
         derive_links1::{multi_inverter, InvertedMultiLink},
@@ -440,16 +442,19 @@ impl CiteDeriver {
         let mut ext = ExtensionContainer::<Authors>::new();
         let mut source_paths = HashMap::<[ET<Sources>; 2], u32>::new();
         let mut sf_paths = HashMap::<[ET<Subfields>; 2], u32>::new();
+        let mut h_indices: Vec<u32> = Vec::new();
+        let mut year_centroids: Vec<f32> = Vec::new();
 
         let iter = aworks.iter().enumerate().map(|(i, ws)| {
             let eid = ET::<Authors>::from_usize(i);
             let mut path_base = HashSet::<ET<Sources>>::new();
             let mut sf_path_base = HashSet::<ET<Subfields>>::new();
-            let sum = ws
+            let mut yearly_papers = [0usize; MAX_YEAR + 1];
+            let mut cite_counts: Vec<usize> = ws
                 .iter()
                 .map(|wid| {
                     let wu = wid.to_usize();
-                    let year = self.backends.year[wid.to_usize()];
+                    let year = self.backends.year[wu];
                     self.backends
                         .wsources
                         .get(&wu)
@@ -458,7 +463,6 @@ impl CiteDeriver {
                         .for_each(|e| {
                             path_base.insert(*e);
                         });
-
                     self.backends
                         .wsubfields
                         .get(&wu)
@@ -467,14 +471,19 @@ impl CiteDeriver {
                         .for_each(|e| {
                             sf_path_base.insert(*e);
                         });
-
+                    let yi = year.to_usize();
+                    if yi <= MAX_YEAR {
+                        yearly_papers[yi] += 1;
+                    }
                     ext.extend_get_ccount(eid, wid, &self, year)
                 })
-                .sum();
+                .collect();
             ext.push(eid, self);
             add_paths(path_base, &mut source_paths);
             add_paths(sf_path_base, &mut sf_paths);
-            sum
+            h_indices.push(get_h_index_and_sort(&mut cite_counts));
+            year_centroids.push(compute_career_centroid(&yearly_papers).unwrap_or(0.0));
+            cite_counts.iter().sum()
         });
 
         add_iter_cc::<Authors, _>(&self.stowage, iter);
@@ -486,7 +495,11 @@ impl CiteDeriver {
         self.stowage.add_iter_owned::<FixAttBuilder, _, _>(
             sf_paths.into_iter(),
             Some("subfield-pairs-by-path"),
-        )
+        );
+        self.stowage
+            .ditf::<HIndexMarker, Authors, u32>(h_indices, "h-index");
+        self.stowage
+            .ditf::<YearCentroidMarker, Authors, f32>(year_centroids, "year-centroid");
     }
 
     fn q_ccs(&mut self) {
@@ -591,7 +604,6 @@ impl Default for InstRelation {
         Self::new(0)
     }
 }
-
 
 impl IRelAdder for Sources {}
 
