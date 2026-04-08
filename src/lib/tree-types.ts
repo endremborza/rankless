@@ -243,7 +243,7 @@ export type PeerSubfield = {
 	dmId: number;
 };
 
-export type PeerAuthorEntry = {
+export type PeerEntry = {
 	name: string;
 	semanticId: string;
 	papers: number;
@@ -256,6 +256,6 @@ export type PeerAuthorEntry = {
 
 export type EntityPeersResp = {
 	topSubfields: PeerSubfield[];
-	peers: PeerAuthorEntry[];
-	hero: PeerAuthorEntry;
+	peers: PeerEntry[];
+	hero: PeerEntry;
 };
