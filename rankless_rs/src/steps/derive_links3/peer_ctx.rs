@@ -1,7 +1,7 @@
 use dmove::{Entity, UnsignedNumber, ET, MAA};
 
 use crate::{
-    common::{init_empty_slice, CitSubfieldsArrayMarker},
+    common::{init_empty_slice, CitSubfieldsArrayMarker, YearCentroidMarker},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields},
         a2_init_atts::{InstCountries, InstLocs, WorkYears},
@@ -9,7 +9,7 @@ use crate::{
     },
     peers::{self, PeerCalculator},
     steps::a1_entity_mapping::Years,
-    QuickestBox, ReadIter, Stowage,
+    QuickestBox, ReadFixIter, ReadIter, Stowage,
 };
 
 pub const N_PEER_SF_DIMS: usize = 10;
@@ -132,28 +132,16 @@ impl SourcePeerCtx {
 }
 
 impl AuthorPeerCtx {
-    pub fn new(
-        stowage: &Stowage,
-        filter: Vec<bool>,
-        _wcounts: &[usize],
-        w_years: &[ET<WorkYears>],
-    ) -> Self {
+    pub fn new(stowage: &Stowage, filter: Vec<bool>, _wcounts: &[usize]) -> Self {
         let cit_sfs =
             stowage.get_marked_interface::<Authors, CitSubfieldsArrayMarker, QuickestBox>();
         let top_sfs = peers::compute_top_sfs(&*cit_sfs);
-        let mut career_centroids_o = init_empty_slice::<Authors, [Option<f32>; 1]>();
-        for (aid, aworks) in stowage
-            .get_entity_interface::<AuthorWorks, ReadIter>()
+        let career_centroids_o: Vec<[Option<f32>; 1]> = stowage
+            .get_marked_interface::<Authors, YearCentroidMarker, ReadFixIter>()
             .enumerate()
-        {
-            let mut yearly_papers = [0usize; Years::N + 1];
-            for wid in aworks {
-                let wind = w_years[wid.to_usize()].to_usize();
-                yearly_papers[wind] += 1;
-            }
-            career_centroids_o[aid] = [peers::compute_career_centroid(&yearly_papers)];
-        }
-        let career_centroids = peers::normalize_opt_arr(career_centroids_o.to_vec())
+            .map(|(i, e)| if filter[i] { [Some(e)] } else { [None] })
+            .collect();
+        let career_centroids = peers::normalize_opt_arr(career_centroids_o)
             .into_iter()
             .map(|e| e[0])
             .collect();

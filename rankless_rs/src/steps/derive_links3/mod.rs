@@ -216,7 +216,7 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     peers::compute_peers::<_, 10, _, _>(&*starc, &source_ctx, &source_ctx.filter, &source_wcounts);
 
     println!("computing author peers");
-    let author_ctx = AuthorPeerCtx::new(&starc, author_filter, &author_wcounts, &w_years);
+    let author_ctx = AuthorPeerCtx::new(&starc, author_filter, &author_wcounts);
     peers::compute_peers::<_, 10, _, _>(&*starc, &author_ctx, &author_ctx.filter, &author_wcounts);
 
     starc.write_code()?;
