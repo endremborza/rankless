@@ -16,7 +16,7 @@
 	import AuthorNetwork from '$lib/components/AuthorNetwork.svelte';
 	import Toc from '$lib/components/Toc.svelte';
 	import PaperRainbow from '$lib/components/PaperRainbow.svelte';
-	import AuthorPeers from '$lib/components/AuthorPeers.svelte';
+	import EntityPeers from '$lib/components/EntityPeers.svelte';
 	import AllWorks from '$lib/components/AllWorks.svelte';
 
 	export let data: {
@@ -34,7 +34,7 @@
 		citeText: string;
 		prefixText: string;
 		profile: tt.PaperProfileResp | null;
-		peersData: tt.AuthorPeersResp | null;
+		peersData: tt.EntityPeersResp | null;
 		initialPapers: tt.Paper[];
 		initialEntityAtts: tt.EntityAttsForLinks;
 		initialDiscAuthorNames: Record<string, string>;
@@ -390,8 +390,8 @@
 
 {#if isAuthor && data.peersData && data.peersData.peers.length > 0}
 	<section id="peers" class="shadowy padded marged main-block">
-		<h2>Author Peers</h2>
-		<AuthorPeers data={data.peersData} />
+		<h2>Peers</h2>
+		<EntityPeers data={data.peersData} />
 	</section>
 {/if}
 

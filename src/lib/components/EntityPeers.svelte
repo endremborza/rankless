@@ -1,8 +1,8 @@
 <script lang="ts">
-	import type { AuthorPeersResp } from '$lib/tree-types';
+	import type { EntityPeersResp } from '$lib/tree-types';
 	import { formatNumber } from '$lib/text-format-util';
 
-	export let data: AuthorPeersResp;
+	export let data: EntityPeersResp;
 
 	$: allEntries = [data.hero, ...data.peers];
 	$: sfMax = data.topSubfields.map((_, si) =>
@@ -73,7 +73,7 @@
 <svelte:window on:click={() => (stuckTooltip = null)} />
 
 <p class="peers-note">
-	Peers are selected by citation overlap in the author's most active subfields.
+	Peers are selected by citation overlap in the entity's most active subfields.
 	<span class="legend">
 		<span class="leg-cite" /> citations ·
 		<span class="leg-hero-ref" /> hero ref
@@ -83,7 +83,7 @@
 	<table class="peers-table">
 		<thead>
 			<tr>
-				<th class="name-col">Author</th>
+				<th class="name-col">Name</th>
 				{#each data.topSubfields as sf, si}
 					<th class="sf-col" on:mouseenter={(e) => onEnter(si, e)} on:mouseleave={onLeave}>
 						<button class="sf-header-btn" on:click|stopPropagation={(e) => onBtnClick(si, e)}

@@ -2,13 +2,13 @@
 	import { APP_NAME } from '$lib/constants';
 	import type { PaperProfileResp } from '$lib/tree-types';
 	import { buildPaperMap, stripHtml } from '$lib/utils/paper-helpers';
-	import type { AuthorPeersResp, AuthorMergeRequest } from '$lib/tree-types';
+	import type { EntityPeersResp, AuthorMergeRequest } from '$lib/tree-types';
 	import ImpactDag from '$lib/components/ImpactDag.svelte';
 
 	export let data: {
 		name: string;
 		profile: PaperProfileResp | null;
-		peersData: AuthorPeersResp | null;
+		peersData: EntityPeersResp | null;
 		semanticId: string;
 		paperText: string;
 		citeText: string;

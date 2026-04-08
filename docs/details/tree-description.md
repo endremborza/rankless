@@ -150,7 +150,7 @@ SvelteKit app; SSR via `+page.server.ts` files; all visualizations are hand-writ
 | `DagChip.svelte` | Individual paper chip for ImpactDag: title, year, badges (standout/prestigious/nobel) |
 | `AllWorks.svelte` | Paginated author paper list; disown/undo UI (owner only); "breakdown →" link for hit papers |
 | `ExportControls.svelte` | Sort, filter, citation style, BibTeX copy/download controls |
-| `AuthorPeers.svelte` | Peer author comparison table: subfield citation heatmap + sparkline decade timeline |
+| `EntityPeers.svelte` | Peer entity comparison table: subfield citation heatmap + sparkline decade timeline |
 | `WorkElem.svelte` | Single paper display |
 | `SearchResults.svelte` | Search autocomplete results |
 | `ScrollyGraph.svelte` / `ScrollySank.svelte` | Scrollytelling visualizations |

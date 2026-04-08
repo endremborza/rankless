@@ -44,7 +44,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 
 	// Author-specific data (null/empty defaults for all other entity types)
 	let profile: tt.PaperProfileResp | null = null;
-	let peersData: tt.AuthorPeersResp | null = null;
+	let peersData: tt.EntityPeersResp | null = null;
 	let initialPapers: tt.Paper[] = [];
 	let initialEntityAtts: tt.EntityAttsForLinks = {};
 	let initialDiscAuthorNames: Record<string, string> = {};
@@ -60,7 +60,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		const urlFriendlySemId = tf.urlFriendlify(semanticId);
 		const [profileResp, peersResp, worksResp]: [
 			tt.PaperProfileResp | null,
-			tt.AuthorPeersResp | null,
+			tt.EntityPeersResp | null,
 			tt.PaginatedPaperSetResp | null
 		] = await Promise.all([
 			fetch(`${BE_URL}/paper-profile/${urlFriendlySemId}`)

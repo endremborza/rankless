@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import type { View, PaperProfileResp, SearchResult, AuthorPeersResp } from '$lib/tree-types';
+import type { View, PaperProfileResp, SearchResult, EntityPeersResp } from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
 import { BE_URL } from '$lib/constants';
 import { pluralize } from '$lib/text-format-util';
@@ -12,7 +12,7 @@ export const ssr = true;
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const semanticId = params.semanticId;
 	const urlFriendlySemId = tf.urlFriendlify(semanticId);
-	const [view, profile, peersData]: [View, PaperProfileResp | null, AuthorPeersResp | null] =
+	const [view, profile, peersData]: [View, PaperProfileResp | null, EntityPeersResp | null] =
 		await Promise.all([
 			fetch(`${BE_URL}/views/authors/${urlFriendlySemId}`)
 				.then((res) => res.json())

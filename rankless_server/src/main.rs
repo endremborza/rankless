@@ -109,7 +109,7 @@ struct PeerSubfieldInfo {
 }
 
 #[derive(Serialize)]
-struct PeerAuthorEntry {
+struct PeerEntry {
     name: String,
     #[serde(rename = "semanticId")]
     semantic_id: String,
@@ -126,11 +126,11 @@ struct PeerAuthorEntry {
 }
 
 #[derive(Serialize)]
-struct AuthorPeersResp {
+struct EntityPeersResp {
     #[serde(rename = "topSubfields")]
     top_subfields: Vec<PeerSubfieldInfo>,
-    peers: Vec<PeerAuthorEntry>,
-    hero: PeerAuthorEntry,
+    peers: Vec<PeerEntry>,
+    hero: PeerEntry,
 }
 
 #[derive(Deserialize)]
@@ -1048,14 +1048,14 @@ fn build_peer_entry(
     astates: &NameState,
     apd: &AuthorPeerData,
     sf_indices: &[usize],
-) -> PeerAuthorEntry {
+) -> PeerEntry {
     let sr = &astates.responses[rid];
     let ext = &astates.exts[rid];
     let sf_cits: Vec<u32> = sf_indices
         .iter()
         .map(|&si| apd.cit_subfields.row(dm_id)[si] as u32)
         .collect();
-    PeerAuthorEntry {
+    PeerEntry {
         name: sr.name.clone(),
         semantic_id: sr.semantic_id.clone(),
         papers: sr.papers,
@@ -1111,7 +1111,7 @@ async fn author_peers_get(
 
     let hero = build_peer_entry(hero_rid, hero_dm, astates, apd, &sf_indices);
 
-    let peers: Vec<PeerAuthorEntry> = astates.peers[hero_dm]
+    let peers: Vec<PeerEntry> = astates.peers[hero_dm]
         .iter()
         .filter(|&&pid| pid != 0)
         .filter_map(|&pid| {
@@ -1123,7 +1123,7 @@ async fn author_peers_get(
         })
         .collect();
 
-    let resp = AuthorPeersResp {
+    let resp = EntityPeersResp {
         top_subfields,
         peers,
         hero,
