@@ -17,7 +17,7 @@ pub const W_PEER_SF: f64 = 1.0;
 pub const W_PEER_RATE: f64 = 0.5;
 pub const W_PEER_GEO: f64 = 0.3;
 pub const W_PEER_COUNTRY: f64 = 0.5;
-pub const W_PEER_TEMPORAL: f64 = 0.4;
+pub const W_PEER_TEMPORAL: f64 = 0.6;
 
 const K_TREE: usize = 500;
 

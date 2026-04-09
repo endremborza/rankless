@@ -77,7 +77,7 @@ where
     {
         let c = cites[i].to_usize();
         let p = wcounts[i];
-        let base = !name.trim().is_empty() && p > 1 && c > 2;
+        let base = !name.trim().is_empty() && p > 1 && c > 1;
         let final_filter_val = base && extra_filter(i, c, p);
         let sem_candidates = if final_filter_val {
             name_fn(&name, &ext)
