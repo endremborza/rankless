@@ -114,6 +114,7 @@ struct PeerSubfieldInfo {
 
 #[derive(Serialize)]
 struct PeerEntry {
+    //TODO - this should just be another view
     name: String,
     #[serde(rename = "semanticId")]
     semantic_id: String,
@@ -157,9 +158,7 @@ struct ViewResult {
     #[serde(flatten)]
     sr: SearchResult,
     #[serde(flatten)]
-    ext: ResultExtension,
-    #[serde(flatten)]
-    prep_ext: PostAttResultExtension,
+    ext: SerializableExt,
     similars: Vec<SearchResult>,
 }
 
@@ -254,8 +253,7 @@ fn save_engine<const S: usize>(
 struct NameState {
     engine: SearchEngine<SEARCH_SIZE>,
     responses: Box<[SearchResult]>,
-    exts: Box<[ResultExtension]>,
-    prep_exts: Box<[PreAttResultExtension]>,
+    exts: Box<[EntityExt]>,
     pub semantic_id_map: HashMap<String, SemVal>,
     pub oa_id_map: HashMap<usize, usize>,
     pub dm_id_to_result_id: HashMap<usize, usize>,
@@ -321,19 +319,13 @@ struct SearchResult {
 }
 
 #[derive(Serialize, Clone)]
-struct ResultExtension {
-    // #[serde(rename = "instRels")]
-    // inst_rels: Box<[InstRelOut]>,
+struct SerializableExt {
     #[serde(rename = "startYear")]
     start_year: RawYear,
     #[serde(rename = "yearlyPapers")]
     yearly_papers: EraRec,
     #[serde(rename = "yearlyCites")]
     yearly_cites: EraRec,
-}
-
-#[derive(Serialize, Clone)]
-struct PostAttResultExtension {
     #[serde(rename = "primeRelations")]
     prime_relations: Vec<PostAttRelatedEntity>,
     #[serde(rename = "authorNetwork")]
@@ -366,7 +358,10 @@ struct PaginatedPaperSetResp {
     slice_start: usize,
 }
 
-struct PreAttResultExtension {
+struct EntityExt {
+    start_year: RawYear,
+    yearly_papers: EraRec,
+    yearly_cites: EraRec,
     prime_relations: Box<[PreAttRelatedEntity]>,
     hit_papers: Box<[usize]>,
     author_network: Box<[u8]>,
@@ -439,48 +434,7 @@ impl SearchResult {
     }
 }
 
-impl ResultExtension {
-    fn from_resps<E>(
-        responses: &Box<[SearchResult]>,
-        entif: &RootInterfaces<E>,
-        gets: &Getters,
-    ) -> Box<[Self]>
-    where
-        E: RootInterfaceable,
-    {
-        let mut out = Vec::new();
-        for res in responses.iter() {
-            let i = res.dm_id;
-
-            let mut sy_ind = 0;
-            let mut yearly_papers = EraRec::default();
-            if let Some(ypi) = entif.yearly_papers.get(i) {
-                yearly_papers = ypi.clone();
-                for (yi, ycount) in ypi.into_iter().enumerate() {
-                    if (sy_ind == 0) & (*ycount > 0) {
-                        sy_ind = yi;
-                        break;
-                    }
-                }
-            }
-            if E::NAME == HitPapers::NAME {
-                //TODO: this shows the crazy indexing of gets
-                let wid = gets.hit_papers[i];
-                sy_ind = gets.year(&wid.to_usize()).to_usize();
-            }
-
-            out.push(Self {
-                start_year: YearInterface::reverse(sy_ind as ET<Years>),
-                yearly_cites: entif.yearly_cites[i].clone(),
-                yearly_papers,
-            })
-        }
-
-        out.into()
-    }
-}
-
-impl PreAttResultExtension {
+impl EntityExt {
     fn from_resps<E>(
         responses: &Box<[SearchResult]>,
         entif: &RootInterfaces<E>,
@@ -493,6 +447,24 @@ impl PreAttResultExtension {
             .iter()
             .map(|res| {
                 let i = res.dm_id;
+
+                let mut sy_ind = 0;
+                let mut yearly_papers = EraRec::default();
+                if let Some(ypi) = entif.yearly_papers.get(i) {
+                    yearly_papers = ypi.clone();
+                    for (yi, ycount) in ypi.into_iter().enumerate() {
+                        if (sy_ind == 0) & (*ycount > 0) {
+                            sy_ind = yi;
+                            break;
+                        }
+                    }
+                }
+                if E::NAME == HitPapers::NAME {
+                    //TODO: this shows the crazy indexing of gets
+                    let wid = gets.hit_papers[i];
+                    sy_ind = gets.year(&wid.to_usize()).to_usize();
+                }
+
                 let mut prime_relations = Vec::new();
                 let mut hit_papers = Vec::new();
                 let mut author_collabs = Vec::new();
@@ -545,7 +517,11 @@ impl PreAttResultExtension {
                             .for_each(|e| hit_papers.push(e.to_usize()));
                     }
                 }
+
                 Self {
+                    start_year: YearInterface::reverse(sy_ind as ET<Years>),
+                    yearly_cites: entif.yearly_cites[i].clone(),
+                    yearly_papers,
                     prime_relations: prime_relations.into(),
                     hit_papers: hit_papers.into(),
                     author_network: author_collabs.into_boxed_slice(),
@@ -554,15 +530,15 @@ impl PreAttResultExtension {
             .collect()
     }
 
-    fn to_post(
+    fn to_serializable(
         &self,
         satts: &AttributeLabelUnion,
         nstates: &NameStateMap,
-    ) -> PostAttResultExtension {
+    ) -> SerializableExt {
         let prime_relations = self
             .prime_relations
             .iter()
-            .filter_map(|sr| {
+            .map(|sr| {
                 let etype = ETYPE_ENC[sr.etype_id as usize];
                 let att = &satts[etype][sr.dm_id.to_usize()];
                 let semantic_id = nstates
@@ -570,16 +546,19 @@ impl PreAttResultExtension {
                     .and_then(|rstate| rstate.semantic_id_map.get(&att.semantic_id))
                     .map(|_| att.semantic_id.clone())
                     .unwrap_or_default();
-                Some(PostAttRelatedEntity {
+                PostAttRelatedEntity {
                     semantic_id,
                     name: att.name.clone(),
                     etype: etype.to_string(),
                     rel_type: sr.rel_type,
                     score: sr.score,
-                })
+                }
             })
             .collect();
-        PostAttResultExtension {
+        SerializableExt {
+            start_year: self.start_year,
+            yearly_papers: self.yearly_papers,
+            yearly_cites: self.yearly_cites,
             prime_relations,
             author_network: self.author_network.clone(),
         }
@@ -639,8 +618,7 @@ impl NameState {
 
         Self {
             engine: engine.into(),
-            exts: ResultExtension::from_resps(&responses, entif, gets),
-            prep_exts: PreAttResultExtension::from_resps(&responses, entif, gets),
+            exts: EntityExt::from_resps(&responses, entif, gets),
             responses,
             semantic_id_map,
             oa_id_map,
@@ -966,7 +944,6 @@ async fn view_get(
         if let Some(sem_val) = state.semantic_id_map.get(&psid) {
             let i = sem_val.result_id;
             let srs = &state.responses[i];
-            let ext = &state.exts[i];
             let similars = state.peers[sem_val.dm_id]
                 .iter()
                 .filter(|&&pid| pid != 0)
@@ -980,9 +957,8 @@ async fn view_get(
 
             let vr = ViewResult {
                 similars,
-                ext: ext.clone(),
+                ext: state.exts[i].to_serializable(&satts, &states.0 .0),
                 sr: srs.clone(),
-                prep_ext: state.prep_exts[i].to_post(&satts, &states.0 .0),
             };
             out = Some(vr)
         };
@@ -1036,7 +1012,7 @@ async fn paper_profile(
             (StatusCode::NOT_FOUND, "no such entity").into_response(),
         );
     };
-    let hw_set: HashSet<WT> = astates.prep_exts[aid_sv.result_id]
+    let hw_set: HashSet<WT> = astates.exts[aid_sv.result_id]
         .hit_papers
         .iter()
         .map(|hwid| gets.hit_papers[hwid.to_usize()])
@@ -1087,7 +1063,7 @@ fn build_peer_entry(
         .iter()
         .map(|&si| apd.cit_subfields.row(dm_id)[si] as u32)
         .collect();
-    let country = astates.prep_exts[rid]
+    let country = ext
         .prime_relations
         .iter()
         .find(|r| r.rel_type == 3)
