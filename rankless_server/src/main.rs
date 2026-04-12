@@ -66,7 +66,7 @@ const PORT: u16 = 3038;
 const SEARCH_SIZE: usize = 20;
 const MAX_SLICE: usize = 40_000;
 const CACHEABLE_FROM: u32 = 10_000;
-const N_THREADS: usize = 16;
+const DEFAULT_N_THREADS: usize = 16;
 const ETYPE_ENC: [&str; 7] = [
     Institutions::NAME,
     Authors::NAME,
@@ -696,6 +696,7 @@ impl EntityDescription {
 
 fn get_rest(
     stowage: Stowage,
+    n_threads: usize,
 ) -> (
     NameStateMap,
     Arc<AttributeLabelUnion>,
@@ -746,7 +747,7 @@ fn get_rest(
     print_mem_use("after ei ns map");
     let satts = Arc::into_inner(mux_satts).unwrap().into_inner().unwrap();
     let asatts = Arc::new(satts);
-    let tm: Arc<InstTrm> = TreeRunManager::new(gets, asatts.clone(), N_THREADS);
+    let tm: Arc<InstTrm> = TreeRunManager::new(gets, asatts.clone(), n_threads);
     print_mem_use("got tm");
     (ns_map, asatts, tm, counts_response, tops, author_peer_data)
 }
@@ -797,8 +798,21 @@ where
     (E::NAME, (nstate, tr, ed))
 }
 
-#[tokio::main(worker_threads = 16)]
-async fn main() {
+fn main() {
+    let n_threads: usize = std::env::var("RANKLESS_THREAD_COUNT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_N_THREADS);
+
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(n_threads)
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async_main(n_threads));
+}
+
+async fn async_main(n_threads: usize) {
     let shutdown = Arc::new(Notify::new());
     let shutdown_clone = shutdown.clone();
     let signal_task = tokio::spawn(async move {
@@ -810,7 +824,8 @@ async fn main() {
     let now = std::time::Instant::now();
     println!("reading from path: {}", path);
     let stowage = Stowage::new(&path);
-    let (ns_map, satts, tree_manager, counts_response, tops, author_peer_data) = get_rest(stowage);
+    let (ns_map, satts, tree_manager, counts_response, tops, author_peer_data) =
+        get_rest(stowage, n_threads);
     let ns_map_arc: Arc<NameStateMap> = ns_map.into();
 
     let response_api = Router::new()
