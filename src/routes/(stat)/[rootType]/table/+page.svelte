@@ -35,7 +35,10 @@
 
 	function toggleSort(col: typeof sortCol) {
 		if (sortCol === col) sortAsc = !sortAsc;
-		else { sortCol = col; sortAsc = col === 'name'; }
+		else {
+			sortCol = col;
+			sortAsc = col === 'name';
+		}
 	}
 
 	function sortIndicator(col: typeof sortCol) {
@@ -69,7 +72,6 @@
 	<div class="table-header">
 		<div class="table-title">
 			<h1>{prettifyRoot(data.rootType)}</h1>
-			<a href="/{data.rootType}" class="back-link">← browse</a>
 		</div>
 		<input
 			type="search"
