@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fmt::{Debug, Display};
 use std::io::{prelude::*, BufWriter};
 use std::marker::PhantomData;
@@ -11,11 +12,9 @@ use std::{
 };
 
 use csv::{DeserializeRecordsIntoIter, Reader, ReaderBuilder};
-use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use hashbrown::{HashMap, HashSet};
 use serde::Deserialize;
 use serde::{de::DeserializeOwned, Serialize};
-use tqdm::{Iter, Tqdm};
 
 use dmove::{
     BackendLoading, BigId, ByteFixArrayInterface, CompactEntity, Entity, FixAttBuilder,
@@ -25,11 +24,10 @@ use dmove::{
     VattReadingMap, ET, MAA,
 };
 
-pub type StowReader = Reader<BufReader<GzDecoder<File>>>;
+type StowInner = BufReader<zstd::Decoder<'static, BufReader<File>>>;
+pub type StowReader = Reader<StowInner>;
 pub type BeS<M, E> = <M as BackendSelector<E>>::BE;
 pub type NET<E> = <E as NumberedEntity>::T;
-
-type InIterator<T> = Tqdm<DeserializeRecordsIntoIter<BufReader<flate2::read::GzDecoder<File>>, T>>;
 
 pub const MAIN_NAME: &str = "main";
 pub const BUILD_LOC: &str = "qc-builds";
@@ -39,6 +37,7 @@ pub const SEM_DIR: &str = "semantic-ids";
 
 pub const ID_PREFIX: &str = "https://openalex.org/";
 pub const N_PEERS: usize = 10;
+pub const CSV_EXTENSION: &str = ".csv.zst";
 
 pub struct NameMarker;
 pub struct NameExtensionMarker;
@@ -220,7 +219,9 @@ pub struct ObjIter<T>
 where
     T: DeserializeOwned,
 {
-    iterable: InIterator<T>,
+    current: Option<DeserializeRecordsIntoIter<StowInner, T>>,
+    remaining: VecDeque<PathBuf>,
+    label: String,
 }
 
 //TODO/clarity: this is sort of a mess - could be just generic types
@@ -452,19 +453,6 @@ where
 
 impl<E> MainEntity for E where E: Entity<T = NET<E>> + NumberedEntity {}
 
-impl<T> ObjIter<T>
-where
-    T: DeserializeOwned,
-{
-    pub fn new(reader: StowReader, main: &str, sub: &str) -> Self {
-        let iterable = reader
-            .into_deserialize::<T>()
-            .tqdm()
-            .desc(Some(format!("reading {} / {}", main, sub)));
-        Self { iterable }
-    }
-}
-
 impl<E, BeMarker> MarkedBackendLoader<BeMarker> for E
 where
     E: NamespacedEntity,
@@ -579,11 +567,20 @@ where
 
 impl<T: DeserializeOwned> Iterator for ObjIter<T> {
     type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(obj) = self.iterable.next() {
-            return Some(obj.unwrap());
-        } else {
-            return None;
+    fn next(&mut self) -> Option<T> {
+        loop {
+            if let Some(r) = &mut self.current {
+                if let Some(rec) = r.next() {
+                    return Some(rec.expect(&format!("csv deser error in {}", self.label)));
+                }
+            }
+            let path = self.remaining.pop_front()?;
+            let dec = zstd::Decoder::new(File::open(&path).unwrap()).unwrap();
+            self.current = Some(
+                ReaderBuilder::new()
+                    .from_reader(BufReader::new(dec))
+                    .into_deserialize(),
+            );
         }
     }
 }
@@ -625,22 +622,23 @@ pub fn field_id_parse(id: &str) -> u64 {
     id.split("/").last().unwrap().parse::<u64>().expect(id)
 }
 
-pub fn get_gz_buf<P>(file_name: P) -> io::Result<BufReader<GzDecoder<File>>>
+fn get_compressed_buf<P>(
+    file_name: P,
+) -> io::Result<BufReader<zstd::Decoder<'static, BufReader<File>>>>
 where
     P: AsRef<Path>,
 {
-    let file = File::open(file_name)?;
-    let gz_decoder = GzDecoder::new(file);
-    Ok(BufReader::new(gz_decoder))
+    Ok(BufReader::new(zstd::Decoder::new(File::open(file_name)?)?))
 }
 
-pub fn get_gz_bufw<P>(file_name: P) -> Result<BufWriter<GzEncoder<File>>, io::Error>
+fn get_compressed_bufw<P>(file_name: P) -> io::Result<BufWriter<zstd::Encoder<'static, File>>>
 where
     P: AsRef<Path> + Debug,
 {
-    let file = File::create(file_name)?;
-    let encoder = GzEncoder::new(file, Compression::default());
-    Ok(std::io::BufWriter::new(encoder))
+    Ok(BufWriter::new(zstd::Encoder::new(
+        File::create(file_name)?,
+        3,
+    )?))
 }
 
 pub fn read_buf_path<T, P>(fp: P) -> Result<T, bincode::Error>
@@ -648,7 +646,7 @@ where
     T: DeserializeOwned,
     P: AsRef<Path>,
 {
-    let mut buf = get_gz_buf(fp)?;
+    let mut buf = get_compressed_buf(fp)?;
     bincode::deserialize_from(&mut buf)
 }
 
@@ -657,7 +655,7 @@ where
     T: Serialize,
     P: AsRef<Path> + Debug,
 {
-    let bufw = get_gz_bufw(fp)?;
+    let bufw = get_compressed_bufw(fp)?;
     match bincode::serialize_into(bufw, &obj) {
         Ok(_) => Ok(()),
         Err(s) => Err(io::Error::new(io::ErrorKind::Other, s)),
@@ -669,7 +667,7 @@ where
     T: DeserializeOwned,
     P: AsRef<Path>,
 {
-    let mut buf = get_gz_buf(fp)?;
+    let mut buf = get_compressed_buf(fp)?;
     match serde_json::from_reader(&mut buf) {
         Ok(br) => Ok(br),
         Err(_e) => Err(io::Error::from_raw_os_error(22)),
@@ -681,7 +679,7 @@ where
     T: Serialize,
     P: AsRef<Path> + Debug,
 {
-    serde_json::to_writer(get_gz_bufw(fp).unwrap(), &obj)
+    serde_json::to_writer(get_compressed_bufw(fp).unwrap(), &obj)
 }
 
 pub fn short_string_to_u64(input: &str) -> BigId {
@@ -716,14 +714,26 @@ where
 }
 
 fn read_deser_obj<T: DeserializeOwned>(root: &Path, main_path: &str, sub_path: &str) -> ObjIter<T> {
-    let gz_buf = get_gz_buf(
-        root.join(main_path)
-            .join(sub_path)
-            .with_extension("csv.gz")
-            .to_str()
-            .unwrap(),
-    )
-    .expect(&format!("{main_path}/{sub_path} read failed"));
-    let reader = ReaderBuilder::new().from_reader(gz_buf);
-    ObjIter::new(reader, main_path, sub_path)
+    let dir = root.join(main_path);
+    let prefix = format!("{}.part-", sub_path);
+    let mut paths: Vec<PathBuf> = read_dir(&dir)
+        .unwrap_or_else(|_| panic!("{main_path}/{sub_path} dir missing"))
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n.starts_with(&prefix) && n.ends_with(CSV_EXTENSION))
+                .unwrap_or(false)
+        })
+        .collect();
+    assert!(
+        !paths.is_empty(),
+        "no partitions found for {main_path}/{sub_path}"
+    );
+    paths.sort();
+    ObjIter {
+        current: None,
+        remaining: paths.into(),
+        label: format!("{main_path}/{sub_path}"),
+    }
 }
