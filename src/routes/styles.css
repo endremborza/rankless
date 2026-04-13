@@ -280,6 +280,24 @@ g {
 }
 .btn-sm.active-bg:hover { background: rgba(var(--color-range-15), 0.12); }
 .btn-sm.icon { font-size: 1rem; padding: 2px 6px; }
+.btn-sm.destructive { opacity: 0.6; color: var(--color-theme-red); }
+.btn-sm.destructive:hover { opacity: 1; background: rgba(254, 125, 149, 0.06); }
+
+.status {
+	opacity: 0.6;
+	font-style: italic;
+}
+
+.hint-text {
+	font-size: var(--text-xs);
+	opacity: 0.45;
+	font-style: italic;
+	margin: 0;
+}
+
+.dimmed {
+	opacity: 0.5;
+}
 
 .fof-container {
 	width: 100%;
