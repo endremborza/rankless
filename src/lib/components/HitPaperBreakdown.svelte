@@ -8,12 +8,15 @@
 	export let treeId = 0;
 	export let isSpec = false;
 	export let treeSpec: TreeSpec | undefined = undefined;
+	export let aspectRatio: number = 3;
 
 	let treeData: NamedNode | null = null;
 	let loading = false;
 	let entityLabel = '';
+	let width = 400;
 
 	$: loadBreakdown(semanticId, treeId, isSpec);
+	$: height = width / aspectRatio;
 
 	async function loadBreakdown(semId: string, tid: number, spec: boolean) {
 		if (!semId) return;
@@ -48,7 +51,7 @@
 		if (!childEntries.length) return null;
 		const childIds = childEntries.map(([id]) => id);
 		const etype = inferEntityType(childIds, atts);
-		const typeAtts = etype ? (atts[etype as keyof typeof atts] ?? {}) : {};
+		const typeAtts = etype ? atts[etype as keyof typeof atts] ?? {} : {};
 		entityLabel = etype ?? '';
 
 		if (spec && treeSpec) {
@@ -80,8 +83,8 @@
 		{#if entityLabel}
 			<span class="breakdown-label">citing {entityLabel}</span>
 		{/if}
-		<svg viewBox="0 0 400 130" class="breakdown-svg">
-			<TileTreeMap data={treeData} width={400} height={130} maxPad={3} showText />
+		<svg viewBox="0 0 {width} {height}" class="breakdown-svg">
+			<TileTreeMap data={treeData} {width} {height} maxPad={3} showText />
 		</svg>
 	</div>
 {/if}
