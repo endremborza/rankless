@@ -1,20 +1,22 @@
 use csv::Writer;
-use flate2::{read::GzDecoder, write::GzEncoder, Compression};
+use flate2::read::GzDecoder;
 use serde::{de::DeserializeOwned, Deserialize};
 use std::fs::{create_dir_all, read_dir, File};
 use std::io::{self, BufRead, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
-use tqdm::Iter;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 
-use crate::common::Stowage;
+use crate::common::{Stowage, CSV_EXTENSION};
 use crate::oa_structs::{
     Ancestor, AssociatedInstitution, Author, Authorship, Biblio, Concept, Field, FieldLike, Geo,
     IdCountDecorated, IdTrait, Institution, Location, OpenAccess, Publisher, RelatedConcept,
     Source, SubField, SummaryStats, Topic, Work, WorkTopic,
 };
 
-type GzInner = GzEncoder<BufWriter<File>>;
-type GzWriter = Writer<GzInner>;
+const MAX_PARTITION_ROWS: usize = 5_000_000;
+
+type ZstWriter = Writer<Box<dyn io::Write + Send>>;
 
 macro_rules! sub_write {
     ($parent:ident, $writer_name:ident, $field_name: ident) => {
@@ -39,19 +41,32 @@ macro_rules! sub_multi_write {
 macro_rules! create_csv_struct {
     ($struct_name:ident, $($rest:ident),*) => {
         pub struct $struct_name {
-            $($rest: GzWriter),*
+            out_dir: PathBuf,
+            counter: Arc<AtomicU32>,
+            row_count: usize,
+            $($rest: ZstWriter),*
         }
 
         impl $struct_name {
-            pub fn new(root_path: &Path) -> Self {
-                Self {
-                    $($rest: get_writer(root_path, stringify!($rest)).unwrap()),*
-                }
+            pub fn new(out_dir: PathBuf, counter: Arc<AtomicU32>) -> Self {
+                let part = counter.fetch_add(1, Ordering::Relaxed);
+                $( let $rest = get_writer(&out_dir, stringify!($rest), part).unwrap(); )*
+                Self { out_dir, counter, row_count: 0, $($rest),* }
+            }
+
+            fn rotate(&mut self) {
+                let part = self.counter.fetch_add(1, Ordering::Relaxed);
+                self.row_count = 0;
+                $( self.$rest = get_writer(&self.out_dir, stringify!($rest), part).unwrap(); )*
             }
         }
-
     };
 }
+
+trait LineWriter: Send {
+    fn write_line(&mut self, line: &str);
+}
+
 macro_rules! create_complex_writers {
     ($($t_name: ident - $mod_name: ident; $($rest_key:ident => $rest_value: ident)&*; $($rest_single_key:ident -> $rest_single_value: ident)&*; $($rest_inner_key: ident)&*),*) => {
 
@@ -86,9 +101,7 @@ macro_rules! create_complex_writers {
 
             create_csv_struct!(ModWriter, main, ids, counts $(, $rest_key)* $(, $rest_single_key)* $(, $rest_inner_key)*);
 
-
-            impl ModWriter {
-
+            impl LineWriter for ModWriter {
                 fn write_line(&mut self, line: &str) {
                     #[allow(unused_mut)]
                     let mut outer: Decorated = deserialize_verbose(line);
@@ -96,7 +109,6 @@ macro_rules! create_complex_writers {
 
                     $(let $rest_key = &mut self.$rest_key;)*
                     $(sub_multi_write!(outer, $rest_key, $rest_key);)*
-
 
                     $(let $rest_single_key = &mut self.$rest_single_key;)*
                     $(sub_write!(outer, $rest_single_key, $rest_single_key);)*
@@ -112,34 +124,25 @@ macro_rules! create_complex_writers {
                     sub_write!(parent, id_writer, ids);
                     sub_multi_write!(parent, cb_writer, counts_by_year);
                     self.main.serialize(parent.child).unwrap();
+
+                    self.row_count += 1;
+                    if self.row_count >= MAX_PARTITION_ROWS {
+                        self.rotate();
+                    }
                 }
             }
 
-            pub fn write(
-                in_root_str: &str,
-                out_root_str: &str,
-            ) -> io::Result<()> {
-                    let slug = stringify!($mod_name);
-                    let mut gz_files: Vec<PathBuf> = vec![];
-                    let in_dir = Path::new(&in_root_str).join(slug);
-                    fill_with_files(&in_dir, &mut gz_files, "gz").unwrap();
-
-                    let out_dir = Path::new(&out_root_str).join(slug);
-                    create_dir_all(&out_dir)?;
-                    let mut writer = ModWriter::new(&out_dir);
-                    for gz_path in gz_files.iter().tqdm().desc(Some(slug)) {
-                        let file_gz = File::open(gz_path)?;
-                        let gz_decoder = GzDecoder::new(file_gz);
-                        let reader = BufReader::new(gz_decoder);
-                        for line in reader.lines() {
-                            writer.write_line(&line.unwrap());
-                        }
-                    }
-                    Ok(())
+            pub fn write(in_root_str: &str, out_root_str: &str) -> io::Result<()> {
+                let slug = stringify!($mod_name);
+                let out_dir = Path::new(out_root_str).join(slug);
+                create_dir_all(&out_dir)?;
+                write_entity_parallel(
+                    Path::new(in_root_str),
+                    slug,
+                    |counter| ModWriter::new(out_dir.clone(), counter),
+                )
             }
         })*
-
-
     };
 }
 macro_rules! macwrite {
@@ -169,10 +172,11 @@ create_complex_writers!(
     referenced_works
 );
 
-fn get_writer(root: &Path, fname: &str) -> io::Result<GzWriter> {
-    let file_csv = File::create(root.join(fname).with_extension("csv.gz"))?;
-    let gz_encoder = GzEncoder::new(BufWriter::new(file_csv), Compression::default());
-    return Ok(Writer::from_writer(gz_encoder));
+fn get_writer(root: &Path, fname: &str, part: u32) -> io::Result<ZstWriter> {
+    let path = root.join(format!("{}.part-{part:04}{CSV_EXTENSION}", fname));
+    let enc: Box<dyn io::Write + Send> =
+        Box::new(zstd::Encoder::new(BufWriter::new(File::create(path)?), 3)?.auto_finish());
+    Ok(Writer::from_writer(enc))
 }
 
 fn fill_with_files(path: &Path, v: &mut Vec<PathBuf>, extension: &str) -> io::Result<()> {
@@ -200,6 +204,50 @@ fn deserialize_verbose<T: DeserializeOwned>(s: &str) -> T {
             panic!("verbose err: {}", err);
         }
     }
+}
+
+fn write_entity_parallel<W, F>(in_root: &Path, slug: &str, make_writer: F) -> io::Result<()>
+where
+    W: LineWriter,
+    F: Fn(Arc<AtomicU32>) -> W + Sync,
+{
+    let mut gz_files: Vec<PathBuf> = vec![];
+    fill_with_files(&in_root.join(slug), &mut gz_files, "gz")?;
+
+    let n = std::thread::available_parallelism()
+        .unwrap()
+        .get()
+        .min(gz_files.len().max(1));
+    let counter = Arc::new(AtomicU32::new(0));
+
+    std::thread::scope(|s| {
+        let make_writer = &make_writer;
+        let handles: Vec<_> = (0..n)
+            .map(|i| {
+                let files_of_writer: Vec<_> = gz_files
+                    .iter()
+                    .enumerate()
+                    .filter(|(j, _)| j % n == i)
+                    .map(|(_, p)| p.clone())
+                    .collect();
+                let counter = Arc::clone(&counter);
+                s.spawn(move || -> io::Result<()> {
+                    let mut writer = make_writer(counter);
+                    for path in files_of_writer {
+                        let decoder = GzDecoder::new(File::open(&path)?);
+                        for line in BufReader::new(decoder).lines() {
+                            writer.write_line(&line?);
+                        }
+                    }
+                    Ok(())
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap()?;
+        }
+        Ok(())
+    })
 }
 
 pub fn write_csvs(in_root_str: &str, stowage: &Stowage) -> io::Result<()> {
