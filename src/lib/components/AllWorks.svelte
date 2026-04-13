@@ -215,7 +215,7 @@
 						>
 					</div>
 				</div>
-				<p class="merge-note">
+				<p class="hint-text">
 					The dropped paper will be hidden from your list. This change is local only — contact us to
 					apply it to all figures.
 				</p>
@@ -264,7 +264,7 @@
 						{:else}
 							<div class="paper-actions">
 								<button class="btn-sm" on:click={() => startMerge(paper.wid)}>Merge</button>
-								<button class="btn-sm muted" on:click={() => dispatch('disown', paper.wid)}
+								<button class="btn-sm destructive" on:click={() => dispatch('disown', paper.wid)}
 									>Disown</button
 								>
 							</div>
@@ -479,13 +479,6 @@
 		opacity: 0.5;
 	}
 
-	.merge-note {
-		font-size: var(--text-xs);
-		opacity: 0.45;
-		margin: 0;
-		font-style: italic;
-	}
-
 	.merge-confirm-actions {
 		display: flex;
 		gap: 8px;
@@ -524,10 +517,6 @@
 		opacity: 0.5;
 	}
 
-	.dimmed {
-		opacity: 0.5;
-	}
-
 	.numbered-paper {
 		display: flex;
 	}
@@ -542,11 +531,6 @@
 
 	.load-more-top {
 		align-self: flex-start;
-	}
-
-	.status {
-		opacity: 0.6;
-		font-style: italic;
 	}
 
 	@media (min-width: 1200px) {
