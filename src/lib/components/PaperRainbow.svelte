@@ -316,6 +316,7 @@
 							treeId={breakdownTreeId}
 							isSpec={breakdownIsSpec}
 							treeSpec={breakdownTreeSpec}
+							aspectRatio={fb.aspect}
 						/>
 						<a href="/hit-papers/{hp.hitSemId}" class="profile-link">full profile →</a>
 					</div>
