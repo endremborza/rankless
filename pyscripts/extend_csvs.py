@@ -3,7 +3,13 @@ from pathlib import Path
 
 import pandas as pd
 import polars as pl
-from ccl_science_data.common import PUBY, get_csv_path, get_last_filter, parse_id
+from ccl_science_data.common import (
+    PUBY,
+    get_csv_path,
+    get_last_filter,
+    parse_id,
+    read_full_df,
+)
 from ccl_science_data.gen import ComC, EntC
 
 _EXTERN = Path(__file__).parent.parent / "extern"
@@ -25,11 +31,15 @@ def get_best_q_by_year():
     return pl.read_csv(link_frame.format("metascience/q-by-year"))
 
 
+def write_csv(df: pd.DataFrame, main: str, sub: str):
+    df.to_csv(get_csv_path(main, sub), index=False, compression="zstd")
+
+
 if __name__ == "__main__":
     source_filter = get_last_filter(EntC.SOURCES)
     adf = pd.read_csv(link_frame.format("metascience/areas")).drop_duplicates()
     sodf = (
-        pd.read_csv(get_csv_path(EntC.SOURCES, "ids"))
+        read_full_df(EntC.SOURCES, "ids")
         .assign(id=lambda df: df["openalex"].pipe(parse_id))
         .loc[lambda df: df["id"].isin(source_filter), :]
         .set_index("id")
@@ -44,7 +54,7 @@ if __name__ == "__main__":
 
     _issns.merge(adf).drop(_isc, axis=1).drop_duplicates().assign(
         id=lambda df: ComC.ID_PREFIX + "S" + df["id"].astype(str)
-    ).to_csv(get_csv_path(EntC.SOURCES, EntC.AREA_FIELDS), index=False)
+    ).pipe(write_csv, EntC.SOURCES, EntC.AREA_FIELDS)
     q_matched_df = (
         get_best_q_by_year()
         .select(
@@ -58,11 +68,11 @@ if __name__ == "__main__":
         .drop(_isc)
         .unique()
     )
-    q_matched_df.to_pandas().to_csv(get_csv_path(EntC.SOURCES, EntC.QS), index=False)
+    q_matched_df.to_pandas().pipe(write_csv, EntC.SOURCES, EntC.QS)
     oa_to_slug = pd.read_csv(link_frame.format("oa-to-wiki-authors")).drop(
         "rl_i", axis=1
     )
-    oa_to_slug.to_csv(get_csv_path(EntC.AUTHORS, "wiki-slug"), index=False)
+    oa_to_slug.pipe(write_csv, EntC.AUTHORS, "wiki-slug")
     nobel_out = (
         pd.read_csv(_EXTERN / "nobel-matches.csv")
         .loc[lambda df: df["oa_id"].notna()]
@@ -74,4 +84,4 @@ if __name__ == "__main__":
         .astype(int)
     )
     assert len(nobel_out) > 400, f"Expected 400+ Nobel matches, got {len(nobel_out)}"
-    nobel_out.to_csv(get_csv_path(EntC.AUTHORS, "nobel"), index=False)
+    nobel_out.pipe(write_csv, EntC.AUTHORS, "nobel")
