@@ -63,8 +63,5 @@
 		text-align: center;
 	}
 
-	.status {
-		opacity: 0.6;
-		font-style: italic;
-	}
+
 </style>

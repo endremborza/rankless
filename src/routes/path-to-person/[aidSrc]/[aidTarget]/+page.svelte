@@ -226,11 +226,6 @@
 		opacity: 0.6;
 	}
 
-	.status {
-		opacity: 0.6;
-		font-style: italic;
-	}
-
 	.error {
 		color: salmon;
 	}
