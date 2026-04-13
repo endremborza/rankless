@@ -2,7 +2,8 @@ import json
 from pathlib import Path
 
 import pandas as pd
-from ccl_science_data.common import EntC, GenReader, get_arr
+from ccl_science_data.common import GenReader, get_arr
+from ccl_science_data.gen import EntC
 
 JS_FILE = "extern/NetTreePlus_02_Oct15_2025.csv.cyjs"
 # EDGE_WEIGHT_KEY = "pspace_proximity"
