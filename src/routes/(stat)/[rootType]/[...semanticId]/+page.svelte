@@ -17,7 +17,13 @@
 	import Toc from '$lib/components/Toc.svelte';
 	import PaperRainbow from '$lib/components/PaperRainbow.svelte';
 	import EntityPeers from '$lib/components/EntityPeers.svelte';
+	import PeersA from '$lib/components/PeersA.svelte';
+	// import PeersB from '$lib/components/PeersB.svelte';
+	// import PeersC from '$lib/components/PeersC.svelte';
+	// import PeersD from '$lib/components/PeersD.svelte';
+	// import PeersE from '$lib/components/PeersE.svelte';
 	import AllWorks from '$lib/components/AllWorks.svelte';
+	import AuthorOwnerTools from '$lib/components/AuthorOwnerTools.svelte';
 
 	export let data: {
 		view: tt.View;
@@ -49,14 +55,6 @@
 
 	let showIndexedCiteText = false;
 	let ticksHeight: number;
-
-	// Author-specific state
-	let claimDoi = '';
-	let claimStatus = '';
-	let otherProfileInput = '';
-	let mergeRequestNote = '';
-	let mergeRequestStatus = '';
-	let authorMergeRequests = data.authorMergeRequests;
 
 	$: isAuthor = data.conf.rootType === 'authors';
 	$: isHitPaper = data.conf.rootType === 'hit-papers';
@@ -124,31 +122,27 @@
 
 	async function handleDisown(e: CustomEvent<number>) {
 		const wid = e.detail;
-		disownedSet.add(wid);
-		disownedSet = disownedSet;
+		disownedSet = new Set([...disownedSet, wid]);
 		const resp = await fetch('/api/papers/disown', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ wid })
 		});
 		if (!resp.ok) {
-			disownedSet.delete(wid);
-			disownedSet = disownedSet;
+			disownedSet = new Set([...disownedSet].filter((w) => w !== wid));
 		}
 	}
 
 	async function handleUndisown(e: CustomEvent<number>) {
 		const wid = e.detail;
-		disownedSet.delete(wid);
-		disownedSet = disownedSet;
+		disownedSet = new Set([...disownedSet].filter((w) => w !== wid));
 		const resp = await fetch('/api/papers/disown', {
 			method: 'DELETE',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ wid })
 		});
 		if (!resp.ok) {
-			disownedSet.add(wid);
-			disownedSet = disownedSet;
+			disownedSet = new Set([...disownedSet, wid]);
 		}
 	}
 
@@ -169,83 +163,6 @@
 			method: 'DELETE',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ wid_keep: keep, wid_drop: drop })
-		});
-	}
-
-	async function handleClaim() {
-		const doi = claimDoi.trim();
-		if (!doi) return;
-		claimStatus = 'Submitting...';
-		const resp = await fetch('/api/papers/claim', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ doi })
-		});
-		if (resp.ok) {
-			data.claimedDois = [...data.claimedDois, doi];
-			claimDoi = '';
-			claimStatus = 'Claimed';
-		} else {
-			claimStatus = 'Failed';
-		}
-	}
-
-	async function handleUnClaim(doi: string) {
-		data.claimedDois = data.claimedDois.filter((d) => d !== doi);
-		await fetch('/api/papers/claim', {
-			method: 'DELETE',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ doi })
-		});
-	}
-
-	function parseSemanticId(input: string): string {
-		const trimmed = input.trim();
-		const match = trimmed.match(/\/authors\/(.+?)(?:\?|$)/);
-		if (match) return match[1];
-		const apMatch = trimmed.match(/\/author-papers\/(.+?)(?:\?|$)/);
-		if (apMatch) return apMatch[1];
-		return trimmed.replace(/^\/+/, '');
-	}
-
-	async function handleAuthorMergeRequest() {
-		const otherSemanticId = parseSemanticId(otherProfileInput);
-		if (!otherSemanticId || otherSemanticId === data.conf.semanticId) return;
-		mergeRequestStatus = 'Submitting...';
-		const resp = await fetch('/api/authors/merge-request', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				my_semantic_id: data.conf.semanticId,
-				other_semantic_id: otherSemanticId,
-				note: mergeRequestNote.trim() || null
-			})
-		});
-		if (resp.ok) {
-			authorMergeRequests = [
-				...authorMergeRequests,
-				{
-					other_semantic_id: otherSemanticId,
-					note: mergeRequestNote.trim() || null,
-					created_at: new Date().toISOString()
-				}
-			];
-			otherProfileInput = '';
-			mergeRequestNote = '';
-			mergeRequestStatus = 'Submitted for review';
-		} else {
-			mergeRequestStatus = 'Failed';
-		}
-	}
-
-	async function handleCancelMergeRequest(otherSemanticId: string) {
-		authorMergeRequests = authorMergeRequests.filter(
-			(r) => r.other_semantic_id !== otherSemanticId
-		);
-		await fetch('/api/authors/merge-request', {
-			method: 'DELETE',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ other_semantic_id: otherSemanticId })
 		});
 	}
 </script>
@@ -390,8 +307,8 @@
 
 {#if isAuthor && data.peersData && data.peersData.peers.length > 0}
 	<section id="peers" class="shadowy padded marged main-block">
-		<h2>Peers</h2>
-		<EntityPeers data={data.peersData} />
+		<h2>Peers — A (Enhanced Table)</h2>
+		<PeersA data={data.peersData} />
 	</section>
 {/if}
 
@@ -433,76 +350,11 @@
 		<h2>All Works</h2>
 
 		{#if data.isOwner}
-			<div class="owner-tools">
-				<div class="claim-section">
-					<h3>Claim a Paper</h3>
-					<div class="claim-form">
-						<input type="text" bind:value={claimDoi} placeholder="Enter DOI" class="doi-input" />
-						<button class="btn-sm confirm" on:click={handleClaim}>Claim</button>
-					</div>
-					{#if claimStatus}
-						<span class="claim-status">{claimStatus}</span>
-					{/if}
-					{#if data.claimedDois.length > 0}
-						<div class="claimed-list">
-							<h4>Claimed (pending validation)</h4>
-							{#each data.claimedDois as doi}
-								<div class="claimed-row">
-									<a href="https://doi.org/{doi}" target="_blank" rel="noopener">{doi}</a>
-									<button class="btn-sm" on:click={() => handleUnClaim(doi)}>Remove</button>
-								</div>
-							{/each}
-						</div>
-					{/if}
-				</div>
-
-				<div class="author-merge-section">
-					<h3>Report Duplicate Profile</h3>
-					<p class="section-hint">
-						If another author profile represents the same person, submit a merge request. A human
-						will review it before any changes are applied.
-					</p>
-					<div class="merge-request-form">
-						<input
-							type="text"
-							bind:value={otherProfileInput}
-							placeholder="Profile URL or semantic ID"
-							class="doi-input"
-						/>
-						<textarea
-							bind:value={mergeRequestNote}
-							placeholder="Optional note (e.g. institution, ORCID, DOI of shared paper)"
-							class="note-input"
-							rows="2"
-						/>
-						<div class="form-row">
-							<button class="btn-sm confirm" on:click={handleAuthorMergeRequest}
-								>Submit Request</button
-							>
-							{#if mergeRequestStatus}
-								<span class="claim-status">{mergeRequestStatus}</span>
-							{/if}
-						</div>
-					</div>
-					{#if authorMergeRequests.length > 0}
-						<div class="pending-requests">
-							<h4>Pending Review</h4>
-							{#each authorMergeRequests as req}
-								<div class="claimed-row">
-									<a href="/authors/{req.other_semantic_id}" target="_blank" rel="noopener"
-										>{req.other_semantic_id}</a
-									>
-									{#if req.note}<span class="req-note">{req.note}</span>{/if}
-									<button
-										class="btn-sm"
-										on:click={() => handleCancelMergeRequest(req.other_semantic_id)}>Cancel</button
-									>
-								</div>
-							{/each}
-						</div>
-					{/if}
-				</div>
-			</div>
+			<AuthorOwnerTools
+				semanticId={data.conf.semanticId}
+				claimedDois={data.claimedDois}
+				authorMergeRequests={data.authorMergeRequests}
+			/>
 		{/if}
 
 		<AllWorks
@@ -676,100 +528,5 @@
 
 	section {
 		scroll-margin-top: 90px;
-	}
-
-	/* Owner tools */
-	.owner-tools {
-		margin-bottom: 20px;
-		padding: 14px 16px;
-		border-radius: 4px;
-		border: 1px solid rgba(var(--color-range-15), 0.18);
-		background: rgba(var(--color-range-15), 0.04);
-		display: flex;
-		flex-direction: column;
-		gap: 20px;
-	}
-
-	.claim-section h3,
-	.author-merge-section h3 {
-		font-size: var(--text-base);
-		margin: 0 0 6px 0;
-		text-align: left;
-	}
-
-	.section-hint {
-		font-size: var(--text-xs);
-		opacity: 0.5;
-		margin: 0 0 8px 0;
-	}
-
-	.claim-form,
-	.merge-request-form {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-
-	.claim-form {
-		flex-direction: row;
-		align-items: center;
-	}
-
-	.form-row {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-
-	.doi-input,
-	.note-input {
-		max-width: 400px;
-		font-size: var(--text-sm);
-		padding: 4px 8px;
-		border-radius: 3px;
-		border: 1px solid rgba(var(--color-range-15), 0.2);
-		background: transparent;
-		color: var(--color-text);
-		font-family: inherit;
-	}
-
-	.doi-input {
-		flex: 1;
-	}
-
-	.note-input {
-		resize: vertical;
-	}
-
-	.claim-status {
-		font-size: var(--text-xs);
-		opacity: 0.5;
-		margin-left: 8px;
-	}
-
-	.claimed-list,
-	.pending-requests {
-		margin-top: 8px;
-	}
-
-	.claimed-list h4,
-	.pending-requests h4 {
-		font-size: var(--text-sm);
-		opacity: 0.5;
-		margin: 0 0 4px 0;
-	}
-
-	.claimed-row {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: var(--text-sm);
-		padding: 2px 0;
-	}
-
-	.req-note {
-		font-size: var(--text-xs);
-		opacity: 0.5;
-		font-style: italic;
 	}
 </style>
