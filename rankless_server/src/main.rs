@@ -800,7 +800,7 @@ async fn async_main(n_threads: usize) {
 
     let path: String = std::env::args().last().unwrap();
     let now = std::time::Instant::now();
-    println!("reading from path: {}", path);
+    println!("threads: {n_threads} path: {path}");
     let stowage = Stowage::new(&path);
     let (ns_map, satts, tree_manager, counts_response, tops, author_peer_data) =
         get_rest(stowage, n_threads);
