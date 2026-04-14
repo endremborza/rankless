@@ -254,11 +254,11 @@
 
 	.score-title {
 		font-weight: 600;
-		font-size: 1.2rem;
+		font-size: var(--text-lg);
 	}
 
 	.score-desc {
-		font-size: 0.8rem;
+		font-size: var(--text-sm);
 		margin: 0;
 	}
 

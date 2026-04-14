@@ -88,7 +88,7 @@
 	.paper {
 		border: solid transparent 1px;
 		max-width: 280px;
-		font-size: 0.75rem;
+		font-size: var(--text-sm);
 		padding: 6px;
 		flex: 1 0 200px;
 		box-sizing: border-box;
@@ -105,7 +105,7 @@
 
 	h4 {
 		margin: 12px 0 4px;
-		font-size: 0.7rem;
+		font-size: var(--text-xs);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		opacity: 0.6;

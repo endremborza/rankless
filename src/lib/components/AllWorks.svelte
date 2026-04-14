@@ -402,7 +402,7 @@
 	}
 
 	.merge-badge {
-		font-size: 0.6rem;
+		font-size: var(--text-xs);
 		padding: 1px 5px;
 		border-radius: 3px;
 		border: 1px solid rgba(var(--color-range-15), 0.2);
@@ -513,7 +513,7 @@
 	.merged-section summary,
 	.disowned-section summary {
 		cursor: pointer;
-		font-size: 0.8rem;
+		font-size: var(--text-sm);
 		opacity: 0.5;
 	}
 
@@ -535,11 +535,11 @@
 
 	@media (min-width: 1200px) {
 		.paper-ref {
-			font-size: 1rem;
+			font-size: var(--text-md);
 		}
 
 		.paper-meta {
-			font-size: 0.85rem;
+			font-size: var(--text-base);
 		}
 	}
 </style>

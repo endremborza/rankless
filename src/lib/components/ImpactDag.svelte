@@ -359,7 +359,7 @@
 		display: inline-block;
 		padding: 2px 8px;
 		border-radius: 4px;
-		font-size: 0.7rem;
+		font-size: var(--text-xs);
 		font-weight: 600;
 	}
 
@@ -376,7 +376,7 @@
 		border-radius: 4px;
 		padding: 2px 10px;
 		cursor: pointer;
-		font-size: 0.85rem;
+		font-size: var(--text-base);
 		color: var(--color-text);
 	}
 
@@ -385,7 +385,7 @@
 	}
 
 	.nav-label {
-		font-size: 0.8rem;
+		font-size: var(--text-sm);
 		opacity: 0.6;
 	}
 
@@ -408,7 +408,7 @@
 
 	.level-label {
 		margin: 0;
-		font-size: 0.85rem;
+		font-size: var(--text-base);
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		opacity: 0.5;
@@ -429,7 +429,7 @@
 	}
 
 	.expand-link {
-		font-size: 0.75rem;
+		font-size: var(--text-sm);
 		opacity: 0.5;
 		cursor: pointer;
 		text-decoration: underline;
@@ -470,11 +470,11 @@
 		}
 
 		.level-label {
-			font-size: 1.15rem;
+			font-size: var(--text-lg);
 		}
 
 		.summary-badge {
-			font-size: 0.85rem;
+			font-size: var(--text-base);
 		}
 
 		.chips {

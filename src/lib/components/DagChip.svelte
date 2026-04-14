@@ -126,8 +126,8 @@
 <style>
 	.chip {
 		padding: 6px 10px;
-		font-size: 0.78rem;
-		line-height: 1.3;
+		font-size: var(--text-sm);
+		line-height: var(--lh-ui);
 		border-radius: 4px;
 		border: 1px solid rgba(var(--color-range-15), 0.15);
 		background: rgba(var(--color-range-15), 0.03);
@@ -176,11 +176,11 @@
 		display: flex;
 		align-items: center;
 		gap: 4px;
-		font-size: 0.65rem;
+		font-size: var(--text-xs);
 	}
 
 	.chip-details {
-		font-size: 0.65rem;
+		font-size: var(--text-xs);
 		opacity: 0.7;
 		margin-top: 4px;
 		padding-top: 4px;
@@ -208,7 +208,7 @@
 		display: inline-block;
 		padding: 1px 5px;
 		border-radius: 3px;
-		font-size: 0.55rem;
+		font-size: var(--text-2xs);
 		font-weight: 700;
 		letter-spacing: 0.03em;
 		text-transform: uppercase;
@@ -232,21 +232,21 @@
 	@media (min-width: 1200px) {
 		.chip {
 			padding: 8px 12px;
-			font-size: 1.15rem;
+			font-size: var(--text-lg);
 			flex-basis: 300px;
 		}
 
 		.chip-sub {
-			font-size: 0.9rem;
+			font-size: var(--text-base);
 		}
 
 		.badge {
-			font-size: 0.8rem;
+			font-size: var(--text-sm);
 			padding: 1px 6px;
 		}
 
 		.chip-details {
-			font-size: 0.82rem;
+			font-size: var(--text-sm);
 		}
 	}
 

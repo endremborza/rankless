@@ -18,7 +18,7 @@
 
 <style>
 	#spec-info-hover {
-		font-size: 0.7rem;
+		font-size: var(--text-xs);
 		font-weight: 400;
 		border: 1px solid var(--color-text);
 		display: inline-flex;

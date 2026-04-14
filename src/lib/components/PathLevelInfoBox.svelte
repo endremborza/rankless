@@ -141,13 +141,13 @@
 	</span>
 	{#if path != undefined && leaf != undefined}
 		<div class="pli-basics-container padded">
-			<h2 class="hover-l">{leaf.name}</h2>
-			<p class="hover-s">
+			<h2 class="vw-lg">{leaf.name}</h2>
+			<p class="vw-base">
 				{#if path.length > 0 && (leaf.linkCount || 0) > 0}
 					{getSpecDesc(leaf.spec.specMetric)} Specialization
 				{/if}
 			</p>
-			<p class="hover-s">
+			<p class="vw-base">
 				{pluralize('paper', leaf.sourceCount || 0)}
 				receiving
 				{pluralize(`${citePrefix}citation`, leaf.linkCount || 0)}

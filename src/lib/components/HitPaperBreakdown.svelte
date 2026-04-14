@@ -99,7 +99,7 @@
 	}
 
 	.breakdown-label {
-		font-size: 0.68rem;
+		font-size: var(--text-xs);
 		opacity: 0.45;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
@@ -114,7 +114,7 @@
 	}
 
 	.breakdown-loading {
-		font-size: 0.72rem;
+		font-size: var(--text-xs);
 		opacity: 0.35;
 		padding: 6px 0;
 	}

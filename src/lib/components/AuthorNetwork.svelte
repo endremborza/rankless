@@ -127,7 +127,7 @@
 			{showControls ? '✕ Close' : '⚙ Controls'}
 		</button>
 		{#if !showControls}
-			<p class="text-s">
+			<p class="vw-base">
 				This figure shows the co-authorship network connecting the top 25 collaborators of {rootName}.
 				A scholar is included among the top collaborators of {rootName} based on the total number of
 				citations received by their joint publications. <b class="edgecolor">Widths of edges</b>
@@ -151,23 +151,23 @@
 				{#if actFun == 'force'}
 					<div class="sliders" transition:slide>
 						<label>
-							<span class="text-s">Gravity: {gravity}</span>
+							<span class="vw-base">Gravity: {gravity}</span>
 							<input type="range" min="0" max="1" step="0.01" bind:value={gravity} />
 						</label>
 						<label>
-							<span class="text-s">Iterations: {numIter}</span>
+							<span class="vw-base">Iterations: {numIter}</span>
 							<input type="range" min="1" max="1000" step="1" bind:value={numIter} />
 						</label>
 						<label>
-							<span class="text-s">Initial Temp: {initialTemp}</span>
+							<span class="vw-base">Initial Temp: {initialTemp}</span>
 							<input type="range" min="10" max="2000" step="1" bind:value={initialTemp} />
 						</label>
 						<label>
-							<span class="text-s">Cooling: {coolingFactor}</span>
+							<span class="vw-base">Cooling: {coolingFactor}</span>
 							<input type="range" min="0" max="1" step=".01" bind:value={coolingFactor} />
 						</label>
 						<label>
-							<span class="text-s">Min Temp: {minTemp}</span>
+							<span class="vw-base">Min Temp: {minTemp}</span>
 							<input type="range" min="1" max="1000" step="1" bind:value={minTemp} />
 						</label>
 					</div>

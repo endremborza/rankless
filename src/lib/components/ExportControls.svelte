@@ -89,13 +89,13 @@
 		flex-wrap: wrap;
 		gap: 0.6rem;
 		align-items: center;
-		font-size: 0.75rem;
+		font-size: var(--text-sm);
 	}
 
 	select,
 	.num-input {
 		margin-left: 0.2rem;
-		font-size: 0.75rem;
+		font-size: var(--text-sm);
 		padding: 2px 4px;
 	}
 
@@ -108,7 +108,7 @@
 	}
 
 	button {
-		font-size: 0.7rem;
+		font-size: var(--text-xs);
 		padding: 3px 10px;
 		border-radius: 3px;
 		border: 1px solid rgba(var(--color-range-15), 0.2);
@@ -122,22 +122,22 @@
 	}
 
 	.filter-note {
-		font-size: 0.7rem;
+		font-size: var(--text-xs);
 		opacity: 0.5;
 	}
 
 	@media (min-width: 1200px) {
 		.controls {
-			font-size: 0.9rem;
+			font-size: var(--text-base);
 		}
 
 		select,
 		.num-input {
-			font-size: 0.85rem;
+			font-size: var(--text-base);
 		}
 
 		button {
-			font-size: 0.85rem;
+			font-size: var(--text-base);
 			padding: 4px 12px;
 		}
 	}

@@ -126,7 +126,7 @@
 	}
 
 	.result-card > span {
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 	}
 
 	.disclaimer-wrap {

@@ -20,7 +20,7 @@
 
 <style>
 	#by-span {
-		font-size: 0.6rem;
+		font-size: var(--text-xs);
 	}
 
 	#logo-text {
@@ -38,7 +38,7 @@
 	}
 
 	#logo-text > a > b {
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 		padding-left: 15px;
 	}
 

@@ -258,7 +258,7 @@
 		background: none;
 		border: none;
 		font-family: inherit;
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 		padding: 6px 10px;
 		cursor: pointer;
 		color: var(--color-theme-darkgrey);
@@ -300,7 +300,7 @@
 		background: none;
 		border: none;
 		font-family: inherit;
-		font-size: 0.9rem;
+		font-size: var(--text-base);
 		padding: 8px 14px;
 		cursor: pointer;
 		color: var(--color-theme-darkgrey);
@@ -328,7 +328,7 @@
 	}
 
 	.login-btn {
-		font-size: 0.8rem;
+		font-size: var(--text-sm);
 		padding: 5px 10px;
 		border-radius: var(--borad);
 		color: var(--color-theme-darkgrey);
@@ -346,7 +346,7 @@
 		background: none;
 		border: none;
 		font-family: inherit;
-		font-size: 0.85rem;
+		font-size: var(--text-base);
 		padding: 5px 10px;
 		cursor: pointer;
 		color: var(--color-theme-darkgrey);
