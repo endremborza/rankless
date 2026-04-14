@@ -298,7 +298,7 @@
 			</div>
 		</FlatOutFrame>
 	</div>
-	<p class="text-s">{@html getMapText(conf.rootType, rootName, isSpec, isRefSide)}</p>
+	<p class="vw-base">{@html getMapText(conf.rootType, rootName, isSpec, isRefSide)}</p>
 </div>
 
 <style>

@@ -577,7 +577,7 @@
 	}
 
 	.profile-link {
-		font-size: 0.8rem;
+		font-size: var(--text-sm);
 		font-weight: 600;
 		color: var(--color-theme-blue);
 		text-decoration: none;
@@ -591,14 +591,14 @@
 	}
 
 	.no-breakdown {
-		font-size: 0.8rem;
+		font-size: var(--text-sm);
 		opacity: 0.4;
 		padding: 20px 0;
 		text-align: center;
 	}
 
 	.paper-profile-link {
-		font-size: 0.7rem;
+		font-size: var(--text-xs);
 		color: var(--color-theme-blue);
 		text-decoration: none;
 		opacity: 0.6;
@@ -659,7 +659,7 @@
 		background: none;
 		border: none;
 		cursor: pointer;
-		font-size: 0.6rem;
+		font-size: var(--text-xs);
 		opacity: 0.55;
 		padding: 0 2px;
 		flex-shrink: 0;
@@ -670,7 +670,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 4px 12px;
-		font-size: 0.75rem;
+		font-size: var(--text-sm);
 		font-weight: 400;
 		opacity: 0.65;
 		margin-top: 2px;
@@ -690,7 +690,7 @@
 
 	.paper-details {
 		margin-top: 8px;
-		font-size: 0.75rem;
+		font-size: var(--text-sm);
 		font-weight: 400;
 		border-top: 1px solid rgba(128, 128, 128, 0.3);
 		padding-top: 6px;

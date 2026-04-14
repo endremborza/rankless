@@ -318,7 +318,7 @@
 				<div class="concept-map-legend">
 					{#each Object.entries(parents) as [i, parent]}
 						<span
-							class="hover-xs"
+							class="vw-sm"
 							on:mouseover={() => (hoveredParent = [i, undefined])}
 							on:mouseleave={() => (hoveredParent = [undefined, undefined])}
 							role="none"
@@ -329,7 +329,7 @@
 			</div>
 		</FlatOutFrame>
 	</div>
-	<p class="text-s">{@html getNetworkText(conf.rootType, rootName, isSpec, sourceSide)}</p>
+	<p class="vw-base">{@html getNetworkText(conf.rootType, rootName, isSpec, sourceSide)}</p>
 </div>
 
 <style>

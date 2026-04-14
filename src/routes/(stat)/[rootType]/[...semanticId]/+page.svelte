@@ -444,7 +444,7 @@
 	}
 
 	.dag-link {
-		font-size: 0.75rem;
+		font-size: var(--text-sm);
 		opacity: 0.4;
 		text-decoration: none;
 		color: var(--color-text);
@@ -485,7 +485,7 @@
 
 	.indexed-subtext {
 		opacity: 0.8;
-		font-size: 0.8rem;
+		font-size: var(--text-sm);
 	}
 
 	h2 {
@@ -504,13 +504,14 @@
 
 	#abstract summary h2 {
 		display: inline;
-		font-size: 0.9rem;
-		opacity: 0.5;
+		font-size: var(--text-sm);
+		font-weight: normal;
+		opacity: 0.55;
 	}
 
 	#abstract p {
-		font-size: 0.9rem;
-		line-height: 1.6;
+		font-size: var(--text-base);
+		line-height: var(--lh-body);
 		opacity: 0.85;
 	}
 
@@ -523,7 +524,7 @@
 
 	.abstract-loading {
 		opacity: 0.35;
-		font-size: 0.8rem;
+		font-size: var(--text-sm);
 	}
 
 	section {

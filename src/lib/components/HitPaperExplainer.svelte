@@ -15,7 +15,7 @@
 
 <style>
 	.hit-paper-explainer {
-		font-size: 0.8rem;
+		font-size: var(--text-sm);
 		opacity: 0.8;
 	}
 

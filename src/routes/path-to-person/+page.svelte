@@ -134,7 +134,7 @@
 
 	label {
 		display: block;
-		font-size: 0.8rem;
+		font-size: var(--text-sm);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		margin-bottom: 6px;
@@ -145,7 +145,7 @@
 		width: 100%;
 		box-sizing: border-box;
 		padding: 10px 14px;
-		font-size: 1rem;
+		font-size: var(--text-md);
 		border: solid 1px var(--color-theme-blue);
 		background: var(--text-bg-2);
 		color: var(--color-text);
@@ -179,7 +179,7 @@
 	}
 
 	.dropdown li span {
-		font-size: 0.75rem;
+		font-size: var(--text-sm);
 		opacity: 0.6;
 	}
 </style>

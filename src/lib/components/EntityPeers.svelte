@@ -322,11 +322,11 @@
 
 	@media (min-width: 1200px) {
 		.peers-table {
-			font-size: 0.95rem;
+			font-size: var(--text-base);
 		}
 
 		thead th {
-			font-size: 0.8rem;
+			font-size: var(--text-sm);
 			padding: 6px 10px;
 		}
 
@@ -335,15 +335,15 @@
 		}
 
 		.sf-num {
-			font-size: 0.9rem;
+			font-size: var(--text-base);
 		}
 
 		.sf-ratio {
-			font-size: 0.75rem;
+			font-size: var(--text-sm);
 		}
 
 		.stat-cell {
-			font-size: 0.9rem;
+			font-size: var(--text-base);
 		}
 
 		.spark-cell {

@@ -56,11 +56,28 @@
 		gap: 12px;
 	}
 
-	.survey-left { flex: 1; }
-	.survey-left strong { display:block; font-size:1.05rem; }
-	.muted { color: var(--accent-text); margin: 0.25rem 0 0; }
+	.survey-left {
+		flex: 1;
+	}
+	.survey-left strong {
+		display: block;
+		font-size: var(--text-md);
+	}
+	.muted {
+		color: var(--accent-text);
+		margin: 0.25rem 0 0;
+	}
 
-	.survey-actions { display:flex; gap: 8px; align-items:center; }
+	.survey-actions {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+	}
 
-	.btn.close { font-size: 1.25rem; line-height: 1; background:transparent; padding: .25rem .5rem; }
+	.btn.close {
+		font-size: var(--text-xl);
+		line-height: 1;
+		background: transparent;
+		padding: 0.25rem 0.5rem;
+	}
 </style>

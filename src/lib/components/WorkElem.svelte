@@ -95,8 +95,8 @@
 {#if title}
 	<div id="main" class="padded">
 		<row>
-			<h2 class="hover-l">Top Paper:</h2>
-			<p class="hover-s"><a {href} target="_blank">{@html title} ({y})</a></p>
+			<h2 class="vw-lg">Top Paper:</h2>
+			<p class="vw-base"><a {href} target="_blank">{@html title} ({y})</a></p>
 		</row>
 		{#if abstract}
 			<div class="abstract-section">
@@ -110,10 +110,10 @@
 		{/if}
 		{#if authors.length > 0}
 			<row>
-				<h4 class="hover-m">
+				<h4 class="vw-md">
 					Author{authors.length > 1 ? 's' : ''}:
 				</h4>
-				<al class="hover-s">
+				<al class="vw-base">
 					{#each authors.slice(0, 3).entries() as [i, author]}
 						<a href={author.link} target="_blank"
 							>{author.name}{author.isOfInst ? '*' : ''}{i < Math.min(authors.length - 1, 2)
@@ -128,11 +128,11 @@
 			</row>
 		{/if}
 		<row>
-			<p class="hover-s">
+			<p class="vw-base">
 				{citeText}
 			</p>
 		</row>
-		<footnote class="hover-xs">
+		<footnote class="vw-sm">
 			{#if localCount > 0}*: author {fullInstName} ({localCount}/{authors.length}){/if}
 		</footnote>
 	</div>
@@ -162,7 +162,7 @@
 	}
 
 	.abstract-section {
-		font-size: min(0.85rem, 2.2vw);
+		font-size: var(--text-base-vw);
 		padding: 0 calc(var(--unified-padding) / 2);
 	}
 
@@ -188,7 +188,7 @@
 		background: none;
 		border: none;
 		padding: 2px 0;
-		font-size: 0.75rem;
+		font-size: var(--text-sm);
 		opacity: 0.5;
 		cursor: pointer;
 		color: inherit;

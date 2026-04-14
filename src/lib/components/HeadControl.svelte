@@ -13,7 +13,7 @@
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<span
 		id="spec-label"
-		class="hover-m {interactText ? 'clickable' : ''}"
+		class="vw-md {interactText ? 'clickable' : ''}"
 		on:click={() => {
 			if (interactText) {
 				checked = !checked;
