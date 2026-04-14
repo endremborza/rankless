@@ -8,6 +8,8 @@ pub struct CountriesTopAffCountries { }
 
 pub struct CountriesTopCitingSubfields { }
 
+pub struct AuthorsYearCentroid { }
+
 pub struct AuthorsRelInsts { }
 
 pub struct SubfieldsCitSubfields { }
@@ -131,6 +133,8 @@ pub struct SourcesCitSubfields { }
 pub struct TopicsTopJournals { }
 
 pub struct AuthorsTopJournals { }
+
+pub struct AuthorsHIndex { }
 
 pub struct SourcesTopPaperSubfields { }
 
@@ -777,6 +781,22 @@ impl Entity for SubfieldPairsByPath { type T = ([u8; 2], u32); const N: usize = 
 impl MappableEntity for SubfieldPairsByPath { type KeyType = usize; }
 
 impl NamespacedEntity for SubfieldPairsByPath { const NS: & str = "derive_links2"; }
+
+impl Entity for AuthorsHIndex { type T = u32; const N: usize = 4204242; const NAME: & str = "authors-h-index"; }
+
+impl MappableEntity for AuthorsHIndex { type KeyType = usize; }
+
+impl NamespacedEntity for AuthorsHIndex { const NS: & str = "derive_links2"; }
+
+impl MarkedAttribute<crate::common::HIndexMarker> for crate::gen::a1_entity_mapping::Authors { type AttributeEntity = AuthorsHIndex; }
+
+impl Entity for AuthorsYearCentroid { type T = f32; const N: usize = 4204242; const NAME: & str = "authors-year-centroid"; }
+
+impl MappableEntity for AuthorsYearCentroid { type KeyType = usize; }
+
+impl NamespacedEntity for AuthorsYearCentroid { const NS: & str = "derive_links2"; }
+
+impl MarkedAttribute<crate::common::YearCentroidMarker> for crate::gen::a1_entity_mapping::Authors { type AttributeEntity = AuthorsYearCentroid; }
 
 impl Entity for WorkCitingCounts { type T = u32; const N: usize = 91433302; const NAME: & str = "work-citing-counts"; }
 
