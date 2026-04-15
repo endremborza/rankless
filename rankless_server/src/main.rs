@@ -746,7 +746,8 @@ fn update_w_node_if<T>(
 ) where
     T: NodeInterfaceable,
 {
-    NodeInterfaces::<T>::new(&gets.stowage).update_stats(&mut mux_satts.lock().unwrap(), *ccount);
+    let (k, v) = NodeInterfaces::<T>::new(&gets.stowage).into_stats_entry(*ccount);
+    mux_satts.lock().unwrap().insert(k, v);
 }
 
 fn get_state_tr_ed_kv<E>(
@@ -764,7 +765,8 @@ where
     let ent_intf = RootInterfaces::<E>::new(&gets_clone.stowage);
     let nstate = NameState::new::<E>(&ent_intf, &gets_clone);
     let ccount = wait_for_data_copy(shared_cvp);
-    ent_intf.update_stats(&mut au_clone.lock().unwrap(), ccount);
+    let (k, v) = ent_intf.into_stats_entry(ccount);
+    au_clone.lock().unwrap().insert(k, v);
     let entities = nstate
         .responses
         .iter()
