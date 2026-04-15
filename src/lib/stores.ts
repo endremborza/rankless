@@ -39,7 +39,7 @@ export function getCachedPaper(id: number) {
 }
 
 export function prefetchPaper(workId: number, onDone?: () => void) {
-	if (workId === 0) return;
+	if (!browser || workId === 0) return;
 	if (paperCache.has(workId)) {
 		onDone?.();
 		return;

@@ -1,7 +1,6 @@
 use std::{f64, sync::Arc};
 
 use crate::{
-    ids::AttributeLabelUnion,
     io::{AttributeLabel, WT},
     path_finder::RefGraph,
 };
@@ -325,8 +324,8 @@ impl<E> NodeInterfaces<E>
 where
     E: NodeInterfaceable,
 {
-    pub fn update_stats(self, stats: &mut AttributeLabelUnion, full_cc: f64) {
-        update_stats::<E>(self.names, self.ccounts, Vec::new(), stats, full_cc)
+    pub fn into_stats_entry(self, full_cc: f64) -> (String, Box<[AttributeLabel]>) {
+        make_stats_entry::<E>(self.names, self.ccounts, Vec::new(), full_cc)
     }
 }
 
@@ -334,14 +333,8 @@ impl<E> RootInterfaces<E>
 where
     E: NodeInterfaceable + RootInterfaceable,
 {
-    pub fn update_stats(self, stats: &mut AttributeLabelUnion, full_cc: f64) {
-        update_stats::<E>(
-            self.names,
-            self.ccounts,
-            self.sem_ids.0.to_vec(),
-            stats,
-            full_cc,
-        )
+    pub fn into_stats_entry(self, full_cc: f64) -> (String, Box<[AttributeLabel]>) {
+        make_stats_entry::<E>(self.names, self.ccounts, self.sem_ids.0.to_vec(), full_cc)
     }
 }
 
@@ -519,13 +512,13 @@ impl RefGraph for Getters {
     }
 }
 
-fn update_stats<E>(
+fn make_stats_entry<E>(
     names: VarBox<String>,
     ccounts: Box<[<E as NumAtt<CiteCountMarker>>::Num]>,
     semantic_ids: Vec<String>,
-    stats: &mut AttributeLabelUnion,
     full_cc: f64,
-) where
+) -> (String, Box<[AttributeLabel]>)
+where
     E: NodeInterfaceable,
 {
     const SPEC_RATE: f64 = 1.0 - SPEC_CORR_RATE;
@@ -546,5 +539,5 @@ fn update_stats<E>(
             }
         })
         .collect();
-    stats.insert(E::NAME.to_string(), elevel);
+    (E::NAME.to_string(), elevel)
 }

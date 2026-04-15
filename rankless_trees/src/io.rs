@@ -587,15 +587,23 @@ impl TreeBasisState {
     }
 
     pub fn full_cache_file_period(&self, fq: &FullTreeQuery, period: u8) -> PathBuf {
-        self.cache_dir(fq).join(format!("full-{}.gz", period))
+        self.cache_file(fq, period, Some("full"))
     }
 
     pub fn wide_cache_file_period(&self, fq: &FullTreeQuery, period: u8) -> PathBuf {
-        self.cache_dir(fq).join(format!("wide-{}.gz", period))
+        self.cache_file(fq, period, Some("wide"))
     }
 
     pub fn pruned_cache_file_period(&self, fq: &FullTreeQuery, period: u8) -> PathBuf {
-        self.cache_dir(fq).join(format!("{}.gz", period))
+        self.cache_file(fq, period, None)
+    }
+
+    fn cache_file(&self, fq: &FullTreeQuery, period: u8, prefix: Option<&str>) -> PathBuf {
+        let name = match prefix {
+            Some(p) => format!("{}-{}.zst", p, period),
+            None => format!("{}.zst", period),
+        };
+        self.cache_dir(fq).join(name)
     }
 
     pub fn resp_cache_file(&self, fq: &FullTreeQuery) -> PathBuf {

@@ -631,16 +631,6 @@ where
     Ok(BufReader::new(zstd::Decoder::new(File::open(file_name)?)?))
 }
 
-fn get_compressed_bufw<P>(file_name: P) -> io::Result<BufWriter<zstd::Encoder<'static, File>>>
-where
-    P: AsRef<Path> + Debug,
-{
-    Ok(BufWriter::new(zstd::Encoder::new(
-        File::create(file_name)?,
-        3,
-    )?))
-}
-
 pub fn read_buf_path<T, P>(fp: P) -> Result<T, bincode::Error>
 where
     T: DeserializeOwned,
@@ -655,11 +645,9 @@ where
     T: Serialize,
     P: AsRef<Path> + Debug,
 {
-    let bufw = get_compressed_bufw(fp)?;
-    match bincode::serialize_into(bufw, &obj) {
-        Ok(_) => Ok(()),
-        Err(s) => Err(io::Error::new(io::ErrorKind::Other, s)),
-    }
+    let enc = zstd::Encoder::new(BufWriter::new(File::create(&fp)?), 3)?.auto_finish();
+    let mut bufw = BufWriter::new(enc);
+    bincode::serialize_into(&mut bufw, &obj).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
 
 pub fn read_json_path<T, P>(fp: P) -> Result<T, io::Error>
@@ -672,14 +660,6 @@ where
         Ok(br) => Ok(br),
         Err(_e) => Err(io::Error::from_raw_os_error(22)),
     }
-}
-
-pub fn write_json_path<T, P>(obj: T, fp: P) -> Result<(), serde_json::Error>
-where
-    T: Serialize,
-    P: AsRef<Path> + Debug,
-{
-    serde_json::to_writer(get_compressed_bufw(fp).unwrap(), &obj)
 }
 
 pub fn short_string_to_u64(input: &str) -> BigId {
@@ -735,5 +715,21 @@ fn read_deser_obj<T: DeserializeOwned>(root: &Path, main_path: &str, sub_path: &
         current: None,
         remaining: paths.into(),
         label: format!("{main_path}/{sub_path}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn buf_path_roundtrip() {
+        let path = "/tmp/test-buf-path-roundtrip.zst";
+        let data: Vec<u64> = vec![1, 2, 3, 42, u64::MAX];
+        write_buf_path(data.clone(), path).unwrap();
+        let loaded: Vec<u64> = read_buf_path(path).unwrap();
+        assert_eq!(data, loaded);
+        fs::remove_file(path).unwrap();
     }
 }
