@@ -2,10 +2,12 @@ import hashlib
 import json
 import re
 import sys
+import os
 import time
 from urllib.parse import quote_plus
 from datetime import datetime
 from multiprocessing import Pool
+from dotenv import load_dotenv
 
 import pandas as pd
 import requests
@@ -20,12 +22,25 @@ TIDC = "tid"
 BDSC = "bds"
 
 
+def parse_env_list(k, default):
+    s = os.environ.get(k)
+    if s is None:
+        return default
+    return list(map(int, s.split(",")))
+
+
+load_dotenv(".env", override=True)
+
+default_bins = [1_500_000 * 4, 3_500_000 * 4, 12_000_000 * 4]
+
+BIG_LIMIT = int(os.environ.get("BIG_LIMIT", 80_000_000 * 4))
+BINS = parse_env_list("RL_BINS", default_bins)
+PROC_COUNTS = parse_env_list("RL_PROCS", [16, 8, 4, 1])
+
+
 class BatchRequester:
     def __init__(
-        self,
-        min_citations=100_000,
-        big_limit=80_000_000 * 4,
-        addr: str = DEFAULT_ADDR,
+        self, min_citations=100_000, big_limit=BIG_LIMIT, addr: str = DEFAULT_ADDR
     ) -> None:
         self.addr = addr
         self.big_limit = big_limit
@@ -47,18 +62,21 @@ class BatchRequester:
             .rename(columns={"dm_id": "index"})
             .pipe(add_be_urls, year, addr)
         )
-
         self.big_urls = self.urled_sample.loc[
             lambda df: df["cut_basis"] > big_limit, "url"
         ].tolist()
+        print("BIGS:", len(self.big_urls))
         self.resps = []
 
     def do_rest(
-        self,
-        bins=[0, 1_500_00 * 4, 3_500_000 * 4, 12_000_000 * 4],
-        proc_counts=[16, 8, 4, 1],
-        sampling_kwargs={"frac": 1.0},
+        self, bins=[0, *BINS], proc_counts=PROC_COUNTS, sampling_kwargs={"frac": 1.0}
     ):
+        print(
+            "running with bins ",
+            [f"{round(e / 1e6, 1)}M" for e in [*bins, self.big_limit]],
+        )
+        print("procs", proc_counts)
+        print(f"n: {round(self.urled_sample.shape[0] / 1e3, 1)}k")
         for gid, gdf in tqdm(self.iter_gdfs(bins, proc_counts)):
             suburls = gdf.sample(**sampling_kwargs)["url"].tolist()
             self._run(suburls, gid)
