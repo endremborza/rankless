@@ -24,8 +24,10 @@ use dmove::{
 
 pub type RawYear = u16;
 pub type YBT = [RawYear; N_PERS];
-pub const N_PERS: usize = 8;
-pub const POSSIBLE_YEAR_FILTERS: YBT = [START_YEAR, 2010, 2015, 2020, 2021, 2022, 2023, 2024];
+pub const N_PERS: usize = 12;
+pub const POSSIBLE_YEAR_FILTERS: YBT = [
+    START_YEAR, 1970, 1990, 2000, 2005, 2010, 2015, 2020, 2021, 2022, 2023, 2024,
+];
 
 pub struct Years {}
 pub struct YearInterface {}
