@@ -1,16 +1,16 @@
 import hashlib
 import json
+import os
 import re
 import sys
-import os
 import time
-from urllib.parse import quote_plus
 from datetime import datetime
 from multiprocessing import Pool
-from dotenv import load_dotenv
+from urllib.parse import quote_plus
 
 import pandas as pd
 import requests
+from dotenv import load_dotenv
 from tqdm import tqdm
 
 DEFAULT_ADDR = "http://127.0.0.1:3038"
@@ -31,11 +31,13 @@ def parse_env_list(k, default):
 
 load_dotenv(".env", override=True)
 
-default_bins = [1_500_000 * 4, 3_500_000 * 4, 12_000_000 * 4]
+default_bins = [1.5 * 4, 3.5 * 4, 12 * 4]
 
-BIG_LIMIT = int(os.environ.get("BIG_LIMIT", 80_000_000 * 4))
+BIG_LIMIT = float(os.environ.get("BIG_LIMIT", 80 * 4))
 BINS = parse_env_list("RL_BINS", default_bins)
 PROC_COUNTS = parse_env_list("RL_PROCS", [16, 8, 4, 1])
+
+assert len(BINS) == (len(PROC_COUNTS) - 1)
 
 
 class BatchRequester:
@@ -71,10 +73,6 @@ class BatchRequester:
     def do_rest(
         self, bins=[0, *BINS], proc_counts=PROC_COUNTS, sampling_kwargs={"frac": 1.0}
     ):
-        print(
-            "running with bins ",
-            [f"{round(e / 1e6, 1)}M" for e in [*bins, self.big_limit]],
-        )
         print("procs", proc_counts)
         print(f"n: {round(self.urled_sample.shape[0] / 1e3, 1)}k")
         for gid, gdf in tqdm(self.iter_gdfs(bins, proc_counts)):
@@ -95,12 +93,13 @@ class BatchRequester:
             self.urled_sample.loc[:, [RTC, SIDC, TIDC, BDSC, "citations", "cut_basis"]]
         )
 
-    def iter_gdfs(self, bins: list[int], labels: list):
+    def iter_gdfs(self, bins: list[float], labels: list):
+        full_bins = [*bins, self.big_limit]
+        print("running with bins ", [f"{e}M" for e in full_bins])
+        mbins = [e * 1e6 for e in full_bins]
         return (
             self.urled_sample.assign(
-                ccut=lambda df: pd.cut(
-                    df["cut_basis"], [*bins, self.big_limit], labels=labels
-                )
+                ccut=lambda df: pd.cut(df["cut_basis"], mbins, labels=labels)
             )
             .loc[lambda df: df["ccut"].notna()]
             .groupby("ccut", observed=True)
