@@ -64,9 +64,9 @@ pub struct WorkYears { }
 
 pub struct TopicsWikipedia { }
 
-pub struct SubfieldAncestors { }
-
 pub struct FieldAncestors { }
+
+pub struct SubfieldAncestors { }
 
 pub struct WorkAnyAuthorships { }
 
@@ -324,16 +324,6 @@ impl MappableEntity for AuthorRawWorkCounts { type KeyType = usize; }
 
 impl NamespacedEntity for AuthorRawWorkCounts { const NS: & str = "a2_init_atts"; }
 
-impl Entity for SubfieldsNameExts { type T = String; const N: usize = 254; const NAME: & str = "subfields-name-exts"; }
-
-impl MappableEntity for SubfieldsNameExts { type KeyType = usize; }
-
-impl VariableSizeAttribute for SubfieldsNameExts { type SizeType = u8; type LocType = u8; }
-
-impl NamespacedEntity for SubfieldsNameExts { const NS: & str = "a2_init_atts"; }
-
-impl MarkedAttribute<crate::common::NameExtensionMarker> for crate::gen::a1_entity_mapping::Subfields { type AttributeEntity = SubfieldsNameExts; }
-
 impl Entity for CountriesNameExts { type T = String; const N: usize = 233; const NAME: & str = "countries-name-exts"; }
 
 impl MappableEntity for CountriesNameExts { type KeyType = usize; }
@@ -343,6 +333,16 @@ impl VariableSizeAttribute for CountriesNameExts { type SizeType = u8; type LocT
 impl NamespacedEntity for CountriesNameExts { const NS: & str = "a2_init_atts"; }
 
 impl MarkedAttribute<crate::common::NameExtensionMarker> for crate::gen::a1_entity_mapping::Countries { type AttributeEntity = CountriesNameExts; }
+
+impl Entity for SubfieldsNameExts { type T = String; const N: usize = 254; const NAME: & str = "subfields-name-exts"; }
+
+impl MappableEntity for SubfieldsNameExts { type KeyType = usize; }
+
+impl VariableSizeAttribute for SubfieldsNameExts { type SizeType = u8; type LocType = u8; }
+
+impl NamespacedEntity for SubfieldsNameExts { const NS: & str = "a2_init_atts"; }
+
+impl MarkedAttribute<crate::common::NameExtensionMarker> for crate::gen::a1_entity_mapping::Subfields { type AttributeEntity = SubfieldsNameExts; }
 
 impl Entity for SubfieldsWikipedia { type T = String; const N: usize = 254; const NAME: & str = "subfields-wikipedia"; }
 
@@ -396,14 +396,6 @@ impl MappableEntity for SourceYearQs { type KeyType = (u16, u8); }
 
 impl NamespacedEntity for SourceYearQs { const NS: & str = "a2_init_atts"; }
 
-impl Entity for SubfieldAncestors { type T = u8; const N: usize = 254; const NAME: & str = "subfield-ancestors"; }
-
-impl MappableEntity for SubfieldAncestors { type KeyType = usize; }
-
-impl NamespacedEntity for SubfieldAncestors { const NS: & str = "a2_init_atts"; }
-
-impl Link for SubfieldAncestors { type Source = crate::gen::a1_entity_mapping::Subfields; type Target = crate::gen::a1_entity_mapping::Fields; }
-
 impl Entity for FieldAncestors { type T = u8; const N: usize = 28; const NAME: & str = "field-ancestors"; }
 
 impl MappableEntity for FieldAncestors { type KeyType = usize; }
@@ -411,6 +403,14 @@ impl MappableEntity for FieldAncestors { type KeyType = usize; }
 impl NamespacedEntity for FieldAncestors { const NS: & str = "a2_init_atts"; }
 
 impl Link for FieldAncestors { type Source = crate::gen::a1_entity_mapping::Fields; type Target = crate::gen::a1_entity_mapping::Domains; }
+
+impl Entity for SubfieldAncestors { type T = u8; const N: usize = 254; const NAME: & str = "subfield-ancestors"; }
+
+impl MappableEntity for SubfieldAncestors { type KeyType = usize; }
+
+impl NamespacedEntity for SubfieldAncestors { const NS: & str = "a2_init_atts"; }
+
+impl Link for SubfieldAncestors { type Source = crate::gen::a1_entity_mapping::Subfields; type Target = crate::gen::a1_entity_mapping::Fields; }
 
 impl Entity for TopicSubfields { type T = u8; const N: usize = 4518; const NAME: & str = "topic-subfields"; }
 
