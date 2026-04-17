@@ -40,16 +40,6 @@ impl NamespacedEntity for InstitutionsHits { const NS: & str = "derive_links4"; 
 
 impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_mapping::Institutions { type AttributeEntity = InstitutionsHits; }
 
-impl Entity for SourcesHits { type T = Box<[u32]>; const N: usize = 41601; const NAME: & str = "sources-hits"; }
-
-impl MappableEntity for SourcesHits { type KeyType = usize; }
-
-impl VariableSizeAttribute for SourcesHits { type SizeType = u32; type LocType = u32; }
-
-impl NamespacedEntity for SourcesHits { const NS: & str = "derive_links4"; }
-
-impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_mapping::Sources { type AttributeEntity = SourcesHits; }
-
 impl Entity for SubfieldsHits { type T = Box<[u32]>; const N: usize = 254; const NAME: & str = "subfields-hits"; }
 
 impl MappableEntity for SubfieldsHits { type KeyType = usize; }
@@ -59,6 +49,16 @@ impl VariableSizeAttribute for SubfieldsHits { type SizeType = u16; type LocType
 impl NamespacedEntity for SubfieldsHits { const NS: & str = "derive_links4"; }
 
 impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_mapping::Subfields { type AttributeEntity = SubfieldsHits; }
+
+impl Entity for SourcesHits { type T = Box<[u32]>; const N: usize = 41601; const NAME: & str = "sources-hits"; }
+
+impl MappableEntity for SourcesHits { type KeyType = usize; }
+
+impl VariableSizeAttribute for SourcesHits { type SizeType = u32; type LocType = u32; }
+
+impl NamespacedEntity for SourcesHits { const NS: & str = "derive_links4"; }
+
+impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_mapping::Sources { type AttributeEntity = SourcesHits; }
 
 impl Entity for TopicsHits { type T = Box<[u32]>; const N: usize = 4518; const NAME: & str = "topics-hits"; }
 
