@@ -457,18 +457,22 @@ where
     const SPEC_RATE: f64 = 1.0 - SPEC_CORR_RATE;
     let numer_add = (full_cc / f64::from(E::N as u32)) * SPEC_CORR_RATE;
     let empty: Arc<str> = Arc::<str>::from("");
+    //no double enumerate because nodes feed empty sem_ids
     let elevel = names
         .iter()
-        .zip(sem_ids)
         .enumerate()
-        .map(|(i, (name, sem_id))| {
+        .map(|(i, name)| {
             //TODO: u32 counts (max 4B) need to be ensured
             let numer = f64::from(ccounts[i].to_usize() as u32) * SPEC_RATE + numer_add;
             let spec_baseline = numer / full_cc;
-            let semantic_id = if sem_id.len() == 0 {
-                empty.clone()
+            let semantic_id = if let Some(sem_id) = sem_ids.get(i) {
+                if !sem_id.is_empty() {
+                    sem_id.clone()
+                } else {
+                    empty.clone()
+                }
             } else {
-                sem_id.clone()
+                empty.clone()
             };
             AttributeLabel {
                 name: name.clone(),
