@@ -106,7 +106,7 @@ fn add_leaves<'a, I>(
 fn oaify_inst(v: &AttributeLabel, gets: &Getters, id: usize) -> AttributeLabelOut {
     AttributeLabelOut {
         spec_baseline: v.spec_baseline,
-        name: v.name.clone(),
+        name: v.name.to_string(),
         oa_id: Some(gets.inst_oa[id]),
     }
 }
@@ -114,7 +114,7 @@ fn oaify_inst(v: &AttributeLabel, gets: &Getters, id: usize) -> AttributeLabelOu
 fn to_none_alabel(v: &AttributeLabel) -> AttributeLabelOut {
     AttributeLabelOut {
         spec_baseline: v.spec_baseline,
-        name: v.name.clone(),
+        name: v.name.to_string(),
         oa_id: None,
     }
 }
