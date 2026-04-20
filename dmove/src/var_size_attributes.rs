@@ -285,7 +285,7 @@ where
     }
 }
 
-impl Into<Box<[Arc<str>]>> for VarBox<String> {
+impl Into<Box<[Arc<str>]>> for &VarBox<String> {
     fn into(self) -> Box<[Arc<str>]> {
         self.0
             .iter()
