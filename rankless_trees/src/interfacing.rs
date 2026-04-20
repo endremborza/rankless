@@ -315,12 +315,7 @@ where
     E: NodeInterfaceable,
 {
     pub fn into_stats_entry(self, full_cc: f64) -> (String, Box<[AttributeLabel]>) {
-        let names: Box<[Arc<str>]> = self
-            .names
-            .0
-            .iter()
-            .map(|s| Arc::<str>::from(s.as_str()))
-            .collect();
+        let names: Box<[Arc<str>]> = self.names.into();
         make_stats_entry_arc::<E>(&names, &[], &self.ccounts, full_cc)
     }
 }

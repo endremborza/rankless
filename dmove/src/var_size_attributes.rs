@@ -285,6 +285,15 @@ where
     }
 }
 
+impl Into<Box<[Arc<str>]>> for VarBox<String> {
+    fn into(self) -> Box<[Arc<str>]> {
+        self.0
+            .iter()
+            .map(|s| Arc::<str>::from(s.as_str()))
+            .collect()
+    }
+}
+
 impl VarSizedAttributeElement for String {
     type SubType = u8;
 }
