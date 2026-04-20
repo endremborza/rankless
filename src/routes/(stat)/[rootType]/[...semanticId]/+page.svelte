@@ -16,7 +16,6 @@
 	import AuthorNetwork from '$lib/components/AuthorNetwork.svelte';
 	import Toc from '$lib/components/Toc.svelte';
 	import PaperRainbow from '$lib/components/PaperRainbow.svelte';
-	import EntityPeers from '$lib/components/EntityPeers.svelte';
 	import PeersA from '$lib/components/PeersA.svelte';
 	// import PeersB from '$lib/components/PeersB.svelte';
 	// import PeersC from '$lib/components/PeersC.svelte';
@@ -62,22 +61,29 @@
 
 	let hitPaperAbstract: string | null = null;
 	let abstractExpanded = false;
-	onMount(async () => {
-		if (isHitPaper) {
-			hitPaperAbstract = await fetchOaAbstract(data.conf.semanticId);
-		}
+	let mounted = false;
+	onMount(() => {
+		mounted = true;
 	});
+	$: if (mounted && isHitPaper) {
+		hitPaperAbstract = null;
+		fetchOaAbstract(data.conf.semanticId).then((result) => {
+			hitPaperAbstract = result;
+		});
+	} else {
+		hitPaperAbstract = null;
+	}
 	$: rawCites = isAuthor ? parseInt(data.view.meta?.rawCites ?? '0') || 0 : 0;
 
 	// Combined entity attribute maps (profile data + initial works batch)
-	let entityAtts: tt.EntityAttsForLinks = {
+	$: entityAtts = {
 		...(data.profile?.papers.entityAtts ?? {}),
 		...data.initialEntityAtts
-	};
-	let discAuthorNames: Record<string, string> = {
+	} as tt.EntityAttsForLinks;
+	$: discAuthorNames = {
 		...(data.profile?.papers.discAuthorNames ?? {}),
 		...data.initialDiscAuthorNames
-	};
+	} as Record<string, string>;
 
 	$: papers = data.profile?.papers.papers ?? [];
 	$: authoredHitPapers = papers.filter(
