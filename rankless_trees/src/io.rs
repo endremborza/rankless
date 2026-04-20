@@ -91,8 +91,8 @@ pub struct WorkWInd(pub WT, pub WorkCiteT);
 
 #[derive(Serialize, Clone)]
 pub struct AttributeLabel {
-    pub name: String,
-    pub semantic_id: String,
+    pub name: Arc<str>,
+    pub semantic_id: Arc<str>,
     pub spec_baseline: f64,
 }
 

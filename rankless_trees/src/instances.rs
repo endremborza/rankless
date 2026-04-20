@@ -850,10 +850,13 @@ mod big_test_tree {
         let mut fake_attu = HashMap::new();
         let gatts = |i: u32, pref: &str| {
             (0..2_u32.pow(i))
-                .map(|e| AttributeLabel {
-                    name: format!("{pref}{e}"),
-                    semantic_id: format!("{pref}{e}"),
-                    spec_baseline: 0.5,
+                .map(|e| {
+                    let arcify = |e| std::sync::Arc::<str>::from(format!("{pref}{e}").as_str());
+                    AttributeLabel {
+                        name: arcify(e),
+                        semantic_id: arcify(e),
+                        spec_baseline: 0.5,
+                    }
                 })
                 .collect::<Box<[AttributeLabel]>>()
         };
