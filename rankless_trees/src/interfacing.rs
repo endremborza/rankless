@@ -310,31 +310,18 @@ where
     fn locs_from_ram(gets: &Getters) -> Arc<Locators<Self>>;
 }
 
-pub trait MetaMapGetter: RootInterfaceable + Sized {
-    fn get_meta(
-        _id: usize,
-        _gets: &Getters,
-        _entif: &RootInterfaces<Self>,
-    ) -> Option<HashMap<&'static str, String>> {
-        None
-    }
-}
-
 impl<E> NodeInterfaces<E>
 where
     E: NodeInterfaceable,
 {
     pub fn into_stats_entry(self, full_cc: f64) -> (String, Box<[AttributeLabel]>) {
-        make_stats_entry::<E>(self.names, self.ccounts, Vec::new(), full_cc)
-    }
-}
-
-impl<E> RootInterfaces<E>
-where
-    E: NodeInterfaceable + RootInterfaceable,
-{
-    pub fn into_stats_entry(self, full_cc: f64) -> (String, Box<[AttributeLabel]>) {
-        make_stats_entry::<E>(self.names, self.ccounts, self.sem_ids.0.to_vec(), full_cc)
+        let names: Box<[Arc<str>]> = self
+            .names
+            .0
+            .iter()
+            .map(|s| Arc::<str>::from(s.as_str()))
+            .collect();
+        make_stats_entry_arc::<E>(&names, &[], &self.ccounts, full_cc)
     }
 }
 
@@ -454,55 +441,6 @@ where
     }
 }
 
-impl MetaMapGetter for Sources {}
-impl MetaMapGetter for Subfields {}
-impl MetaMapGetter for Countries {}
-impl MetaMapGetter for HitPapers {}
-
-impl MetaMapGetter for Institutions {
-    fn get_meta(
-        id: usize,
-        gets: &Getters,
-        _: &RootInterfaces<Institutions>,
-    ) -> Option<HashMap<&'static str, String>> {
-        let loc = gets.iloc(&id);
-        let kvs = vec![("lat", loc.0.to_string()), ("lon", loc.1.to_string())];
-        Some(HashMap::from_iter(kvs.into_iter()))
-    }
-}
-impl MetaMapGetter for Authors {
-    fn get_meta(
-        id: usize,
-        gets: &Getters,
-        entif: &RootInterfaces<Authors>,
-    ) -> Option<HashMap<&'static str, String>> {
-        let slug = String::from_utf8(gets.aslugs(id).to_vec()).unwrap();
-        let any_hits = if (gets.author_citing_once(id).len() > 0)
-            || (gets.author_citing_direct(id).len() > 0)
-            || (entif.hit_works.0[id].len() > 0)
-        {
-            "1"
-        } else {
-            "0"
-        };
-        let na_orcid: ET<AuthorOrcids> = <ET<AuthorOrcids> as Default>::default();
-        let orcid_o = gets.author_orcids(&id);
-        let orcid = if orcid_o == &na_orcid {
-            ""
-        } else {
-            std::str::from_utf8(orcid_o).unwrap_or("")
-        };
-        let kvs = vec![
-            ("wikiSlug", slug),
-            ("rawCites", gets.raw_cites(&id).to_string()),
-            ("rawPapers", gets.raw_works(&id).to_string()),
-            ("anyHits", any_hits.to_string()),
-            ("orcid", orcid.to_string()),
-        ];
-        Some(HashMap::from_iter(kvs.into_iter()))
-    }
-}
-
 impl RefGraph for Getters {
     fn get_refs(&self, wid: WT) -> &[WT] {
         self.wrefs(wid)
@@ -512,10 +450,10 @@ impl RefGraph for Getters {
     }
 }
 
-fn make_stats_entry<E>(
-    names: VarBox<String>,
-    ccounts: Box<[<E as NumAtt<CiteCountMarker>>::Num]>,
-    semantic_ids: Vec<String>,
+pub fn make_stats_entry_arc<E>(
+    names: &[Arc<str>],
+    sem_ids: &[Arc<str>],
+    ccounts: &[<E as NumAtt<CiteCountMarker>>::Num],
     full_cc: f64,
 ) -> (String, Box<[AttributeLabel]>)
 where
@@ -523,18 +461,23 @@ where
 {
     const SPEC_RATE: f64 = 1.0 - SPEC_CORR_RATE;
     let numer_add = (full_cc / f64::from(E::N as u32)) * SPEC_CORR_RATE;
+    let empty: Arc<str> = Arc::<str>::from("");
     let elevel = names
-        .0
-        .into_vec()
-        .into_iter()
+        .iter()
+        .zip(sem_ids)
         .enumerate()
-        .map(|(i, name)| {
+        .map(|(i, (name, sem_id))| {
             //TODO: u32 counts (max 4B) need to be ensured
             let numer = f64::from(ccounts[i].to_usize() as u32) * SPEC_RATE + numer_add;
             let spec_baseline = numer / full_cc;
+            let semantic_id = if sem_id.len() == 0 {
+                empty.clone()
+            } else {
+                sem_id.clone()
+            };
             AttributeLabel {
-                name,
-                semantic_id: semantic_ids.get(i).unwrap_or(&"".to_string()).to_string(),
+                name: name.clone(),
+                semantic_id,
                 spec_baseline,
             }
         })
