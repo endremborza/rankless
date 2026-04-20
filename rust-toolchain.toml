@@ -1,4 +1,4 @@
 [toolchain]
 # channel = "nightly-2024-07-25"
 channel = "stable"
-components = ["llvm-tools-preview", "llvm-cov"]
+# components = ["llvm-tools-preview", "llvm-cov"]
