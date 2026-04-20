@@ -50,8 +50,8 @@ use rankless_rs::{
 use rankless_trees::{
     extensions::DistinctionText,
     interfacing::{
-        FixAtt, Getters, MetaMapGetter, NodeInterfaceable, NodeInterfaces, RootInterfaceable,
-        RootInterfaces,
+        make_stats_entry_arc, FixAtt, Getters, NodeInterfaceable, NodeInterfaces,
+        RootInterfaceable, RootInterfaces,
     },
     io::{
         EntityAttsForLinks, ManFileHandle, ShallowQ, ShallowTreesResponse, TreeQ, TreeResponse,
@@ -105,9 +105,9 @@ struct AuthorPeerData {
 
 #[derive(Serialize)]
 struct PeerSubfieldInfo {
-    name: String,
+    name: Arc<str>,
     #[serde(rename = "semanticId")]
-    semantic_id: String,
+    semantic_id: Arc<str>,
     #[serde(rename = "dmId")]
     dm_id: usize,
 }
@@ -115,9 +115,9 @@ struct PeerSubfieldInfo {
 #[derive(Serialize)]
 struct PeerEntry {
     //TODO - this should just be another view
-    name: String,
+    name: Arc<str>,
     #[serde(rename = "semanticId")]
-    semantic_id: String,
+    semantic_id: Arc<str>,
     papers: u32,
     citations: u32,
     #[serde(rename = "subfieldCitations")]
@@ -132,7 +132,7 @@ struct PeerEntry {
     h_index: u32,
     #[serde(rename = "yearCentroid")]
     year_centroid: f32,
-    country: Option<String>,
+    country: Option<Arc<str>>,
 }
 
 #[derive(Serialize)]
@@ -159,6 +159,8 @@ struct ViewResult {
     sr: SearchResult,
     #[serde(flatten)]
     ext: SerializableExt,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    meta: Option<HashMap<&'static str, String>>,
     similars: Vec<SearchResult>,
 }
 
@@ -254,16 +256,10 @@ struct NameState {
     engine: SearchEngine<SEARCH_SIZE>,
     responses: Box<[SearchResult]>,
     exts: Box<[EntityExt]>,
-    pub semantic_id_map: HashMap<String, SemVal>,
-    pub oa_id_map: HashMap<usize, usize>,
-    pub dm_id_to_result_id: HashMap<usize, usize>,
+    pub semantic_id_map: HashMap<Arc<str>, u32>,
+    pub oa_id_map: HashMap<u64, u32>,
+    dm_to_response_id: Box<[u32]>,
     peers: Box<[[u32; N_PEERS]]>,
-}
-
-#[derive(Clone)]
-struct SemVal {
-    result_id: usize,
-    dm_id: usize,
 }
 
 #[derive(Serialize, Clone)]
@@ -301,19 +297,15 @@ struct PaperProfileResp {
 
 #[derive(Serialize, Clone)]
 struct SearchResult {
-    name: String,
+    name: Arc<str>,
     #[serde(rename = "semanticId")]
-    semantic_id: String,
-    #[serde(skip_serializing)]
-    full_name: String,
+    semantic_id: Arc<str>,
     #[serde(rename = "oaId")]
     oa_id: u64,
     #[serde(rename = "dmId")]
     dm_id: usize,
     #[serde(rename = "distinctText", skip_serializing_if = "Option::is_none")]
     distinct_text: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    meta: Option<HashMap<&'static str, String>>,
     papers: u32,
     citations: u32,
 }
@@ -363,7 +355,7 @@ struct EntityExt {
     yearly_papers: EraRec,
     yearly_cites: EraRec,
     prime_relations: Box<[PreAttRelatedEntity]>,
-    hit_papers: Box<[usize]>,
+    hit_papers: Box<[ET<HitPapers>]>,
     author_network: Box<[u8]>,
 }
 
@@ -384,7 +376,7 @@ impl IsTop for HitPapers {
 
 impl IsTop for Authors {
     fn is_top(sr: &SearchResult) -> bool {
-        consts::FIN_AUTHORS.contains(&sr.semantic_id.as_str())
+        consts::FIN_AUTHORS.contains(&sr.semantic_id.as_ref())
     }
 }
 
@@ -392,28 +384,26 @@ impl IsTop for Institutions {
     fn is_top(sr: &SearchResult) -> bool {
         const FIN_UNIS: [&str; 2] = ["budapesti-corvinus-egyetem", "tse"];
         let min_citations: u32 = 8_000_000;
-        FIN_UNIS.contains(&sr.semantic_id.as_str()) || sr.citations > min_citations
+        FIN_UNIS.contains(&sr.semantic_id.as_ref()) || sr.citations > min_citations
     }
 }
 
 impl IsTop for Sources {
     fn is_top(sr: &SearchResult) -> bool {
-        consts::FIN_SOURCES.contains(&sr.semantic_id.as_str())
+        consts::FIN_SOURCES.contains(&sr.semantic_id.as_ref())
     }
 }
 
 impl SearchResult {
     fn new<E>(
         i: usize,
-        name: String,
-        ext: String,
-        semantic_id: String,
+        name: Arc<str>,
+        semantic_id: Arc<str>,
         distinct_text: Option<String>,
         entif: &RootInterfaces<E>,
-        gets: &Getters,
     ) -> Self
     where
-        E: RootInterfaceable + MetaMapGetter,
+        E: RootInterfaceable,
     {
         let papers = if entif.wcounts.len() > i {
             entif.wcounts[i].to_usize()
@@ -421,14 +411,12 @@ impl SearchResult {
             1
         } as u32;
         Self {
-            full_name: format!("{name} {ext}").trim().to_string(),
             name,
             semantic_id,
             distinct_text,
             papers,
             citations: entif.ccounts[i].to_usize() as u32,
             oa_id: entif.oa_id[i],
-            meta: E::get_meta(i, gets, entif),
             dm_id: i,
         }
     }
@@ -512,9 +500,7 @@ impl EntityExt {
                         2,
                     );
                     if let Some(hits) = entif.hit_works.0.get(i) {
-                        hits.iter()
-                            .take(MAX_HITS)
-                            .for_each(|e| hit_papers.push(e.to_usize()));
+                        hits.iter().take(MAX_HITS).for_each(|e| hit_papers.push(*e));
                     }
                 }
 
@@ -543,12 +529,12 @@ impl EntityExt {
                 let att = &satts[etype][sr.dm_id.to_usize()];
                 let semantic_id = nstates
                     .get(etype)
-                    .and_then(|rstate| rstate.semantic_id_map.get(&att.semantic_id))
-                    .map(|_| att.semantic_id.clone())
+                    .and_then(|rstate| rstate.semantic_id_map.get(att.semantic_id.as_ref()))
+                    .map(|_| att.semantic_id.to_string())
                     .unwrap_or_default();
                 PostAttRelatedEntity {
                     semantic_id,
-                    name: att.name.clone(),
+                    name: att.name.to_string(),
                     etype: etype.to_string(),
                     rel_type: sr.rel_type,
                     score: sr.score,
@@ -566,21 +552,26 @@ impl EntityExt {
 }
 
 impl NameState {
-    fn new<E>(entif: &RootInterfaces<E>, gets: &Getters) -> Self
+    fn new<E>(
+        entif: &RootInterfaces<E>,
+        gets: &Getters,
+        names_arc: &[Arc<str>],
+        sem_ids_arc: &[Arc<str>],
+    ) -> Self
     where
-        E: RootInterfaceable + IsTop + DistinctionText + MetaMapGetter,
+        E: RootInterfaceable + IsTop + DistinctionText,
     {
-        let responses = Self::get_resps(entif, gets);
+        let (responses, engine_strs) = Self::get_resps(entif, gets, names_arc, sem_ids_arc);
         let cache_dir = gets.stowage.path_from_ns("search-cache");
         let stem = format!("{}-s{SEARCH_SIZE}", E::NAME);
         let bin_path = cache_dir.join(format!("{stem}.bin"));
         let stamp_path = cache_dir.join(format!("{stem}.stamp"));
-        let key = fnv64(responses.iter().map(|r| r.full_name.as_bytes()));
+        let key = fnv64(engine_strs.iter().map(|s| s.as_bytes()));
         let now = std::time::Instant::now();
         let (engine, from_cache) = match try_load_engine(&bin_path, &stamp_path, key) {
             Some(e) => (e, true),
             None => {
-                let e = SearchEngine::new(responses.iter().map(|r| r.full_name.clone()));
+                let e = SearchEngine::new(engine_strs.into_iter());
                 save_engine(&e, &bin_path, &stamp_path, &cache_dir, key);
                 (e, false)
             }
@@ -595,19 +586,15 @@ impl NameState {
         let n = responses.len();
         let mut semantic_id_map = HashMap::with_capacity(n);
         let mut oa_id_map = HashMap::with_capacity(n);
-        let mut dm_id_to_result_id = HashMap::with_capacity(n);
+        let mut dm_to_response_id: Box<[u32]> = vec![u32::MAX; names_arc.len()].into_boxed_slice();
         for (i, res) in responses.iter().enumerate() {
             let dm_id = res.dm_id;
-            let oa_id = entif.oa_id[dm_id as usize];
-            oa_id_map.insert(oa_id.to_usize(), i);
-            semantic_id_map.insert(
-                res.semantic_id.clone(),
-                SemVal {
-                    result_id: i,
-                    dm_id,
-                },
-            );
-            dm_id_to_result_id.insert(dm_id, i);
+            let oa_id = entif.oa_id[dm_id];
+            oa_id_map.insert(oa_id, i as u32);
+            semantic_id_map.insert(res.semantic_id.clone(), dm_id as u32);
+            if dm_id < dm_to_response_id.len() {
+                dm_to_response_id[dm_id] = i as u32;
+            }
         }
 
         let peers: Box<[[u32; N_PEERS]]> = entif
@@ -622,44 +609,47 @@ impl NameState {
             responses,
             semantic_id_map,
             oa_id_map,
-            dm_id_to_result_id,
+            dm_to_response_id,
             peers,
         }
     }
 
-    fn get_resps<E>(entif: &RootInterfaces<E>, gets: &Getters) -> Box<[SearchResult]>
+    fn get_resps<E>(
+        entif: &RootInterfaces<E>,
+        gets: &Getters,
+        names_arc: &[Arc<str>],
+        sem_ids_arc: &[Arc<str>],
+    ) -> (Box<[SearchResult]>, Vec<String>)
     where
-        E: RootInterfaceable + IsTop + DistinctionText + MetaMapGetter,
+        E: RootInterfaceable + IsTop + DistinctionText,
     {
         let dist_txt = <E as DistinctionText>::get_distinction_text_arr(entif, gets);
         let ext_txt = &entif.name_exts.0;
-        let mut responses: Vec<SearchResult> = entif
-            .names
-            .0
+        let mut pairs: Vec<(SearchResult, String)> = names_arc
             .iter()
-            .zip(entif.sem_ids.0.iter())
+            .zip(sem_ids_arc.iter())
             .zip(dist_txt.to_vec().into_iter())
             .enumerate()
-            .filter(|(i, _)| !entif.sem_ids.0[*i].is_empty())
+            .filter(|(i, _)| !sem_ids_arc[*i].is_empty())
             .map(|(i, ((name, semantic_id), dist_txt))| {
-                let ext = if ext_txt.len() > i {
-                    ext_txt[i].to_string()
-                } else {
-                    String::new()
-                };
-                SearchResult::new(
-                    i,
-                    name.to_string(),
-                    ext,
-                    semantic_id.to_string(),
-                    dist_txt,
-                    entif,
-                    gets,
-                )
+                let ext = ext_txt.get(i).map(|s| s.as_str()).unwrap_or("");
+                let full_name = format!("{} {}", name, ext).trim().to_string();
+                let sr = SearchResult::new(i, name.clone(), semantic_id.clone(), dist_txt, entif);
+                (sr, full_name)
             })
             .collect();
-        responses.sort_by_key(|e| u32::MAX - e.citations);
-        responses.into()
+        pairs.sort_by_key(|e| u32::MAX - e.0.citations);
+        let (responses, engine_strs): (Vec<SearchResult>, Vec<String>) = pairs.into_iter().unzip();
+        (responses.into_boxed_slice(), engine_strs)
+    }
+
+    fn response_id_from_dm(&self, dm_id: usize) -> Option<usize> {
+        let rid = *self.dm_to_response_id.get(dm_id)?;
+        if rid == u32::MAX {
+            None
+        } else {
+            Some(rid as usize)
+        }
     }
 }
 
@@ -758,14 +748,16 @@ fn get_state_tr_ed_kv<E>(
     ),
 ) -> StateKv
 where
-    E: RootInterfaceable + IsTop + MainEntity + NamespacedEntity + DistinctionText + MetaMapGetter,
+    E: RootInterfaceable + IsTop + MainEntity + NamespacedEntity + DistinctionText,
 {
     let (gets_clone, au_clone, shared_cvp) = full_tup.clone();
     let name = E::NAME.to_string();
     let ent_intf = RootInterfaces::<E>::new(&gets_clone.stowage);
-    let nstate = NameState::new::<E>(&ent_intf, &gets_clone);
+    let names_arc: Box<[Arc<str>]> = (&ent_intf.names).into();
+    let sem_ids_arc: Box<[Arc<str>]> = (&ent_intf.sem_ids).into();
+    let nstate = NameState::new::<E>(&ent_intf, &gets_clone, &names_arc, &sem_ids_arc);
     let ccount = wait_for_data_copy(shared_cvp);
-    let (k, v) = ent_intf.into_stats_entry(ccount);
+    let (k, v) = make_stats_entry_arc::<E>(&names_arc, &sem_ids_arc, &ent_intf.ccounts, ccount);
     au_clone.lock().unwrap().insert(k, v);
     let entities = nstate
         .responses
@@ -899,10 +891,14 @@ async fn tree_get(
             // return (cache_header(60), resp);
         }
         let psid = parse_semantic_id(semantic_id);
-        if let Some(sval) = nstate.semantic_id_map.get(&psid) {
-            let ncite = nstate.responses[sval.result_id].citations;
+        if let Some(&dm_id) = nstate.semantic_id_map.get(psid.as_str()) {
+            let dm_id_u = dm_id as usize;
+            let ncite = nstate
+                .response_id_from_dm(dm_id_u)
+                .map(|rid| nstate.responses[rid].citations)
+                .unwrap_or(0);
             tq.cacheable = Some(ncite >= CACHEABLE_FROM);
-            let resp = Json(tm.get_single_resp(tq, &root_type, sval.dm_id));
+            let resp = Json(tm.get_single_resp(tq, &root_type, dm_id_u));
             return (cache_header(60), resp);
         }
     }
@@ -939,43 +935,46 @@ async fn view_get(
     Path((etype, semantic_id)): Path<(String, String)>,
     states: StatesT,
 ) -> Json<Option<ViewResult>> {
-    let satts = states.0 .1;
+    let satts = &states.0 .1;
     let mut out = None;
     if let Some(state) = states.0 .0.get(etype.as_str()) {
         let psid = parse_semantic_id(semantic_id);
-        if let Some(sem_val) = state.semantic_id_map.get(&psid) {
-            let i = sem_val.result_id;
-            let srs = &state.responses[i];
-            let similars = state.peers[sem_val.dm_id]
-                .iter()
-                .filter(|&&pid| pid != 0)
-                .filter_map(|&pid| {
-                    state
-                        .dm_id_to_result_id
-                        .get(&(pid as usize))
-                        .map(|&rid| state.responses[rid].clone())
-                })
-                .collect();
-
-            let vr = ViewResult {
-                similars,
-                ext: state.exts[i].to_serializable(&satts, &states.0 .0),
-                sr: srs.clone(),
-            };
-            out = Some(vr)
+        if let Some(&dm_id) = state.semantic_id_map.get(psid.as_str()) {
+            let dm_id_u = dm_id as usize;
+            if let Some(i) = state.response_id_from_dm(dm_id_u) {
+                let srs = &state.responses[i];
+                let similars = state.peers[dm_id_u]
+                    .iter()
+                    .filter(|&&pid| pid != 0)
+                    .filter_map(|&pid| {
+                        state
+                            .response_id_from_dm(pid as usize)
+                            .map(|rid| state.responses[rid].clone())
+                    })
+                    .collect();
+                let gets = &states.0 .2.state.gets;
+                let meta = compute_meta(etype.as_str(), dm_id_u, gets, &state.exts[i]);
+                let vr = ViewResult {
+                    similars,
+                    ext: state.exts[i].to_serializable(satts, &states.0 .0),
+                    sr: srs.clone(),
+                    meta,
+                };
+                out = Some(vr)
+            }
         };
     }
     Json(out)
 }
 
 async fn sem_id_get(
-    Path((etype, oa_id)): Path<(String, usize)>,
+    Path((etype, oa_id)): Path<(String, u64)>,
     states: StatesT,
 ) -> Json<[Option<String>; 1]> {
     let mut out = None;
     if let Some(nstate) = states.0 .0.get(etype.as_str()) {
-        if let Some(e) = nstate.oa_id_map.get(&oa_id) {
-            let s = nstate.responses[*e].semantic_id.clone();
+        if let Some(&rid) = nstate.oa_id_map.get(&oa_id) {
+            let s = nstate.responses[rid as usize].semantic_id.to_string();
             out = Some(s);
         }
     }
@@ -990,10 +989,10 @@ async fn orcid_get(Path(orcid_id): Path<String>, states: StatesT) -> Json<Option
         .collect::<Vec<u8>>()
         .try_into()
         .unwrap_or(<ET<AuthorOrcids> as Default>::default());
-    if let Some(a_dm_id) = states.2.state.gets.orcid_map.get(&obytes) {
+    if let Some(&a_dm_id) = states.0 .2.state.gets.orcid_map.get(&obytes) {
         if let Some(nstate) = states.0 .0.get(Authors::NAME) {
-            if let Some(a_rid) = nstate.dm_id_to_result_id.get(a_dm_id) {
-                let s = nstate.responses[*a_rid].clone();
+            if let Some(a_rid) = nstate.response_id_from_dm(a_dm_id) {
+                let s = nstate.responses[a_rid].clone();
                 out = Some(s);
             }
         }
@@ -1007,19 +1006,18 @@ async fn paper_profile(
 ) -> (HeaderMap, Response) {
     let astates = states.0 .0.get(Authors::NAME).unwrap();
     let gets = &states.0 .2.state.gets;
-
-    let Some(aid_sv) = astates.semantic_id_map.get(&author_sem_id) else {
-        return (
-            HeaderMap::new(),
-            (StatusCode::NOT_FOUND, "no such entity").into_response(),
-        );
+    let Some(&aid_dm) = astates.semantic_id_map.get(author_sem_id.as_str()) else {
+        return get_empty();
     };
-    let hw_set: HashSet<WT> = astates.exts[aid_sv.result_id]
+    let aid = aid_dm as usize;
+    let Some(aid_rid) = astates.response_id_from_dm(aid) else {
+        return get_empty();
+    };
+    let hw_set: HashSet<WT> = astates.exts[aid_rid]
         .hit_papers
         .iter()
         .map(|hwid| gets.hit_papers[hwid.to_usize()])
         .collect();
-    let aid = aid_sv.dm_id;
 
     let direct_hit_wids: Vec<WT> = gets
         .author_citing_direct(aid)
@@ -1098,14 +1096,13 @@ async fn author_peers_get(
     let apd = &states.0 .3;
     let satts = &states.0 .1;
 
-    let Some(aid_sv) = astates.semantic_id_map.get(&author_sem_id) else {
-        return (
-            HeaderMap::new(),
-            (StatusCode::NOT_FOUND, "no such entity").into_response(),
-        );
+    let Some(&aid_dm) = astates.semantic_id_map.get(author_sem_id.as_str()) else {
+        return get_empty();
     };
-    let hero_dm = aid_sv.dm_id;
-    let hero_rid = aid_sv.result_id;
+    let hero_dm = aid_dm as usize;
+    let Some(hero_rid) = astates.response_id_from_dm(hero_dm) else {
+        return get_empty();
+    };
 
     let sf_atts = &satts[Subfields::NAME];
     let sf_row = apd.cit_subfields.row(hero_dm);
@@ -1140,9 +1137,8 @@ async fn author_peers_get(
         .filter_map(|&pid| {
             let peer_dm = pid as usize;
             astates
-                .dm_id_to_result_id
-                .get(&peer_dm)
-                .map(|&rid| build_peer_entry(rid, peer_dm, astates, apd, satts, &sf_indices))
+                .response_id_from_dm(peer_dm)
+                .map(|rid| build_peer_entry(rid, peer_dm, astates, apd, satts, &sf_indices))
         })
         .collect();
 
@@ -1171,10 +1167,7 @@ async fn name_get(
         );
         (cache_header(60), resp.into_response())
     } else {
-        (
-            HeaderMap::new(),
-            (StatusCode::NOT_FOUND, "no such entity").into_response(),
-        )
+        get_empty()
     }
 }
 
@@ -1188,8 +1181,14 @@ async fn works_get(
             .min(consts::WORKS_PAGE_SIZE_MAX);
     if let Some(state) = states.0 .0.get(etype.as_str()) {
         let psid = parse_semantic_id(sem_id);
-        if let Some(sem_val) = state.semantic_id_map.get(&psid) {
-            if let Some(work_arr) = states.2.state.gets.works_of_entity(sem_val.dm_id, etype) {
+        if let Some(&dm_id) = state.semantic_id_map.get(psid.as_str()) {
+            if let Some(work_arr) = states
+                .0
+                 .2
+                .state
+                .gets
+                .works_of_entity(dm_id as usize, etype)
+            {
                 if !work_arr.is_empty() {
                     let start = min(pstart, work_arr.len() - 1);
                     let wids = work_arr[start..].iter().take(page_size).map(WT::to_usize);
@@ -1204,10 +1203,7 @@ async fn works_get(
             }
         }
     }
-    (
-        HeaderMap::new(),
-        (StatusCode::NOT_FOUND, "no such entity").into_response(),
-    )
+    get_empty()
 }
 
 fn get_paper_set_resp<I>(wids: I, trm: Arc<InstTrm>) -> PaperSetResp
@@ -1263,11 +1259,11 @@ fn paper_out(
         gets.hit_wid_map.get(&WT::from_usize(wid)),
         att_union.get(HitPapers::NAME),
     ) {
-        let hit_atts = hit_attlu[*hwid].clone();
-        let name = hit_atts.name;
-        hit_sem_id = Some(hit_atts.semantic_id.clone());
+        let hit_atts = &hit_attlu[*hwid];
+        let name = hit_atts.name.to_string();
+        hit_sem_id = Some(hit_atts.semantic_id.to_string());
         let doi = if hit_atts.semantic_id.starts_with("W") {
-            hit_atts.semantic_id
+            hit_atts.semantic_id.to_string()
         } else {
             String::new()
         };
@@ -1371,6 +1367,58 @@ fn parse_semantic_id(id: String) -> String {
     id.replace("%2F", "/")
 }
 
+fn compute_meta(
+    etype: &str,
+    dm_id: usize,
+    gets: &Getters,
+    ext: &EntityExt,
+) -> Option<HashMap<&'static str, String>> {
+    if etype == Authors::NAME {
+        author_meta(dm_id, gets, ext)
+    } else if etype == Institutions::NAME {
+        inst_meta(dm_id, gets)
+    } else {
+        None
+    }
+}
+
+fn author_meta(
+    dm_id: usize,
+    gets: &Getters,
+    ext: &EntityExt,
+) -> Option<HashMap<&'static str, String>> {
+    let slug = String::from_utf8(gets.aslugs(dm_id).to_vec()).unwrap_or_default();
+    let any_hits = if (gets.author_citing_once(dm_id).len() > 0)
+        || (gets.author_citing_direct(dm_id).len() > 0)
+        || (ext.hit_papers.len() > 0)
+    {
+        "1"
+    } else {
+        "0"
+    };
+    let na_orcid: ET<AuthorOrcids> = <ET<AuthorOrcids> as Default>::default();
+    let orcid_o = gets.author_orcids(&dm_id);
+    let orcid = if orcid_o == &na_orcid {
+        ""
+    } else {
+        std::str::from_utf8(orcid_o).unwrap_or("")
+    };
+    let kvs = vec![
+        ("wikiSlug", slug),
+        ("rawCites", gets.raw_cites(&dm_id).to_string()),
+        ("rawPapers", gets.raw_works(&dm_id).to_string()),
+        ("anyHits", any_hits.to_string()),
+        ("orcid", orcid.to_string()),
+    ];
+    Some(HashMap::from_iter(kvs.into_iter()))
+}
+
+fn inst_meta(dm_id: usize, gets: &Getters) -> Option<HashMap<&'static str, String>> {
+    let loc = gets.iloc(&dm_id);
+    let kvs = vec![("lat", loc.0.to_string()), ("lon", loc.1.to_string())];
+    Some(HashMap::from_iter(kvs.into_iter()))
+}
+
 fn add_to_relations<RE, T>(arr: &[(u32, T)], prels: &mut Vec<PreAttRelatedEntity>, rel_type: u8)
 where
     RE: Entity,
@@ -1394,4 +1442,11 @@ where
             })
         }
     });
+}
+
+fn get_empty() -> (HeaderMap, Response) {
+    (
+        HeaderMap::new(),
+        (StatusCode::NOT_FOUND, "no such entity").into_response(),
+    )
 }
