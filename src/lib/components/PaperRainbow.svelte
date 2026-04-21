@@ -18,13 +18,15 @@
 	const yPad = 2.5;
 	const xBase = 26;
 	const yBase = 12;
-	const maxN = 5;
+	let maxN = 5;
+	$: paperCap = Math.min(25, chartPapers.length);
+	$: if (maxN > paperCap) maxN = paperCap;
 	const fontSize = 0.5;
 	const bmThreshold = 5;
 	const globalMinCites = 500;
 	let highlighted = 0;
 	let alignTrajectories = false;
-	let sortByOverperf = false;
+	let sortBy: 'citations' | 'overperf' | 'year' = 'citations';
 	let viewMode: 'lines' | 'breakdown' = 'lines';
 
 	let breakdownTreeId = 0;
@@ -73,14 +75,18 @@
 
 	$: chartPapers = papers
 		.filter((p) => p.yearlyCites && p.yearlyCites.length > 0)
-		.toSorted((a, b) => (sortByOverperf ? overperf(b) - overperf(a) : b.citations - a.citations));
+		.toSorted((a, b) => {
+			if (sortBy === 'overperf') return overperf(b) - overperf(a);
+			if (sortBy === 'year') return b.year - a.year;
+			return b.citations - a.citations;
+		});
 
 	$: globalMinYear =
 		chartPapers.length > 0 ? Math.min(...chartPapers.map((p) => p.year)) : LATEST_YEAR - 1;
 
-	function getVisInds(ps: tt.Paper[], first: number): number[] {
+	function getVisInds(ps: tt.Paper[], first: number, n: number): number[] {
 		const inds: number[] = [];
-		for (let i = first; i < Math.min(ps.length, first + maxN); i++) inds.push(i);
+		for (let i = first; i < Math.min(ps.length, first + n); i++) inds.push(i);
 		return inds;
 	}
 
@@ -118,6 +124,7 @@
 
 	function getFigureBasis(ps: tt.Paper[], inds: number[], globalMin: number, align: boolean) {
 		const nVis = inds.length;
+		const totalN = ps.length;
 		const yearSpan = LATEST_YEAR - globalMin;
 		const xScale = Math.max(yearSpan - 1, 1) / xBase;
 
@@ -141,7 +148,7 @@
 			const yc = paper.yearlyCites ?? [];
 			const startYear = paper.year - globalMin;
 			const lifespan = Math.max(LATEST_YEAR - paper.year, 1);
-			const rate = nVis > 1 ? vi / nVis : 0;
+			const rate = (paper.year - globalMin) / Math.max(LATEST_YEAR - globalMin, 1);
 
 			let endX = 0,
 				endY = 0;
@@ -160,8 +167,12 @@
 			const markerX = align ? 0 : startYear / xScale;
 			pubMarks.push({ x: markerX, year: paper.year, color: getColor(rate), row: vi % 2 });
 
+			const nYears = Math.min(yc.length, lifespan);
+			const pathHorizLen = (nYears - 1) / xScale;
+			const maxChars = Math.max(8, Math.min(60, Math.round(pathHorizLen * 3.5)));
 			const plainName = stripHtml(paper.name);
-			const pathName = plainName.length > 28 ? plainName.slice(0, 25) + '...' : plainName;
+			const pathName =
+				plainName.length > maxChars ? plainName.slice(0, maxChars - 3) + '...' : plainName;
 
 			figPapers.push({
 				i,
@@ -178,14 +189,17 @@
 		}
 
 		const yearTicks: { name?: string | number; x: number }[] = [];
+		const toT = (i: number, k: number) => i === Math.floor((k * yearSpan) / 3);
 		if (align) {
-			yearTicks.push({ name: 'pub.', x: 0 });
+			yearTicks.push({ name: 'publication', x: 0 });
 			for (let i = 1; i < yearSpan - 1; i++) {
-				yearTicks.push({ name: '', x: i / xScale });
+				yearTicks.push({
+					name: toT(i, 1) || toT(i, 2) ? `+${i}` : undefined,
+					x: i / xScale
+				});
 			}
 		} else {
 			yearTicks.push({ name: globalMin, x: 0 }, { name: LATEST_YEAR, x: xBase });
-			const toT = (i: number, k: number) => i === Math.floor((k * yearSpan) / 3);
 			for (let i = 1; i < yearSpan - 1; i++) {
 				yearTicks.push({
 					name: toT(i, 1) || toT(i, 2) ? globalMin + i : undefined,
@@ -214,9 +228,9 @@
 		viewMode = 'lines';
 	}
 
-	function getLiStyle(i: number, visInds: number[], hl: number) {
+	function getLiStyle(i: number, year: number, visInds: number[], hl: number, minYear: number) {
 		if (!visInds.includes(i)) return '';
-		const rate = visInds.length > 1 ? (i - visInds[0]) / visInds.length : 0;
+		const rate = (year - minYear) / Math.max(LATEST_YEAR - minYear, 1);
 		const ext = hl === i ? '0.5); box-shadow: 3px 3px 10px var(--color-theme-shadow);' : '0.3)';
 		return `background-color: rgba(${getColorArr(rate)}, ${ext}`;
 	}
@@ -267,7 +281,7 @@
 		updateFirstVisible();
 	});
 
-	$: visInds = getVisInds(chartPapers, firstVisible ?? 0);
+	$: visInds = getVisInds(chartPapers, firstVisible ?? 0, maxN);
 	$: fb = getFigureBasis(chartPapers, visInds, globalMinYear, alignTrajectories);
 	$: highlightedVis = visInds.includes(highlighted) ? highlighted - visInds[0] : undefined;
 </script>
@@ -288,13 +302,18 @@
 				</div>
 				{#if viewMode === 'lines'}
 					<label>
+						<input type="range" min="4" max={paperCap} bind:value={maxN} />
+						{maxN} papers
+					</label>
+					<label>
 						<input type="checkbox" bind:checked={alignTrajectories} />
 						align trajectories
 					</label>
-					<label>
-						<input type="checkbox" bind:checked={sortByOverperf} />
-						sort by overperformance
-					</label>
+					<select bind:value={sortBy} class="breakdown-select" aria-label="Sort by">
+						<option value="citations">sort: citations</option>
+						<option value="overperf">sort: overperformance</option>
+						<option value="year">sort: publication year</option>
+					</select>
 				{:else if breakdownOptions.length > 0}
 					<select bind:value={breakdownTreeId} class="breakdown-select" aria-label="Breakdown type">
 						{#each breakdownOptions as opt}
@@ -355,7 +374,7 @@
 					<!-- Highlighted paper name follows the line via textPath -->
 					{#if highlightedVis !== undefined}
 						{@const hp = fb.figPapers[highlightedVis]}
-						<text font-size="0.4" style="fill: {getColor(hp.rate)}" dy="-0.28">
+						<text font-size="0.4" fill="var(--color-text)" dy="-0.28">
 							<textPath href="#hit-paper-path-{hp.i}" startOffset="3%" text-anchor="start"
 								>{hp.pathName}</textPath
 							>
@@ -428,7 +447,7 @@
 				{@const authors = shortAuthors(paper)}
 				{@const expanded = expandedSet.has(i)}
 				<li
-					style={getLiStyle(i, visInds ?? [], highlighted)}
+					style={getLiStyle(i, paper.year, visInds ?? [], highlighted, globalMinYear)}
 					data-index={i}
 					on:mouseover={() => fixHighlight(i)}
 					on:focus={() => fixHighlight(i)}
