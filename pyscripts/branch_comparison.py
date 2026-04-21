@@ -53,7 +53,6 @@ from pyscripts.stow_ops import RebuildLevel, StowManager
 from pyscripts.tree_diff import make_diff_df
 
 MAIN_BRANCH = "rankless-main"
-MAIN_BRANCH = "bring-on"
 PORT_A = 3038
 PORT_B = 3039
 MEMORY_LIMIT = "10g"
