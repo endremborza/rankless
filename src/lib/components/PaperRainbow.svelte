@@ -18,77 +18,9 @@
 	const yPad = 2.5;
 	const xBase = 26;
 	const yBase = 12;
-	let maxN = 5;
-	$: paperCap = Math.min(25, chartPapers.length);
-	$: if (maxN > paperCap) maxN = paperCap;
 	const fontSize = 0.5;
 	const bmThreshold = 5;
 	const globalMinCites = 500;
-	let highlighted = 0;
-	let alignTrajectories = false;
-	let sortBy: 'citations' | 'overperf' | 'year' = 'citations';
-	let viewMode: 'lines' | 'breakdown' = 'lines';
-
-	let breakdownTreeId = 0;
-	let breakdownIsSpec = false;
-
-	type BreakdownOption = { key: string; label: string; treeId: number };
-
-	$: breakdownOptions = getBreakdownOptionsList(treeSpecs);
-
-	function getBreakdownOptionsList(specs: tt.TreeSpecs | undefined): BreakdownOption[] {
-		if (!specs) return [];
-		const hpSpecs = specs.specs['hit-papers'];
-		if (!hpSpecs) return [];
-		const bdOptions = tf.getBreakdownOptions(specs, 'hit-papers', 1);
-		const opts: BreakdownOption[] = [];
-		for (const [key, val] of Object.entries(bdOptions)) {
-			if (val.treeSpecs.length === 0) continue;
-			const etype = key.split('-')[0];
-			opts.push({ key, label: etype, treeId: val.treeSpecs[0] });
-		}
-		return opts;
-	}
-
-	$: if (
-		breakdownOptions.length > 0 &&
-		!breakdownOptions.find((o) => o.treeId === breakdownTreeId)
-	) {
-		breakdownTreeId = breakdownOptions[0].treeId;
-	}
-
-	$: breakdownTreeSpec =
-		treeSpecs && treeSpecs.specs['hit-papers']
-			? treeSpecs.specs['hit-papers'][breakdownTreeId]
-			: undefined;
-
-	function overperf(p: tt.Paper): number {
-		if (!p.hitBm || p.hitBm < 5) return 0;
-		return p.citations / p.hitBm;
-	}
-	let expandedSet: Set<number> = new Set();
-
-	let listContainer: HTMLUListElement;
-	let listItemElements: HTMLLIElement[] = [];
-	let firstVisible: number | null = null;
-	let scrollTimeout: ReturnType<typeof setTimeout>;
-
-	$: chartPapers = papers
-		.filter((p) => p.yearlyCites && p.yearlyCites.length > 0)
-		.toSorted((a, b) => {
-			if (sortBy === 'overperf') return overperf(b) - overperf(a);
-			if (sortBy === 'year') return b.year - a.year;
-			return b.citations - a.citations;
-		});
-
-	$: globalMinYear =
-		chartPapers.length > 0 ? Math.min(...chartPapers.map((p) => p.year)) : LATEST_YEAR - 1;
-
-	function getVisInds(ps: tt.Paper[], first: number, n: number): number[] {
-		const inds: number[] = [];
-		for (let i = first; i < Math.min(ps.length, first + n); i++) inds.push(i);
-		return inds;
-	}
 
 	type PubMark = { x: number; year: number; color: string; row: number };
 	type YTick = { label: string; y: number };
@@ -104,6 +36,46 @@
 		year: number;
 		citations: number;
 	};
+	type BreakdownOption = { key: string; label: string; treeId: number };
+
+	let maxN = 5;
+	let highlighted = 0;
+	let alignTrajectories = false;
+	let sortBy: 'citations' | 'overperf' | 'year' = 'citations';
+	let viewMode: 'lines' | 'breakdown' = 'lines';
+
+	let breakdownTreeId = 0;
+	let breakdownIsSpec = false;
+
+	let expandedSet: Set<number> = new Set();
+	let listContainer: HTMLUListElement;
+	let listItemElements: HTMLLIElement[] = [];
+	let firstVisible: number | null = null;
+	let scrollTimeout: ReturnType<typeof setTimeout>;
+
+	function getBreakdownOptionsList(specs: tt.TreeSpecs | undefined): BreakdownOption[] {
+		if (!specs) return [];
+		const hpSpecs = specs.specs['hit-papers'];
+		if (!hpSpecs) return [];
+		const bdOptions = tf.getBreakdownOptions(specs, 'hit-papers', 1);
+		const opts: BreakdownOption[] = [];
+		for (const [key, val] of Object.entries(bdOptions)) {
+			if (val.treeSpecs.length === 0) continue;
+			const etype = key.split('-')[0];
+			opts.push({ key, label: etype, treeId: val.treeSpecs[0] });
+		}
+		return opts;
+	}
+	function overperf(p: tt.Paper): number {
+		if (!p.hitBm || p.hitBm < 5) return 0;
+		return p.citations / p.hitBm;
+	}
+
+	function getVisInds(ps: tt.Paper[], first: number, n: number): number[] {
+		const inds: number[] = [];
+		for (let i = first; i < Math.min(ps.length, first + n); i++) inds.push(i);
+		return inds;
+	}
 
 	function niceYTickSteps(yMax: number): number[] {
 		const roughStep = yMax / 4;
@@ -280,6 +252,34 @@
 		listContainer.addEventListener('scroll', onScrollDebounced);
 		updateFirstVisible();
 	});
+
+	$: breakdownOptions = getBreakdownOptionsList(treeSpecs);
+
+	$: if (
+		breakdownOptions.length > 0 &&
+		!breakdownOptions.find((o) => o.treeId === breakdownTreeId)
+	) {
+		breakdownTreeId = breakdownOptions[0].treeId;
+	}
+
+	$: breakdownTreeSpec =
+		treeSpecs && treeSpecs.specs['hit-papers']
+			? treeSpecs.specs['hit-papers'][breakdownTreeId]
+			: undefined;
+
+	$: chartPapers = papers
+		.filter((p) => p.yearlyCites && p.yearlyCites.length > 0)
+		.toSorted((a, b) => {
+			if (sortBy === 'overperf') return overperf(b) - overperf(a);
+			if (sortBy === 'year') return b.year - a.year;
+			return b.citations - a.citations;
+		});
+
+	$: paperCap = Math.min(25, chartPapers.length);
+	$: if (maxN > paperCap) maxN = paperCap;
+
+	$: globalMinYear =
+		chartPapers.length > 0 ? Math.min(...chartPapers.map((p) => p.year)) : LATEST_YEAR - 1;
 
 	$: visInds = getVisInds(chartPapers, firstVisible ?? 0, maxN);
 	$: fb = getFigureBasis(chartPapers, visInds, globalMinYear, alignTrajectories);
