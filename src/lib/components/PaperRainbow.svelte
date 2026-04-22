@@ -4,7 +4,13 @@
 	import { formatNumber } from '$lib/text-format-util';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
-	import { resolveAuthorNameOrNull, resolveSourceName, stripHtml } from '$lib/utils/paper-helpers';
+	import {
+		formatShortAuthors,
+		overperf,
+		resolveAllAuthorNames,
+		resolveSourceName,
+		stripHtml
+	} from '$lib/utils/paper-helpers';
 	import HitPaperBreakdown from './HitPaperBreakdown.svelte';
 	import HitPaperExplainer from './HitPaperExplainer.svelte';
 	import { onMount } from 'svelte';
@@ -66,9 +72,15 @@
 		}
 		return opts;
 	}
-	function overperf(p: tt.Paper): number {
-		if (!p.hitBm || p.hitBm < 5) return 0;
-		return p.citations / p.hitBm;
+	function computeYearRates(papers: tt.Paper[]): number[] {
+		const n = papers.length;
+		if (n <= 1) return papers.map(() => 0.5);
+		const byYear = [...papers.keys()].sort((a, b) => papers[a].year - papers[b].year);
+		const rates = new Array<number>(n);
+		byYear.forEach((paperIdx, rank) => {
+			rates[paperIdx] = rank / (n - 1);
+		});
+		return rates;
 	}
 
 	function getVisInds(ps: tt.Paper[], first: number, n: number): number[] {
@@ -94,7 +106,13 @@
 		return [0.25, 0.5, 0.75, 1].map((f) => Math.round(f * yMax));
 	}
 
-	function getFigureBasis(ps: tt.Paper[], inds: number[], globalMin: number, align: boolean) {
+	function getFigureBasis(
+		ps: tt.Paper[],
+		inds: number[],
+		globalMin: number,
+		align: boolean,
+		rates: number[]
+	) {
 		const nVis = inds.length;
 		const totalN = ps.length;
 		const yearSpan = LATEST_YEAR - globalMin;
@@ -120,7 +138,7 @@
 			const yc = paper.yearlyCites ?? [];
 			const startYear = paper.year - globalMin;
 			const lifespan = Math.max(LATEST_YEAR - paper.year, 1);
-			const rate = (paper.year - globalMin) / Math.max(LATEST_YEAR - globalMin, 1);
+			const rate = rates[i];
 
 			let endX = 0,
 				endY = 0;
@@ -200,9 +218,8 @@
 		viewMode = 'lines';
 	}
 
-	function getLiStyle(i: number, year: number, visInds: number[], hl: number, minYear: number) {
+	function getLiStyle(i: number, visInds: number[], hl: number, rate: number) {
 		if (!visInds.includes(i)) return '';
-		const rate = (year - minYear) / Math.max(LATEST_YEAR - minYear, 1);
 		const ext = hl === i ? '0.5); box-shadow: 3px 3px 10px var(--color-theme-shadow);' : '0.3)';
 		return `background-color: rgba(${getColorArr(rate)}, ${ext}`;
 	}
@@ -219,25 +236,6 @@
 	function onScrollDebounced() {
 		clearTimeout(scrollTimeout);
 		scrollTimeout = setTimeout(updateFirstVisible, 50);
-	}
-
-	function shortAuthors(paper: tt.Paper): string {
-		if (!paper.authorships?.length) return '';
-		const total = paper.authorships.length;
-		const known: string[] = [];
-		for (const s of paper.authorships) {
-			if (known.length >= 2) break;
-			const name = resolveAuthorNameOrNull(s, entityAtts, discAuthorNames);
-			if (name !== null) known.push(name);
-		}
-		if (known.length === 0) return `${total} author${total > 1 ? 's' : ''}`;
-		return known.join(', ') + (total > known.length ? ' et al.' : '');
-	}
-
-	function allAuthors(paper: tt.Paper): string[] {
-		return paper.authorships.map(
-			(s) => resolveAuthorNameOrNull(s, entityAtts, discAuthorNames) ?? '(unknown)'
-		);
 	}
 
 	function toggleExpand(i: number) {
@@ -281,8 +279,9 @@
 	$: globalMinYear =
 		chartPapers.length > 0 ? Math.min(...chartPapers.map((p) => p.year)) : LATEST_YEAR - 1;
 
+	$: rates = computeYearRates(chartPapers);
 	$: visInds = getVisInds(chartPapers, firstVisible ?? 0, maxN);
-	$: fb = getFigureBasis(chartPapers, visInds, globalMinYear, alignTrajectories);
+	$: fb = getFigureBasis(chartPapers, visInds, globalMinYear, alignTrajectories, rates);
 	$: highlightedVis = visInds.includes(highlighted) ? highlighted - visInds[0] : undefined;
 </script>
 
@@ -444,10 +443,10 @@
 		<ol id="paper-list" bind:this={listContainer}>
 			{#each chartPapers as paper, i}
 				{@const source = resolveSourceName(paper.source, entityAtts)}
-				{@const authors = shortAuthors(paper)}
+				{@const authors = formatShortAuthors(paper, entityAtts, discAuthorNames)}
 				{@const expanded = expandedSet.has(i)}
 				<li
-					style={getLiStyle(i, paper.year, visInds ?? [], highlighted, globalMinYear)}
+					style={getLiStyle(i, visInds ?? [], highlighted, rates[i])}
 					data-index={i}
 					on:mouseover={() => fixHighlight(i)}
 					on:focus={() => fixHighlight(i)}
@@ -484,7 +483,8 @@
 							{#if paper.authorships.length > 2}
 								<div class="detail-row">
 									<span class="detail-label">Authors:</span>
-									<span>{allAuthors(paper).join(', ')}</span>
+									<span>{resolveAllAuthorNames(paper, entityAtts, discAuthorNames).join(', ')}</span
+									>
 								</div>
 							{/if}
 							{#if paper.biblio}
