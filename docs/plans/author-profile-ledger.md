@@ -27,340 +27,647 @@ The existing storage (`src/lib/server/db.ts` — `disowned_papers`, `claimed_pap
 
 We need a **durable ledger** of these modifications that:
 
-1. Survives pipeline re-runs (the data product is re-built from CSVs nightly / on demand).
+1. Survives pipeline re-runs (the data product is re-built from CSVs on demand).
 2. Is **applied as early as possible** inside the pipeline so every downstream
    artefact reflects the edit (not just the author's own paper list).
 3. Distinguishes, per user, between **already-applied** events (consumed by the
    last pipeline run) and **pending** events (queued for the next run).
-4. Allows both sets to be edited; edits also become **pending** until the next run.
+4. Allows both sets to be edited; edits to applied events produce new
+   counter-events (the log is immutable).
 5. Is extensible: the same mechanism must accept **future user actions**
    (add-a-paper-that-isn't-in-OpenAlex, self-removal, affiliation correction, …).
+6. **Survives ID churn.** Any link in the
+   `dm_id ↔ openalex_id ↔ orcid/doi ↔ semantic_id` chain can break between
+   runs. The ledger must remain resolvable and auditable regardless.
 
 ---
 
-## 2. Open questions — please resolve before execution
+## 2. Locked decisions
 
-These drive significant branches in the design. Defaults are noted but the
-user should confirm before implementation.
+These are settled and drive the rest of the document. No agent should
+revisit them without user sign-off.
 
-1. **Auto-apply vs. moderation.** Current code has `reviewed` flag on
-   `author_merge_requests` (human gate). Disowns/claims/paper-merges are
-   auto-applied in-session. Should the pipeline apply **every** ledger event
-   automatically on the next run, or should a subset (author-merge,
-   high-impact claims) require staff approval first?
-   *Proposed default:* disown / paper-merge — auto; claim — auto; author-merge —
-   requires a `moderation` field set to `accepted` before the pipeline consumes it.
-2. **Claim authority check.** A claim by DOI effectively asserts "this paper
-   is mine." Should Node validate that the DOI resolves to an existing work
-   (via a backend call at POST time) and reject claims where the work already
-   has a different ORCID on one of its authorships?
-   *Proposed default:* reject at API time only if the work exists AND has a
-   conflicting ORCID; otherwise accept as pending.
-3. **Paper-merge authority.** Should we require the authenticated ORCID to be
-   listed on at least one side of the merge (keep or drop)?
-   *Proposed default:* yes, one-side authority.
-4. **Self-disown of all papers.** If a user disowns every paper they author,
-   they'd drop below `MIN_AUTHOR_WORK_COUNT` and be filtered out — losing the
-   ability to log in to edit further. Should the pipeline pin logged-in
-   ORCIDs into the keep-filter regardless?
-   *Proposed default:* yes, pin any ORCID that has ever submitted a ledger
-   event into the author filter (bypass `MIN_AUTHOR_WORK_COUNT`).
-5. **Revoking an already-applied event.** UI lets the user "undo" a merge that
-   is already baked into the binary. The data cannot change live. Do we
-   display a banner "revocation queued — applies at next data refresh," or do
-   we allow a *client-side* overlay that unhides the paper immediately
-   (similar to how today's merge is only UI-local)?
-   *Proposed default:* banner + queue. No client-side overlay for applied
-   events; the page reflects the current binary plus pending additions only.
-6. **Cross-owner conflicts.** What if ORCID A disowns work W, and ORCID B
-   claims W, and both refer to the same work? Or both claim the same DOI?
-   *Proposed default:* last-writer-wins for disjoint actions on the same
-   work; surface as a "conflict" state on the admin view; the pipeline
-   applies them in `event_id` order deterministically. Phase 2 adds explicit
-   conflict resolution.
-7. **Add-a-paper-request.** User explicitly deferred implementation, but we
-   must ensure the event schema accommodates it without migration. See §5.2.
-8. **Snapshot concurrency.** If a user POSTs a new event while the pipeline
-   is running, do we lock writes or accept and defer to the run-after-next?
-   *Proposed default:* accept writes freely; the snapshot is taken at
-   pipeline start and later writes are simply "pending" after the run.
+- **Moderation is not uniform.** Default `moderation` per kind:
+  - `disown_paper` → `auto_ok`
+  - `merge_papers` → `auto_ok`
+  - `merge_authors` → `pending_review` (requires human accept)
+  - `claim_paper` → `pending_review` (requires human accept; claims are the
+    highest-risk action — treat as untrusted until reviewed)
+  - `add_paper_request` → `pending_review` (deferred; schema reserved only)
+- **Owner pinning is a separate filter concept**, not a side-effect of
+  having submitted events. Any ORCID that has ever authenticated *and*
+  either owns ≥1 work or has submitted a ledger event is pinned into the
+  keep-filter so they can always log in to manage their profile. See §7.
+- **Applied events are immutable.** UI "edit" of an applied event creates a
+  new pending `revoke` counter-event (plus an optional replacement event).
+  The log grows monotonically; the `applied_manifest.json` of each run is a
+  permanent record.
+- **Single `ledger_events` table** — the four legacy per-action tables are
+  migrated and deleted (phase 1).
+- **Ledger payloads store stable IDs** (OpenAlex OA id primarily, with DOI
+  and ORCID as fallbacks and a display-time snapshot). They never store
+  `dm_id` or `semantic_id` because both are per-run artefacts. Resolution
+  happens at event-creation time and again at each pipeline run; see §6.
 
 ---
 
-## 3. Scope
+## 3. Open questions
 
-### 3.1 In scope (this plan)
+1. **Claim validation gate.** Beyond `pending_review`, should the API
+   reject a claim whose DOI is (a) malformed, (b) unresolvable against the
+   currently-served data, or (c) already has a different ORCID on the work?
+   *Proposal:* reject (a) and (c) at API time; accept (b) as pending
+   (maybe the next OpenAlex snapshot will include it).
+2. **Author-merge direction.** When owner X requests a merge with profile Y,
+   is X always the keep side, or can a moderator flip it?
+   *Proposal:* X is always keep; the moderator can only accept or reject,
+   never swap. A swap requires a new event by Y (who must authenticate with
+   their own ORCID).
+3. **Rate limits.** Per-ORCID limit for `POST /api/ledger`. Proposal: 60
+   events/day, with claim/merge-authors subject to a stricter 10/day.
+4. **Should revoking an applied event (counter-event) inherit or require a
+   new moderation gate?** A `revoke` of a `claim_paper` is strictly less
+   dangerous than the original claim — should it still go through review?
+   *Proposal:* counter-events always inherit `auto_ok` if the target was
+   applied (the risk was already cleared on the way in).
+5. **Concurrency while pipeline runs.** If a user POSTs a new event while
+   the pipeline is running, do we lock writes or accept and defer?
+   *Proposal:* accept freely; the snapshot is taken at pipeline start and
+   later writes are simply "pending" after the run.
+
+---
+
+## 4. Scope
+
+### 4.1 In scope (this plan)
 - Unified append-only `ledger_events` table (SQLite, same DB as today).
+- Multi-ID payload schema with stable-ID resolution (§6).
 - Snapshot export: SQLite → `$OA_ROOT/user_ledger/active.jsonl` before `filter`.
 - Pipeline ingest module consumed by `filter.rs`, `a1_entity_mapping`, `a2_init_atts`.
 - Post-run `applied_manifest.json` written alongside pipeline output.
-- Server reads the manifest and exposes applied/pending status per event.
-- Frontend: two editable panels on the author page (Applied / Pending), plus
-  consolidation of today's scattered `AuthorOwnerTools` / `AllWorks` actions
-  into a single ledger UI.
+- Server reads the manifest and exposes applied/pending/skipped status.
+- Frontend: two panels on the author page (Applied / Pending), plus
+  consolidation of today's scattered `AuthorOwnerTools` / `AllWorks`
+  actions into a single ledger UI.
+- Moderator workflow + queue page (streamlined review).
+- Owner-pinning as a distinct filter stage.
 
-### 3.2 Out of scope (Phase 2+)
-- Full add-a-paper-request implementation (schema allocation only — no
-  CSV-injection pipeline, no moderation UI).
-- Admin moderation dashboard.
-- Conflict resolution UI.
+### 4.2 Out of scope (Phase 2+)
+- Full `add_paper_request` implementation (schema allocation only — no
+  CSV-injection pipeline).
+- `claim_paper` pipeline effect (stays `pending_review` with no default
+  applier; needs dedicated follow-up on authorship synthesis — see §6.8).
 - E-mail / notification to the user when a queued event lands.
+- Cross-owner conflict resolution UI.
 
 ---
 
-## 4. Architecture overview
+## 5. Architecture overview
 
 ```
 ┌───────────────────────────────────────────────────────────────────────┐
-│ Browser (AuthorLedgerPanel.svelte)                                    │
-│   └─ POST /api/ledger/* ───────────────┐                              │
-└────────────────────────────────────────┼──────────────────────────────┘
-                                         ▼
+│ Browser (AuthorLedgerPanel.svelte, ModeratorQueue.svelte)             │
+│   └─ POST/GET/DELETE/PATCH /api/ledger/* ──────────────┐              │
+└────────────────────────────────────────────────────────┼──────────────┘
+                                                         ▼
 ┌───────────────────────────────────────────────────────────────────────┐
 │ SvelteKit server                                                      │
-│   ledger.ts  (append-only ops on ledger_events)                       │
-│   +page.server.ts  (loads events, joins applied_manifest.json)        │
+│   LedgerDb                (append-only ops on ledger_events)          │
+│   id_resolver             (dm_id / semantic_id → stable OA id)        │
+│   +page.server.ts         (joins applied_manifest.json)               │
 └───────────────────────────────────────────────────────────────────────┘
-                                         ▼  (one shared SQLite file)
+                                         ▼  (shared SQLite file)
 ┌───────────────────────────────────────────────────────────────────────┐
 │ data/rankless.sqlite                                                  │
-│   ledger_events (append-only, soft-revoke)                            │
+│   ledger_events           (append-only, soft-revoke of pending only)  │
+│   ledger_runs             (manifest history per pipeline run)         │
+│   owner_pins              (pinned ORCIDs)                             │
 └───────────────────────────────────────────────────────────────────────┘
                                          ▲
                                          │  pre-run export
                                          │
 ┌───────────────────────────────────────────────────────────────────────┐
 │ pyscripts/export_user_ledger.py                                       │
-│   reads ledger_events → writes $OA_ROOT/user_ledger/{                 │
-│     active.jsonl        (normalised events, one per line)             │
-│     snapshot_manifest.json  (run_id, event_ids included)              │
+│   reads ledger_events (revoked_at IS NULL AND moderation IN OK_SET)   │
+│   writes $OA_ROOT/user_ledger/{                                       │
+│     active.jsonl              (normalised events)                     │
+│     owner_pins.txt            (ORCIDs to pin through filter)          │
+│     snapshot_manifest.json    (run_id, event_ids included)            │
 │   }                                                                   │
 └───────────────────────────────────────────────────────────────────────┘
                                          ▼
 ┌───────────────────────────────────────────────────────────────────────┐
 │ rankless_rs pipeline                                                  │
-│   common/user_ledger.rs  (load + resolve ORCID/DOI/wid → BigId)       │
+│   common/user_ledger.rs  (load + resolve stable ids → BigId → dm_id)  │
 │   filter.rs              — consult alias map, pin owners              │
 │   a1_entity_mapping      — alias author + work BigIds before dm_id    │
 │   a2_init_atts           — drop/inject authorships, merge attrs       │
 │                                                                       │
 │ at end of run: writes $OA_ROOT/user_ledger/applied_manifest.json      │
-│   { run_id, applied_event_ids, skipped: [{event_id, reason}, …] }     │
+│   { run_id, applied_event_ids, skipped: [{event_id, reason, …}] }     │
 └───────────────────────────────────────────────────────────────────────┘
                                          ▼
 ┌───────────────────────────────────────────────────────────────────────┐
 │ rankless_server (on startup)                                          │
-│   reads applied_manifest.json → exposes via /ledger-status endpoint   │
+│   reads applied_manifest.json → exposes /api/ledger-status            │
+│   also: /api/resolve-entity for the UI (stable-id lookups)            │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.1 State transitions per ledger event
+### 5.1 State transitions per ledger event
 
 ```
                  ┌──────────┐  export snapshot   ┌──────────┐
   POST /api/…    │ pending  │ ─────────────────▶ │ in-run   │
-  ────────────▶  │          │ ◀───── revoke ──── │ (frozen) │
+  ────────────▶  │          │ ◀─── revoke ────── │ (frozen) │
                  └──────────┘                    └──────────┘
                        │                              │
-                       │                              │ pipeline commit
-                       │  revoke (soft delete)        ▼
-                       │                         ┌──────────┐
-                       │                         │ applied  │
-                       │                         │          │
-                       │  revoke-applied         │          │
-                       │  (counter-event)        │          │
-                       ▼                         ▼
-                 ┌──────────┐                ┌──────────────┐
-                 │ revoked  │ ◀── counter ── │ applied +    │
-                 │ (pending)│                │ counter_pend │
-                 └──────────┘                └──────────────┘
+                       │  DELETE (soft)               │ pipeline commit
+                       ▼                              ▼
+                 ┌──────────┐                    ┌──────────┐
+                 │ revoked  │                    │ applied  │
+                 │          │                    │          │
+                 └──────────┘                    └────┬─────┘
+                                                      │
+                                                      │ user clicks
+                                                      │ "undo"/"change"
+                                                      ▼
+                                           ┌────────────────────┐
+                                           │ counter-event      │
+                                           │ (new pending row,  │
+                                           │  kind = 'revoke',  │
+                                           │  points at target) │
+                                           └────────────────────┘
 ```
 
 - `pending` → user created an event; not yet in any run's snapshot.
-- `in-run` → snapshot taken; pipeline executing.
-- `applied` → pipeline consumed it; manifest lists its event_id.
+- `in-run` → snapshot taken; pipeline executing. Soft deletes blocked.
+- `applied` → pipeline consumed it; manifest lists its event_id. Immutable.
 - `revoked` → user cancelled while still pending (before snapshot). Soft delete.
-- `counter_pending` → an applied event was "undone" in the UI; a new *counter*
-  event is created which the next pipeline run will cancel. This is the
-  mechanism that preserves the **immutable** applied history while letting the
-  UI appear "editable."
+- `counter_pending` → an applied event was "undone" in the UI; a new
+  `revoke` event refers to it by `event_id`. Next pipeline run un-does.
+
+### 5.2 Moderation pipeline
+
+Every event has a `moderation` column. Only events with
+`moderation IN ('auto_ok', 'accepted')` and `revoked_at IS NULL` are
+exported to `active.jsonl`.
+
+| Event kind | Default `moderation` | Moderator action required? |
+|------------|----------------------|----------------------------|
+| disown_paper | auto_ok | No |
+| merge_papers | auto_ok | No |
+| revoke (counter) | auto_ok (inherit) | No |
+| merge_authors | pending_review | Yes — accept/reject |
+| claim_paper | pending_review | Yes — accept/reject |
+| add_paper_request | pending_review | Yes (deferred) |
+
+Moderators are identified by a flag on the user session (implementation
+detail: add `MODERATOR_ORCIDS` env var, expand later). A moderator's
+action is itself a ledger event of kind `moderation_decision` with
+`payload: {target_event_id, decision, reason}`, so decisions are audited
+through the same log. This second-order event does not need a pipeline
+effect; it only mutates the `moderation` column of its target (via a
+single UPDATE — the only permitted mutation in the table).
 
 ---
 
-## 5. Data model
+## 6. ID stability and resolution
 
-### 5.1 `ledger_events` table (SQLite)
+This is the most fragile part of the system. The identifier chain is:
+
+```
+┌─────────┐   generated per-run    ┌──────────────┐
+│ dm_id   │ ◀──────────────────── │ semantic_id  │  (unstable per run)
+└─────────┘                        └──────────────┘
+     ▲                                    ▲
+     │  per-run                           │  per-run
+     │  (a1_entity_mapping)               │
+     │                                    │
+┌────┴─────────────────────────────────────┴───┐
+│        OpenAlex id (BigId, 64-bit)            │  ← authoritative upstream
+└───────────────────────────────────────────────┘
+     ▲                ▲
+     │                │
+     │                │
+┌────┴────┐      ┌────┴────┐
+│  ORCID  │      │   DOI   │   ← external world, stable but
+└─────────┘      └─────────┘     imperfect (preprint vs published,
+                                 redirects, sometimes missing)
+```
+
+Any arrow can break between runs. A disown event persisted against a
+`dm_id` or `semantic_id` is toxic — the same physical work probably has a
+different dm_id next run due to different sort order, filter thresholds,
+or simply a later CSV snapshot.
+
+### 6.1 Stored identifiers per event subject
+
+Every event payload stores a **subject** block with as many identifier
+layers as possible, captured at event-creation time:
+
+```jsonc
+// A "work subject" (appears in disown_paper, merge_papers, claim_paper)
+{
+  "oa_id": 123456789,               // OpenAlex numeric id, primary
+  "doi": "10.1234/foo.bar",         // optional; canonicalized lower-case
+  "dm_id_at_creation": 4711,        // for audit only; never used for resolve
+  "semantic_id_at_creation": "...", // for audit only
+  "run_id_at_creation": "...",      // which pipeline run the above were from
+  "display_snapshot": {              // for orphan UI rendering
+    "title": "Foo et al. 2019",
+    "year": 2019,
+    "first_author_name": "..."
+  }
+}
+
+// An "author subject" (appears in merge_authors and owner-side fields)
+{
+  "oa_id": 501234567,
+  "orcid": "0000-0001-2345-6789",
+  "dm_id_at_creation": 1234,
+  "semantic_id_at_creation": "jane-doe-7",
+  "run_id_at_creation": "...",
+  "display_snapshot": {
+    "display_name": "Jane Doe",
+    "institutions_at_creation": ["inst-oa-id-1", "inst-oa-id-2"]
+  }
+}
+```
+
+`oa_id` is the **primary** identifier. `doi`/`orcid` are secondary fallbacks.
+`dm_id_at_creation` and `semantic_id_at_creation` are stored purely as
+provenance (so we can display "Last known as Jane Doe (jane-doe-7) in run X")
+— never used during resolution.
+
+### 6.2 Resolution algorithm (pipeline side)
+
+Implemented in `rankless_rs/src/common/user_ledger.rs::UserLedger::resolve`.
+Runs once per pipeline after the CSVs are available, before `filter.rs`:
+
+```
+for each event in active.jsonl:
+    for each subject in event:
+        oa_id_final = None
+        # 1. Try primary oa_id against current ID mapping
+        if subject.oa_id in current_oa_ids:
+            oa_id_final = subject.oa_id
+        # 2. Try OpenAlex merged_ids redirect
+        elif subject.oa_id in merged_ids_redirect:
+            oa_id_final = merged_ids_redirect[subject.oa_id]
+        # 3. For works: fall back to DOI lookup (doi_to_oa)
+        elif kind == work and subject.doi:
+            oa_id_final = doi_to_oa.get(canonicalize(subject.doi))
+        # 4. For authors: fall back to ORCID lookup (orcid_to_oa)
+        elif kind == author and subject.orcid:
+            oa_id_final = orcid_to_oa.get(subject.orcid)
+
+        if oa_id_final is None:
+            skipped.push((event_id, ResolveFail{subject_idx, reasons}))
+            break  # whole event skipped if any subject unresolvable
+
+# Events that successfully resolved all subjects are added to:
+#   author_aliases, work_aliases, removed_edges, added_edges, owner_pins
+# Events that fail resolution are recorded in skipped[] with a reason
+# and are RE-TRIED on the next run — they are NOT revoked. If the
+# data finally contains the subject, the event resolves and applies.
+```
+
+Supporting lookups constructed at pipeline start:
+
+- `current_oa_ids` — built from the freshly-parsed `authors/main` and
+  `works/main` CSVs before `a1`.
+- `merged_ids_redirect` — consumed from the OpenAlex `merged_ids` files
+  (the snapshot publishes these; see §6.5).
+- `doi_to_oa` — single streaming pass over `works/main` CSV.
+- `orcid_to_oa` — single streaming pass over `authors/main` CSV.
+
+### 6.3 Resolution at event-creation time (Node side)
+
+When a user POSTs an event, the SvelteKit handler must populate every
+identifier layer it can from the currently-served data. This prevents
+zombie events — an event created against a stale UI state with no
+fallbacks.
+
+New server helper `src/lib/server/id_resolver.ts`:
+
+```ts
+// Resolves the UI's view of an entity to the stable-id block stored in the
+// payload. Throws 422 if the minimum (oa_id OR a usable fallback) can't
+// be obtained — the client must refresh and retry.
+async function resolveWorkSubject(input: {
+  wid?: number; doi?: string; semantic_id?: string;
+}): Promise<WorkSubject>;
+
+async function resolveAuthorSubject(input: {
+  semantic_id?: string; orcid?: string; dm_id?: number;
+}): Promise<AuthorSubject>;
+```
+
+Implementations hit small new Rust endpoints:
+
+- `GET /v1/resolve/work?wid=…` → `{ oa_id, doi, semantic_id, display }`
+- `GET /v1/resolve/work?doi=…` → same
+- `GET /v1/resolve/author?semantic_id=…` → `{ oa_id, orcid, display }`
+- `GET /v1/resolve/author?orcid=…` → same
+
+The server already has all the needed structures loaded (orcids, dois,
+semantic_ids, name cache). These endpoints add only trivial code.
+
+### 6.4 Paper type extension
+
+`src/lib/tree-types.ts::Paper` gets a new optional field:
+
+```ts
+export type Paper = {
+  wid: number;          // dm_id, per-run; used by /works/* endpoints
+  oaId: number;         // OpenAlex BigId, stable; used in ledger payloads
+  // …
+};
+```
+
+Also `SearchResult` gains `oaId?: number`. The server populates these in
+the existing response shaping in `rankless_server`. **This is a
+cross-cutting change** (all paper list responses need it) but it's a
+one-line addition per shaping site.
+
+### 6.5 OpenAlex `merged_ids` ingestion
+
+OpenAlex publishes monthly `merged_ids/` tables mapping deprecated IDs to
+their canonical counterparts. Today the pipeline ignores them.
+
+Add a one-shot load at the top of the pipeline:
+
+- `rankless_rs/src/common/merged_ids.rs`: `load_merged_ids(root: &Path) -> HashMap<BigId, BigId>`
+- Called from `UserLedger::resolve` (used in step 2 of the algorithm above).
+- Also useful beyond the ledger: the `oa-id/[oaId]/+server.ts` redirect
+  route can consult it for stale OA ids that show up in external links.
+  (Out of scope here — mention only.)
+
+### 6.6 Orphan state machine
+
+An event whose subjects can't be resolved in the current run is **orphan
+for that run**. Orphans are not revoked — they sit patiently and retry
+next run.
+
+UI treatment: in the Pending section we render orphans with a distinct
+chip (`Could not resolve in last run`) and a tooltip listing the reason
+codes returned in `skipped[]`. The user can `[×]` them (soft delete) or
+`[edit]` them to supply better identifiers (e.g. correct the DOI).
+
+Reason codes emitted to `applied_manifest.json`:
+
+- `oa_id_not_in_dataset` — primary id no longer present, no fallback hit.
+- `doi_not_found` — DOI fallback didn't match.
+- `orcid_not_in_dataset` — owner's ORCID has no author entity (filter drop).
+- `alias_cycle_collapsed` — event was part of a cycle and was deduplicated.
+- `authority_violation` — submitter ORCID isn't on either side of the subject.
+- `superseded_by_event` — a later event by the same owner made this moot.
+
+### 6.7 Display-side resolution (server → UI)
+
+The author page load (`+page.server.ts`) shows the user their events.
+For each event we need human-readable text for each subject. Resolution
+order for display:
+
+1. Look up the subject's `oa_id` via the current server data → if found,
+   use the live display text (fresh, shows current title / current author
+   name).
+2. Else, fall back to `display_snapshot` in the payload. Render with a
+   "as of run X" tooltip.
+3. Else, show `oa_id`/`orcid`/`doi` verbatim with a generic "No longer in
+   data" hint.
+
+This logic lives in `src/lib/utils/ledger-display.ts`. Pure function,
+unit-testable against a synthetic `paperMap`.
+
+### 6.8 Claim injection — deferred but schema-ready
+
+`claim_paper` is marked `pending_review`. Moderator accept flips it to
+`accepted`. The pipeline *could* then synthesise an authorship row
+(`added_edges`), but that requires deciding:
+
+- Which `Authorships` row id to assign (these aren't user-visible, so
+  likely just append to the authorship entity with the owner's dm_id and
+  the work's dm_id).
+- Whether to also update `inst` relations (claim without institution
+  information).
+
+Phase-1 pipeline **skips** claim events entirely with reason
+`claim_pipeline_not_implemented`. Phase-2 work resolves this. Until then,
+accepted claims are display-only (the author's profile shows them as
+"claimed (display only)" in the Pending list; the manifest records them
+as skipped).
+
+### 6.9 Integrity invariants (tested)
+
+- Round-trip: take a ledger event, resolve it, write it, re-read it —
+  subject IDs match.
+- Stale dm_id safety: a disown event with `dm_id_at_creation = 4711`
+  is resolved solely via `oa_id`; changing the pipeline's dm_id
+  assignment does not change resolution.
+- Merged-id redirect: an event whose primary `oa_id` has been deprecated
+  resolves to the redirect target; this is logged as
+  `{event_id, redirected: {from, to}}` in `applied_manifest.json`.
+- Alias transitivity: A→B, B→C, D→B collapses to a single root C with
+  path-compression. Stored in `author_aliases` / `work_aliases` as a flat
+  `drop → root` map (no chains).
+
+---
+
+## 7. Data model
+
+### 7.1 `ledger_events`
 
 ```sql
 CREATE TABLE ledger_events (
   event_id       INTEGER PRIMARY KEY AUTOINCREMENT,
-  orcid          TEXT NOT NULL,
-  kind           TEXT NOT NULL,
-    -- 'disown_paper' | 'claim_paper' | 'merge_papers'
-    -- 'merge_authors' | 'add_paper_request' (deferred)
-    -- 'revoke'  (counter-event: payload.target_event_id = N)
-  payload        TEXT NOT NULL,      -- JSON, schema depends on kind
-  subject_hash   TEXT NOT NULL,      -- stable hash of (orcid, kind, payload-key-fields);
-                                     -- used for dedup and revoke lookup
+  orcid          TEXT NOT NULL,           -- submitter
+  kind           TEXT NOT NULL,           -- see §5.2 and §6.1
+  payload        TEXT NOT NULL,           -- JSON, one subject block per subject
+  subject_hash   TEXT NOT NULL,           -- sha1 of sorted stable ids; for dedup
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
-  revoked_at     TEXT,               -- soft-delete (only for still-pending events)
-  moderation     TEXT NOT NULL       -- 'auto_ok' | 'pending_review' | 'accepted' | 'rejected'
-                 DEFAULT 'auto_ok'
+  revoked_at     TEXT,                    -- soft-delete; only for still-pending
+  moderation     TEXT NOT NULL
+                 DEFAULT 'auto_ok',       -- 'auto_ok'|'pending_review'|'accepted'|'rejected'
+  moderated_by   TEXT,                    -- ORCID of moderator, if any
+  moderated_at   TEXT
 );
+
 CREATE INDEX idx_le_orcid ON ledger_events(orcid);
-CREATE INDEX idx_le_kind  ON ledger_events(kind);
+CREATE INDEX idx_le_kind ON ledger_events(kind);
+CREATE INDEX idx_le_moderation ON ledger_events(moderation);
 CREATE UNIQUE INDEX idx_le_dedup
   ON ledger_events(orcid, kind, subject_hash)
   WHERE revoked_at IS NULL;
 ```
 
-Why one table:
+### 7.2 `ledger_runs`
 
-- A single audit log per user (`SELECT … WHERE orcid = ?`) is trivial.
-- "Applied vs pending" is a **join** against `applied_manifest.json`, not an
-  extra column that has to be kept in sync.
-- New kinds = new `kind` string + payload schema; no migrations.
+```sql
+CREATE TABLE ledger_runs (
+  run_id         TEXT PRIMARY KEY,        -- ISO timestamp, generated at export
+  snapshot_at    TEXT NOT NULL,           -- when active.jsonl was frozen
+  manifest_at    TEXT,                    -- when applied_manifest.json landed
+  manifest_json  TEXT                     -- full manifest, for audit / rollback
+);
+```
 
-The four existing tables (`disowned_papers`, `claimed_papers`, `paper_merges`,
-`author_merge_requests`) become derivable views. **Migration**: one-shot
-script in `pyscripts/migrate_ledger.py` inserts existing rows into
-`ledger_events` with `created_at` preserved and `moderation = 'auto_ok'`
-(except author-merge-requests where `reviewed = 0 → 'pending_review'`).
-Then drop the old tables. This must happen **before** the Node rewrite goes
-live.
+Server polls `$OA_ROOT/user_ledger/applied_manifest.json` on startup and,
+if it's newer than the newest `ledger_runs.run_id`, inserts a row. This
+gives us a permanent audit trail of which runs consumed which events
+without needing to re-parse manifest files.
 
-### 5.2 Payload schemas (JSON)
+### 7.3 `owner_pins`
+
+```sql
+CREATE TABLE owner_pins (
+  orcid          TEXT PRIMARY KEY,
+  first_seen_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  reason         TEXT NOT NULL            -- 'login' | 'submitted_event' | 'manual'
+);
+```
+
+Populated on each successful ORCID login and on each `POST /api/ledger`.
+Exported to `$OA_ROOT/user_ledger/owner_pins.txt` (one ORCID per line,
+plain text) consumed by `filter.rs`. This is **independent** of the
+event ledger — a user who logs in never loses the ability to see their
+profile even if they've never submitted a ledger event.
+
+### 7.4 Payload shapes
+
+All payloads carry stable-ID subject blocks (§6.1).
 
 ```jsonc
 // disown_paper
-{ "wid": 12345 }
+{ "work": WorkSubject }
 
 // claim_paper
-{ "doi": "10.1234/foo.bar" }
+{ "work": WorkSubject }                  // oa_id optional here — DOI primary
 
 // merge_papers
-{ "wid_keep": 111, "wid_drop": 222 }
+{ "keep": WorkSubject, "drop": WorkSubject }
 
-// merge_authors  (owner is always the "keep" side)
-{ "my_semantic_id": "john-doe", "other_semantic_id": "j-doe-7", "note": "…" }
+// merge_authors (submitter is always the keep side)
+{ "keep": AuthorSubject, "drop": AuthorSubject, "note": "..." }
 
-// add_paper_request  (deferred — schema reserved)
-{ "doi": "...", "title": "...", "year": 2024, "coauthors": [...] }
-
-// revoke  (counter-event)
+// revoke (counter-event)
 { "target_event_id": 12345, "reason": "..." }
+
+// moderation_decision (moderator-only)
+{ "target_event_id": 12345, "decision": "accepted"|"rejected", "reason": "..." }
+
+// add_paper_request (deferred)
+{ "work_claim": { doi, title, year, venue, authors: [AuthorSubject|string] } }
 ```
 
-`subject_hash` construction (stable, used for dedup):
+`subject_hash` is computed from **canonicalised stable ids only** — order-
+independent within a kind (for `merge_papers`, the pair is sorted
+numerically; for `merge_authors`, ORCIDs are sorted lexically if both
+present, otherwise OA ids). This makes dedup robust to the UI picking
+either paper as "keep."
 
-- `disown_paper`: `sha1("disown_paper|<orcid>|<wid>")`
-- `claim_paper`: `sha1("claim_paper|<orcid>|<normalized_doi>")`
-- `merge_papers`: `sha1("merge_papers|<orcid>|<min(keep,drop)>|<max(keep,drop)>")`
-- `merge_authors`: `sha1("merge_authors|<orcid>|<lexmin>|<lexmax>")`
-- `revoke`: `sha1("revoke|<orcid>|<target_event_id>")`
-
-### 5.3 Applied manifest
+### 7.5 Applied manifest
 
 `$OA_ROOT/user_ledger/applied_manifest.json`:
 
 ```jsonc
 {
-  "run_id": "2026-04-22T10:00:00Z",          // ISO timestamp, generated by export step
-  "snapshot_at": "2026-04-22T09:58:12Z",     // when active.jsonl was frozen
+  "run_id": "2026-04-22T10:00:00Z",
+  "snapshot_at": "2026-04-22T09:58:12Z",
   "applied_event_ids": [42, 43, 47, 50, 51],
+  "redirected": [
+    { "event_id": 47, "subject": "keep",
+      "from": 123456789, "to": 987654321 }
+  ],
   "skipped": [
     { "event_id": 48, "reason": "orcid_not_in_dataset" },
-    { "event_id": 49, "reason": "doi_not_found" }
+    { "event_id": 49, "reason": "doi_not_found" },
+    { "event_id": 52, "reason": "claim_pipeline_not_implemented" }
   ]
 }
 ```
 
-Guarantees:
-
-- An event is "applied" iff its `event_id ∈ applied_event_ids`.
-- An event is "pending" iff it exists in `ledger_events` with
-  `revoked_at IS NULL` and its `event_id` is NOT in the manifest.
-- An event is "skipped" (orphan) if the pipeline rejected it — UI shows a
-  specific error and lets the user edit or cancel.
-
 ---
 
-## 6. Pipeline integration
+## 8. Pipeline integration
 
-### 6.1 Invariants the ledger must preserve
-
-- `a1_entity_mapping`: the ID-mapping step. Any merge of two entities must
-  collapse to a single `dm_id` **here**, so every subsequent step naturally
-  sees the merge.
-- `a2_init_atts::add_ship_relations`: the authorship rows are written here.
-  Disowns and claims (injections) must happen **here**.
-- `filter.rs`: runs before `a1`. Author survival thresholds
-  (`MIN_AUTHOR_WORK_COUNT`, `MIN_AUTHOR_CITE_COUNT`) must account for author
-  aliases (merged authors' works sum together) and must pin owners.
-
-### 6.2 New module: `rankless_rs/src/common/user_ledger.rs`
+### 8.1 New module: `rankless_rs/src/common/user_ledger.rs`
 
 ```rust
 pub struct UserLedger {
     pub run_id: String,
-    pub orcid_to_owner_oa_id: HashMap<OrcidBytes, BigId>,
-    pub author_aliases: HashMap<BigId, BigId>,     // drop_oa_id -> keep_oa_id
-    pub work_aliases:   HashMap<BigId, BigId>,     // drop_oa_id -> keep_oa_id
+    pub author_aliases: HashMap<BigId, BigId>,     // drop -> root
+    pub work_aliases:   HashMap<BigId, BigId>,     // drop -> root
     pub removed_edges:  HashSet<(BigId, BigId)>,   // (author_oa_id, work_oa_id)
     pub added_edges:    Vec<(BigId, BigId)>,       // (author_oa_id, work_oa_id)
     pub owner_pins:     HashSet<BigId>,            // author_oa_ids to never filter out
-    pub applied:        Vec<u64>,                  // event_ids consumed
-    pub skipped:        Vec<(u64, SkipReason)>,
+    pub orcid_to_oa:    HashMap<OrcidBytes, BigId>,
+    pub doi_to_oa:      HashMap<String, BigId>,
+    pub merged_ids:     HashMap<BigId, BigId>,
+    pub applied:        Vec<u64>,
+    pub redirected:     Vec<Redirect>,
+    pub skipped:        Vec<Skipped>,
 }
 
 impl UserLedger {
-    pub fn load(stowage: &Stowage) -> Self;     // reads active.jsonl + snapshot_manifest
-    pub fn resolve(&mut self, stowage: &Stowage);  // fill orcid→oa_id, doi→oa_id
-    pub fn write_manifest(&self, stowage: &Stowage);  // applied_manifest.json
+    pub fn load(stowage: &Stowage) -> io::Result<Self>;  // reads active.jsonl
+    pub fn resolve(&mut self, stowage: &Stowage);        // fill lookups, apply algo
+    pub fn write_manifest(&self, stowage: &Stowage);     // applied_manifest.json
 }
 ```
 
-Resolution notes:
-
-- ORCID → author oa_id: stream `authors/main` CSV once, build lookup.
-- DOI → work oa_id: stream `works/main` CSV once, build `doi_to_oa_id`.
-- Both passes are one-time per run and cached in memory.
-
-### 6.3 Integration points
+### 8.2 Integration points
 
 | Step | Change |
 |------|--------|
-| `filter.rs` (before a1) | Load `UserLedger`. In `count_passes`, collapse `author_aliases` groups before the threshold check. Force `owner_pins` authors to pass the filter. Remove edges in `removed_edges` from the counted `author→work` relation; add edges in `added_edges`. |
-| `a1_entity_mapping.rs` | Inject a `BigIdRemapper` layer wrapping `Data64MappedEntityBuilder` usage for `Authors` and `Works`. When `push(oa_id)` is called with a `drop` side of an alias, skip (do not assign a dm_id); always re-route lookups through the alias map so downstream `LoadedIdMap` queries return the keep's dm_id. |
-| `a2_init_atts::add_ship_relations::proc_next` | At the start of the fn, check `(author_oa_id, work_oa_id) ∈ ledger.removed_edges` → skip. After iterating real authorships, iterate `ledger.added_edges` and feed them to the same writer. |
-| `a2_init_atts::add_author_atts` | When two authors are aliased, merge their text attributes: pick keep's name and ORCID (the ORCID of the owner who submitted the merge), union wiki slugs (prefer keep's if both set), sum raw_cites / raw_works before the downcasting write. |
-| `a2_init_atts::add_work_atts` | When two works are aliased, pick the keep's DOI, name, year; the drop's data is discarded (it's the duplicate). |
-| end of `derive_links5` (or a new `a3_finalize`) | Call `UserLedger::write_manifest`. |
+| `filter.rs` (before a1) | Load `UserLedger`, call `resolve`. Load `owner_pins.txt`; augment. In `count_passes`, collapse `author_aliases` groups before the threshold check. Force every OA id with an `owner_pins` entry to pass the filter regardless of counts. Apply `removed_edges`/`added_edges` to the authorship counting. |
+| `a1_entity_mapping.rs` | Wrap `Data64MappedEntityBuilder::push` for `Authors` and `Works`: skip drop-side OA ids; they get no dm_id. The `LoadedIdMap` built at the end contains `drop_oa_id → keep's dm_id` entries as well (so downstream CSV rows referencing a drop still resolve). Emit discarded entries appropriately (merged drops are *not* "discarded authors"; they are a separate `merged_away_authors` list for audit). |
+| `a2_init_atts::add_ship_relations::proc_next` | Check `(author_oa_id, work_oa_id) ∈ removed_edges` → skip. After CSV iteration, iterate `added_edges` and feed the writer. |
+| `a2_init_atts::add_author_atts` | Merge text attributes per alias group: keep's name/orcid/wikislug win; sum `raw_cites`, `raw_works`. Drops' attrs discarded. |
+| `a2_init_atts::add_work_atts` | Similar for works: keep's DOI/title/year/biblio win. |
+| New `a_finalize` (trivial step) | Call `UserLedger::write_manifest`. Alternative: append to tail of `derive_links5`. |
 
-Bootstrap-safety review: all these changes use types already existing in
-`gen/a1_entity_mapping.rs` by the time they run, so no metaprogramming loop
-violation. Adding `UserLedger::load` before `filter.rs` is safe because the
-ledger file is external data, not dmove-generated.
+### 8.3 Pinning as a distinct filter concept
 
-### 6.4 Export step
+`filter.rs` currently applies thresholds uniformly to all authors. Add:
+
+```rust
+let owner_pins = read_owner_pins(&stowage.paths.user_ledger);  // HashSet<BigId>
+// in the per-author decision:
+let passes = owner_pins.contains(&author_oa_id)
+          || (cites >= MIN_AUTHOR_CITE_COUNT && works >= MIN_AUTHOR_WORK_COUNT);
+```
+
+Verify no downstream step assumes `works_count ≥ 1` without checking.
+Audit loci: `derive_links3::hit_papers`, `derive_links4`, KD-tree embedding
+(`peers.rs::Embed2` uses `ln(cites)` — an author with zero works has
+`-inf`; either exclude pinned zero-work authors from the KD-tree build
+or assign them the minimum nonzero value). Document the choice in
+`docs/details/metaprogramming.md`.
+
+### 8.4 Export step
 
 ```
 pyscripts/export_user_ledger.py
 
-- Connects to data/rankless.sqlite.
-- SELECT * FROM ledger_events WHERE revoked_at IS NULL
-    AND moderation IN ('auto_ok', 'accepted')
-- For each event, resolve payload references that are already resolvable from
-  the previous run's outputs (optional; the pipeline re-resolves anyway).
-- Collapse counter-events: if a 'revoke' event targets an event_id that is in
-  the applied set, emit a synthetic "undo" instruction; if it targets a still-
-  pending event, DON'T include either in active.jsonl.
-- Write $OA_ROOT/user_ledger/active.jsonl (one event per line).
-- Write $OA_ROOT/user_ledger/snapshot_manifest.json with the frozen set of
-  event_ids and a generated run_id (ISO timestamp).
+- Connect to data/rankless.sqlite.
+- SELECT event_id, orcid, kind, payload, moderation
+    FROM ledger_events
+   WHERE revoked_at IS NULL
+     AND moderation IN ('auto_ok', 'accepted')
+- Collapse counter-events:
+    if event kind = 'revoke' and target ∈ active set:
+        remove target from active set, also remove the revoke itself
+    if event kind = 'revoke' and target ∉ active set (already applied):
+        keep as a synthetic "undo" instruction — Rust needs to compute
+        the inverse (remove from aliases / edges).
+- Write active.jsonl (one event per line with normalised payload).
+- Write snapshot_manifest.json with run_id (ISO ts) and event_ids.
+- Write owner_pins.txt by reading owner_pins table.
 ```
 
-Hooked into `Makefile` as a dependency of `filter`:
+Hooked into `Makefile`:
 
 ```
 filter: export-ledger clean-filters clean-keys clean-cache
@@ -370,74 +677,129 @@ export-ledger:
     uv run -m pyscripts.export_user_ledger $(OA_ROOT)
 ```
 
+### 8.5 Revoke semantics on the pipeline side
+
+A `revoke` event in `active.jsonl` means "cancel the effect of a
+previously-applied event." The simplest implementation:
+
+1. Build the event set for the run, starting with every active non-revoke
+   event.
+2. For each `revoke` event pointing at a `target_event_id`, look up
+   whether the target appears in the current set. If yes, drop it. If no,
+   the target must have been a previously-applied event — load the
+   historic event by id from `ledger_events` (read-only), and apply its
+   *inverse* (swap `removed_edges`/`added_edges`; clear the alias entry).
+3. Skipped revokes (target not found at all) go to manifest with
+   `target_not_resolvable`.
+
+This is the only place where the pipeline reads historical rows from
+SQLite. To keep Rust independent of sqlite, the Node export step inlines
+the target's payload into the revoke event before writing `active.jsonl`:
+
+```jsonc
+{ "event_id": 200, "kind": "revoke",
+  "payload": { "target_event_id": 47 },
+  "target_inlined": { "event_id": 47, "kind": "disown_paper",
+                      "payload": { "work": { "oa_id": 123, … } } }
+}
+```
+
+Rust just reverses `target_inlined` without touching the DB.
+
 ---
 
-## 7. API surface
+## 9. API surface
 
-### 7.1 Consolidation of existing endpoints
+### 9.1 Consolidation
+
+Existing endpoints become thin wrappers during Phase 2; Phase 6 deletes
+them.
 
 | Existing endpoint | Replaced by |
 |-------------------|-------------|
-| `POST /api/papers/disown` | `POST /api/ledger` with `{kind:"disown_paper", payload:{wid}}` |
-| `DELETE /api/papers/disown` | `DELETE /api/ledger/:event_id` (pending) OR `POST /api/ledger` with `{kind:"revoke", payload:{target_event_id}}` (applied) |
-| `POST /api/papers/claim` | `POST /api/ledger` with `{kind:"claim_paper", …}` |
-| `DELETE /api/papers/claim` | as above |
-| `POST /api/papers/merge` | `POST /api/ledger` with `{kind:"merge_papers", …}` |
-| `DELETE /api/papers/merge` | as above |
-| `POST /api/authors/merge-request` | `POST /api/ledger` with `{kind:"merge_authors", …, moderation:"pending_review"}` |
+| `POST /api/papers/disown` | `POST /api/ledger` with `{kind:"disown_paper", ...}` |
+| `POST /api/papers/claim` | `POST /api/ledger` with `{kind:"claim_paper", ...}` (→ pending_review) |
+| `POST /api/papers/merge` | `POST /api/ledger` with `{kind:"merge_papers", ...}` |
+| `POST /api/authors/merge-request` | `POST /api/ledger` with `{kind:"merge_authors", ...}` (→ pending_review) |
 
 Single handler `src/routes/api/ledger/+server.ts`:
 
 ```ts
-POST   { kind, payload }                    -> creates event, returns event_id
-GET    ?orcid=…                             -> lists events for the caller
-DELETE /api/ledger/:event_id                -> soft-delete (only if still pending)
-PATCH  /api/ledger/:event_id { payload }    -> edit pending event (dedup-aware)
+POST   { kind, payload_input }             // resolves ids, creates event
+GET    /api/ledger?orcid=…                 // lists caller's events
+DELETE /api/ledger/:event_id               // soft-delete (pending only)
+PATCH  /api/ledger/:event_id { payload }   // edit pending (dedup-aware)
+POST   /api/ledger/:event_id/revoke        // create counter-event (applied)
 ```
 
-For edits to *applied* events, the client issues a `POST` with
-`{kind: "revoke", payload: {target_event_id}}` and (optionally) a follow-up
-`POST` with a replacement event (e.g. re-merge into a different target).
-The UI hides this behind a "change this" button.
+### 9.2 Moderator endpoints
 
-### 7.2 New lookup endpoint
+```ts
+GET  /api/moderation/queue                 // pending_review events; mod-only
+POST /api/moderation/:event_id/decide      // accept/reject; mod-only
+```
 
-`GET /api/ledger-status` → passes through the server's loaded
-`applied_manifest.json` (with `run_id` + `applied_event_ids` + `skipped`).
-Used by `+page.server.ts` to partition the user's events.
+Guarded by `locals.user.orcid ∈ MODERATOR_ORCIDS` (env list for now).
+
+### 9.3 Resolution endpoints (server)
+
+New `rankless_server` routes:
+
+```
+GET /v1/resolve/work?wid=…&doi=…&oa_id=…
+GET /v1/resolve/author?semantic_id=…&orcid=…&oa_id=…&dm_id=…
+```
+
+Both return a best-effort `{ oa_id?, orcid?, doi?, semantic_id?, display? }`.
+Called from Node at `POST /api/ledger` to populate the subject blocks.
+
+### 9.4 Status endpoints
+
+```
+GET /api/ledger-status                      // manifest passthrough + redirect info
+```
 
 ---
 
-## 8. Frontend
+## 10. Frontend
 
-### 8.1 Components
+### 10.1 Components
 
 - Extract `src/lib/components/AuthorLedgerPanel.svelte`. Replaces
   `AuthorOwnerTools.svelte` and absorbs the disown/merge UI from
-  `AllWorks.svelte` (the paper-row actions still live there, but they POST
-  to the unified endpoint; the confirmation/undo bar moves into the panel).
-- New subcomponents: `LedgerEventRow.svelte` (renders one event by kind),
-  `LedgerStatusBadge.svelte` (`Applied` / `Pending` / `Queued for review` /
-  `Skipped` chip with tooltip).
+  `AllWorks.svelte` (the paper-row action triggers still live there, but
+  they dispatch through a shared store consumed by the panel).
+- `src/lib/components/LedgerEventRow.svelte` — renders one event, polymorphic
+  on `kind`, uses `ledger-display.ts` for text.
+- `src/lib/components/LedgerStatusBadge.svelte` — `Applied` / `Pending` /
+  `Pending review` / `Rejected` / `Skipped` chip with tooltip showing
+  reason code.
+- `src/lib/components/OrphanEventRow.svelte` (variant of LedgerEventRow)
+  — rendered with distinct styling when the subject can't be resolved
+  against the current data.
+- `src/routes/(stat)/moderate/+page.svelte` — moderator queue.
 
-### 8.2 Page layout on `author-papers/[...]/+page.svelte`
+### 10.2 Layout on `author-papers/[...]/+page.svelte`
 
 ```
 [Name header — impact summary]
 
 [Immediate Impact DAG]
 
-[AllWorks list] (unchanged visually; per-row actions still dispatch events)
+[AllWorks list]
 
 ┌── Your Profile Changes ─────────────────────────────────┐
 │                                                          │
-│  Applied (N)              ← collapsible, default open   │
-│    • Disowned "Foo et al. 2019"    [change] [undo]      │
-│    • Merged "Bar 2018" into "Bar 2018 preprint"  [undo] │
+│  Applied (N)                                             │
+│    • Disowned "Foo et al. 2019"        [undo] [change]  │
+│    • Merged "Bar 2018" ← "Bar preprint" [undo]          │
 │                                                          │
-│  Pending — next data refresh (M)   ← collapsible        │
-│    • Claim DOI 10.1234/x …               [edit] [×]     │
-│    • Revoke: un-disown "Foo et al. 2019" [×]            │
+│  Pending — next data refresh (M)                         │
+│    • Claim DOI 10.1234/x                 [edit] [×]     │
+│        status: Awaiting moderation                       │
+│    • Revoke disown "Foo et al. 2019"                [×] │
+│    • (Orphan) Disown "Baz 1995"          [edit] [×]     │
+│        skipped: oa_id_not_in_dataset                     │
 │                                                          │
 │  [+ Disown a paper] [+ Claim by DOI]                     │
 │  [+ Merge two of my papers] [+ Merge another profile]    │
@@ -445,206 +807,280 @@ Used by `+page.server.ts` to partition the user's events.
 └──────────────────────────────────────────────────────────┘
 ```
 
-### 8.3 Editability semantics
+### 10.3 Editability semantics
 
-- **Pending events**: `PATCH` or `DELETE` against their `event_id`. Instant.
-- **Applied events**: `[undo]` creates a counter (`revoke`) event — becomes
-  Pending. `[change]` creates a counter event *and* opens the create-form
-  pre-filled with the old payload — user can submit a modified version.
-- Visual cue for applied-but-countered: strikethrough in Applied list +
-  a matching entry in Pending. User sees the causal pair.
+- **Pending, non-orphan, `auto_ok`**: `PATCH` or `DELETE` → instant.
+- **Pending, `pending_review`**: edit allowed until a moderator decides;
+  after `accepted`/`rejected`, the event is frozen (UI hides edit button,
+  exposes only "revoke" which creates a counter-event).
+- **Applied**: `[undo]` creates a `revoke` counter (pending, `auto_ok`).
+  `[change]` creates a `revoke` *and* opens the compose form pre-filled
+  for a replacement event.
+- **Orphan**: `[edit]` lets the user supply a corrected identifier (e.g.
+  paste a different DOI) and re-submit; the orphan itself is revoked and
+  a new event replaces it.
 
-### 8.4 Data wiring
+### 10.4 Data wiring
 
-`+page.server.ts` load additions:
+`+page.server.ts`:
 
 ```ts
 const [events, manifest] = await Promise.all([
   LedgerDb.getEventsForOrcid(locals.user.orcid),
-  fetchLedgerStatus()      // calls /api/ledger-status, cached briefly
+  fetch(`${BE_URL}/ledger-status`).then(r => r.json())
 ]);
 const appliedSet = new Set(manifest.applied_event_ids);
-const applied = events.filter(e => appliedSet.has(e.event_id) && e.kind !== 'revoke');
+const skippedMap = new Map(manifest.skipped.map(s => [s.event_id, s.reason]));
+
+const applied = events.filter(e =>
+  appliedSet.has(e.event_id) && e.kind !== 'revoke');
 const pending = events.filter(e => !appliedSet.has(e.event_id) && !e.revoked_at);
-return { …, applied, pending, runId: manifest.run_id };
+
+return { applied, pending, skippedMap, runId: manifest.run_id, … };
 ```
 
-The existing `disownedWids` / `mergedPairs` / `claimedDois` props continue to
-be derived from *active, non-revoked* events, so `AllWorks.svelte` keeps
-working unchanged. For pending undo-of-applied-disown events, we exclude
-the original disown from the derived `disownedWids` set (otherwise the paper
-keeps hiding) — see §9 point 5 for the reconciliation logic.
+### 10.5 Reconciling pending counter-events with the paper list
+
+`AllWorks.svelte` needs a `disownedWids` set derived from the *effective*
+ledger state, not the raw applied set:
+
+```
+effective_disowned = (applied_disowns ∖ applied_disowns_with_pending_revoke)
+                   ∪ pending_disowns
+```
+
+Plus: "pending revoke of an applied disown" does *not* re-show the paper
+in the list — because the paper is no longer in the author's list in the
+binary data at all. We simply hide the applied-disown entry's strikethrough
+from the panel once the revoke lands. Accept this limitation and surface
+it in the tooltip ("Paper will reappear after next data refresh").
+
+Keep this derivation in one utility (`src/lib/utils/ledger-effective.ts`)
+not inline in components.
 
 ---
 
-## 9. Invariants and edge cases (checklist)
+## 11. Moderation workflow (streamlined review)
 
-1. **Idempotent POSTs**: the unique index on `(orcid, kind, subject_hash)`
-   makes duplicate events a no-op.
-2. **Revoke of revoke**: undoing a counter-event is just deleting the
-   pending counter — never creates a second counter.
-3. **Alias cycles**: if an event says "merge A into B" and another says
-   "merge B into A," collapse to a single edge, pick by lower `event_id`.
-4. **Chained merges**: A→B, B→C. `UserLedger::resolve` computes transitive
-   closure before exposing `author_aliases`; the map is path-compressed.
-5. **UI reconciliation of counter-events**: `disownedWids` is derived as
-   `appliedDisowns ∖ { wid : ∃ pending revoke targeting the disown event }`
-   ∪ `pendingDisowns`. Keep this logic in one utility, not inline in
-   components.
-6. **Pending event referencing an as-yet-unknown author**: author-merge by
-   semantic-id resolves at export time against the currently-loaded server
-   snapshot; if the other profile doesn't exist yet, export records
-   `skipped` with reason and keeps the event for future runs.
-7. **Owner pinning cascade**: if an owner pins themselves and then disowns
-   all works, the author entity still exists but has zero works → must not
-   break `hit_papers` or any `per-author` iteration that assumes ≥1 work.
-   Audit all loops over `Authors` for empty-work handling.
-8. **Revoked events and the `WHERE revoked_at IS NULL` partial index**: the
-   partial unique index allows re-submitting a previously-revoked event —
-   intended behaviour (user changed their mind).
-9. **Moderation pipeline**: events with `moderation = 'pending_review'`
-   are not in `active.jsonl`. An admin UI (Phase 2) flips them to `accepted`,
-   which *then* lets the next export include them.
+Goal: a moderator can triage claims and author-merges in seconds per item.
 
----
+### 11.1 Queue page `/moderate`
 
-## 10. Security / abuse mitigations
+- Gated by `MODERATOR_ORCIDS` env list.
+- One row per `moderation = 'pending_review'` event, ordered oldest first.
+- Per row:
+  - Submitter (name + ORCID + link to their profile)
+  - Kind icon (claim / merge)
+  - Subject summary (resolved via `ledger-display.ts`; shows current data
+    + display_snapshot fallback)
+  - **Quick-accept** / **Quick-reject** buttons (default reason templates)
+  - **Inspect** button → drawer with full payload + provenance
+    (dm_id_at_creation, run_id_at_creation, ORCIDs on both sides, shared
+    coauthors for merge, shared DOIs, etc.)
+- Keyboard: `a` = accept, `r` = reject, `j`/`k` = next/prev, `i` = inspect.
+- Bulk-accept guarded by a confirm with count.
 
-- API creation of any event requires `locals.user.orcid`. The *subject* of
-  an event is always the authenticated ORCID — users cannot edit another
-  owner's profile.
-- Rate-limit `POST /api/ledger` (e.g. 30 events/hour/ORCID) in the SvelteKit
-  handler. Trivial bounds check in-memory; the ledger table growth is bounded.
-- Log every event creation with source IP at the web layer (outside this
-  plan, but note in `hooks.server.ts`).
-- The pipeline honours no network input — snapshot file is the only channel.
+### 11.2 Auto-hints
 
----
+To keep review fast, the inspect drawer surfaces pre-computed signals:
 
-## 11. Observability
+- For `merge_authors`: percentage of overlapping coauthors, count of
+  matching DOIs, name-similarity score (Levenshtein on display names).
+- For `claim_paper`: whether the submitter's ORCID is listed on any
+  authorship of the work; whether the work's ORCIDs conflict; whether
+  the submitter has authored other papers in the same venue.
 
-- `UserLedger` writes `applied_manifest.json` including `skipped` reasons.
-- On `/ledger-status` the server exposes the same. Surfaced as a chip on
-  "skipped" events in the UI with tooltip (`orcid_not_in_dataset`,
-  `doi_not_found`, `wid_not_found`, `alias_cycle_collapsed`, etc.).
-- Add to the `status_dump.sh` script: include
-  `$OA_ROOT/user_ledger/applied_manifest.json` in the dump.
+These come from small server endpoints (`/v1/mod-hints/:event_id`). Can
+be added incrementally in Phase 5.
+
+### 11.3 Decision writes
+
+Accept → `UPDATE ledger_events SET moderation='accepted', moderated_by=?,
+moderated_at=datetime('now') WHERE event_id=?`. Also inserts a
+`moderation_decision` audit event.
+
+Reject → same, with `moderation='rejected'`.
+
+Once accepted, the event is eligible for the next export snapshot.
 
 ---
 
-## 12. Implementation plan — ordered tasks
+## 12. Observability & audit
 
-Each phase is self-contained and should leave the tree green. Phases 1–3 can
-ship incrementally (existing UI keeps working via the view layer). Phase 4
-is the pipeline integration; Phase 5 is UI polish.
+- `applied_manifest.json` includes `applied_event_ids`, `redirected`, and
+  `skipped` with reason codes (§6.6).
+- `ledger_runs` retains the full manifest JSON for each run — we can
+  reconstruct "what did the system look like on date X" forever.
+- `/api/ledger-status` exposes manifest + redirect + skip info for the UI.
+- `status_dump.sh` to include `$OA_ROOT/user_ledger/applied_manifest.json`
+  and the last three manifests.
+- Moderator decisions are auditable via `moderation_decision` events in
+  `ledger_events`.
 
-### Phase 1 — Ledger store
-1. Add `LedgerDb` to `src/lib/server/db.ts` (alongside `PaperDb`) with
-   `createEvent`, `revokePending`, `editPending`, `getEventsForOrcid`,
-   `getSubjectHash` helpers. Create `ledger_events` table in the same
-   `getDb()` init block.
-2. Write `pyscripts/migrate_ledger.py` that, given an existing
-   `rankless.sqlite`, bulk-inserts rows from the four legacy tables into
-   `ledger_events` (preserving `created_at`), then drops the legacy tables.
-   Idempotent (skips if `ledger_events` already populated).
-3. Tests: unit test the subject-hash dedup and revoke semantics.
-4. Update `docs/details/tree-description.md` §"Server Utilities" to reference
-   `LedgerDb`.
+---
+
+## 13. Security / abuse mitigations
+
+- API creation of any event requires `locals.user.orcid`; the event is
+  always tagged with that ORCID. Users cannot edit another owner's profile.
+- Claim authority check (§3.1): if enabled, reject DOIs already bound to a
+  different ORCID in the current data.
+- Paper-merge authority: submitter must be on at least one side's
+  authorship according to current data.
+- Author-merge: submitter is automatically the keep side.
+- Rate limits per ORCID (§3.3).
+- Moderator actions require `ORCID ∈ MODERATOR_ORCIDS`. Environment
+  rotated as new moderators are added.
+- The Rust pipeline honours no network input. Its only channel is the
+  signed snapshot in `$OA_ROOT/user_ledger/`.
+
+---
+
+## 14. Implementation plan — ordered tasks
+
+Each phase leaves the tree green. Phases 1–3 can ship incrementally
+(existing UI keeps working via the view layer). Phase 4 is the pipeline
+integration; Phases 5–6 are UI and moderator workflow; Phase 7 is
+cleanup.
+
+### Phase 1 — Ledger store & ID resolver
+1. Extend `Paper` type with `oaId`; update `rankless_server` response
+   shaping in every paper-returning endpoint. Update every client-side
+   consumer (`AllWorks`, `ImpactDag`, `PaperRainbow`, etc.) to ignore or
+   use the new field.
+2. Add `SearchResult.oaId?` similarly.
+3. Add resolution endpoints to `rankless_server`:
+   `GET /v1/resolve/work`, `GET /v1/resolve/author`. Thin wrappers over
+   the existing `Getters` + orcid / doi maps.
+4. Add `src/lib/server/id_resolver.ts` that composes both the live server
+   resolution and `display_snapshot` capture.
+5. Add `LedgerDb` (alongside `PaperDb`) in `src/lib/server/db.ts`:
+   `createEvent(orcid, kind, resolved_payload)`, `revokePending`,
+   `editPending`, `getEventsForOrcid`, plus `subject_hash` helper. Create
+   `ledger_events`, `ledger_runs`, `owner_pins` tables on init.
+6. `pyscripts/migrate_ledger.py`: one-shot migrator from legacy tables to
+   `ledger_events`. Preserves `created_at`, sets `moderation`:
+   `disown`/`paper_merge` → `auto_ok`; `claim_paper` → `pending_review`;
+   `author_merge_request.reviewed=0` → `pending_review`, `=1` → `accepted`.
+   Idempotent; drops legacy tables when done.
+7. Unit tests for `id_resolver` (stable-id round-trip, fallback chain).
+8. Unit tests for `LedgerDb` (dedup, revoke, edit, subject-hash).
 
 ### Phase 2 — API consolidation
 1. Create `src/routes/api/ledger/+server.ts` (`POST`, `GET`, `DELETE`,
-   `PATCH`). Back `POST` with `LedgerDb.createEvent`; validate
-   `locals.user.orcid` matches the subject.
-2. Rewrite each of `api/papers/disown`, `api/papers/claim`,
-   `api/papers/merge`, `api/authors/merge-request` to proxy through
-   `LedgerDb`. Keep the old URLs for backward compat in this phase so the
-   existing UI keeps functioning; they become thin wrappers.
-3. `+page.server.ts` load: derive `disownedWids` / `mergedPairs` /
-   `claimedDois` / `authorMergeRequests` from `LedgerDb.getEventsForOrcid`
-   instead of the legacy `PaperDb.*` calls. (Legacy tables are empty after
-   Phase 1 migration.)
-4. Remove `src/lib/server/db.ts` `PaperDb` exports once call sites are gone.
+   `PATCH`) + `src/routes/api/ledger/[event_id]/revoke/+server.ts`.
+2. Rewrite `api/papers/{disown,claim,merge}` and
+   `api/authors/merge-request` as thin wrappers over `LedgerDb` — keep
+   the URLs for backward compat.
+3. On every login (`callback/+server.ts`, `dev-login/+server.ts`): insert
+   into `owner_pins` with `reason = 'login'`.
+4. On every `POST /api/ledger`: insert (if missing) into `owner_pins`
+   with `reason = 'submitted_event'`.
+5. `author-papers/+page.server.ts` load: derive the legacy
+   `disownedWids` / `mergedPairs` / `claimedDois` /
+   `authorMergeRequests` props from `LedgerDb.getEventsForOrcid` so the
+   current UI keeps working end-to-end.
+6. Remove `PaperDb` exports once call sites are all gone.
 
-### Phase 3 — Export + manifest (no pipeline changes yet)
-1. Add `pyscripts/export_user_ledger.py` producing `active.jsonl` and
-   `snapshot_manifest.json` under `$OA_ROOT/user_ledger/`.
-2. `Makefile`: `export-ledger` target; make `filter` depend on it.
-3. Server: add `/api/ledger-status` that reads
-   `$OA_ROOT/user_ledger/applied_manifest.json` (if absent, returns
-   `{run_id: null, applied_event_ids: []}` — equivalent to "no pipeline has
-   ever consumed any events yet").
-4. This phase adds the plumbing but no pipeline effect. It's safe to
-   deploy: the manifest is empty, every event shows `Pending`.
+### Phase 3 — Export, manifest, pinning file
+1. Add `pyscripts/export_user_ledger.py` producing `active.jsonl`,
+   `snapshot_manifest.json`, `owner_pins.txt` under
+   `$OA_ROOT/user_ledger/`. Collapses counter-events; inlines revoke
+   targets.
+2. `Makefile`: `export-ledger` target; `filter` depends on it.
+3. Add `/api/ledger-status` (Node) reading manifest file; empty if file
+   absent.
+4. Server: on startup read `applied_manifest.json`, insert into
+   `ledger_runs` if newer.
+5. At this point the manifest is still empty (no pipeline change yet);
+   every event shows `Pending`.
 
 ### Phase 4 — Pipeline integration
-1. Create `rankless_rs/src/common/user_ledger.rs`. Implement `load`,
-   `resolve` (two streaming passes over `authors/main` and `works/main`),
-   transitive closure for aliases, `owner_pins` population.
-2. `filter.rs`: load `UserLedger` early; adjust `count_passes` to group by
-   alias root; add `owner_pins` override. Modify edge iteration to apply
-   `removed_edges` / `added_edges`.
-3. `a1_entity_mapping::main`: wire alias map into the `Authors` and `Works`
-   builders so drop-side OA ids never get their own dm_id. Emit
-   `discarded_authors` correctly for aliased drops.
-4. `a2_init_atts::add_ship_relations::proc_next`: filter `removed_edges`;
+1. Create `rankless_rs/src/common/user_ledger.rs` (struct + load +
+   resolve + write_manifest).
+2. Create `rankless_rs/src/common/merged_ids.rs` (OpenAlex merged-ids
+   loader).
+3. `filter.rs`: load `UserLedger` and owner pins; adjust `count_passes`
+   for alias groups; pin OA ids listed; apply removed/added edges to
+   the counted relation.
+4. `a1_entity_mapping::main`: wire alias map into the `Authors`/`Works`
+   builders; ensure `LoadedIdMap` carries drop → root dm_id entries.
+5. `a2_init_atts::add_ship_relations::proc_next`: filter `removed_edges`;
    after CSV iteration, iterate `added_edges` and feed the writer.
-5. `a2_init_atts::add_author_atts` and `add_work_atts`: merge attribute
-   fields per alias group (names, orcids, wikislugs, years, dois, biblios).
-6. Emit `applied_manifest.json` at the end of the last step (or via a tiny
-   `a_finalize` stage).
-7. Tests: extend `rankless_rs` tests with a small fixture dataset that
-   includes a handful of ledger events; assert dm_id collapse, authorship
-   delta, citation sums, filter survival.
+6. `a2_init_atts::add_author_atts` and `add_work_atts`: merge attributes
+   per alias group per §8.2.
+7. KD-tree / peer step audit (§8.3): handle pinned zero-work authors
+   correctly.
+8. New tail step writing `applied_manifest.json`.
+9. Integration test: fixture dataset (`local-moks/`) with a handful of
+   ledger events, assert dm_id collapse, citation sums, filter survival,
+   manifest content.
+10. Branch-comparison run with no events → structural equality with
+    pre-change binary.
 
-### Phase 5 — Frontend ledger panel
-1. Extract `AuthorLedgerPanel.svelte`, `LedgerEventRow.svelte`,
-   `LedgerStatusBadge.svelte`.
-2. Wire `+page.server.ts` load to fetch applied manifest + events, split,
+### Phase 5 — Ledger panel UI
+1. `AuthorLedgerPanel.svelte` + `LedgerEventRow.svelte` +
+   `OrphanEventRow.svelte` + `LedgerStatusBadge.svelte`.
+2. `src/lib/utils/ledger-display.ts` (live + snapshot + fallback).
+3. `src/lib/utils/ledger-effective.ts` (derived sets for AllWorks).
+4. Wire `+page.server.ts` to fetch applied manifest + events, split,
    and pass to the page.
-3. Refactor `AllWorks.svelte` confirm/undo bars — forward events to the
-   panel via a shared store (avoid prop drilling per CLAUDE.md).
-4. Implement counter-event (`revoke`) UX for the Applied section; default
-   banner text: "Queued — will apply at next data refresh (run_id X)."
-5. Remove `AuthorOwnerTools.svelte` (content absorbed).
-6. Update `docs/details/tree-description.md` with the new components.
+5. Refactor `AllWorks.svelte` to dispatch via a shared store consumed by
+   the panel (avoid prop drilling, per CLAUDE.md).
+6. Counter-event UX for applied events (`[undo]` / `[change]`).
+7. Remove `AuthorOwnerTools.svelte`.
+8. Update `docs/details/tree-description.md`.
 
-### Phase 6 — Cleanup & docs
-1. Delete the legacy `api/papers/{disown,claim,merge}` and
-   `api/authors/merge-request` wrappers.
-2. Delete legacy SQLite tables (migration script from Phase 1 already did
-   this on staging; add a one-shot migration for prod).
-3. Update `docs/overview.md` architecture diagram to include the ledger
-   flow.
-4. Delete `AuthorMergeRequest` type from `lib/tree-types.ts` if no longer
-   referenced.
+### Phase 6 — Moderator workflow
+1. `src/routes/(stat)/moderate/+page.svelte` + `+page.server.ts`.
+2. `src/routes/api/moderation/queue/+server.ts` +
+   `src/routes/api/moderation/[event_id]/decide/+server.ts`.
+3. `MODERATOR_ORCIDS` env var; auth gate.
+4. Keyboard shortcuts, bulk actions.
+5. Auto-hint endpoints on `rankless_server` (`/v1/mod-hints/:event_id`).
+6. `moderation_decision` audit trail events.
 
----
-
-## 13. Validation plan
-
-- Unit tests: `pyscripts/tests/test_export_user_ledger.py` covers collapse
-  of counter-events, alias transitive closure, orphan handling.
-- Integration test: `rankless_rs` fixture dataset (`local-moks/`) with
-  `user_ledger/active.jsonl` applied; assert expected dm_ids, work counts,
-  citation sums, authorship sets.
-- End-to-end test in `tests/` (Playwright): ORCID dev-login → POST ledger
-  events → refresh page → see Pending entries; simulate a pipeline run by
-  writing a fake `applied_manifest.json` → reload page → see Applied entries
-  + absent Pending entries.
-- Branch-comparison (`pyscripts/branch_comparison.py`): run the current
-  implementation vs the ledger implementation on a dataset with no events,
-  expect structural equality. With events, expect deterministic divergence
-  only at the affected entities.
+### Phase 7 — Cleanup & docs
+1. Delete legacy wrappers (`api/papers/*`, `api/authors/merge-request`).
+2. Delete legacy SQLite tables (already handled by migrator; add a final
+   no-op migration script for prod).
+3. Update `docs/overview.md` architecture diagram to include ledger flow.
+4. Delete `AuthorMergeRequest` type from `tree-types.ts` if unreferenced.
+5. Document ID-resilience invariants in
+   `docs/details/metaprogramming.md` (or a new
+   `docs/details/id-resilience.md`).
 
 ---
 
-## 14. Deferred follow-ups (not in this plan)
+## 15. Validation plan
 
-- `add_paper_request` full implementation: needs a synthetic-CSV injection
-  step (prepend to `works/main` with a generated OA id in a reserved range),
-  DOI resolution fallback, and moderation UI.
-- Admin dashboard for `pending_review` events.
+- **Unit**: `pyscripts/tests/test_export_user_ledger.py` covers
+  counter-event collapse, alias transitive closure, owner-pin emission,
+  orphan handling.
+- **Unit**: `rankless_rs/tests` with a synthetic ledger (direct JSON
+  fixtures) against a stub Stowage, asserting `UserLedger::resolve`
+  behaviour for every failure mode in §6.2.
+- **Integration**: fixture dataset in `local-moks/` with
+  `user_ledger/active.jsonl` applied; assert expected dm_ids, authorship
+  sets, citation sums, filter survival, manifest content.
+- **E2E** (Playwright): ORCID dev-login → POST events → refresh → see
+  Pending; synthetic manifest file → reload → see Applied; orphan case
+  (fake a stale oa_id) → see Orphan chip.
+- **Branch-comparison**: implementation before vs. after on a no-events
+  dataset → structural equality; with events → deterministic divergence
+  only at affected entities.
+
+---
+
+## 16. Deferred follow-ups (not in this plan)
+
+- `add_paper_request` full implementation (synthetic-CSV injection,
+  synthetic OA id allocation, moderation UI).
+- `claim_paper` full pipeline effect (currently skipped in the pipeline
+  with `claim_pipeline_not_implemented`).
 - E-mail notifications on Applied transitions.
 - Cross-owner conflict resolution UI.
-- Per-event "diff preview" (what will change in the author's numbers when
-  this event lands) — requires a lightweight dry-run in the server.
+- Per-event dry-run ("what will change in your numbers") — requires a
+  lightweight in-server diff tool.
+- Historical rollback (replay `ledger_runs.manifest_json` to reconstruct
+  a prior state).
