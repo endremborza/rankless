@@ -157,6 +157,10 @@
 			const markerX = align ? 0 : startYear / xScale;
 			pubMarks.push({ x: markerX, year: paper.year, color: getColor(rate), row: vi % 2 });
 
+			if (pBasis.length === 1) {
+				pBasis.push(`L ${(endX + 0.5).toFixed(3)} ${endY.toFixed(3)}`);
+			}
+
 			const nYears = Math.min(yc.length, lifespan);
 			const pathHorizLen = (nYears - 1) / xScale;
 			const maxChars = Math.max(8, Math.min(60, Math.round(pathHorizLen * 3.5)));
@@ -300,10 +304,12 @@
 					>
 				</div>
 				{#if viewMode === 'lines'}
-					<label>
-						<input type="range" min="4" max={paperCap} bind:value={maxN} />
-						{maxN} papers
-					</label>
+					{#if paperCap > 4}
+						<label>
+							<input type="range" min="4" max={paperCap} bind:value={maxN} />
+							{maxN} papers
+						</label>
+					{/if}
 					<label>
 						<input type="checkbox" bind:checked={alignTrajectories} />
 						align trajectories
