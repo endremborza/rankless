@@ -62,6 +62,38 @@ export function resolveInstName(
 	return entityAtts.institutions?.[String(instId)]?.name ?? '';
 }
 
+export function overperf(paper: Paper): number {
+	if (!paper.hitBm || paper.hitBm < 5) return 0;
+	return paper.citations / paper.hitBm;
+}
+
+export function formatShortAuthors(
+	paper: Paper,
+	entityAtts: EntityAttsForLinks,
+	discAuthorNames: Record<string, string>
+): string {
+	if (!paper.authorships?.length) return '';
+	const total = paper.authorships.length;
+	const known: string[] = [];
+	for (const s of paper.authorships) {
+		if (known.length >= 2) break;
+		const name = resolveAuthorNameOrNull(s, entityAtts, discAuthorNames);
+		if (name !== null) known.push(name);
+	}
+	if (known.length === 0) return `${total} author${total > 1 ? 's' : ''}`;
+	return known.join(', ') + (total > known.length ? ' et al.' : '');
+}
+
+export function resolveAllAuthorNames(
+	paper: Paper,
+	entityAtts: EntityAttsForLinks,
+	discAuthorNames: Record<string, string>
+): string[] {
+	return paper.authorships.map(
+		(s) => resolveAuthorNameOrNull(s, entityAtts, discAuthorNames) ?? '(unknown)'
+	);
+}
+
 export function buildPaperMap(papers: Paper[]): Record<number, Paper> {
 	const map: Record<number, Paper> = {};
 	for (const p of papers) map[p.wid] = p;

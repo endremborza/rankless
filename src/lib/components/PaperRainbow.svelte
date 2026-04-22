@@ -4,7 +4,13 @@
 	import { formatNumber } from '$lib/text-format-util';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
-	import { resolveAuthorNameOrNull, resolveSourceName, stripHtml } from '$lib/utils/paper-helpers';
+	import {
+		formatShortAuthors,
+		overperf,
+		resolveAllAuthorNames,
+		resolveSourceName,
+		stripHtml
+	} from '$lib/utils/paper-helpers';
 	import HitPaperBreakdown from './HitPaperBreakdown.svelte';
 	import HitPaperExplainer from './HitPaperExplainer.svelte';
 	import { onMount } from 'svelte';
@@ -18,71 +24,9 @@
 	const yPad = 2.5;
 	const xBase = 26;
 	const yBase = 12;
-	const maxN = 5;
 	const fontSize = 0.5;
 	const bmThreshold = 5;
 	const globalMinCites = 500;
-	let highlighted = 0;
-	let alignTrajectories = false;
-	let sortByOverperf = false;
-	let viewMode: 'lines' | 'breakdown' = 'lines';
-
-	let breakdownTreeId = 0;
-	let breakdownIsSpec = false;
-
-	type BreakdownOption = { key: string; label: string; treeId: number };
-
-	$: breakdownOptions = getBreakdownOptionsList(treeSpecs);
-
-	function getBreakdownOptionsList(specs: tt.TreeSpecs | undefined): BreakdownOption[] {
-		if (!specs) return [];
-		const hpSpecs = specs.specs['hit-papers'];
-		if (!hpSpecs) return [];
-		const bdOptions = tf.getBreakdownOptions(specs, 'hit-papers', 1);
-		const opts: BreakdownOption[] = [];
-		for (const [key, val] of Object.entries(bdOptions)) {
-			if (val.treeSpecs.length === 0) continue;
-			const etype = key.split('-')[0];
-			opts.push({ key, label: etype, treeId: val.treeSpecs[0] });
-		}
-		return opts;
-	}
-
-	$: if (
-		breakdownOptions.length > 0 &&
-		!breakdownOptions.find((o) => o.treeId === breakdownTreeId)
-	) {
-		breakdownTreeId = breakdownOptions[0].treeId;
-	}
-
-	$: breakdownTreeSpec =
-		treeSpecs && treeSpecs.specs['hit-papers']
-			? treeSpecs.specs['hit-papers'][breakdownTreeId]
-			: undefined;
-
-	function overperf(p: tt.Paper): number {
-		if (!p.hitBm || p.hitBm < 5) return 0;
-		return p.citations / p.hitBm;
-	}
-	let expandedSet: Set<number> = new Set();
-
-	let listContainer: HTMLUListElement;
-	let listItemElements: HTMLLIElement[] = [];
-	let firstVisible: number | null = null;
-	let scrollTimeout: ReturnType<typeof setTimeout>;
-
-	$: chartPapers = papers
-		.filter((p) => p.yearlyCites && p.yearlyCites.length > 0)
-		.toSorted((a, b) => (sortByOverperf ? overperf(b) - overperf(a) : b.citations - a.citations));
-
-	$: globalMinYear =
-		chartPapers.length > 0 ? Math.min(...chartPapers.map((p) => p.year)) : LATEST_YEAR - 1;
-
-	function getVisInds(ps: tt.Paper[], first: number): number[] {
-		const inds: number[] = [];
-		for (let i = first; i < Math.min(ps.length, first + maxN); i++) inds.push(i);
-		return inds;
-	}
 
 	type PubMark = { x: number; year: number; color: string; row: number };
 	type YTick = { label: string; y: number };
@@ -98,6 +42,52 @@
 		year: number;
 		citations: number;
 	};
+	type BreakdownOption = { key: string; label: string; treeId: number };
+
+	let maxN = 5;
+	let highlighted = 0;
+	let alignTrajectories = false;
+	let sortBy: 'citations' | 'overperf' | 'year' = 'citations';
+	let viewMode: 'lines' | 'breakdown' = 'lines';
+
+	let breakdownTreeId = 0;
+	let breakdownIsSpec = false;
+
+	let expandedSet: Set<number> = new Set();
+	let listContainer: HTMLUListElement;
+	let listItemElements: HTMLLIElement[] = [];
+	let firstVisible: number | null = null;
+	let scrollTimeout: ReturnType<typeof setTimeout>;
+
+	function getBreakdownOptionsList(specs: tt.TreeSpecs | undefined): BreakdownOption[] {
+		if (!specs) return [];
+		const hpSpecs = specs.specs['hit-papers'];
+		if (!hpSpecs) return [];
+		const bdOptions = tf.getBreakdownOptions(specs, 'hit-papers', 1);
+		const opts: BreakdownOption[] = [];
+		for (const [key, val] of Object.entries(bdOptions)) {
+			if (val.treeSpecs.length === 0) continue;
+			const etype = key.split('-')[0];
+			opts.push({ key, label: etype, treeId: val.treeSpecs[0] });
+		}
+		return opts;
+	}
+	function computeYearRates(papers: tt.Paper[]): number[] {
+		const n = papers.length;
+		if (n <= 1) return papers.map(() => 0.5);
+		const byYear = [...papers.keys()].sort((a, b) => papers[a].year - papers[b].year);
+		const rates = new Array<number>(n);
+		byYear.forEach((paperIdx, rank) => {
+			rates[paperIdx] = rank / (n - 1);
+		});
+		return rates;
+	}
+
+	function getVisInds(ps: tt.Paper[], first: number, n: number): number[] {
+		const inds: number[] = [];
+		for (let i = first; i < Math.min(ps.length, first + n); i++) inds.push(i);
+		return inds;
+	}
 
 	function niceYTickSteps(yMax: number): number[] {
 		const roughStep = yMax / 4;
@@ -116,10 +106,16 @@
 		return [0.25, 0.5, 0.75, 1].map((f) => Math.round(f * yMax));
 	}
 
-	function getFigureBasis(ps: tt.Paper[], inds: number[], globalMin: number, align: boolean) {
+	function getFigureBasis(
+		ps: tt.Paper[],
+		inds: number[],
+		globalMin: number,
+		align: boolean,
+		rates: number[]
+	) {
 		const nVis = inds.length;
 		const yearSpan = LATEST_YEAR - globalMin;
-		const xScale = Math.max(yearSpan - 1, 1) / xBase;
+		const xScale = Math.max(yearSpan, 1) / xBase;
 
 		const width = xBase + xPad + 5;
 		const height = yBase + yPad * 2;
@@ -140,8 +136,8 @@
 			const paper = ps[i];
 			const yc = paper.yearlyCites ?? [];
 			const startYear = paper.year - globalMin;
-			const lifespan = Math.max(LATEST_YEAR - paper.year, 1);
-			const rate = nVis > 1 ? vi / nVis : 0;
+			const lifespan = Math.max(LATEST_YEAR - paper.year + 1, 1);
+			const rate = rates[i];
 
 			let endX = 0,
 				endY = 0;
@@ -160,8 +156,16 @@
 			const markerX = align ? 0 : startYear / xScale;
 			pubMarks.push({ x: markerX, year: paper.year, color: getColor(rate), row: vi % 2 });
 
+			if (pBasis.length === 1) {
+				pBasis.push(`L ${(endX + 0.5).toFixed(3)} ${endY.toFixed(3)}`);
+			}
+
+			const nYears = Math.min(yc.length, lifespan);
+			const pathHorizLen = (nYears - 1) / xScale;
+			const maxChars = Math.max(8, Math.min(60, Math.round(pathHorizLen * 3.5)));
 			const plainName = stripHtml(paper.name);
-			const pathName = plainName.length > 28 ? plainName.slice(0, 25) + '...' : plainName;
+			const pathName =
+				plainName.length > maxChars ? plainName.slice(0, maxChars - 3) + '...' : plainName;
 
 			figPapers.push({
 				i,
@@ -178,15 +182,18 @@
 		}
 
 		const yearTicks: { name?: string | number; x: number }[] = [];
+		const toT = (i: number, k: number) => i === Math.floor((k * yearSpan) / 3);
 		if (align) {
-			yearTicks.push({ name: 'pub.', x: 0 });
-			for (let i = 1; i < yearSpan - 1; i++) {
-				yearTicks.push({ name: '', x: i / xScale });
+			yearTicks.push({ name: 'publication', x: 0 });
+			for (let i = 1; i < yearSpan; i++) {
+				yearTicks.push({
+					name: toT(i, 1) || toT(i, 2) ? `+${i}` : undefined,
+					x: i / xScale
+				});
 			}
 		} else {
 			yearTicks.push({ name: globalMin, x: 0 }, { name: LATEST_YEAR, x: xBase });
-			const toT = (i: number, k: number) => i === Math.floor((k * yearSpan) / 3);
-			for (let i = 1; i < yearSpan - 1; i++) {
+			for (let i = 1; i < yearSpan; i++) {
 				yearTicks.push({
 					name: toT(i, 1) || toT(i, 2) ? globalMin + i : undefined,
 					x: i / xScale
@@ -214,9 +221,8 @@
 		viewMode = 'lines';
 	}
 
-	function getLiStyle(i: number, visInds: number[], hl: number) {
+	function getLiStyle(i: number, visInds: number[], hl: number, rate: number) {
 		if (!visInds.includes(i)) return '';
-		const rate = visInds.length > 1 ? (i - visInds[0]) / visInds.length : 0;
 		const ext = hl === i ? '0.5); box-shadow: 3px 3px 10px var(--color-theme-shadow);' : '0.3)';
 		return `background-color: rgba(${getColorArr(rate)}, ${ext}`;
 	}
@@ -235,25 +241,6 @@
 		scrollTimeout = setTimeout(updateFirstVisible, 50);
 	}
 
-	function shortAuthors(paper: tt.Paper): string {
-		if (!paper.authorships?.length) return '';
-		const total = paper.authorships.length;
-		const known: string[] = [];
-		for (const s of paper.authorships) {
-			if (known.length >= 2) break;
-			const name = resolveAuthorNameOrNull(s, entityAtts, discAuthorNames);
-			if (name !== null) known.push(name);
-		}
-		if (known.length === 0) return `${total} author${total > 1 ? 's' : ''}`;
-		return known.join(', ') + (total > known.length ? ' et al.' : '');
-	}
-
-	function allAuthors(paper: tt.Paper): string[] {
-		return paper.authorships.map(
-			(s) => resolveAuthorNameOrNull(s, entityAtts, discAuthorNames) ?? '(unknown)'
-		);
-	}
-
 	function toggleExpand(i: number) {
 		const next = new Set(expandedSet);
 		if (next.has(i)) next.delete(i);
@@ -267,8 +254,37 @@
 		updateFirstVisible();
 	});
 
-	$: visInds = getVisInds(chartPapers, firstVisible ?? 0);
-	$: fb = getFigureBasis(chartPapers, visInds, globalMinYear, alignTrajectories);
+	$: breakdownOptions = getBreakdownOptionsList(treeSpecs);
+
+	$: if (
+		breakdownOptions.length > 0 &&
+		!breakdownOptions.find((o) => o.treeId === breakdownTreeId)
+	) {
+		breakdownTreeId = breakdownOptions[0].treeId;
+	}
+
+	$: breakdownTreeSpec =
+		treeSpecs && treeSpecs.specs['hit-papers']
+			? treeSpecs.specs['hit-papers'][breakdownTreeId]
+			: undefined;
+
+	$: chartPapers = papers
+		.filter((p) => p.yearlyCites && p.yearlyCites.length > 0)
+		.toSorted((a, b) => {
+			if (sortBy === 'overperf') return overperf(b) - overperf(a);
+			if (sortBy === 'year') return b.year - a.year;
+			return b.citations - a.citations;
+		});
+
+	$: paperCap = Math.min(25, chartPapers.length);
+	$: if (maxN > paperCap) maxN = paperCap;
+
+	$: globalMinYear =
+		chartPapers.length > 0 ? Math.min(...chartPapers.map((p) => p.year)) : LATEST_YEAR - 1;
+
+	$: rates = computeYearRates(chartPapers);
+	$: visInds = getVisInds(chartPapers, firstVisible ?? 0, maxN);
+	$: fb = getFigureBasis(chartPapers, visInds, globalMinYear, alignTrajectories, rates);
 	$: highlightedVis = visInds.includes(highlighted) ? highlighted - visInds[0] : undefined;
 </script>
 
@@ -287,14 +303,21 @@
 					>
 				</div>
 				{#if viewMode === 'lines'}
+					{#if paperCap > 4}
+						<label>
+							<input type="range" min="4" max={paperCap} bind:value={maxN} />
+							{maxN} papers
+						</label>
+					{/if}
 					<label>
 						<input type="checkbox" bind:checked={alignTrajectories} />
 						align trajectories
 					</label>
-					<label>
-						<input type="checkbox" bind:checked={sortByOverperf} />
-						sort by overperformance
-					</label>
+					<select bind:value={sortBy} class="breakdown-select" aria-label="Sort by">
+						<option value="citations">sort: citations</option>
+						<option value="overperf">sort: overperformance</option>
+						<option value="year">sort: publication year</option>
+					</select>
 				{:else if breakdownOptions.length > 0}
 					<select bind:value={breakdownTreeId} class="breakdown-select" aria-label="Breakdown type">
 						{#each breakdownOptions as opt}
@@ -355,7 +378,7 @@
 					<!-- Highlighted paper name follows the line via textPath -->
 					{#if highlightedVis !== undefined}
 						{@const hp = fb.figPapers[highlightedVis]}
-						<text font-size="0.4" style="fill: {getColor(hp.rate)}" dy="-0.28">
+						<text font-size="0.4" fill="var(--color-text)" dy="-0.28">
 							<textPath href="#hit-paper-path-{hp.i}" startOffset="3%" text-anchor="start"
 								>{hp.pathName}</textPath
 							>
@@ -425,10 +448,10 @@
 		<ol id="paper-list" bind:this={listContainer}>
 			{#each chartPapers as paper, i}
 				{@const source = resolveSourceName(paper.source, entityAtts)}
-				{@const authors = shortAuthors(paper)}
+				{@const authors = formatShortAuthors(paper, entityAtts, discAuthorNames)}
 				{@const expanded = expandedSet.has(i)}
 				<li
-					style={getLiStyle(i, visInds ?? [], highlighted)}
+					style={getLiStyle(i, visInds ?? [], highlighted, rates[i])}
 					data-index={i}
 					on:mouseover={() => fixHighlight(i)}
 					on:focus={() => fixHighlight(i)}
@@ -465,7 +488,8 @@
 							{#if paper.authorships.length > 2}
 								<div class="detail-row">
 									<span class="detail-label">Authors:</span>
-									<span>{allAuthors(paper).join(', ')}</span>
+									<span>{resolveAllAuthorNames(paper, entityAtts, discAuthorNames).join(', ')}</span
+									>
 								</div>
 							{/if}
 							{#if paper.biblio}
