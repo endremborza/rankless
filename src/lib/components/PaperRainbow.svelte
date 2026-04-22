@@ -114,9 +114,8 @@
 		rates: number[]
 	) {
 		const nVis = inds.length;
-		const totalN = ps.length;
 		const yearSpan = LATEST_YEAR - globalMin;
-		const xScale = Math.max(yearSpan - 1, 1) / xBase;
+		const xScale = Math.max(yearSpan, 1) / xBase;
 
 		const width = xBase + xPad + 5;
 		const height = yBase + yPad * 2;
@@ -137,7 +136,7 @@
 			const paper = ps[i];
 			const yc = paper.yearlyCites ?? [];
 			const startYear = paper.year - globalMin;
-			const lifespan = Math.max(LATEST_YEAR - paper.year, 1);
+			const lifespan = Math.max(LATEST_YEAR - paper.year + 1, 1);
 			const rate = rates[i];
 
 			let endX = 0,
@@ -186,7 +185,7 @@
 		const toT = (i: number, k: number) => i === Math.floor((k * yearSpan) / 3);
 		if (align) {
 			yearTicks.push({ name: 'publication', x: 0 });
-			for (let i = 1; i < yearSpan - 1; i++) {
+			for (let i = 1; i < yearSpan; i++) {
 				yearTicks.push({
 					name: toT(i, 1) || toT(i, 2) ? `+${i}` : undefined,
 					x: i / xScale
@@ -194,7 +193,7 @@
 			}
 		} else {
 			yearTicks.push({ name: globalMin, x: 0 }, { name: LATEST_YEAR, x: xBase });
-			for (let i = 1; i < yearSpan - 1; i++) {
+			for (let i = 1; i < yearSpan; i++) {
 				yearTicks.push({
 					name: toT(i, 1) || toT(i, 2) ? globalMin + i : undefined,
 					x: i / xScale
