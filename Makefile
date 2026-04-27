@@ -20,7 +20,10 @@ build-prep:
 to-csv: 
 	cargo run --release -p rankless-rs -- $@ $(OA_ROOT) $(OA_SNAPSHOT)/data
 
-filter: clean-filters clean-keys clean-cache
+export-ledger:
+	uv run -m pyscripts.export_user_ledger $(OA_ROOT)
+
+filter: export-ledger clean-filters clean-keys clean-cache
 	cargo run --release -p rankless-rs -- $@ $(OA_ROOT)
 
 run-server:
@@ -95,6 +98,7 @@ restart-service:
 nuke:
 	rm -rf $(OA_ROOT)
 
+#WET: These know names of directories
 clean-filters:
 	rm -rf $(OA_ROOT)/filter-steps
 
@@ -104,6 +108,9 @@ clean-keys:
 clean-cache:
 	rm -rf $(OA_ROOT)/cache
 	rm -rf /tmp/dmove-parts
+
+clean-ledger:
+	rm -rf $(OA_ROOT)/user_ledger
 
 clean-profile:
 	rm perf.data*
