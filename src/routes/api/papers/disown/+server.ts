@@ -1,7 +1,27 @@
-import { PaperDb } from '$lib/server/db';
-import { authedPaperAction } from '../helpers';
+import { json } from '@sveltejs/kit';
+import type { RequestEvent } from '@sveltejs/kit';
+import { LedgerDb } from '$lib/server/db';
+import { resolveWorkSubject, ResolveError } from '$lib/server/id_resolver';
 
-const extractWid = (b: Record<string, unknown>) => typeof b.wid === 'number' ? b.wid : null;
+export async function POST({ locals, request }: RequestEvent) {
+	if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
+	const { wid } = await request.json();
+	if (typeof wid !== 'number') return json({ error: 'Invalid input' }, { status: 400 });
+	try {
+		const work = await resolveWorkSubject({ wid });
+		LedgerDb.createEvent(locals.user.orcid, { kind: 'disown_paper', work });
+		return json({ ok: true });
+	} catch (e) {
+		if (e instanceof ResolveError) return json({ error: e.message }, { status: e.status });
+		throw e;
+	}
+}
 
-export const POST = authedPaperAction(extractWid, PaperDb.disownPaper.bind(PaperDb));
-export const DELETE = authedPaperAction(extractWid, PaperDb.unDisownPaper.bind(PaperDb));
+export async function DELETE({ locals, request }: RequestEvent) {
+	if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
+	const { wid } = await request.json();
+	if (typeof wid !== 'number') return json({ error: 'Invalid input' }, { status: 400 });
+	const event_id = LedgerDb.findPendingByPayload(locals.user.orcid, 'disown_paper', '$.work.dm_id_at_creation', wid);
+	if (event_id !== null) LedgerDb.revokePending(locals.user.orcid, event_id);
+	return json({ ok: true });
+}

@@ -1,10 +1,28 @@
-import { PaperDb } from '$lib/server/db';
-import { authedPaperAction } from '../helpers';
+import { json } from '@sveltejs/kit';
+import type { RequestEvent } from '@sveltejs/kit';
+import { LedgerDb } from '$lib/server/db';
+import { resolveWorkSubject, canonicalDoi, ResolveError } from '$lib/server/id_resolver';
 
-const extractDoi = (b: Record<string, unknown>) => {
-	const doi = b.doi;
-	return typeof doi === 'string' && doi.trim() ? doi.trim() : null;
-};
+export async function POST({ locals, request }: RequestEvent) {
+	if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
+	const { doi } = await request.json();
+	if (typeof doi !== 'string' || !doi.trim()) return json({ error: 'Invalid input' }, { status: 400 });
+	try {
+		const work = await resolveWorkSubject({ doi: canonicalDoi(doi) });
+		LedgerDb.createEvent(locals.user.orcid, { kind: 'claim_paper', work });
+		return json({ ok: true });
+	} catch (e) {
+		if (e instanceof ResolveError) return json({ error: e.message }, { status: e.status });
+		throw e;
+	}
+}
 
-export const POST = authedPaperAction(extractDoi, PaperDb.claimPaper.bind(PaperDb));
-export const DELETE = authedPaperAction(extractDoi, PaperDb.unClaimPaper.bind(PaperDb));
+export async function DELETE({ locals, request }: RequestEvent) {
+	if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
+	const { doi } = await request.json();
+	if (typeof doi !== 'string') return json({ error: 'Invalid input' }, { status: 400 });
+	const canonical = canonicalDoi(doi);
+	const event_id = LedgerDb.findPendingByPayload(locals.user.orcid, 'claim_paper', '$.work.doi', canonical);
+	if (event_id !== null) LedgerDb.revokePending(locals.user.orcid, event_id);
+	return json({ ok: true });
+}
