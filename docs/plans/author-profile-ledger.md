@@ -525,12 +525,11 @@ without needing to re-parse manifest files.
 ```sql
 CREATE TABLE owner_pins (
   orcid          TEXT PRIMARY KEY,
-  first_seen_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  reason         TEXT NOT NULL            -- 'login' | 'submitted_event' | 'manual'
+  first_seen_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 ```
 
-Populated on each successful ORCID login and on each `POST /api/ledger`.
+Populated on each successful ORCID login. Login is a prerequisite for any event submission, so pinning on login is sufficient.
 Exported to `$OA_ROOT/user_ledger/owner_pins.txt` (one ORCID per line,
 plain text) consumed by `filter.rs`. This is **independent** of the
 event ledger — a user who logs in never loses the ability to see their
