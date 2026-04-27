@@ -18,8 +18,6 @@
 		const trimmed = input.trim();
 		const match = trimmed.match(/\/authors\/(.+?)(?:\?|$)/);
 		if (match) return match[1];
-		const apMatch = trimmed.match(/\/author-papers\/(.+?)(?:\?|$)/);
-		if (apMatch) return apMatch[1];
 		return trimmed.replace(/^\/+/, '');
 	}
 
