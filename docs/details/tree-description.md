@@ -116,7 +116,6 @@ SvelteKit app; SSR via `+page.server.ts` files; all visualizations are hand-writ
 | `(stat)/` | Home page; top entity lists |
 | `(stat)/[rootType]/[...semanticId]/` | Entity hero page (tree + network + map) |
 | `(stat)/[rootType]/table/` | Sortable/searchable entity stats table (Phase 1 rankings) |
-| `(stat)/author-papers/[...semanticId]/` | Author paper profile: standout papers, citation impact DAG, all works with pagination, disown/claim (owner only), export controls |
 | `(stat)/about/` | About page |
 | `(stat)/survey/` | User survey |
 | `(stat)/login/` | ORCID OAuth initiation (accepts `returnTo` for post-auth redirect) |
