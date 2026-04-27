@@ -184,5 +184,13 @@ export const LedgerDb = {
 			)
 			.get(orcid, widKeep, widDrop) as { event_id: number } | null;
 		return row?.event_id ?? null;
+	},
+
+	upsertRun(runId: string, snapshotAt: string, manifestJson: string): void {
+		getDb()
+			.prepare(
+				"INSERT OR IGNORE INTO ledger_runs (run_id, snapshot_at, manifest_at, manifest_json) VALUES (?, ?, datetime('now'), ?)"
+			)
+			.run(runId, snapshotAt, manifestJson);
 	}
 };
