@@ -10,7 +10,7 @@
 
 ## 1. Problem statement
 
-A logged-in ORCID owner on `/author-papers/<semantic-id>/` can today:
+A logged-in ORCID owner on `/authors/<semantic-id>/` can today:
 
 - **Disown** an OpenAlex work (it's not theirs),
 - **Claim** an OpenAlex work by DOI (OpenAlex missed the ORCID binding),
@@ -71,29 +71,31 @@ revisit them without user sign-off.
 
 ---
 
-## 3. Open questions
+## 3. Resolved policy decisions (locked 2026-04-27)
 
-1. **Claim validation gate.** Beyond `pending_review`, should the API
-   reject a claim whose DOI is (a) malformed, (b) unresolvable against the
-   currently-served data, or (c) already has a different ORCID on the work?
-   *Proposal:* reject (a) and (c) at API time; accept (b) as pending
-   (maybe the next OpenAlex snapshot will include it).
-2. **Author-merge direction.** When owner X requests a merge with profile Y,
-   is X always the keep side, or can a moderator flip it?
-   *Proposal:* X is always keep; the moderator can only accept or reject,
-   never swap. A swap requires a new event by Y (who must authenticate with
-   their own ORCID).
-3. **Rate limits.** Per-ORCID limit for `POST /api/ledger`. Proposal: 60
-   events/day, with claim/merge-authors subject to a stricter 10/day.
-4. **Should revoking an applied event (counter-event) inherit or require a
-   new moderation gate?** A `revoke` of a `claim_paper` is strictly less
-   dangerous than the original claim — should it still go through review?
-   *Proposal:* counter-events always inherit `auto_ok` if the target was
-   applied (the risk was already cleared on the way in).
-5. **Concurrency while pipeline runs.** If a user POSTs a new event while
-   the pipeline is running, do we lock writes or accept and defer?
-   *Proposal:* accept freely; the snapshot is taken at pipeline start and
-   later writes are simply "pending" after the run.
+1. **Claim validation.** API rejects claims whose DOI is (a) malformed
+   or (c) already bound to a different ORCID in the current data; accepts
+   (b) unresolvable-against-current-data as pending (next OpenAlex
+   snapshot may include it).
+2. **Author-merge direction.** Submitter is always the keep side. Moderator
+   can only accept/reject — never swap. A swap requires a new event by the
+   other party authenticating with their own ORCID.
+3. **Rate limits.** 60 events/ORCID/day overall; 10/day for `claim_paper`
+   and `merge_authors`.
+4. **Counter-event moderation.** `revoke` of any applied event always
+   inherits `auto_ok` (risk was cleared at the original apply).
+5. **Pipeline-run concurrency.** No write lock during pipeline runs.
+   Snapshot is taken at pipeline start; later writes are pending after
+   the run.
+
+## Notes on staged delivery
+
+- Phases 1–5 ship without a moderator UI. `pending_review` events
+  accumulate during this window with no surfaced action — accepted as a
+  known limitation; resolved when Phase 6 lands the `/moderate` queue.
+- The legacy display-layer compat shim (`getLegacyOwnerData`) has been
+  removed. Owner data fields (`disownedWids`, etc.) return empty until
+  the Phase 5 ledger panel UI replaces them.
 
 ---
 
@@ -779,12 +781,12 @@ GET /api/ledger-status                      // manifest passthrough + redirect i
   against the current data.
 - `src/routes/(stat)/moderate/+page.svelte` — moderator queue.
 
-### 10.2 Layout on `author-papers/[...]/+page.svelte`
+### 10.2 Layout on `authors/[...]/+page.svelte`
 
 ```
 [Name header — impact summary]
 
-[Immediate Impact DAG]
+...
 
 [AllWorks list]
 
@@ -942,45 +944,6 @@ Each phase leaves the tree green. Phases 1–3 can ship incrementally
 (existing UI keeps working via the view layer). Phase 4 is the pipeline
 integration; Phases 5–6 are UI and moderator workflow; Phase 7 is
 cleanup.
-
-### Phase 1 — Ledger store & ID resolver
-1. Extend `Paper` type with `oaId`; update `rankless_server` response
-   shaping in every paper-returning endpoint. Update every client-side
-   consumer (`AllWorks`, `ImpactDag`, `PaperRainbow`, etc.) to ignore or
-   use the new field.
-2. Add `SearchResult.oaId?` similarly.
-3. Add resolution endpoints to `rankless_server`:
-   `GET /v1/resolve/work`, `GET /v1/resolve/author`. Thin wrappers over
-   the existing `Getters` + orcid / doi maps.
-4. Add `src/lib/server/id_resolver.ts` that composes both the live server
-   resolution and `display_snapshot` capture.
-5. Add `LedgerDb` (alongside `PaperDb`) in `src/lib/server/db.ts`:
-   `createEvent(orcid, kind, resolved_payload)`, `revokePending`,
-   `editPending`, `getEventsForOrcid`, plus `subject_hash` helper. Create
-   `ledger_events`, `ledger_runs`, `owner_pins` tables on init.
-6. `pyscripts/migrate_ledger.py`: one-shot migrator from legacy tables to
-   `ledger_events`. Preserves `created_at`, sets `moderation`:
-   `disown`/`paper_merge` → `auto_ok`; `claim_paper` → `pending_review`;
-   `author_merge_request.reviewed=0` → `pending_review`, `=1` → `accepted`.
-   Idempotent; drops legacy tables when done.
-7. Unit tests for `id_resolver` (stable-id round-trip, fallback chain).
-8. Unit tests for `LedgerDb` (dedup, revoke, edit, subject-hash).
-
-### Phase 2 — API consolidation
-1. Create `src/routes/api/ledger/+server.ts` (`POST`, `GET`, `DELETE`,
-   `PATCH`) + `src/routes/api/ledger/[event_id]/revoke/+server.ts`.
-2. Rewrite `api/papers/{disown,claim,merge}` and
-   `api/authors/merge-request` as thin wrappers over `LedgerDb` — keep
-   the URLs for backward compat.
-3. On every login (`callback/+server.ts`, `dev-login/+server.ts`): insert
-   into `owner_pins` with `reason = 'login'`.
-4. On every `POST /api/ledger`: insert (if missing) into `owner_pins`
-   with `reason = 'submitted_event'`.
-5. `author-papers/+page.server.ts` load: derive the legacy
-   `disownedWids` / `mergedPairs` / `claimedDois` /
-   `authorMergeRequests` props from `LedgerDb.getEventsForOrcid` so the
-   current UI keeps working end-to-end.
-6. Remove `PaperDb` exports once call sites are all gone.
 
 ### Phase 3 — Export, manifest, pinning file
 1. Add `pyscripts/export_user_ledger.py` producing `active.jsonl`,
