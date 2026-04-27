@@ -2,6 +2,7 @@ import { ORCID_CLIENT_ID, ORCID_CLIENT_SECRET } from '$env/static/private';
 import { ORCID_TOKEN_URL, ORCID_REDIRECT_URI, BE_URL } from '$lib/constants';
 import type { RequestHandler } from '@sveltejs/kit';
 import { setSession } from '$lib/server/session';
+import { LedgerDb } from '$lib/server/db';
 
 export const GET: RequestHandler = async (event) => {
 	const code = event.url.searchParams.get('code');
@@ -35,5 +36,6 @@ export const GET: RequestHandler = async (event) => {
 		// Non-critical — "My Profile" link will be absent until next login
 	}
 
+	LedgerDb.pinOwner(data.orcid, 'login');
 	return setSession(event, { orcid: data.orcid, name: data.name || 'ORCID User', semanticId }, redirectTo);
 };
