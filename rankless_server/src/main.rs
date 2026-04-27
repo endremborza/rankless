@@ -43,6 +43,7 @@ use rankless_rs::{
     },
     steps::{
         a1_entity_mapping::{Qs, RawYear, YearInterface, Years},
+        a2_init_atts::OrcidType,
         derive_links2::EraRec,
     },
     Stowage, N_PEERS,
@@ -151,6 +152,44 @@ struct BasicQ {
 #[derive(Deserialize)]
 struct WorksQ {
     n: Option<usize>,
+}
+
+#[derive(Deserialize)]
+struct ResolveWorkQ {
+    wid: Option<usize>,
+    oa_id: Option<u64>,
+    doi: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ResolveAuthorQ {
+    semantic_id: Option<String>,
+    orcid: Option<String>,
+    oa_id: Option<u64>,
+    dm_id: Option<usize>,
+}
+
+#[derive(Serialize)]
+struct ResolveWorkResp {
+    #[serde(rename = "oaId")]
+    oa_id: u64,
+    wid: usize,
+    doi: String,
+    year: u16,
+    name: String,
+}
+
+#[derive(Serialize)]
+struct ResolveAuthorResp {
+    #[serde(rename = "oaId")]
+    oa_id: u64,
+    #[serde(rename = "dmId")]
+    dm_id: usize,
+    #[serde(rename = "semanticId")]
+    semantic_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    orcid: Option<String>,
+    name: String,
 }
 
 #[derive(Serialize)]
@@ -271,6 +310,8 @@ struct PaperAuthorship {
 #[derive(Serialize)]
 struct PaperOut {
     wid: usize,
+    #[serde(rename = "oaId")]
+    oa_id: u64,
     year: u16,
     name: String,
     doi: String,
@@ -806,6 +847,8 @@ async fn async_main(n_threads: usize) {
         .route("/views/:etype/:semantic_id", get(view_get))
         .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))
         .route("/orcid/:orcid_id", get(orcid_get))
+        .route("/resolve/work", get(resolve_work_get))
+        .route("/resolve/author", get(resolve_author_get))
         .route("/paper-profile/:asem", get(paper_profile))
         .route("/author-peers/:asem", get(author_peers_get))
         .route("/trees/:root_type/:semantic_id", get(tree_get))
@@ -979,6 +1022,105 @@ async fn sem_id_get(
         }
     }
     Json([out])
+}
+
+async fn resolve_work_get(
+    q: Query<ResolveWorkQ>,
+    states: StatesT,
+) -> (StatusCode, Json<Option<ResolveWorkResp>>) {
+    let trm = &states.0 .2;
+    let gets = &trm.state.gets;
+    let wid = if let Some(wid) = q.wid {
+        if wid >= gets.work_oa.len() {
+            return (StatusCode::NOT_FOUND, Json(None));
+        }
+        wid
+    } else if let Some(oa_id) = q.oa_id {
+        match gets.work_oa.iter().position(|&x| x == oa_id) {
+            Some(i) => i,
+            None => return (StatusCode::NOT_FOUND, Json(None)),
+        }
+    } else if q.doi.is_some() {
+        // Phase 1: doi-only lookup not implemented (no reverse index built);
+        // claim flow stores doi as primary identifier without resolution.
+        return (StatusCode::NOT_IMPLEMENTED, Json(None));
+    } else {
+        return (StatusCode::BAD_REQUEST, Json(None));
+    };
+    let mut wname_handler: ManFileHandle = trm.get_file_handle();
+    let mut doi_handler: VattReadingArcMap<WorkDois> = trm.get_file_handle();
+    let name = wname_handler
+        .get_via_mut(&wid)
+        .unwrap_or_else(|| "Unknown".to_string());
+    let doi = doi_handler.get_via_mut(&wid).unwrap_or_default();
+    let resp = ResolveWorkResp {
+        oa_id: gets.work_oa[wid],
+        wid,
+        doi,
+        year: YearInterface::reverse(*gets.year(&wid)),
+        name,
+    };
+    (StatusCode::OK, Json(Some(resp)))
+}
+
+async fn resolve_author_get(
+    q: Query<ResolveAuthorQ>,
+    states: StatesT,
+) -> (StatusCode, Json<Option<ResolveAuthorResp>>) {
+    let nstate = match states.0 .0.get(Authors::NAME) {
+        Some(s) => s,
+        None => return (StatusCode::NOT_FOUND, Json(None)),
+    };
+    let gets = &states.0 .2.state.gets;
+    let dm_id: usize = if let Some(d) = q.dm_id {
+        d
+    } else if let Some(sem_id) = &q.semantic_id {
+        let psid = parse_semantic_id(sem_id.clone());
+        match nstate.semantic_id_map.get(psid.as_str()) {
+            Some(&d) => d as usize,
+            None => return (StatusCode::NOT_FOUND, Json(None)),
+        }
+    } else if let Some(orcid_str) = &q.orcid {
+        let obytes: OrcidType = match orcid_str.as_bytes().try_into() {
+            Ok(b) => b,
+            Err(_) => return (StatusCode::BAD_REQUEST, Json(None)),
+        };
+        match gets.orcid_map.get(&obytes) {
+            Some(&d) => d,
+            None => return (StatusCode::NOT_FOUND, Json(None)),
+        }
+    } else if let Some(oa_id) = q.oa_id {
+        match nstate.oa_id_map.get(&oa_id) {
+            Some(&rid) => nstate.responses[rid as usize].dm_id,
+            None => return (StatusCode::NOT_FOUND, Json(None)),
+        }
+    } else {
+        return (StatusCode::BAD_REQUEST, Json(None));
+    };
+    let rid = match nstate.response_id_from_dm(dm_id) {
+        Some(r) => r,
+        None => return (StatusCode::NOT_FOUND, Json(None)),
+    };
+    let sr = &nstate.responses[rid];
+    let na_orcid = OrcidType::default();
+    let orcid = if dm_id < <Authors as Entity>::N {
+        let bytes = *gets.author_orcids(&dm_id);
+        if bytes == na_orcid {
+            None
+        } else {
+            String::from_utf8(bytes.to_vec()).ok()
+        }
+    } else {
+        None
+    };
+    let resp = ResolveAuthorResp {
+        oa_id: sr.oa_id,
+        dm_id: sr.dm_id,
+        semantic_id: sr.semantic_id.to_string(),
+        orcid,
+        name: sr.name.to_string(),
+    };
+    (StatusCode::OK, Json(Some(resp)))
 }
 
 async fn orcid_get(Path(orcid_id): Path<String>, states: StatesT) -> Json<Option<SearchResult>> {
@@ -1335,6 +1477,7 @@ fn paper_out(
 
     PaperOut {
         wid,
+        oa_id: gets.work_oa.get(wid).copied().unwrap_or(0),
         year: YearInterface::reverse(*gets.year(&wid)),
         name,
         hit_sem_id,
