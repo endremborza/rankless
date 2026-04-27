@@ -11,6 +11,7 @@ import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
 function makePaper(overrides: Partial<Paper> = {}): Paper {
 	return {
 		wid: 1,
+		oaId: 0,
 		name: 'Test Paper',
 		year: 2023,
 		doi: '10.1234/test',
