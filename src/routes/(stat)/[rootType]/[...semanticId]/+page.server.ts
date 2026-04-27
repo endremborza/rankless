@@ -5,8 +5,6 @@ import * as tf from '$lib/tree-functions';
 import { BE_URL, COMPLETE_YEAR, REL_TYPES, ROOT_TYPES } from '$lib/constants';
 import { pluralize, SEMANTIC_CONF } from '$lib/text-format-util';
 import { getExternalUrl, semIdResolver } from '$lib/route-functions';
-import { PaperDb } from '$lib/server/db';
-
 
 export const ssr = true;
 
@@ -98,13 +96,11 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 					// ORCID lookup failed — not an owner
 				}
 			}
-
-			if (isOwner) {
-				disownedWids = PaperDb.getDisownedWids(locals.user.orcid);
-				claimedDois = PaperDb.getClaimedDois(locals.user.orcid);
-				mergedPairs = PaperDb.getMergedPairs(locals.user.orcid);
-				authorMergeRequests = PaperDb.getAuthorMergeRequests(locals.user.orcid);
-			}
+			// disownedWids = PaperDb.getDisownedWids(locals.user.orcid);
+			// claimedDois = PaperDb.getClaimedDois(locals.user.orcid);
+			// mergedPairs = PaperDb.getMergedPairs(locals.user.orcid);
+			// authorMergeRequests = PaperDb.getAuthorMergeRequests(locals.user.orcid);
+			// TODO Phase 5: populate from LedgerDb.getEventsForOrcid once ledger panel UI lands
 		}
 	}
 
