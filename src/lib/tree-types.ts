@@ -69,6 +69,7 @@ export type PaperBiblio = {
 
 export type Paper = {
 	wid: number;
+	oaId: number;
 	year: number;
 	name: string;
 	doi: string;
@@ -114,6 +115,8 @@ export type SearchResult = {
 	papers: number;
 	citations: number;
 	distinctText?: string;
+	oaId?: number;
+	dmId?: number;
 };
 
 export type SubbedRel = { desc: string; subs: RelatedEntity[] };
