@@ -36,6 +36,6 @@ export const GET: RequestHandler = async (event) => {
 		// Non-critical — "My Profile" link will be absent until next login
 	}
 
-	LedgerDb.pinOwner(data.orcid, 'login');
+	LedgerDb.pinOwner(data.orcid);
 	return setSession(event, { orcid: data.orcid, name: data.name || 'ORCID User', semanticId }, redirectTo);
 };

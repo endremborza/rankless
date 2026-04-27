@@ -23,7 +23,7 @@ export const GET: RequestHandler = (event) => {
 	if (!dev) error(404, 'Not found');
 	const p = event.url.searchParams;
 	let orcid = p.get('orcid') ?? TEST_ORCID;
-	LedgerDb.pinOwner(orcid, 'login');
+	LedgerDb.pinOwner(orcid);
 	return setSession(
 		event,
 		{

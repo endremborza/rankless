@@ -40,8 +40,7 @@ export function getDb(): Database {
 		);
 		CREATE TABLE IF NOT EXISTS owner_pins (
 			orcid TEXT PRIMARY KEY,
-			first_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
-			reason TEXT NOT NULL
+			first_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
 		);
 	`);
 	return _db;
@@ -157,16 +156,16 @@ export const LedgerDb = {
 		return info.changes > 0;
 	},
 
-	pinOwner(orcid: string, reason: 'login' | 'submitted_event' | 'manual'): void {
+	pinOwner(orcid: string): void {
 		getDb()
-			.prepare('INSERT OR IGNORE INTO owner_pins (orcid, reason) VALUES (?, ?)')
-			.run(orcid, reason);
+			.prepare('INSERT OR IGNORE INTO owner_pins (orcid) VALUES (?)')
+			.run(orcid);
 	},
 
-	getOwnerPins(): { orcid: string; reason: string; first_seen_at: string }[] {
+	getOwnerPins(): { orcid: string; first_seen_at: string }[] {
 		return getDb()
-			.prepare('SELECT orcid, reason, first_seen_at FROM owner_pins')
-			.all() as { orcid: string; reason: string; first_seen_at: string }[];
+			.prepare('SELECT orcid, first_seen_at FROM owner_pins')
+			.all() as { orcid: string; first_seen_at: string }[];
 	},
 
 	findPendingByPayload(orcid: string, kind: LedgerKind, jsonPath: string, value: string | number | null): number | null {
