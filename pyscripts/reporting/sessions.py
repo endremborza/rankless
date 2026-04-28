@@ -25,7 +25,9 @@ def assign_sessions(df: pd.DataFrame) -> pd.DataFrame:
     starts_addr = df["addr"]
     starts_ua = df["ua"]
 
-    salts_for_dates = {d: get_or_create_salt(d.isoformat()) for d in starts_t.dt.date.unique()}
+    salts_for_dates = {
+        d: get_or_create_salt(d.isoformat()) for d in starts_t.dt.date.unique()
+    }
     df["session_id"] = [
         _hash_session(salts_for_dates[d.date()], a, u, t)
         for d, a, u, t in zip(starts_t, starts_addr, starts_ua, starts_t)

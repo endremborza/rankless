@@ -2,7 +2,7 @@
 {% set depth = 1 %}
 {% block title %}Sessions{% endblock %}
 {% block content %}
-<h1>Sessions (last 7 days)</h1>
+<h1>Sessions (last 7 days, with at least 2 requests)</h1>
 <p class="hint">Click a session id to see its request timeline.</p>
 {{ sessions_table | safe }}
 

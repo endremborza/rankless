@@ -13,13 +13,28 @@ def render(ctx: RenderContext) -> None:
         return
 
     cutoff = pd.to_datetime(sessions["start"]).max() - pd.Timedelta(days=7)
-    recent = sessions[pd.to_datetime(sessions["start"]) >= cutoff].copy()
+    recent = sessions.loc[
+        lambda df: (pd.to_datetime(df["start"]) >= cutoff) & (df["n_req"] > 1)
+    ].copy()
 
-    recent["session"] = recent["session_id"].map(lambda s: f'<a href="{s}.html">{s}</a>')
-    cols = ["session", "addr", "ua_family", "bot_class", "start", "end", "n_req", "route_diversity"]
+    recent["session"] = recent["session_id"].map(
+        lambda s: f'<a href="{s}.html">{s}</a>'
+    )
+    cols = [
+        "session",
+        "addr",
+        "ua_family",
+        "bot_class",
+        "start",
+        "end",
+        "n_req",
+        "route_diversity",
+    ]
     cols = [c for c in cols if c in recent.columns]
-    table_html = recent[cols].sort_values("start", ascending=False).to_html(
-        classes="dt", index=False, table_id="sessions", border=0, escape=False
+    table_html = (
+        recent[cols]
+        .sort_values("start", ascending=False)
+        .to_html(classes="dt", index=False, table_id="sessions", border=0, escape=False)
     )
 
     html = render_template(
@@ -32,25 +47,43 @@ def render(ctx: RenderContext) -> None:
     write(ctx, "sessions/index.html", html)
 
     # Per-session details (cap to most recent N for site size).
+    N = 100
     import datetime as dt
+
     today = dt.date.today()
     events = archive.read_hot(date_from=today - dt.timedelta(days=7))
     if ctx.mode == "public" and not events.empty:
         from .base import _anonymize_events
+
         events = _anonymize_events(events)
 
-    top_sessions = recent.sort_values("n_req", ascending=False).head(500)
+    top_sessions = recent.sort_values("n_req", ascending=False).head(N)
     for _, sess in top_sessions.iterrows():
-        sess_events = events[events["session_id"] == sess["session_id"]] if not events.empty else pd.DataFrame()
+        sess_events = (
+            events[events["session_id"] == sess["session_id"]]
+            if not events.empty
+            else pd.DataFrame()
+        )
         signals = []
         try:
             signals = json.loads(sess.get("signals_json", "[]"))
         except (TypeError, ValueError):
             signals = []
-        ev_cols = [c for c in ("t", "method", "route_template", "status", "urt", "cs", "size") if c in sess_events.columns]
+        ev_cols = [
+            c
+            for c in ("t", "method", "route_template", "status", "urt", "cs", "size")
+            if c in sess_events.columns
+        ]
         if not sess_events.empty:
-            ev_html = sess_events[ev_cols].sort_values("t").to_html(
-                classes="dt", index=False, table_id="ev", border=0,
+            ev_html = (
+                sess_events[ev_cols]
+                .sort_values("t")
+                .to_html(
+                    classes="dt",
+                    index=False,
+                    table_id="ev",
+                    border=0,
+                )
             )
         else:
             ev_html = "<p class='hint'>No events archived for this session.</p>"
