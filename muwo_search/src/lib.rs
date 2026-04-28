@@ -459,9 +459,8 @@ impl StackWordSet {
                 }
             } else if (*c >= ASCII_LC_MIN) && (*c <= ASCII_LC_MAX) {
                 out.char_array[i as usize] = *c - ASCII_LC_MIN;
-                i.add_assign(1);
+                i = i.wrapping_add(1);
                 if i == 0 {
-                    //overflow
                     return out;
                 }
             }
