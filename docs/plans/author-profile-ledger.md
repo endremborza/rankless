@@ -400,18 +400,20 @@ the existing response shaping in `rankless_server`. **This is a
 cross-cutting change** (all paper list responses need it) but it's a
 one-line addition per shaping site.
 
-### 6.5 OpenAlex `merged_ids` ingestion
+### 6.5 OpenAlex `merged_ids` ingestion — removed
 
-OpenAlex publishes monthly `merged_ids/` tables mapping deprecated IDs to
-their canonical counterparts. Today the pipeline ignores them.
+The `merged_ids` redirect (deprecated oa_id → current oa_id) was removed
+because the CSV writer that would produce the source files was never
+implemented, making it permanently a no-op. If an event's oa_id stops
+resolving after an OpenAlex snapshot update, the pipeline now emits a
+clear `eprintln!` warning pointing here. Re-implement by:
 
-Add a one-shot load at the top of the pipeline:
-
-- `rankless_rs/src/common/merged_ids.rs`: `load_merged_ids(root: &Path) -> HashMap<BigId, BigId>`
-- Called from `UserLedger::resolve` (used in step 2 of the algorithm above).
-- Also useful beyond the ledger: the `oa-id/[oaId]/+server.ts` redirect
-  route can consult it for stale OA ids that show up in external links.
-  (Out of scope here — mention only.)
+1. Parsing OpenAlex `merged_ids/` tables in `csv_writers.rs` → emit
+   `entity-csvs/merged-ids/{authors,works}.csv.zst` using `MergedIdRow`.
+2. Restoring `merged_ids.rs` loader + `apply_redirect` calls in
+   `user_ledger.rs` before the alias/disown processing in `load()`.
+3. Re-adding `Redirect`/`RedirectSubject` types and the `redirected[]`
+   field in `applied_manifest.json`.
 
 ### 6.6 Orphan state machine
 
@@ -600,8 +602,7 @@ either paper as "keep."
 
 ## 8. Pipeline integration (architecture reference)
 
-The implementation lives in `rankless_rs/src/user_ledger.rs` and
-`rankless_rs/src/merged_ids.rs`. Touchpoints: `filter.rs` (alias-aware
+The implementation lives in `rankless_rs/src/user_ledger.rs`. Touchpoints: `filter.rs` (alias-aware
 PersonAuthorship counting + owner-pin author filter),
 `a1_entity_mapping.rs` (skip drop-side oa_ids; write `a1_manifest.json`),
 `a2_init_atts.rs` (augment `LoadedIdMap` with drop→keep dm aliases;
@@ -1087,10 +1088,9 @@ Pipeline re-run + reload:
 
 ## 16. Deferred follow-ups (not in this plan)
 
-- **`merged_ids` population** in `to-csv` step: extend `csv_writers.rs`
-  to parse OpenAlex `merged_ids/` tables and emit
-  `entity-csvs/merged-ids/{authors,works}.csv.zst` using `MergedIdRow`.
-  (Loaders and consumer-side wiring land in Phase 4 finalisation.)
+- **`merged_ids` redirect** for deprecated OpenAlex IDs — removed from
+  pipeline; re-implement if events start failing with `oa_id_not_in_dataset`
+  due to OpenAlex ID deprecation (see §6.5 for the full recipe).
 - `add_paper_request` full implementation (synthetic-CSV injection,
   synthetic OA id allocation, moderation UI).
 - `claim_paper` full pipeline effect (currently skipped with
