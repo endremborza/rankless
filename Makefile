@@ -52,7 +52,7 @@ test-js:
 test: test-rs test-js
 	echo OK
 
-extend_csvs lib_data_generation bm live_monitoring report sitemap_validation survey_result_export log_parsing nobel sql_comparison:
+extend_csvs lib_data_generation bm live_monitoring reporting sitemap_validation survey_result_export log_parsing nobel sql_comparison:
 	uv run -m pyscripts.$@
 
 hit-paper-analysis field-citation-ratio author-missed-works:
