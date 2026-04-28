@@ -8,10 +8,7 @@ use crate::{
         SubfieldCountryInstSourceByRef, SubfieldCountryInstSubfieldByRef,
         SubfieldRefTopicCountryInst, SubfieldWCoiByRef, WorkingAuthors,
     },
-    io::{
-        BufSerChildren, BufSerTree, CollapsedNode, CollapsedNodeGen, TreeSpec, WorkCiteT, WorkWInd,
-        WT,
-    },
+    io::{BufSerChildren, BufSerTree, CollapsedNode, TreeSpec, WorkCiteT, WorkWInd, WT},
     part_iterator::{PartitioningIterator, TreeMakingParams},
 };
 use muwo_search::{ordered_calls, sorted_iters_to_arr, ExtendableArr, OrderedMapper};
@@ -47,11 +44,13 @@ pub struct IddCollNode<E: NumberedEntity> {
     node: CollapsedNode,
 }
 
+#[derive(Default)]
 struct WVecPair {
     pub sources: Vec<WorkWInd>,
     pub targets: Vec<WT>,
 }
 
+#[derive(Default)]
 struct PrepNode {
     pub merge_into: WVecPair,
     pub merge_from: WVecPair,
@@ -89,14 +88,6 @@ pub trait FoldStackBase<C> {
 pub trait NotLeafNode {}
 
 impl WVecPair {
-    fn new() -> Self {
-        Self {
-            // sources: StackWExtension::new(),
-            // sources: StackWExtension::new(),
-            targets: Vec::new(),
-            sources: Vec::new(),
-        }
-    }
     fn reset(&mut self) {
         unsafe {
             // neither type needs dropping
@@ -486,36 +477,6 @@ impl ReinstateFrom<WT> for WorkTree {
         unsafe {
             self.0.children.set_len(0);
         }
-    }
-}
-
-//TODO/clarity - low-prio - these could be derived
-impl<T> Default for CollapsedNodeGen<T>
-where
-    T: Default,
-{
-    fn default() -> Self {
-        Self {
-            link_count: 0,
-            source_count: 0,
-            top_source: T::default(),
-            top_cite_count: 0,
-        }
-    }
-}
-
-impl Default for PrepNode {
-    fn default() -> Self {
-        Self {
-            merge_from: WVecPair::new(),
-            merge_into: WVecPair::new(),
-        }
-    }
-}
-
-impl Default for WorkWInd {
-    fn default() -> Self {
-        Self(0, 0)
     }
 }
 

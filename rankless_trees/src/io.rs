@@ -86,7 +86,7 @@ pub struct FullMultiTreeQuery {
     pub act_ind: usize,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct WorkWInd(pub WT, pub WorkCiteT);
 
 #[derive(Serialize, Clone)]
@@ -126,8 +126,8 @@ pub struct ShallowQ {
     pub satts: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct CollapsedNodeGen<T> {
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct CollapsedNodeGen<T: Default> {
     #[serde(rename = "linkCount")]
     pub link_count: u32,
     #[serde(rename = "sourceCount")]
