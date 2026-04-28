@@ -32,15 +32,29 @@ def _route_table(events: pd.DataFrame) -> str:
     e["is_5xx"] = e["status"] >= 500
     e["is_4xx"] = (e["status"] >= 400) & (e["status"] < 500)
     e["is_hit"] = e["cs"] == "HIT"
-    g = e.groupby("route_template").agg(
-        n=("status", "count"),
-        urt_p50=("urt", lambda s: float(s.quantile(0.5)) if s.notna().any() else float("nan")),
-        urt_p95=("urt", lambda s: float(s.quantile(0.95)) if s.notna().any() else float("nan")),
-        urt_p99=("urt", lambda s: float(s.quantile(0.99)) if s.notna().any() else float("nan")),
-        err_5xx=("is_5xx", "mean"),
-        err_4xx=("is_4xx", "mean"),
-        cache_hit=("is_hit", "mean"),
-    ).reset_index().sort_values("n", ascending=False)
+    g = (
+        e.groupby("route_template")
+        .agg(
+            n=("status", "count"),
+            urt_p50=(
+                "urt",
+                lambda s: float(s.quantile(0.5)) if s.notna().any() else float("nan"),
+            ),
+            urt_p95=(
+                "urt",
+                lambda s: float(s.quantile(0.95)) if s.notna().any() else float("nan"),
+            ),
+            urt_p99=(
+                "urt",
+                lambda s: float(s.quantile(0.99)) if s.notna().any() else float("nan"),
+            ),
+            err_5xx=("is_5xx", "mean"),
+            err_4xx=("is_4xx", "mean"),
+            cache_hit=("is_hit", "mean"),
+        )
+        .reset_index()
+        .sort_values("n", ascending=False)
+    )
     for c in ("urt_p50", "urt_p95", "urt_p99"):
         g[c] = (g[c] * 1000).round(1)
         g.rename(columns={c: c + "_ms"}, inplace=True)
@@ -82,14 +96,21 @@ def _cache_hit_chart(hourly: pd.DataFrame) -> str:
         return "<p class='hint'>No data.</p>"
     cutoff = hourly["bucket"].max() - pd.Timedelta(days=7)
     s = hourly[hourly["bucket"] >= cutoff].copy()
-    g = s.groupby("bucket").apply(
-        lambda d: pd.Series(
-            {
-                "hit_pct": (d.loc[d["cs"] == "HIT", "n"].sum() / max(d["n"].sum(), 1)) * 100
-            }
-        ),
-        include_groups=False,
-    ).reset_index()
+    g = (
+        s.groupby("bucket")
+        .apply(
+            lambda d: pd.Series(
+                {
+                    "hit_pct": (
+                        d.loc[d["cs"] == "HIT", "n"].sum() / max(d["n"].sum(), 1)
+                    )
+                    * 100
+                }
+            ),
+            include_groups=False,
+        )
+        .reset_index()
+    )
     return plotly_div(
         "cache-hit",
         [
