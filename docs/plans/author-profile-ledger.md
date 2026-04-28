@@ -101,28 +101,8 @@ revisit them without user sign-off.
 
 ## Status (2026-04-28)
 
-Phases 1–3 are committed. Phase 4 is implemented but uncommitted and has
-the open issues below; it is gated on the integration test in §15.
-
-**Phase 4 — gaps before commit**
-
-1. **Wire `merged_ids` into `UserLedger`.** Plan §6.2 step 2
-   (deprecated→canonical OA id redirect) does not run. Loaders exist
-   in `merged_ids.rs` but `UserLedger::load`/`resolve_orcids` never
-   consult them. Apply the `authors`/`works` redirect maps to alias
-   keys/values and to `removed_edges` work_oa, and accumulate
-   redirects into a `Vec<Redirect>` for the manifest.
-2. **Emit `snapshot_at` and `redirected[]` in `applied_manifest.json`.**
-   The SvelteKit `AppliedManifest` type already expects them.
-   `snapshot_at` reads from `snapshot_manifest.json`; `redirected[]`
-   from the new field above.
-3. **Build-tree leftover.** `lib.rs` `mods_as_comms!` and
-   `steps/mod.rs` are reduced to only `a1_entity_mapping` (debug
-   artifact). Run a full `make` (or restore manually) before commit.
-4. **Authorship dedup** in `ShipRelWriter::proc_next` for the case
-   where keep and drop both appear on the same authorship row
-   (deduped in filter-side counting only). Verified benign in the
-   integration test (§15) or fixed by a HashSet inside `proc_next`.
+Phases 1–3 are committed. Phase 4 implementation is complete; the
+integration test (§15) is the remaining gate before commit.
 
 ---
 
@@ -629,7 +609,7 @@ filter `removed_edges` in `ShipRelWriter::proc_next`; merge attributes
 into the keep side; write `applied_manifest.json`).
 
 Export pipeline: `pyscripts/export_user_ledger.py` is hooked from
-`Makefile` so `filter` depends on `export-ledger`.
+`Makefile` so `filter` depends on `export_user_ledger`.
 
 Revoke semantics: the export step inlines the target event into a
 `revoke` event as `target_inlined`. Rust reverses the inlined target
@@ -835,21 +815,6 @@ Once accepted, the event is eligible for the next export snapshot.
 ---
 
 ## 14. Implementation plan — remaining phases
-
-### Phase 4 finalisation — close the gaps before commit
-
-Tracked in **Status (2026-04-28)** at the top. In order:
-
-1. Wire `merged_ids` redirects into `UserLedger::resolve_orcids`
-   (rename to `resolve`); apply the redirect map to alias keys/values
-   and to `removed_edges` work_oa; accumulate `Vec<Redirect>` for the
-   manifest.
-2. Add `snapshot_at` and `redirected[]` to `applied_manifest.json`.
-3. Restore `lib.rs` `mods_as_comms!` and `steps/mod.rs` to the full
-   step list (run a clean `make build-prep` then `make`, or fix
-   manually).
-4. Land the **integration test** in §15 — Phase 4 cannot be considered
-   complete without it.
 
 ### Phase 5 — Ledger panel UI
 1. `AuthorLedgerPanel.svelte` + `LedgerEventRow.svelte` +
