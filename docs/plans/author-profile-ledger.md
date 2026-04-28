@@ -99,6 +99,38 @@ revisit them without user sign-off.
 
 ---
 
+## Status (2026-04-28)
+
+Phases 1–3 are committed. Phase 4 is implemented but uncommitted and has
+the open issues below; it is gated on the integration test in §15.
+
+**Phase 4 — gaps before commit**
+
+1. **Order-dependent counter bug** in `a2_init_atts.rs::add_author_atts`.
+   Keep branch assigns `raw_cites[aid] = ...`; drop branch does `+=`.
+   CSV row order is not deterministic, so when the drop is processed
+   first the keep's assignment overwrites the drop's contribution.
+   Fix: both branches use `+=` on the counts (slice is zero-initialised);
+   names/orcids/wiki-slug stay assignment in the keep-only branch.
+2. **`merged_ids.rs` is loaded but unwired.** Plan §6.2 step 2
+   (deprecated→canonical OA id redirect) does not run. Add to
+   `UserLedger::resolve_orcids` (rename to `resolve`): apply the
+   `authors`/`works` redirect maps to alias keys/values and to
+   `removed_edges` work_oa before they reach the manifest.
+3. **Manifest field mismatch.** `write_final_manifest` emits only
+   `run_id`, `applied_event_ids`, `skipped`. The
+   SvelteKit `AppliedManifest` type expects `snapshot_at` and
+   `redirected[]`. Either emit them or trim the TS type.
+4. **Build-tree leftover.** `lib.rs` `mods_as_comms!` and
+   `steps/mod.rs` are reduced to only `a1_entity_mapping` (debug
+   artifact). Run a full `make` (or restore manually) before commit.
+5. **Authorship dedup not enforced** in `ShipRelWriter::proc_next` for
+   the case where keep and drop appear on the same authorship row
+   (deduped in filter-side counting only). Verified benign in the
+   integration test or fixed by a HashSet inside `proc_next`.
+
+---
+
 ## 4. Scope
 
 ### 4.1 In scope (this plan)
@@ -591,149 +623,31 @@ either paper as "keep."
 
 ---
 
-## 8. Pipeline integration
+## 8. Pipeline integration (architecture reference)
 
-### 8.1 New module: `rankless_rs/src/common/user_ledger.rs`
+The implementation lives in `rankless_rs/src/user_ledger.rs` and
+`rankless_rs/src/merged_ids.rs`. Touchpoints: `filter.rs` (alias-aware
+PersonAuthorship counting + owner-pin author filter),
+`a1_entity_mapping.rs` (skip drop-side oa_ids; write `a1_manifest.json`),
+`a2_init_atts.rs` (augment `LoadedIdMap` with drop→keep dm aliases;
+filter `removed_edges` in `ShipRelWriter::proc_next`; merge attributes
+into the keep side; write `applied_manifest.json`).
 
-```rust
-pub struct UserLedger {
-    pub run_id: String,
-    pub author_aliases: HashMap<BigId, BigId>,     // drop -> root
-    pub work_aliases:   HashMap<BigId, BigId>,     // drop -> root
-    pub removed_edges:  HashSet<(BigId, BigId)>,   // (author_oa_id, work_oa_id)
-    pub added_edges:    Vec<(BigId, BigId)>,       // (author_oa_id, work_oa_id)
-    pub owner_pins:     HashSet<BigId>,            // author_oa_ids to never filter out
-    pub orcid_to_oa:    HashMap<OrcidBytes, BigId>,
-    pub doi_to_oa:      HashMap<String, BigId>,
-    pub merged_ids:     HashMap<BigId, BigId>,
-    pub applied:        Vec<u64>,
-    pub redirected:     Vec<Redirect>,
-    pub skipped:        Vec<Skipped>,
-}
+Export pipeline: `pyscripts/export_user_ledger.py` is hooked from
+`Makefile` so `filter` depends on `export-ledger`.
 
-impl UserLedger {
-    pub fn load(stowage: &Stowage) -> io::Result<Self>;  // reads active.jsonl
-    pub fn resolve(&mut self, stowage: &Stowage);        // fill lookups, apply algo
-    pub fn write_manifest(&self, stowage: &Stowage);     // applied_manifest.json
-}
-```
+Revoke semantics: the export step inlines the target event into a
+`revoke` event as `target_inlined`. Rust reverses the inlined target
+without reading SQLite.
 
-### 8.2 Integration points
-
-| Step | Change |
-|------|--------|
-| `filter.rs` (before a1) | Load `UserLedger`, call `resolve`. Load `owner_pins.txt`; augment. In `count_passes`, collapse `author_aliases` groups before the threshold check. Force every OA id with an `owner_pins` entry to pass the filter regardless of counts. Apply `removed_edges`/`added_edges` to the authorship counting. |
-| `a1_entity_mapping.rs` | Wrap `Data64MappedEntityBuilder::push` for `Authors` and `Works`: skip drop-side OA ids; they get no dm_id. The `LoadedIdMap` built at the end contains `drop_oa_id → keep's dm_id` entries as well (so downstream CSV rows referencing a drop still resolve). Emit discarded entries appropriately (merged drops are *not* "discarded authors"; they are a separate `merged_away_authors` list for audit). |
-| `a2_init_atts::add_ship_relations::proc_next` | Check `(author_oa_id, work_oa_id) ∈ removed_edges` → skip. After CSV iteration, iterate `added_edges` and feed the writer. |
-| `a2_init_atts::add_author_atts` | Merge text attributes per alias group: keep's name/orcid/wikislug win; sum `raw_cites`, `raw_works`. Drops' attrs discarded. |
-| `a2_init_atts::add_work_atts` | Similar for works: keep's DOI/title/year/biblio win. |
-| New `a_finalize` (trivial step) | Call `UserLedger::write_manifest`. Alternative: append to tail of `derive_links5`. |
-
-### 8.3 Pinning as a distinct filter concept
-
-`filter.rs` currently applies thresholds uniformly to all authors. Add:
-
-```rust
-let owner_pins = read_owner_pins(&stowage.paths.user_ledger);  // HashSet<BigId>
-// in the per-author decision:
-let passes = owner_pins.contains(&author_oa_id)
-          || (cites >= MIN_AUTHOR_CITE_COUNT && works >= MIN_AUTHOR_WORK_COUNT);
-```
-
-Verify no downstream step assumes `works_count ≥ 1` without checking.
-Audit loci: `derive_links3::hit_papers`, `derive_links4`, KD-tree embedding
-(`peers.rs::Embed2` uses `ln(cites)` — an author with zero works has
-`-inf`; either exclude pinned zero-work authors from the KD-tree build
-or assign them the minimum nonzero value). Document the choice in
-`docs/details/metaprogramming.md`.
-
-### 8.4 Export step
-
-```
-pyscripts/export_user_ledger.py
-
-- Connect to data/rankless.sqlite.
-- SELECT event_id, orcid, kind, payload, moderation
-    FROM ledger_events
-   WHERE revoked_at IS NULL
-     AND moderation IN ('auto_ok', 'accepted')
-- Collapse counter-events:
-    if event kind = 'revoke' and target ∈ active set:
-        remove target from active set, also remove the revoke itself
-    if event kind = 'revoke' and target ∉ active set (already applied):
-        keep as a synthetic "undo" instruction — Rust needs to compute
-        the inverse (remove from aliases / edges).
-- Write active.jsonl (one event per line with normalised payload).
-- Write snapshot_manifest.json with run_id (ISO ts) and event_ids.
-- Write owner_pins.txt by reading owner_pins table.
-```
-
-Hooked into `Makefile`:
-
-```
-filter: export-ledger clean-filters clean-keys clean-cache
-    cargo run --release -p rankless-rs -- filter $(OA_ROOT)
-
-export-ledger:
-    uv run -m pyscripts.export_user_ledger $(OA_ROOT)
-```
-
-### 8.5 Revoke semantics on the pipeline side
-
-A `revoke` event in `active.jsonl` means "cancel the effect of a
-previously-applied event." The simplest implementation:
-
-1. Build the event set for the run, starting with every active non-revoke
-   event.
-2. For each `revoke` event pointing at a `target_event_id`, look up
-   whether the target appears in the current set. If yes, drop it. If no,
-   the target must have been a previously-applied event — load the
-   historic event by id from `ledger_events` (read-only), and apply its
-   *inverse* (swap `removed_edges`/`added_edges`; clear the alias entry).
-3. Skipped revokes (target not found at all) go to manifest with
-   `target_not_resolvable`.
-
-This is the only place where the pipeline reads historical rows from
-SQLite. To keep Rust independent of sqlite, the Node export step inlines
-the target's payload into the revoke event before writing `active.jsonl`:
-
-```jsonc
-{ "event_id": 200, "kind": "revoke",
-  "payload": { "target_event_id": 47 },
-  "target_inlined": { "event_id": 47, "kind": "disown_paper",
-                      "payload": { "work": { "oa_id": 123, … } } }
-}
-```
-
-Rust just reverses `target_inlined` without touching the DB.
+Open items from this section are tracked in **Status (2026-04-28)**
+above.
 
 ---
 
-## 9. API surface
+## 9. API surface — remaining
 
-### 9.1 Consolidation
-
-Existing endpoints become thin wrappers during Phase 2; Phase 6 deletes
-them.
-
-| Existing endpoint | Replaced by |
-|-------------------|-------------|
-| `POST /api/papers/disown` | `POST /api/ledger` with `{kind:"disown_paper", ...}` |
-| `POST /api/papers/claim` | `POST /api/ledger` with `{kind:"claim_paper", ...}` (→ pending_review) |
-| `POST /api/papers/merge` | `POST /api/ledger` with `{kind:"merge_papers", ...}` |
-| `POST /api/authors/merge-request` | `POST /api/ledger` with `{kind:"merge_authors", ...}` (→ pending_review) |
-
-Single handler `src/routes/api/ledger/+server.ts`:
-
-```ts
-POST   { kind, payload_input }             // resolves ids, creates event
-GET    /api/ledger?orcid=…                 // lists caller's events
-DELETE /api/ledger/:event_id               // soft-delete (pending only)
-PATCH  /api/ledger/:event_id { payload }   // edit pending (dedup-aware)
-POST   /api/ledger/:event_id/revoke        // create counter-event (applied)
-```
-
-### 9.2 Moderator endpoints
+Ledger CRUD, status, and resolve endpoints are committed. Phase 6 adds:
 
 ```ts
 GET  /api/moderation/queue                 // pending_review events; mod-only
@@ -742,23 +656,11 @@ POST /api/moderation/:event_id/decide      // accept/reject; mod-only
 
 Guarded by `locals.user.orcid ∈ MODERATOR_ORCIDS` (env list for now).
 
-### 9.3 Resolution endpoints (server)
-
-New `rankless_server` routes:
-
-```
-GET /v1/resolve/work?wid=…&doi=…&oa_id=…
-GET /v1/resolve/author?semantic_id=…&orcid=…&oa_id=…&dm_id=…
-```
-
-Both return a best-effort `{ oa_id?, orcid?, doi?, semantic_id?, display? }`.
-Called from Node at `POST /api/ledger` to populate the subject blocks.
-
-### 9.4 Status endpoints
-
-```
-GET /api/ledger-status                      // manifest passthrough + redirect info
-```
+The `/v1/resolve/work?doi=…` server endpoint currently returns
+`501 NOT_IMPLEMENTED` (no DOI reverse index). Either wire a streaming
+build of `doi → wid` at server start (cost: one pass over `WorkDois`),
+or leave as Phase 2 follow-up — claims store DOI as primary identifier
+and don't need server-side DOI resolution today.
 
 ---
 
@@ -937,48 +839,25 @@ Once accepted, the event is eligible for the next export snapshot.
 
 ---
 
-## 14. Implementation plan — ordered tasks
+## 14. Implementation plan — remaining phases
 
-Each phase leaves the tree green. Phases 1–3 can ship incrementally
-(existing UI keeps working via the view layer). Phase 4 is the pipeline
-integration; Phases 5–6 are UI and moderator workflow; Phase 7 is
-cleanup.
+### Phase 4 finalisation — close the gaps before commit
 
-### Phase 3 — Export, manifest, pinning file
-1. Add `pyscripts/export_user_ledger.py` producing `active.jsonl`,
-   `snapshot_manifest.json`, `owner_pins.txt` under
-   `$OA_ROOT/user_ledger/`. Collapses counter-events; inlines revoke
-   targets.
-2. `Makefile`: `export-ledger` target; `filter` depends on it.
-3. Add `/api/ledger-status` (Node) reading manifest file; empty if file
-   absent.
-4. Server: on startup read `applied_manifest.json`, insert into
-   `ledger_runs` if newer.
-5. At this point the manifest is still empty (no pipeline change yet);
-   every event shows `Pending`.
+Tracked in **Status (2026-04-28)** at the top. In order:
 
-### Phase 4 — Pipeline integration
-1. Create `rankless_rs/src/common/user_ledger.rs` (struct + load +
-   resolve + write_manifest).
-2. Create `rankless_rs/src/common/merged_ids.rs` (OpenAlex merged-ids
-   loader).
-3. `filter.rs`: load `UserLedger` and owner pins; adjust `count_passes`
-   for alias groups; pin OA ids listed; apply removed/added edges to
-   the counted relation.
-4. `a1_entity_mapping::main`: wire alias map into the `Authors`/`Works`
-   builders; ensure `LoadedIdMap` carries drop → root dm_id entries.
-5. `a2_init_atts::add_ship_relations::proc_next`: filter `removed_edges`;
-   after CSV iteration, iterate `added_edges` and feed the writer.
-6. `a2_init_atts::add_author_atts` and `add_work_atts`: merge attributes
-   per alias group per §8.2.
-7. KD-tree / peer step audit (§8.3): handle pinned zero-work authors
-   correctly.
-8. New tail step writing `applied_manifest.json`.
-9. Integration test: fixture dataset (`local-moks/`) with a handful of
-   ledger events, assert dm_id collapse, citation sums, filter survival,
-   manifest content.
-10. Branch-comparison run with no events → structural equality with
-    pre-change binary.
+1. Fix the `add_author_atts` order-dependent counter bug (both branches
+   `+=` on counts).
+2. Wire `merged_ids` redirects into `UserLedger::resolve_orcids` (rename
+   to `resolve`); apply the redirect map to alias keys/values and to
+   `removed_edges` work_oa.
+3. Add `snapshot_at` and `redirected[]` to `applied_manifest.json` (or
+   trim the SvelteKit type — but the redirect info is cheap to emit and
+   useful for the Phase 5 UI).
+4. Restore `lib.rs` `mods_as_comms!` and `steps/mod.rs` to the full
+   step list (run a clean `make build-prep` then `make`, or fix
+   manually).
+5. Land the **integration test** in §15 — Phase 4 cannot be considered
+   complete without it.
 
 ### Phase 5 — Ledger panel UI
 1. `AuthorLedgerPanel.svelte` + `LedgerEventRow.svelte` +
@@ -1014,32 +893,146 @@ cleanup.
 
 ---
 
-## 15. Validation plan
+## 15. Validation plan — Phase 4 completion gate
 
-- **Unit**: `pyscripts/tests/test_export_user_ledger.py` covers
-  counter-event collapse, alias transitive closure, owner-pin emission,
-  orphan handling.
-- **Unit**: `rankless_rs/tests` with a synthetic ledger (direct JSON
-  fixtures) against a stub Stowage, asserting `UserLedger::resolve`
-  behaviour for every failure mode in §6.2.
-- **Integration**: fixture dataset in `local-moks/` with
-  `user_ledger/active.jsonl` applied; assert expected dm_ids, authorship
-  sets, citation sums, filter survival, manifest content.
-- **E2E** (Playwright): ORCID dev-login → POST events → refresh → see
-  Pending; synthetic manifest file → reload → see Applied; orphan case
-  (fake a stale oa_id) → see Orphan chip.
-- **Branch-comparison**: implementation before vs. after on a no-events
-  dataset → structural equality; with events → deterministic divergence
-  only at affected entities.
+A single comprehensive integration test that exercises every event kind,
+every documented skip reason, the full alias / pin / counter-event
+machinery, and confirms each downstream artefact reflects the edits.
+Phase 4 ships only after this is green.
+
+### 15.1 Test home
+
+`rankless_rs/tests/ledger_pipeline.rs`. Builds a synthetic OA snapshot
+in a `tempfile::TempDir`, writes `user_ledger/active.jsonl` and
+`owner_pins.txt`, calls the pipeline subcommands programmatically
+(`runner("filter", …)`, `runner("a1_entity_mapping", …)`,
+`runner("a2_init_atts", …)`, optionally through `derive_links5`),
+and asserts on the binary outputs via `Stowage::get_entity_interface`
+and direct file reads.
+
+Fixture is constructed in code, not checked in. Helper module
+`tests/common/synthetic_oa.rs` writes the minimal CSV set the pipeline
+needs (`authors/main`, `works/main`, `works/authorships`, `works/biblio`,
+`works/referenced_works`, `works/topics`, etc.).
+
+### 15.2 Snapshot
+
+Authors:
+- A1: orcid `0000-...-1111`, cites=100, works=10 — pinned owner
+- A2: orcid `0000-...-2222`, cites=50, works=5 — drop in author merge
+- A3: orcid `0000-...-3333`, cites=200, works=20 — keep, same person as A2
+- A4: orcid `0000-...-4444`, cites=2, works=1 — pinned, below threshold
+- A5: orcid `0000-...-5555`, cites=10000, works=100 — uninvolved control
+- A6: orcid `0000-...-6666`, cites=0, works=0 — must be filtered out
+
+Works (with authorships):
+- W1, W2 by A1
+- W3, W4 by A2
+- W5, W6 by A3
+- W7, W7b — same paper indexed twice; W7 keep, W7b drop
+- W8 by A4 (so the pinned low-cite author has at least one paper)
+- W9 by A5
+
+References (citing → cited):
+- W5 → W7b   (post-merge resolves to W7)
+- W6 → W2    (citation survives even though A1 disowned W2 from her side)
+- W9 → W3    (W3's authorship A2→A3 alias-rewritten)
+
+Topics: W7 and W7b each carry a different topic — after merge, W7's
+topic set should be the union.
+
+### 15.3 Ledger events in `active.jsonl`
+
+| # | Kind | Outcome |
+|---|------|---------|
+| 1 | `disown_paper` A1 of W2 | applied (auto_ok) |
+| 2 | `merge_authors` keep=A3 drop=A2 | applied (accepted) |
+| 3 | `merge_papers` keep=W7 drop=W7b | applied (auto_ok) |
+| 4 | `revoke` of an applied disown of W1 (target_inlined) | applied — inverse |
+| 5 | `claim_paper` by A1 with DOI `10.1/x` | skipped: `claim_pipeline_not_implemented` |
+| 6 | `disown_paper` from an ORCID absent from CSV | skipped: `orcid_not_in_dataset` |
+| 7 | `merge_papers` with drop oa_id absent from CSV | skipped: `oa_id_not_in_dataset` |
+| 8 | self-merge author A5→A5 | skipped: `missing_oa_id` |
+| 9 | chain merge: B→C and A→B in one file | path-compressed to C |
+| 10 | malformed JSON line | warning only; other events apply |
+
+Plus `owner_pins.txt`: A1, A4, plus one ORCID absent from CSV (must not
+crash, must not show up in `owner_pin_oa_ids`).
+
+### 15.4 Assertions — filter + a1 + a2
+
+- `Authors` dm-space contains exactly {A1, A3, A4, A5}; A2 gone (drop),
+  A6 gone (filter)
+- A4 in `Authors` despite cites=2 < `MIN_AUTHOR_CITE_COUNT`
+- `Works` dm-space contains everything except W7b
+- `LoadedIdMap<Authors>`: lookup of A2_oa returns A3's dm_id
+- `LoadedIdMap<Works>`: lookup of W7b_oa returns W7's dm_id
+- Authorship A1↔W2 absent (disowned)
+- Authorship A1↔W1 present (revoke counter restored the edge)
+- Authorships for W3, W4 indexed under A3's dm_id
+- W7's authors = union of W7 + W7b authorships, deduped
+- `raw_cites[A3_dm] == 250`, `raw_works[A3_dm] == 25`
+- `names[A3_dm] == "A3"`, `orcids[A3_dm] == 0000-…-3333`
+- DOI / title / year for W7_dm sourced from W7 (not W7b)
+- `work-references` for W5_dm contains W7_dm (W7b alias resolved)
+- `work-topics` for W7_dm contains both W7's and W7b's topics
+- `a1_manifest.json`: applied = [event 2, 3]; skipped contains
+  expected reason codes from events 7, 8; run_id ≡ snapshot_manifest
+- `applied_manifest.json`: applied = [1, 2, 3, 4]; skipped contains
+  events 5, 6, 7, 8 with documented reasons; run_id ≡ a1's
+
+### 15.5 Assertions — full pipeline (through `derive_links5`)
+
+- coauthor network of A3 contains A2's coauthors (via dm_id remap)
+- KD-tree over peers builds without panic; A4 (pinned, low-cite)
+  embeds without `-inf` (uses `.max(1)` on cites)
+- hit_papers count for A3 reflects merged citations from W3, W4
+
+### 15.6 Counterfactual + determinism
+
+- **Counterfactual**: same fixture, empty `active.jsonl` and
+  `owner_pins.txt`. Assert: A4 dropped (no pin), A2 keeps own dm_id
+  (no merge), `raw_cites[A3_dm] == 200`, no manifest entries.
+- **Determinism**: same fixture, run pipeline twice. Assert byte-equal
+  outputs for every entity file. Catches any non-deterministic order
+  dependency in the writers.
+
+### 15.7 Stress / regression cases
+
+- Author alias chain (event 9) resolves to C after path compression.
+- Manifest run_id mismatch between a1 and a2: drop and re-export
+  ledger between steps; a2 must panic with the documented message.
+- Revoke whose `target_inlined` references an unknown event kind:
+  silently no-op, no panic.
+- `merged_ids` redirect: include `entity-csvs/merged-ids/authors.csv.zst`
+  with `(stale_oa, current_oa)`; an event whose primary `oa_id` is
+  `stale_oa` resolves to `current_oa`. Manifest's `redirected[]`
+  records the rewrite.
+
+### 15.8 Pre-test sanity (already passing)
+
+- `cargo test -p rankless-rs path_compress`, `normalize_orcid`
+- `bun test src/lib/server/ledger-hash.test.ts`,
+  `src/lib/server/id_resolver.test.ts`
+
+### 15.9 What's deliberately NOT covered
+
+- Moderator queue (Phase 6)
+- AuthorLedgerPanel UI (Phase 5; Playwright covers this separately)
 
 ---
 
 ## 16. Deferred follow-ups (not in this plan)
 
+- **`merged_ids` population** in `to-csv` step: extend `csv_writers.rs`
+  to parse OpenAlex `merged_ids/` tables and emit
+  `entity-csvs/merged-ids/{authors,works}.csv.zst` using `MergedIdRow`.
+  (Loaders and consumer-side wiring land in Phase 4 finalisation.)
 - `add_paper_request` full implementation (synthetic-CSV injection,
   synthetic OA id allocation, moderation UI).
-- `claim_paper` full pipeline effect (currently skipped in the pipeline
-  with `claim_pipeline_not_implemented`).
+- `claim_paper` full pipeline effect (currently skipped with
+  `claim_pipeline_not_implemented`).
+- `/v1/resolve/work?doi=…` server-side DOI resolution (currently 501).
 - E-mail notifications on Applied transitions.
 - Cross-owner conflict resolution UI.
 - Per-event dry-run ("what will change in your numbers") — requires a
