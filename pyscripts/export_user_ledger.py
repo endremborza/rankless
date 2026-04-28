@@ -11,10 +11,11 @@ Counter-event collapse:
     (Rust applies the inverse effect without touching SQLite)
 
 Usage:
-    uv run -m pyscripts.export_user_ledger [data_root] [--db PATH]
+    uv run -m pyscripts.export_user_ledger [--db PATH]
 """
 
 import argparse
+import os
 import datetime
 import json
 import sqlite3
@@ -22,12 +23,18 @@ import sys
 from pathlib import Path
 from typing import Any
 
-try:
-    from ccl_science_data.common import oa_root as _DEFAULT_DATA_ROOT
+from .deploy import OA_ROOT_VAR
 
-    DEFAULT_DATA_ROOT: Path | None = Path(_DEFAULT_DATA_ROOT)
-except ImportError:
-    DEFAULT_DATA_ROOT = None
+
+DEFAULT_DATA_ROOT = os.environ.get(OA_ROOT_VAR)
+
+if DEFAULT_DATA_ROOT is None:
+    try:
+        from ccl_science_data.common import oa_root as _DEFAULT_DATA_ROOT
+
+        DEFAULT_DATA_ROOT = _DEFAULT_DATA_ROOT
+    except ImportError:
+        pass
 
 DEFAULT_DB = "data/rankless.sqlite"
 OK_MODERATION = ("auto_ok", "accepted")
@@ -134,16 +141,13 @@ def export(data_root: Path, db_path: str) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("data_root", nargs="?", default=None, help="OA_ROOT path")
     p.add_argument("--db", default=DEFAULT_DB, help="SQLite DB path")
     args = p.parse_args()
 
-    if args.data_root:
-        data_root = Path(args.data_root)
-    elif DEFAULT_DATA_ROOT is not None:
-        data_root = DEFAULT_DATA_ROOT
+    if DEFAULT_DATA_ROOT is not None:
+        data_root = Path(DEFAULT_DATA_ROOT)
     else:
-        sys.exit("data_root argument required (ccl_science_data not available)")
+        sys.exit(f"{OA_ROOT_VAR} env required (ccl_science_data not available)")
 
     export(data_root, args.db)
 
