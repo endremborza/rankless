@@ -271,7 +271,13 @@ pub trait NumberedEntity: MappableEntity<KeyType = BigId> {
 
 pub trait MainEntity: NumberedEntity + Entity<T = NET<Self>> {}
 
-pathfields_fn!(PathCollection, entity_csvs, filter_steps, cache);
+pathfields_fn!(
+    PathCollection,
+    entity_csvs,
+    filter_steps,
+    cache,
+    user_ledger
+);
 
 pub trait ParsedId {
     fn get_parsed_id(&self) -> Option<BigId>;
