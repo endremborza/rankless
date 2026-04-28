@@ -16,14 +16,12 @@ get-release-notes:
 build-prep:
 	cargo build --release -p dmove-macro
 	./target/release/dmove-macro -p rankless_rs make-setup
+	./target/release/dmove-macro -p rankless_rs make-setup --fast
 
 to-csv: 
 	cargo run --release -p rankless-rs -- $@ $(OA_ROOT) $(OA_SNAPSHOT)/data
 
-export-ledger:
-	uv run -m pyscripts.export_user_ledger $(OA_ROOT)
-
-filter: export-ledger clean-filters clean-keys clean-cache
+filter: export_user_ledger clean-filters clean-keys clean-cache
 	cargo run --release -p rankless-rs -- $@ $(OA_ROOT)
 
 run-server:
@@ -55,7 +53,7 @@ test-js:
 test: test-rs test-js
 	echo OK
 
-extend_csvs lib_data_generation bm live_monitoring report sitemap_validation survey_result_export log_parsing nobel sql_comparison:
+extend_csvs lib_data_generation bm live_monitoring report sitemap_validation survey_result_export log_parsing nobel sql_comparison export_user_ledger mega_test:
 	uv run -m pyscripts.$@
 
 hit-paper-analysis field-citation-ratio author-missed-works:
@@ -67,7 +65,10 @@ cache_big_prep cache_big_read cache_do_rest cache_validate_all cache_validate_bi
 pull_live_certs sync_fe_to_alpha sync_fe_to_live sync_fe_to_local setup_local_test bump_v bump_v_minor rolling_restart_live_fe new_small_alpha new_large_alpha:
 	echo "from pyscripts.deploy import $@;$@()" | uv run -
 
-complete: to-csv filter extend_csvs rankless_rs/src/gen/derive_links5.rs lib_data_generation
+post-csvs: filter extend_csvs rankless_rs/src/gen/derive_links5.rs lib_data_generation
+	@echo Complete
+
+complete: to-csv post-csvs
 	@echo Complete
 
 big-test:
@@ -95,7 +96,7 @@ restart-service:
 	cargo build --release
 	systemctl --user restart rankless-backend.service
 
-nuke:
+nuke: clean-cache
 	rm -rf $(OA_ROOT)
 
 #WET: These know names of directories
