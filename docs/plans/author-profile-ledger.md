@@ -106,28 +106,23 @@ the open issues below; it is gated on the integration test in §15.
 
 **Phase 4 — gaps before commit**
 
-1. **Order-dependent counter bug** in `a2_init_atts.rs::add_author_atts`.
-   Keep branch assigns `raw_cites[aid] = ...`; drop branch does `+=`.
-   CSV row order is not deterministic, so when the drop is processed
-   first the keep's assignment overwrites the drop's contribution.
-   Fix: both branches use `+=` on the counts (slice is zero-initialised);
-   names/orcids/wiki-slug stay assignment in the keep-only branch.
-2. **`merged_ids.rs` is loaded but unwired.** Plan §6.2 step 2
-   (deprecated→canonical OA id redirect) does not run. Add to
-   `UserLedger::resolve_orcids` (rename to `resolve`): apply the
-   `authors`/`works` redirect maps to alias keys/values and to
-   `removed_edges` work_oa before they reach the manifest.
-3. **Manifest field mismatch.** `write_final_manifest` emits only
-   `run_id`, `applied_event_ids`, `skipped`. The
-   SvelteKit `AppliedManifest` type expects `snapshot_at` and
-   `redirected[]`. Either emit them or trim the TS type.
-4. **Build-tree leftover.** `lib.rs` `mods_as_comms!` and
+1. **Wire `merged_ids` into `UserLedger`.** Plan §6.2 step 2
+   (deprecated→canonical OA id redirect) does not run. Loaders exist
+   in `merged_ids.rs` but `UserLedger::load`/`resolve_orcids` never
+   consult them. Apply the `authors`/`works` redirect maps to alias
+   keys/values and to `removed_edges` work_oa, and accumulate
+   redirects into a `Vec<Redirect>` for the manifest.
+2. **Emit `snapshot_at` and `redirected[]` in `applied_manifest.json`.**
+   The SvelteKit `AppliedManifest` type already expects them.
+   `snapshot_at` reads from `snapshot_manifest.json`; `redirected[]`
+   from the new field above.
+3. **Build-tree leftover.** `lib.rs` `mods_as_comms!` and
    `steps/mod.rs` are reduced to only `a1_entity_mapping` (debug
    artifact). Run a full `make` (or restore manually) before commit.
-5. **Authorship dedup not enforced** in `ShipRelWriter::proc_next` for
-   the case where keep and drop appear on the same authorship row
+4. **Authorship dedup** in `ShipRelWriter::proc_next` for the case
+   where keep and drop both appear on the same authorship row
    (deduped in filter-side counting only). Verified benign in the
-   integration test or fixed by a HashSet inside `proc_next`.
+   integration test (§15) or fixed by a HashSet inside `proc_next`.
 
 ---
 
@@ -845,18 +840,15 @@ Once accepted, the event is eligible for the next export snapshot.
 
 Tracked in **Status (2026-04-28)** at the top. In order:
 
-1. Fix the `add_author_atts` order-dependent counter bug (both branches
-   `+=` on counts).
-2. Wire `merged_ids` redirects into `UserLedger::resolve_orcids` (rename
-   to `resolve`); apply the redirect map to alias keys/values and to
-   `removed_edges` work_oa.
-3. Add `snapshot_at` and `redirected[]` to `applied_manifest.json` (or
-   trim the SvelteKit type — but the redirect info is cheap to emit and
-   useful for the Phase 5 UI).
-4. Restore `lib.rs` `mods_as_comms!` and `steps/mod.rs` to the full
+1. Wire `merged_ids` redirects into `UserLedger::resolve_orcids`
+   (rename to `resolve`); apply the redirect map to alias keys/values
+   and to `removed_edges` work_oa; accumulate `Vec<Redirect>` for the
+   manifest.
+2. Add `snapshot_at` and `redirected[]` to `applied_manifest.json`.
+3. Restore `lib.rs` `mods_as_comms!` and `steps/mod.rs` to the full
    step list (run a clean `make build-prep` then `make`, or fix
    manually).
-5. Land the **integration test** in §15 — Phase 4 cannot be considered
+4. Land the **integration test** in §15 — Phase 4 cannot be considered
    complete without it.
 
 ### Phase 5 — Ledger panel UI
@@ -895,25 +887,49 @@ Tracked in **Status (2026-04-28)** at the top. In order:
 
 ## 15. Validation plan — Phase 4 completion gate
 
-A single comprehensive integration test that exercises every event kind,
-every documented skip reason, the full alias / pin / counter-event
-machinery, and confirms each downstream artefact reflects the edits.
-Phase 4 ships only after this is green.
+A single comprehensive end-to-end integration test that drives the full
+stack (Playwright → SvelteKit dev → SQLite ledger → pipeline → entity
+binary → rankless-server → SvelteKit `/api/ledger-status` → Playwright
+assertions). Exercises every event kind, every documented skip reason,
+and every downstream artefact path. Phase 4 ships only after this is
+green.
 
-### 15.1 Test home
+### 15.1 Test home and orchestration
 
-`rankless_rs/tests/ledger_pipeline.rs`. Builds a synthetic OA snapshot
-in a `tempfile::TempDir`, writes `user_ledger/active.jsonl` and
-`owner_pins.txt`, calls the pipeline subcommands programmatically
-(`runner("filter", …)`, `runner("a1_entity_mapping", …)`,
-`runner("a2_init_atts", …)`, optionally through `derive_links5`),
-and asserts on the binary outputs via `Stowage::get_entity_interface`
-and direct file reads.
+Two co-operating layers:
 
-Fixture is constructed in code, not checked in. Helper module
-`tests/common/synthetic_oa.rs` writes the minimal CSV set the pipeline
-needs (`authors/main`, `works/main`, `works/authorships`, `works/biblio`,
-`works/referenced_works`, `works/topics`, etc.).
+1. **Rust fixture builder** — `rankless_rs/tests/ledger_pipeline.rs`
+   plus `tests/common/synthetic_oa.rs`. Builds a synthetic OA snapshot
+   in a `tempfile::TempDir`, has helpers that run the pipeline
+   programmatically (`runner("filter", …)` etc. through
+   `derive_links5`), and offers Rust-level assertions against the
+   resulting entity binary via `Stowage::get_entity_interface`. This
+   layer is *also* runnable on its own as a fast `cargo test` (no
+   browser) for the binary-side correctness — see §15.4.
+
+2. **Playwright e2e** — `tests/ledger.spec.ts` (new). Drives the
+   user-facing flow: dev-login as a test ORCID, navigate to the
+   author page, click disown / merge / claim / revoke, run the
+   pipeline as a subprocess (the Rust binary in release mode against
+   the same TempDir), reload the page and assert the Applied/Pending
+   split via `/api/ledger` and `/api/ledger-status`.
+
+The Playwright spec is the **primary completion gate** because it
+exercises the full causal chain end-to-end. The Rust test is a fast
+inner loop and a regression net for binary-side invariants that the
+UI cannot easily observe.
+
+### 15.2 Fixture (shared between layers)
+
+A helper `tests/common/synthetic_oa.rs` writes the minimal CSV set the
+pipeline reads: `authors/main`, `works/main`, `works/authorships`,
+`works/biblio`, `works/referenced_works`, `works/topics`,
+`works/locations`, `institutions/main`, `sources/main`, `topics/main`,
+`subfields/main`, `fields/main`, `domains/main`, `concepts/main`,
+plus `entity-csvs/merged-ids/{authors,works}.csv.zst` (one redirect
+each, empty otherwise). The Playwright spec invokes it via a small
+Rust binary `rankless-rs --bin=fixture-build $TMP` (added in
+`rankless_rs/src/bin/fixture_build.rs`) so the TS side stays simple.
 
 ### 15.2 Snapshot
 
@@ -959,7 +975,68 @@ topic set should be the union.
 Plus `owner_pins.txt`: A1, A4, plus one ORCID absent from CSV (must not
 crash, must not show up in `owner_pin_oa_ids`).
 
-### 15.4 Assertions — filter + a1 + a2
+In the Playwright flow, **the events are not loaded from a JSON file** —
+they are generated by Playwright clicking through the UI and posting via
+the existing `/api/papers/disown`, `/api/papers/claim`, `/api/papers/merge`,
+`/api/authors/merge-request` endpoints (which all forward to ledger).
+The skip-cases that have no UI counterpart (events 5–10 above) are POSTed
+via direct `fetch` from inside the Playwright page context. Only the
+counterfactual / determinism / merged_ids tests use a file-driven
+`active.jsonl` because they need to test the Rust loader's behaviour
+without a UI round-trip.
+
+### 15.4 Playwright orchestration
+
+`tests/ledger.spec.ts` — sequential test (`test.describe.serial`). Each
+case spins up a fresh TempDir + fresh SQLite. Existing
+`playwright.config.ts` already starts SvelteKit; extended to also start
+`rankless-server` against the TempDir.
+
+Per-test setup:
+
+1. Build fixture: `cargo run -p rankless-rs --bin fixture-build -- $TMP`
+2. First pipeline run (empty ledger): `cargo run --release -p rankless-rs -- filter $TMP && … && derive_links5 $TMP`
+3. Start `rankless-server` against `$TMP` on a free port
+4. Set env on the SvelteKit web server: `OA_ROOT=$TMP`,
+   `RANKLESS_DB_PATH=$TMP/rankless.sqlite`,
+   `BE_URL=http://127.0.0.1:$BE_PORT/v1` — done via `webServer.env`
+   in `playwright.config.ts` (extend to support per-spec overrides
+   via a small fixture helper) or by spawning a dedicated SvelteKit
+   instance per spec.
+
+Per-test interactions:
+
+1. Navigate `/dev-login?orcid=0000-…-1111&semanticId=A1&returnTo=/authors/A1`
+2. **Disown W2**: click the row's disown button in `AllWorks`. Assert
+   POST 200 and the row enters the disowned section in the UI (live
+   legacy behaviour; transitions to "Pending" treatment when Phase 5
+   ships).
+3. **Logout**, log back in as `0000-…-3333` (semanticId A3).
+4. **Merge papers W7 ← W7b**: trigger via the same UI handle.
+5. **Author-merge** keep=A3, drop=A2: POST to
+   `/api/authors/merge-request` directly (the dev UI for this is
+   minimal and may not be present yet).
+6. **Logout**, log back in as A1, **revoke** the disown of W1 (which
+   was applied in a previous run — pre-seed via SQLite insert before
+   the spec): POST `/api/ledger/:id/revoke`.
+7. **Skipped-cases**: POST events 5–10 directly to `/api/ledger`.
+8. Verify `/api/ledger?orcid=…` returns the expected per-user event
+   list with `revoked_at` properly set.
+
+Pipeline re-run + reload:
+
+1. Stop rankless-server.
+2. Re-export the ledger:
+   `uv run -m pyscripts.export_user_ledger $TMP --db $TMP/rankless.sqlite`.
+3. Re-run pipeline (`filter` → `derive_links5`).
+4. Restart rankless-server.
+5. In Playwright: `await page.goto('/api/ledger-status')` and assert
+   the JSON shape: applied_event_ids contains 1, 2, 3, 4; skipped
+   contains the documented reason codes; redirected[] contains the
+   `merged_ids` rewrite for the deprecated → canonical id; run_id
+   matches snapshot_manifest.
+
+### 15.5 Assertions — filter + a1 + a2 (Rust layer)
 
 - `Authors` dm-space contains exactly {A1, A3, A4, A5}; A2 gone (drop),
   A6 gone (filter)
@@ -981,14 +1058,34 @@ crash, must not show up in `owner_pin_oa_ids`).
 - `applied_manifest.json`: applied = [1, 2, 3, 4]; skipped contains
   events 5, 6, 7, 8 with documented reasons; run_id ≡ a1's
 
-### 15.5 Assertions — full pipeline (through `derive_links5`)
+### 15.6 Assertions — full pipeline (through `derive_links5`, Rust layer)
 
 - coauthor network of A3 contains A2's coauthors (via dm_id remap)
 - KD-tree over peers builds without panic; A4 (pinned, low-cite)
   embeds without `-inf` (uses `.max(1)` on cites)
 - hit_papers count for A3 reflects merged citations from W3, W4
+- subfield-citation arrays for A3 sum the contributions from A2's
+  papers and A3's papers
 
-### 15.6 Counterfactual + determinism
+### 15.7 Assertions — UI-visible (Playwright layer)
+
+- After login, the author page loads and disown/merge/claim controls
+  are interactable.
+- Disowned paper row disappears from the active section in `AllWorks`
+  (legacy behaviour) before the pipeline runs.
+- After the pipeline re-run and reload, `/api/ledger-status` reflects
+  the event split: 4 applied, the documented skipped reasons,
+  one redirect.
+- `/api/ledger?orcid=…` returns the same set; revoked events have
+  non-null `revoked_at`.
+- Logging in as a low-cite ORCID (A4) and visiting `/authors/A4`
+  returns 200 and shows the profile (proves owner-pin made it
+  through the filter).
+- Logging in as an ORCID absent from CSV pins it but visiting their
+  (non-existent) profile returns 404 — pinning does not synthesise
+  authors.
+
+### 15.8 Counterfactual + determinism (Rust layer)
 
 - **Counterfactual**: same fixture, empty `active.jsonl` and
   `owner_pins.txt`. Assert: A4 dropped (no pin), A2 keeps own dm_id
@@ -997,7 +1094,7 @@ crash, must not show up in `owner_pin_oa_ids`).
   outputs for every entity file. Catches any non-deterministic order
   dependency in the writers.
 
-### 15.7 Stress / regression cases
+### 15.9 Stress / regression cases (Rust layer)
 
 - Author alias chain (event 9) resolves to C after path compression.
 - Manifest run_id mismatch between a1 and a2: drop and re-export
@@ -1009,16 +1106,17 @@ crash, must not show up in `owner_pin_oa_ids`).
   `stale_oa` resolves to `current_oa`. Manifest's `redirected[]`
   records the rewrite.
 
-### 15.8 Pre-test sanity (already passing)
+### 15.10 Pre-test sanity (already passing)
 
 - `cargo test -p rankless-rs path_compress`, `normalize_orcid`
 - `bun test src/lib/server/ledger-hash.test.ts`,
   `src/lib/server/id_resolver.test.ts`
 
-### 15.9 What's deliberately NOT covered
+### 15.11 What's deliberately NOT covered
 
-- Moderator queue (Phase 6)
-- AuthorLedgerPanel UI (Phase 5; Playwright covers this separately)
+- Moderator queue (Phase 6) — separate Playwright spec when Phase 6 lands
+- AuthorLedgerPanel-specific assertions (Phase 5) — extend
+  `tests/ledger.spec.ts` when the panel ships
 
 ---
 
