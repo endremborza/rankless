@@ -1,0 +1,14 @@
+{% extends "_base.html.j2" %}
+{% set depth = 1 %}
+{% block title %}Sessions{% endblock %}
+{% block content %}
+<h1>Sessions (last 7 days)</h1>
+<p class="hint">Click a session id to see its request timeline.</p>
+{{ sessions_table | safe }}
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  new DataTable("#sessions", {pageLength: 50, order: [[3, "desc"]]});
+});
+</script>
+{% endblock %}
