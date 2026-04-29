@@ -1,6 +1,7 @@
 import subprocess
 from pathlib import Path
 
+from . import timing
 from .config import GHPAGES_BRANCH, GHPAGES_REMOTE, GHPAGES_WORKTREE, SITE_PUBLIC_DIR
 
 
@@ -8,17 +9,24 @@ def publish_to_ghpages(repo_dir: Path = Path("."), commit_msg: str | None = None
     """Push SITE_PUBLIC_DIR to the gh-pages branch via a worktree."""
     repo_dir = repo_dir.resolve()
     worktree = GHPAGES_WORKTREE
-    _ensure_worktree(repo_dir, worktree)
-    _git(repo_dir, "-C", worktree.as_posix(), "reset", "--hard")
-    _clean_worktree(worktree)
-    _rsync(SITE_PUBLIC_DIR, worktree)
-    (worktree / ".nojekyll").touch()
-    _git(repo_dir, "-C", worktree.as_posix(), "add", "-A")
+
+    with timing.timed("publish.ensure_worktree"):
+        _ensure_worktree(repo_dir, worktree)
+    with timing.timed("publish.reset_clean_rsync"):
+        _git(repo_dir, "-C", worktree.as_posix(), "reset", "--hard")
+        _clean_worktree(worktree)
+        _rsync(SITE_PUBLIC_DIR, worktree)
+        (worktree / ".nojekyll").touch()
+    with timing.timed("publish.git_add"):
+        _git(repo_dir, "-C", worktree.as_posix(), "add", "-A")
+
     if not _has_changes(repo_dir, worktree):
         return
-    msg = commit_msg or _default_msg()
-    _git(repo_dir, "-C", worktree.as_posix(), "commit", "-m", msg)
-    _git(repo_dir, "-C", worktree.as_posix(), "push", GHPAGES_REMOTE, GHPAGES_BRANCH)
+
+    with timing.timed("publish.git_commit"):
+        _git(repo_dir, "-C", worktree.as_posix(), "commit", "-m", commit_msg or _default_msg())
+    with timing.timed("publish.git_push"):
+        _git(repo_dir, "-C", worktree.as_posix(), "push", GHPAGES_REMOTE, GHPAGES_BRANCH)
 
 
 def _ensure_worktree(repo: Path, worktree: Path) -> None:

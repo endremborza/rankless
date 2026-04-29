@@ -6,10 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+import numpy as np
 import pandas as pd
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from .. import aggregate, archive
+from .. import aggregate, archive, timing
 from ..config import (
     ARCHIVE_DIR,
     IP_HASH_LEN,
@@ -23,6 +24,7 @@ Mode = Literal["local", "public"]
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 ASSET_DIR = Path(__file__).parent.parent / "assets"
+HOT_WINDOW_DAYS = 31
 
 
 @dataclass
@@ -30,7 +32,8 @@ class RenderContext:
     mode: Mode
     out_dir: Path
     env: Environment
-    events_24h: pd.DataFrame
+    events_hot: pd.DataFrame   # HOT_WINDOW_DAYS of events, anonymized if public
+    events_24h: pd.DataFrame   # slice of events_hot for the last 24 h
     sessions_table: pd.DataFrame
     hourly: pd.DataFrame
     daily: pd.DataFrame
@@ -59,18 +62,28 @@ def build_context(mode: Mode) -> RenderContext:
     env.filters["fmt_dt"] = lambda v: pd.to_datetime(v).strftime("%Y-%m-%d %H:%M UTC")
 
     today = dt.date.today()
-    cutoff_24h = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=1)
-    hot_recent = archive.read_hot(date_from=today - dt.timedelta(days=2))
-    if hot_recent.empty:
-        events_24h = hot_recent
-    else:
-        events_24h = hot_recent[hot_recent["t"] >= cutoff_24h].copy()
-    if mode == "public" and not events_24h.empty:
-        events_24h = anonymize_events(events_24h)
 
-    sessions_table = aggregate.load_sessions()
-    if mode == "public" and not sessions_table.empty:
-        sessions_table = _anonymize_sessions(sessions_table)
+    with timing.timed(f"render.{mode}.read_hot"):
+        events_hot = archive.read_hot(date_from=today - dt.timedelta(days=HOT_WINDOW_DAYS))
+
+    with timing.timed(f"render.{mode}.anonymize_events"):
+        if mode == "public" and not events_hot.empty:
+            events_hot = anonymize_events(events_hot)
+
+    cutoff_24h = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=1)
+    events_24h = (
+        events_hot[events_hot["t"] >= cutoff_24h].copy()
+        if not events_hot.empty else events_hot
+    )
+
+    with timing.timed(f"render.{mode}.load_sessions"):
+        sessions_table = aggregate.load_sessions()
+        if mode == "public" and not sessions_table.empty:
+            sessions_table = _anonymize_sessions(sessions_table)
+
+    with timing.timed(f"render.{mode}.load_aggregates"):
+        hourly = aggregate.load_hourly()
+        daily = aggregate.load_daily()
 
     state = load()
     runs_idx = _read_runs_index()
@@ -79,10 +92,11 @@ def build_context(mode: Mode) -> RenderContext:
         mode=mode,
         out_dir=out_dir,
         env=env,
+        events_hot=events_hot,
         events_24h=events_24h,
         sessions_table=sessions_table,
-        hourly=aggregate.load_hourly(),
-        daily=aggregate.load_daily(),
+        hourly=hourly,
+        daily=daily,
         state_snapshot=state.__dict__,
         now=dt.datetime.now(dt.timezone.utc),
         runs_index=runs_idx,
@@ -162,10 +176,18 @@ def copy_assets(ctx: RenderContext) -> None:
 
 def anonymize_events(df: pd.DataFrame) -> pd.DataFrame:
     if "addr" in df.columns:
-        day = df["t"].dt.date.astype(str)
-        df = df.assign(
-            addr=[hash_ip(a, d) for a, d in zip(df["addr"], day)]
-        )
+        # Group by calendar day (≤31 groups from hot window) to avoid per-row date extraction.
+        # Each group gets one salt lookup and one hash per unique addr in that group.
+        parts = []
+        for day_ts, grp in df.groupby(df["t"].dt.floor("D"), sort=False):
+            day_iso = day_ts.strftime("%Y-%m-%d")
+            salt = get_or_create_salt(day_iso)
+            addr_map = {
+                a: hashlib.sha256(f"{salt}|{a}".encode()).hexdigest()[:IP_HASH_LEN]
+                for a in grp["addr"].unique()
+            }
+            parts.append(grp.assign(addr=grp["addr"].map(addr_map)))
+        df = pd.concat(parts, ignore_index=True) if parts else df
     return df.drop(columns=[c for c in ("ua", "referrer", "path") if c in df.columns])
 
 

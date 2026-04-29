@@ -1,24 +1,18 @@
-import datetime as dt
-
 import pandas as pd
 
-from .. import archive
-from .base import RenderContext, anonymize_events, df_to_html, hint, render_template, write
+from .base import RenderContext, df_to_html, hint, render_template, write
 
 ERROR_TABLES = [
     ("err-5xx", lambda d: d["status"] >= 500),
     ("err-4xx", lambda d: (d["status"] >= 400) & (d["status"] < 500) & (d["status"] != 404)),
     ("err-429", lambda d: d["status"] == 429),
 ]
+ERROR_DAYS = 7
 
 
 def render(ctx: RenderContext) -> None:
-    today = dt.date.today()
-    events = archive.read_hot(date_from=today - dt.timedelta(days=7))
-    if events.empty:
-        events = ctx.events_24h
-    if ctx.mode == "public" and not events.empty and "addr" in events.columns:
-        events = anonymize_events(events)
+    cutoff = pd.Timestamp(ctx.now) - pd.Timedelta(days=ERROR_DAYS)
+    events = ctx.events_hot[ctx.events_hot["t"] >= cutoff] if not ctx.events_hot.empty else ctx.events_hot
 
     tables = {tid: _err_table(events, mask, tid) for tid, mask in ERROR_TABLES}
 

@@ -1,13 +1,7 @@
-import datetime as dt
-
 import pandas as pd
 
-from .. import archive
 from ..classify import BOT_CLASS_COLORS, BOT_CLASS_ORDER
-from .base import (
-    RenderContext, anonymize_events, copy_assets, hint, plotly_div,
-    render_template, write,
-)
+from .base import RenderContext, copy_assets, hint, plotly_div, render_template, write
 
 WINDOWS = [
     ("Last 1h", "1h", 1),
@@ -15,19 +9,13 @@ WINDOWS = [
     ("Last 7d", "7d", 7 * 24),
     ("Last 30d", "30d", 30 * 24),
 ]
-LANDING_DAYS = 31
 
 
 def render(ctx: RenderContext) -> None:
     copy_assets(ctx)
 
-    today = dt.date.today()
-    events = archive.read_hot(date_from=today - dt.timedelta(days=LANDING_DAYS))
-    if ctx.mode == "public" and not events.empty:
-        events = anonymize_events(events)
-
     kpis = {
-        key: _kpi_block(label, events, hours)
+        key: _kpi_block(label, ctx.events_hot, hours)
         for label, key, hours in WINDOWS
     }
 

@@ -6,7 +6,7 @@ import time
 import traceback
 from pathlib import Path
 
-from . import aggregate, archive, config, parse, paths, pull, render, sessions, state
+from . import aggregate, archive, config, parse, paths, pull, render, sessions, state, timing
 from .classify import annotate_events, classify_sessions
 
 
@@ -25,7 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--mode",
         choices=("local", "public", "both"),
-        default="both",
+        default="public",
         help="Which site variant to render.",
     )
     args = parser.parse_args(argv)
@@ -41,8 +41,10 @@ def main(argv: list[str] | None = None) -> int:
             _do_render(args.mode, args.no_publish, run_record)
         else:
             if not args.no_pull:
-                _do_pull_and_archive(run_record)
-            _do_aggregate(run_record)
+                affected_dates = _do_pull_and_archive(run_record)
+                _do_aggregate(run_record, affected_dates)
+            else:
+                _do_aggregate(run_record, None)
             _do_render(args.mode, args.no_publish, run_record)
         run_record["status"] = "ok"
     except Exception as exc:
@@ -53,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
         raise
     finally:
         run_record["duration_s"] = round(time.time() - started, 2)
+        run_record["timings"] = timing.get()
         run_log(run_record)
     return 0
 
@@ -85,14 +88,19 @@ def _do_dry_run(rec: dict) -> None:
     rec["top_unmatched"] = list(unmatched.most_common(20))
 
 
-def _do_pull_and_archive(rec: dict) -> None:
+def _do_pull_and_archive(rec: dict) -> list[dt.date]:
     s = state.load()
-    fetched = pull.fetch_new_lines(s)
-    df, fail = parse.parse_lines(fetched.lines)
+
+    with timing.timed("pull.fetch"):
+        fetched = pull.fetch_new_lines(s)
+    with timing.timed("pull.parse"):
+        df, fail = parse.parse_lines(fetched.lines)
+
     rec["lines_fetched"] = len(fetched.lines)
     rec["events_parsed"] = len(df)
     rec["parse_failures"] = fail
     rec["rotated"] = fetched.rotated
+
     if df.empty:
         s.last_inode = fetched.new_inode
         s.last_size = fetched.new_size
@@ -100,19 +108,24 @@ def _do_pull_and_archive(rec: dict) -> None:
         s.lines_pulled_last_run = len(fetched.lines)
         s.parse_failures_last_run = fail
         state.save(s)
-        return
+        return []
 
-    df = archive.annotate_routes(df)
-    df = sessions.assign_sessions(df)
-    sess_df = classify_sessions(df)
-    aggregate.write_sessions(sess_df)
-    df = annotate_events(df, sess_df)
-    written = archive.write_events(df)
-    rec["written_per_day"] = written
-    cold = archive.compress_cold(today=dt.date.today())
+    with timing.timed("pull.annotate_routes"):
+        df = archive.annotate_routes(df)
+    with timing.timed("pull.assign_sessions"):
+        df = sessions.assign_sessions(df)
+    with timing.timed("pull.classify_sessions"):
+        sess_df = classify_sessions(df)
+    with timing.timed("pull.annotate_events"):
+        aggregate.write_sessions(sess_df)
+        df = annotate_events(df, sess_df)
+    with timing.timed("pull.write_events"):
+        written = archive.write_events(df)
+    with timing.timed("pull.compress_cold"):
+        cold = archive.compress_cold(today=dt.date.today())
+
     if cold:
         rec["cold_compaction"] = cold
-
     unmatched = paths.collect_unmatched(df["path"])
     if unmatched:
         rec["top_unmatched"] = list(unmatched.most_common(20))
@@ -125,10 +138,21 @@ def _do_pull_and_archive(rec: dict) -> None:
     s.lines_pulled_last_run = len(fetched.lines)
     s.parse_failures_last_run = fail
     state.save(s)
+    rec["written_per_day"] = written
+    return [dt.date.fromisoformat(d) for d in written]
 
 
-def _do_aggregate(rec: dict) -> None:
-    res = aggregate.rebuild()
+def _do_aggregate(rec: dict, affected_dates: list[dt.date] | None) -> None:
+    with timing.timed("aggregate"):
+        if affected_dates is None:
+            res = aggregate.rebuild()
+        elif not affected_dates:
+            rec["aggregates"] = {"skipped": True}
+            return
+        elif not aggregate.HOURLY_PATH.exists():
+            res = aggregate.rebuild()
+        else:
+            res = aggregate.update(affected_dates)
     rec["aggregates"] = res
 
 
@@ -141,15 +165,16 @@ def _do_render(mode: str, no_publish: bool, rec: dict) -> None:
         render.render_all("public")
         rendered.append("public")
     rec["rendered"] = rendered
+
     if "public" in rendered and not no_publish:
         from . import publish
-
-        try:
-            publish.publish_to_ghpages(Path("."))
-            rec["published"] = True
-        except Exception as exc:
-            rec["published"] = False
-            rec["publish_error"] = repr(exc)
+        with timing.timed("publish"):
+            try:
+                publish.publish_to_ghpages(Path("."))
+                rec["published"] = True
+            except Exception as exc:
+                rec["published"] = False
+                rec["publish_error"] = repr(exc)
 
 
 if __name__ == "__main__":

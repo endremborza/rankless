@@ -1,11 +1,9 @@
-import datetime as dt
 import json
 
 import pandas as pd
 
-from .. import archive
 from ..classify import HUMAN_CLASSES
-from .base import RenderContext, anonymize_events, df_to_html, hint, render_template, write
+from .base import RenderContext, df_to_html, hint, render_template, write
 
 INDEX_DAYS = 7
 DETAIL_TOP_N = 100
@@ -27,11 +25,14 @@ def render(ctx: RenderContext) -> None:
         lambda d: (pd.to_datetime(d["start"]) >= cutoff) & (d["n_req"] > 1)
     ]
 
-    detailed_ids = set(
-        recent[recent["bot_class"].isin(HUMAN_CLASSES)]
-        .sort_values("n_req", ascending=False)
-        .head(DETAIL_TOP_N)["session_id"]
-    )
+    show_details = ctx.mode != "public"
+    detailed_ids: set[str] = set()
+    if show_details:
+        detailed_ids = set(
+            recent[recent["bot_class"].isin(HUMAN_CLASSES)]
+            .sort_values("n_req", ascending=False)
+            .head(DETAIL_TOP_N)["session_id"]
+        )
 
     table_html = (
         recent.assign(session=recent["session_id"].map(_link(detailed_ids)))
@@ -50,13 +51,11 @@ def render(ctx: RenderContext) -> None:
     if not detailed_ids:
         return
 
-    today = dt.date.today()
-    events = archive.read_hot(date_from=today - dt.timedelta(days=INDEX_DAYS))
-    if ctx.mode == "public" and not events.empty:
-        events = anonymize_events(events)
-    events_by_sid = (
-        events.groupby("session_id") if not events.empty else None
-    )
+    cutoff = ctx.now - pd.Timedelta(days=INDEX_DAYS)
+    events = ctx.events_hot[
+        (ctx.events_hot["t"] >= cutoff) & ctx.events_hot["session_id"].isin(detailed_ids)
+    ] if not ctx.events_hot.empty else ctx.events_hot
+    events_by_sid = events.groupby("session_id") if not events.empty else None
 
     detailed_rows = recent[recent["session_id"].isin(detailed_ids)]
     for _, sess in detailed_rows.iterrows():
