@@ -1,134 +1,159 @@
+import datetime as dt
+
 import pandas as pd
 
-from .. import aggregate
-from .base import RenderContext, copy_assets, kpi_window, plotly_div, render_template, write
+from .. import archive
+from ..classify import BOT_CLASS_COLORS, BOT_CLASS_ORDER
+from .base import (
+    RenderContext, anonymize_events, copy_assets, hint, plotly_div,
+    render_template, write,
+)
+
+WINDOWS = [
+    ("Last 1h", "1h", 1),
+    ("Last 24h", "24h", 24),
+    ("Last 7d", "7d", 7 * 24),
+    ("Last 30d", "30d", 30 * 24),
+]
+LANDING_DAYS = 31
 
 
 def render(ctx: RenderContext) -> None:
     copy_assets(ctx)
-    events = ctx.events_24h
+
+    today = dt.date.today()
+    events = archive.read_hot(date_from=today - dt.timedelta(days=LANDING_DAYS))
+    if ctx.mode == "public" and not events.empty:
+        events = anonymize_events(events)
 
     kpis = {
-        "1h": _kpi_block("Last 1h", kpi_window(events, 1)),
-        "24h": _kpi_block("Last 24h", kpi_window(events, 24)),
-        "7d": _kpi_block("Last 7d", _kpi_from_daily(ctx.daily, 7)),
-        "30d": _kpi_block("Last 30d", _kpi_from_daily(ctx.daily, 30)),
+        key: _kpi_block(label, events, hours)
+        for label, key, hours in WINDOWS
     }
 
-    traffic_chart = _traffic_chart(ctx.daily)
-    bot_chart = _bot_session_chart(ctx.sessions_table)
-
-    html = render_template(
-        ctx,
-        "landing.html.j2",
-        active_page="landing",
-        depth=0,
+    write(ctx, "index.html", render_template(
+        ctx, "landing.html.j2",
+        active_page="landing", depth=0,
         kpis=kpis,
-        traffic_chart=traffic_chart,
-        bot_chart=bot_chart,
+        traffic_chart=_traffic_chart(ctx.daily),
+        bot_chart=_bot_session_chart(ctx.sessions_table),
+    ))
+
+
+def _kpi_block(label: str, events: pd.DataFrame, hours: int) -> dict:
+    if events.empty:
+        return {"label": label, "html": _empty_kpi_html()}
+    cutoff = events["t"].max() - pd.Timedelta(hours=hours)
+    s = events[events["t"] >= cutoff]
+    if s.empty:
+        return {"label": label, "html": _empty_kpi_html()}
+
+    n = len(s)
+    sess = s.drop_duplicates("session_id") if "session_id" in s.columns else s.iloc[0:0]
+    n_sessions = len(sess)
+    n_5xx = int((s["status"] >= 500).sum())
+    cache_hit = int((s["cs"] == "HIT").sum()) if "cs" in s.columns else 0
+    p99 = float(s["urt"].quantile(0.99)) if s["urt"].notna().any() else float("nan")
+
+    cards = [
+        _card("Requests", f"{n:,}"),
+        _card("Sessions", f"{n_sessions:,}"),
+        _card("5xx rate", _pct(n_5xx / n)),
+        _card("p99 urt", _ms(p99)),
+        _card("Cache hit", _pct(cache_hit / n)),
+    ]
+    if n_sessions:
+        cards.append(_breakdown_card(sess["bot_class"]))
+    return {"label": label, "html": "\n".join(cards)}
+
+
+def _card(label: str, value: str) -> str:
+    return (
+        f'<div class="kpi-card">'
+        f'<div class="kpi-label">{label}</div>'
+        f'<div class="kpi-value">{value}</div>'
+        f'</div>'
     )
-    write(ctx, "index.html", html)
 
 
-def _kpi_block(label, k):
-    parts = []
-    parts.append(_card("Requests", f"{k['n_req']:,}"))
-    parts.append(_card("Sessions", f"{k['n_sessions']:,}"))
-    parts.append(_card("Human %", _pct(k["human_pct"])))
-    parts.append(_card("Error rate", _pct(k["err_rate"])))
-    parts.append(_card("p99 urt", _ms(k["p99"])))
-    parts.append(_card("Cache hit", _pct(k["cache_hit_rate"])))
-    return {"label": label, "value": "", "html": "\n".join(parts)}
+def _breakdown_card(classes: pd.Series) -> str:
+    counts = classes.value_counts().reindex(BOT_CLASS_ORDER, fill_value=0)
+    total = int(counts.sum())
+    if total == 0:
+        return _card("Class breakdown", "—")
+    segs = []
+    legend = []
+    for cls, n in counts.items():
+        if n == 0:
+            continue
+        pct = n / total * 100
+        color = BOT_CLASS_COLORS.get(cls, "#cdd6f4")
+        segs.append(
+            f'<span class="seg" style="background:{color};width:{pct:.2f}%" '
+            f'title="{cls}: {n} ({pct:.1f}%)"></span>'
+        )
+        legend.append(
+            f'<span class="legend-item"><span class="dot" style="background:{color}"></span>'
+            f'{cls} {n}</span>'
+        )
+    return (
+        '<div class="kpi-card kpi-breakdown">'
+        '<div class="kpi-label">Sessions by class</div>'
+        f'<div class="bot-bar">{"".join(segs)}</div>'
+        f'<div class="bot-legend">{" ".join(legend)}</div>'
+        '</div>'
+    )
 
 
-def _card(label, value):
-    return f'<div class="kpi-card"><div class="kpi-label">{label}</div><div class="kpi-value">{value}</div></div>'
+def _empty_kpi_html() -> str:
+    return _card("Requests", "0")
 
 
-def _pct(v):
+def _pct(v: float) -> str:
     if v is None or pd.isna(v):
         return "—"
-    return f"{v*100:.2f}%"
+    return f"{v * 100:.2f}%"
 
 
-def _ms(v):
+def _ms(v: float) -> str:
     if v is None or pd.isna(v):
         return "—"
-    return f"{v*1000:.0f} ms"
-
-
-def _kpi_from_daily(daily: pd.DataFrame, days: int) -> dict:
-    if daily.empty:
-        return {
-            "n_req": 0,
-            "n_sessions": 0,
-            "human_pct": float("nan"),
-            "err_rate": float("nan"),
-            "p99": float("nan"),
-            "cache_hit_rate": float("nan"),
-        }
-    cutoff = daily["bucket"].max() - pd.Timedelta(days=days)
-    s = daily[daily["bucket"] >= cutoff]
-    n = int(s["n"].sum())
-    n_5xx = int(s.loc[s["status_family"] == "5xx", "n"].sum())
-    cache_hit = int(s.loc[s["cs"] == "HIT", "n"].sum())
-    human = int(s.loc[s["bot_class"].isin(["human_known", "human_likely"]), "n"].sum())
-    p99 = float(s["urt_p99"].dropna().mean()) if s["urt_p99"].notna().any() else float("nan")
-    return {
-        "n_req": n,
-        "n_sessions": 0,
-        "human_pct": human / n if n else float("nan"),
-        "err_rate": n_5xx / n if n else float("nan"),
-        "p99": p99,
-        "cache_hit_rate": cache_hit / n if n else float("nan"),
-    }
+    return f"{v * 1000:.0f} ms"
 
 
 def _traffic_chart(daily: pd.DataFrame) -> str:
     if daily.empty:
-        return "<p class='hint'>No data yet.</p>"
+        return hint("No data yet.")
     g = daily.groupby("bucket")["n"].sum().reset_index()
     return plotly_div(
         "traffic-30d",
-        [
-            {
-                "x": list(g["bucket"].astype(str)),
-                "y": list(g["n"]),
-                "type": "bar",
-                "marker": {"color": "#89b4fa"},
-                "name": "Requests",
-            }
-        ],
+        [{
+            "x": list(g["bucket"].astype(str)),
+            "y": list(g["n"]),
+            "type": "bar",
+            "marker": {"color": "#89b4fa"},
+            "name": "Requests",
+        }],
         layout={"yaxis": {"title": "requests"}},
     )
 
 
 def _bot_session_chart(sessions: pd.DataFrame) -> str:
     if sessions.empty:
-        return "<p class='hint'>No sessions yet.</p>"
-    s = sessions.copy()
-    s["day"] = pd.to_datetime(s["start"]).dt.floor("D")
+        return hint("No sessions yet.")
+    s = sessions.assign(day=pd.to_datetime(sessions["start"]).dt.floor("D"))
     pivot = s.groupby(["day", "bot_class"]).size().unstack(fill_value=0)
-    color_map = {
-        "bot_known": "#f38ba8",
-        "bot_likely": "#eba0ac",
-        "human_known": "#a6e3a1",
-        "human_likely": "#94e2d5",
-        "unknown": "#9399b2",
-    }
-    traces = []
-    for col in pivot.columns:
-        traces.append(
-            {
-                "x": list(pivot.index.astype(str)),
-                "y": list(pivot[col]),
-                "name": col,
-                "type": "bar",
-                "marker": {"color": color_map.get(col, "#cdd6f4")},
-            }
-        )
+    traces = [
+        {
+            "x": list(pivot.index.astype(str)),
+            "y": list(pivot[col]),
+            "name": col,
+            "type": "bar",
+            "marker": {"color": BOT_CLASS_COLORS.get(col, "#cdd6f4")},
+        }
+        for col in pivot.columns
+    ]
     return plotly_div(
-        "bot-stack",
-        traces,
+        "bot-stack", traces,
         layout={"barmode": "stack", "yaxis": {"title": "sessions"}},
     )

@@ -1,7 +1,5 @@
-from typing import Literal
-
 from .base import Mode, RenderContext, build_context
-from . import errors, landing, performance, runs, sessions, traffic
+from . import classification, errors, landing, performance, runs, sessions, traffic
 
 
 def render_all(mode: Mode = "local") -> RenderContext:
@@ -11,5 +9,6 @@ def render_all(mode: Mode = "local") -> RenderContext:
     performance.render(ctx)
     errors.render(ctx)
     sessions.render(ctx)
+    classification.render(ctx)
     runs.render(ctx)
     return ctx

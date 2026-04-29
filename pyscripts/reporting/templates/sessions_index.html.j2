@@ -3,7 +3,15 @@
 {% block title %}Sessions{% endblock %}
 {% block content %}
 <h1>Sessions (last 7 days, with at least 2 requests)</h1>
-<p class="hint">Click a session id to see its request timeline.</p>
+{% if n_detailed %}
+<p class="hint">
+  Click a session id to see its request timeline.
+  Detail pages are rendered for the top {{ n_detailed }} likely-human sessions —
+  see the <a href="../classification.html">classification rules</a>.
+</p>
+{% else %}
+<p class="hint">No likely-human sessions in this window — no detail pages.</p>
+{% endif %}
 {{ sessions_table | safe }}
 
 <script>

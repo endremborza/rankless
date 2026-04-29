@@ -1,9 +1,19 @@
+import datetime as dt
 import json
 
 import pandas as pd
 
 from .. import archive
-from .base import RenderContext, render_template, write
+from ..classify import HUMAN_CLASSES
+from .base import RenderContext, anonymize_events, df_to_html, hint, render_template, write
+
+INDEX_DAYS = 7
+DETAIL_TOP_N = 100
+INDEX_COLS = [
+    "session", "addr", "ua_family", "bot_class",
+    "start", "end", "n_req", "route_diversity",
+]
+EVENT_COLS = ["t", "method", "path", "route_template", "status", "urt", "cs", "size"]
 
 
 def render(ctx: RenderContext) -> None:
@@ -12,98 +22,81 @@ def render(ctx: RenderContext) -> None:
         write(ctx, "sessions/index.html", _empty(ctx))
         return
 
-    cutoff = pd.to_datetime(sessions["start"]).max() - pd.Timedelta(days=7)
+    cutoff = pd.to_datetime(sessions["start"]).max() - pd.Timedelta(days=INDEX_DAYS)
     recent = sessions.loc[
-        lambda df: (pd.to_datetime(df["start"]) >= cutoff) & (df["n_req"] > 1)
-    ].copy()
-
-    recent["session"] = recent["session_id"].map(
-        lambda s: f'<a href="{s}.html">{s}</a>'
-    )
-    cols = [
-        "session",
-        "addr",
-        "ua_family",
-        "bot_class",
-        "start",
-        "end",
-        "n_req",
-        "route_diversity",
+        lambda d: (pd.to_datetime(d["start"]) >= cutoff) & (d["n_req"] > 1)
     ]
-    cols = [c for c in cols if c in recent.columns]
+
+    detailed_ids = set(
+        recent[recent["bot_class"].isin(HUMAN_CLASSES)]
+        .sort_values("n_req", ascending=False)
+        .head(DETAIL_TOP_N)["session_id"]
+    )
+
     table_html = (
-        recent[cols]
+        recent.assign(session=recent["session_id"].map(_link(detailed_ids)))
         .sort_values("start", ascending=False)
-        .to_html(classes="dt", index=False, table_id="sessions", border=0, escape=False)
+        .pipe(lambda d: d[[c for c in INDEX_COLS if c in d.columns]])
+        .pipe(df_to_html, table_id="sessions", escape=False)
     )
 
-    html = render_template(
-        ctx,
-        "sessions_index.html.j2",
-        active_page="sessions",
-        depth=1,
+    write(ctx, "sessions/index.html", render_template(
+        ctx, "sessions_index.html.j2",
+        active_page="sessions", depth=1,
         sessions_table=table_html,
-    )
-    write(ctx, "sessions/index.html", html)
+        n_detailed=len(detailed_ids),
+    ))
 
-    # Per-session details (cap to most recent N for site size).
-    N = 100
-    import datetime as dt
+    if not detailed_ids:
+        return
 
     today = dt.date.today()
-    events = archive.read_hot(date_from=today - dt.timedelta(days=7))
+    events = archive.read_hot(date_from=today - dt.timedelta(days=INDEX_DAYS))
     if ctx.mode == "public" and not events.empty:
-        from .base import _anonymize_events
+        events = anonymize_events(events)
+    events_by_sid = (
+        events.groupby("session_id") if not events.empty else None
+    )
 
-        events = _anonymize_events(events)
+    detailed_rows = recent[recent["session_id"].isin(detailed_ids)]
+    for _, sess in detailed_rows.iterrows():
+        sid = sess["session_id"]
+        sess_events = events_by_sid.get_group(sid) if events_by_sid is not None and sid in events_by_sid.groups else pd.DataFrame()
+        write(ctx, f"sessions/{sid}.html", _detail_html(ctx, sess, sess_events))
 
-    top_sessions = recent.sort_values("n_req", ascending=False).head(N)
-    for _, sess in top_sessions.iterrows():
-        sess_events = (
-            events[events["session_id"] == sess["session_id"]]
-            if not events.empty
-            else pd.DataFrame()
+
+def _detail_html(ctx: RenderContext, sess: pd.Series, sess_events: pd.DataFrame) -> str:
+    if sess_events.empty:
+        ev_html = hint("No events archived for this session.")
+    else:
+        ev_html = (
+            sess_events.sort_values("t")
+            .pipe(lambda d: d[[c for c in EVENT_COLS if c in d.columns]])
+            .pipe(df_to_html, table_id="ev")
         )
+    try:
+        signals = json.loads(sess.get("signals_json", "[]"))
+    except (TypeError, ValueError):
         signals = []
-        try:
-            signals = json.loads(sess.get("signals_json", "[]"))
-        except (TypeError, ValueError):
-            signals = []
-        ev_cols = [
-            c
-            for c in ("t", "method", "route_template", "status", "urt", "cs", "size")
-            if c in sess_events.columns
-        ]
-        if not sess_events.empty:
-            ev_html = (
-                sess_events[ev_cols]
-                .sort_values("t")
-                .to_html(
-                    classes="dt",
-                    index=False,
-                    table_id="ev",
-                    border=0,
-                )
-            )
-        else:
-            ev_html = "<p class='hint'>No events archived for this session.</p>"
-        html = render_template(
-            ctx,
-            "session_detail.html.j2",
-            active_page="sessions",
-            depth=1,
-            session=sess.to_dict(),
-            signals=signals,
-            events_table=ev_html,
-        )
-        write(ctx, f"sessions/{sess['session_id']}.html", html)
+    return render_template(
+        ctx, "session_detail.html.j2",
+        active_page="sessions", depth=1,
+        session=sess.to_dict(),
+        signals=signals,
+        events_table=ev_html,
+    )
+
+
+def _link(detailed_ids: set[str]):
+    def fmt(sid: str) -> str:
+        return f'<a href="{sid}.html">{sid}</a>' if sid in detailed_ids else sid
+    return fmt
 
 
 def _empty(ctx: RenderContext) -> str:
     return render_template(
-        ctx,
-        "sessions_index.html.j2",
-        active_page="sessions",
-        depth=1,
-        sessions_table="<p class='hint'>No sessions yet.</p>",
+        ctx, "sessions_index.html.j2",
+        active_page="sessions", depth=1,
+        sessions_table=hint("No sessions yet."),
+        n_detailed=0,
     )

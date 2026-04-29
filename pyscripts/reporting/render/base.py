@@ -66,7 +66,7 @@ def build_context(mode: Mode) -> RenderContext:
     else:
         events_24h = hot_recent[hot_recent["t"] >= cutoff_24h].copy()
     if mode == "public" and not events_24h.empty:
-        events_24h = _anonymize_events(events_24h)
+        events_24h = anonymize_events(events_24h)
 
     sessions_table = aggregate.load_sessions()
     if mode == "public" and not sessions_table.empty:
@@ -95,6 +95,16 @@ def write(ctx: RenderContext, rel_path: str, html: str) -> None:
     p.write_text(html)
 
 
+def hint(text: str) -> str:
+    return f"<p class='hint'>{text}</p>"
+
+
+def df_to_html(df: pd.DataFrame, *, table_id: str, escape: bool = True) -> str:
+    return df.to_html(
+        classes="dt", index=False, table_id=table_id, border=0, escape=escape,
+    )
+
+
 def render_template(ctx: RenderContext, template: str, **vars) -> str:
     tpl = ctx.env.get_template(template)
     base_vars = {
@@ -105,41 +115,6 @@ def render_template(ctx: RenderContext, template: str, **vars) -> str:
     }
     base_vars.update(vars)
     return tpl.render(**base_vars)
-
-
-def kpi_window(events: pd.DataFrame, hours: int) -> dict:
-    if events.empty:
-        return {
-            "n_req": 0,
-            "n_sessions": 0,
-            "human_pct": float("nan"),
-            "err_rate": float("nan"),
-            "p99": float("nan"),
-            "cache_hit_rate": float("nan"),
-        }
-    cutoff = events["t"].max() - pd.Timedelta(hours=hours)
-    s = events[events["t"] >= cutoff]
-    if s.empty:
-        return kpi_window(s, hours)
-    n = len(s)
-    n_sessions = s["session_id"].nunique() if "session_id" in s.columns else 0
-    if "bot_class" in s.columns and n_sessions:
-        sess = s.drop_duplicates("session_id")
-        human = sess["bot_class"].isin(["human_known", "human_likely"]).sum()
-        human_pct = human / max(len(sess), 1)
-    else:
-        human_pct = float("nan")
-    err_rate = (s["status"] >= 500).sum() / n
-    p99 = float(s["urt"].quantile(0.99)) if s["urt"].notna().any() else float("nan")
-    cache_hit_rate = (s["cs"] == "HIT").sum() / n if "cs" in s.columns else float("nan")
-    return {
-        "n_req": n,
-        "n_sessions": n_sessions,
-        "human_pct": human_pct,
-        "err_rate": err_rate,
-        "p99": p99,
-        "cache_hit_rate": cache_hit_rate,
-    }
 
 
 def plotly_div(fig_id: str, data: list, layout: dict | None = None, height: int = 320) -> str:
@@ -185,13 +160,13 @@ def copy_assets(ctx: RenderContext) -> None:
     shutil.copytree(ASSET_DIR, target)
 
 
-def _anonymize_events(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
+def anonymize_events(df: pd.DataFrame) -> pd.DataFrame:
     if "addr" in df.columns:
         day = df["t"].dt.date.astype(str)
-        df["addr"] = [hash_ip(a, d) for a, d in zip(df["addr"], day)]
-    df = df.drop(columns=[c for c in ("ua", "referrer", "path") if c in df.columns])
-    return df
+        df = df.assign(
+            addr=[hash_ip(a, d) for a, d in zip(df["addr"], day)]
+        )
+    return df.drop(columns=[c for c in ("ua", "referrer", "path") if c in df.columns])
 
 
 def _anonymize_sessions(df: pd.DataFrame) -> pd.DataFrame:

@@ -6,9 +6,9 @@
 <title>{% block title %}Rankless reports{% endblock %}</title>
 <link rel="stylesheet" href="{{ '../' * depth }}assets/style.css" />
 <link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css" />
-<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
-<script src="https://code.jquery.com/jquery-3.7.1.min.js" defer></script>
-<script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js" defer></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
 </head>
 <body>
 <header>
@@ -20,6 +20,7 @@
       <li><a href="{{ '../' * depth }}performance.html" {% if active_page == 'performance' %}class="active"{% endif %}>Performance</a></li>
       <li><a href="{{ '../' * depth }}errors.html" {% if active_page == 'errors' %}class="active"{% endif %}>Errors</a></li>
       <li><a href="{{ '../' * depth }}sessions/index.html" {% if active_page == 'sessions' %}class="active"{% endif %}>Sessions</a></li>
+      <li><a href="{{ '../' * depth }}classification.html" {% if active_page == 'classification' %}class="active"{% endif %}>Classification</a></li>
       <li><a href="{{ '../' * depth }}runs/index.html" {% if active_page == 'runs' %}class="active"{% endif %}>Runs</a></li>
     </ul>
     <span class="mode-badge mode-{{ mode }}">{{ mode }}</span>

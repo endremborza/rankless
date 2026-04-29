@@ -63,6 +63,7 @@ def test_render_local_mode():
         assert (ctx.out_dir / "performance.html").exists()
         assert (ctx.out_dir / "errors.html").exists()
         assert (ctx.out_dir / "sessions" / "index.html").exists()
+        assert (ctx.out_dir / "classification.html").exists()
         assert (ctx.out_dir / "runs" / "index.html").exists()
         assert (ctx.out_dir / "assets" / "style.css").exists()
         # Local mode preserves IPs.
