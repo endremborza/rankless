@@ -150,6 +150,12 @@ ROUTE_HTML_PAGES = {
 }
 ROUTE_BROWSER_ASSETS = {"/tiles/{...}", "/pic/{...}", "/pathlogo/{...}", "/_app/{...}"}
 ROUTE_HARD_BOT = {"/robots.txt", "/sitemap*.xml"}
+ROUTE_SVELTEKIT_DATA = {
+    "/__data.json",
+    "/{rootType}/__data.json",
+    "/{rootType}/table/__data.json",
+    "/{rootType}/{semanticId}/__data.json",
+}
 
 WRITE_METHODS = ("POST", "PUT", "DELETE")
 
@@ -171,6 +177,7 @@ class _Ctx:
     is_search: pd.Series
     is_html: pd.Series
     is_asset: pd.Series
+    is_data: pd.Series
 
 
 @dataclass(frozen=True)
@@ -246,6 +253,12 @@ HARD_RULES: list[HardRule] = [
         "Loaded an HTML page and at least one browser-only asset (tiles/pic/etc.).",
         lambda c: bool(c.is_html.any() and c.is_asset.any()),
     ),
+    HardRule(
+        "sveltekit_prefetch",
+        "human",
+        "Session contains SvelteKit __data.json requests, indicating browser hover-prefetch activity.",
+        lambda c: bool(c.is_data.any()),
+    ),
 ]
 
 
@@ -303,6 +316,18 @@ SOFT_RULES: list[SoftRule] = [
             and not c.is_asset.any()
         ),
     ),
+    SoftRule(
+        "html_no_prefetch",
+        -2,
+        "Visited 5+ HTML pages but triggered no SvelteKit prefetch (no hover activity).",
+        lambda c: c.is_html.sum() >= 5 and not c.is_data.any(),
+    ),
+    SoftRule(
+        "high_rate_same_route",
+        -2,
+        "10+ requests to the same route template within 60 seconds (machine-paced crawl).",
+        lambda c: _has_high_rate(c.g),
+    ),
 ]
 
 SOFT_HUMAN_THRESHOLD = 4
@@ -335,11 +360,24 @@ def classify_sessions(df: pd.DataFrame) -> pd.DataFrame:
         & df["path"].str.contains(r"\?q=.+", regex=True, na=False),
         _is_html=df["route_template"].isin(ROUTE_HTML_PAGES),
         _is_asset=df["route_template"].isin(ROUTE_BROWSER_ASSETS),
+        _is_data=df["route_template"].isin(ROUTE_SVELTEKIT_DATA),
     )
     rows = [
         _classify_one(sid, g) for sid, g in enriched.groupby("session_id", sort=False)
     ]
     return pd.DataFrame(rows, columns=_SESSION_OUT_COLS)
+
+
+def _has_high_rate(g: pd.DataFrame, min_count: int = 10, window_s: int = 60) -> bool:
+    thresh = pd.Timedelta(seconds=window_s)
+    for _, rg in g.groupby("route_template"):
+        if len(rg) < min_count:
+            continue
+        ts = rg["t"].sort_values().reset_index(drop=True)
+        span = ts.shift(-(min_count - 1)) - ts
+        if span.dropna().le(thresh).any():
+            return True
+    return False
 
 
 def _make_ctx(g: pd.DataFrame) -> _Ctx:
@@ -354,6 +392,7 @@ def _make_ctx(g: pd.DataFrame) -> _Ctx:
         is_search=g["_is_search"],
         is_html=g["_is_html"],
         is_asset=g["_is_asset"],
+        is_data=g["_is_data"],
     )
 
 

@@ -50,6 +50,11 @@ _RAW_RULES: list[tuple[str, str]] = [
     (r"^/path-to-person/.+$", "/path-to-person/{...}"),
     # Static / build assets
     (r"^/_app/.+$", "/_app/{...}"),
+    # SvelteKit data prefetch (__data.json hover requests)
+    (r"^/__data\.json$", "/__data.json"),
+    (r"^/([a-z\-]+)/table/__data\.json$", "/{rootType}/table/__data.json"),
+    (r"^/([a-z\-]+)/[^/]+/__data\.json$", "/{rootType}/{semanticId}/__data.json"),
+    (r"^/([a-z\-]+)/__data\.json$", "/{rootType}/__data.json"),
     # Frontend SSR pages: /{rootType}/{...semanticId}
     (r"^/([a-z\-]+)/table/?$", "/{rootType}/table"),
     (r"^/([a-z\-]+)/[^?]+$", "/{rootType}/{...semanticId}"),

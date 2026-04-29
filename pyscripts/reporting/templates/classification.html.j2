@@ -61,10 +61,15 @@
 
 <section>
 <h2>Hard rules &mdash; bot side</h2>
-<p class="hint">Any of these &rarr; <code class="cls-bot_known">bot_known</code>.</p>
+<p class="hint">Any of these &rarr; <code class="cls-bot_known">bot_known</code>.{% if n_sessions %} Rates over {{ n_sessions | fmt_int }} sessions.{% endif %}</p>
 <ul class="rules">
 {% for r in hard_bot_rules %}
-  <li><code>{{ r.name }}</code> &mdash; {{ r.description }}</li>
+  <li>
+    <code>{{ r.name }}</code> &mdash; {{ r.description }}
+    {% if hard_rule_rates.get(r.name) is not none %}
+      <span class="rate">{{ hard_rule_rates[r.name] | fmt_pct }}</span>
+    {% endif %}
+  </li>
 {% endfor %}
 </ul>
 </section>
@@ -77,7 +82,12 @@
 </p>
 <ul class="rules">
 {% for r in hard_human_rules %}
-  <li><code>{{ r.name }}</code> &mdash; {{ r.description }}</li>
+  <li>
+    <code>{{ r.name }}</code> &mdash; {{ r.description }}
+    {% if hard_rule_rates.get(r.name) is not none %}
+      <span class="rate">{{ hard_rule_rates[r.name] | fmt_pct }}</span>
+    {% endif %}
+  </li>
 {% endfor %}
 </ul>
 </section>
@@ -92,7 +102,7 @@
   {{ soft_bot_threshold }}</code>, otherwise <code class="cls-unknown">unknown</code>.
 </p>
 <table class="rule-table">
-  <thead><tr><th>Score</th><th>Name</th><th>When it fires</th></tr></thead>
+  <thead><tr><th>Score</th><th>Name</th><th>When it fires</th>{% if n_sessions %}<th>Observed</th>{% endif %}</tr></thead>
   <tbody>
   {% for r in soft_rules %}
     <tr>
@@ -101,10 +111,24 @@
       </td>
       <td><code>{{ r.name }}</code></td>
       <td>{{ r.description }}</td>
+      {% if n_sessions %}
+      <td>{{ soft_rule_rates.get(r.name, 0) | fmt_pct }}</td>
+      {% endif %}
     </tr>
   {% endfor %}
   </tbody>
 </table>
 </section>
+
+{% if score_dist_chart %}
+<section>
+<h2>Soft score distribution</h2>
+<p class="hint">
+  Sessions that reached soft scoring (no hard rule fired). Dotted lines mark the
+  <code class="cls-human_likely">human_likely</code> / <code class="cls-bot_likely">bot_likely</code> thresholds.
+</p>
+{{ score_dist_chart }}
+</section>
+{% endif %}
 
 {% endblock %}
