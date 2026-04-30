@@ -2,8 +2,6 @@ import shutil
 import tempfile
 from pathlib import Path
 
-import pandas as pd
-
 from pyscripts.reporting import aggregate, archive, config
 from pyscripts.reporting.archive import annotate_routes
 from pyscripts.reporting.classify import annotate_events, classify_sessions
@@ -48,7 +46,6 @@ def test_aggregate_consistency():
 
         hourly = aggregate.load_hourly()
         daily = aggregate.load_daily()
-        # n in daily should match sum of n in hourly when grouped over time only
         assert hourly["n"].sum() == len(df)
         assert daily["n"].sum() == len(df)
     finally:
@@ -60,6 +57,6 @@ def test_aggregate_empty():
     try:
         result = aggregate.rebuild()
         assert result["rows"] == 0
-        assert aggregate.load_hourly().empty
+        assert aggregate.load_hourly().is_empty()
     finally:
         shutil.rmtree(tmp)

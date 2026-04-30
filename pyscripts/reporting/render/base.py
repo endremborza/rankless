@@ -6,8 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-import numpy as np
-import pandas as pd
+import polars as pl
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from .. import aggregate, archive, timing
@@ -32,11 +31,11 @@ class RenderContext:
     mode: Mode
     out_dir: Path
     env: Environment
-    events_hot: pd.DataFrame   # HOT_WINDOW_DAYS of events, anonymized if public
-    events_24h: pd.DataFrame   # slice of events_hot for the last 24 h
-    sessions_table: pd.DataFrame
-    hourly: pd.DataFrame
-    daily: pd.DataFrame
+    events_hot: pl.DataFrame
+    events_24h: pl.DataFrame
+    sessions_table: pl.DataFrame
+    hourly: pl.DataFrame
+    daily: pl.DataFrame
     state_snapshot: dict
     now: dt.datetime
     runs_index: list[dict]
@@ -54,12 +53,10 @@ def build_context(mode: Mode) -> RenderContext:
         trim_blocks=True,
         lstrip_blocks=True,
     )
-    env.filters["fmt_int"] = lambda v: f"{int(v):,}" if pd.notna(v) else "—"
-    env.filters["fmt_pct"] = lambda v: (
-        f"{v*100:.2f}%" if (v is not None and pd.notna(v)) else "—"
-    )
-    env.filters["fmt_ms"] = lambda v: f"{v*1000:.0f} ms" if pd.notna(v) else "—"
-    env.filters["fmt_dt"] = lambda v: pd.to_datetime(v).strftime("%Y-%m-%d %H:%M UTC")
+    env.filters["fmt_int"] = lambda v: f"{int(v):,}" if v is not None and not _isnan(v) else "—"
+    env.filters["fmt_pct"] = lambda v: f"{v*100:.2f}%" if v is not None and not _isnan(v) else "—"
+    env.filters["fmt_ms"] = lambda v: f"{v*1000:.0f} ms" if v is not None and not _isnan(v) else "—"
+    env.filters["fmt_dt"] = lambda v: _parse_ts(v).strftime("%Y-%m-%d %H:%M UTC")
 
     today = dt.date.today()
 
@@ -67,18 +64,18 @@ def build_context(mode: Mode) -> RenderContext:
         events_hot = archive.read_hot(date_from=today - dt.timedelta(days=HOT_WINDOW_DAYS))
 
     with timing.timed(f"render.{mode}.anonymize_events"):
-        if mode == "public" and not events_hot.empty:
+        if mode == "public" and not events_hot.is_empty():
             events_hot = anonymize_events(events_hot)
 
-    cutoff_24h = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=1)
+    cutoff_24h = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)
     events_24h = (
-        events_hot[events_hot["t"] >= cutoff_24h].copy()
-        if not events_hot.empty else events_hot
+        events_hot.filter(pl.col("t") >= cutoff_24h)
+        if not events_hot.is_empty() else events_hot
     )
 
     with timing.timed(f"render.{mode}.load_sessions"):
         sessions_table = aggregate.load_sessions()
-        if mode == "public" and not sessions_table.empty:
+        if mode == "public" and not sessions_table.is_empty():
             sessions_table = _anonymize_sessions(sessions_table)
 
     with timing.timed(f"render.{mode}.load_aggregates"):
@@ -113,8 +110,8 @@ def hint(text: str) -> str:
     return f"<p class='hint'>{text}</p>"
 
 
-def df_to_html(df: pd.DataFrame, *, table_id: str, escape: bool = True) -> str:
-    return df.to_html(
+def df_to_html(df: pl.DataFrame, *, table_id: str, escape: bool = True) -> str:
+    return df.to_pandas().to_html(
         classes="dt", index=False, table_id=table_id, border=0, escape=escape,
     )
 
@@ -145,18 +142,17 @@ def plotly_div(fig_id: str, data: list, layout: dict | None = None, height: int 
     )
 
 
-def time_series_traces(df: pd.DataFrame, x: str, y: str, group: str) -> list[dict]:
+def time_series_traces(df: pl.DataFrame, x: str, y: str, group: str) -> list[dict]:
     out = []
-    for name, g in df.groupby(group):
-        out.append(
-            {
-                "x": list(g[x].astype(str)),
-                "y": list(g[y]),
-                "name": str(name),
-                "type": "scatter",
-                "mode": "lines",
-            }
-        )
+    for part in df.sort(x).partition_by(group, maintain_order=True):
+        name = part[group][0]
+        out.append({
+            "x": part[x].cast(pl.String).to_list(),
+            "y": part[y].to_list(),
+            "name": str(name),
+            "type": "scatter",
+            "mode": "lines",
+        })
     return out
 
 
@@ -174,30 +170,37 @@ def copy_assets(ctx: RenderContext) -> None:
     shutil.copytree(ASSET_DIR, target)
 
 
-def anonymize_events(df: pd.DataFrame) -> pd.DataFrame:
-    if "addr" in df.columns:
-        # Group by calendar day (≤31 groups from hot window) to avoid per-row date extraction.
-        # Each group gets one salt lookup and one hash per unique addr in that group.
-        parts = []
-        for day_ts, grp in df.groupby(df["t"].dt.floor("D"), sort=False):
-            day_iso = day_ts.strftime("%Y-%m-%d")
-            salt = get_or_create_salt(day_iso)
-            addr_map = {
-                a: hashlib.sha256(f"{salt}|{a}".encode()).hexdigest()[:IP_HASH_LEN]
-                for a in grp["addr"].unique()
-            }
-            parts.append(grp.assign(addr=grp["addr"].map(addr_map)))
-        df = pd.concat(parts, ignore_index=True) if parts else df
-    return df.drop(columns=[c for c in ("ua", "referrer", "path") if c in df.columns])
+def anonymize_events(df: pl.DataFrame) -> pl.DataFrame:
+    if "addr" not in df.columns:
+        return df.drop([c for c in ("ua", "referrer", "path") if c in df.columns])
+
+    parts = []
+    for day_df in df.with_columns(pl.col("t").dt.truncate("1d").alias("_day")).partition_by("_day", maintain_order=False):
+        day_iso = day_df["_day"][0].strftime("%Y-%m-%d")
+        salt = get_or_create_salt(day_iso)
+        unique_addrs = day_df["addr"].unique().to_list()
+        addr_map = {
+            a: hashlib.sha256(f"{salt}|{a}".encode()).hexdigest()[:IP_HASH_LEN]
+            for a in unique_addrs
+        }
+        parts.append(
+            day_df.drop("_day").with_columns(
+                pl.col("addr").replace_strict(addr_map)
+            )
+        )
+    result = pl.concat(parts) if parts else df
+    return result.drop([c for c in ("ua", "referrer", "path") if c in result.columns])
 
 
-def _anonymize_sessions(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
+def _anonymize_sessions(df: pl.DataFrame) -> pl.DataFrame:
     if "addr" in df.columns:
-        day = pd.to_datetime(df["start"]).dt.date.astype(str)
-        df["addr"] = [hash_ip(a, d) for a, d in zip(df["addr"], day)]
-    df = df.drop(columns=[c for c in ("ua",) if c in df.columns])
-    return df
+        df = df.with_columns(
+            pl.struct(["addr", "start"]).map_elements(
+                lambda r: hash_ip(r["addr"], str(r["start"])[:10]),
+                return_dtype=pl.String,
+            ).alias("addr")
+        )
+    return df.drop([c for c in ("ua",) if c in df.columns])
 
 
 def _read_runs_index() -> list[dict]:
@@ -214,8 +217,24 @@ def _read_runs_index() -> list[dict]:
     return out[:200]
 
 
+def _isnan(v) -> bool:
+    try:
+        import math
+        return math.isnan(v)
+    except (TypeError, ValueError):
+        return False
+
+
+def _parse_ts(v) -> dt.datetime:
+    if isinstance(v, dt.datetime):
+        return v
+    if isinstance(v, str):
+        return dt.datetime.fromisoformat(v)
+    return dt.datetime.fromtimestamp(float(v), tz=dt.timezone.utc)
+
+
 def _json_default(o):
-    if isinstance(o, (pd.Timestamp, dt.datetime, dt.date)):
+    if isinstance(o, (dt.datetime, dt.date)):
         return o.isoformat()
     if hasattr(o, "tolist"):
         return o.tolist()

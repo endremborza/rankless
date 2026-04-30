@@ -1,4 +1,4 @@
-import pandas as pd
+import polars as pl
 
 from ..classify import BOT_CLASS_COLORS, HUMAN_CLASSES
 from .base import RenderContext, df_to_html, hint, plotly_div, render_template, write
@@ -20,89 +20,100 @@ def render(ctx: RenderContext) -> None:
     ))
 
 
-def _bot_area(daily: pd.DataFrame) -> str:
-    if daily.empty:
+def _bot_area(daily: pl.DataFrame) -> str:
+    if daily.is_empty():
         return hint("No data.")
-    g = daily.groupby(["bucket", "bot_class"])["n"].sum().unstack(fill_value=0)
-    traces = [
-        {
-            "x": list(g.index.astype(str)),
-            "y": list(g[col]),
+    g = (
+        daily.group_by(["bucket", "bot_class"])
+        .agg(pl.col("n").sum())
+        .sort("bucket")
+    )
+    classes = g["bot_class"].unique().to_list()
+    traces = []
+    for col in classes:
+        sub = g.filter(pl.col("bot_class") == col)
+        traces.append({
+            "x": sub["bucket"].cast(pl.String).to_list(),
+            "y": sub["n"].to_list(),
             "name": col,
             "type": "scatter",
             "stackgroup": "one",
             "fillcolor": BOT_CLASS_COLORS.get(col),
             "line": {"width": 0.5, "color": BOT_CLASS_COLORS.get(col)},
-        }
-        for col in g.columns
-    ]
+        })
     return plotly_div("bot-area", traces, layout={"yaxis": {"title": "requests"}})
 
 
-def _top_uas(sessions: pd.DataFrame) -> str:
-    if sessions.empty:
+def _top_uas(sessions: pl.DataFrame) -> str:
+    if sessions.is_empty():
         return hint("No sessions.")
     by = "ua_family" if "ua_family" in sessions.columns else "ua"
     if by not in sessions.columns:
         return hint("No data.")
     if "bot_class" in sessions.columns:
         ct = (
-            sessions.groupby(by)["bot_class"]
-            .agg(["count", lambda s: s.mode().iloc[0] if len(s) else ""])
-            .set_axis(["sessions", "dominant_class"], axis=1)
-            .reset_index()
+            sessions.group_by(by)
+            .agg([
+                pl.len().alias("sessions"),
+                pl.col("bot_class").mode().first().alias("dominant_class"),
+            ])
+            .sort("sessions", descending=True)
+            .head(TOP_N)
         )
     else:
-        ct = sessions.groupby(by).size().reset_index(name="sessions")
-    return (
-        ct.sort_values("sessions", ascending=False)
-        .head(TOP_N)
-        .pipe(df_to_html, table_id="top-uas")
-    )
+        ct = (
+            sessions.group_by(by)
+            .agg(pl.len().alias("sessions"))
+            .sort("sessions", descending=True)
+            .head(TOP_N)
+        )
+    return df_to_html(ct, table_id="top-uas")
 
 
-def _top_referrers(events: pd.DataFrame) -> str:
-    if events.empty or "referrer_domain" not in events.columns:
+def _top_referrers(events: pl.DataFrame) -> str:
+    if events.is_empty() or "referrer_domain" not in events.columns:
         return hint("No data.")
-    s = events[events["referrer_domain"].fillna("") != ""]
-    if s.empty:
+    s = events.filter(pl.col("referrer_domain").fill_null("") != "")
+    if s.is_empty():
         return hint("No referrer hits.")
-    return (
-        s.groupby("referrer_domain").size()
-        .reset_index(name="requests")
-        .sort_values("requests", ascending=False)
-        .head(TOP_N)
-        .pipe(df_to_html, table_id="top-refs")
+    return df_to_html(
+        s.group_by("referrer_domain")
+        .agg(pl.len().alias("requests"))
+        .sort("requests", descending=True)
+        .head(TOP_N),
+        table_id="top-refs",
     )
 
 
-def _top_paths(events: pd.DataFrame, sessions: pd.DataFrame) -> str:
-    if events.empty or sessions.empty:
+def _top_paths(events: pl.DataFrame, sessions: pl.DataFrame) -> str:
+    if events.is_empty() or sessions.is_empty():
         return hint("No data.")
-    human_ids = set(sessions.loc[sessions["bot_class"].isin(HUMAN_CLASSES), "session_id"])
-    s = events[events["session_id"].isin(human_ids)]
-    if s.empty:
+    human_ids = set(
+        sessions.filter(pl.col("bot_class").is_in(list(HUMAN_CLASSES)))["session_id"].to_list()
+    )
+    s = events.filter(pl.col("session_id").is_in(human_ids))
+    if s.is_empty():
         return hint("No human sessions yet.")
-    return (
-        s.groupby("route_template").size()
-        .reset_index(name="requests")
-        .sort_values("requests", ascending=False)
-        .head(TOP_N)
-        .pipe(df_to_html, table_id="top-paths")
+    return df_to_html(
+        s.group_by("route_template")
+        .agg(pl.len().alias("requests"))
+        .sort("requests", descending=True)
+        .head(TOP_N),
+        table_id="top-paths",
     )
 
 
-def _status_donut(daily: pd.DataFrame) -> str:
-    if daily.empty:
+def _status_donut(daily: pl.DataFrame) -> str:
+    if daily.is_empty():
         return hint("No data.")
-    cutoff = daily["bucket"].max() - pd.Timedelta(days=7)
+    cutoff = daily["bucket"].max() - pl.duration(days=7)
     g = (
-        daily[daily["bucket"] >= cutoff]
-        .groupby("status_family")["n"].sum()
-        .reset_index()
-        .sort_values("status_family")
+        daily.filter(pl.col("bucket") >= cutoff)
+        .group_by("status_family")
+        .agg(pl.col("n").sum())
+        .sort("status_family")
     )
     return plotly_div(
         "status-donut",
-        [{"labels": list(g["status_family"]), "values": list(g["n"]), "type": "pie", "hole": 0.5}],
+        [{"labels": g["status_family"].to_list(), "values": g["n"].to_list(), "type": "pie", "hole": 0.5}],
     )

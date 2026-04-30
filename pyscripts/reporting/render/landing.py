@@ -1,4 +1,4 @@
-import pandas as pd
+import polars as pl
 
 from ..classify import BOT_CLASS_COLORS, BOT_CLASS_ORDER
 from .base import RenderContext, copy_assets, hint, plotly_div, render_template, write
@@ -28,20 +28,21 @@ def render(ctx: RenderContext) -> None:
     ))
 
 
-def _kpi_block(label: str, events: pd.DataFrame, hours: int) -> dict:
-    if events.empty:
+def _kpi_block(label: str, events: pl.DataFrame, hours: int) -> dict:
+    if events.is_empty():
         return {"label": label, "html": _empty_kpi_html()}
-    cutoff = events["t"].max() - pd.Timedelta(hours=hours)
-    s = events[events["t"] >= cutoff]
-    if s.empty:
+    cutoff = events["t"].max() - pl.duration(hours=hours)
+    s = events.filter(pl.col("t") >= cutoff)
+    if s.is_empty():
         return {"label": label, "html": _empty_kpi_html()}
 
     n = len(s)
-    sess = s.drop_duplicates("session_id") if "session_id" in s.columns else s.iloc[0:0]
+    sess = s.unique(subset=["session_id"]) if "session_id" in s.columns else s.head(0)
     n_sessions = len(sess)
     n_5xx = int((s["status"] >= 500).sum())
     cache_hit = int((s["cs"] == "HIT").sum()) if "cs" in s.columns else 0
-    p99 = float(s["urt"].quantile(0.99)) if s["urt"].notna().any() else float("nan")
+    urt_valid = s["urt"].drop_nulls()
+    p99 = float(urt_valid.quantile(0.99)) if len(urt_valid) > 0 else float("nan")
 
     cards = [
         _card("Requests", f"{n:,}"),
@@ -50,7 +51,7 @@ def _kpi_block(label: str, events: pd.DataFrame, hours: int) -> dict:
         _card("p99 urt", _ms(p99)),
         _card("Cache hit", _pct(cache_hit / n)),
     ]
-    if n_sessions:
+    if n_sessions and "bot_class" in sess.columns:
         cards.append(_breakdown_card(sess["bot_class"]))
     return {"label": label, "html": "\n".join(cards)}
 
@@ -64,9 +65,10 @@ def _card(label: str, value: str) -> str:
     )
 
 
-def _breakdown_card(classes: pd.Series) -> str:
-    counts = classes.value_counts().reindex(BOT_CLASS_ORDER, fill_value=0)
-    total = int(counts.sum())
+def _breakdown_card(classes: pl.Series) -> str:
+    counts_map = dict(zip(*classes.value_counts().to_pandas().values.T))
+    counts = {cls: int(counts_map.get(cls, 0)) for cls in BOT_CLASS_ORDER}
+    total = sum(counts.values())
     if total == 0:
         return _card("Class breakdown", "—")
     segs = []
@@ -98,26 +100,28 @@ def _empty_kpi_html() -> str:
 
 
 def _pct(v: float) -> str:
-    if v is None or pd.isna(v):
+    import math
+    if v is None or math.isnan(v):
         return "—"
     return f"{v * 100:.2f}%"
 
 
 def _ms(v: float) -> str:
-    if v is None or pd.isna(v):
+    import math
+    if v is None or math.isnan(v):
         return "—"
     return f"{v * 1000:.0f} ms"
 
 
-def _traffic_chart(daily: pd.DataFrame) -> str:
-    if daily.empty:
+def _traffic_chart(daily: pl.DataFrame) -> str:
+    if daily.is_empty():
         return hint("No data yet.")
-    g = daily.groupby("bucket")["n"].sum().reset_index()
+    g = daily.group_by("bucket").agg(pl.col("n").sum()).sort("bucket")
     return plotly_div(
         "traffic-30d",
         [{
-            "x": list(g["bucket"].astype(str)),
-            "y": list(g["n"]),
+            "x": g["bucket"].cast(pl.String).to_list(),
+            "y": g["n"].to_list(),
             "type": "bar",
             "marker": {"color": "#89b4fa"},
             "name": "Requests",
@@ -126,21 +130,22 @@ def _traffic_chart(daily: pd.DataFrame) -> str:
     )
 
 
-def _bot_session_chart(sessions: pd.DataFrame) -> str:
-    if sessions.empty:
+def _bot_session_chart(sessions: pl.DataFrame) -> str:
+    if sessions.is_empty():
         return hint("No sessions yet.")
-    s = sessions.assign(day=pd.to_datetime(sessions["start"]).dt.floor("D"))
-    pivot = s.groupby(["day", "bot_class"]).size().unstack(fill_value=0)
-    traces = [
-        {
-            "x": list(pivot.index.astype(str)),
-            "y": list(pivot[col]),
-            "name": col,
+    s = sessions.with_columns(pl.col("start").dt.truncate("1d").alias("day"))
+    pivot = s.group_by(["day", "bot_class"]).agg(pl.len().alias("n")).sort("day")
+    classes = pivot["bot_class"].unique().to_list()
+    traces = []
+    for cls in classes:
+        sub = pivot.filter(pl.col("bot_class") == cls)
+        traces.append({
+            "x": sub["day"].cast(pl.String).to_list(),
+            "y": sub["n"].to_list(),
+            "name": cls,
             "type": "bar",
-            "marker": {"color": BOT_CLASS_COLORS.get(col, "#cdd6f4")},
-        }
-        for col in pivot.columns
-    ]
+            "marker": {"color": BOT_CLASS_COLORS.get(cls, "#cdd6f4")},
+        })
     return plotly_div(
         "bot-stack", traces,
         layout={"barmode": "stack", "yaxis": {"title": "sessions"}},

@@ -2,7 +2,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 
 from pyscripts.reporting import aggregate, archive, config
 from pyscripts.reporting.archive import annotate_routes
@@ -39,11 +39,14 @@ def _setup_tmp_root() -> Path:
 
 
 def _populate(tmp: Path):
+    import datetime as dt
     df, _ = parse_lines(ALL)
-    # Re-stamp timestamps to "today" so the 24h window catches them.
-    today = pd.Timestamp.utcnow().tz_convert("UTC")
-    base = today.floor("h") - pd.Timedelta(hours=1)
-    df["t"] = [base + pd.Timedelta(seconds=i) for i in range(len(df))]
+    now_utc = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    base = now_utc.replace(minute=0, second=0) - dt.timedelta(hours=1)
+    new_ts = [base + dt.timedelta(seconds=i) for i in range(len(df))]
+    df = df.with_columns(
+        pl.Series("t", new_ts, dtype=pl.Datetime("us", "UTC"))
+    )
     df = annotate_routes(df)
     df = assign_sessions(df)
     sessions = classify_sessions(df)
@@ -66,7 +69,6 @@ def test_render_local_mode():
         assert (ctx.out_dir / "classification.html").exists()
         assert (ctx.out_dir / "runs" / "index.html").exists()
         assert (ctx.out_dir / "assets" / "style.css").exists()
-        # Local mode preserves IPs.
         landing = (ctx.out_dir / "index.html").read_text()
         assert "<title>" in landing
     finally:

@@ -1,6 +1,7 @@
+import datetime as dt
 import json
 
-import pandas as pd
+import polars as pl
 
 from ..classify import HUMAN_CLASSES
 from .base import RenderContext, df_to_html, hint, render_template, write
@@ -16,30 +17,36 @@ EVENT_COLS = ["t", "method", "path", "route_template", "status", "urt", "cs", "s
 
 def render(ctx: RenderContext) -> None:
     sessions = ctx.sessions_table
-    if sessions.empty:
+    if sessions.is_empty():
         write(ctx, "sessions/index.html", _empty(ctx))
         return
 
-    cutoff = pd.to_datetime(sessions["start"]).max() - pd.Timedelta(days=INDEX_DAYS)
-    recent = sessions.loc[
-        lambda d: (pd.to_datetime(d["start"]) >= cutoff) & (d["n_req"] > 1)
-    ]
+    max_start = sessions["start"].max()
+    cutoff = max_start - pl.duration(days=INDEX_DAYS)
+    recent = sessions.filter(
+        (pl.col("start") >= cutoff) & (pl.col("n_req") > 1)
+    )
 
     show_details = ctx.mode != "public"
     detailed_ids: set[str] = set()
     if show_details:
         detailed_ids = set(
-            recent[recent["bot_class"].isin(HUMAN_CLASSES)]
-            .sort_values("n_req", ascending=False)
+            recent.filter(pl.col("bot_class").is_in(list(HUMAN_CLASSES)))
+            .sort("n_req", descending=True)
             .head(DETAIL_TOP_N)["session_id"]
+            .to_list()
         )
 
-    table_html = (
-        recent.assign(session=recent["session_id"].map(_link(detailed_ids)))
-        .sort_values("start", ascending=False)
-        .pipe(lambda d: d[[c for c in INDEX_COLS if c in d.columns]])
-        .pipe(df_to_html, table_id="sessions", escape=False)
+    link_map = {sid: f'<a href="{sid}.html">{sid}</a>' if sid in detailed_ids else sid
+                for sid in recent["session_id"].to_list()}
+    display = (
+        recent.with_columns(
+            pl.col("session_id").replace_strict(link_map, return_dtype=pl.String).alias("session")
+        )
+        .sort("start", descending=True)
+        .select([c for c in INDEX_COLS if c in recent.columns or c == "session"])
     )
+    table_html = df_to_html(display, table_id="sessions", escape=False)
 
     write(ctx, "sessions/index.html", render_template(
         ctx, "sessions_index.html.j2",
@@ -51,28 +58,30 @@ def render(ctx: RenderContext) -> None:
     if not detailed_ids:
         return
 
-    cutoff = ctx.now - pd.Timedelta(days=INDEX_DAYS)
-    events = ctx.events_hot[
-        (ctx.events_hot["t"] >= cutoff) & ctx.events_hot["session_id"].isin(detailed_ids)
-    ] if not ctx.events_hot.empty else ctx.events_hot
-    events_by_sid = events.groupby("session_id") if not events.empty else None
+    cutoff_dt = ctx.now - dt.timedelta(days=INDEX_DAYS)
+    events = (
+        ctx.events_hot.filter(
+            (pl.col("t") >= cutoff_dt) & pl.col("session_id").is_in(detailed_ids)
+        )
+        if not ctx.events_hot.is_empty() else ctx.events_hot
+    )
+    events_by_sid = {
+        part["session_id"][0]: part
+        for part in events.partition_by("session_id", maintain_order=False)
+    } if not events.is_empty() else {}
 
-    detailed_rows = recent[recent["session_id"].isin(detailed_ids)]
-    for _, sess in detailed_rows.iterrows():
-        sid = sess["session_id"]
-        sess_events = events_by_sid.get_group(sid) if events_by_sid is not None and sid in events_by_sid.groups else pd.DataFrame()
-        write(ctx, f"sessions/{sid}.html", _detail_html(ctx, sess, sess_events))
+    for row in recent.filter(pl.col("session_id").is_in(detailed_ids)).iter_rows(named=True):
+        sid = row["session_id"]
+        sess_events = events_by_sid.get(sid, pl.DataFrame())
+        write(ctx, f"sessions/{sid}.html", _detail_html(ctx, row, sess_events))
 
 
-def _detail_html(ctx: RenderContext, sess: pd.Series, sess_events: pd.DataFrame) -> str:
-    if sess_events.empty:
+def _detail_html(ctx: RenderContext, sess: dict, sess_events: pl.DataFrame) -> str:
+    if sess_events.is_empty():
         ev_html = hint("No events archived for this session.")
     else:
-        ev_html = (
-            sess_events.sort_values("t")
-            .pipe(lambda d: d[[c for c in EVENT_COLS if c in d.columns]])
-            .pipe(df_to_html, table_id="ev")
-        )
+        cols = [c for c in EVENT_COLS if c in sess_events.columns]
+        ev_html = df_to_html(sess_events.sort("t").select(cols), table_id="ev")
     try:
         signals = json.loads(sess.get("signals_json", "[]"))
     except (TypeError, ValueError):
@@ -80,16 +89,10 @@ def _detail_html(ctx: RenderContext, sess: pd.Series, sess_events: pd.DataFrame)
     return render_template(
         ctx, "session_detail.html.j2",
         active_page="sessions", depth=1,
-        session=sess.to_dict(),
+        session=sess,
         signals=signals,
         events_table=ev_html,
     )
-
-
-def _link(detailed_ids: set[str]):
-    def fmt(sid: str) -> str:
-        return f'<a href="{sid}.html">{sid}</a>' if sid in detailed_ids else sid
-    return fmt
 
 
 def _empty(ctx: RenderContext) -> str:

@@ -2,14 +2,11 @@ import datetime as dt
 import os
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 
 from .config import ARCHIVE_COLD_DIR, ARCHIVE_DIR, COLD_AFTER_DAYS
 from .paths import template
 
-# Columns retained in cold archive. `path`, `ua`, `referrer` raw text are dropped;
-# their derived buckets (`route_template`, `ua_family`, `bot_class`, `referrer_domain`)
-# must be present before a day can be compacted to cold.
 COLD_COLUMNS = [
     "t",
     "addr",
@@ -29,41 +26,54 @@ COLD_COLUMNS = [
 ]
 
 
-def annotate_routes(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        df["route_template"] = pd.Series([], dtype="object")
-        return df
-    df = df.copy()
-    df["route_template"] = df["path"].map(template)
-    return df
+def annotate_routes(df: pl.DataFrame) -> pl.DataFrame:
+    if df.is_empty():
+        return df.with_columns(pl.lit(None).cast(pl.String).alias("route_template"))
+    return df.with_columns(
+        pl.col("path")
+        .map_elements(template, return_dtype=pl.String)
+        .alias("route_template")
+    )
 
 
-def write_events(df: pd.DataFrame) -> dict[str, int]:
+def cast_to_match(df: pl.DataFrame, target: pl.DataFrame) -> pl.DataFrame:
+    target_schema = target.schema
+
+    casts = []
+    for col, target_dtype in target_schema.items():
+        if col in df.columns:
+            if df.schema[col] != target_dtype:
+                casts.append(pl.col(col).cast(target_dtype))
+        else:
+            # optional: add missing columns as nulls
+            casts.append(pl.lit(None).cast(target_dtype).alias(col))
+
+    return df.with_columns(casts).select(target.columns)
+
+
+def write_events(df: pl.DataFrame) -> dict[str, int]:
     """Append events to per-day parquet files, deduped. Returns counts per date."""
-    if df.empty:
+    if df.is_empty():
         return {}
     if "route_template" not in df.columns:
         df = annotate_routes(df)
-    df = df.assign(_d=df["t"].dt.tz_convert("UTC").dt.date)
+    df = df.with_columns(pl.col("t").dt.convert_time_zone("UTC").dt.date().alias("_d"))
     written: dict[str, int] = {}
-    for d, day_df in df.groupby("_d", sort=False):
-        day_df = day_df.drop(columns="_d")
+    for day_df in df.partition_by("_d", maintain_order=False):
+        d = day_df["_d"][0]
+        day_df = day_df.drop("_d")
         path = _hot_path(d)
         path.parent.mkdir(parents=True, exist_ok=True)
         prev_n = 0
         if path.exists():
-            existing = pd.read_parquet(path)
+            existing = pl.read_parquet(path)
             prev_n = len(existing)
-            combined = pd.concat([existing, day_df], ignore_index=True)
+            combined = pl.concat([existing, cast_to_match(day_df, existing)])
         else:
             combined = day_df
-        combined = (
-            combined.drop_duplicates(
-                subset=["t", "addr", "path", "status", "size", "ua"]
-            )
-            .sort_values("t")
-            .reset_index(drop=True)
-        )
+        combined = combined.unique(
+            subset=["t", "addr", "path", "status", "size", "ua"]
+        ).sort("t")
         _atomic_parquet_write(combined, path, compression="zstd", level=3)
         written[d.isoformat()] = len(combined) - prev_n
     return written
@@ -94,32 +104,28 @@ def list_cold_months() -> list[tuple[int, int]]:
 
 def read_hot(
     date_from: dt.date | None = None, date_to: dt.date | None = None
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     parts = []
     for d in list_hot_dates():
         if date_from and d < date_from:
             continue
         if date_to and d > date_to:
             continue
-        parts.append(pd.read_parquet(_hot_path(d)))
-    if not parts:
-        return pd.DataFrame()
-    return pd.concat(parts, ignore_index=True)
+        parts.append(pl.read_parquet(_hot_path(d)))
+    return pl.concat(parts) if parts else pl.DataFrame()
 
 
 def read_cold(
     date_from: dt.date | None = None, date_to: dt.date | None = None
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     parts = []
     for y, m in list_cold_months():
         if date_from and (y, m) < (date_from.year, date_from.month):
             continue
         if date_to and (y, m) > (date_to.year, date_to.month):
             continue
-        parts.append(pd.read_parquet(_cold_path(y, m)))
-    if not parts:
-        return pd.DataFrame()
-    return pd.concat(parts, ignore_index=True)
+        parts.append(pl.read_parquet(_cold_path(y, m)))
+    return pl.concat(parts) if parts else pl.DataFrame()
 
 
 def compress_cold(today: dt.date) -> dict[str, int]:
@@ -133,40 +139,31 @@ def compress_cold(today: dt.date) -> dict[str, int]:
     result = {}
     for (y, m), dates in by_month.items():
         cold_path = _cold_path(y, m)
-        existing_cold = pd.read_parquet(cold_path) if cold_path.exists() else None
+        existing_cold = pl.read_parquet(cold_path) if cold_path.exists() else None
         day_frames = []
         missing_cols = []
         for d in dates:
-            day = pd.read_parquet(_hot_path(d))
+            day = pl.read_parquet(_hot_path(d))
             if not all(c in day.columns for c in COLD_COLUMNS):
                 missing_cols.append(d.isoformat())
                 continue
-            day_frames.append(day[COLD_COLUMNS])
+            day_frames.append(day.select(COLD_COLUMNS))
         if missing_cols:
-            # Skip the whole month so we don't lose data we can't recover.
             result[f"{y}-{m:02d}-skipped"] = len(missing_cols)
             continue
         if not day_frames:
             continue
-        combined = (
-            pd.concat(
-                [*([existing_cold] if existing_cold is not None else []), *day_frames]
-            )
-            .sort_values("t")
-            .reset_index(drop=True)
-        )
+        parts = ([existing_cold] if existing_cold is not None else []) + day_frames
+        combined = pl.concat(parts).sort("t")
         cold_path.parent.mkdir(parents=True, exist_ok=True)
-        _atomic_parquet_write(
-            combined, cold_path, compression="zstd", level=22, dictionary=True
-        )
+        _atomic_parquet_write(combined, cold_path, compression="zstd", level=22)
         for d in dates:
             _hot_path(d).unlink()
         result[f"{y}-{m:02d}"] = len(day_frames)
     return result
 
 
-def rewrite_hot(d: dt.date, df: pd.DataFrame) -> None:
-    """Overwrite a hot archive day in place (atomic, same compression as write_events)."""
+def rewrite_hot(d: dt.date, df: pl.DataFrame) -> None:
     _atomic_parquet_write(df, _hot_path(d), compression="zstd", level=3)
 
 
@@ -179,21 +176,12 @@ def _cold_path(year: int, month: int) -> Path:
 
 
 def _atomic_parquet_write(
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     path: Path,
     *,
     compression: str = "zstd",
     level: int = 3,
-    dictionary: bool = False,
 ) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
-    extra = {"use_dictionary": True} if dictionary else {}
-    df.to_parquet(
-        tmp,
-        engine="pyarrow",
-        compression=compression,
-        compression_level=level,
-        index=False,
-        **extra,
-    )
+    df.write_parquet(tmp, compression=compression, compression_level=level)
     os.replace(tmp, path)

@@ -1,4 +1,6 @@
-import pandas as pd
+import datetime as dt
+
+import polars as pl
 
 from .base import RenderContext, df_to_html, hint, render_template, write
 
@@ -11,8 +13,8 @@ ERROR_DAYS = 7
 
 
 def render(ctx: RenderContext) -> None:
-    cutoff = pd.Timestamp(ctx.now) - pd.Timedelta(days=ERROR_DAYS)
-    events = ctx.events_hot[ctx.events_hot["t"] >= cutoff] if not ctx.events_hot.empty else ctx.events_hot
+    cutoff = ctx.now - dt.timedelta(days=ERROR_DAYS)
+    events = ctx.events_hot.filter(pl.col("t") >= cutoff) if not ctx.events_hot.is_empty() else ctx.events_hot
 
     tables = {tid: _err_table(events, mask, tid) for tid, mask in ERROR_TABLES}
 
@@ -25,18 +27,22 @@ def render(ctx: RenderContext) -> None:
     ))
 
 
-def _err_table(events: pd.DataFrame, mask_fn, table_id: str) -> str:
-    if events.empty:
+def _err_table(events: pl.DataFrame, mask_fn, table_id: str) -> str:
+    if events.is_empty():
         return hint("No data.")
-    s = events[mask_fn(events)]
-    if s.empty:
+    s = events.filter(mask_fn(events))
+    if s.is_empty():
         return hint("None.")
-    return (
-        s.groupby(["route_template", "status"])
-        .agg(n=("status", "count"), last_seen=("t", "max"))
-        .reset_index()
-        .sort_values("n", ascending=False)
+    result = (
+        s.group_by(["route_template", "status"])
+        .agg([
+            pl.len().alias("n"),
+            pl.col("t").max().alias("last_seen"),
+        ])
+        .sort("n", descending=True)
         .head(50)
-        .assign(last_seen=lambda d: d["last_seen"].dt.strftime("%Y-%m-%d %H:%M UTC"))
-        .pipe(df_to_html, table_id=table_id)
+        .with_columns(
+            pl.col("last_seen").dt.strftime("%Y-%m-%d %H:%M UTC")
+        )
     )
+    return df_to_html(result, table_id=table_id)

@@ -1,10 +1,9 @@
 import datetime as dt
-import os
 import shutil
 import tempfile
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 
 from pyscripts.reporting import archive, config
 from pyscripts.reporting.archive import COLD_COLUMNS
@@ -29,14 +28,13 @@ def test_write_events_idempotent():
     try:
         df, _ = parse_lines(ALL)
         df = archive.annotate_routes(df)
-        n1 = archive.write_events(df.copy())
-        n2 = archive.write_events(df.copy())
+        n1 = archive.write_events(df)
+        n2 = archive.write_events(df)
         assert sum(n1.values()) == len(df)
-        assert sum(n2.values()) == 0  # nothing new on second write
+        assert sum(n2.values()) == 0
 
         all_back = archive.read_hot()
         assert len(all_back) == len(df)
-        # Verify route_template was annotated
         assert (all_back["route_template"] != "_unknown").any()
     finally:
         shutil.rmtree(tmp)
@@ -45,7 +43,7 @@ def test_write_events_idempotent():
 def test_write_events_dedupes_within_batch():
     tmp = _setup_tmp_root()
     try:
-        df, _ = parse_lines(ALL + ALL)  # duplicate every line
+        df, _ = parse_lines(ALL + ALL)
         df = archive.annotate_routes(df)
         archive.write_events(df)
         all_back = archive.read_hot()
@@ -59,14 +57,13 @@ def test_compress_cold_skips_unannotated():
     try:
         df, _ = parse_lines(ALL)
         df = archive.annotate_routes(df)
-        # Backdate to 100 days ago.
-        df["t"] = df["t"] - pd.Timedelta(days=100)
+        df = df.with_columns(
+            (pl.col("t") - pl.duration(days=100)).alias("t")
+        )
         archive.write_events(df)
-        # Cold compaction should refuse since session_id/ua_family/etc. missing.
         result = archive.compress_cold(today=dt.date.today())
         assert any("skipped" in k for k in result)
-        # Hot file still present.
-        assert archive.read_hot().shape[0] == len(df)
+        assert len(archive.read_hot()) == len(df)
     finally:
         shutil.rmtree(tmp)
 
@@ -76,21 +73,22 @@ def test_compress_cold_compacts_when_annotated():
     try:
         df, _ = parse_lines(ALL)
         df = archive.annotate_routes(df)
-        df["t"] = df["t"] - pd.Timedelta(days=100)
-        # Manually inject required cold columns.
-        df["session_id"] = "s0"
-        df["ua_family"] = "test"
-        df["bot_class"] = "unknown"
-        df["referrer_domain"] = ""
+        df = df.with_columns(
+            (pl.col("t") - pl.duration(days=100)).alias("t")
+        )
+        df = df.with_columns([
+            pl.lit("s0").alias("session_id"),
+            pl.lit("test").alias("ua_family"),
+            pl.lit("unknown").alias("bot_class"),
+            pl.lit("").alias("referrer_domain"),
+        ])
         archive.write_events(df)
         n_before = len(archive.read_hot())
         result = archive.compress_cold(today=dt.date.today())
         assert sum(v for k, v in result.items() if "skipped" not in k) >= 1
-        # Hot rows for compacted day are gone.
-        assert archive.read_hot().shape[0] == 0
-        # Cold rows have all expected cold columns and same row count.
+        assert len(archive.read_hot()) == 0
         cold = archive.read_cold()
-        assert set(COLD_COLUMNS).issubset(cold.columns)
+        assert set(COLD_COLUMNS).issubset(set(cold.columns))
         assert len(cold) == n_before
     finally:
         shutil.rmtree(tmp)

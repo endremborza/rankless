@@ -1,7 +1,7 @@
 import collections
 import json
 
-import pandas as pd
+import polars as pl
 
 from .. import classify
 from .base import RenderContext, plotly_div, render_template, write
@@ -51,8 +51,8 @@ def render(ctx: RenderContext) -> None:
     )
 
 
-def _rule_stats(sessions: pd.DataFrame) -> dict:
-    if sessions.empty or "signals_json" not in sessions.columns:
+def _rule_stats(sessions: pl.DataFrame) -> dict:
+    if sessions.is_empty() or "signals_json" not in sessions.columns:
         return {"hard": {}, "soft": {}, "score_dist_chart": "", "n_sessions": 0}
 
     n = len(sessions)
@@ -60,7 +60,7 @@ def _rule_stats(sessions: pd.DataFrame) -> dict:
     soft_counts: dict[str, int] = {}
     scores: list[int] = []
 
-    for sig_json in sessions["signals_json"].fillna("[]"):
+    for sig_json in sessions["signals_json"].fill_null("[]").to_list():
         try:
             sigs = json.loads(sig_json)
         except (json.JSONDecodeError, TypeError):

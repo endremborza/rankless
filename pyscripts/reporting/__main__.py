@@ -98,7 +98,7 @@ def _do_reclassify_all(rec: dict) -> None:
     with timing.timed("reclassify"):
         for d in all_dates:
             df = archive.read_hot(date_from=d, date_to=d)
-            if df.empty or "session_id" not in df.columns:
+            if df.is_empty() or "session_id" not in df.columns:
                 continue
             sess_df = classify_sessions(df)
             df = annotate_events(df, sess_df)
@@ -118,10 +118,12 @@ def _do_dry_run(rec: dict) -> None:
     rec["events_parsed"] = len(df)
     rec["parse_failures"] = fail
     rec["rotated"] = fetched.rotated
-    if not df.empty:
+    if not df.is_empty():
         rec["t_min"] = str(df["t"].min())
         rec["t_max"] = str(df["t"].max())
-    unmatched = paths.collect_unmatched(df["path"]) if not df.empty else {}
+    unmatched = (
+        paths.collect_unmatched(df["path"].to_list()) if not df.is_empty() else {}
+    )
     rec["top_unmatched"] = list(unmatched.most_common(20))
 
 
@@ -138,7 +140,7 @@ def _do_pull_and_archive(rec: dict) -> list[dt.date]:
     rec["parse_failures"] = fail
     rec["rotated"] = fetched.rotated
 
-    if df.empty:
+    if df.is_empty():
         s.last_inode = fetched.new_inode
         s.last_size = fetched.new_size
         s.last_run = state.now_iso()
@@ -163,7 +165,7 @@ def _do_pull_and_archive(rec: dict) -> list[dt.date]:
 
     if cold:
         rec["cold_compaction"] = cold
-    unmatched = paths.collect_unmatched(df["path"])
+    unmatched = paths.collect_unmatched(df["path"].to_list())
     if unmatched:
         rec["top_unmatched"] = list(unmatched.most_common(20))
 

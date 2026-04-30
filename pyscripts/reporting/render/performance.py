@@ -1,12 +1,6 @@
-import pandas as pd
+import polars as pl
 
 from .base import RenderContext, df_to_html, hint, plotly_div, render_template, write
-
-
-def _qtile(q: float):
-    def _agg(s: pd.Series) -> float:
-        return float(s.quantile(q)) if s.notna().any() else float("nan")
-    return _agg
 
 
 def render(ctx: RenderContext) -> None:
@@ -20,83 +14,93 @@ def render(ctx: RenderContext) -> None:
     ))
 
 
-def _route_table(events: pd.DataFrame) -> str:
-    if events.empty:
+def _route_table(events: pl.DataFrame) -> str:
+    if events.is_empty():
         return hint("No data.")
-    e = events.assign(
-        is_5xx=events["status"] >= 500,
-        is_4xx=(events["status"] >= 400) & (events["status"] < 500),
-        is_hit=events["cs"] == "HIT",
-    )
+    e = events.with_columns([
+        (pl.col("status") >= 500).alias("is_5xx"),
+        ((pl.col("status") >= 400) & (pl.col("status") < 500)).alias("is_4xx"),
+        (pl.col("cs") == "HIT").alias("is_hit"),
+    ])
     g = (
-        e.groupby("route_template")
-        .agg(
-            n=("status", "count"),
-            urt_p50=("urt", _qtile(0.5)),
-            urt_p95=("urt", _qtile(0.95)),
-            urt_p99=("urt", _qtile(0.99)),
-            err_5xx=("is_5xx", "mean"),
-            err_4xx=("is_4xx", "mean"),
-            cache_hit=("is_hit", "mean"),
-        )
-        .reset_index()
-        .sort_values("n", ascending=False)
+        e.group_by("route_template")
+        .agg([
+            pl.len().alias("n"),
+            pl.col("urt").quantile(0.5).alias("urt_p50"),
+            pl.col("urt").quantile(0.95).alias("urt_p95"),
+            pl.col("urt").quantile(0.99).alias("urt_p99"),
+            pl.col("is_5xx").mean().alias("err_5xx"),
+            pl.col("is_4xx").mean().alias("err_4xx"),
+            pl.col("is_hit").mean().alias("cache_hit"),
+        ])
+        .sort("n", descending=True)
+        .with_columns([
+            (pl.col("urt_p50") * 1000).round(1).alias("urt_p50_ms"),
+            (pl.col("urt_p95") * 1000).round(1).alias("urt_p95_ms"),
+            (pl.col("urt_p99") * 1000).round(1).alias("urt_p99_ms"),
+            (pl.col("err_5xx") * 100).round(2),
+            (pl.col("err_4xx") * 100).round(2),
+            (pl.col("cache_hit") * 100).round(2),
+        ])
+        .drop(["urt_p50", "urt_p95", "urt_p99"])
     )
-    return (
-        g.assign(**{f"{c}_ms": (g[c] * 1000).round(1) for c in ("urt_p50", "urt_p95", "urt_p99")})
-        .drop(columns=["urt_p50", "urt_p95", "urt_p99"])
-        .assign(**{c: (g[c] * 100).round(2) for c in ("err_5xx", "err_4xx", "cache_hit")})
-        .pipe(df_to_html, table_id="route-perf")
-    )
+    return df_to_html(g, table_id="route-perf")
 
 
-def _p99_per_route_chart(hourly: pd.DataFrame) -> str:
-    if hourly.empty:
+def _p99_per_route_chart(hourly: pl.DataFrame) -> str:
+    if hourly.is_empty():
         return hint("No data.")
-    cutoff = hourly["bucket"].max() - pd.Timedelta(days=1)
-    s = hourly[hourly["bucket"] >= cutoff]
-    if s.empty:
+    cutoff = hourly["bucket"].max() - pl.duration(days=1)
+    s = hourly.filter(pl.col("bucket") >= cutoff)
+    if s.is_empty():
         return hint("No recent hourly data.")
-    top = s.groupby("route_template")["n"].sum().nlargest(8).index
-    g = (
-        s[s["route_template"].isin(top)]
-        .groupby(["bucket", "route_template"])
-        .agg(urt_p99=("urt_p99", "max"))
-        .reset_index()
+    top = (
+        s.group_by("route_template")
+        .agg(pl.col("n").sum())
+        .sort("n", descending=True)
+        .head(8)["route_template"]
+        .to_list()
     )
-    traces = [
-        {
-            "x": list(gd["bucket"].astype(str)),
-            "y": [v * 1000 if pd.notna(v) else None for v in gd["urt_p99"]],
+    g = (
+        s.filter(pl.col("route_template").is_in(top))
+        .group_by(["bucket", "route_template"])
+        .agg(pl.col("urt_p99").max())
+        .sort("bucket")
+    )
+    traces = []
+    for part in g.partition_by("route_template", maintain_order=False):
+        route = part["route_template"][0]
+        traces.append({
+            "x": part["bucket"].cast(pl.String).to_list(),
+            "y": [v * 1000 if v is not None else None for v in part["urt_p99"].to_list()],
             "name": str(route),
             "type": "scatter",
             "mode": "lines",
-        }
-        for route, gd in g.groupby("route_template")
-    ]
+        })
     return plotly_div("p99-routes", traces, layout={"yaxis": {"title": "p99 ms"}})
 
 
-def _cache_hit_chart(hourly: pd.DataFrame) -> str:
-    if hourly.empty:
+def _cache_hit_chart(hourly: pl.DataFrame) -> str:
+    if hourly.is_empty():
         return hint("No data.")
-    cutoff = hourly["bucket"].max() - pd.Timedelta(days=7)
-    s = hourly[hourly["bucket"] >= cutoff]
+    cutoff = hourly["bucket"].max() - pl.duration(days=7)
+    s = hourly.filter(pl.col("bucket") >= cutoff)
     g = (
-        s.groupby("bucket")
-        .apply(
-            lambda d: pd.Series({
-                "hit_pct": d.loc[d["cs"] == "HIT", "n"].sum() / max(d["n"].sum(), 1) * 100,
-            }),
-            include_groups=False,
+        s.group_by("bucket")
+        .agg([
+            pl.col("n").filter(pl.col("cs") == "HIT").sum().alias("hit_n"),
+            pl.col("n").sum().alias("total_n"),
+        ])
+        .with_columns(
+            (pl.col("hit_n") / pl.col("total_n").clip(lower_bound=1) * 100).alias("hit_pct")
         )
-        .reset_index()
+        .sort("bucket")
     )
     return plotly_div(
         "cache-hit",
         [{
-            "x": list(g["bucket"].astype(str)),
-            "y": list(g["hit_pct"]),
+            "x": g["bucket"].cast(pl.String).to_list(),
+            "y": g["hit_pct"].to_list(),
             "type": "scatter",
             "mode": "lines",
             "fill": "tozeroy",
@@ -107,16 +111,16 @@ def _cache_hit_chart(hourly: pd.DataFrame) -> str:
     )
 
 
-def _slow_requests(events: pd.DataFrame) -> str:
-    if events.empty:
+def _slow_requests(events: pl.DataFrame) -> str:
+    if events.is_empty():
         return hint("No data.")
     cols = [c for c in ("t", "route_template", "status", "urt", "cs", "size") if c in events.columns]
     s = (
-        events.dropna(subset=["urt"])
-        .sort_values("urt", ascending=False)
+        events.filter(pl.col("urt").is_not_null())
+        .sort("urt", descending=True)
         .head(100)
-        [cols]
+        .select(cols)
     )
     if "urt" in s.columns:
-        s = s.assign(urt_ms=(s["urt"] * 1000).round(1)).drop(columns=["urt"])
+        s = s.with_columns((pl.col("urt") * 1000).round(1).alias("urt_ms")).drop("urt")
     return df_to_html(s, table_id="slow-reqs")

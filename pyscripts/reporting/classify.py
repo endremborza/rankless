@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Callable
 from urllib.parse import urlsplit
 
-import pandas as pd
+import polars as pl
 
 
 # --- bot-class labels ----------------------------------------------------
@@ -162,22 +162,19 @@ WRITE_METHODS = ("POST", "PUT", "DELETE")
 
 # --- rule data structures -----------------------------------------------
 
-# `_ctx` (bound to the per-session group) is built upfront; rule predicates
-# operate on it for performance and clarity.
-
 
 @dataclass
 class _Ctx:
-    g: pd.DataFrame
+    g: pl.DataFrame
     ua: str
     routes: set[str]
     methods: set[str]
     n: int
     span_s: float
-    is_search: pd.Series
-    is_html: pd.Series
-    is_asset: pd.Series
-    is_data: pd.Series
+    is_search: pl.Series
+    is_html: pl.Series
+    is_asset: pl.Series
+    is_data: pl.Series
 
 
 @dataclass(frozen=True)
@@ -226,9 +223,11 @@ HARD_RULES: list[HardRule] = [
         "human",
         f"Authenticated write to a ledger endpoint ({sorted(ROUTE_HARD_HUMAN_POST)}).",
         lambda c: (
-            c.g["method"].isin(WRITE_METHODS).any()
-            and c.g.loc[c.g["method"].isin(WRITE_METHODS), "route_template"]
-            .isin(ROUTE_HARD_HUMAN_POST)
+            c.g["method"].is_in(list(WRITE_METHODS)).any()
+            and c.g.filter(pl.col("method").is_in(list(WRITE_METHODS)))[
+                "route_template"
+            ]
+            .is_in(list(ROUTE_HARD_HUMAN_POST))
             .any()
         ),
     ),
@@ -237,8 +236,8 @@ HARD_RULES: list[HardRule] = [
         "human",
         f"Hit {sorted(ROUTE_HARD_HUMAN_GET)} carrying an OAuth `code=` param.",
         lambda c: (
-            c.g["route_template"].isin(ROUTE_HARD_HUMAN_GET).any()
-            and c.g["path"].str.contains("code=", na=False).any()
+            c.g["route_template"].is_in(list(ROUTE_HARD_HUMAN_GET)).any()
+            and c.g["path"].str.contains("code=").any()
         ),
     ),
     HardRule(
@@ -279,7 +278,7 @@ SOFT_RULES: list[SoftRule] = [
         "referrer_present",
         +1,
         "At least one request carries a non-empty Referer.",
-        lambda c: c.g["referrer"].fillna("").ne("").any(),
+        lambda c: c.g["referrer"].fill_null("").ne("").any(),
     ),
     SoftRule(
         "route_diversity",
@@ -297,13 +296,13 @@ SOFT_RULES: list[SoftRule] = [
         "diurnal_window",
         +1,
         "Active across at most 12 distinct hours-of-day (looks human-bound).",
-        lambda c: len(c.g["t"].dt.hour.unique()) <= 12,
+        lambda c: len(c.g["t"].dt.hour().unique()) <= 12,
     ),
     SoftRule(
         "flat_24h",
         -1,
         "Active across 20+ distinct hours-of-day (no diurnal pause).",
-        lambda c: len(c.g["t"].dt.hour.unique()) >= 20,
+        lambda c: len(c.g["t"].dt.hour().unique()) >= 20,
     ),
     SoftRule(
         "cache_only_no_assets",
@@ -311,7 +310,7 @@ SOFT_RULES: list[SoftRule] = [
         ">90% cache hits, 5+ requests, never loaded a browser asset.",
         lambda c: (
             c.n >= 5
-            and ("cs" in c.g.columns)
+            and "cs" in c.g.columns
             and (c.g["cs"] == "HIT").sum() / max(c.n, 1) > 0.9
             and not c.is_asset.any()
         ),
@@ -356,45 +355,81 @@ _SESSION_OUT_COLS = [
 ]
 
 
-def classify_sessions(df: pd.DataFrame) -> pd.DataFrame:
+def classify_sessions(df: pl.DataFrame) -> pl.DataFrame:
     """One row per session_id with bot_class + signals_json. Requires session_id, route_template, ua, method, t, status, cs."""
-    if df.empty:
-        return pd.DataFrame(columns=_SESSION_OUT_COLS)
+    if df.is_empty():
+        return pl.DataFrame(
+            {col: pl.Series([], dtype=pl.String) for col in _SESSION_OUT_COLS}
+        )
 
-    enriched = df.assign(
-        _is_search=(df["route_template"] == ROUTE_SEARCH)
-        & df["path"].str.contains(r"\?q=.+", regex=True, na=False),
-        _is_html=df["route_template"].isin(ROUTE_HTML_PAGES),
-        _is_asset=df["route_template"].isin(ROUTE_BROWSER_ASSETS),
-        _is_data=df["route_template"].isin(ROUTE_SVELTEKIT_DATA),
+    enriched = df.with_columns(
+        [
+            (
+                (pl.col("route_template") == ROUTE_SEARCH)
+                & pl.col("path").str.contains(r"\?q=.+")
+            ).alias("_is_search"),
+            pl.col("route_template").is_in(list(ROUTE_HTML_PAGES)).alias("_is_html"),
+            pl.col("route_template")
+            .is_in(list(ROUTE_BROWSER_ASSETS))
+            .alias("_is_asset"),
+            pl.col("route_template")
+            .is_in(list(ROUTE_SVELTEKIT_DATA))
+            .alias("_is_data"),
+        ]
     )
+
     rows = [
-        _classify_one(sid, g) for sid, g in enriched.groupby("session_id", sort=False)
+        _classify_one(sid, g)
+        for sid, g in (
+            (part["session_id"][0], part)
+            for part in enriched.partition_by("session_id", maintain_order=False)
+        )
     ]
-    return pd.DataFrame(rows, columns=_SESSION_OUT_COLS)
+    return pl.DataFrame(
+        rows,
+        schema={
+            "session_id": pl.String,
+            "addr": pl.String,
+            "ua": pl.String,
+            "ua_family": pl.String,
+            "start": pl.Datetime("us", "UTC"),
+            "end": pl.Datetime("us", "UTC"),
+            "n_req": pl.Int64,
+            "route_diversity": pl.Int64,
+            "bot_class": pl.String,
+            "signals_json": pl.String,
+        },
+    )
 
 
-def _has_high_rate(g: pd.DataFrame, min_count: int = 10, window_s: int = 60) -> bool:
-    thresh = pd.Timedelta(seconds=window_s)
-    for _, rg in g.groupby("route_template"):
-        if len(rg) < min_count:
-            continue
-        ts = rg["t"].sort_values().reset_index(drop=True)
-        span = ts.shift(-(min_count - 1)) - ts
-        if span.dropna().le(thresh).any():
-            return True
-    return False
+def _has_high_rate(g: pl.DataFrame, min_count: int = 10, window_s: int = 60) -> bool:
+    thresh_us = window_s * 1_000_000
+
+    out = (
+        g.sort(["route_template", "t"])
+        .with_columns(
+            span=pl.col("t").shift(-(min_count - 1)).over("route_template")
+            - pl.col("t")
+        )
+        .filter(pl.col("span").is_not_null())
+        .group_by("route_template")
+        .agg((pl.col("span") < thresh_us).any().alias("has_burst"))
+    )
+
+    return out["has_burst"].any()
 
 
-def _make_ctx(g: pd.DataFrame) -> _Ctx:
-    start, end = g["t"].min(), g["t"].max()
+def _make_ctx(g: pl.DataFrame) -> _Ctx:
+    start = g["t"].min()
+    end = g["t"].max()
+    span_s = (end - start).total_seconds() if start and end else 0.0
     return _Ctx(
         g=g,
-        ua=g["ua"].iloc[0] if "ua" in g.columns else "",
-        routes=set(g["route_template"].unique().tolist()),
-        methods=set(g["method"].unique().tolist()),
+        ua=g["ua"][0] if "ua" in g.columns else "",
+        routes=set(g["route_template"].unique().to_list()),
+        methods=set(g["method"].unique().to_list()),
         n=len(g),
-        span_s=(end - start).total_seconds(),
+        span_s=span_s,
         is_search=g["_is_search"],
         is_html=g["_is_html"],
         is_asset=g["_is_asset"],
@@ -403,10 +438,6 @@ def _make_ctx(g: pd.DataFrame) -> _Ctx:
 
 
 def _apply_hard(ctx: _Ctx, signals: list[str]) -> str | None:
-    """Returns a class label if any hard rule fires, else None.
-
-    Bot-side rules win over human-side ones if both fire (same precedence as before).
-    """
     bot_hit = False
     human_hit = False
     for rule in HARD_RULES:
@@ -444,18 +475,18 @@ def _apply_soft(ctx: _Ctx, signals: list[str]) -> str:
     return BotClass.UNKNOWN
 
 
-def _classify_one(sid: str, g: pd.DataFrame) -> dict:
+def _classify_one(sid: str, g: pl.DataFrame) -> dict:
     ctx = _make_ctx(g)
     signals: list[str] = []
     bot_class = _apply_hard(ctx, signals) or _apply_soft(ctx, signals)
-    addr = g["addr"].iloc[0] if "addr" in g.columns else ""
+    addr = g["addr"][0] if "addr" in g.columns else ""
     return {
         "session_id": sid,
         "addr": addr,
         "ua": ctx.ua,
         "ua_family": ua_family(ctx.ua),
-        "start": ctx.g["t"].min(),
-        "end": ctx.g["t"].max(),
+        "start": g["t"].min(),
+        "end": g["t"].max(),
         "n_req": ctx.n,
         "route_diversity": len(ctx.routes),
         "bot_class": bot_class,
@@ -463,15 +494,33 @@ def _classify_one(sid: str, g: pd.DataFrame) -> dict:
     }
 
 
-def annotate_events(df: pd.DataFrame, sessions: pd.DataFrame) -> pd.DataFrame:
+def annotate_events(df: pl.DataFrame, sessions: pl.DataFrame) -> pl.DataFrame:
     """Add ua_family, bot_class, referrer_domain to event rows by joining the sessions table."""
-    if df.empty:
-        for c in ("ua_family", "bot_class", "referrer_domain"):
-            df[c] = pd.Series([], dtype="object")
-        return df
-    sess_map = sessions.set_index("session_id")["bot_class"].to_dict()
-    return df.assign(
-        ua_family=df["ua"].map(ua_family),
-        referrer_domain=df["referrer"].map(referrer_domain),
-        bot_class=df["session_id"].map(sess_map).fillna(BotClass.UNKNOWN),
+    if df.is_empty():
+        return df.with_columns(
+            [
+                pl.lit(None).cast(pl.String).alias("ua_family"),
+                pl.lit(None).cast(pl.String).alias("bot_class"),
+                pl.lit(None).cast(pl.String).alias("referrer_domain"),
+            ]
+        )
+
+    sess_map = dict(
+        zip(sessions["session_id"].to_list(), sessions["bot_class"].to_list())
+    )
+
+    return df.with_columns(
+        [
+            pl.col("ua")
+            .map_elements(ua_family, return_dtype=pl.String)
+            .alias("ua_family"),
+            pl.col("referrer")
+            .map_elements(referrer_domain, return_dtype=pl.String)
+            .alias("referrer_domain"),
+            pl.col("session_id")
+            .map_elements(
+                lambda sid: sess_map.get(sid, BotClass.UNKNOWN), return_dtype=pl.String
+            )
+            .alias("bot_class"),
+        ]
     )

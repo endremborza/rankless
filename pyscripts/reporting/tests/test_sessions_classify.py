@@ -1,8 +1,9 @@
+import datetime as dt
 import shutil
 import tempfile
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 
 from pyscripts.reporting import archive, config
 from pyscripts.reporting.archive import annotate_routes
@@ -67,9 +68,8 @@ def test_assign_sessions_basic():
         df, _ = parse_lines(ALL)
         df = assign_sessions(df)
         assert "session_id" in df.columns
-        assert df["session_id"].notna().all()
-        # Different (addr, ua) → different sessions
-        assert df["session_id"].nunique() == df.groupby(["addr", "ua"]).ngroups
+        assert df["session_id"].is_not_null().all()
+        assert df["session_id"].n_unique() == df.select(["addr", "ua"]).unique().height
     finally:
         shutil.rmtree(tmp)
 
@@ -77,29 +77,27 @@ def test_assign_sessions_basic():
 def test_assign_sessions_idle_split():
     tmp = _setup_tmp_root()
     try:
-        # Two requests from same (addr, ua), 60min apart → 2 sessions
-        ts = pd.to_datetime(
-            ["2026-04-28T10:00:00Z", "2026-04-28T11:30:00Z"], utc=True
-        )
-        df = pd.DataFrame(
-            {
-                "t": ts,
-                "addr": ["1.2.3.4", "1.2.3.4"],
-                "ua": ["Chrome", "Chrome"],
-                "method": ["GET", "GET"],
-                "path": ["/", "/"],
-                "status": [200, 200],
-                "size": [100, 100],
-                "referrer": ["", ""],
-                "rt": [0.1, 0.1],
-                "uct": [0.01, 0.01],
-                "uht": [0.01, 0.01],
-                "urt": [0.05, 0.05],
-                "cs": ["HIT", "HIT"],
-            }
-        )
+        ts = [
+            dt.datetime(2026, 4, 28, 10, 0, 0, tzinfo=dt.timezone.utc),
+            dt.datetime(2026, 4, 28, 11, 30, 0, tzinfo=dt.timezone.utc),
+        ]
+        df = pl.DataFrame({
+            "t": pl.Series(ts, dtype=pl.Datetime("us", "UTC")),
+            "addr": ["1.2.3.4", "1.2.3.4"],
+            "ua": ["Chrome", "Chrome"],
+            "method": ["GET", "GET"],
+            "path": ["/", "/"],
+            "status": pl.Series([200, 200], dtype=pl.UInt16),
+            "size": pl.Series([100, 100], dtype=pl.UInt32),
+            "referrer": ["", ""],
+            "rt": pl.Series([0.1, 0.1], dtype=pl.Float32),
+            "uct": pl.Series([0.01, 0.01], dtype=pl.Float32),
+            "uht": pl.Series([0.01, 0.01], dtype=pl.Float32),
+            "urt": pl.Series([0.05, 0.05], dtype=pl.Float32),
+            "cs": ["HIT", "HIT"],
+        })
         df = assign_sessions(df)
-        assert df["session_id"].nunique() == 2
+        assert df["session_id"].n_unique() == 2
     finally:
         shutil.rmtree(tmp)
 
@@ -111,14 +109,11 @@ def test_classify_known_bot_ua():
         df = annotate_routes(df)
         df = assign_sessions(df)
         sessions = classify_sessions(df)
-        # GPTBot session
-        gpt = sessions[sessions["ua"].str.contains("GPTBot", na=False)]
+        gpt = sessions.filter(pl.col("ua").str.contains("GPTBot"))
         assert (gpt["bot_class"] == "bot_known").all()
-        # AhrefsBot hits robots.txt — also bot_known
-        ahrefs = sessions[sessions["ua"].str.contains("AhrefsBot", na=False)]
+        ahrefs = sessions.filter(pl.col("ua").str.contains("AhrefsBot"))
         assert (ahrefs["bot_class"] == "bot_known").all()
-        # python-requests is bot
-        py = sessions[sessions["ua"].str.contains("python-requests", na=False)]
+        py = sessions.filter(pl.col("ua").str.contains("python-requests"))
         assert (py["bot_class"] == "bot_known").all()
     finally:
         shutil.rmtree(tmp)
@@ -131,10 +126,7 @@ def test_classify_search_user_human_known():
         df = annotate_routes(df)
         df = assign_sessions(df)
         sessions = classify_sessions(df)
-        # Chrome session that hit /v1/names/authors?q=darwin → human_known
-        chrome = sessions[
-            sessions["ua"].str.contains("Chrome/124", na=False)
-        ]
+        chrome = sessions.filter(pl.col("ua").str.contains("Chrome/124"))
         assert (chrome["bot_class"] == "human_known").all()
     finally:
         shutil.rmtree(tmp)
@@ -147,7 +139,7 @@ def test_classify_empty_ua_is_bot():
         df = annotate_routes(df)
         df = assign_sessions(df)
         sessions = classify_sessions(df)
-        empty = sessions[sessions["ua"] == ""]
+        empty = sessions.filter(pl.col("ua") == "")
         assert (empty["bot_class"] == "bot_known").all()
     finally:
         shutil.rmtree(tmp)
