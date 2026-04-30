@@ -328,6 +328,12 @@ SOFT_RULES: list[SoftRule] = [
         "10+ requests to the same route template within 60 seconds (machine-paced crawl).",
         lambda c: _has_high_rate(c.g),
     ),
+    SoftRule(
+        "www_no_api",
+        -2,
+        "At least one request to the frontend domain with zero api.rankless.org (/v1/) calls.",
+        lambda c: c.n >= 1 and not any(rt.startswith("/v1/") for rt in c.routes),
+    ),
 ]
 
 SOFT_HUMAN_THRESHOLD = 4

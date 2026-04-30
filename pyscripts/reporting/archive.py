@@ -92,7 +92,9 @@ def list_cold_months() -> list[tuple[int, int]]:
     return out
 
 
-def read_hot(date_from: dt.date | None = None, date_to: dt.date | None = None) -> pd.DataFrame:
+def read_hot(
+    date_from: dt.date | None = None, date_to: dt.date | None = None
+) -> pd.DataFrame:
     parts = []
     for d in list_hot_dates():
         if date_from and d < date_from:
@@ -105,7 +107,9 @@ def read_hot(date_from: dt.date | None = None, date_to: dt.date | None = None) -
     return pd.concat(parts, ignore_index=True)
 
 
-def read_cold(date_from: dt.date | None = None, date_to: dt.date | None = None) -> pd.DataFrame:
+def read_cold(
+    date_from: dt.date | None = None, date_to: dt.date | None = None
+) -> pd.DataFrame:
     parts = []
     for y, m in list_cold_months():
         if date_from and (y, m) < (date_from.year, date_from.month):
@@ -145,16 +149,25 @@ def compress_cold(today: dt.date) -> dict[str, int]:
         if not day_frames:
             continue
         combined = (
-            pd.concat([*([existing_cold] if existing_cold is not None else []), *day_frames])
+            pd.concat(
+                [*([existing_cold] if existing_cold is not None else []), *day_frames]
+            )
             .sort_values("t")
             .reset_index(drop=True)
         )
         cold_path.parent.mkdir(parents=True, exist_ok=True)
-        _atomic_parquet_write(combined, cold_path, compression="zstd", level=22, dictionary=True)
+        _atomic_parquet_write(
+            combined, cold_path, compression="zstd", level=22, dictionary=True
+        )
         for d in dates:
             _hot_path(d).unlink()
         result[f"{y}-{m:02d}"] = len(day_frames)
     return result
+
+
+def rewrite_hot(d: dt.date, df: pd.DataFrame) -> None:
+    """Overwrite a hot archive day in place (atomic, same compression as write_events)."""
+    _atomic_parquet_write(df, _hot_path(d), compression="zstd", level=3)
 
 
 def _hot_path(d: dt.date) -> Path:

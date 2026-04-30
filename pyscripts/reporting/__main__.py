@@ -6,7 +6,18 @@ import time
 import traceback
 from pathlib import Path
 
-from . import aggregate, archive, config, parse, paths, pull, render, sessions, state, timing
+from . import (
+    aggregate,
+    archive,
+    config,
+    parse,
+    paths,
+    pull,
+    render,
+    sessions,
+    state,
+    timing,
+)
 from .classify import annotate_events, classify_sessions
 
 
@@ -21,6 +32,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--dry-run", action="store_true", help="Pull + parse, no writes."
+    )
+    parser.add_argument(
+        "--reclassify-all",
+        action="store_true",
+        help="Re-run classification on all hot archive days, rebuild aggregates, then render.",
     )
     parser.add_argument(
         "--mode",
@@ -38,6 +54,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.dry_run:
             _do_dry_run(run_record)
         elif args.render_only:
+            _do_render(args.mode, args.no_publish, run_record)
+        elif args.reclassify_all:
+            _do_reclassify_all(run_record)
             _do_render(args.mode, args.no_publish, run_record)
         else:
             if not args.no_pull:
@@ -71,6 +90,24 @@ def _open_run_log():
         print(json.dumps(record, default=str), file=sys.stderr)
 
     return write
+
+
+def _do_reclassify_all(rec: dict) -> None:
+    all_dates = archive.list_hot_dates()
+    n_sessions = 0
+    with timing.timed("reclassify"):
+        for d in all_dates:
+            df = archive.read_hot(date_from=d, date_to=d)
+            if df.empty or "session_id" not in df.columns:
+                continue
+            sess_df = classify_sessions(df)
+            df = annotate_events(df, sess_df)
+            archive.rewrite_hot(d, df)
+            n_sessions += len(sess_df)
+    rec["reclassified_dates"] = len(all_dates)
+    rec["reclassified_sessions"] = n_sessions
+    with timing.timed("aggregate"):
+        rec["aggregates"] = aggregate.rebuild()
 
 
 def _do_dry_run(rec: dict) -> None:
@@ -168,6 +205,7 @@ def _do_render(mode: str, no_publish: bool, rec: dict) -> None:
 
     if "public" in rendered and not no_publish:
         from . import publish
+
         with timing.timed("publish"):
             try:
                 publish.publish_to_ghpages(Path("."))
