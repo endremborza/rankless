@@ -17,6 +17,7 @@ roots.json
 __pycache__
 *.tar.gz
 /reports
+/reports-v2
 *.profraw
 *.img
 *.json.gz
