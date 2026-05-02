@@ -28,9 +28,6 @@ def _setup_tmp_root() -> Path:
     archive.ARCHIVE_DIR = config.ARCHIVE_DIR
     archive.ARCHIVE_COLD_DIR = config.ARCHIVE_COLD_DIR
     aggregate.AGGREGATES_DIR = config.AGGREGATES_DIR
-    aggregate.HOURLY_PATH = config.AGGREGATES_DIR / "hourly.parquet"
-    aggregate.DAILY_PATH = config.AGGREGATES_DIR / "daily.parquet"
-    aggregate.SESSIONS_PATH = config.AGGREGATES_DIR / "sessions.parquet"
     from pyscripts.reporting import state as state_mod
     state_mod.SALTS_PATH = config.SALTS_PATH
     state_mod.STATE_PATH = config.STATE_PATH

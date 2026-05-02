@@ -188,7 +188,7 @@ def _do_aggregate(rec: dict, affected_dates: list[dt.date] | None) -> None:
         elif not affected_dates:
             rec["aggregates"] = {"skipped": True}
             return
-        elif not aggregate.HOURLY_PATH.exists():
+        elif not aggregate.hourly_exists():
             res = aggregate.rebuild()
         else:
             res = aggregate.update(affected_dates)

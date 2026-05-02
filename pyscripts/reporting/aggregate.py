@@ -1,18 +1,25 @@
 import datetime as dt
-import os
-from pathlib import Path
 
 import polars as pl
+from shackleton import TableRepo
 
 from . import archive
 from .config import AGGREGATES_DIR
 
 
-HOURLY_PATH = AGGREGATES_DIR / "hourly.parquet"
-DAILY_PATH = AGGREGATES_DIR / "daily.parquet"
-SESSIONS_PATH = AGGREGATES_DIR / "sessions.parquet"
-
 GROUP_KEYS = ["bucket", "route_template", "status_family", "bot_class", "cs"]
+
+
+def _hourly_repo() -> TableRepo:
+    return TableRepo(AGGREGATES_DIR / "hourly", compression="zstd")
+
+
+def _daily_repo() -> TableRepo:
+    return TableRepo(AGGREGATES_DIR / "daily", compression="zstd")
+
+
+def _sessions_repo() -> TableRepo:
+    return TableRepo(AGGREGATES_DIR / "sessions", compression="zstd")
 
 
 def _agg_block(df: pl.DataFrame, every: str) -> pl.DataFrame:
@@ -64,17 +71,15 @@ def rebuild() -> dict[str, int]:
     cold = archive.read_cold()
     if not cold.is_empty():
         parts.append(cold)
-    AGGREGATES_DIR.mkdir(parents=True, exist_ok=True)
     if not parts:
-        for p in (HOURLY_PATH, DAILY_PATH):
-            if p.exists():
-                p.unlink()
+        _hourly_repo().purge()
+        _daily_repo().purge()
         return {"rows": 0}
-    df = _fill_missing_cols(pl.concat(parts))
+    df = _fill_missing_cols(pl.concat(parts, how="diagonal"))
     hourly = _agg_block(df, "1h")
     daily = _agg_block(df, "1d")
-    _write(hourly, HOURLY_PATH)
-    _write(daily, DAILY_PATH)
+    _hourly_repo().replace_all(hourly)
+    _daily_repo().replace_all(daily)
     return {"rows": len(df), "hourly_rows": len(hourly), "daily_rows": len(daily)}
 
 
@@ -82,7 +87,6 @@ def update(affected_dates: list[dt.date]) -> dict[str, int]:
     if not affected_dates:
         return {"rows": 0, "updated_dates": 0}
 
-    AGGREGATES_DIR.mkdir(parents=True, exist_ok=True)
     affected_set = set(affected_dates)
 
     parts = [
@@ -90,29 +94,29 @@ def update(affected_dates: list[dt.date]) -> dict[str, int]:
         for d in affected_dates
         if not (day_df := archive.read_hot(date_from=d, date_to=d)).is_empty()
     ]
-    new_df = _fill_missing_cols(pl.concat(parts)) if parts else pl.DataFrame()
+    new_df = (
+        _fill_missing_cols(pl.concat(parts, how="diagonal"))
+        if parts
+        else pl.DataFrame()
+    )
 
-    def _update_one(path: Path, every: str) -> pl.DataFrame:
-        if path.exists():
-            existing = pl.read_parquet(path)
+    def _update_one(repo: TableRepo, every: str) -> pl.DataFrame:
+        existing = repo.get_full_df()
+        if not existing.is_empty():
             existing = existing.filter(
                 ~pl.col("bucket").dt.date().is_in(list(affected_set))
             )
-        else:
-            existing = pl.DataFrame()
         if new_df.is_empty():
             return existing
         new_agg = _agg_block(new_df, every)
         if existing.is_empty():
             return new_agg
-        return pl.concat([existing, archive.cast_to_match(new_agg, existing)]).sort(
-            "bucket"
-        )
+        return pl.concat([existing, new_agg], how="diagonal").sort("bucket")
 
-    hourly = _update_one(HOURLY_PATH, "1h")
-    daily = _update_one(DAILY_PATH, "1d")
-    _write(hourly, HOURLY_PATH)
-    _write(daily, DAILY_PATH)
+    hourly = _update_one(_hourly_repo(), "1h")
+    daily = _update_one(_daily_repo(), "1d")
+    _hourly_repo().replace_all(hourly)
+    _daily_repo().replace_all(daily)
     return {
         "rows": len(new_df),
         "updated_dates": len(affected_dates),
@@ -122,23 +126,20 @@ def update(affected_dates: list[dt.date]) -> dict[str, int]:
 
 
 def load_hourly() -> pl.DataFrame:
-    return pl.read_parquet(HOURLY_PATH) if HOURLY_PATH.exists() else pl.DataFrame()
+    return _hourly_repo().get_full_df()
 
 
 def load_daily() -> pl.DataFrame:
-    return pl.read_parquet(DAILY_PATH) if DAILY_PATH.exists() else pl.DataFrame()
+    return _daily_repo().get_full_df()
 
 
 def write_sessions(sessions: pl.DataFrame) -> None:
-    AGGREGATES_DIR.mkdir(parents=True, exist_ok=True)
-    _write(sessions, SESSIONS_PATH)
+    _sessions_repo().replace_all(sessions)
 
 
 def load_sessions() -> pl.DataFrame:
-    return pl.read_parquet(SESSIONS_PATH) if SESSIONS_PATH.exists() else pl.DataFrame()
+    return _sessions_repo().get_full_df()
 
 
-def _write(df: pl.DataFrame, path: Path) -> None:
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    df.write_parquet(tmp, compression="zstd", compression_level=9)
-    os.replace(tmp, path)
+def hourly_exists() -> bool:
+    return _hourly_repo().n_files > 0
