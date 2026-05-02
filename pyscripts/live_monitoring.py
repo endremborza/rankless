@@ -68,7 +68,7 @@ def log_result(e=None, msg=None):
     if e is None:
         global LAST_SUCCESS
         LAST_SUCCESS = time.time()
-        print("success set to ", LAST_SUCCESS)
+        # print("success set to ", LAST_SUCCESS)
     else:
         ERROR_DEQUE.append([dt.datetime.now().isoformat(), type(e).__name__, msg])
         print("added error ", type(e).__name__, msg)
@@ -84,7 +84,7 @@ def get_success_dic():
 
 def read_records_and_warn():
     now = time.time()
-    print("reading records")
+    # print("reading records")
     if (now - LAST_SUCCESS) < FAIL_SECONDS:
         return post_success()
     latest_remote_success = max(
@@ -99,7 +99,7 @@ def read_records_and_warn():
 
 
 def post_success():
-    print("posting success")
+    # print("posting success")
     if FILE_CHANNEL_ADDR is not None:
         try:
             requests.post(
