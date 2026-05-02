@@ -98,6 +98,7 @@ restart-service:
 
 nuke: clean-cache
 	rm -rf $(OA_ROOT)
+	rm data/rankless.sqlite
 
 #WET: These know names of directories
 clean-filters:
@@ -111,7 +112,7 @@ clean-cache:
 	rm -rf /tmp/dmove-parts
 
 clean-ledger:
-	rm -rf $(OA_ROOT)/user_ledger
+	rm -rf $(OA_ROOT)/user-ledger
 
 clean-profile:
 	rm perf.data*
