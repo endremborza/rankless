@@ -23,7 +23,7 @@ const EMPTY: AppliedManifest = {
 function manifestPath(): string {
 	const root = env.OA_ROOT;
 	if (!root) throw new Error('OA_ROOT env var not set');
-	return join(root, 'user_ledger', 'applied_manifest.json');
+	return join(root, 'user-ledger', 'applied_manifest.json');
 }
 
 function readManifest(): AppliedManifest | null {
