@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [sveltekit()],
-	server: { fs: { allow: ['static'] } },
+	server: { fs: { allow: ['static'] }, watch: { ignored: ['**/target/**'] } },
 	ssr: { external: ['bun:sqlite'] },
 	build: { rollupOptions: { external: ['bun:sqlite'] } },
 	test: {
