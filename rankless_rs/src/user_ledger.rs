@@ -6,7 +6,6 @@ use std::{
 
 use hashbrown::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::{
     common::{ParsedId, Stowage, MAIN_NAME},
@@ -16,6 +15,62 @@ use crate::{
 use dmove::BigId;
 
 pub const ORCID_PREF: &str = "https://orcid.org/";
+
+const A1_MANIFEST: &str = "a1_manifest.json";
+const ACTIVE_JSONL: &str = "active.jsonl";
+const APPLIED_MANIFEST: &str = "applied_manifest.json";
+const SNAPSHOT_MANIFEST: &str = "snapshot_manifest.json";
+const OWNER_PINS: &str = "owner_pins.txt";
+
+// ---------------------------------------------------------------------------
+// Cross-language boundary: user-ledger/active.jsonl
+// Source of truth (writer): src/lib/types/ledger.ts
+// Mirror types below — keep in sync when TS types change.
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct WorkSubject {
+    oa_id: Option<BigId>,
+}
+
+#[derive(Deserialize)]
+struct AuthorSubject {
+    oa_id: Option<BigId>,
+}
+
+/// Mirrors TS `LedgerPayload`; `kind` is the discriminant tag.
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum EventPayload {
+    MergeAuthors {
+        keep: AuthorSubject,
+        drop: AuthorSubject,
+    },
+    MergePapers {
+        keep: WorkSubject,
+        drop: WorkSubject,
+    },
+    DisownPaper {
+        work: WorkSubject,
+    },
+    ClaimPaper,
+    Revoke,
+    ModerationDecision,
+    AddPaperRequest,
+}
+
+#[derive(Deserialize)]
+struct LedgerEventLine {
+    event_id: u64,
+    /// Missing in legacy target_inlined entries; defaults to empty string.
+    #[serde(default)]
+    orcid: String,
+    payload: EventPayload,
+    /// Present only on `Revoke` events; inlined by export_user_ledger.py.
+    target_inlined: Option<Box<LedgerEventLine>>,
+}
+
+// ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -65,17 +120,21 @@ pub struct UserLedger {
 impl UserLedger {
     pub fn load(stowage: &Stowage) -> io::Result<Self> {
         let ul_dir = &stowage.paths.user_ledger;
-        let run_id = read_run_id(ul_dir);
-        let owner_pin_orcids = load_owner_pins(ul_dir)?;
+        let mut ul = Self {
+            run_id: read_run_id(ul_dir),
+            author_aliases: HashMap::new(),
+            work_aliases: HashMap::new(),
+            removed_edges: HashSet::new(),
+            owner_pin_orcids: load_owner_pins(ul_dir)?,
+            owner_pin_oa_ids: HashSet::new(),
+            pending_disowns: Vec::new(),
+            author_merge_events: Vec::new(),
+            work_merge_events: Vec::new(),
+            resolved_disown_event_ids: Vec::new(),
+            skipped: Vec::new(),
+        };
 
-        let mut author_aliases: HashMap<BigId, BigId> = HashMap::new();
-        let mut work_aliases: HashMap<BigId, BigId> = HashMap::new();
-        let mut pending_disowns: Vec<(u64, String, BigId)> = Vec::new();
-        let mut author_merge_events: Vec<(u64, BigId, BigId)> = Vec::new();
-        let mut work_merge_events: Vec<(u64, BigId, BigId)> = Vec::new();
-        let mut skipped: Vec<SkippedEvent> = Vec::new();
-
-        let active_path = ul_dir.join("active.jsonl");
+        let active_path = ul_dir.join(ACTIVE_JSONL);
         if active_path.exists() {
             for line in BufReader::new(File::open(&active_path)?).lines() {
                 let line = line?;
@@ -83,117 +142,93 @@ impl UserLedger {
                 if line.is_empty() {
                     continue;
                 }
-                let event: Value = match serde_json::from_str(line) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        eprintln!("user_ledger: skipping malformed event: {e}");
-                        continue;
-                    }
-                };
-                let event_id = event["event_id"].as_u64().unwrap_or(0);
-                let kind = event["kind"].as_str().unwrap_or("");
-                let orcid = normalize_orcid(event["orcid"].as_str().unwrap_or(""));
-
-                match kind {
-                    "merge_authors" => {
-                        let keep_raw = event["payload"]["keep"]["oa_id"].as_u64();
-                        let drop_raw = event["payload"]["drop"]["oa_id"].as_u64();
-                        match (keep_raw, drop_raw) {
-                            (Some(k), Some(d)) if k != d => {
-                                author_aliases.insert(d, k);
-                                author_merge_events.push((event_id, d, k));
-                            }
-                            _ => skipped.push(SkippedEvent {
-                                event_id,
-                                reason: SkipReason::MissingOaId,
-                            }),
-                        }
-                    }
-                    "merge_papers" => {
-                        let keep_raw = event["payload"]["keep"]["oa_id"].as_u64();
-                        let drop_raw = event["payload"]["drop"]["oa_id"].as_u64();
-                        match (keep_raw, drop_raw) {
-                            (Some(k), Some(d)) if k != d => {
-                                work_aliases.insert(d, k);
-                                work_merge_events.push((event_id, d, k));
-                            }
-                            _ => skipped.push(SkippedEvent {
-                                event_id,
-                                reason: SkipReason::MissingOaId,
-                            }),
-                        }
-                    }
-                    "disown_paper" => {
-                        let work_oa_raw = event["payload"]["work"]["oa_id"].as_u64();
-                        match work_oa_raw {
-                            Some(w) if !orcid.is_empty() => {
-                                pending_disowns.push((event_id, orcid, w));
-                            }
-                            _ => skipped.push(SkippedEvent {
-                                event_id,
-                                reason: SkipReason::MissingOaIdOrOrcid,
-                            }),
-                        }
-                    }
-                    "claim_paper" => {
-                        skipped.push(SkippedEvent {
-                            event_id,
-                            reason: SkipReason::ClaimPipelineNotImplemented,
-                        });
-                    }
-                    "revoke" => {
-                        // Revoke of an already-applied event (export inlines the target).
-                        if let Some(target) = event.get("target_inlined") {
-                            match target["kind"].as_str().unwrap_or("") {
-                                "merge_authors" => {
-                                    if let Some(d_raw) = target["payload"]["drop"]["oa_id"].as_u64()
-                                    {
-                                        author_aliases.remove(&d_raw);
-                                        author_merge_events.retain(|(_, drop, _)| *drop != d_raw);
-                                    }
-                                }
-                                "merge_papers" => {
-                                    if let Some(d_raw) = target["payload"]["drop"]["oa_id"].as_u64()
-                                    {
-                                        work_aliases.remove(&d_raw);
-                                        work_merge_events.retain(|(_, drop, _)| *drop != d_raw);
-                                    }
-                                }
-                                "disown_paper" => {
-                                    let w_raw = target["payload"]["work"]["oa_id"].as_u64();
-                                    let torcid =
-                                        normalize_orcid(target["orcid"].as_str().unwrap_or(""));
-                                    if let Some(work_oa) = w_raw {
-                                        pending_disowns.retain(|(_, o, wid)| {
-                                            !(o == &torcid && *wid == work_oa)
-                                        });
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                    _ => {}
+                match serde_json::from_str::<LedgerEventLine>(line) {
+                    Ok(event) => ul.apply_event(event),
+                    Err(e) => eprintln!("user_ledger: skipping malformed event: {e}"),
                 }
             }
         }
 
-        path_compress(&mut author_aliases);
-        path_compress(&mut work_aliases);
+        path_compress(&mut ul.author_aliases);
+        path_compress(&mut ul.work_aliases);
+        Ok(ul)
+    }
 
-        Ok(Self {
-            run_id,
-            author_aliases,
-            work_aliases,
-            removed_edges: HashSet::new(),
-            owner_pin_orcids,
-            owner_pin_oa_ids: HashSet::new(),
-            pending_disowns,
-            author_merge_events,
-            work_merge_events,
-            resolved_disown_event_ids: Vec::new(),
-            skipped,
-        })
+    fn apply_event(&mut self, event: LedgerEventLine) {
+        let LedgerEventLine {
+            event_id,
+            orcid,
+            payload,
+            target_inlined,
+        } = event;
+        let orcid = normalize_orcid(&orcid);
+        match payload {
+            EventPayload::MergeAuthors { keep, drop } => match (keep.oa_id, drop.oa_id) {
+                (Some(k), Some(d)) if k != d => {
+                    self.author_aliases.insert(d, k);
+                    self.author_merge_events.push((event_id, d, k));
+                }
+                _ => self.skipped.push(SkippedEvent {
+                    event_id,
+                    reason: SkipReason::MissingOaId,
+                }),
+            },
+            EventPayload::MergePapers { keep, drop } => match (keep.oa_id, drop.oa_id) {
+                (Some(k), Some(d)) if k != d => {
+                    self.work_aliases.insert(d, k);
+                    self.work_merge_events.push((event_id, d, k));
+                }
+                _ => self.skipped.push(SkippedEvent {
+                    event_id,
+                    reason: SkipReason::MissingOaId,
+                }),
+            },
+            EventPayload::DisownPaper { work } => match work.oa_id {
+                Some(w) if !orcid.is_empty() => self.pending_disowns.push((event_id, orcid, w)),
+                _ => self.skipped.push(SkippedEvent {
+                    event_id,
+                    reason: SkipReason::MissingOaIdOrOrcid,
+                }),
+            },
+            EventPayload::ClaimPaper => self.skipped.push(SkippedEvent {
+                event_id,
+                reason: SkipReason::ClaimPipelineNotImplemented,
+            }),
+            EventPayload::Revoke => {
+                if let Some(target) = target_inlined {
+                    self.apply_revoke(*target);
+                }
+            }
+            EventPayload::ModerationDecision | EventPayload::AddPaperRequest => {}
+        }
+    }
+
+    fn apply_revoke(&mut self, target: LedgerEventLine) {
+        let LedgerEventLine { orcid, payload, .. } = target;
+        match payload {
+            EventPayload::MergeAuthors { drop, .. } => {
+                if let Some(d) = drop.oa_id {
+                    self.author_aliases.remove(&d);
+                    self.author_merge_events
+                        .retain(|(_, drop_id, _)| *drop_id != d);
+                }
+            }
+            EventPayload::MergePapers { drop, .. } => {
+                if let Some(d) = drop.oa_id {
+                    self.work_aliases.remove(&d);
+                    self.work_merge_events
+                        .retain(|(_, drop_id, _)| *drop_id != d);
+                }
+            }
+            EventPayload::DisownPaper { work } => {
+                let torcid = normalize_orcid(&orcid);
+                if let Some(work_oa) = work.oa_id {
+                    self.pending_disowns
+                        .retain(|(_, o, wid)| !(o == &torcid && *wid == work_oa));
+                }
+            }
+            _ => {}
+        }
     }
 
     /// Resolve ORCID strings to author oa_ids and populate `removed_edges` and
@@ -229,7 +264,6 @@ impl UserLedger {
         let mut skipped = self.skipped.clone();
 
         for (event_id, drop_oa, _) in &self.author_merge_events {
-            // After path-compression, alias[drop] is already the root.
             let root = *self.author_aliases.get(drop_oa).unwrap_or(drop_oa);
             if author_filter.contains(&root) {
                 applied.push(*event_id);
@@ -268,12 +302,9 @@ impl UserLedger {
             applied_event_ids: applied,
             skipped,
         };
-        write_json(
-            &stowage.paths.user_ledger.join("a1_manifest.json"),
-            &manifest,
-        )?;
+        write_json(&stowage.paths.user_ledger.join(A1_MANIFEST), &manifest)?;
         println!(
-            "a1_manifest: {} applied, {} skipped",
+            "{A1_MANIFEST}: {} applied, {} skipped",
             manifest.applied_event_ids.len(),
             manifest.skipped.len()
         );
@@ -282,9 +313,12 @@ impl UserLedger {
 
     /// Read `a1_manifest.json`, validate run_id, combine with a2's disown results,
     /// and write the final `applied_manifest.json`.
+    ///
+    /// Cross-language boundary: applied_manifest.json (Rust → TS)
+    /// Mirror: src/lib/types/ledger.ts — AppliedManifest
     pub fn write_final_manifest(&self, stowage: &Stowage) -> io::Result<()> {
         let ul_dir = &stowage.paths.user_ledger;
-        let raw = fs::read_to_string(ul_dir.join("a1_manifest.json")).map_err(|_| {
+        let raw = fs::read_to_string(ul_dir.join(A1_MANIFEST)).map_err(|_| {
             io::Error::new(
                 io::ErrorKind::NotFound,
                 "a1_manifest.json missing — a1_entity_mapping must run before a2_init_atts",
@@ -317,9 +351,10 @@ impl UserLedger {
             "run_id": self.run_id,
             "snapshot_at": self.run_id,
             "applied_event_ids": all_applied,
+            "redirected": [],
             "skipped": all_skipped,
         });
-        write_json(&ul_dir.join("applied_manifest.json"), &manifest)?;
+        write_json(&ul_dir.join(APPLIED_MANIFEST), &manifest)?;
         println!(
             "applied_manifest: {} applied, {} skipped",
             all_applied.len(),
@@ -362,19 +397,19 @@ where
 }
 
 fn read_run_id(ul_dir: &Path) -> String {
-    let path = ul_dir.join("snapshot_manifest.json");
+    let path = ul_dir.join(SNAPSHOT_MANIFEST);
     if !path.exists() {
         return String::new();
     }
     fs::read_to_string(&path)
         .ok()
-        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
         .and_then(|v| v["run_id"].as_str().map(String::from))
         .unwrap_or_default()
 }
 
 fn load_owner_pins(ul_dir: &Path) -> io::Result<HashSet<String>> {
-    let path = ul_dir.join("owner_pins.txt");
+    let path = ul_dir.join(OWNER_PINS);
     if !path.exists() {
         return Ok(HashSet::new());
     }
@@ -445,5 +480,28 @@ mod tests {
             normalize_orcid("0000-0001-2345-6789"),
             "0000-0001-2345-6789"
         );
+    }
+
+    #[test]
+    fn apply_event_merge_authors() {
+        let event: LedgerEventLine = serde_json::from_str(
+            r#"{"event_id":1,"orcid":"x","payload":{"kind":"merge_authors","keep":{"oa_id":10},"drop":{"oa_id":20}}}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            event.payload,
+            EventPayload::MergeAuthors {
+                keep: AuthorSubject { oa_id: Some(10) },
+                drop: AuthorSubject { oa_id: Some(20) }
+            }
+        ));
+    }
+
+    #[test]
+    fn apply_event_unknown_kind_errors() {
+        let result = serde_json::from_str::<LedgerEventLine>(
+            r#"{"event_id":1,"orcid":"x","payload":{"kind":"unknown_future_kind"}}"#,
+        );
+        assert!(result.is_err());
     }
 }
