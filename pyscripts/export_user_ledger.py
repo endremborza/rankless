@@ -68,16 +68,17 @@ def _fetch_active_events(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 def _fetch_event_by_id(
     conn: sqlite3.Connection, event_id: int
 ) -> dict[str, Any] | None:
+    pre_keys = ["event_id", "orcid", "kind"]
     try:
         row = conn.execute(
-            "SELECT event_id, kind, payload FROM ledger_events WHERE event_id = ?",
+            f"SELECT {', '.join(pre_keys)}, payload FROM ledger_events WHERE event_id = ?",
             (event_id,),
         ).fetchone()
     except sqlite3.OperationalError:
         return None
     if row is None:
         return None
-    return {"event_id": row[0], "kind": row[1], "payload": json.loads(row[2])}
+    return dict(zip(pre_keys, row[:3])) | {"payload": json.loads(row[3])}
 
 
 def _fetch_owner_pins(conn: sqlite3.Connection) -> list[str]:
