@@ -1,9 +1,9 @@
-"""Export user ledger to $OA_ROOT/user_ledger/ for pipeline consumption.
+"""Export user ledger to $OA_ROOT/user-ledger/ for pipeline consumption.
 
 Reads ledger_events and owner_pins from SQLite, writes:
-  active.jsonl           — active events ready for the pipeline
-  snapshot_manifest.json — run_id (ISO ts) + exported event_ids
-  owner_pins.txt         — one ORCID per line
+  user-ledger/active.jsonl           — active events ready for the pipeline
+  user-ledger/snapshot_manifest.json — run_id (ISO ts) + exported event_ids
+  user-ledger/owner_pins.txt         — one ORCID per line
 
 Counter-event collapse:
   revoke whose target is in the active non-revoke set → both dropped
@@ -41,14 +41,17 @@ OK_MODERATION = ("auto_ok", "accepted")
 
 
 def _fetch_active_events(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    placeholders = ",".join("?" * len(OK_MODERATION))
-    rows = conn.execute(
-        f"SELECT event_id, orcid, kind, payload, moderation, created_at "
-        f"FROM ledger_events "
-        f"WHERE revoked_at IS NULL AND moderation IN ({placeholders}) "
-        f"ORDER BY event_id",
-        OK_MODERATION,
-    ).fetchall()
+    try:
+        placeholders = ",".join("?" * len(OK_MODERATION))
+        rows = conn.execute(
+            f"SELECT event_id, orcid, kind, payload, moderation, created_at "
+            f"FROM ledger_events "
+            f"WHERE revoked_at IS NULL AND moderation IN ({placeholders}) "
+            f"ORDER BY event_id",
+            OK_MODERATION,
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
     return [
         {
             "event_id": r[0],
@@ -65,17 +68,23 @@ def _fetch_active_events(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 def _fetch_event_by_id(
     conn: sqlite3.Connection, event_id: int
 ) -> dict[str, Any] | None:
-    row = conn.execute(
-        "SELECT event_id, kind, payload FROM ledger_events WHERE event_id = ?",
-        (event_id,),
-    ).fetchone()
+    try:
+        row = conn.execute(
+            "SELECT event_id, kind, payload FROM ledger_events WHERE event_id = ?",
+            (event_id,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
     if row is None:
         return None
     return {"event_id": row[0], "kind": row[1], "payload": json.loads(row[2])}
 
 
 def _fetch_owner_pins(conn: sqlite3.Connection) -> list[str]:
-    return [r[0] for r in conn.execute("SELECT orcid FROM owner_pins").fetchall()]
+    try:
+        return [r[0] for r in conn.execute("SELECT orcid FROM owner_pins").fetchall()]
+    except sqlite3.OperationalError:
+        return []
 
 
 def _collapse_revokes(
@@ -109,7 +118,7 @@ def _collapse_revokes(
 
 
 def export(data_root: Path, db_path: str) -> None:
-    out_dir = data_root / "user_ledger"
+    out_dir = data_root / "user-ledger"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     conn = sqlite3.connect(db_path)
