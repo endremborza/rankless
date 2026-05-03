@@ -1,0 +1,35 @@
+import type { LedgerEvent, AppliedManifest } from '$lib/types/ledger';
+
+export function computeEffective(
+	events: LedgerEvent[],
+	manifest: AppliedManifest
+): { disownedWids: Set<number>; mergedPairs: [number, number][] } {
+	const appliedIds = new Set(manifest.applied_event_ids);
+
+	const pendingRevokeTargets = new Set<number>();
+	for (const e of events) {
+		if (e.kind === 'revoke' && e.revoked_at === null && e.payload.kind === 'revoke') {
+			if (appliedIds.has(e.payload.target_event_id)) {
+				pendingRevokeTargets.add(e.payload.target_event_id);
+			}
+		}
+	}
+
+	const disownedWids = new Set<number>();
+	const mergedPairs: [number, number][] = [];
+
+	for (const e of events) {
+		if (e.revoked_at !== null) continue;
+		if (pendingRevokeTargets.has(e.event_id)) continue;
+		if (e.payload.kind === 'disown_paper') {
+			const wid = e.payload.work.dm_id_at_creation;
+			if (wid != null) disownedWids.add(wid);
+		} else if (e.payload.kind === 'merge_papers') {
+			const k = e.payload.keep.dm_id_at_creation;
+			const d = e.payload.drop.dm_id_at_creation;
+			if (k != null && d != null) mergedPairs.push([k, d]);
+		}
+	}
+
+	return { disownedWids, mergedPairs };
+}

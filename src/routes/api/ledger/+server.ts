@@ -1,9 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 import { LedgerDb } from '$lib/server/db';
-import type { LedgerKind } from '$lib/server/db';
+import type { LedgerKind, LedgerPayload } from '$lib/types/ledger';
 import { resolveWorkSubject, resolveAuthorSubject, canonicalDoi, ResolveError } from '$lib/server/id_resolver';
-import type { LedgerPayload } from '$lib/server/ledger-hash';
 
 type PayloadInput = Record<string, unknown>;
 
@@ -83,6 +82,12 @@ async function buildPayload(kind: LedgerKind, input: PayloadInput, orcid: string
 				? { kind, keep, drop, note: note.trim() }
 				: { kind, keep, drop };
 		}
+		case 'revoke': {
+			const target_event_id = requireNumber(input.target_event_id, 'target_event_id');
+			if (target_event_id === undefined) throw new ResolveError('target_event_id is required', 400);
+			const reason = requireString(input.reason, 'reason');
+			return reason?.trim() ? { kind, target_event_id, reason: reason.trim() } : { kind, target_event_id };
+		}
 		default:
 			throw new ResolveError(`unsupported kind: ${kind}`, 400);
 	}
@@ -96,6 +101,12 @@ export async function POST({ locals, request }: RequestEvent) {
 
 	try {
 		const payload = await buildPayload(kind, payloadInput, locals.user.orcid);
+		if (payload.kind === 'revoke') {
+			const target = LedgerDb.getEvent(payload.target_event_id);
+			if (!target || target.orcid !== locals.user.orcid) {
+				return json({ error: 'Target event not found' }, { status: 404 });
+			}
+		}
 		const result = LedgerDb.createEvent(locals.user.orcid, payload);
 		return json({ event_id: result.event_id, existing: result.existing });
 	} catch (e) {
