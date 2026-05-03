@@ -1,10 +1,8 @@
 import { Database } from 'bun:sqlite';
 import { env } from '$env/dynamic/private';
 import { DEFAULT_MODERATION, subjectHash } from './ledger-hash';
-import type { LedgerKind, LedgerPayload, ModerationState } from './ledger-hash';
+import type { LedgerKind, LedgerPayload, ModerationState } from '$lib/types/ledger';
 
-export { subjectHash } from './ledger-hash';
-export type { LedgerKind, LedgerPayload, ModerationState } from './ledger-hash';
 
 let _db: Database | null = null;
 
