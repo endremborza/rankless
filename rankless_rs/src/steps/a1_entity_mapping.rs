@@ -15,6 +15,7 @@ use crate::{
         post::{Authorship, Institution},
         Geo, IdStruct,
     },
+    user_ledger::UserLedger,
     NameMarker, QuickestVBox,
 };
 use dmove::{
@@ -143,6 +144,11 @@ impl EntityImmutableMapperBackend<Years> for YearInterface {
 }
 
 pub fn main(stowage: Stowage) -> io::Result<()> {
+    // Load ledger before Arc-wrapping so we can borrow it across threads.
+    let ledger = UserLedger::load(&stowage)?;
+    let author_aliases = Arc::new(ledger.author_aliases.clone());
+    let work_aliases = Arc::new(ledger.work_aliases.clone());
+
     let mut threads = Vec::new();
     let starc = Arc::new(stowage);
 
@@ -153,7 +159,17 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         }));
     }
 
-    for en in vec![works::C, institutions::C, sources::C, topics::C] {
+    // Works: skip drop-side alias oa_ids so they get no dm_id.
+    let work_filter_thread = {
+        let sc = starc.clone();
+        let wa = work_aliases.clone();
+        thread::spawn(move || {
+            ids_from_atts::<IdStruct, _>(&sc, works::C, works::C, |e| {
+                e.get_parsed_id().filter(|id| !wa.contains_key(id))
+            })
+        })
+    };
+    for en in vec![institutions::C, sources::C, topics::C] {
         let sc = starc.clone();
         threads.push(thread::spawn(move || {
             ids_from_atts::<IdStruct, _>(&sc, en, en, |e| e.get_parsed_id());
@@ -164,12 +180,17 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     {
         let sc = starc.clone();
         let filter = author_filter.clone();
+        let aa = author_aliases.clone();
         threads.push(thread::spawn(move || {
             let mut selected_authors = Vec::new();
             let a_iter = sc
                 .read_csv_objs::<IdStruct>(authors::C, MAIN_NAME)
                 .filter_map(|e| {
                     if let Some(pid) = e.get_parsed_id() {
+                        if aa.contains_key(&pid) {
+                            // Drop-side alias: no dm_id in any space.
+                            return None;
+                        }
                         if filter.contains(&pid) {
                             selected_authors.push(pid);
                             return None;
@@ -211,7 +232,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
                 "cities",
                 sc.read_csv_objs::<Geo>(institutions::C, institutions::atts::geo)
                     .map(|e| short_string_to_u64(e.city.as_deref().unwrap_or(""))),
-                None,
+                &None,
             );
         }));
     }
@@ -220,10 +241,14 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let mut disc_ship_n = 0;
     for ship in iter_authorships(&starc) {
         if let Some(raw_a_oaid) = ship.author_id {
-            if author_filter.contains(&oa_id_parse_opt(&raw_a_oaid).unwrap()) {
-                filt_ship_n += 1;
-            } else {
-                disc_ship_n += 1;
+            if let Some(aid) = oa_id_parse_opt(&raw_a_oaid) {
+                // Aliases redirect to keep; for counting purposes use effective id.
+                let effective = author_aliases.get(&aid).copied().unwrap_or(aid);
+                if author_filter.contains(&effective) {
+                    filt_ship_n += 1;
+                } else {
+                    disc_ship_n += 1;
+                }
             }
         }
     }
@@ -235,6 +260,11 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         .mu_bu()
         .add_scaled_entity("authorships-discarded-author", disc_ship_n, true);
     starc.write_code()?;
+
+    // Manifest: record which merge events were applied vs skipped.
+    let work_filter = work_filter_thread.join().unwrap().unwrap();
+    ledger.write_a1_manifest(&starc, &author_filter, &work_filter)?;
+
     Ok(())
 }
 
@@ -242,32 +272,39 @@ pub fn iter_authorships(stowage: &Stowage) -> ShipIterator {
     ShipIterator::new(stowage)
 }
 
-fn ids_from_atts<T, F>(stowage: &Stowage, out_name: &str, parent_entity: &str, closure: F)
+fn ids_from_atts<T, F>(
+    stowage: &Stowage,
+    out_name: &str,
+    parent_entity: &str,
+    closure: F,
+) -> Option<HashSet<BigId>>
 where
     T: DeserializeOwned,
     F: Fn(T) -> Option<BigId>,
 {
+    let last_filter = stowage.get_last_filter(out_name);
     entities_from_iter(
         stowage,
         out_name,
         stowage
             .read_csv_objs::<T>(parent_entity, MAIN_NAME)
             .filter_map(closure),
-        stowage.get_last_filter(out_name),
-    )
+        &last_filter,
+    );
+    last_filter
 }
 
-fn entities_from_iter<I>(stowage: &Stowage, name: &str, iter: I, filter: Option<HashSet<BigId>>)
+fn entities_from_iter<I>(stowage: &Stowage, name: &str, iter: I, filter: &Option<HashSet<BigId>>)
 where
     I: Iterator<Item = BigId>,
 {
-    match &filter {
+    match filter {
         None => {
-            println!("\n{name} no filter");
+            println!("{name} no filter");
             stowage.add_iter_owned::<Data64MappedEntityBuilder, _, _>(iter, Some(name));
         }
         Some(fs) => {
-            println!("\n{name} filter of {:?}", fs.len());
+            println!("{name} filter of {:?}", fs.len());
             stowage.add_iter_owned::<Data64MappedEntityBuilder, _, _>(
                 iter.filter(|e| fs.contains(e)),
                 Some(name),
