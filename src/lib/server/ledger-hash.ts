@@ -1,30 +1,5 @@
 import { createHash } from 'crypto';
-import type { AuthorSubject, WorkSubject } from './id_resolver';
-
-export type LedgerKind =
-	| 'disown_paper'
-	| 'claim_paper'
-	| 'merge_papers'
-	| 'merge_authors'
-	| 'revoke'
-	| 'moderation_decision'
-	| 'add_paper_request';
-
-export type ModerationState = 'auto_ok' | 'pending_review' | 'accepted' | 'rejected';
-
-export type LedgerPayload =
-	| { kind: 'disown_paper'; work: WorkSubject }
-	| { kind: 'claim_paper'; work: WorkSubject }
-	| { kind: 'merge_papers'; keep: WorkSubject; drop: WorkSubject }
-	| { kind: 'merge_authors'; keep: AuthorSubject; drop: AuthorSubject; note?: string }
-	| { kind: 'revoke'; target_event_id: number; reason?: string }
-	| {
-		kind: 'moderation_decision';
-		target_event_id: number;
-		decision: 'accepted' | 'rejected';
-		reason?: string;
-	}
-	| { kind: 'add_paper_request'; work_claim: Record<string, unknown> };
+import type { LedgerKind, LedgerPayload, ModerationState, WorkSubject, AuthorSubject } from '$lib/types/ledger';
 
 export const DEFAULT_MODERATION: Record<LedgerKind, ModerationState> = {
 	disown_paper: 'auto_ok',
