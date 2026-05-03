@@ -28,6 +28,34 @@ const OWNER_PINS: &str = "owner_pins.txt";
 // Mirror types below — keep in sync when TS types change.
 // ---------------------------------------------------------------------------
 
+pub struct UserLedger {
+    pub run_id: String,
+    /// drop_oa_id -> root_oa_id (path-compressed)
+    pub author_aliases: HashMap<BigId, BigId>,
+    /// drop_oa_id -> root_oa_id (path-compressed)
+    pub work_aliases: HashMap<BigId, BigId>,
+    /// (author_oa_id, work_oa_id) pairs to exclude from authorships; filled by resolve_orcids
+    pub removed_edges: HashSet<(BigId, BigId)>,
+    /// Normalised ORCIDs (no prefix) to force through the author filter
+    pub owner_pin_orcids: HashSet<String>,
+    /// Author oa_ids corresponding to owner_pin_orcids; filled by resolve_orcids
+    pub owner_pin_oa_ids: HashSet<BigId>,
+    /// (event_id, orcid, work_oa) pending ORCID→oa_id resolution
+    pending_disowns: Vec<(u64, String, BigId)>,
+    /// (event_id, drop_oa, keep_oa) before path-compression; for manifest
+    author_merge_events: Vec<(u64, BigId, BigId)>,
+    work_merge_events: Vec<(u64, BigId, BigId)>,
+    /// event_ids for disowns whose orcid resolved (filled by resolve_orcids)
+    resolved_disown_event_ids: Vec<u64>,
+    pub skipped: Vec<SkippedEvent>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkippedEvent {
+    pub event_id: u64,
+    pub reason: SkipReason,
+}
+
 #[derive(Deserialize)]
 struct WorkSubject {
     oa_id: Option<BigId>,
@@ -36,27 +64,6 @@ struct WorkSubject {
 #[derive(Deserialize)]
 struct AuthorSubject {
     oa_id: Option<BigId>,
-}
-
-/// Mirrors TS `LedgerPayload`; `kind` is the discriminant tag.
-#[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-enum EventPayload {
-    MergeAuthors {
-        keep: AuthorSubject,
-        drop: AuthorSubject,
-    },
-    MergePapers {
-        keep: WorkSubject,
-        drop: WorkSubject,
-    },
-    DisownPaper {
-        work: WorkSubject,
-    },
-    ClaimPaper,
-    Revoke,
-    ModerationDecision,
-    AddPaperRequest,
 }
 
 #[derive(Deserialize)]
@@ -82,10 +89,25 @@ pub enum SkipReason {
     OaIdNotInDataset,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SkippedEvent {
-    pub event_id: u64,
-    pub reason: SkipReason,
+/// Mirrors TS `LedgerPayload`; `kind` is the discriminant tag.
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum EventPayload {
+    MergeAuthors {
+        keep: AuthorSubject,
+        drop: AuthorSubject,
+    },
+    MergePapers {
+        keep: WorkSubject,
+        drop: WorkSubject,
+    },
+    DisownPaper {
+        work: WorkSubject,
+    },
+    ClaimPaper,
+    Revoke,
+    ModerationDecision,
+    AddPaperRequest,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -93,28 +115,6 @@ struct StepManifest {
     run_id: String,
     applied_event_ids: Vec<u64>,
     skipped: Vec<SkippedEvent>,
-}
-
-pub struct UserLedger {
-    pub run_id: String,
-    /// drop_oa_id -> root_oa_id (path-compressed)
-    pub author_aliases: HashMap<BigId, BigId>,
-    /// drop_oa_id -> root_oa_id (path-compressed)
-    pub work_aliases: HashMap<BigId, BigId>,
-    /// (author_oa_id, work_oa_id) pairs to exclude from authorships; filled by resolve_orcids
-    pub removed_edges: HashSet<(BigId, BigId)>,
-    /// Normalised ORCIDs (no prefix) to force through the author filter
-    pub owner_pin_orcids: HashSet<String>,
-    /// Author oa_ids corresponding to owner_pin_orcids; filled by resolve_orcids
-    pub owner_pin_oa_ids: HashSet<BigId>,
-    /// (event_id, orcid, work_oa) pending ORCID→oa_id resolution
-    pending_disowns: Vec<(u64, String, BigId)>,
-    /// (event_id, drop_oa, keep_oa) before path-compression; for manifest
-    author_merge_events: Vec<(u64, BigId, BigId)>,
-    work_merge_events: Vec<(u64, BigId, BigId)>,
-    /// event_ids for disowns whose orcid resolved (filled by resolve_orcids)
-    resolved_disown_event_ids: Vec<u64>,
-    pub skipped: Vec<SkippedEvent>,
 }
 
 impl UserLedger {
@@ -423,7 +423,7 @@ fn load_owner_pins(ul_dir: &Path) -> io::Result<HashSet<String>> {
     Ok(pins)
 }
 
-pub fn normalize_orcid(orcid: &str) -> String {
+fn normalize_orcid(orcid: &str) -> String {
     orcid.strip_prefix(ORCID_PREF).unwrap_or(orcid).to_string()
 }
 
