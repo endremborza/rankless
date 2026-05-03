@@ -14,6 +14,7 @@ use crate::{
         post::{Author, Authorship, Institution, Location},
         ReferencedWork, Work,
     },
+    user_ledger::{build_author_orcid_map, UserLedger},
 };
 
 use dmove::BigId;
@@ -117,9 +118,81 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     filter_step::<ReferencedWork>(&stowage, [works::C, works::C], 11)?;
     filter_step::<Location>(&stowage, [sources::C, works::C], 12)?;
     filter_step::<Authorship>(&stowage, [institutions::C, works::C], 13)?;
-    filter_step::<PersonAuthorship>(&stowage, [works::C, authors::C], 14)?;
-    author_filter(&stowage, 20)?;
+
+    // Load ledger before the author-side filter steps so that:
+    //   – PersonAuthorship counting is alias-aware and removed_edges-aware
+    //   – author_filter can force-pass owner-pinned authors
+    let mut ledger = UserLedger::load(&stowage)?;
+    let orcid_to_oa = build_author_orcid_map(&stowage);
+    ledger.resolve_orcids(&orcid_to_oa);
+
+    person_authorship_filter_with_ledger(&stowage, 14, &ledger)?;
+    author_filter_with_pins(&stowage, 20, &ledger)?;
     inst_filter(&stowage, 21)
+}
+
+/// PersonAuthorship filter that respects the user ledger:
+/// - redirects drop-side alias authors to their keep author when counting
+/// - skips edges listed in removed_edges
+fn person_authorship_filter_with_ledger(
+    stowage: &Stowage,
+    step_id: u8,
+    ledger: &UserLedger,
+) -> io::Result<()> {
+    let work_filter = stowage.get_last_filter(works::C);
+    let author_pre_filter = stowage.get_last_filter(authors::C);
+
+    // work_oa → set of effective author_oa_ids
+    let mut source_map: HashMap<BigId, HashSet<BigId>> = HashMap::new();
+
+    for rec in stowage.read_csv_objs::<PersonAuthorship>(works::C, PersonAuthorship::ENTITY_ATT) {
+        for [work_str, author_str] in rec.iter_edges() {
+            let (work_oa, raw_author_oa) =
+                match (oa_id_parse_opt(&work_str), oa_id_parse_opt(&author_str)) {
+                    (Some(w), Some(a)) => (w, a),
+                    _ => continue,
+                };
+
+            if let Some(wf) = &work_filter {
+                if !wf.contains(&work_oa) {
+                    continue;
+                }
+            }
+            if let Some(af) = &author_pre_filter {
+                if !af.contains(&raw_author_oa) {
+                    continue;
+                }
+            }
+
+            // Redirect drop → keep alias
+            let author_oa = ledger
+                .author_aliases
+                .get(&raw_author_oa)
+                .copied()
+                .unwrap_or(raw_author_oa);
+
+            // Skip removed edges (using the effective author oa_id)
+            if ledger.removed_edges.contains(&(author_oa, work_oa)) {
+                continue;
+            }
+
+            let entry = source_map.entry(work_oa).or_default();
+            entry.insert(author_oa);
+        }
+    }
+
+    let mut taken_works = Vec::new();
+    let mut taken_authors: HashSet<BigId> = HashSet::new();
+    for (work, authors_set) in &source_map {
+        if authors_set.len() <= MAX_AUTHORS {
+            taken_works.push(*work);
+            taken_authors.extend(authors_set.iter().copied());
+        }
+    }
+
+    stowage.write_filter(step_id, authors::C, taken_authors.into_iter())?;
+    stowage.write_filter(step_id, works::C, taken_works.into_iter())?;
+    Ok(())
 }
 
 fn single_filter(stowage: &Stowage, step_id: u8) -> io::Result<()> {
@@ -131,11 +204,12 @@ fn single_filter(stowage: &Stowage, step_id: u8) -> io::Result<()> {
     })
 }
 
-fn author_filter(stowage: &Stowage, step_id: u8) -> io::Result<()> {
+fn author_filter_with_pins(stowage: &Stowage, step_id: u8, ledger: &UserLedger) -> io::Result<()> {
     let pre_filter = stowage.get_last_filter(authors::C).unwrap();
     filter_write::<Author, _>(stowage, step_id, authors::C, |o| {
         if let Some(aid) = o.get_parsed_id() {
             FIX_AUTHORS.contains(&aid)
+                | ledger.owner_pin_oa_ids.contains(&aid)
                 | (pre_filter.contains(&aid)
                     & (o.cited_by_count.unwrap_or(0) >= MIN_AUTHOR_CITE_COUNT.into())
                     & (o.works_count.unwrap_or(0) >= MIN_AUTHOR_WORK_COUNT.into()))
