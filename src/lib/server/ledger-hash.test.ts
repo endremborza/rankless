@@ -4,9 +4,8 @@ import {
 	workCanonicalKey,
 	authorCanonicalKey,
 	DEFAULT_MODERATION,
-	type LedgerPayload
 } from './ledger-hash';
-import type { AuthorSubject, WorkSubject } from '$lib/types/ledger';
+import type { AuthorSubject, WorkSubject, LedgerPayload } from '$lib/types/ledger';
 
 const emptyDisplay = { title: '', year: null };
 const emptyAuthorDisplay = { display_name: '' };
