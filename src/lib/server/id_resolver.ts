@@ -1,27 +1,5 @@
 import { BE_URL } from '$lib/constants';
-
-export type WorkSubject = {
-	oa_id: number | null;
-	doi: string | null;
-	dm_id_at_creation: number | null;
-	semantic_id_at_creation: string | null;
-	run_id_at_creation: string | null;
-	display_snapshot: {
-		title: string;
-		year: number | null;
-	};
-};
-
-export type AuthorSubject = {
-	oa_id: number | null;
-	orcid: string | null;
-	dm_id_at_creation: number | null;
-	semantic_id_at_creation: string | null;
-	run_id_at_creation: string | null;
-	display_snapshot: {
-		display_name: string;
-	};
-};
+import type { WorkSubject, AuthorSubject } from '$lib/types/ledger';
 
 type WorkResolveResp = {
 	oaId: number;
