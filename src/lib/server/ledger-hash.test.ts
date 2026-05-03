@@ -6,7 +6,7 @@ import {
 	DEFAULT_MODERATION,
 	type LedgerPayload
 } from './ledger-hash';
-import type { AuthorSubject, WorkSubject } from './id_resolver';
+import type { AuthorSubject, WorkSubject } from '$lib/types/ledger';
 
 const emptyDisplay = { title: '', year: null };
 const emptyAuthorDisplay = { display_name: '' };
