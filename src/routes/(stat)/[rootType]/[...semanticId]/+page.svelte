@@ -23,6 +23,8 @@
 	// import PeersE from '$lib/components/PeersE.svelte';
 	import AllWorks from '$lib/components/AllWorks.svelte';
 	import AuthorOwnerTools from '$lib/components/AuthorOwnerTools.svelte';
+	import AuthorLedgerPanel from '$lib/components/AuthorLedgerPanel.svelte';
+	import type { LedgerEvent, AppliedManifest } from '$lib/types/ledger';
 
 	export let data: {
 		view: tt.View;
@@ -50,6 +52,8 @@
 		claimedDois: string[];
 		mergedPairs: [number, number][];
 		authorMergeRequests: tt.AuthorMergeRequest[];
+		ledgerEvents: LedgerEvent[];
+		ledgerManifest: AppliedManifest;
 	};
 
 	let showIndexedCiteText = false;
@@ -378,6 +382,10 @@
 			on:merge={handleMerge}
 			on:unmerge={handleUnmerge}
 		/>
+
+		{#if data.isOwner}
+			<AuthorLedgerPanel events={data.ledgerEvents} manifest={data.ledgerManifest} />
+		{/if}
 	</section>
 {/if}
 
