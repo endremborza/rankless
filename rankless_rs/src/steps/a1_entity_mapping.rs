@@ -253,6 +253,9 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         }
     }
     threads.into_iter().for_each(|h| h.join().unwrap());
+    // Manifest: record which merge events were applied vs skipped.
+    let work_filter = work_filter_thread.join().unwrap().unwrap();
+    ledger.write_a1_manifest(&starc, &author_filter, &work_filter)?;
     starc
         .mu_bu()
         .add_scaled_entity("authorships-filtered-author", filt_ship_n, true);
@@ -260,10 +263,6 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         .mu_bu()
         .add_scaled_entity("authorships-discarded-author", disc_ship_n, true);
     starc.write_code()?;
-
-    // Manifest: record which merge events were applied vs skipped.
-    let work_filter = work_filter_thread.join().unwrap().unwrap();
-    ledger.write_a1_manifest(&starc, &author_filter, &work_filter)?;
 
     Ok(())
 }
