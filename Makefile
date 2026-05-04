@@ -21,7 +21,7 @@ build-prep:
 to-csv: 
 	cargo run --release -p rankless-rs -- $@ $(OA_ROOT) $(OA_SNAPSHOT)/data
 
-filter: export_user_ledger clean-filters clean-keys clean-cache
+filter: export_user_ledger clean-filters clean-cache
 	cargo build --release -p rankless-rs 
 	time ./target/release/rankless-rs $@ $(OA_ROOT)
 
@@ -104,9 +104,6 @@ nuke: clean-cache
 #WET: These know names of directories
 clean-filters:
 	rm -rf $(OA_ROOT)/filter-steps
-
-clean-keys:
-	rm -rf $(OA_ROOT)/entity_mapping
 
 clean-cache:
 	rm -rf $(OA_ROOT)/cache
