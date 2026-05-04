@@ -167,7 +167,14 @@ def get_resdf(specs, addr: str = DEFAULT_ADDR, step_size=100, max_n=25_000):
 
 
 def get_specs_and_ys(addr: str = DEFAULT_ADDR):
-    sd = requests.get(f"{addr}/v1/specs").json()
+    for _ in range(20):
+        try:
+            sd = requests.get(f"{addr}/v1/specs").json()
+            break
+        except Exception as _:
+            time.sleep(120)
+    else:
+        raise RuntimeError("no running backend")
     return sd["specs"], sd["yearBreaks"]
 
 
