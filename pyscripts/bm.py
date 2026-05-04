@@ -64,9 +64,9 @@ class Benchmarker:
         self.add_memory_rec("started")
 
     def run_requests(self):
-        requester = BatchRequester(min_citations=1000, big_limit=40_000_000 * 4)
+        requester = BatchRequester(min_citations=1000, big_limit=40 * 4)
         qs = [0.5, 0.70, 0.85, 0.95]
-        bins = [0, *[requester.urled_sample["cut_basis"].quantile(q) for q in qs]]
+        bins = [0, *[requester.urled_sample["cut_basis"].quantile(q) / 1e6 for q in qs]]
         proc_counts = [12, 8, 4, 2, 1]
         n = 250
         for run_id in range(1, 3):
