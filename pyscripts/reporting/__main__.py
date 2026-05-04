@@ -4,7 +4,10 @@ import json
 import sys
 import time
 import traceback
+from itertools import batched
 from pathlib import Path
+
+import polars as pl
 
 from . import (
     aggregate,
@@ -92,18 +95,26 @@ def _open_run_log():
     return write
 
 
+_RECLASSIFY_BATCH = 7
+
+
 def _do_reclassify_all(rec: dict) -> None:
     all_dates = archive.list_hot_dates()
     n_sessions = 0
+    aggregate.purge_sessions()
     with timing.timed("reclassify"):
-        for d in all_dates:
-            df = archive.read_hot(date_from=d, date_to=d)
+        for batch in batched(all_dates, _RECLASSIFY_BATCH):
+            df = archive.read_hot(date_from=batch[0], date_to=batch[-1])
             if df.is_empty() or "session_id" not in df.columns:
                 continue
             sess_df = classify_sessions(df)
-            df = annotate_events(df, sess_df)
-            archive.rewrite_hot(d, df)
+            annotated = annotate_events(df, sess_df)
+            for d in batch:
+                day_df = annotated.filter(pl.col("t").dt.date() == d)
+                if not day_df.is_empty():
+                    archive.rewrite_hot(d, day_df)
             n_sessions += len(sess_df)
+            aggregate.update_sessions(sess_df)
     rec["reclassified_dates"] = len(all_dates)
     rec["reclassified_sessions"] = n_sessions
     with timing.timed("aggregate"):
@@ -156,7 +167,7 @@ def _do_pull_and_archive(rec: dict) -> list[dt.date]:
     with timing.timed("pull.classify_sessions"):
         sess_df = classify_sessions(df)
     with timing.timed("pull.annotate_events"):
-        aggregate.write_sessions(sess_df)
+        aggregate.update_sessions(sess_df)
         df = annotate_events(df, sess_df)
     with timing.timed("pull.write_events"):
         written = archive.write_events(df)

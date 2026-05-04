@@ -19,7 +19,16 @@ def _daily_repo() -> TableRepo:
 
 
 def _sessions_repo() -> TableRepo:
-    return TableRepo(AGGREGATES_DIR / "sessions", compression="zstd")
+    path = AGGREGATES_DIR / "sessions"
+    (path / "data.parquet").unlink(
+        missing_ok=True
+    )  # migrate from flat to date-partitioned
+    return TableRepo(
+        path,
+        compression="zstd",
+        partition_cols=["start_date"],
+        dedup_cols=["session_id"],
+    )
 
 
 def _agg_block(df: pl.DataFrame, every: str) -> pl.DataFrame:
@@ -41,11 +50,11 @@ def _agg_block(df: pl.DataFrame, every: str) -> pl.DataFrame:
             [
                 pl.len().alias("n"),
                 pl.col("size").sum().alias("bytes"),
-                pl.col("urt").mean().alias("urt_mean"),
-                pl.col("urt").quantile(0.5).alias("urt_p50"),
-                pl.col("urt").quantile(0.95).alias("urt_p95"),
-                pl.col("urt").quantile(0.99).alias("urt_p99"),
-                pl.col("urt").quantile(0.999).alias("urt_p999"),
+                pl.col("urt").fill_nan(None).mean().alias("urt_mean"),
+                pl.col("urt").fill_nan(None).quantile(0.5).alias("urt_p50"),
+                pl.col("urt").fill_nan(None).quantile(0.95).alias("urt_p95"),
+                pl.col("urt").fill_nan(None).quantile(0.99).alias("urt_p99"),
+                pl.col("urt").fill_nan(None).quantile(0.999).alias("urt_p999"),
             ]
         )
         .sort("bucket")
@@ -133,12 +142,29 @@ def load_daily() -> pl.DataFrame:
     return _daily_repo().get_full_df()
 
 
+def _add_start_date(sessions: pl.DataFrame) -> pl.DataFrame:
+    return sessions.with_columns(pl.col("start").dt.date().alias("start_date"))
+
+
 def write_sessions(sessions: pl.DataFrame) -> None:
-    _sessions_repo().replace_all(sessions)
+    _sessions_repo().replace_all(_add_start_date(sessions))
+
+
+def purge_sessions() -> None:
+    _sessions_repo().purge()
+
+
+def update_sessions(new_sessions: pl.DataFrame) -> None:
+    if new_sessions.is_empty():
+        return
+    _sessions_repo().extend(_add_start_date(new_sessions))
 
 
 def load_sessions() -> pl.DataFrame:
-    return _sessions_repo().get_full_df()
+    df = _sessions_repo().get_full_df()
+    if "start_date" in df.columns:
+        return df.drop("start_date")
+    return df
 
 
 def hourly_exists() -> bool:

@@ -50,8 +50,8 @@ def test_parse_no_upstream():
     df, fail = parse_lines([LINE_NO_UPSTREAM])
     assert fail == 0
     r = df.row(0, named=True)
-    assert math.isnan(r["urt"])
-    assert math.isnan(r["uct"])
+    assert r["urt"] is None
+    assert r["uct"] is None
     assert r["cs"] == "BYPASS"
 
 

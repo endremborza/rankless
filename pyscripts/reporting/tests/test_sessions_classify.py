@@ -127,7 +127,7 @@ def test_classify_search_user_human_known():
         df = assign_sessions(df)
         sessions = classify_sessions(df)
         chrome = sessions.filter(pl.col("ua").str.contains("Chrome/124"))
-        assert (chrome["bot_class"] == "human_known").all()
+        assert (chrome["bot_class"] == "human_likely").all()
     finally:
         shutil.rmtree(tmp)
 
