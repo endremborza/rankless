@@ -1,4 +1,7 @@
-use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::{
+    sync::{Arc, Condvar, Mutex, MutexGuard},
+    thread::available_parallelism,
+};
 
 use crossbeam_channel::{bounded, Receiver};
 
@@ -89,6 +92,55 @@ where
     taker(data)
 }
 
+pub fn map_reduce<T, Acc, MapFn, ReduceFn, I>(
+    it: I,
+    inner_fn: MapFn,
+    mut reduce_fn: ReduceFn,
+    n_threads: Option<usize>,
+) -> Acc
+where
+    T: Send + 'static,
+    I: Iterator<Item = T>,
+    Acc: Default + Send + 'static,
+    MapFn: Fn(&mut Acc, T) + Send + Sync + 'static,
+    ReduceFn: FnMut(&mut Acc, Acc),
+{
+    let n_threads: usize = n_threads.unwrap_or(available_parallelism().unwrap().into());
+    let inner_fn = Arc::new(inner_fn);
+    let (sender, r) = bounded(n_threads * 2);
+
+    let accs: Vec<Acc> = std::thread::scope(|s| {
+        let mut threads_v = Vec::new();
+        for _ in 0..n_threads {
+            let inner_fn = inner_fn.clone();
+            let in_clone = r.clone();
+            threads_v.push(s.spawn(move || {
+                let mut new_acc = Acc::default();
+                subf(in_clone, |e| inner_fn(&mut new_acc, e));
+                new_acc
+            }));
+        }
+
+        for e in it {
+            sender.send(Some(e)).unwrap();
+        }
+        for _ in 0..(n_threads) {
+            sender.send(None).unwrap();
+        }
+
+        threads_v
+            .into_iter()
+            .map(|t| t.join().expect("thread failed"))
+            .collect()
+    });
+
+    let mut result = Acc::default();
+    for res in accs {
+        reduce_fn(&mut result, res);
+    }
+    result
+}
+
 fn para_run<W, T, I>(in_v: I, setup: &W, n_threads: usize)
 where
     W: Worker<T> + Sync,
@@ -102,7 +154,7 @@ where
         let mut threads_v = Vec::new();
         for _ in 0..(n_threads) {
             let in_clone = r.clone();
-            threads_v.push(s.spawn(move || subf::<W, _>(in_clone, setup)));
+            threads_v.push(s.spawn(move || subf(in_clone, |e| setup.proc(e))));
         }
 
         for e in in_v {
@@ -117,14 +169,14 @@ where
     });
 }
 
-fn subf<W, T>(r: Receiver<Option<T>>, s: &W)
+fn subf<F, T>(r: Receiver<Option<T>>, mut f: F)
 where
-    W: Worker<T>,
+    F: FnMut(T),
     T: Send,
 {
     loop {
         if let Some(qc_in) = r.recv().unwrap() {
-            s.proc(qc_in);
+            f(qc_in);
         } else {
             break;
         };
