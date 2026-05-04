@@ -232,12 +232,6 @@ SOFT_RULES: list[SoftRule] = [
         pl.col("_has_referrer"),  # referrer_present
     ),
     SoftRule(
-        "html_no_prefetch",
-        -2,
-        "Visited 5+ HTML pages but triggered no SvelteKit prefetch (no hover activity).",
-        (pl.col("_n_html") >= 5) & ~pl.col("_has_data"),  # html_no_prefetch
-    ),
-    SoftRule(
         "www_no_api",
         -2,
         "At least one request to the frontend domain with zero api.rankless.org (/v1/) calls.",
@@ -313,7 +307,6 @@ def classify_sessions(df: pl.DataFrame) -> pl.DataFrame:
             pl.col("_is_bot_route").any(),
             pl.col("_is_search").any(),
             pl.col("_is_data").any().alias("_has_data"),
-            pl.col("_is_html").sum().alias("_n_html"),
             pl.col("_has_referrer").any(),
             pl.col("_is_api").any().alias("_has_api"),
         ]
@@ -335,7 +328,7 @@ def classify_sessions(df: pl.DataFrame) -> pl.DataFrame:
 
     # Named boolean columns for each rule (drives score, bot_class, and signals).
     sess = sess.with_columns(
-        [expr.alias(rule.name) for rule, expr in zip(HARD_RULES, _HARD_EXPRS)]
+        [rule.expr.alias(rule.name) for rule in HARD_RULES]
         + [rule.expr.alias(rule.name) for rule in SOFT_RULES]
     )
 
