@@ -17,6 +17,7 @@ CLI tool that ingests OpenAlex/Scopus CSV dumps and produces binary data files c
 | `src/lib.rs` | Module root; exports public API; dispatches pipeline steps |
 | `src/main.rs` | CLI entry; reads `OA_ROOT` env; calls `lib::runner()` |
 | `src/common.rs` | `Stowage` (file/data manager), marker traits (`PeerMarker`, `SemanticIdMarker`, etc.), `reverse_id` utility, type aliases, parsing utils |
+| `src/csv_iter.rs` | Parallel CSV partition reader: `ObjIter<T>` — spawns one thread per partition file, pre-reads `PREFETCH_PER_THREAD` records into a shared sync channel |
 | `src/env_consts.rs` | Config constants: year ranges, thresholds |
 | `src/data_consts.rs` | Dataset-level lookup tables |
 | `src/oa_structs.rs` | OpenAlex JSON schema structs (Work, Author, Institution, …) |
