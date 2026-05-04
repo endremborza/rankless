@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, sync::Arc};
 
 use hashbrown::{HashMap, HashSet};
 use serde::{de::DeserializeOwned, Deserialize};
@@ -11,7 +11,7 @@ use crate::{
         MIN_PAPERS_FOR_SOURCE, START_YEAR,
     },
     oa_structs::{
-        post::{Author, Authorship, Institution, Location},
+        post::{Author, Institution, Location},
         ReferencedWork, Work,
     },
     user_ledger::{build_author_orcid_map, UserLedger},
@@ -37,8 +37,9 @@ const WORK_KINDS: [&str; 3] = ["article", "book", "review"];
 const FORCE_DROP_INSTS: [BigId; 2] = [4210095297, 4210109586];
 
 #[derive(Deserialize)]
-struct PersonAuthorship {
+struct AuthorshipRow {
     author: String,
+    institutions: Option<String>,
     parent_id: String,
 }
 
@@ -50,28 +51,6 @@ trait FilterBase {
     const HAS_MAX: bool = false;
     const FILTER_TARGETS: bool = true;
     fn iter_edges(&self) -> Vec<[String; 2]>;
-}
-
-impl Authorship {
-    pub fn iter_insts(&self) -> Vec<String> {
-        if let Some(instids) = &self.institutions {
-            return instids.split(";").map(|e| e.to_owned()).collect();
-        }
-        return Vec::new();
-    }
-}
-
-impl FilterBase for Authorship {
-    const ENTITY_ATT: &'static str = works::atts::authorships;
-    const MIN: usize = MIN_PAPERS_FOR_INST as usize;
-    const FILTER_TARGETS: bool = false;
-
-    fn iter_edges(&self) -> Vec<[String; 2]> {
-        self.iter_insts()
-            .into_iter()
-            .map(|e| [e, self.parent_id.clone().unwrap()])
-            .collect()
-    }
 }
 
 impl FilterBase for ReferencedWork {
@@ -98,100 +77,104 @@ impl FilterBase for Location {
     }
 }
 
-impl FilterBase for PersonAuthorship {
-    const ENTITY_ATT: &'static str = works::atts::authorships;
-    const MAX: usize = MAX_AUTHORS;
-    const HAS_MAX: bool = true;
-    const FILTER_TARGETS: bool = true;
-
-    fn iter_edges(&self) -> Vec<[String; 2]> {
-        if !self.author.is_empty() {
-            vec![[self.parent_id.to_string(), self.author.to_string()]]
-        } else {
-            Vec::new()
-        }
-    }
-}
-
 pub fn main(stowage: Stowage) -> io::Result<()> {
     single_filter(&stowage, 10)?;
     filter_step::<ReferencedWork>(&stowage, [works::C, works::C], 11)?;
     filter_step::<Location>(&stowage, [sources::C, works::C], 12)?;
-    filter_step::<Authorship>(&stowage, [institutions::C, works::C], 13)?;
-
-    // Load ledger before the author-side filter steps so that:
-    //   – PersonAuthorship counting is alias-aware and removed_edges-aware
-    //   – author_filter can force-pass owner-pinned authors
+    // Load ledger before the authorship pass so alias resolution and removed edges
+    // are applied when counting both institution papers and per-work author sets.
     let mut ledger = UserLedger::load(&stowage)?;
     let orcid_to_oa = build_author_orcid_map(&stowage);
     ledger.resolve_orcids(&orcid_to_oa);
+    let ledger = Arc::new(ledger);
 
-    person_authorship_filter_with_ledger(&stowage, 14, &ledger)?;
+    authorship_filter(&stowage, 13, 14, &ledger)?;
     author_filter_with_pins(&stowage, 20, &ledger)?;
     inst_filter(&stowage, 21)
 }
 
-/// PersonAuthorship filter that respects the user ledger:
-/// - redirects drop-side alias authors to their keep author when counting
-/// - skips edges listed in removed_edges
-fn person_authorship_filter_with_ledger(
+/// Single pass over works::atts::authorships that simultaneously builds:
+/// - inst_map (institution → works): used to write the institution filter (inst_step_id)
+/// - work_author_map (work → authors): used to write the work + author filters (person_step_id)
+fn authorship_filter(
     stowage: &Stowage,
-    step_id: u8,
-    ledger: &UserLedger,
+    inst_step_id: u8,
+    person_step_id: u8,
+    ledger: &Arc<UserLedger>,
 ) -> io::Result<()> {
-    let work_filter = stowage.get_last_filter(works::C);
-    let author_pre_filter = stowage.get_last_filter(authors::C);
+    let work_filt = Arc::new(stowage.get_last_filter(works::C).unwrap());
+    let ledger = Arc::clone(ledger);
 
-    // work_oa → set of effective author_oa_ids
-    let mut source_map: HashMap<BigId, HashSet<BigId>> = HashMap::new();
+    type BMap = HashMap<BigId, HashSet<BigId>>;
 
-    for rec in stowage.read_csv_objs::<PersonAuthorship>(works::C, PersonAuthorship::ENTITY_ATT) {
-        for [work_str, author_str] in rec.iter_edges() {
-            let (work_oa, raw_author_oa) =
-                match (oa_id_parse_opt(&work_str), oa_id_parse_opt(&author_str)) {
-                    (Some(w), Some(a)) => (w, a),
-                    _ => continue,
+    let (inst_map, work_author_map) =
+        crate::csv_iter::par_reduce::<AuthorshipRow, (BMap, BMap), _, _>(
+            &stowage.paths.entity_csvs,
+            works::C,
+            works::atts::authorships,
+            move |(inst_map, work_author_map), rec| {
+                let work_oa = match oa_id_parse_opt(&rec.parent_id) {
+                    Some(w) => w,
+                    None => return,
                 };
-
-            if let Some(wf) = &work_filter {
-                if !wf.contains(&work_oa) {
-                    continue;
+                if !work_filt.contains(&work_oa) {
+                    return;
                 }
-            }
-            if let Some(af) = &author_pre_filter {
-                if !af.contains(&raw_author_oa) {
-                    continue;
+
+                if let Some(insts) = &rec.institutions {
+                    for inst_str in insts.split(';') {
+                        if let Some(inst_oa) = oa_id_parse_opt(inst_str) {
+                            let entry = inst_map.entry(inst_oa).or_default();
+                            if entry.len() < MIN_PAPERS_FOR_INST as usize {
+                                entry.insert(work_oa);
+                            }
+                        }
+                    }
                 }
-            }
 
-            // Redirect drop → keep alias
-            let author_oa = ledger
-                .author_aliases
-                .get(&raw_author_oa)
-                .copied()
-                .unwrap_or(raw_author_oa);
+                if !rec.author.is_empty() {
+                    if let Some(raw_author_oa) = oa_id_parse_opt(&rec.author) {
+                        let author_oa = ledger
+                            .author_aliases
+                            .get(&raw_author_oa)
+                            .copied()
+                            .unwrap_or(raw_author_oa);
+                        if !ledger.removed_edges.contains(&(author_oa, work_oa)) {
+                            work_author_map
+                                .entry(work_oa)
+                                .or_default()
+                                .insert(author_oa);
+                        }
+                    }
+                }
+            },
+            |(mut ia, mut wa), (ib, wb)| {
+                for (k, v) in ib {
+                    ia.entry(k).or_default().extend(v);
+                }
+                for (k, v) in wb {
+                    wa.entry(k).or_default().extend(v);
+                }
+                (ia, wa)
+            },
+        );
 
-            // Skip removed edges (using the effective author oa_id)
-            if ledger.removed_edges.contains(&(author_oa, work_oa)) {
-                continue;
-            }
-
-            let entry = source_map.entry(work_oa).or_default();
-            entry.insert(author_oa);
-        }
-    }
+    let inst_ids = inst_map
+        .into_iter()
+        .filter(|(_, works)| works.len() >= MIN_PAPERS_FOR_INST as usize)
+        .map(|(inst, _)| inst);
+    stowage.write_filter(inst_step_id, institutions::C, inst_ids)?;
 
     let mut taken_works = Vec::new();
     let mut taken_authors: HashSet<BigId> = HashSet::new();
-    for (work, authors_set) in &source_map {
+    for (work, authors_set) in &work_author_map {
         if authors_set.len() <= MAX_AUTHORS {
             taken_works.push(*work);
             taken_authors.extend(authors_set.iter().copied());
         }
     }
-
-    stowage.write_filter(step_id, authors::C, taken_authors.into_iter())?;
-    stowage.write_filter(step_id, works::C, taken_works.into_iter())?;
+    stowage.write_filter(person_step_id, authors::C, taken_authors.into_iter())?;
+    stowage.write_filter(person_step_id, works::C, taken_works.into_iter())?;
     Ok(())
 }
 
@@ -204,9 +187,14 @@ fn single_filter(stowage: &Stowage, step_id: u8) -> io::Result<()> {
     })
 }
 
-fn author_filter_with_pins(stowage: &Stowage, step_id: u8, ledger: &UserLedger) -> io::Result<()> {
-    let pre_filter = stowage.get_last_filter(authors::C).unwrap();
-    filter_write::<Author, _>(stowage, step_id, authors::C, |o| {
+fn author_filter_with_pins(
+    stowage: &Stowage,
+    step_id: u8,
+    ledger: &Arc<UserLedger>,
+) -> io::Result<()> {
+    let pre_filter = Arc::new(stowage.get_last_filter(authors::C).unwrap());
+    let ledger = Arc::clone(ledger);
+    filter_write::<Author, _>(stowage, step_id, authors::C, move |o| {
         if let Some(aid) = o.get_parsed_id() {
             FIX_AUTHORS.contains(&aid)
                 | ledger.owner_pin_oa_ids.contains(&aid)
@@ -220,8 +208,8 @@ fn author_filter_with_pins(stowage: &Stowage, step_id: u8, ledger: &UserLedger) 
 }
 
 fn inst_filter(stowage: &Stowage, step_id: u8) -> io::Result<()> {
-    let pre_filter = stowage.get_last_filter(institutions::C).unwrap();
-    filter_write::<Institution, _>(stowage, step_id, institutions::C, |o| {
+    let pre_filter = Arc::new(stowage.get_last_filter(institutions::C).unwrap());
+    filter_write::<Institution, _>(stowage, step_id, institutions::C, move |o| {
         let iid = o.get_parsed_id().expect(&o.display_name);
         !FORCE_DROP_INSTS.contains(&iid) && pre_filter.contains(&iid)
     })
@@ -234,17 +222,26 @@ fn filter_write<T, F>(
     closure: F,
 ) -> io::Result<()>
 where
-    T: for<'de> Deserialize<'de> + ParsedId,
-    F: Fn(&T) -> bool,
+    T: for<'de> Deserialize<'de> + ParsedId + Send + 'static,
+    F: Fn(&T) -> bool + Send + Sync + 'static,
 {
-    stowage.write_filter(
-        step_id,
+    let ids = crate::csv_iter::par_reduce::<T, Vec<BigId>, _, _>(
+        &stowage.paths.entity_csvs,
         entity_type,
-        stowage
-            .read_csv_objs::<T>(entity_type, MAIN_NAME)
-            .filter(|o| closure(&o))
-            .filter_map(|o| o.get_parsed_id()),
-    )
+        MAIN_NAME,
+        move |acc, rec| {
+            if closure(&rec) {
+                if let Some(id) = rec.get_parsed_id() {
+                    acc.push(id);
+                }
+            }
+        },
+        |mut a, b| {
+            a.extend(b);
+            a
+        },
+    );
+    stowage.write_filter(step_id, entity_type, ids.into_iter())
 }
 
 fn olen<T>(o: &Option<HashSet<T>>) -> String {
@@ -256,7 +253,7 @@ fn olen<T>(o: &Option<HashSet<T>>) -> String {
 
 fn filter_step<T>(stowage: &Stowage, types: [&'static str; 2], step_id: u8) -> io::Result<()>
 where
-    T: FilterBase + DeserializeOwned,
+    T: FilterBase + DeserializeOwned + Send + 'static,
 {
     let [source_type, target_type] = types;
     let [source_set_o, target_set_o] = types.map(|t| stowage.get_last_filter(t));
@@ -270,28 +267,42 @@ where
         olen(&target_set_o),
     );
 
-    let mut source_map: HashMap<u64, HashSet<u64>> = HashMap::new();
+    let source_filt = Arc::new(source_set_o);
+    let target_filt = Arc::new(target_set_o);
 
-    for rec in stowage.read_csv_objs::<T>(T::ENTITY_C, T::ENTITY_ATT) {
-        'endloop: for ends in rec.iter_edges().into_iter() {
-            if let (Some(source_key), Some(target_key)) =
-                (oa_id_parse_opt(&ends[0]), oa_id_parse_opt(&ends[1]))
-            {
-                for (seto, key) in [(&source_set_o, &source_key), (&target_set_o, &target_key)] {
-                    if let Some(set) = seto {
-                        if !set.contains(key) {
-                            //prefiltered out;
-                            continue 'endloop;
+    let source_map = crate::csv_iter::par_reduce::<T, HashMap<u64, HashSet<u64>>, _, _>(
+        &stowage.paths.entity_csvs,
+        T::ENTITY_C,
+        T::ENTITY_ATT,
+        move |local_map, rec| {
+            for ends in rec.iter_edges() {
+                if let (Some(sk), Some(tk)) = (oa_id_parse_opt(&ends[0]), oa_id_parse_opt(&ends[1]))
+                {
+                    let pass = source_filt
+                        .as_ref()
+                        .as_ref()
+                        .map_or(true, |s| s.contains(&sk))
+                        && target_filt
+                            .as_ref()
+                            .as_ref()
+                            .map_or(true, |s| s.contains(&tk));
+                    if pass {
+                        let entry: &mut HashSet<u64> = local_map.entry(sk).or_default();
+                        if T::FILTER_TARGETS | (entry.len() < T::MIN) | T::HAS_MAX {
+                            entry.insert(tk);
                         }
                     }
                 }
-                let set_entry = source_map.entry(source_key).or_insert_with(HashSet::new);
-                if T::FILTER_TARGETS | (set_entry.len() < T::MIN) | T::HAS_MAX {
-                    set_entry.insert(target_key);
-                }
             }
-        }
-    }
+        },
+        |mut a, b| {
+            for (k, v) in b {
+                a.entry(k).or_default().extend(v);
+            }
+            a
+        },
+    );
+
     let mut taken_sources = Vec::new();
     let mut taken_targets: HashSet<u64> = HashSet::new();
     for (k, v) in source_map.iter() {
