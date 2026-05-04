@@ -5,6 +5,10 @@ import * as tf from '$lib/tree-functions';
 import { BE_URL, COMPLETE_YEAR, REL_TYPES, ROOT_TYPES } from '$lib/constants';
 import { pluralize, SEMANTIC_CONF } from '$lib/text-format-util';
 import { getExternalUrl, semIdResolver } from '$lib/route-functions';
+import { LedgerDb } from '$lib/server/db';
+import { readManifest, EMPTY_MANIFEST } from '$lib/server/manifest';
+import { computeEffective } from '$lib/utils/ledger-effective';
+import type { LedgerEvent, AppliedManifest } from '$lib/types/ledger';
 
 export const ssr = true;
 
@@ -53,6 +57,8 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	let claimedDois: string[] = [];
 	let mergedPairs: [number, number][] = [];
 	let authorMergeRequests: tt.AuthorMergeRequest[] = [];
+	let ledgerEvents: LedgerEvent[] = [];
+	let ledgerManifest: AppliedManifest = EMPTY_MANIFEST;
 
 	if (rootType === 'authors') {
 		const urlFriendlySemId = tf.urlFriendlify(semanticId);
@@ -96,11 +102,30 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 					// ORCID lookup failed — not an owner
 				}
 			}
-			// disownedWids = PaperDb.getDisownedWids(locals.user.orcid);
-			// claimedDois = PaperDb.getClaimedDois(locals.user.orcid);
-			// mergedPairs = PaperDb.getMergedPairs(locals.user.orcid);
-			// authorMergeRequests = PaperDb.getAuthorMergeRequests(locals.user.orcid);
-			// TODO Phase 5: populate from LedgerDb.getEventsForOrcid once ledger panel UI lands
+			if (isOwner) {
+				const events = LedgerDb.getEventsForOrcid(locals.user.orcid) as unknown as LedgerEvent[];
+				const manifest = readManifest();
+				ledgerManifest = manifest;
+				ledgerEvents = events;
+				const effective = computeEffective(events, manifest);
+				disownedWids = [...effective.disownedWids];
+				mergedPairs = effective.mergedPairs;
+				claimedDois = events
+					.filter((e) => e.kind === 'claim_paper' && e.revoked_at === null && e.payload.kind === 'claim_paper')
+					.map((e) => (e.payload.kind === 'claim_paper' ? (e.payload.work.doi ?? '') : ''))
+					.filter(Boolean);
+				authorMergeRequests = events
+					.filter((e) => e.kind === 'merge_authors' && e.revoked_at === null && e.payload.kind === 'merge_authors')
+					.map((e) => {
+						if (e.payload.kind !== 'merge_authors') return null;
+						return {
+							other_semantic_id: e.payload.drop.display_snapshot.display_name,
+							note: e.payload.note ?? null,
+							created_at: e.created_at
+						};
+					})
+					.filter(Boolean) as tt.AuthorMergeRequest[];
+			}
 		}
 	}
 
@@ -112,6 +137,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 			initialPapers, initialEntityAtts, initialDiscAuthorNames,
 			initialTotalPapers, initialWorksSliceEnd,
 			isOwner, disownedWids, claimedDois, mergedPairs, authorMergeRequests,
+			ledgerEvents, ledgerManifest,
 		};
 	}
 
