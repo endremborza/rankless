@@ -340,10 +340,12 @@ impl Stowage {
     where
         T: Iterator<Item = BigId>,
     {
-        let mut file = File::create(self.get_filter_dir(step_id).join(entity_type))?;
+        let file = File::create(self.get_filter_dir(step_id).join(entity_type))?;
+        let mut writer = BufWriter::new(file);
         for e in id_iter {
-            file.write_all(&e.to_be_bytes())?;
+            writer.write_all(&e.to_be_bytes())?;
         }
+        writer.flush()?;
         Ok(())
     }
 
