@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::fmt::{Debug, Display};
 use std::io::{prelude::*, BufWriter};
 use std::marker::PhantomData;
@@ -11,7 +10,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use csv::{DeserializeRecordsIntoIter, Reader, ReaderBuilder};
 use hashbrown::{HashMap, HashSet};
 use serde::Deserialize;
 use serde::{de::DeserializeOwned, Serialize};
@@ -24,8 +22,7 @@ use dmove::{
     VattReadingMap, ET, MAA,
 };
 
-type StowInner = BufReader<zstd::Decoder<'static, BufReader<File>>>;
-pub type StowReader = Reader<StowInner>;
+pub use crate::csv_iter::ObjIter;
 pub type BeS<M, E> = <M as BackendSelector<E>>::BE;
 pub type NET<E> = <E as NumberedEntity>::T;
 
@@ -37,7 +34,6 @@ pub const SEM_DIR: &str = "semantic-ids";
 
 pub const ID_PREFIX: &str = "https://openalex.org/";
 pub const N_PEERS: usize = 10;
-pub const CSV_EXTENSION: &str = ".csv.zst";
 
 pub struct NameMarker;
 pub struct NameExtensionMarker;
@@ -213,15 +209,6 @@ pub struct Stowage {
     pub paths: PathCollection,
     current_ns: String,
     builder: Option<Mutex<MainBuilder>>,
-}
-
-pub struct ObjIter<T>
-where
-    T: DeserializeOwned,
-{
-    current: Option<DeserializeRecordsIntoIter<StowInner, T>>,
-    remaining: VecDeque<PathBuf>,
-    label: String,
 }
 
 //TODO/clarity: this is sort of a mess - could be just generic types
@@ -420,7 +407,7 @@ impl Stowage {
         main_path: &str,
         sub_path: &str,
     ) -> ObjIter<T> {
-        read_deser_obj::<T>(&self.paths.entity_csvs, main_path, sub_path)
+        ObjIter::from_dir(&self.paths.entity_csvs, main_path, sub_path)
     }
 
     pub fn get_entity_interface<E, Marker>(&self) -> Marker::BE
@@ -571,26 +558,6 @@ where
 {
 }
 
-impl<T: DeserializeOwned> Iterator for ObjIter<T> {
-    type Item = T;
-    fn next(&mut self) -> Option<T> {
-        loop {
-            if let Some(r) = &mut self.current {
-                if let Some(rec) = r.next() {
-                    return Some(rec.expect(&format!("csv deser error in {}", self.label)));
-                }
-            }
-            let path = self.remaining.pop_front()?;
-            let dec = zstd::Decoder::new(File::open(&path).unwrap()).unwrap();
-            self.current = Some(
-                ReaderBuilder::new()
-                    .from_reader(BufReader::new(dec))
-                    .into_deserialize(),
-            );
-        }
-    }
-}
-
 impl<T> Entity for EmptyAttributeEntity<T> {
     const NAME: &str = "nothing";
     const N: usize = 0;
@@ -697,31 +664,6 @@ where
         out[v.to_usize()] = k;
     }
     out
-}
-
-fn read_deser_obj<T: DeserializeOwned>(root: &Path, main_path: &str, sub_path: &str) -> ObjIter<T> {
-    let dir = root.join(main_path);
-    let prefix = format!("{}.part-", sub_path);
-    let mut paths: Vec<PathBuf> = read_dir(&dir)
-        .unwrap_or_else(|_| panic!("{main_path}/{sub_path} dir missing"))
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| {
-            p.file_name()
-                .and_then(|n| n.to_str())
-                .map(|n| n.starts_with(&prefix) && n.ends_with(CSV_EXTENSION))
-                .unwrap_or(false)
-        })
-        .collect();
-    assert!(
-        !paths.is_empty(),
-        "no partitions found for {main_path}/{sub_path}"
-    );
-    paths.sort();
-    ObjIter {
-        current: None,
-        remaining: paths.into(),
-        label: format!("{main_path}/{sub_path}"),
-    }
 }
 
 #[cfg(test)]

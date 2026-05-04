@@ -5,6 +5,7 @@ use std::io;
 pub mod agg_tree;
 mod biblo_var_att;
 pub mod common;
+mod csv_iter;
 mod csv_writers;
 mod data_consts;
 pub mod env_consts;

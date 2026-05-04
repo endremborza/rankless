@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
-use crate::common::{Stowage, CSV_EXTENSION};
+use crate::common::Stowage;
 use crate::oa_structs::{
     Ancestor, AssociatedInstitution, Author, Authorship, Biblio, Concept, Field, FieldLike, Geo,
     IdCountDecorated, IdTrait, Institution, Location, OpenAccess, Publisher, RelatedConcept,
@@ -15,6 +15,8 @@ use crate::oa_structs::{
 };
 
 const MAX_PARTITION_ROWS: usize = 5_000_000;
+pub const CSV_EXTENSION: &str = ".csv.zst";
+pub const PART_PREFIX: &str = "part-";
 
 type ZstWriter = Writer<Box<dyn io::Write + Send>>;
 
@@ -173,7 +175,7 @@ create_complex_writers!(
 );
 
 fn get_writer(root: &Path, fname: &str, part: u32) -> io::Result<ZstWriter> {
-    let path = root.join(format!("{}.part-{part:04}{CSV_EXTENSION}", fname));
+    let path = root.join(format!("{}.{PART_PREFIX}{part:04}{CSV_EXTENSION}", fname));
     let enc: Box<dyn io::Write + Send> =
         Box::new(zstd::Encoder::new(BufWriter::new(File::create(path)?), 3)?.auto_finish());
     Ok(Writer::from_writer(enc))
