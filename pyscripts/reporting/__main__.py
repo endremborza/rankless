@@ -168,6 +168,7 @@ def _do_pull_and_archive(rec: dict) -> list[dt.date]:
         sess_df = classify_sessions(df)
     with timing.timed("pull.annotate_events"):
         aggregate.update_sessions(sess_df)
+        df = archive.add_date_partition_cols(df)
         df = annotate_events(df, sess_df)
     with timing.timed("pull.write_events"):
         written = archive.write_events(df)

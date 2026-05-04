@@ -62,6 +62,14 @@ def _cold() -> TableRepo:
     )
 
 
+def add_date_partition_cols(df: pl.DataFrame) -> pl.DataFrame:
+    """Pre-add year_month/day cols derived from t so they precede annotation cols."""
+    return df.with_columns([
+        pl.col("t").dt.convert_time_zone("UTC").dt.strftime("%Y-%m").alias(_YEAR_MONTH),
+        pl.col("t").dt.convert_time_zone("UTC").dt.strftime("%d").alias(_DAY),
+    ])
+
+
 def annotate_routes(df: pl.DataFrame) -> pl.DataFrame:
     if df.is_empty():
         return df.with_columns(pl.lit(None).cast(pl.String).alias("route_template"))
