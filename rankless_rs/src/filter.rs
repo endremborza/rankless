@@ -148,14 +148,13 @@ fn authorship_filter(
                     }
                 }
             },
-            |(mut ia, mut wa), (ib, wb)| {
+            |(ia, wa), (ib, wb)| {
                 for (k, v) in ib {
                     ia.entry(k).or_default().extend(v);
                 }
                 for (k, v) in wb {
                     wa.entry(k).or_default().extend(v);
                 }
-                (ia, wa)
             },
         );
 
@@ -236,9 +235,8 @@ where
                 }
             }
         },
-        |mut a, b| {
+        |a, b| {
             a.extend(b);
-            a
         },
     );
     stowage.write_filter(step_id, entity_type, ids.into_iter())
@@ -295,11 +293,10 @@ where
                 }
             }
         },
-        |mut a, b| {
+        |a, b| {
             for (k, v) in b {
                 a.entry(k).or_default().extend(v);
             }
-            a
         },
     );
 

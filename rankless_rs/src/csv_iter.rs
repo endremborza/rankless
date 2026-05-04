@@ -4,10 +4,10 @@ use std::{
     io::BufReader,
     path::{Path, PathBuf},
     sync::Arc,
-    thread,
 };
 
 use csv::{DeserializeRecordsIntoIter, ReaderBuilder};
+use dmove::para::map_reduce;
 use serde::de::DeserializeOwned;
 
 use crate::csv_writers::{CSV_EXTENSION, PART_PREFIX};
@@ -65,38 +65,28 @@ pub(crate) fn par_reduce<T, Acc, MapFn, ReduceFn>(
     reduce_fn: ReduceFn,
 ) -> Acc
 where
-    T: DeserializeOwned + Send + 'static,
+    T: DeserializeOwned + Send,
     Acc: Default + Send + 'static,
     MapFn: Fn(&mut Acc, T) + Send + Sync + 'static,
-    ReduceFn: FnMut(Acc, Acc) -> Acc,
+    ReduceFn: FnMut(&mut Acc, Acc),
 {
     let paths = part_paths(root, main_path, sub_path);
     let inner_fn = Arc::new(inner_fn);
-
-    let handles: Vec<_> = paths
-        .into_iter()
-        .map(|path| {
-            let inner_fn = inner_fn.clone();
-            thread::spawn(move || {
-                let mut acc = Acc::default();
-                let dec = zstd::Decoder::new(File::open(&path).unwrap()).unwrap();
-                for rec in ReaderBuilder::new()
-                    .from_reader(BufReader::new(dec))
-                    .into_deserialize::<T>()
-                {
-                    inner_fn(&mut acc, rec.expect("csv deser error"));
-                }
-                acc
-            })
-        })
-        .collect();
-
-    let mut result = Acc::default();
-    let mut reduce_fn = reduce_fn;
-    for handle in handles {
-        result = reduce_fn(result, handle.join().unwrap());
-    }
-    result
+    let acc_from_path = move |acc: &mut Acc, path: PathBuf| {
+        let dec = zstd::Decoder::new(File::open(&path).unwrap()).unwrap();
+        for rec in ReaderBuilder::new()
+            .from_reader(BufReader::new(dec))
+            .into_deserialize::<T>()
+        {
+            inner_fn(acc, rec.expect("csv deser error"));
+        }
+    };
+    map_reduce(
+        paths.into_iter(),
+        move |a, s| acc_from_path(a, s),
+        reduce_fn,
+        None,
+    )
 }
 
 fn part_paths(root: &Path, main_path: &str, sub_path: &str) -> Vec<PathBuf> {
