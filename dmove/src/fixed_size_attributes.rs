@@ -40,7 +40,7 @@ pub struct FixAttIterator<E>
 where
     E: FixWriteSizeEntity,
 {
-    file: File,
+    reader: BufReader<File>,
     buf: [u8; MAX_FIXBUF],
     p: PhantomData<E>,
 }
@@ -101,7 +101,7 @@ where
         let full_path = path.join(E::NAME);
         let file = File::open(&full_path).expect(full_path.to_str().unwrap());
         Self {
-            file,
+            reader: BufReader::new(file),
             buf: [0; MAX_FIXBUF],
             p: PhantomData,
         }
@@ -231,7 +231,7 @@ where
     type Item = E::T;
     fn next(&mut self) -> Option<Self::Item> {
         let buf = &mut self.buf[..E::WS];
-        if let Ok(_) = self.file.read_exact(buf) {
+        if let Ok(_) = self.reader.read_exact(buf) {
             return Some(<E as Entity>::T::from_fbytes(buf));
         }
         None
