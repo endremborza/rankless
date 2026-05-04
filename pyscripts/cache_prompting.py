@@ -65,7 +65,7 @@ class BatchRequester:
             .pipe(add_be_urls, year, addr)
         )
         self.big_urls = self.urled_sample.loc[
-            lambda df: df["cut_basis"] > big_limit, "url"
+            lambda df: df["cut_basis"] > self.big_limit * 1e6, "url"
         ].tolist()
         print("BIGS:", len(self.big_urls))
         self.resps = []
