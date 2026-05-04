@@ -23,7 +23,7 @@ to-csv:
 
 filter: export_user_ledger clean-filters clean-keys clean-cache
 	cargo build --release -p rankless-rs 
-	./target/release/rankless-rs $@ $(OA_ROOT)
+	time ./target/release/rankless-rs $@ $(OA_ROOT)
 
 run-server:
 	cargo run --release -p rankless-server -- $(OA_ROOT) 
