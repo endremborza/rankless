@@ -64,9 +64,9 @@ pub struct WorkYears { }
 
 pub struct TopicsWikipedia { }
 
-pub struct FieldAncestors { }
-
 pub struct SubfieldAncestors { }
+
+pub struct FieldAncestors { }
 
 pub struct WorkAnyAuthorships { }
 
@@ -90,7 +90,7 @@ pub struct InstRors { }
 
 pub struct AuthorNobels { }
 
-impl Entity for AuthorshipFilteredAuthor { type T = u32; const N: usize = 213213015; const NAME: & str = "authorship-filtered-author"; }
+impl Entity for AuthorshipFilteredAuthor { type T = u32; const N: usize = 212976077; const NAME: & str = "authorship-filtered-author"; }
 
 impl MappableEntity for AuthorshipFilteredAuthor { type KeyType = usize; }
 
@@ -102,7 +102,7 @@ impl MappableEntity for AuthorshipDiscardedAuthor { type KeyType = usize; }
 
 impl NamespacedEntity for AuthorshipDiscardedAuthor { const NS: & str = "a2_init_atts"; }
 
-impl Entity for FilteredAuthorshipInstitutions { type T = Box<[u16]>; const N: usize = 213213015; const NAME: & str = "filtered-authorship-institutions"; }
+impl Entity for FilteredAuthorshipInstitutions { type T = Box<[u16]>; const N: usize = 212976077; const NAME: & str = "filtered-authorship-institutions"; }
 
 impl MappableEntity for FilteredAuthorshipInstitutions { type KeyType = usize; }
 
@@ -396,14 +396,6 @@ impl MappableEntity for SourceYearQs { type KeyType = (u16, u8); }
 
 impl NamespacedEntity for SourceYearQs { const NS: & str = "a2_init_atts"; }
 
-impl Entity for FieldAncestors { type T = u8; const N: usize = 28; const NAME: & str = "field-ancestors"; }
-
-impl MappableEntity for FieldAncestors { type KeyType = usize; }
-
-impl NamespacedEntity for FieldAncestors { const NS: & str = "a2_init_atts"; }
-
-impl Link for FieldAncestors { type Source = crate::gen::a1_entity_mapping::Fields; type Target = crate::gen::a1_entity_mapping::Domains; }
-
 impl Entity for SubfieldAncestors { type T = u8; const N: usize = 254; const NAME: & str = "subfield-ancestors"; }
 
 impl MappableEntity for SubfieldAncestors { type KeyType = usize; }
@@ -411,6 +403,14 @@ impl MappableEntity for SubfieldAncestors { type KeyType = usize; }
 impl NamespacedEntity for SubfieldAncestors { const NS: & str = "a2_init_atts"; }
 
 impl Link for SubfieldAncestors { type Source = crate::gen::a1_entity_mapping::Subfields; type Target = crate::gen::a1_entity_mapping::Fields; }
+
+impl Entity for FieldAncestors { type T = u8; const N: usize = 28; const NAME: & str = "field-ancestors"; }
+
+impl MappableEntity for FieldAncestors { type KeyType = usize; }
+
+impl NamespacedEntity for FieldAncestors { const NS: & str = "a2_init_atts"; }
+
+impl Link for FieldAncestors { type Source = crate::gen::a1_entity_mapping::Fields; type Target = crate::gen::a1_entity_mapping::Domains; }
 
 impl Entity for TopicSubfields { type T = u8; const N: usize = 4518; const NAME: & str = "topic-subfields"; }
 
