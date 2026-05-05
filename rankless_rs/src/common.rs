@@ -326,8 +326,8 @@ impl Stowage {
             Some(pb) => {
                 let mut out = HashSet::new();
                 let mut br: [u8; 8] = [0; std::mem::size_of::<BigId>()];
-                let mut file = File::open(pb).unwrap();
-                while let Ok(_) = file.read_exact(&mut br) {
+                let mut reader = BufReader::new(File::open(pb).unwrap());
+                while let Ok(_) = reader.read_exact(&mut br) {
                     out.insert(BigId::from_be_bytes(br));
                 }
                 Some(out)
@@ -340,10 +340,12 @@ impl Stowage {
     where
         T: Iterator<Item = BigId>,
     {
-        let mut file = File::create(self.get_filter_dir(step_id).join(entity_type))?;
+        let file = File::create(self.get_filter_dir(step_id).join(entity_type))?;
+        let mut writer = BufWriter::new(file);
         for e in id_iter {
-            file.write_all(&e.to_be_bytes())?;
+            writer.write_all(&e.to_be_bytes())?;
         }
+        writer.flush()?;
         Ok(())
     }
 

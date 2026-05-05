@@ -1,6 +1,6 @@
 use std::{
     sync::{Arc, Condvar, Mutex, MutexGuard},
-    thread::available_parallelism,
+    thread,
 };
 
 use crossbeam_channel::{bounded, Receiver};
@@ -94,7 +94,7 @@ where
 
 pub fn map_reduce<T, Acc, MapFn, ReduceFn, I>(
     it: I,
-    inner_fn: MapFn,
+    map_fn: MapFn,
     mut reduce_fn: ReduceFn,
     n_threads: Option<usize>,
 ) -> Acc
@@ -103,42 +103,52 @@ where
     I: Iterator<Item = T>,
     Acc: Default + Send + 'static,
     MapFn: Fn(&mut Acc, T) + Send + Sync + 'static,
-    ReduceFn: FnMut(&mut Acc, Acc),
+    ReduceFn: FnMut(&mut Acc, Acc) + Send + Sync + Copy + 'static,
 {
-    let n_threads: usize = n_threads.unwrap_or(available_parallelism().unwrap().into());
-    let inner_fn = Arc::new(inner_fn);
+    let n_threads = n_threads.unwrap_or(thread::available_parallelism().unwrap().into());
+
+    let map_fn = Arc::new(map_fn);
     let (sender, r) = bounded(n_threads * 2);
 
-    let accs: Vec<Acc> = std::thread::scope(|s| {
-        let mut threads_v = Vec::new();
+    let dangling: Arc<Mutex<Option<Acc>>> = Arc::new(Mutex::new(None));
+
+    thread::scope(|s| {
         for _ in 0..n_threads {
-            let inner_fn = inner_fn.clone();
-            let in_clone = r.clone();
-            threads_v.push(s.spawn(move || {
-                let mut new_acc = Acc::default();
-                subf(in_clone, |e| inner_fn(&mut new_acc, e));
-                new_acc
-            }));
+            let map_fn = map_fn.clone();
+            let r = r.clone();
+            let dangling = dangling.clone();
+
+            s.spawn(move || {
+                let mut acc = Acc::default();
+                subf(r, |e| map_fn(&mut acc, e));
+
+                loop {
+                    let mut guard = dangling.lock().unwrap();
+
+                    match guard.take() {
+                        None => {
+                            *guard = Some(acc);
+                            return;
+                        }
+                        Some(other) => {
+                            drop(guard);
+                            reduce_fn(&mut acc, other);
+                        }
+                    }
+                }
+            });
         }
 
         for e in it {
             sender.send(Some(e)).unwrap();
         }
-        for _ in 0..(n_threads) {
+        for _ in 0..n_threads {
             sender.send(None).unwrap();
         }
-
-        threads_v
-            .into_iter()
-            .map(|t| t.join().expect("thread failed"))
-            .collect()
     });
 
-    let mut result = Acc::default();
-    for res in accs {
-        reduce_fn(&mut result, res);
-    }
-    result
+    let mut guard = dangling.lock().unwrap();
+    guard.take().unwrap_or_default()
 }
 
 fn para_run<W, T, I>(in_v: I, setup: &W, n_threads: usize)

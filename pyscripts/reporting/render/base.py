@@ -53,15 +53,23 @@ def build_context(mode: Mode) -> RenderContext:
         trim_blocks=True,
         lstrip_blocks=True,
     )
-    env.filters["fmt_int"] = lambda v: f"{int(v):,}" if v is not None and not _isnan(v) else "—"
-    env.filters["fmt_pct"] = lambda v: f"{v*100:.2f}%" if v is not None and not _isnan(v) else "—"
-    env.filters["fmt_ms"] = lambda v: f"{v*1000:.0f} ms" if v is not None and not _isnan(v) else "—"
+    env.filters["fmt_int"] = lambda v: (
+        f"{int(v):,}" if v is not None and not _isnan(v) else "—"
+    )
+    env.filters["fmt_pct"] = lambda v: (
+        f"{v * 100:.2f}%" if v is not None and not _isnan(v) else "—"
+    )
+    env.filters["fmt_ms"] = lambda v: (
+        f"{v * 1000:.0f} ms" if v is not None and not _isnan(v) else "—"
+    )
     env.filters["fmt_dt"] = lambda v: _parse_ts(v).strftime("%Y-%m-%d %H:%M UTC")
 
     today = dt.date.today()
 
     with timing.timed(f"render.{mode}.read_hot"):
-        events_hot = archive.read_hot(date_from=today - dt.timedelta(days=HOT_WINDOW_DAYS))
+        events_hot = archive.read_hot(
+            date_from=today - dt.timedelta(days=HOT_WINDOW_DAYS)
+        )
 
     with timing.timed(f"render.{mode}.anonymize_events"):
         if mode == "public" and not events_hot.is_empty():
@@ -70,7 +78,8 @@ def build_context(mode: Mode) -> RenderContext:
     cutoff_24h = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)
     events_24h = (
         events_hot.filter(pl.col("t") >= cutoff_24h)
-        if not events_hot.is_empty() else events_hot
+        if not events_hot.is_empty()
+        else events_hot
     )
 
     with timing.timed(f"render.{mode}.load_sessions"):
@@ -112,7 +121,11 @@ def hint(text: str) -> str:
 
 def df_to_html(df: pl.DataFrame, *, table_id: str, escape: bool = True) -> str:
     return df.to_pandas().to_html(
-        classes="dt", index=False, table_id=table_id, border=0, escape=escape,
+        classes="dt",
+        index=False,
+        table_id=table_id,
+        border=0,
+        escape=escape,
     )
 
 
@@ -128,13 +141,19 @@ def render_template(ctx: RenderContext, template: str, **vars) -> str:
     return tpl.render(**base_vars)
 
 
-def plotly_div(fig_id: str, data: list, layout: dict | None = None, height: int = 320) -> str:
+def plotly_div(
+    fig_id: str, data: list, layout: dict | None = None, height: int = 320
+) -> str:
     layout = layout or {}
     layout.setdefault("margin", {"l": 40, "r": 20, "t": 30, "b": 40})
     layout.setdefault("paper_bgcolor", "rgba(0,0,0,0)")
     layout.setdefault("plot_bgcolor", "rgba(0,0,0,0)")
     layout.setdefault("font", {"color": "#cdd6f4", "size": 12})
-    spec = {"data": data, "layout": layout, "config": {"displaylogo": False, "responsive": True}}
+    spec = {
+        "data": data,
+        "layout": layout,
+        "config": {"displaylogo": False, "responsive": True},
+    }
     return (
         f'<div id="{fig_id}" style="height:{height}px"></div>'
         f'<script>Plotly.newPlot("{fig_id}", '
@@ -146,19 +165,16 @@ def time_series_traces(df: pl.DataFrame, x: str, y: str, group: str) -> list[dic
     out = []
     for part in df.sort(x).partition_by(group, maintain_order=True):
         name = part[group][0]
-        out.append({
-            "x": part[x].cast(pl.String).to_list(),
-            "y": part[y].to_list(),
-            "name": str(name),
-            "type": "scatter",
-            "mode": "lines",
-        })
+        out.append(
+            {
+                "x": part[x].cast(pl.String).to_list(),
+                "y": part[y].to_list(),
+                "name": str(name),
+                "type": "scatter",
+                "mode": "lines",
+            }
+        )
     return out
-
-
-def hash_ip(addr: str, day_iso: str | None = None) -> str:
-    salt = get_or_create_salt(day_iso or dt.date.today().isoformat())
-    return hashlib.sha256(f"{salt}|{addr}".encode()).hexdigest()[:IP_HASH_LEN]
 
 
 def copy_assets(ctx: RenderContext) -> None:
@@ -170,36 +186,37 @@ def copy_assets(ctx: RenderContext) -> None:
     shutil.copytree(ASSET_DIR, target)
 
 
+anon_addr = (
+    pl.concat_str(
+        [
+            pl.col("start").dt.strftime("%Y-%m-%d"),
+            pl.lit("|"),
+            pl.col("addr"),
+        ]
+    )
+    .hash(742)
+    .cast(pl.String)
+    .str.slice(0, IP_HASH_LEN)
+    .alias("addr")
+)
+
+
 def anonymize_events(df: pl.DataFrame) -> pl.DataFrame:
     if "addr" not in df.columns:
         return df.drop([c for c in ("ua", "referrer", "path") if c in df.columns])
 
     parts = []
-    for day_df in df.with_columns(pl.col("t").dt.truncate("1d").alias("_day")).partition_by("_day", maintain_order=False):
-        day_iso = day_df["_day"][0].strftime("%Y-%m-%d")
-        salt = get_or_create_salt(day_iso)
-        unique_addrs = day_df["addr"].unique().to_list()
-        addr_map = {
-            a: hashlib.sha256(f"{salt}|{a}".encode()).hexdigest()[:IP_HASH_LEN]
-            for a in unique_addrs
-        }
-        parts.append(
-            day_df.drop("_day").with_columns(
-                pl.col("addr").replace_strict(addr_map)
-            )
-        )
+    for day_df in df.with_columns(
+        pl.col("t").dt.truncate("1d").alias("start")
+    ).partition_by("start", maintain_order=False):
+        parts.append(day_df.with_columns(anon_addr).drop("start"))
     result = pl.concat(parts) if parts else df
     return result.drop([c for c in ("ua", "referrer", "path") if c in result.columns])
 
 
 def _anonymize_sessions(df: pl.DataFrame) -> pl.DataFrame:
     if "addr" in df.columns:
-        df = df.with_columns(
-            pl.struct(["addr", "start"]).map_elements(
-                lambda r: hash_ip(r["addr"], str(r["start"])[:10]),
-                return_dtype=pl.String,
-            ).alias("addr")
-        )
+        df = df.with_columns(anon_addr)
     return df.drop([c for c in ("ua",) if c in df.columns])
 
 
@@ -220,6 +237,7 @@ def _read_runs_index() -> list[dict]:
 def _isnan(v) -> bool:
     try:
         import math
+
         return math.isnan(v)
     except (TypeError, ValueError):
         return False

@@ -68,7 +68,7 @@ where
     T: DeserializeOwned + Send,
     Acc: Default + Send + 'static,
     MapFn: Fn(&mut Acc, T) + Send + Sync + 'static,
-    ReduceFn: FnMut(&mut Acc, Acc),
+    ReduceFn: FnMut(&mut Acc, Acc) + Send + Sync + Copy + 'static,
 {
     let paths = part_paths(root, main_path, sub_path);
     let inner_fn = Arc::new(inner_fn);

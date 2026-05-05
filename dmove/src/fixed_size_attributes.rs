@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{self, BufReader, Read, Seek, SeekFrom, Write},
+    io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write},
     marker::PhantomData,
     path::PathBuf,
 };
@@ -19,7 +19,7 @@ use crate::{
 type DowncastablePrefixed = Box<[(bool, usize)]>;
 
 pub struct FixAttBuilder {
-    file: File,
+    writer: BufWriter<File>,
     n: usize,
     name: String,
 }
@@ -40,7 +40,7 @@ pub struct FixAttIterator<E>
 where
     E: FixWriteSizeEntity,
 {
-    file: File,
+    reader: BufReader<File>,
     buf: [u8; MAX_FIXBUF],
     p: PhantomData<E>,
 }
@@ -101,7 +101,7 @@ where
         let full_path = path.join(E::NAME);
         let file = File::open(&full_path).expect(full_path.to_str().unwrap());
         Self {
-            file,
+            reader: BufReader::new(file),
             buf: [0; MAX_FIXBUF],
             p: PhantomData,
         }
@@ -143,18 +143,20 @@ where
         assert!(T::S <= MAX_FIXBUF);
         let full_path = builder.parent_root.join(name);
         let file = File::create(&full_path).expect(full_path.to_str().unwrap());
+        let writer = BufWriter::new(file);
         Self {
             n: 0,
-            file,
+            writer,
             name: name.to_string(),
         }
     }
 
     fn add_elem(&mut self, e: &T) {
-        self.file.write(&e.to_fbytes()).unwrap();
+        self.writer.write(&e.to_fbytes()).unwrap();
         self.n += 1;
     }
-    fn post(self, builder: &mut MainBuilder) {
+    fn post(mut self, builder: &mut MainBuilder) {
+        self.writer.flush().unwrap();
         builder.add_simple_etrait(&self.name, &get_type_name::<T>(), self.n, true);
     }
 }
@@ -229,7 +231,7 @@ where
     type Item = E::T;
     fn next(&mut self) -> Option<Self::Item> {
         let buf = &mut self.buf[..E::WS];
-        if let Ok(_) = self.file.read_exact(buf) {
+        if let Ok(_) = self.reader.read_exact(buf) {
             return Some(<E as Entity>::T::from_fbytes(buf));
         }
         None
@@ -245,12 +247,13 @@ where
     T: UnsignedNumber,
 {
     let full_path = builder.parent_root.join(name);
-    let mut file = File::create(&full_path).expect(full_path.to_str().unwrap());
+    let file = File::create(&full_path).expect(full_path.to_str().unwrap());
+    let mut writer = BufWriter::new(file);
     for us in arr.into_iter() {
         let buf = T::from_usize(us).to_fbytes();
-        file.write(&buf)?;
+        writer.write(&buf)?;
     }
-    Ok(())
+    writer.flush()
 }
 
 fn casted_prefixer<T>(name: &str, arr: Vec<DowncastablePrefixed>, builder: &mut MainBuilder)

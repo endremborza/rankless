@@ -1,7 +1,7 @@
 use std::{
     any::type_name,
     fs::{create_dir_all, File},
-    io::{BufReader, Read, Seek, Write},
+    io::{BufReader, BufWriter, Read, Seek, Write},
     marker::PhantomData,
     os::linux::fs::MetadataExt,
     path::PathBuf,
@@ -157,14 +157,16 @@ where
     I: Iterator<Item = usize>,
     F: Write,
 {
-    fn write<N>(mut self) -> String
+    fn write<N>(self) -> String
     where
         N: UnsignedNumber + ByteFixArrayInterface,
     {
+        let mut writer = BufWriter::new(self.file);
         for n in self.numbers {
             let buf = N::from_usize(n).to_fbytes();
-            self.file.write(&buf).expect("writing number");
+            writer.write(&buf).expect("writing number");
         }
+        writer.flush().unwrap();
         std::any::type_name::<N>().to_string()
     }
 

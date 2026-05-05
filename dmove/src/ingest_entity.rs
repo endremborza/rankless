@@ -1,5 +1,5 @@
 use std::fs::{create_dir_all, File, OpenOptions};
-use std::io::{BufReader, Read, Seek, SeekFrom, Write};
+use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::ops::Range;
 use std::path::PathBuf;
 
@@ -164,10 +164,11 @@ impl IdMap {
 
         full_record_vec.extend(&self.extensions);
         full_record_vec.sort();
-        let mut hfile = File::create(&self.map_buffer).unwrap();
+        let mut writer = BufWriter::new(File::create(&self.map_buffer).unwrap());
         for rec in full_record_vec {
-            hfile.write(&rec).unwrap();
+            writer.write(&rec).unwrap();
         }
+        writer.flush().unwrap();
     }
 
     pub fn push(&mut self, id: BigId) {
