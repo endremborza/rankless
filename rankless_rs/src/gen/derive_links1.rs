@@ -12,7 +12,7 @@ pub struct SourceWorks { }
 
 pub struct WorkFilteredAuthors { }
 
-impl Entity for WorksCiting { type T = Box<[u32]>; const N: usize = 91433302; const NAME: & str = "works-citing"; }
+impl Entity for WorksCiting { type T = Box<[u32]>; const N: usize = 91433299; const NAME: & str = "works-citing"; }
 
 impl MappableEntity for WorksCiting { type KeyType = usize; }
 
@@ -48,7 +48,7 @@ impl Link for SourceWorks { type Source = crate::gen::a1_entity_mapping::Sources
 
 impl MarkedAttribute<crate::common::MainWorkMarker> for crate::gen::a1_entity_mapping::Sources { type AttributeEntity = SourceWorks; }
 
-impl Entity for WorkSubfields { type T = Box<[u8]>; const N: usize = 91433302; const NAME: & str = "work-subfields"; }
+impl Entity for WorkSubfields { type T = Box<[u8]>; const N: usize = 91433299; const NAME: & str = "work-subfields"; }
 
 impl MappableEntity for WorkSubfields { type KeyType = usize; }
 
@@ -58,7 +58,7 @@ impl NamespacedEntity for WorkSubfields { const NS: & str = "derive_links1"; }
 
 impl Link for WorkSubfields { type Source = crate::gen::a1_entity_mapping::Works; type Target = crate::gen::a1_entity_mapping::Subfields; }
 
-impl Entity for WorkFilteredAuthors { type T = Box<[u32]>; const N: usize = 91433302; const NAME: & str = "work-filtered-authors"; }
+impl Entity for WorkFilteredAuthors { type T = Box<[u32]>; const N: usize = 91433299; const NAME: & str = "work-filtered-authors"; }
 
 impl MappableEntity for WorkFilteredAuthors { type KeyType = usize; }
 
@@ -66,7 +66,7 @@ impl VariableSizeAttribute for WorkFilteredAuthors { type SizeType = u8; type Lo
 
 impl NamespacedEntity for WorkFilteredAuthors { const NS: & str = "derive_links1"; }
 
-impl Entity for WorkInstitutions { type T = Box<[u16]>; const N: usize = 91433302; const NAME: & str = "work-institutions"; }
+impl Entity for WorkInstitutions { type T = Box<[u16]>; const N: usize = 91433299; const NAME: & str = "work-institutions"; }
 
 impl MappableEntity for WorkInstitutions { type KeyType = usize; }
 
