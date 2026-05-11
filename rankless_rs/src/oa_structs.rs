@@ -34,6 +34,10 @@ pub trait Named {
     fn get_name(&self) -> String;
 }
 
+pub trait Positioned {
+    fn set_position(&mut self, _pos: usize) {}
+}
+
 add_id_traits!(
     Author,
     Concept,
@@ -302,6 +306,8 @@ pub struct Authorship {
     pub institutions: Option<String>,
     author_position: Option<String>,
     raw_affiliation_string: Option<String>,
+    #[serde(default)]
+    pub position: u16,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -413,6 +419,28 @@ impl From<String> for ReferencedWork {
     }
 }
 
+impl Positioned for Authorship {
+    fn set_position(&mut self, pos: usize) {
+        self.position = pos as u16;
+    }
+}
+
+macro_rules! impl_positioned_noop {
+    ($($t:ident),*) => {
+        $(impl Positioned for $t {})*
+    };
+}
+
+impl_positioned_noop!(
+    WorkTopic,
+    Location,
+    Ancestor,
+    RelatedConcept,
+    AssociatedInstitution,
+    CountByYear,
+    ReferencedWork
+);
+
 // impl From<String> for RelatedWork {
 //     fn from(value: String) -> Self {
 //         Self {
@@ -493,6 +521,8 @@ pub mod post {
         #[serde(rename = "author")]
         pub author_id: Option<String>,
         pub institutions: Option<String>,
+        #[serde(default)]
+        pub position: u16,
     }
 
     #[derive(Deserialize, Debug)]
