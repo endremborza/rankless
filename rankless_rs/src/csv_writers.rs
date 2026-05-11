@@ -10,8 +10,8 @@ use std::sync::Arc;
 use crate::common::Stowage;
 use crate::oa_structs::{
     Ancestor, AssociatedInstitution, Author, Authorship, Biblio, Concept, Field, FieldLike, Geo,
-    IdCountDecorated, IdTrait, Institution, Location, OpenAccess, Publisher, RelatedConcept,
-    Source, SubField, SummaryStats, Topic, Work, WorkTopic,
+    IdCountDecorated, IdTrait, Institution, Location, OpenAccess, Positioned, Publisher,
+    RelatedConcept, Source, SubField, SummaryStats, Topic, Work, WorkTopic,
 };
 
 const MAX_PARTITION_ROWS: usize = 5_000_000;
@@ -33,8 +33,9 @@ macro_rules! sub_multi_write {
     ($parent:ident, $writer_name:ident, $field_name: ident) => {
         let parent_id = $parent.get_id();
         if let Some(children) = &mut $parent.$field_name {
-            for record in children {
+            for (i, record) in children.iter_mut().enumerate() {
                 record.parent_id = Some(parent_id.clone());
+                record.set_position(i);
                 $writer_name.serialize(record).unwrap();
             }
         }
