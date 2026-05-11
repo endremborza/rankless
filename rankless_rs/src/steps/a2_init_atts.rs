@@ -69,9 +69,11 @@ struct NobelEntry {
 struct ShipRelWriter<'a> {
     fship2a: Vec<usize>,
     fship2is: Vec<Vec<ET<Institutions>>>,
+    fship2pos: Vec<u16>,
 
     dship2a: Vec<usize>,
     dship2is: Vec<Vec<ET<Institutions>>>,
+    dship2pos: Vec<u16>,
 
     w2combined_ships: Box<[Vec<(bool, usize)>]>,
 
@@ -544,8 +546,10 @@ impl<'a> ShipRelWriter<'a> {
         Self {
             fship2a: vec![0],
             fship2is: vec![Vec::new()],
+            fship2pos: vec![0],
             dship2a: vec![0],
             dship2is: vec![Vec::new()],
+            dship2pos: vec![0],
             w2combined_ships: init_empty_slice::<Works, _>(),
             winf,
             fainf,
@@ -601,14 +605,15 @@ impl<'a> ShipRelWriter<'a> {
             return;
         }
 
-        let (ship2a, ship2is) = if is_filtered {
-            (&mut self.fship2a, &mut self.fship2is)
+        let (ship2a, ship2is, ship2pos) = if is_filtered {
+            (&mut self.fship2a, &mut self.fship2is, &mut self.fship2pos)
         } else {
-            (&mut self.dship2a, &mut self.dship2is)
+            (&mut self.dship2a, &mut self.dship2is, &mut self.dship2pos)
         };
         let ship_ind = ship2a.len();
         ship2a.push(aid);
         ship2is.push(ivec);
+        ship2pos.push(ship.position);
         self.w2combined_ships[w_ind].push((is_filtered, ship_ind));
     }
 
@@ -637,6 +642,14 @@ impl<'a> ShipRelWriter<'a> {
         stowage.add_iter_owned::<VarAttBuilder, _, _>(
             self.dship2is.into_iter().map(|v| v.into_boxed_slice()),
             Some("discarded-authorship-institutions"),
+        );
+        stowage.add_iter_owned::<DowncastingBuilder, _, _>(
+            self.fship2pos.into_iter().map(|p| p as usize),
+            Some("filtered-authorship-position"),
+        );
+        stowage.add_iter_owned::<DowncastingBuilder, _, _>(
+            self.dship2pos.into_iter().map(|p| p as usize),
+            Some("discarded-authorship-position"),
         );
         stowage.add_iter_owned::<DowncastingPrefixedVarBuilder, _, _>(
             self.w2combined_ships
