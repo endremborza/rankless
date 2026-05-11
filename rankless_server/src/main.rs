@@ -1438,10 +1438,10 @@ fn paper_out(
     let biblio = Some(<ET<WorkBiblios> as ByteArrayInterface>::from_bytes(
         gets.wbiblios(wid),
     ));
-    let mut authorships = Vec::new();
+    let mut positioned_ships: Vec<(usize, PaperAuthorship)> = Vec::new();
     for anyship in gets.wanyships(wid) {
         let (is_filterd, ship_id) = reverse_prefixed_n(anyship.to_usize());
-        let (full_aid, insts_slice) = if is_filterd {
+        let (full_aid, insts_slice, position) = if is_filterd {
             let aid = gets.fshipa(&ship_id);
             add_to_eatts(Authors::NAME, aid.to_usize());
             let prize_rec = gets.author_prizes(aid);
@@ -1452,7 +1452,8 @@ fn paper_out(
                     year: YearInterface::reverse(prize_rec.1),
                 },
             );
-            (format!("F{aid}"), gets.fshipis(ship_id))
+            let pos = gets.fship_pos(&ship_id).to_usize();
+            (format!("F{aid}"), gets.fshipis(ship_id), pos)
         } else {
             let aid = gets.dshipa(&ship_id);
             let name = disc_name_handler
@@ -1460,18 +1461,24 @@ fn paper_out(
                 .unwrap_or("Unknown".to_string());
             let full_aid = format!("D{aid}");
             discarded_author_name_map.insert(full_aid.clone(), name);
-            (full_aid, gets.dshipis(ship_id))
+            let pos = gets.dship_pos(&ship_id).to_usize();
+            (full_aid, gets.dshipis(ship_id), pos)
         };
         let mut insts = Vec::new();
         for iid in insts_slice {
             add_to_eatts(Institutions::NAME, iid.to_usize());
             insts.push(iid.to_usize());
         }
-        authorships.push(PaperAuthorship {
-            author: full_aid,
-            insts,
-        });
+        positioned_ships.push((
+            position,
+            PaperAuthorship {
+                author: full_aid,
+                insts,
+            },
+        ));
     }
+    positioned_ships.sort_by_key(|(p, _)| *p);
+    let authorships: Vec<PaperAuthorship> = positioned_ships.into_iter().map(|(_, a)| a).collect();
     let source = gets.top_source(&wid).to_usize();
     add_to_eatts(Sources::NAME, source);
 
