@@ -47,7 +47,6 @@ erDiagram
   "sources" {    
     BIGINT id PK "in index: ix_sources_id"    
     TEXT display_name      
-    TEXT abbreviated_title  
   }
   "works-referenced_works" {    
     BIGINT parent_id FK     

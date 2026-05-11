@@ -57,7 +57,6 @@ erDiagram
   "sources" {
     BIGINT id PK
     TEXT display_name
-    TEXT abbreviated_title
   }
   "works-referenced_works" {
     BIGINT parent_id FK

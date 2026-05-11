@@ -28,11 +28,12 @@ use dmove::{
     LoadedIdMap, MappableEntity, MetaIntegrator, NamespacedEntity, UnsignedNumber, VarAttBuilder,
     ET,
 };
+
+use hashbrown::{HashMap, HashSet};
 use levenshtein::levenshtein;
 use serde::{de::DeserializeOwned, Deserialize};
 use std::{
     cmp::min,
-    collections::HashMap,
     io,
     marker::PhantomData,
     sync::{Arc, Mutex},
@@ -43,6 +44,9 @@ pub const DOI_PREFIX_LEN: usize = 16;
 const MIN_TOPIC_SCORE: f64 = 0.7;
 const MIN_RATE: f64 = 0.8;
 const MIN_LEN: usize = 10;
+const EXT_STOP_WORDS: &[&str] = &[
+    "a", "an", "and", "at", "by", "for", "in", "of", "or", "the", "to", "with",
+];
 
 pub type OrcidType = [u8; 19];
 
@@ -823,13 +827,13 @@ where
 
 impl AttGetter<String, NameExtensionMarker> for Source {
     fn get_att(&self) -> Option<String> {
-        post_ext_name(&self.alternate_titles)
+        post_ext_name(&[&self.alternate_titles])
     }
 }
 
 impl AttGetter<String, NameExtensionMarker> for Institution {
     fn get_att(&self) -> Option<String> {
-        post_ext_name(&self.display_name_acronyms)
+        post_ext_name(&[&self.display_name_acronyms, &self.display_name_alternatives])
     }
 }
 
@@ -1233,8 +1237,29 @@ fn iter_mboxa<T>(ba: Mutex<Box<[T]>>) -> std::vec::IntoIter<T> {
     ba.into_inner().unwrap().into_vec().into_iter()
 }
 
-fn post_ext_name(in_str: &Option<String>) -> Option<String> {
-    Some(read_post_str_arr(in_str).join(" "))
+fn normalize_ext_entry(s: &str) -> String {
+    s.split_whitespace()
+        .map(|w| w.to_lowercase())
+        .filter(|w| !EXT_STOP_WORDS.contains(&w.as_str()))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn post_ext_name(arrs: &[&Option<String>]) -> Option<String> {
+    let mut seen = HashSet::new();
+    let entries: Vec<String> = arrs
+        .iter()
+        .flat_map(|a| read_post_str_arr(a))
+        .filter_map(|entry| {
+            let norm = normalize_ext_entry(&entry);
+            if norm.is_empty() || !seen.insert(norm.clone()) {
+                None
+            } else {
+                Some(norm)
+            }
+        })
+        .collect();
+    Some(entries.join(" "))
 }
 
 fn add_name_box<E: Entity>(stowage: &Stowage, names: Box<[String]>) {

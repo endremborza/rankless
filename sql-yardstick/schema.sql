@@ -19,7 +19,6 @@ CREATE TABLE institutions (
 CREATE TABLE sources (
 	id BIGINT NOT NULL, 
 	display_name TEXT, 
-	abbreviated_title TEXT, 
 	CONSTRAINT sources_pkey PRIMARY KEY (id)
 );
 CREATE TABLE works (

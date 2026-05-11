@@ -253,7 +253,6 @@ pub struct Source {
     updated_date: Option<String>,
     #[serde(default, deserialize_with = "deserialize_json_array")]
     alternate_titles: Option<String>,
-    abbreviated_title: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -604,7 +603,6 @@ pub mod post {
         id: String,
         pub display_name: String,
         pub alternate_titles: Option<String>,
-        pub abbreviated_title: Option<String>,
     }
 
     add_id_traits!(Author, Institution, Source);
