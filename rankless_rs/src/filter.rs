@@ -156,6 +156,7 @@ fn authorship_filter(
                     wa.entry(k).or_default().extend(v);
                 }
             },
+            None,
         );
 
     let inst_ids = inst_map
@@ -238,6 +239,7 @@ where
         |a, b| {
             a.extend(b);
         },
+        Some(10),
     );
     stowage.write_filter(step_id, entity_type, ids.into_iter())
 }
@@ -298,6 +300,7 @@ where
                 a.entry(k).or_default().extend(v);
             }
         },
+        Some(5),
     );
 
     let mut taken_sources = Vec::new();

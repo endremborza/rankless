@@ -63,6 +63,7 @@ pub(crate) fn par_reduce<T, Acc, MapFn, ReduceFn>(
     sub_path: &str,
     inner_fn: MapFn,
     reduce_fn: ReduceFn,
+    n_threads: Option<usize>,
 ) -> Acc
 where
     T: DeserializeOwned + Send,
@@ -85,7 +86,7 @@ where
         paths.into_iter(),
         move |a, s| acc_from_path(a, s),
         reduce_fn,
-        None,
+        n_threads,
     )
 }
 
