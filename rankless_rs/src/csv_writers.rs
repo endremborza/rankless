@@ -14,7 +14,7 @@ use crate::oa_structs::{
     RelatedConcept, Source, SubField, SummaryStats, Topic, Work, WorkTopic,
 };
 
-const MAX_PARTITION_ROWS: usize = 5_000_000;
+const MAX_PARTITION_ROWS: usize = 2_000_000;
 pub const CSV_EXTENSION: &str = ".csv.zst";
 pub const PART_PREFIX: &str = "part-";
 

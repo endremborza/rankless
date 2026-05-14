@@ -12,9 +12,9 @@ pub struct Sources { }
 
 pub struct Fields { }
 
-pub struct Topics { }
-
 pub struct Cities { }
+
+pub struct Topics { }
 
 pub struct AreaFields { }
 
@@ -64,17 +64,17 @@ impl MappableEntity for Sources { type KeyType = u64; }
 
 impl NamespacedEntity for Sources { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for Countries { type T = u8; const N: usize = 232; const NAME: & str = "countries"; }
-
-impl MappableEntity for Countries { type KeyType = u64; }
-
-impl NamespacedEntity for Countries { const NS: & str = "a1_entity_mapping"; }
-
 impl Entity for Cities { type T = u16; const N: usize = 15223; const NAME: & str = "cities"; }
 
 impl MappableEntity for Cities { type KeyType = u64; }
 
 impl NamespacedEntity for Cities { const NS: & str = "a1_entity_mapping"; }
+
+impl Entity for Countries { type T = u8; const N: usize = 232; const NAME: & str = "countries"; }
+
+impl MappableEntity for Countries { type KeyType = u64; }
+
+impl NamespacedEntity for Countries { const NS: & str = "a1_entity_mapping"; }
 
 impl Entity for AreaFields { type T = u8; const N: usize = 2; const NAME: & str = "area-fields"; }
 
@@ -94,13 +94,13 @@ impl MappableEntity for Authors { type KeyType = u64; }
 
 impl NamespacedEntity for Authors { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for Works { type T = u32; const N: usize = 91433301; const NAME: & str = "works"; }
+impl Entity for Works { type T = u32; const N: usize = 91433298; const NAME: & str = "works"; }
 
 impl MappableEntity for Works { type KeyType = u64; }
 
 impl NamespacedEntity for Works { const NS: & str = "a1_entity_mapping"; }
 
-impl Entity for AuthorshipsFilteredAuthor { type T = u32; const N: usize = 213213014; const NAME: & str = "authorships-filtered-author"; }
+impl Entity for AuthorshipsFilteredAuthor { type T = u32; const N: usize = 213213011; const NAME: & str = "authorships-filtered-author"; }
 
 impl MappableEntity for AuthorshipsFilteredAuthor { type KeyType = usize; }
 

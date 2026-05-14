@@ -770,7 +770,7 @@ impl NamespacedEntity for AuthorsRelInsts { const NS: & str = "derive_links2"; }
 
 impl MarkedAttribute<crate::common::InstRelMarker> for crate::gen::a1_entity_mapping::Authors { type AttributeEntity = AuthorsRelInsts; }
 
-impl Entity for SourcePairsByPath { type T = ([u16; 2], u32); const N: usize = 160543881; const NAME: & str = "source-pairs-by-path"; }
+impl Entity for SourcePairsByPath { type T = ([u16; 2], u32); const N: usize = 160543825; const NAME: & str = "source-pairs-by-path"; }
 
 impl MappableEntity for SourcePairsByPath { type KeyType = usize; }
 
@@ -798,7 +798,7 @@ impl NamespacedEntity for AuthorsYearCentroid { const NS: & str = "derive_links2
 
 impl MarkedAttribute<crate::common::YearCentroidMarker> for crate::gen::a1_entity_mapping::Authors { type AttributeEntity = AuthorsYearCentroid; }
 
-impl Entity for WorkCitingCounts { type T = u32; const N: usize = 91433302; const NAME: & str = "work-citing-counts"; }
+impl Entity for WorkCitingCounts { type T = u32; const N: usize = 91433299; const NAME: & str = "work-citing-counts"; }
 
 impl MappableEntity for WorkCitingCounts { type KeyType = usize; }
 
@@ -842,7 +842,7 @@ impl Link for InstitutionWorks { type Source = crate::gen::a1_entity_mapping::In
 
 impl MarkedAttribute<crate::common::MainWorkMarker> for crate::gen::a1_entity_mapping::Institutions { type AttributeEntity = InstitutionWorks; }
 
-impl Entity for WorkCountries { type T = Box<[u8]>; const N: usize = 91433302; const NAME: & str = "work-countries"; }
+impl Entity for WorkCountries { type T = Box<[u8]>; const N: usize = 91433299; const NAME: & str = "work-countries"; }
 
 impl MappableEntity for WorkCountries { type KeyType = usize; }
 
@@ -850,7 +850,7 @@ impl VariableSizeAttribute for WorkCountries { type SizeType = u8; type LocType 
 
 impl NamespacedEntity for WorkCountries { const NS: & str = "derive_links2"; }
 
-impl Entity for WorkTopSource { type T = u16; const N: usize = 91433302; const NAME: & str = "work-top-source"; }
+impl Entity for WorkTopSource { type T = u16; const N: usize = 91433299; const NAME: & str = "work-top-source"; }
 
 impl MappableEntity for WorkTopSource { type KeyType = usize; }
 
