@@ -30,3 +30,5 @@ local-moks/
 logs/
 paper-gen/
 .claude
+/libs/
+nano-root.tar.zst*
