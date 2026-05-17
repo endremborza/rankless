@@ -1,1 +1,4 @@
 *.sqlite*
+/oa-root/
+/oa-snapshot/
+/oa-test/
