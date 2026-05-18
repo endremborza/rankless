@@ -178,13 +178,15 @@ impl PrepNode {
     }
 }
 
-//WHY????
-// type WhyT = u16;
-type WhyT = u32;
+impl From<u16> for WorkTree {
+    fn from(value: u16) -> Self {
+        Self((value as WT).into())
+    }
+}
 
-impl From<WhyT> for WorkTree {
-    fn from(value: WhyT) -> Self {
-        Self(value.into())
+impl From<u32> for WorkTree {
+    fn from(value: u32) -> Self {
+        Self((value as WT).into())
     }
 }
 
