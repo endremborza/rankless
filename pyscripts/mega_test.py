@@ -25,10 +25,11 @@ import urllib.request
 from pathlib import Path
 
 from .deploy import be_service_name
+from .server_ops import DEFAULT_BE_ADDR
 
 DEV_PORT = 5173
 BASE_URL = f"http://localhost:{DEV_PORT}"
-BE_URL = "http://127.0.0.1:3038/v1"
+BE_URL = f"{DEFAULT_BE_ADDR}/v1"
 REPO_ROOT = Path(__file__).parent.parent
 LOG_DIR = REPO_ROOT / "logs"
 DEV_SERVER_LOG = LOG_DIR / "dev-server.log"
