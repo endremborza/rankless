@@ -2,6 +2,15 @@
 
 Rankless is a large-scale scholarly data exploration platform that enables low-latency, interactive browsing of a large citation network. It is built around data-specific compilation and selective caching to make real-time exploration of millions of citation relationships feasible.
 
+## Quickstart
+
+```sh
+make bootstrap   # one-time: deps, build, fetch nano OA_ROOT
+make dev         # backend + frontend in one foreground process
+```
+
+See [docs/dev-setup.md](docs/dev-setup.md) for prerequisites and troubleshooting.
+
 ## Data Schema
 
 The dataset is sourced primarily from OpenAlex, extended with SCImago rankings and categorizations. It is organized around six primary entity types: Papers, Authors, Institutions, Sources (journals), Countries, and Disciplines. The Disciplines type is further resolved into a four-level hierarchy: Domains (4), Fields (26), Subfields (252), and Topics (4516), where the first three correspond to ASJC codes.
