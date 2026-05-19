@@ -1,4 +1,6 @@
 *.sqlite*
+/nano-root/
+/nano-snapshot/
 /oa-root/
 /oa-snapshot/
 /oa-test/
