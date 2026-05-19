@@ -1,5 +1,6 @@
 """Local Rust server lifecycle management."""
 
+import os
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -17,7 +18,10 @@ def _base_url(port: int) -> str:
     return f"http://127.0.0.1:{port}"
 
 
-def _wait_for_url(
+DEFAULT_BE_ADDR = os.environ.get("RANKLESS_BE_URL") or _base_url(DEFAULT_PORT)
+
+
+def wait_for_url(
     spec_url: str,
     max_attempts: int,
     desc: str,
@@ -84,7 +88,7 @@ class ServerProcess:
         )
 
     def wait_ready(self, max_attempts: int = 500) -> None:
-        _wait_for_url(
+        wait_for_url(
             self.config.spec_url,
             max_attempts,
             desc=f"waiting for {self.config.base_url}",
@@ -168,7 +172,7 @@ class DockerServer:
         )
 
     def wait_ready(self, max_attempts: int = 500) -> None:
-        _wait_for_url(self.spec_url, max_attempts, desc=f"waiting for {self.container}")
+        wait_for_url(self.spec_url, max_attempts, desc=f"waiting for {self.container}")
 
     def __enter__(self):
         return self
