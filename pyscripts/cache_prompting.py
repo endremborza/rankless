@@ -13,7 +13,8 @@ import requests
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-DEFAULT_ADDR = "http://127.0.0.1:3038"
+from .server_ops import DEFAULT_BE_ADDR as DEFAULT_ADDR
+
 year = 1950
 
 SIDC = "semanticId"
