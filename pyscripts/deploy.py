@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 import time
+from functools import cache
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -108,9 +109,15 @@ ignores = [
 ]
 
 
-aws_profile = os.environ.get("AWS_PROFILE")
-key_name = os.environ["RL_KEY_ID"]
-key_path = os.environ["RL_KEY_PATH"]
+@cache
+def key_name() -> str:
+    return os.environ["RL_KEY_ID"]
+
+
+@cache
+def key_path() -> str:
+    return os.environ["RL_KEY_PATH"]
+
 
 ubuntu24_image_id = "ami-0f67ca03a667867bb"
 
@@ -179,29 +186,45 @@ def get_ip_alloc(live: bool):
 
 
 def get_tpr(inst):
-    return Transper(SSHrer(inst.public_ip_address, "ubuntu", key_path, True))
+    return Transper(SSHrer(inst.public_ip_address, "ubuntu", key_path(), True))
 
 
-live_ip_alloc = get_ip_alloc(True)
-alpha_ip_alloc = get_ip_alloc(False)
+@cache
+def live_ip_alloc() -> IpAlloc:
+    return get_ip_alloc(True)
 
-session = boto3.Session(profile_name=aws_profile)
 
-ec2 = session.resource("ec2")
-ec2c = session.client("ec2")
+@cache
+def alpha_ip_alloc() -> IpAlloc:
+    return get_ip_alloc(False)
+
+
+@cache
+def session() -> "boto3.Session":
+    return boto3.Session(profile_name=os.environ.get("AWS_PROFILE"))
+
+
+@cache
+def ec2():
+    return session().resource("ec2")
+
+
+@cache
+def ec2c():
+    return session().client("ec2")
 
 
 def get_running_inst(live: bool):
-    ip_alloc = live_ip_alloc if live else alpha_ip_alloc
+    ip_alloc = live_ip_alloc() if live else alpha_ip_alloc()
     ip = ip_alloc.ip
-    for inst in ec2.instances.all():  # pyright: ignore[reportAttributeAccessIssue]
+    for inst in ec2().instances.all():  # pyright: ignore[reportAttributeAccessIssue]
         if inst.public_ip_address == ip:
             return inst
 
 
 def get_dangling_instances():
-    ips = [live_ip_alloc.ip, alpha_ip_alloc.ip]
-    all_insts = ec2.instances.all()  # pyright: ignore[reportAttributeAccessIssue]
+    ips = [live_ip_alloc().ip, alpha_ip_alloc().ip]
+    all_insts = ec2().instances.all()  # pyright: ignore[reportAttributeAccessIssue]
 
     def filt(inst):
         return inst.public_ip_address not in ips
@@ -224,10 +247,10 @@ def get_block_device(size, upgraded: bool = False):
 
 def get_new_inst(vol_size: int, itype: str, img: str = ubuntu24_image_id, ext=False):
     block_device = get_block_device(vol_size, ext)
-    inst = ec2.create_instances(  # pyright: ignore[reportAttributeAccessIssue]
+    inst = ec2().create_instances(  # pyright: ignore[reportAttributeAccessIssue]
         ImageId=img,
         InstanceType=itype,
-        KeyName=key_name,
+        KeyName=key_name(),
         MinCount=1,
         MaxCount=1,
         BlockDeviceMappings=[block_device],
@@ -848,10 +871,10 @@ def new_large_image():
 
 def horizontal_instances(n):
     ips = []
-    for inst in ec2.create_instances(  # pyright: ignore[reportAttributeAccessIssue]
+    for inst in ec2().create_instances(  # pyright: ignore[reportAttributeAccessIssue]
         ImageId=_last_img(),
         InstanceType=LARGE_INSTANCE_TYPE,
-        KeyName=key_name,
+        KeyName=key_name(),
         MinCount=n,
         MaxCount=n,
     ):
@@ -923,8 +946,8 @@ def promote_alpha_to_live():
 
 
 def associate_id(inst, live: bool):
-    ipa = live_ip_alloc if live else alpha_ip_alloc
-    ec2c.associate_address(InstanceId=inst.id, AllocationId=ipa.alloc_id)
+    ipa = live_ip_alloc() if live else alpha_ip_alloc()
+    ec2c().associate_address(InstanceId=inst.id, AllocationId=ipa.alloc_id)
     inst.reload()
     return inst
 
