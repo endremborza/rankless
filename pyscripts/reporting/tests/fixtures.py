@@ -2,7 +2,7 @@
 
 # Post-Phase-0 line (cs= field present).
 LINE_POST_CS_HUMAN = (
-    '203.0.113.42 - - [28/Apr/2026:13:14:15 +0000] '
+    "203.0.113.42 - - [28/Apr/2026:13:14:15 +0000] "
     '"GET /v1/names/authors?q=darwin HTTP/2.0" 200 4321 '
     '"https://www.rankless.org/" '
     '"Mozilla/5.0 (X11; Linux x86_64) Chrome/124.0"'
@@ -10,7 +10,7 @@ LINE_POST_CS_HUMAN = (
 )
 
 LINE_POST_CS_BOT = (
-    '198.51.100.7 - - [28/Apr/2026:13:14:16 +0000] '
+    "198.51.100.7 - - [28/Apr/2026:13:14:16 +0000] "
     '"GET /sitemap.xml HTTP/1.1" 200 1024 '
     '"-" '
     '"Mozilla/5.0 (compatible; GPTBot/1.0; +https://openai.com/gptbot)"'
@@ -19,7 +19,7 @@ LINE_POST_CS_BOT = (
 
 # Pre-Phase-0 line (no cs= field).
 LINE_PRE_CS = (
-    '192.0.2.1 - - [28/Apr/2026:13:14:17 +0000] '
+    "192.0.2.1 - - [28/Apr/2026:13:14:17 +0000] "
     '"GET /institutions/harvard HTTP/2.0" 200 8765 '
     '"https://www.google.com/" '
     '"Mozilla/5.0 (Macintosh; Intel Mac OS X) Safari/605.1.15"'
@@ -28,7 +28,7 @@ LINE_PRE_CS = (
 
 # Hyphenated upstream timings (no upstream involvement).
 LINE_NO_UPSTREAM = (
-    '198.51.100.99 - - [28/Apr/2026:13:14:18 +0000] '
+    "198.51.100.99 - - [28/Apr/2026:13:14:18 +0000] "
     '"GET /robots.txt HTTP/1.1" 200 56 '
     '"-" "AhrefsBot/7.0"'
     'rt=0.001 uct="-" uht="-" urt="-" cs=BYPASS'
@@ -36,7 +36,7 @@ LINE_NO_UPSTREAM = (
 
 # 429 rate-limited.
 LINE_429 = (
-    '203.0.113.99 - - [28/Apr/2026:13:14:19 +0000] '
+    "203.0.113.99 - - [28/Apr/2026:13:14:19 +0000] "
     '"GET /v1/trees/authors/asem-foo HTTP/2.0" 429 0 '
     '"-" "python-requests/2.31.0"'
     'rt=0.000 uct="-" uht="-" urt="-" cs=BYPASS'
@@ -44,7 +44,7 @@ LINE_429 = (
 
 # Empty UA.
 LINE_EMPTY_UA = (
-    '203.0.113.5 - - [28/Apr/2026:13:14:20 +0000] '
+    "203.0.113.5 - - [28/Apr/2026:13:14:20 +0000] "
     '"GET / HTTP/1.1" 200 1234 '
     '"-" "-"'
     'rt=0.005 uct="-" uht="-" urt="-" cs=HIT'

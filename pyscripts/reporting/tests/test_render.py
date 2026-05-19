@@ -29,6 +29,7 @@ def _setup_tmp_root() -> Path:
     archive.ARCHIVE_COLD_DIR = config.ARCHIVE_COLD_DIR
     aggregate.AGGREGATES_DIR = config.AGGREGATES_DIR
     from pyscripts.reporting import state as state_mod
+
     state_mod.SALTS_PATH = config.SALTS_PATH
     state_mod.STATE_PATH = config.STATE_PATH
     config.ensure_dirs()
@@ -37,13 +38,12 @@ def _setup_tmp_root() -> Path:
 
 def _populate(tmp: Path):
     import datetime as dt
+
     df, _ = parse_lines(ALL)
     now_utc = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
     base = now_utc.replace(minute=0, second=0) - dt.timedelta(hours=1)
     new_ts = [base + dt.timedelta(seconds=i) for i in range(len(df))]
-    df = df.with_columns(
-        pl.Series("t", new_ts, dtype=pl.Datetime("us", "UTC"))
-    )
+    df = df.with_columns(pl.Series("t", new_ts, dtype=pl.Datetime("us", "UTC")))
     df = annotate_routes(df)
     df = assign_sessions(df)
     sessions = classify_sessions(df)
@@ -74,6 +74,7 @@ def test_render_local_mode():
 
 def test_render_public_mode_anonymizes():
     import re
+
     tmp = _setup_tmp_root()
     try:
         _populate(tmp)
@@ -81,6 +82,8 @@ def test_render_public_mode_anonymizes():
         ip_re = re.compile(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b")
         for f in ctx.out_dir.rglob("*.html"):
             text = f.read_text()
-            assert not ip_re.search(text), f"raw IP leaked in {f}: {ip_re.search(text).group(0)}"
+            assert not ip_re.search(text), (
+                f"raw IP leaked in {f}: {ip_re.search(text).group(0)}"
+            )
     finally:
         shutil.rmtree(tmp)

@@ -57,9 +57,7 @@ def test_compress_cold_skips_unannotated():
     try:
         df, _ = parse_lines(ALL)
         df = archive.annotate_routes(df)
-        df = df.with_columns(
-            (pl.col("t") - pl.duration(days=100)).alias("t")
-        )
+        df = df.with_columns((pl.col("t") - pl.duration(days=100)).alias("t"))
         archive.write_events(df)
         result = archive.compress_cold(today=dt.date.today())
         assert any("skipped" in k for k in result)
@@ -73,15 +71,15 @@ def test_compress_cold_compacts_when_annotated():
     try:
         df, _ = parse_lines(ALL)
         df = archive.annotate_routes(df)
+        df = df.with_columns((pl.col("t") - pl.duration(days=100)).alias("t"))
         df = df.with_columns(
-            (pl.col("t") - pl.duration(days=100)).alias("t")
+            [
+                pl.lit("s0").alias("session_id"),
+                pl.lit("test").alias("ua_family"),
+                pl.lit("unknown").alias("bot_class"),
+                pl.lit("").alias("referrer_domain"),
+            ]
         )
-        df = df.with_columns([
-            pl.lit("s0").alias("session_id"),
-            pl.lit("test").alias("ua_family"),
-            pl.lit("unknown").alias("bot_class"),
-            pl.lit("").alias("referrer_domain"),
-        ])
         archive.write_events(df)
         n_before = len(archive.read_hot())
         result = archive.compress_cold(today=dt.date.today())

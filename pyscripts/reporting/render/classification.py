@@ -40,7 +40,10 @@ def render(ctx: RenderContext) -> None:
                 ("Hard-human GET routes", sorted(classify.ROUTE_HARD_HUMAN_GET)),
                 ("HTML page routes", sorted(classify.ROUTE_HTML_PAGES)),
                 ("Browser-asset routes", sorted(classify.ROUTE_BROWSER_ASSETS)),
-                ("SvelteKit data prefetch routes", sorted(classify.ROUTE_SVELTEKIT_DATA)),
+                (
+                    "SvelteKit data prefetch routes",
+                    sorted(classify.ROUTE_SVELTEKIT_DATA),
+                ),
             ],
             search_route=classify.ROUTE_SEARCH,
             hard_rule_rates=rule_stats["hard"],

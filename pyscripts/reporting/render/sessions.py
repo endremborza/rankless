@@ -8,11 +8,17 @@ _BUCKET_LABELS = ["1", "2", "3–5", "6–10", "11–20", "21–50", "51+"]
 
 
 def render(ctx: RenderContext) -> None:
-    write(ctx, "sessions/index.html", render_template(
-        ctx, "sessions_index.html.j2",
-        active_page="sessions", depth=1,
-        chart=_req_distribution(ctx.sessions_table),
-    ))
+    write(
+        ctx,
+        "sessions/index.html",
+        render_template(
+            ctx,
+            "sessions_index.html.j2",
+            active_page="sessions",
+            depth=1,
+            chart=_req_distribution(ctx.sessions_table),
+        ),
+    )
 
 
 def _req_distribution(sessions: pl.DataFrame) -> str:
@@ -23,7 +29,9 @@ def _req_distribution(sessions: pl.DataFrame) -> str:
         sessions = sessions.with_columns(pl.lit("unknown").alias("bot_class"))
 
     df = sessions.with_columns(
-        pl.col("n_req").map_elements(_bucket_label, return_dtype=pl.String).alias("bucket")
+        pl.col("n_req")
+        .map_elements(_bucket_label, return_dtype=pl.String)
+        .alias("bucket")
     )
     counts = df.group_by(["bucket", "bot_class"]).agg(pl.len().alias("count"))
 
@@ -33,14 +41,18 @@ def _req_distribution(sessions: pl.DataFrame) -> str:
         if cls not in present:
             continue
         sub = counts.filter(pl.col("bot_class") == cls)
-        bucket_counts = {row["bucket"]: row["count"] for row in sub.iter_rows(named=True)}
-        traces.append({
-            "x": _BUCKET_LABELS,
-            "y": [bucket_counts.get(b, 0) for b in _BUCKET_LABELS],
-            "name": cls,
-            "type": "bar",
-            "marker": {"color": BOT_CLASS_COLORS.get(cls)},
-        })
+        bucket_counts = {
+            row["bucket"]: row["count"] for row in sub.iter_rows(named=True)
+        }
+        traces.append(
+            {
+                "x": _BUCKET_LABELS,
+                "y": [bucket_counts.get(b, 0) for b in _BUCKET_LABELS],
+                "name": cls,
+                "type": "bar",
+                "marker": {"color": BOT_CLASS_COLORS.get(cls)},
+            }
+        )
 
     return plotly_div(
         "req-dist",

@@ -15,7 +15,9 @@ def assign_sessions(df: pl.DataFrame) -> pl.DataFrame:
     df = df.sort(["addr", "ua", "t"])
 
     # Detect new-session boundaries
-    same_who = (pl.col("addr") == pl.col("addr").shift(1)) & (pl.col("ua") == pl.col("ua").shift(1))
+    same_who = (pl.col("addr") == pl.col("addr").shift(1)) & (
+        pl.col("ua") == pl.col("ua").shift(1)
+    )
     gap = pl.col("t").diff().dt.total_minutes() > SESSION_IDLE_MIN
     new_session = (~same_who) | gap
     # First row is always a new session
@@ -48,9 +50,9 @@ def assign_sessions(df: pl.DataFrame) -> pl.DataFrame:
         )
     ]
 
-    return df.with_columns(
-        pl.Series("session_id", session_ids)
-    ).drop(["_new_session", "_start_t"])
+    return df.with_columns(pl.Series("session_id", session_ids)).drop(
+        ["_new_session", "_start_t"]
+    )
 
 
 def _hash_session(salt: str, addr: str, ua: str, start: dt.datetime) -> str:

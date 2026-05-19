@@ -23,6 +23,7 @@ def _setup_tmp_root() -> Path:
     archive.ARCHIVE_COLD_DIR = config.ARCHIVE_COLD_DIR
     aggregate.AGGREGATES_DIR = config.AGGREGATES_DIR
     from pyscripts.reporting import state as state_mod
+
     state_mod.SALTS_PATH = config.SALTS_PATH
     state_mod.STATE_PATH = config.STATE_PATH
     config.ensure_dirs()

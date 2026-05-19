@@ -6,7 +6,10 @@ def test_api_routes():
     assert template("/v1/names/authors?q=foo") == "/v1/names/{etype}"
     assert template("/v1/views/authors/asem-x") == "/v1/views/{etype}/{semantic_id}"
     assert template("/v1/trees/authors/asem-x") == "/v1/trees/{root_type}/{semantic_id}"
-    assert template("/v1/works/authors/asem-x/0") == "/v1/works/{etype}/{semantic_id}/{from}"
+    assert (
+        template("/v1/works/authors/asem-x/0")
+        == "/v1/works/{etype}/{semantic_id}/{from}"
+    )
     assert template("/v1/slice/authors/0/40") == "/v1/slice/{etype}/{from}/{to}"
     assert template("/v1/paper-profile/asem-x") == "/v1/paper-profile/{asem}"
     assert template("/v1/author-peers/asem-x") == "/v1/author-peers/{asem}"

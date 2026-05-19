@@ -27,6 +27,7 @@ def _setup_tmp_root() -> Path:
     config.SALTS_PATH = tmp / "salts.json"
     config.STATE_PATH = tmp / "state.json"
     from pyscripts.reporting import state as state_mod
+
     state_mod.SALTS_PATH = config.SALTS_PATH
     state_mod.STATE_PATH = config.STATE_PATH
     return tmp
@@ -35,7 +36,10 @@ def _setup_tmp_root() -> Path:
 def test_ua_family_buckets():
     assert ua_family("") == "empty"
     assert ua_family("Mozilla/5.0 ... Chrome/124.0") == "chrome"
-    assert ua_family("Mozilla/5.0 (compatible; GPTBot/1.0; +https://openai.com/gptbot)") == "gptbot"
+    assert (
+        ua_family("Mozilla/5.0 (compatible; GPTBot/1.0; +https://openai.com/gptbot)")
+        == "gptbot"
+    )
     assert ua_family("AhrefsBot/7.0") == "ahrefsbot"
     assert ua_family("python-requests/2.31.0") == "python-script"
     assert ua_family("Mozilla/5.0 ... Firefox/124.0") == "firefox"
@@ -81,21 +85,23 @@ def test_assign_sessions_idle_split():
             dt.datetime(2026, 4, 28, 10, 0, 0, tzinfo=dt.timezone.utc),
             dt.datetime(2026, 4, 28, 11, 30, 0, tzinfo=dt.timezone.utc),
         ]
-        df = pl.DataFrame({
-            "t": pl.Series(ts, dtype=pl.Datetime("us", "UTC")),
-            "addr": ["1.2.3.4", "1.2.3.4"],
-            "ua": ["Chrome", "Chrome"],
-            "method": ["GET", "GET"],
-            "path": ["/", "/"],
-            "status": pl.Series([200, 200], dtype=pl.UInt16),
-            "size": pl.Series([100, 100], dtype=pl.UInt32),
-            "referrer": ["", ""],
-            "rt": pl.Series([0.1, 0.1], dtype=pl.Float32),
-            "uct": pl.Series([0.01, 0.01], dtype=pl.Float32),
-            "uht": pl.Series([0.01, 0.01], dtype=pl.Float32),
-            "urt": pl.Series([0.05, 0.05], dtype=pl.Float32),
-            "cs": ["HIT", "HIT"],
-        })
+        df = pl.DataFrame(
+            {
+                "t": pl.Series(ts, dtype=pl.Datetime("us", "UTC")),
+                "addr": ["1.2.3.4", "1.2.3.4"],
+                "ua": ["Chrome", "Chrome"],
+                "method": ["GET", "GET"],
+                "path": ["/", "/"],
+                "status": pl.Series([200, 200], dtype=pl.UInt16),
+                "size": pl.Series([100, 100], dtype=pl.UInt32),
+                "referrer": ["", ""],
+                "rt": pl.Series([0.1, 0.1], dtype=pl.Float32),
+                "uct": pl.Series([0.01, 0.01], dtype=pl.Float32),
+                "uht": pl.Series([0.01, 0.01], dtype=pl.Float32),
+                "urt": pl.Series([0.05, 0.05], dtype=pl.Float32),
+                "cs": ["HIT", "HIT"],
+            }
+        )
         df = assign_sessions(df)
         assert df["session_id"].n_unique() == 2
     finally:

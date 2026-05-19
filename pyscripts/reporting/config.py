@@ -18,7 +18,9 @@ LIVE_SSH_ID = os.environ.get("REPORTS_LIVE_SSH_ID", "rankless-live")
 NGINX_LOG = os.environ.get("REPORTS_NGINX_LOG", "/var/log/nginx/access.log")
 NGINX_LOG_ROTATED = NGINX_LOG + ".1"
 
-GHPAGES_WORKTREE = Path(os.environ.get("REPORTS_GHPAGES_WORKTREE", "/tmp/rankless-ghpages"))
+GHPAGES_WORKTREE = Path(
+    os.environ.get("REPORTS_GHPAGES_WORKTREE", "/tmp/rankless-ghpages")
+)
 GHPAGES_BRANCH = "gh-pages"
 GHPAGES_REMOTE = "origin"
 
@@ -32,20 +34,28 @@ LOG_TIME_FMT = "%d/%b/%Y:%H:%M:%S %z"
 # Regex for the upstream_time format defined in pyscripts/deploy.py:488-491.
 # `cs=...` field is optional so pre-Phase-0 lines still parse (cs=None).
 LINE_RE = re.compile(
-    r'^(?P<addr>\S+) - \S+ '
-    r'\[(?P<time>[^\]]+)\] '
+    r"^(?P<addr>\S+) - \S+ "
+    r"\[(?P<time>[^\]]+)\] "
     r'"(?P<method>[A-Z]+) (?P<path>[^"]*?) [^"]*?" '
-    r'(?P<status>\d{3}) (?P<size>\d+) '
+    r"(?P<status>\d{3}) (?P<size>\d+) "
     r'"(?P<referrer>[^"]*)" '
     r'"(?P<ua>[^"]*)"'
-    r'rt=(?P<rt>\S+) '
+    r"rt=(?P<rt>\S+) "
     r'uct="(?P<uct>[^"]*)" '
     r'uht="(?P<uht>[^"]*)" '
     r'urt="(?P<urt>[^"]*)"'
-    r'(?: cs=(?P<cs>\S+))?$'
+    r"(?: cs=(?P<cs>\S+))?$"
 )
 
-CACHE_STATUSES = {"HIT", "MISS", "BYPASS", "EXPIRED", "REVALIDATED", "STALE", "UPDATING"}
+CACHE_STATUSES = {
+    "HIT",
+    "MISS",
+    "BYPASS",
+    "EXPIRED",
+    "REVALIDATED",
+    "STALE",
+    "UPDATING",
+}
 
 
 def ensure_dirs() -> None:

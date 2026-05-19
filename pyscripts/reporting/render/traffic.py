@@ -9,38 +9,42 @@ TOP_N = 30
 def render(ctx: RenderContext) -> None:
     sessions, events, daily = ctx.sessions_table, ctx.events_24h, ctx.daily
 
-    write(ctx, "traffic.html", render_template(
-        ctx, "traffic.html.j2",
-        active_page="traffic", depth=0,
-        bot_area_chart=_bot_area(daily),
-        top_uas_table=_top_uas(sessions),
-        top_refs_table=_top_referrers(events),
-        top_paths_table=_top_paths(events, sessions),
-        status_chart=_status_donut(daily),
-    ))
+    write(
+        ctx,
+        "traffic.html",
+        render_template(
+            ctx,
+            "traffic.html.j2",
+            active_page="traffic",
+            depth=0,
+            bot_area_chart=_bot_area(daily),
+            top_uas_table=_top_uas(sessions),
+            top_refs_table=_top_referrers(events),
+            top_paths_table=_top_paths(events, sessions),
+            status_chart=_status_donut(daily),
+        ),
+    )
 
 
 def _bot_area(daily: pl.DataFrame) -> str:
     if daily.is_empty():
         return hint("No data.")
-    g = (
-        daily.group_by(["bucket", "bot_class"])
-        .agg(pl.col("n").sum())
-        .sort("bucket")
-    )
+    g = daily.group_by(["bucket", "bot_class"]).agg(pl.col("n").sum()).sort("bucket")
     classes = g["bot_class"].unique().to_list()
     traces = []
     for col in classes:
         sub = g.filter(pl.col("bot_class") == col)
-        traces.append({
-            "x": sub["bucket"].cast(pl.String).to_list(),
-            "y": sub["n"].to_list(),
-            "name": col,
-            "type": "scatter",
-            "stackgroup": "one",
-            "fillcolor": BOT_CLASS_COLORS.get(col),
-            "line": {"width": 0.5, "color": BOT_CLASS_COLORS.get(col)},
-        })
+        traces.append(
+            {
+                "x": sub["bucket"].cast(pl.String).to_list(),
+                "y": sub["n"].to_list(),
+                "name": col,
+                "type": "scatter",
+                "stackgroup": "one",
+                "fillcolor": BOT_CLASS_COLORS.get(col),
+                "line": {"width": 0.5, "color": BOT_CLASS_COLORS.get(col)},
+            }
+        )
     return plotly_div("bot-area", traces, layout={"yaxis": {"title": "requests"}})
 
 
@@ -53,10 +57,12 @@ def _top_uas(sessions: pl.DataFrame) -> str:
     if "bot_class" in sessions.columns:
         ct = (
             sessions.group_by(by)
-            .agg([
-                pl.len().alias("sessions"),
-                pl.col("bot_class").mode().first().alias("dominant_class"),
-            ])
+            .agg(
+                [
+                    pl.len().alias("sessions"),
+                    pl.col("bot_class").mode().first().alias("dominant_class"),
+                ]
+            )
             .sort("sessions", descending=True)
             .head(TOP_N)
         )
@@ -89,7 +95,9 @@ def _top_paths(events: pl.DataFrame, sessions: pl.DataFrame) -> str:
     if events.is_empty() or sessions.is_empty():
         return hint("No data.")
     human_ids = set(
-        sessions.filter(pl.col("bot_class").is_in(list(HUMAN_CLASSES)))["session_id"].to_list()
+        sessions.filter(pl.col("bot_class").is_in(list(HUMAN_CLASSES)))[
+            "session_id"
+        ].to_list()
     )
     s = events.filter(pl.col("session_id").is_in(human_ids))
     if s.is_empty():
@@ -115,5 +123,12 @@ def _status_donut(daily: pl.DataFrame) -> str:
     )
     return plotly_div(
         "status-donut",
-        [{"labels": g["status_family"].to_list(), "values": g["n"].to_list(), "type": "pie", "hole": 0.5}],
+        [
+            {
+                "labels": g["status_family"].to_list(),
+                "values": g["n"].to_list(),
+                "type": "pie",
+                "hole": 0.5,
+            }
+        ],
     )

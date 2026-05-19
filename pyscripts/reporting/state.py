@@ -23,7 +23,9 @@ def load() -> State:
     if not STATE_PATH.exists():
         return State()
     raw = json.loads(STATE_PATH.read_text())
-    return State(**{k: raw.get(k, getattr(State(), k)) for k in State.__dataclass_fields__})
+    return State(
+        **{k: raw.get(k, getattr(State(), k)) for k in State.__dataclass_fields__}
+    )
 
 
 def save(s: State) -> None:

@@ -15,17 +15,22 @@ def render(ctx: RenderContext) -> None:
     copy_assets(ctx)
 
     kpis = {
-        key: _kpi_block(label, ctx.events_hot, hours)
-        for label, key, hours in WINDOWS
+        key: _kpi_block(label, ctx.events_hot, hours) for label, key, hours in WINDOWS
     }
 
-    write(ctx, "index.html", render_template(
-        ctx, "landing.html.j2",
-        active_page="landing", depth=0,
-        kpis=kpis,
-        traffic_chart=_traffic_chart(ctx.daily),
-        bot_chart=_bot_session_chart(ctx.sessions_table),
-    ))
+    write(
+        ctx,
+        "index.html",
+        render_template(
+            ctx,
+            "landing.html.j2",
+            active_page="landing",
+            depth=0,
+            kpis=kpis,
+            traffic_chart=_traffic_chart(ctx.daily),
+            bot_chart=_bot_session_chart(ctx.sessions_table),
+        ),
+    )
 
 
 def _kpi_block(label: str, events: pl.DataFrame, hours: int) -> dict:
@@ -61,7 +66,7 @@ def _card(label: str, value: str) -> str:
         f'<div class="kpi-card">'
         f'<div class="kpi-label">{label}</div>'
         f'<div class="kpi-value">{value}</div>'
-        f'</div>'
+        f"</div>"
     )
 
 
@@ -84,14 +89,14 @@ def _breakdown_card(classes: pl.Series) -> str:
         )
         legend.append(
             f'<span class="legend-item"><span class="dot" style="background:{color}"></span>'
-            f'{cls} {n}</span>'
+            f"{cls} {n}</span>"
         )
     return (
         '<div class="kpi-card kpi-breakdown">'
         '<div class="kpi-label">Sessions by class</div>'
         f'<div class="bot-bar">{"".join(segs)}</div>'
         f'<div class="bot-legend">{" ".join(legend)}</div>'
-        '</div>'
+        "</div>"
     )
 
 
@@ -101,6 +106,7 @@ def _empty_kpi_html() -> str:
 
 def _pct(v: float) -> str:
     import math
+
     if v is None or math.isnan(v):
         return "—"
     return f"{v * 100:.2f}%"
@@ -108,6 +114,7 @@ def _pct(v: float) -> str:
 
 def _ms(v: float) -> str:
     import math
+
     if v is None or math.isnan(v):
         return "—"
     return f"{v * 1000:.0f} ms"
@@ -119,13 +126,15 @@ def _traffic_chart(daily: pl.DataFrame) -> str:
     g = daily.group_by("bucket").agg(pl.col("n").sum()).sort("bucket")
     return plotly_div(
         "traffic-30d",
-        [{
-            "x": g["bucket"].cast(pl.String).to_list(),
-            "y": g["n"].to_list(),
-            "type": "bar",
-            "marker": {"color": "#89b4fa"},
-            "name": "Requests",
-        }],
+        [
+            {
+                "x": g["bucket"].cast(pl.String).to_list(),
+                "y": g["n"].to_list(),
+                "type": "bar",
+                "marker": {"color": "#89b4fa"},
+                "name": "Requests",
+            }
+        ],
         layout={"yaxis": {"title": "requests"}},
     )
 
@@ -139,14 +148,17 @@ def _bot_session_chart(sessions: pl.DataFrame) -> str:
     traces = []
     for cls in classes:
         sub = pivot.filter(pl.col("bot_class") == cls)
-        traces.append({
-            "x": sub["day"].cast(pl.String).to_list(),
-            "y": sub["n"].to_list(),
-            "name": cls,
-            "type": "bar",
-            "marker": {"color": BOT_CLASS_COLORS.get(cls, "#cdd6f4")},
-        })
+        traces.append(
+            {
+                "x": sub["day"].cast(pl.String).to_list(),
+                "y": sub["n"].to_list(),
+                "name": cls,
+                "type": "bar",
+                "marker": {"color": BOT_CLASS_COLORS.get(cls, "#cdd6f4")},
+            }
+        )
     return plotly_div(
-        "bot-stack", traces,
+        "bot-stack",
+        traces,
         layout={"barmode": "stack", "yaxis": {"title": "sessions"}},
     )
