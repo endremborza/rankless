@@ -31,4 +31,4 @@ logs/
 paper-gen/
 .claude
 /libs/
-nano-root.tar.zst*
+nano-snapshot.tar.zst*
