@@ -23,8 +23,9 @@ NOBEL_CATEGORY_CODES = {
     "Economics": 4,
 }
 
-# link_frame = "https://tmp-borza-public-cyx.s3.amazonaws.com/{}.csv.gz"
-link_frame = "s3://tmp-borza-public-cyx/{}.csv.gz"
+# Public bucket. HTTPS so designers without AWS creds can run the pipeline.
+# link_frame = "s3://tmp-borza-public-cyx/{}.csv.gz"
+link_frame = "https://tmp-borza-public-cyx.s3.amazonaws.com/{}.csv.gz"
 
 
 def get_best_q_by_year():
