@@ -242,7 +242,11 @@ def _totals_spec(label_a: str, label_b: str) -> list[tuple]:
         ("mean_pearson_sc", "Mean Pearson (source count)", lambda v: f"{v:.4f}"),
         ("mean_relerr_lc", "Mean rel-error (link count)", lambda v: f"{v:.2%}"),
         ("mean_relerr_sc", "Mean rel-error (source count)", lambda v: f"{v:.2%}"),
-        ("mean_missing_ratio", f"Mean missing-in-{label_b} ratio", lambda v: f"{v:.1%}"),
+        (
+            "mean_missing_ratio",
+            f"Mean missing-in-{label_b} ratio",
+            lambda v: f"{v:.1%}",
+        ),
         ("mean_ts_id_match", "Top-source ID match rate", lambda v: f"{v:.1%}"),
         ("mean_ts_link_relerr", "Top-source link rel-error", lambda v: f"{v:.2%}"),
     ]
