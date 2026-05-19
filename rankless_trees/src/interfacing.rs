@@ -75,7 +75,7 @@ macro_rules! make_interfaces {
         impl Getters {
 
             $(
-                pub fn $f_key<'a, K: UnsignedNumber>(&'a self, key: &'a K) -> &'a ET<$f_t> {
+                pub fn $f_key<'a, K: UnsignedNumber>(&'a self, key: &K) -> &'a ET<$f_t> {
                     type BE = FB<$f_t>;
                     let uk = key.to_usize();
                     <BE as EntityImmutableRefMapperBackend<$f_t>>::get_ref_via_immut(&self.ifs.$f_key, &uk).expect(&format!("e: {}, k: {}", <$f_t as Entity>::NAME, uk))
