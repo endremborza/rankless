@@ -22,13 +22,27 @@ def fetch_svg(root_type: str, semantic_id: str) -> bytes:
 
 def svg_to_png(svg_bytes: bytes, out_path: Path, w: int, h: int, dpi: int) -> None:
     subprocess.run(
-        ["rsvg-convert", "-o", str(out_path), "-w", str(w), "-h", str(h), "-d", str(dpi), "-p", str(dpi)],
+        [
+            "rsvg-convert",
+            "-o",
+            str(out_path),
+            "-w",
+            str(w),
+            "-h",
+            str(h),
+            "-d",
+            str(dpi),
+            "-p",
+            str(dpi),
+        ],
         input=svg_bytes,
         check=True,
     )
 
 
-def export_entity(root_type: str, semantic_id: str, out_dir: Path, w: int, h: int, dpi: int) -> None:
+def export_entity(
+    root_type: str, semantic_id: str, out_dir: Path, w: int, h: int, dpi: int
+) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     svg_bytes = fetch_svg(root_type, semantic_id)
     out_path = out_dir / f"{root_type}-{semantic_id}.png"
@@ -65,7 +79,9 @@ def main() -> None:
             print("--entity must be TYPE/SLUG, e.g. institutions/some-university")
             sys.exit(1)
         root_type, semantic_id = parts
-        export_entity(root_type, semantic_id, args.out_dir, args.width, args.height, args.dpi)
+        export_entity(
+            root_type, semantic_id, args.out_dir, args.width, args.height, args.dpi
+        )
     else:
         br = BatchRequester(min_citations=args.min_citations)
         sample = br.urled_sample.head(args.top)
@@ -74,7 +90,13 @@ def main() -> None:
             rt, sid = row[RTC], row[SIDC]
             try:
                 svg_bytes = fetch_svg(rt, sid)
-                svg_to_png(svg_bytes, args.out_dir / f"{rt}-{sid}.png", args.width, args.height, args.dpi)
+                svg_to_png(
+                    svg_bytes,
+                    args.out_dir / f"{rt}-{sid}.png",
+                    args.width,
+                    args.height,
+                    args.dpi,
+                )
             except Exception as e:
                 print(f"failed {rt}/{sid}: {e}")
 
