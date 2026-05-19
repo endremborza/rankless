@@ -12,7 +12,7 @@ import { test, expect } from '@playwright/test';
 import * as fs from 'fs';
 
 const STATE_FILE = '/tmp/mega-test-ledger-state.json';
-const BE_URL = 'http://127.0.0.1:3038/v1';
+const BE_URL = process.env.BE_URL || 'http://127.0.0.1:3038/v1';
 const TEST_ORCID = '0000-0003-4255-0492';
 const TEST_SEMANTIC_ID = 'robert-langer';
 const TEST_NAME = 'Robert+Langer';
