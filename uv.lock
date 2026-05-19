@@ -183,7 +183,7 @@ wheels = [
 
 [[package]]
 name = "ccl-science-data"
-source = { editable = "../../libs/ccl-science-data" }
+source = { editable = "libs/ccl-science-data" }
 dependencies = [
     { name = "pandas" },
     { name = "polars" },
@@ -1312,7 +1312,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.42.61" },
-    { name = "ccl-science-data", editable = "../../libs/ccl-science-data" },
+    { name = "ccl-science-data", editable = "libs/ccl-science-data" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "matplotlib", specifier = ">=3.10.8" },
     { name = "pandas", extras = ["aws", "parquet"], specifier = ">=3.0.1" },

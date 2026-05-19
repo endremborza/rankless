@@ -22,7 +22,10 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-ccl-science-data = { path = "../../libs/ccl-science-data", editable = true }
+# `libs/ccl-science-data` is populated by `make bootstrap` (cloned from
+# https://github.com/CenterForCollectiveLearning/science-data). Symlink an
+# existing checkout there if you already have one.
+ccl-science-data = { path = "libs/ccl-science-data", editable = true }
 
 [dependency-groups]
 dev = [
