@@ -1,0 +1,35 @@
+# End-to-end test image for the `make bootstrap` / `make dev` flow.
+# Built and run by `make test-dev-env` from the repo root.
+
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    BUN_INSTALL=/usr/local/bun \
+    PATH=/usr/local/cargo/bin:/usr/local/bun/bin:/root/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl git make rsync time unzip xz-utils \
+        build-essential pkg-config libssl-dev libpq-dev \
+        python3 python3-venv python3-dev \
+        zstd \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --default-toolchain stable --no-modify-path \
+    && rustup --version && cargo --version
+
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh \
+    && uv --version
+
+RUN mkdir -p "$BUN_INSTALL" \
+    && curl -fsSL https://bun.sh/install | bash \
+    && ln -s /root/.bun/bin/bun /usr/local/bin/bun \
+    && bun --version
+
+COPY entrypoint.sh /usr/local/bin/dev-test-entrypoint
+RUN chmod +x /usr/local/bin/dev-test-entrypoint
+
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/dev-test-entrypoint"]
