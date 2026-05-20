@@ -1,8 +1,36 @@
-include .env
+-include .env
 export
 
+.PHONY: bootstrap dev build-nano-artifact test-dev-env py-build
+
+bootstrap:
+	python3 -m pyscripts.dev.bootstrap
+
+dev:
+	uv run -m pyscripts.dev.run
+
+build-nano-artifact:
+	uv run -m pyscripts.dev.build_nano_artifact
+
+# End-to-end test of the bootstrap flow inside a clean Ubuntu container.
+# Requires `nano-snapshot.tar.zst` reachable from the container — by default
+# the entrypoint hits http://127.0.0.1:8000/nano-snapshot.tar.zst via
+# --network=host, so run `python -m http.server 8000` in the dir holding the
+# artifact first.
+test-dev-env:
+	docker build -t rankless-dev-test -f docker/Dockerfile.dev-test docker/
+	docker run --rm --network=host \
+		-v "$(CURDIR)":/host:ro \
+		-e NANO_ARTIFACT_URL="$(or $(NANO_ARTIFACT_URL),http://127.0.0.1:8000/nano-snapshot.tar.zst)" \
+		-e NANO_ARTIFACT_SHA256="$(NANO_ARTIFACT_SHA256)" \
+		rankless-dev-test
+
 py-build:
-	sudo apt install libpq-dev
+	@if [ "$$(uname -s)" = "Darwin" ]; then \
+		brew install libpq; \
+	else \
+		sudo apt install libpq-dev; \
+	fi
 	uv sync
 
 include rankless_rs/Makefile
