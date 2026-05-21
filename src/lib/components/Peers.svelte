@@ -15,12 +15,14 @@
 	);
 	$: maxSfRatio = Math.max(1.5, ...peerSfRatios.flat());
 	$: heroBarPct = (100 / maxSfRatio).toFixed(2);
+	$: peerSfMax = Math.max(
+		1,
+		...data.peers.flatMap((p) => data.topSubfields.map((_, i) => p.subfieldCitations[i] ?? 0))
+	);
 
 	$: yearSpan = Math.max(1, (data.hero.yearlyCites.length || 1) - 1);
 	$: heroYearly = data.hero.yearlyCites.map((v) => Math.max(1, v));
-	$: peerYearRatios = data.peers.map((p) =>
-		p.yearlyCites.map((v, y) => v / (heroYearly[y] ?? 1))
-	);
+	$: peerYearRatios = data.peers.map((p) => p.yearlyCites.map((v, y) => v / (heroYearly[y] ?? 1)));
 	$: maxYearRatio = Math.max(1.5, ...peerYearRatios.flat());
 	$: heroYearY = (1 - 1 / maxYearRatio).toFixed(4);
 
@@ -94,11 +96,10 @@
 					{/if}
 				</div>
 				<div class="bars mini">
-					<div class="hero-baseline" style="bottom: {heroBarPct}%;" />
 					{#each data.topSubfields as sf, si}
 						{@const val = peer.subfieldCitations[si] ?? 0}
 						{@const ratio = peerSfRatios[pi][si]}
-						{@const h = (ratio / maxSfRatio) * 100}
+						{@const h = (val / peerSfMax) * 100}
 						<div
 							class="bar-slot"
 							on:mouseenter={(e) =>
@@ -158,9 +159,11 @@
 			<div class="spark-title">
 				Citations per year, relative to {data.hero.name}
 				<span class="legend">
-					<span class="leg leg-hero" /> {data.hero.name} (= 1×)
+					<span class="leg leg-hero" />
+					{data.hero.name} (= 1×)
 					<span class="leg leg-others" /> peers
-					<span class="leg leg-selected" /> {selectedPeer.name}
+					<span class="leg leg-selected" />
+					{selectedPeer.name}
 				</span>
 			</div>
 			<svg viewBox="0 0 {yearSpan} 1" class="ribbon" preserveAspectRatio="none">
@@ -203,9 +206,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 20px;
-		max-width: 1100px;
-		margin: 0 auto;
-		width: 100%;
 	}
 
 	.hero-strip {
