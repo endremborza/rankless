@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
+	import { browser } from '$app/environment';
 	import { BE_REMOTE_URL, COMPLETE_YEAR } from '$lib/constants';
 	import type { Paper, EntityAttsForLinks, PaginatedPaperSetResp } from '$lib/tree-types';
 	import { resolveSourceName } from '$lib/utils/paper-helpers';
@@ -77,7 +78,7 @@
 			papers = initialPapers;
 			sliceEnd = initialSliceEnd;
 			totalPapers = initialTotalPapers;
-		} else {
+		} else if (browser) {
 			await fetchPage(0, INITIAL_PAGE_SIZE);
 		}
 		if (id !== semanticId) return; // navigated away during fetch
@@ -156,6 +157,7 @@
 		: null;
 
 	$: showOwnerActions = isOwner && ownerUnlocked && citationStyle === 'html';
+	$: showChangesSections = isOwner ? ownerUnlocked : true;
 	$: allLoaded = sliceEnd >= totalPapers && initialLoaded;
 	$: loadMoreLabel = (() => {
 		const count = `${sliceEnd} of ${totalPapers}`;
@@ -274,9 +276,9 @@
 			{/each}
 		</div>
 
-		{#if mergedDropPapers.length > 0 && isOwner && ownerUnlocked}
+		{#if mergedDropPapers.length > 0 && showChangesSections}
 			<details class="merged-section">
-				<summary>Merged ({mergedDropPapers.length})</summary>
+				<summary>{isOwner ? 'Merged' : 'Merged by author'} ({mergedDropPapers.length})</summary>
 				<div class="paper-list dimmed">
 					{#each mergedDropPapers as paper (paper.wid)}
 						{@const keepWid = mergedPairs.find(([, d]) => d === paper.wid)?.[0]}
@@ -289,7 +291,7 @@
 									{#if keepPaper} · merged into: {keepPaper.name}{/if}
 								</span>
 							</div>
-							{#if keepWid !== undefined}
+							{#if isOwner && keepWid !== undefined}
 								<button
 									class="btn-sm"
 									on:click={() => dispatch('unmerge', { keep: keepWid, drop: paper.wid })}
@@ -302,9 +304,11 @@
 			</details>
 		{/if}
 
-		{#if disownedPapersList.length > 0 && isOwner && ownerUnlocked}
+		{#if disownedPapersList.length > 0 && showChangesSections}
 			<details class="disowned-section">
-				<summary>Disowned ({disownedPapersList.length})</summary>
+				<summary
+					>{isOwner ? 'Disowned' : 'Disowned by author'} ({disownedPapersList.length})</summary
+				>
 				<div class="paper-list dimmed">
 					{#each disownedPapersList as paper (paper.wid)}
 						{@const source = resolveSourceName(paper.source, entityAtts)}
@@ -315,7 +319,10 @@
 									>{paper.year}{#if source} · {source}{/if}</span
 								>
 							</div>
-							<button class="btn-sm" on:click={() => dispatch('undisown', paper.wid)}>Undo</button>
+							{#if isOwner}
+								<button class="btn-sm" on:click={() => dispatch('undisown', paper.wid)}>Undo</button
+								>
+							{/if}
 						</div>
 					{/each}
 				</div>
@@ -386,7 +393,7 @@
 	.paper-meta {
 		font-size: var(--text-xs);
 		opacity: 0.5;
-		margin-left: var(--text-m);
+		margin-left: var(--text-md);
 		display: flex;
 		gap: 6px;
 		align-items: center;
@@ -519,14 +526,16 @@
 
 	.numbered-paper {
 		display: flex;
+		align-items: baseline;
 	}
 
 	.paper-num {
 		opacity: 0.65;
 		margin-right: 10px;
-		width: 3rem;
+		flex: 0 0 3rem;
 		text-align: right;
 		font-variant-numeric: tabular-nums;
+		line-height: 1.3;
 	}
 
 	.load-more-top {
