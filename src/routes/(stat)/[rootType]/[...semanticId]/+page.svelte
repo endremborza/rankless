@@ -16,11 +16,7 @@
 	import AuthorNetwork from '$lib/components/AuthorNetwork.svelte';
 	import Toc from '$lib/components/Toc.svelte';
 	import PaperRainbow from '$lib/components/PaperRainbow.svelte';
-	import PeersA from '$lib/components/PeersA.svelte';
-	// import PeersB from '$lib/components/PeersB.svelte';
-	// import PeersC from '$lib/components/PeersC.svelte';
-	// import PeersD from '$lib/components/PeersD.svelte';
-	// import PeersE from '$lib/components/PeersE.svelte';
+	import Peers from '$lib/components/Peers.svelte';
 	import AllWorks from '$lib/components/AllWorks.svelte';
 	import AuthorOwnerTools from '$lib/components/AuthorOwnerTools.svelte';
 	import AuthorLedgerPanel from '$lib/components/AuthorLedgerPanel.svelte';
@@ -317,8 +313,8 @@
 
 {#if isAuthor && data.peersData && data.peersData.peers.length > 0}
 	<section id="peers" class="shadowy padded marged main-block">
-		<h2>Peers — A (Enhanced Table)</h2>
-		<PeersA data={data.peersData} />
+		<h2>Peers</h2>
+		<Peers data={data.peersData} />
 	</section>
 {/if}
 
