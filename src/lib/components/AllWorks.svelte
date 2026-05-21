@@ -361,7 +361,6 @@
 
 	.paper-row.merging-source {
 		background: rgba(var(--color-range-15), 0.04);
-		border-radius: 3px;
 		padding-left: 6px;
 	}
 
@@ -411,7 +410,6 @@
 	.merge-badge {
 		font-size: var(--text-xs);
 		padding: 1px 5px;
-		border-radius: 3px;
 		border: 1px solid rgba(var(--color-range-15), 0.2);
 		opacity: 1;
 	}
@@ -428,7 +426,6 @@
 		justify-content: space-between;
 		gap: 8px;
 		padding: 8px 10px;
-		border-radius: 4px;
 		border: 1px dashed rgba(var(--color-range-15), 0.25);
 		font-size: var(--text-sm);
 	}
@@ -443,7 +440,6 @@
 		flex-direction: column;
 		gap: 8px;
 		padding: 10px 12px;
-		border-radius: 4px;
 		border: 1px solid rgba(var(--color-range-15), 0.2);
 		font-size: var(--text-sm);
 	}
@@ -494,7 +490,6 @@
 	.load-more {
 		align-self: center;
 		padding: 6px 16px;
-		border-radius: 4px;
 		border: 1px solid rgba(var(--color-range-15), 0.2);
 		background: none;
 		cursor: pointer;

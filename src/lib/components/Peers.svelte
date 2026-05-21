@@ -214,7 +214,6 @@
 		gap: 18px;
 		padding: 14px 18px;
 		border: 1px solid rgba(var(--color-range-30), 0.18);
-		border-radius: 6px;
 		background: var(--peer-track-bg);
 	}
 
@@ -230,7 +229,6 @@
 		flex: 1;
 		display: flex;
 		height: 22px;
-		border-radius: 3px;
 		overflow: hidden;
 	}
 
@@ -272,7 +270,6 @@
 		gap: 8px;
 		padding: 10px 12px;
 		border: 1px solid rgba(var(--color-range-30), 0.15);
-		border-radius: 4px;
 		background: var(--peer-track-bg);
 		cursor: pointer;
 		transition: border-color 0.12s, background 0.12s, transform 0.12s;
@@ -373,7 +370,6 @@
 	.bar {
 		width: 100%;
 		background: rgba(var(--sf-c), 0.75);
-		border-radius: 2px 2px 0 0;
 		min-height: 1px;
 		transition: background 0.12s;
 	}
@@ -426,7 +422,6 @@
 		gap: 24px;
 		padding: 18px;
 		border: 1px solid rgba(var(--color-range-30), 0.15);
-		border-radius: 6px;
 		background: var(--peer-track-bg);
 	}
 
@@ -541,7 +536,6 @@
 		background: #222;
 		color: #fff;
 		padding: 5px 9px;
-		border-radius: 4px;
 		font-size: var(--text-xs);
 		white-space: nowrap;
 		z-index: 100;

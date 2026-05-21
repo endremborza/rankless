@@ -185,7 +185,6 @@
 	.card {
 		width: min(760px, 95%);
 		background: var(--text-bg-2);
-		border-radius: var(--borad);
 		padding: 2rem;
 	}
 
@@ -283,7 +282,6 @@
 		margin-top: 0.5rem;
 		width: 100%;
 		padding: 0.6rem;
-		border-radius: var(--borad);
 		border: 1px solid var(--border-light);
 	}
 

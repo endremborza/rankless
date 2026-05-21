@@ -240,7 +240,6 @@
 		background: var(--button-bg, #ccc);
 		color: var(--button-fg, #000);
 		border: none;
-		border-radius: var(--borad);
 		padding: 0.5rem 1rem;
 		cursor: pointer;
 		transition: opacity 0.2s ease;

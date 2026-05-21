@@ -170,7 +170,6 @@
 		font-size: var(--text-base);
 		font-family: inherit;
 		border: 1px solid rgba(var(--color-range-15), 0.2);
-		border-radius: 4px;
 		background: transparent;
 		color: var(--color-text);
 	}
@@ -266,7 +265,6 @@
 		display: block;
 		margin: 16px auto 0;
 		padding: 6px 20px;
-		border-radius: 4px;
 		border: 1px solid rgba(var(--color-range-15), 0.2);
 		background: none;
 		cursor: pointer;

@@ -262,7 +262,6 @@
 		padding: 6px 10px;
 		cursor: pointer;
 		color: var(--color-theme-darkgrey);
-		border-radius: var(--borad);
 		transition: background-color 0.15s, color 0.15s;
 		white-space: nowrap;
 	}
@@ -287,7 +286,6 @@
 		left: 0;
 		background-color: var(--color-theme-white);
 		border: solid var(--color-theme-darkblue) 2px;
-		border-radius: var(--borad);
 		box-shadow: 2px 4px 12px var(--color-theme-shadow);
 		z-index: 20;
 		display: flex;
@@ -330,7 +328,6 @@
 	.login-btn {
 		font-size: var(--text-sm);
 		padding: 5px 10px;
-		border-radius: var(--borad);
 		color: var(--color-theme-darkgrey);
 		text-decoration: none;
 		border: 1px solid transparent;
@@ -350,7 +347,6 @@
 		padding: 5px 10px;
 		cursor: pointer;
 		color: var(--color-theme-darkgrey);
-		border-radius: var(--borad);
 		transition: background-color 0.15s, color 0.15s;
 		white-space: nowrap;
 		max-width: 120px;
