@@ -1,12 +1,7 @@
 <script lang="ts">
 	import type { EntityPeersResp } from '$lib/tree-types';
-	import {
-		abbrSfName,
-		sparkLinePath,
-		globalCitesMax,
-		sfMaxes,
-		SUBFIELD_COLOR_VARS
-	} from '$lib/peers-utils';
+	import { abbrSfName, sparkLinePath, SUBFIELD_COLOR_VARS } from '$lib/peers-utils';
+	import { formatNumber } from '$lib/text-format-util';
 
 	export let data: EntityPeersResp;
 
@@ -14,9 +9,20 @@
 		(acc, _, i) => acc + (data.hero.subfieldCitations[i] ?? 0),
 		0
 	);
-	$: sfMaxArr = sfMaxes(data);
-	$: citesMax = globalCitesMax(data);
+	$: heroSf = data.topSubfields.map((_, i) => Math.max(1, data.hero.subfieldCitations[i] ?? 0));
+	$: peerSfRatios = data.peers.map((p) =>
+		data.topSubfields.map((_, i) => (p.subfieldCitations[i] ?? 0) / heroSf[i])
+	);
+	$: maxSfRatio = Math.max(1.5, ...peerSfRatios.flat());
+	$: heroBarPct = (100 / maxSfRatio).toFixed(2);
+
 	$: yearSpan = Math.max(1, (data.hero.yearlyCites.length || 1) - 1);
+	$: heroYearly = data.hero.yearlyCites.map((v) => Math.max(1, v));
+	$: peerYearRatios = data.peers.map((p) =>
+		p.yearlyCites.map((v, y) => v / (heroYearly[y] ?? 1))
+	);
+	$: maxYearRatio = Math.max(1.5, ...peerYearRatios.flat());
+	$: heroYearY = (1 - 1 / maxYearRatio).toFixed(4);
 
 	let selectedIdx = 0;
 	$: if (selectedIdx >= data.peers.length) selectedIdx = 0;
@@ -88,12 +94,15 @@
 					{/if}
 				</div>
 				<div class="bars mini">
+					<div class="hero-baseline" style="bottom: {heroBarPct}%;" />
 					{#each data.topSubfields as sf, si}
 						{@const val = peer.subfieldCitations[si] ?? 0}
-						{@const h = (val / sfMaxArr[si]) * 100}
+						{@const ratio = peerSfRatios[pi][si]}
+						{@const h = (ratio / maxSfRatio) * 100}
 						<div
 							class="bar-slot"
-							on:mouseenter={(e) => showTip(`${sf.name} · ${val.toLocaleString()}`, e)}
+							on:mouseenter={(e) =>
+								showTip(`${sf.name} · ${formatNumber(val)} (×${ratio.toFixed(2)})`, e)}
 							on:mouseleave={hideTip}
 							role="presentation"
 						>
@@ -117,15 +126,24 @@
 				{/if}
 			</div>
 			<div class="bars big">
+				<div class="hero-baseline" style="bottom: {heroBarPct}%;">
+					<span class="baseline-label">{data.hero.name}</span>
+				</div>
 				{#each data.topSubfields as sf, si}
 					{@const val = selectedPeer.subfieldCitations[si] ?? 0}
-					{@const h = (val / sfMaxArr[si]) * 100}
+					{@const ratio = peerSfRatios[selectedIdx][si]}
+					{@const h = (ratio / maxSfRatio) * 100}
 					<div
 						class="bar-slot"
-						on:mouseenter={(e) => showTip(`${sf.name} · ${val.toLocaleString()}`, e)}
+						on:mouseenter={(e) =>
+							showTip(`${sf.name} · ${formatNumber(val)} (×${ratio.toFixed(2)})`, e)}
 						on:mouseleave={hideTip}
 						role="presentation"
 					>
+						<span class="bar-value" style="bottom: {h.toFixed(2)}%;">
+							<span class="bar-num">{formatNumber(val)}</span>
+							<span class="bar-ratio">×{ratio.toFixed(1)}</span>
+						</span>
 						<div
 							class="bar"
 							style="height: {h.toFixed(2)}%; --sf-c: var({SUBFIELD_COLOR_VARS[si]});"
@@ -138,23 +156,36 @@
 
 		<div class="detail-spark">
 			<div class="spark-title">
-				Citations per year
+				Citations per year, relative to {data.hero.name}
 				<span class="legend">
+					<span class="leg leg-hero" /> {data.hero.name} (= 1×)
 					<span class="leg leg-others" /> peers
-					<span class="leg leg-hero" />
-					{data.hero.name}
-					<span class="leg leg-selected" />
-					{selectedPeer.name}
+					<span class="leg leg-selected" /> {selectedPeer.name}
 				</span>
 			</div>
 			<svg viewBox="0 0 {yearSpan} 1" class="ribbon" preserveAspectRatio="none">
-				{#each data.peers as peer, pi}
+				<line
+					x1="0"
+					x2={yearSpan}
+					y1={heroYearY}
+					y2={heroYearY}
+					class="ribbon-hero"
+					vector-effect="non-scaling-stroke"
+				/>
+				{#each data.peers as _, pi}
 					{#if pi !== selectedIdx}
-						<path d={sparkLinePath(peer.yearlyCites, citesMax)} class="ribbon-other" />
+						<path
+							d={sparkLinePath(peerYearRatios[pi], maxYearRatio)}
+							class="ribbon-other"
+							vector-effect="non-scaling-stroke"
+						/>
 					{/if}
 				{/each}
-				<path d={sparkLinePath(data.hero.yearlyCites, citesMax)} class="ribbon-hero" />
-				<path d={sparkLinePath(selectedPeer.yearlyCites, citesMax)} class="ribbon-selected" />
+				<path
+					d={sparkLinePath(peerYearRatios[selectedIdx], maxYearRatio)}
+					class="ribbon-selected"
+					vector-effect="non-scaling-stroke"
+				/>
 			</svg>
 		</div>
 	</div>
@@ -172,6 +203,9 @@
 		display: flex;
 		flex-direction: column;
 		gap: 20px;
+		max-width: 1100px;
+		margin: 0 auto;
+		width: 100%;
 	}
 
 	.hero-strip {
@@ -290,16 +324,41 @@
 		grid-template-columns: repeat(5, minmax(0, 1fr));
 		gap: 4px;
 		align-items: end;
+		position: relative;
 	}
 
 	.bars.mini {
-		height: 44px;
+		height: 64px;
 	}
 
 	.bars.big {
-		height: 180px;
-		gap: 10px;
-		padding-top: 6px;
+		height: 200px;
+		gap: 14px;
+		padding-top: 22px;
+	}
+
+	.hero-baseline {
+		position: absolute;
+		left: 0;
+		right: 0;
+		height: 0;
+		border-top: 1px dashed rgba(var(--hero-c), 0.55);
+		pointer-events: none;
+		z-index: 2;
+	}
+
+	.baseline-label {
+		position: absolute;
+		right: 0;
+		top: -14px;
+		font-size: var(--text-xs);
+		color: rgba(var(--hero-c), 0.85);
+		background: var(--text-bg, transparent);
+		padding: 0 4px;
+		white-space: nowrap;
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.bar-slot {
@@ -334,6 +393,31 @@
 		letter-spacing: 0.04em;
 		opacity: 0.6;
 		white-space: nowrap;
+	}
+
+	.bar-value {
+		position: absolute;
+		left: 0;
+		right: 0;
+		text-align: center;
+		font-size: var(--text-xs);
+		font-variant-numeric: tabular-nums;
+		line-height: 1.1;
+		pointer-events: none;
+		transform: translateY(-100%);
+		padding-bottom: 2px;
+		z-index: 1;
+	}
+
+	.bar-num {
+		display: block;
+		font-weight: 600;
+	}
+
+	.bar-ratio {
+		display: block;
+		opacity: 0.6;
+		font-size: 0.85em;
 	}
 
 	.detail-panel {
@@ -411,8 +495,9 @@
 	}
 
 	.leg-hero {
-		background: rgba(var(--hero-c), 1);
-		height: 3px;
+		background: transparent;
+		height: 0;
+		border-top: 2px dashed rgba(var(--hero-c), 0.85);
 	}
 
 	.leg-selected {
@@ -429,24 +514,23 @@
 
 	.ribbon-other {
 		fill: none;
-		stroke: rgba(var(--color-range-30), 0.28);
-		stroke-width: 0.04;
+		stroke: rgba(var(--color-range-30), 0.3);
+		stroke-width: 1.1;
 		stroke-linejoin: round;
 		stroke-linecap: round;
 	}
 
 	.ribbon-hero {
 		fill: none;
-		stroke: rgba(var(--hero-c), 0.95);
-		stroke-width: 0.07;
-		stroke-linejoin: round;
-		stroke-linecap: round;
+		stroke: rgba(var(--hero-c), 0.7);
+		stroke-width: 1.5;
+		stroke-dasharray: 6 4;
 	}
 
 	.ribbon-selected {
 		fill: none;
 		stroke: rgba(var(--sel-c), 1);
-		stroke-width: 0.07;
+		stroke-width: 2.4;
 		stroke-linejoin: round;
 		stroke-linecap: round;
 	}
