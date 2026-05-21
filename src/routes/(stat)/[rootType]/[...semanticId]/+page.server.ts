@@ -89,42 +89,61 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 			initialWorksSliceEnd = worksResp.sliceStart + worksResp.resp.papers.length;
 		}
 
+		let authorOrcid: string | null = null;
 		if (locals.user) {
 			if (locals.user.semanticId) {
 				isOwner = locals.user.semanticId === semanticId;
+				if (isOwner) authorOrcid = locals.user.orcid;
 			} else {
 				try {
 					const orcidResp: tt.SearchResult = await fetch(
 						`${BE_URL}/orcid/${locals.user.orcid}`
 					).then((r) => r.json());
 					isOwner = orcidResp.semanticId === semanticId;
+					if (isOwner) authorOrcid = locals.user.orcid;
 				} catch {
 					// ORCID lookup failed — not an owner
 				}
 			}
-			if (isOwner) {
-				const events = LedgerDb.getEventsForOrcid(locals.user.orcid) as unknown as LedgerEvent[];
+		}
+		if (!authorOrcid) {
+			try {
+				const resolveResp = await fetch(
+					`${BE_URL}/resolve/author?semantic_id=${encodeURIComponent(urlFriendlySemId)}`
+				).then((r) => (r.ok ? r.json() : null));
+				authorOrcid = resolveResp?.orcid ?? null;
+			} catch {
+				// author ORCID not resolvable
+			}
+		}
+		if (authorOrcid) {
+			try {
+				const events = LedgerDb.getEventsForOrcid(authorOrcid) as unknown as LedgerEvent[];
 				const manifest = readManifest();
-				ledgerManifest = manifest;
-				ledgerEvents = events;
 				const effective = computeEffective(events, manifest);
 				disownedWids = [...effective.disownedWids];
 				mergedPairs = effective.mergedPairs;
-				claimedDois = events
-					.filter((e) => e.kind === 'claim_paper' && e.revoked_at === null && e.payload.kind === 'claim_paper')
-					.map((e) => (e.payload.kind === 'claim_paper' ? (e.payload.work.doi ?? '') : ''))
-					.filter(Boolean);
-				authorMergeRequests = events
-					.filter((e) => e.kind === 'merge_authors' && e.revoked_at === null && e.payload.kind === 'merge_authors')
-					.map((e) => {
-						if (e.payload.kind !== 'merge_authors') return null;
-						return {
-							other_semantic_id: e.payload.drop.display_snapshot.display_name,
-							note: e.payload.note ?? null,
-							created_at: e.created_at
-						};
-					})
-					.filter(Boolean) as tt.AuthorMergeRequest[];
+				if (isOwner) {
+					ledgerManifest = manifest;
+					ledgerEvents = events;
+					claimedDois = events
+						.filter((e) => e.kind === 'claim_paper' && e.revoked_at === null && e.payload.kind === 'claim_paper')
+						.map((e) => (e.payload.kind === 'claim_paper' ? (e.payload.work.doi ?? '') : ''))
+						.filter(Boolean);
+					authorMergeRequests = events
+						.filter((e) => e.kind === 'merge_authors' && e.revoked_at === null && e.payload.kind === 'merge_authors')
+						.map((e) => {
+							if (e.payload.kind !== 'merge_authors') return null;
+							return {
+								other_semantic_id: e.payload.drop.display_snapshot.display_name,
+								note: e.payload.note ?? null,
+								created_at: e.created_at
+							};
+						})
+						.filter(Boolean) as tt.AuthorMergeRequest[];
+				}
+			} catch {
+				// ledger unavailable — proceed without changes
 			}
 		}
 	}
