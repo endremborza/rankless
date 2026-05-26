@@ -34,6 +34,7 @@ pub const SEM_DIR: &str = "semantic-ids";
 
 pub const ID_PREFIX: &str = "https://openalex.org/";
 pub const N_PEERS: usize = 10;
+pub const EXT_SEP: &str = "-;-";
 
 pub struct NameMarker;
 pub struct NameExtensionMarker;
