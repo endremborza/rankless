@@ -41,6 +41,7 @@ use rankless_rs::{
         a2_init_atts::{AuthorOrcids, DiscardedAuthorsNames, WorkBiblios, WorkDois},
         derive_links3::HitPapers,
     },
+    ladder::{LADDER_ABS_RANKS, LADDER_LEN, LADDER_PCT_BANDS},
     steps::{
         a1_entity_mapping::{Qs, RawYear, YearInterface, Years},
         a2_init_atts::OrcidType,
@@ -51,8 +52,8 @@ use rankless_rs::{
 use rankless_trees::{
     extensions::DistinctionText,
     interfacing::{
-        make_stats_entry_arc, FixAtt, Getters, NodeInterfaceable, NodeInterfaces,
-        RootInterfaceable, RootInterfaces,
+        make_stats_entry_arc, Getters, NodeInterfaceable, NodeInterfaces, RootInterfaceable,
+        RootInterfaces,
     },
     io::{
         EntityAttsForLinks, ManFileHandle, ShallowQ, ShallowTreesResponse, TreeQ, TreeResponse,
@@ -91,17 +92,17 @@ type StatesT = State<(
     Arc<NameStateMap>,
     Arc<AttributeLabelUnion>,
     Arc<InstTrm>,
-    Arc<AuthorPeerData>,
+    Arc<PeerAuxMap>,
 )>;
 type StateKv = (&'static str, (NameState, TopResult, EntityDescription));
+type PeerAuxMap = HashMap<&'static str, PeerAux>;
 
 const N_SUBFIELDS: usize = Subfields::N;
-const N_PEER_SUBFIELDS: usize = 5;
 
-struct AuthorPeerData {
-    cit_subfields: MmapSlice<<Authors as FixAtt<CitSubfieldsArrayMarker>>::FT>,
-    h_indices: Box<[u32]>,
-    year_centroids: Box<[f32]>,
+struct PeerAux {
+    cit_subfields: MmapSlice<[u32; N_SUBFIELDS]>,
+    h_indices: Option<Box<[u32]>>,
+    year_centroids: Option<Box<[f32]>>,
 }
 
 #[derive(Serialize)]
@@ -129,10 +130,10 @@ struct PeerEntry {
     yearly_cites: EraRec,
     #[serde(rename = "startYear")]
     start_year: RawYear,
-    #[serde(rename = "hIndex")]
-    h_index: u32,
-    #[serde(rename = "yearCentroid")]
-    year_centroid: f32,
+    #[serde(rename = "hIndex", skip_serializing_if = "Option::is_none")]
+    h_index: Option<u32>,
+    #[serde(rename = "yearCentroid", skip_serializing_if = "Option::is_none")]
+    year_centroid: Option<f32>,
     country: Option<Arc<str>>,
 }
 
@@ -142,6 +143,19 @@ struct EntityPeersResp {
     top_subfields: Vec<PeerSubfieldInfo>,
     peers: Vec<PeerEntry>,
     hero: PeerEntry,
+}
+
+// Per-cohort-entity-type rank-breakpoint table the client caches once per root type and uses to tag
+// any citation count with its subfield standing (the standing is computed on the frontend).
+#[derive(Serialize)]
+struct LadderResp {
+    #[serde(rename = "pctBands")]
+    pct_bands: &'static [f64],
+    #[serde(rename = "absRanks")]
+    abs_ranks: &'static [usize],
+    // One row per subfield dm_id; each cell is the citation threshold for that band/rank, or null
+    // when the cohort is too small for it.
+    ladder: Vec<Vec<Option<u32>>>,
 }
 
 #[derive(Deserialize)]
@@ -299,6 +313,7 @@ struct NameState {
     pub oa_id_map: HashMap<u64, u32>,
     dm_to_response_id: Box<[u32]>,
     peers: Box<[[u32; N_PEERS]]>,
+    cit_rank_ladder: Box<[[u32; LADDER_LEN]]>,
 }
 
 #[derive(Serialize, Clone)]
@@ -349,6 +364,14 @@ struct SearchResult {
     distinct_text: Option<String>,
     papers: u32,
     citations: u32,
+}
+
+#[derive(Serialize)]
+struct UnionSearchResult {
+    #[serde(flatten)]
+    sr: SearchResult,
+    #[serde(rename = "rootType")]
+    root_type: &'static str,
 }
 
 #[derive(Serialize, Clone)]
@@ -652,6 +675,7 @@ impl NameState {
             oa_id_map,
             dm_to_response_id,
             peers,
+            cit_rank_ladder: entif.cit_rank_ladder.clone(),
         }
     }
 
@@ -712,26 +736,56 @@ fn get_rest(
     Arc<InstTrm>,
     CountsResponse,
     Vec<TopResult>,
-    Arc<AuthorPeerData>,
+    Arc<PeerAuxMap>,
 ) {
     let gets = Arc::new(Getters::new(Arc::new(stowage)));
     let mux_satts: Arc<Mutex<AttributeLabelUnion>> = Arc::new(Mutex::new(HashMap::new()));
     let cv_pair = AcTuple::<Option<f64>>::default();
     let mut ns_map: NameStateMap = HashMap::new();
     let mut tops = Vec::new();
-    let author_peer_data = {
+    let peer_aux = {
         let stow = &gets.stowage;
-        let cit_subfields =
-            stow.get_marked_interface::<Authors, CitSubfieldsArrayMarker, MmapBox>();
-        let h_indices = stow.get_marked_interface::<Authors, HIndexMarker, QuickestBox>();
-        let year_centroids =
-            stow.get_marked_interface::<Authors, YearCentroidMarker, QuickestBox>();
-        print_mem_use("loaded author peer data");
-        Arc::new(AuthorPeerData {
-            cit_subfields,
-            h_indices,
-            year_centroids,
-        })
+        let mut m: PeerAuxMap = HashMap::new();
+        m.insert(
+            Authors::NAME,
+            PeerAux {
+                cit_subfields: stow
+                    .get_marked_interface::<Authors, CitSubfieldsArrayMarker, MmapBox>(),
+                h_indices: Some(stow.get_marked_interface::<Authors, HIndexMarker, QuickestBox>()),
+                year_centroids: Some(
+                    stow.get_marked_interface::<Authors, YearCentroidMarker, QuickestBox>(),
+                ),
+            },
+        );
+        m.insert(
+            Institutions::NAME,
+            PeerAux {
+                cit_subfields: stow
+                    .get_marked_interface::<Institutions, CitSubfieldsArrayMarker, MmapBox>(),
+                h_indices: None,
+                year_centroids: None,
+            },
+        );
+        m.insert(
+            Countries::NAME,
+            PeerAux {
+                cit_subfields: stow
+                    .get_marked_interface::<Countries, CitSubfieldsArrayMarker, MmapBox>(),
+                h_indices: None,
+                year_centroids: None,
+            },
+        );
+        m.insert(
+            Sources::NAME,
+            PeerAux {
+                cit_subfields: stow
+                    .get_marked_interface::<Sources, CitSubfieldsArrayMarker, MmapBox>(),
+                h_indices: None,
+                year_centroids: None,
+            },
+        );
+        print_mem_use("loaded peer aux");
+        Arc::new(m)
     };
     let counts_response = {
         let mut descriptions = Vec::new();
@@ -758,7 +812,7 @@ fn get_rest(
     let asatts = Arc::new(satts);
     let tm: Arc<InstTrm> = TreeRunManager::new(gets, asatts.clone(), n_threads);
     print_mem_use("got tm");
-    (ns_map, asatts, tm, counts_response, tops, author_peer_data)
+    (ns_map, asatts, tm, counts_response, tops, peer_aux)
 }
 
 fn print_mem_use(suff: &str) {
@@ -837,7 +891,7 @@ async fn async_main(n_threads: usize) {
     let now = std::time::Instant::now();
     println!("threads: {n_threads} path: {path}");
     let stowage = Stowage::new(&path);
-    let (ns_map, satts, tree_manager, counts_response, tops, author_peer_data) =
+    let (ns_map, satts, tree_manager, counts_response, tops, peer_aux) =
         get_rest(stowage, n_threads);
     let ns_map_arc: Arc<NameStateMap> = ns_map.into();
 
@@ -850,11 +904,12 @@ async fn async_main(n_threads: usize) {
         .route("/resolve/work", get(resolve_work_get))
         .route("/resolve/author", get(resolve_author_get))
         .route("/paper-profile/:asem", get(paper_profile))
-        .route("/author-peers/:asem", get(author_peers_get))
+        .route("/peers/:etype/:semantic_id", get(peers_get))
+        .route("/ladder/:etype", get(ladder_get))
         .route("/trees/:root_type/:semantic_id", get(tree_get))
         .route("/shallows/:root_type", get(shallows_get))
         .route("/works/:etype/:semantic_id/:from", get(works_get))
-        .with_state((ns_map_arc, satts, tree_manager.clone(), author_peer_data));
+        .with_state((ns_map_arc, satts, tree_manager.clone(), peer_aux));
 
     let count_api = static_router(&counts_response);
     let specs_api = static_router(&tree_manager.specs);
@@ -1195,16 +1250,14 @@ fn build_peer_entry(
     rid: usize,
     dm_id: usize,
     astates: &NameState,
-    apd: &AuthorPeerData,
+    aux: &PeerAux,
     satts: &AttributeLabelUnion,
     sf_indices: &[usize],
 ) -> PeerEntry {
     let sr = &astates.responses[rid];
     let ext = &astates.exts[rid];
-    let sf_cits: Vec<u32> = sf_indices
-        .iter()
-        .map(|&si| apd.cit_subfields.row(dm_id)[si] as u32)
-        .collect();
+    let row = aux.cit_subfields.row(dm_id);
+    let sf_cits: Vec<u32> = sf_indices.iter().map(|&si| row[si]).collect();
     let country = ext
         .prime_relations
         .iter()
@@ -1224,40 +1277,63 @@ fn build_peer_entry(
         yearly_papers: ext.yearly_papers,
         yearly_cites: ext.yearly_cites,
         start_year: ext.start_year,
-        h_index: apd.h_indices.get(dm_id).copied().unwrap_or(0),
-        year_centroid: apd.year_centroids.get(dm_id).copied().unwrap_or(0.0),
+        h_index: aux.h_indices.as_ref().and_then(|h| h.get(dm_id).copied()),
+        year_centroid: aux
+            .year_centroids
+            .as_ref()
+            .and_then(|y| y.get(dm_id).copied()),
         country,
     }
 }
 
-async fn author_peers_get(
-    Path(author_sem_id): Path<String>,
-    states: StatesT,
-) -> (HeaderMap, Response) {
-    let astates = states.0 .0.get(Authors::NAME).unwrap();
-    let apd = &states.0 .3;
-    let satts = &states.0 .1;
-
-    let Some(&aid_dm) = astates.semantic_id_map.get(author_sem_id.as_str()) else {
+async fn ladder_get(Path(etype): Path<String>, states: StatesT) -> (HeaderMap, Response) {
+    let Some(nstate) = states.0 .0.get(etype.as_str()) else {
         return get_empty();
     };
-    let hero_dm = aid_dm as usize;
+    let ladder = nstate
+        .cit_rank_ladder
+        .iter()
+        .map(|row| row.iter().map(|&t| (t != u32::MAX).then_some(t)).collect())
+        .collect();
+    let resp = LadderResp {
+        pct_bands: &LADDER_PCT_BANDS,
+        abs_ranks: &LADDER_ABS_RANKS,
+        ladder,
+    };
+    (cache_header(1440), Json(resp).into_response())
+}
+
+async fn peers_get(
+    Path((etype, sem_id)): Path<(String, String)>,
+    states: StatesT,
+) -> (HeaderMap, Response) {
+    peers_inner(&etype, &sem_id, &states)
+}
+
+fn peers_inner(etype: &str, sem_id: &str, states: &StatesT) -> (HeaderMap, Response) {
+    let (Some(astates), Some(aux)) = (states.0 .0.get(etype), states.0 .3.get(etype)) else {
+        return get_empty();
+    };
+    let satts = &states.0 .1;
+
+    let Some(&hero_dm) = astates.semantic_id_map.get(sem_id) else {
+        return get_empty();
+    };
+    let hero_dm = hero_dm as usize;
     let Some(hero_rid) = astates.response_id_from_dm(hero_dm) else {
         return get_empty();
     };
 
     let sf_atts = &satts[Subfields::NAME];
-    let sf_row = apd.cit_subfields.row(hero_dm);
+    let sf_row = aux.cit_subfields.row(hero_dm);
+    // All subfields the hero has citations in, most-cited first. The client defaults to the top few
+    // and lets the user expand the comparison basis, so no refetch is needed on selection change.
     let mut sf_scores: Vec<(usize, u32)> = (0..N_SUBFIELDS)
         .map(|si| (si, sf_row[si]))
         .filter(|(_, c)| *c > 0)
         .collect();
     sf_scores.sort_unstable_by(|a, b| b.1.cmp(&a.1));
-    let sf_indices: Vec<usize> = sf_scores
-        .into_iter()
-        .take(N_PEER_SUBFIELDS)
-        .map(|(si, _)| si)
-        .collect();
+    let sf_indices: Vec<usize> = sf_scores.into_iter().map(|(si, _)| si).collect();
 
     let top_subfields: Vec<PeerSubfieldInfo> = sf_indices
         .iter()
@@ -1271,7 +1347,7 @@ async fn author_peers_get(
         })
         .collect();
 
-    let hero = build_peer_entry(hero_rid, hero_dm, astates, apd, satts, &sf_indices);
+    let hero = build_peer_entry(hero_rid, hero_dm, astates, aux, satts, &sf_indices);
 
     let peers: Vec<PeerEntry> = astates.peers[hero_dm]
         .iter()
@@ -1280,7 +1356,7 @@ async fn author_peers_get(
             let peer_dm = pid as usize;
             astates
                 .response_id_from_dm(peer_dm)
-                .map(|rid| build_peer_entry(rid, peer_dm, astates, apd, satts, &sf_indices))
+                .map(|rid| build_peer_entry(rid, peer_dm, astates, aux, satts, &sf_indices))
         })
         .collect();
 
@@ -1297,8 +1373,36 @@ async fn name_get(
     q: Query<BasicQ>,
     states: StatesT,
 ) -> (HeaderMap, Response) {
-    if let Some(state) = states.0 .0.get(etype.as_str()) {
-        let q_string = q.q.as_deref().unwrap_or("");
+    let q_string = q.q.as_deref().unwrap_or("");
+    let ns_map = &states.0 .0;
+    if etype == "all" {
+        const UNION_ORDER: [&str; 6] = [
+            Authors::NAME,
+            Institutions::NAME,
+            Sources::NAME,
+            Countries::NAME,
+            Subfields::NAME,
+            HitPapers::NAME,
+        ];
+        let out: Vec<UnionSearchResult> = UNION_ORDER
+            .iter()
+            .filter_map(|&rt| ns_map.get(rt).map(|state| (rt, state)))
+            .flat_map(|(rt, state)| {
+                state
+                    .engine
+                    .query(q_string)
+                    .into_iter()
+                    .filter_map(move |e| {
+                        state.responses.get(e as usize).map(|sr| UnionSearchResult {
+                            sr: sr.clone(),
+                            root_type: rt,
+                        })
+                    })
+            })
+            .collect();
+        return (cache_header(60), Json(out).into_response());
+    }
+    if let Some(state) = ns_map.get(etype.as_str()) {
         let top_n_inds = state.engine.query(q_string);
         let resp: Json<Vec<SearchResult>> = Json(
             top_n_inds
