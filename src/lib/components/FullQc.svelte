@@ -14,7 +14,7 @@
 	import { replaceState } from '$app/navigation';
 	import { debounce } from '$lib/util';
 	import HoverBlock from './HoverBlock.svelte';
-	import { stripHtml } from '$lib/utils/paper-helpers';
+	import { htmlToText } from '$lib/utils/paper-helpers';
 
 	export let conf: tt.FullTreeConfig;
 	export let selectedQcRootId: number;
@@ -339,7 +339,7 @@
 				<BrokenFittedText
 					height={headerShape.height * 0.7}
 					width={headerShape.width * 0.8}
-					text={stripHtml(rootName) || ''}
+					text={htmlToText(rootName) || ''}
 					anchor={'center'}
 					bottomAligned={false}
 					x={headerShape.x + headerShape.width / 2}

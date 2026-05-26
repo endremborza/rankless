@@ -9,7 +9,7 @@
 		overperf,
 		resolveAllAuthorNames,
 		resolveSourceName,
-		stripHtml
+		htmlToText
 	} from '$lib/utils/paper-helpers';
 	import HitPaperBreakdown from './HitPaperBreakdown.svelte';
 	import HitPaperExplainer from './HitPaperExplainer.svelte';
@@ -163,7 +163,7 @@
 			const nYears = Math.min(yc.length, lifespan);
 			const pathHorizLen = (nYears - 1) / xScale;
 			const maxChars = Math.max(8, Math.min(60, Math.round(pathHorizLen * 3.5)));
-			const plainName = stripHtml(paper.name);
+			const plainName = htmlToText(paper.name);
 			const pathName =
 				plainName.length > maxChars ? plainName.slice(0, maxChars - 3) + '...' : plainName;
 

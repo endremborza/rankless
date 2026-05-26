@@ -4,7 +4,7 @@
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
-	import { isAuthored, fetchOaAbstract, stripHtml } from '$lib/utils/paper-helpers';
+	import { isAuthored, fetchOaAbstract, htmlToText } from '$lib/utils/paper-helpers';
 	import { onMount } from 'svelte';
 
 	import FullQc from '$lib/components/FullQc.svelte';
@@ -173,7 +173,7 @@
 </script>
 
 <svelte:head>
-	<title>{APP_NAME} | {stripHtml(data.view.name)}</title>
+	<title>{APP_NAME} | {htmlToText(data.view.name)}</title>
 	<meta name="twitter:card" content="summary" />
 	<meta name="twitter:creator" content="@LearningCCL" />
 	<meta name="description" content={data.metaDescriptions} />

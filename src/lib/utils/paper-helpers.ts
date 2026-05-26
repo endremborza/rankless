@@ -2,8 +2,35 @@ import type { Paper, PaperAuthorship, EntityAttsForLinks } from '$lib/tree-types
 
 export const PRESTIGIOUS_SOURCE_SEM_IDS = new Set(['science', 'nature']);
 
-export function stripHtml(html: string): string {
-	return html.replace(/<[^>]*>/g, '');
+// Minimal entity table for the SSR fallback only; the browser path decodes all entities natively.
+const NAMED_ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+function decodeEntities(s: string): string {
+	return s.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (m, body: string) => {
+		if (body[0] !== '#') return NAMED_ENTITIES[body.toLowerCase()] ?? m;
+		const code = body[1].toLowerCase() === 'x' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
+		return Number.isFinite(code) ? String.fromCodePoint(code) : m;
+	});
+}
+
+// HTML-heavy titles (italics, sub/sup, MathML) → readable plain text for SVG/fitted contexts.
+// MathML children are inline, so textContent would jam the notation against neighbouring prose:
+// turn each <math> container tag into a space first to detach it. The browser then parses the
+// rest (decoding all entities); SSR falls back to stripping tags + decoding common entities.
+export function htmlToText(html: string): string {
+	const spaced = html.replace(/<\/?(?:math|mml:math)\b[^>]*>/gi, ' ');
+	let raw: string;
+	if (typeof document !== 'undefined') {
+		const tpl = document.createElement('template');
+		tpl.innerHTML = spaced;
+		raw = tpl.content.textContent ?? '';
+	} else {
+		raw = decodeEntities(spaced.replace(/<[^>]*>/g, ''));
+	}
+	return raw
+		.replace(/\s+/g, ' ')
+		.replace(/\s+([:;,.!?)])/g, '$1')
+		.trim();
 }
 
 export function reconstructAbstractFromInvIndex(
@@ -92,6 +119,23 @@ export function resolveAllAuthorNames(
 	return paper.authorships.map(
 		(s) => resolveAuthorNameOrNull(s, entityAtts, discAuthorNames) ?? '(unknown)'
 	);
+}
+
+export type LinkedAuthor = { name: string; url?: string };
+
+export function resolveLinkedAuthors(
+	paper: Paper,
+	entityAtts: EntityAttsForLinks,
+	discAuthorNames: Record<string, string>
+): LinkedAuthor[] {
+	return paper.authorships.map((ship) => {
+		const name = resolveAuthorNameOrNull(ship, entityAtts, discAuthorNames) ?? '(unknown)';
+		if (ship.author[0] === 'F') {
+			const semId = entityAtts.authors?.[ship.author.slice(1)]?.semantic_id;
+			if (semId) return { name, url: `/authors/${semId}` };
+		}
+		return { name };
+	});
 }
 
 export function buildPaperMap(papers: Paper[]): Record<number, Paper> {
