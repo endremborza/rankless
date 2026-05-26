@@ -2,7 +2,6 @@ export type OMap<T> = Record<string, T>;
 export type PathInTree = number[];
 export type TreeGen<T> = T & { children?: Record<number, TreeGen<T>> };
 
-
 export type InstRel = {
 	start: number;
 	end: number;
@@ -11,7 +10,6 @@ export type InstRel = {
 	semId: string;
 	name: string;
 };
-
 
 export type RelTypes =
 	| 'paper-fields'
@@ -36,11 +34,11 @@ export type View = {
 	meta?: Record<string, string>;
 };
 export type RelatedEntity = {
-	name: string,
-	semanticId: string,
-	etype: EntityType,
-	relType: number,
-	score: number,
+	name: string;
+	semanticId: string;
+	etype: EntityType;
+	relType: number;
+	score: number;
 };
 export type SelectionOption = {
 	name: string;
@@ -106,7 +104,13 @@ export type AuthorMergeRequest = {
 	created_at: string;
 };
 
-export type RootType = 'authors' | 'institutions' | 'sources' | 'countries' | 'subfields' | 'hit-papers';
+export type RootType =
+	| 'authors'
+	| 'institutions'
+	| 'sources'
+	| 'countries'
+	| 'subfields'
+	| 'hit-papers';
 export type EntityType = RootType | 'works' | 'topics' | 'qs';
 export type SearchResult = {
 	name: string;
@@ -124,10 +128,10 @@ export type AboutPara = {
 	prefix: string;
 	postText: string;
 	topRels: SubbedRel[];
-	footText: string,
-}
+	footText: string;
+};
 
-export type TreeResponse = { tree: ResponseNode; atts: AttributeLabels, shallowed: boolean };
+export type TreeResponse = { tree: ResponseNode; atts: AttributeLabels; shallowed: boolean };
 export type TopsResponse = { name: RootType; entities: SearchResult[] }[];
 export type TreeSpec = {
 	rootType: RootType;
@@ -255,8 +259,8 @@ export type PeerEntry = {
 	yearlyPapers: number[];
 	yearlyCites: number[];
 	startYear: number;
-	hIndex: number;
-	yearCentroid: number;
+	hIndex?: number;
+	yearCentroid?: number;
 	country: string | null;
 };
 
@@ -264,4 +268,12 @@ export type EntityPeersResp = {
 	topSubfields: PeerSubfield[];
 	peers: PeerEntry[];
 	hero: PeerEntry;
+};
+
+// Rank-breakpoint table for one root type (cached per type). `ladder[subfieldDmId]` holds the
+// citation threshold at each percentile band then absolute rank; null where the cohort is too small.
+export type LadderData = {
+	pctBands: number[];
+	absRanks: number[];
+	ladder: (number | null)[][];
 };
