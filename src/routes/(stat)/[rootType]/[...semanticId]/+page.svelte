@@ -56,8 +56,9 @@
 	let ticksHeight: number;
 
 	$: isAuthor = data.conf.rootType === 'authors';
+	$: hasPeers = (data.peersData?.peers.length ?? 0) > 0;
 	$: isHitPaper = data.conf.rootType === 'hit-papers';
-	$: rawPapers = isAuthor ? parseInt(data.view.meta?.rawPapers ?? '0') || 0 : 0;
+	// $: rawPapers = isAuthor ? parseInt(data.view.meta?.rawPapers ?? '0') || 0 : 0;
 
 	let hitPaperAbstract: string | null = null;
 	let abstractExpanded = false;
@@ -117,9 +118,7 @@
 		...(isAuthor && authoredHitPapers.length > 0
 			? [{ id: 'papers', label: 'Standout Papers' }]
 			: []),
-		...(isAuthor && (data.peersData?.peers.length ?? 0) > 0
-			? [{ id: 'peers', label: 'Peers' }]
-			: []),
+		...(hasPeers ? [{ id: 'peers', label: 'Peers' }] : []),
 		...(showsCountry ? [{ id: 'geography', label: 'Geography' }] : []),
 		...(showsSubfields ? [{ id: 'research-space', label: 'Research Space' }] : []),
 		...(isAuthor ? [{ id: 'network', label: 'Co-Authors' }] : []),
@@ -311,10 +310,10 @@
 	</section>
 {/if}
 
-{#if isAuthor && data.peersData && data.peersData.peers.length > 0}
+{#if hasPeers && data.peersData}
 	<section id="peers" class="shadowy padded marged main-block">
 		<h2>Peers</h2>
-		<Peers data={data.peersData} />
+		<Peers data={data.peersData} rootType={data.conf.rootType} />
 	</section>
 {/if}
 
