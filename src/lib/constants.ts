@@ -41,7 +41,7 @@ export const WIDE_LAYOUT_PX = 900; // mirrors @media (min-width: 900px) in style
 export const DEFAULT_LIMIT_N = 10;
 export const MAX_LEVEL_COUNT = 4;
 export const COMPLETE_YEAR = 1950;
-export const LATEST_YEAR = new Date().getFullYear();
+export const LATEST_YEAR = new Date().getFullYear(); // == backend FINAL_YEAR: last year in EraRec yearly records
 
 
 export const ORCID_REDIRECT_URI = `${PUBLIC_ORIGIN}/callback`
