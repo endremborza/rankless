@@ -6,9 +6,9 @@ use crate::{
 };
 use rankless_rs::{
     common::{
-        reverse_id, BeS, HitWorkMarker, MainEntity, MainWorkMarker, MarkedBackendLoader,
-        NumberedEntity, QuickAttPair, QuickMap, QuickestBox, QuickestVBox, Stowage,
-        Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker,
+        reverse_id, BeS, CitRankLadderMarker, HitWorkMarker, MainEntity, MainWorkMarker,
+        MarkedBackendLoader, NumberedEntity, QuickAttPair, QuickMap, QuickestBox, QuickestVBox,
+        Stowage, Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker,
         Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader, YearlyCitationsMarker,
         YearlyPapersMarker, NET,
     },
@@ -28,6 +28,7 @@ use rankless_rs::{
         derive_links4::{AuthorCitingHitsDirect, AuthorCitingHitsOnce},
         derive_links5::HitPaperYearlyCitations,
     },
+    ladder::LADDER_LEN,
     steps::{
         a1_entity_mapping::YearInterface,
         a2_init_atts::OrcidType,
@@ -269,6 +270,7 @@ make_ent_interfaces!(
     top_paper_topic - Top3PaperTopicMarker | Top3Rec<Topics>,
     top_citing_sfc - Top3CitingSfMarker | Top3Rec<Subfields>,
     top_paper_sfc - Top3PaperSfMarker | Top3Rec<Subfields>,
+    cit_rank_ladder - CitRankLadderMarker | [u32; LADDER_LEN],
     peers - PeerMarker | [NET<Self>; N_PEERS];;
     oa_id; MainEntity, NamespacedEntity
     // inst_rels - InstRelMarker | [InstRelation; N_RELS];;
