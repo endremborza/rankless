@@ -58,6 +58,7 @@ pub struct Top3AffCountryMarker;
 pub struct PeerMarker;
 pub struct HIndexMarker;
 pub struct YearCentroidMarker;
+pub struct CitRankLadderMarker;
 
 pub struct EmptyAttributeEntity<T> {
     p: PhantomData<T>,
