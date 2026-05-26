@@ -7,16 +7,16 @@ use dmove::{
 use hashbrown::HashMap;
 
 use crate::{
-    common::{reverse_id, MainWorkMarker, YearlyPapersMarker},
+    common::{reverse_id, CitRankLadderMarker, MainWorkMarker, YearlyPapersMarker},
     env_consts::FINAL_YEAR,
     filter::FIX_AUTHORS,
     gen::{
-        a1_entity_mapping::{Authors, Institutions, Sources, Subfields, Topics, Works},
+        a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{WorkDois, WorkTopics, WorkYears, WorksNames},
         derive_links1::WorkSubfields,
         derive_links2::{AuthorWorks, SourceStats},
     },
-    peers,
+    ladder, peers,
     steps::a1_entity_mapping::YearInterface,
     CiteCountMarker, QuickestBox, QuickestVBox, ReadIter, Stowage, WorkCountMarker,
 };
@@ -199,12 +199,15 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     // Peers
 
     let inst_ctx = peer_ctx::InstPeerCtx::new(&starc, inst_filter, &inst_wcounts);
+    rank_dump::<Institutions, _>(&starc, &inst_ctx.cit_sfs);
     peers::compute_peers::<_, 10, _, _>(&*starc, &inst_ctx, &inst_ctx.filter, &inst_wcounts);
 
     let sf_ctx = peer_ctx::SfPeerCtx::new(&starc, sf_filter, &sf_wcounts);
+    rank_dump::<Subfields, _>(&starc, &sf_ctx.cit_sfs);
     peers::compute_peers::<_, 10, _, _>(&*starc, &sf_ctx, &sf_ctx.filter, &sf_wcounts);
 
     let country_ctx = peer_ctx::CountryPeerCtx::new(&starc, country_filter, &country_wcounts);
+    rank_dump::<Countries, _>(&starc, &country_ctx.cit_sfs);
     peers::compute_peers::<_, 10, _, _>(
         &*starc,
         &country_ctx,
@@ -213,10 +216,12 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     );
 
     let source_ctx = peer_ctx::SourcePeerCtx::new(&starc, source_filter, &source_wcounts);
+    rank_dump::<Sources, _>(&starc, &source_ctx.cit_sfs);
     peers::compute_peers::<_, 10, _, _>(&*starc, &source_ctx, &source_ctx.filter, &source_wcounts);
 
     println!("computing author peers");
     let author_ctx = AuthorPeerCtx::new(&starc, author_filter, &author_wcounts);
+    rank_dump::<Authors, _>(&starc, &author_ctx.cit_sfs);
     peers::compute_peers::<_, 10, _, _>(&*starc, &author_ctx, &author_ctx.filter, &author_wcounts);
 
     starc.write_code()?;
@@ -233,5 +238,12 @@ where
         stowage
             .get_entity_interface::<MAA<E, MainWorkMarker>, ReadIter>()
             .map(|e| e.len()),
+    );
+}
+
+fn rank_dump<E: Entity, const D: usize>(st: &Stowage, cit_sfs: &[[u32; D]]) {
+    st.ditf::<CitRankLadderMarker, E, _>(
+        ladder::compute_cit_rank_ladder(cit_sfs),
+        "cit-rank-ladder",
     );
 }
