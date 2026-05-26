@@ -13,6 +13,7 @@ import type { LedgerEvent, AppliedManifest } from '$lib/types/ledger';
 export const ssr = true;
 
 const INITIAL_WORKS_N = 20;
+const PEER_ROOT_TYPES: tt.RootType[] = ['authors', 'institutions', 'countries', 'sources'];
 
 export const load: PageServerLoad = async ({ params, url, locals }) => {
 	let { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(params, url, "");
@@ -46,7 +47,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 
 	// Author-specific data (null/empty defaults for all other entity types)
 	let profile: tt.PaperProfileResp | null = null;
-	let peersData: tt.EntityPeersResp | null = null;
+	let peersPromise: Promise<tt.EntityPeersResp | null> = new Promise(() => null);
 	let initialPapers: tt.Paper[] = [];
 	let initialEntityAtts: tt.EntityAttsForLinks = {};
 	let initialDiscAuthorNames: Record<string, string> = {};
@@ -60,18 +61,21 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	let ledgerEvents: LedgerEvent[] = [];
 	let ledgerManifest: AppliedManifest = EMPTY_MANIFEST;
 
+	// Peers are available for these root entity types (each has a precomputed peer set + ladder).
+	if (PEER_ROOT_TYPES.includes(rootType)) {
+		peersPromise = fetch(`${BE_URL}/peers/${rootType}/${tf.urlFriendlify(semanticId)}`)
+			.then((r) => (r.ok ? r.json() : null))
+			.catch(() => null);
+	}
+
 	if (rootType === 'authors') {
 		const urlFriendlySemId = tf.urlFriendlify(semanticId);
-		const [profileResp, peersResp, worksResp]: [
+		const [profileResp, worksResp]: [
 			tt.PaperProfileResp | null,
-			tt.EntityPeersResp | null,
 			tt.PaginatedPaperSetResp | null
 		] = await Promise.all([
 			fetch(`${BE_URL}/paper-profile/${urlFriendlySemId}`)
 				.then((r) => r.json())
-				.catch(() => null),
-			fetch(`${BE_URL}/author-peers/${urlFriendlySemId}`)
-				.then((r) => (r.ok ? r.json() : null))
 				.catch(() => null),
 			fetch(`${BE_URL}/works/authors/${urlFriendlySemId}/0?n=${INITIAL_WORKS_N}`)
 				.then((r) => r.json())
@@ -79,7 +83,6 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		]);
 
 		profile = profileResp;
-		peersData = peersResp;
 
 		if (worksResp) {
 			initialPapers = worksResp.resp.papers;
@@ -147,6 +150,8 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 			}
 		}
 	}
+
+	let peersData = await peersPromise;
 
 	if (view) {
 		return {
