@@ -4,12 +4,11 @@ Large-scale scholarly citation explorer. OpenAlex CSVs → binary pipeline → A
 
 ## Quick orientation
 
-- `docs/overview.md` — app purpose, data model, architecture layers
-- `docs/details/` — deep dives: metaprogramming, parallelization, comparisons/benchmarking, codebase file reference
-- `docs/plans/` — unimplemented plans and improvement ideas
-- `docs/artifacts/` — reference artifacts (schema diagram, UI docs)
+- `docs/architecture.md` — app purpose, data model, layers, codebase file index, schema, breakdown-selection, metaprogramming, parallelization, local dev
+- `docs/benchmarking.md` — comparison/benchmark tooling + SQL-vs-Rust results
+- `docs/todo-backend.md`, `docs/todo-frontend.md`, `docs/todo-infra.md` — remaining work by theme
 
-**When you change code:** update `docs/details/tree-description.md` if files are added/removed/renamed or module roles change; update `docs/overview.md` if architecture or features change.
+**When you change code:** update the codebase file index in `docs/architecture.md` if files are added/removed/renamed, or if architecture/features change.
 
 ---
 
@@ -44,7 +43,7 @@ When step X compiles, `gen/mod.rs` includes only through step X−1. Safe vs uns
 
 If step X needs to write data for a type it creates, move those writes to step X+1.
 
-See `docs/details/metaprogramming.md` for the full build orchestration.
+See `docs/architecture.md` (Metaprogramming & make pipeline) for the full build orchestration.
 
 ---
 
@@ -90,4 +89,4 @@ This distinction is used consistently throughout the codebase.
 - Run tests after changes
 - Do not commit — user handles commits
 - Start new conversations per task to keep context small
-- Note discrepancies with docs/overview.md when found; fix them
+- Note discrepancies with docs/architecture.md when found; fix them
