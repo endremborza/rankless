@@ -92,9 +92,7 @@ impl<const D: usize> PcaComponents<D> {
         let mut scales = [0.0; D];
         let mut components = core::array::from_fn(|_| Vec::new());
         let mut order: Vec<usize> = (0..eigen.eigenvalues.len()).collect();
-        order.sort_unstable_by(|&a, &b| {
-            eigen.eigenvalues[b].total_cmp(&eigen.eigenvalues[a])
-        });
+        order.sort_unstable_by(|&a, &b| eigen.eigenvalues[b].total_cmp(&eigen.eigenvalues[a]));
         for (i, ei) in order.into_iter().take(D).enumerate() {
             eigenvalues[i] = eigen.eigenvalues[ei];
             scales[i] = eigenvalues[i].sqrt().max(1e-10);
