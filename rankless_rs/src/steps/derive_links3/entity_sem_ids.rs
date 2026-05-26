@@ -4,7 +4,7 @@ use dmove::{
 };
 
 use crate::{
-    common::{MainEntity, MainWorkMarker, NameExtensionMarker, NameMarker},
+    common::{MainEntity, MainWorkMarker, NameExtensionMarker, NameMarker, EXT_SEP},
     gen::{
         a1_entity_mapping::{Countries, Works},
         a2_init_atts::{CountryCodes, CountryCodesThree},
@@ -19,16 +19,13 @@ pub(super) fn basic_sem_names(name: &str, _ext: &str) -> Vec<String> {
 }
 
 pub(super) fn source_sem_names(name: &str, ext: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    if !ext.is_empty() {
-        out.push(semantify(ext));
-    }
+    let mut out: Vec<String> = ext_candidates(ext);
     out.push(semantify(name));
     out
 }
 
 pub(super) fn institution_sem_names(name: &str, ext: &str) -> Vec<String> {
-    let mut out: Vec<String> = ext.split_whitespace().map(semantify).collect();
+    let mut out: Vec<String> = ext_candidates(ext);
     const PREF: &str = "University of ";
     const SUFF: &str = " University";
     if name.starts_with(PREF) {
@@ -39,6 +36,13 @@ pub(super) fn institution_sem_names(name: &str, ext: &str) -> Vec<String> {
     }
     out.push(semantify(name));
     out
+}
+
+fn ext_candidates(ext: &str) -> Vec<String> {
+    ext.split(EXT_SEP)
+        .map(semantify)
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 pub(super) fn page_filter<E, F, N>(

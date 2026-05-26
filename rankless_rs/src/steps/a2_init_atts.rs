@@ -3,7 +3,7 @@ use crate::{
     common::{
         field_id_parse, init_empty_slice, oa_id_parse, oa_id_parse_opt, short_string_to_u64, BeS,
         DoiMarker, MainEntity, NameExtensionMarker, NameMarker, NumberedEntity, ParsedId,
-        QuickestNumbered, Stowage, MAIN_NAME, NET,
+        QuickestNumbered, Stowage, EXT_SEP, MAIN_NAME, NET,
     },
     csv_writers::{institutions, works},
     data_consts::CC_MAP,
@@ -1259,7 +1259,7 @@ fn post_ext_name(arrs: &[&Option<String>]) -> Option<String> {
             }
         })
         .collect();
-    Some(entries.join(" "))
+    Some(entries.join(EXT_SEP))
 }
 
 fn add_name_box<E: Entity>(stowage: &Stowage, names: Box<[String]>) {

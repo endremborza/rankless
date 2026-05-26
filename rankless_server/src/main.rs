@@ -34,7 +34,8 @@ use tokio::{net::TcpListener, sync::Notify};
 use muwo_search::SearchEngine;
 use rankless_rs::{
     common::{
-        CitSubfieldsArrayMarker, HIndexMarker, MainEntity, MmapBox, QuickestBox, YearCentroidMarker,
+        CitSubfieldsArrayMarker, HIndexMarker, MainEntity, MmapBox, QuickestBox,
+        YearCentroidMarker, EXT_SEP,
     },
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
@@ -615,6 +616,16 @@ impl EntityExt {
     }
 }
 
+fn dedup_search_text(name: &str, ext: &str) -> String {
+    let ext_spaced = ext.replace(EXT_SEP, " ");
+    let mut seen = HashSet::new();
+    name.split_whitespace()
+        .chain(ext_spaced.split_whitespace())
+        .filter(|w| seen.insert(w.to_lowercase()))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 impl NameState {
     fn new<E>(
         entif: &RootInterfaces<E>,
@@ -698,7 +709,7 @@ impl NameState {
             .filter(|(i, _)| !sem_ids_arc[*i].is_empty())
             .map(|(i, ((name, semantic_id), dist_txt))| {
                 let ext = ext_txt.get(i).map(|s| s.as_str()).unwrap_or("");
-                let full_name = format!("{} {}", name, ext).trim().to_string();
+                let full_name = dedup_search_text(name, ext);
                 let sr = SearchResult::new(i, name.clone(), semantic_id.clone(), dist_txt, entif);
                 (sr, full_name)
             })
