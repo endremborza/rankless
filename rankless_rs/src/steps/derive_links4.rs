@@ -8,7 +8,10 @@ use dmove::{
 };
 
 use crate::{
-    common::{init_empty_slice, reverse_id, EmptyAttributeEntity, HitWorkMarker, MainWorkMarker},
+    common::{
+        init_empty_slice, reverse_id, CitRankLadderMarker, EmptyAttributeEntity, HitWorkMarker,
+        MainWorkMarker,
+    },
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{WorkReferences, WorkYears},
@@ -18,6 +21,7 @@ use crate::{
             HitPapers, HitPapersCiteCounts, HitPapersDois, HitPapersNames, HitPapersWids,
         },
     },
+    ladder,
     peers::{self, PeerCalculator},
     steps::derive_links3::get_nobeled_works,
     CiteCountMarker, NameExtensionMarker, NameMarker, QuickestBox, QuickestNumbered, QuickestVBox,
@@ -252,7 +256,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         .enumerate()
         .map(|(i, doi)| {
             if doi.is_empty() {
-                format!("W{}", hp_oa_ids[i])
+                format!("w{}", hp_oa_ids[i])
             } else {
                 doi
             }
@@ -261,6 +265,13 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let hp_ctx = HitPaperPeerCtx::new(&parc.0);
     let hp_ccounts: Vec<usize> = hp_ctx.cit_counts.iter().map(|c| c.to_usize()).collect();
     peers::compute_peers::<1, 10, _, _>(&parc.0, &hp_ctx, &hp_ctx.filter, &hp_ccounts);
+
+    // HitPapers has no per-subfield citations, but make_ent_interfaces! requires the marker on every
+    // RootInterfaceable entity. Write an all-MAX (no-standing) 253-row table so it loads uniformly.
+    parc.0.ditf::<CitRankLadderMarker, HitPapers, _>(
+        vec![[u32::MAX; ladder::LADDER_LEN]; Subfields::N],
+        "cit-rank-ladder",
+    );
 
     parc.0.write_code()?;
     Ok(())
