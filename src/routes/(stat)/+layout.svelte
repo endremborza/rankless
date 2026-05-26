@@ -19,7 +19,7 @@
 		user: { orcid: string; name: string; semanticId?: string } | null;
 	};
 	let options: RootType[] = ROOT_TYPES;
-	let cat: RootType = options[0];
+	let cat: RootType | 'all' = 'all';
 
 	let mounted = false;
 	let dropdownOpen = false;
@@ -44,7 +44,7 @@
 		}
 	}
 
-	async function openSearchFor(opt: RootType) {
+	async function openSearchFor(opt: RootType | 'all') {
 		cat = opt;
 		resultsHidden.set(false);
 		dropdownOpen = false;
@@ -105,6 +105,14 @@
 		</a>
 
 		<nav class="header-nav">
+			<button
+				class="nav-link search-all"
+				class:active={!$resultsHidden && cat === 'all'}
+				on:click={() => openSearchFor('all')}
+			>
+				Search
+			</button>
+
 			{#each visibleOptions as opt}
 				<button
 					class="nav-link"
@@ -119,10 +127,10 @@
 				<div class="dropdown">
 					<button
 						class="nav-link dropdown-trigger"
-						class:active={!$resultsHidden && overflowOptions.includes(cat)}
+						class:active={!$resultsHidden && cat !== 'all' && overflowOptions.includes(cat)}
 						on:click={() => (dropdownOpen = !dropdownOpen)}
 					>
-						{visibleCount === 0 ? 'Search' : 'More'} &#9662;
+						{visibleCount === 0 ? 'Types' : 'More'} &#9662;
 					</button>
 					{#if dropdownOpen}
 						<div class="dropdown-menu" transition:slide={{ duration: 150, axis: 'y' }}>
@@ -274,6 +282,19 @@
 	.nav-link.active {
 		color: var(--color-theme-darkblue);
 		font-weight: bold;
+	}
+
+	.search-all {
+		font-weight: bold;
+		color: var(--color-theme-darkblue);
+		border: 1px solid var(--color-theme-darkblue);
+		margin-right: 6px;
+	}
+
+	.search-all:hover,
+	.search-all.active {
+		background-color: var(--color-theme-darkblue);
+		color: var(--color-theme-white);
 	}
 
 	.dropdown {
