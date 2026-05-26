@@ -176,6 +176,19 @@ export function prettifyRoot(rt: RootType): string {
 	return rt;
 }
 
+const ROOT_EMOJI: Record<RootType, string> = {
+	authors: '👤',
+	institutions: '🏛️',
+	sources: '📚',
+	countries: '🌍',
+	subfields: '🔬',
+	'hit-papers': '📄'
+};
+
+export function rootEmoji(rt: RootType): string {
+	return ROOT_EMOJI[rt] ?? '';
+}
+
 export function getSpecDesc(rate: number) {
 	let desc = 'Average';
 	if (rate > SPEC_BPS[2]) {
