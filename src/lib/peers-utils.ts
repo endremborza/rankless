@@ -1,13 +1,16 @@
-import type { EntityPeersResp } from '$lib/tree-types';
-
 const STOP = /^(and|of|the|in|for|a|an|at|by|to)$/i;
 
+// Categorical palette for comparison subfields. Spread across the --color-range ramp so adjacent
+// selections stay distinguishable; the first DEFAULT_FIELD_N keep the original well-balanced look.
 export const SUBFIELD_COLOR_VARS: readonly string[] = [
 	'--color-range-15',
 	'--color-range-35',
 	'--color-range-50',
 	'--color-range-70',
-	'--color-range-90'
+	'--color-range-90',
+	'--color-range-25',
+	'--color-range-60',
+	'--color-range-80'
 ];
 
 export function abbrSfName(name: string): string {
@@ -20,19 +23,64 @@ export function abbrSfName(name: string): string {
 		.toUpperCase();
 }
 
-export function sparkLinePath(vals: number[], max: number): string {
-	if (!vals.length || max === 0) return '';
-	return vals.map((v, i) => `${i === 0 ? 'M' : 'L'} ${i} ${(1 - v / max).toFixed(3)}`).join(' ');
+export function sfColorVar(displayIdx: number): string {
+	return SUBFIELD_COLOR_VARS[displayIdx % SUBFIELD_COLOR_VARS.length];
 }
 
-export function globalCitesMax(data: EntityPeersResp): number {
-	const all = [data.hero, ...data.peers];
-	return Math.max(1, ...all.flatMap((e) => e.yearlyCites));
+// Cohort noun per root entity type, for framing standings ("top 5% of <noun> ...").
+const COHORT_NOUN: Record<string, string> = {
+	authors: 'authors',
+	institutions: 'institutions',
+	countries: 'countries',
+	sources: 'journals'
+};
+
+// Build the tier labels from the ladder's band/rank definitions so they never drift from the
+// backend: "top 20%" … "top 0.1%" then "top 1000" / "top 100" / "top 10".
+export function tierLabels(pctBands: number[], absRanks: number[]): string[] {
+	return [
+		...pctBands.map((p) => `top ${Number((p * 100).toFixed(2))}%`),
+		...absRanks.map((r) => `top ${r}`)
+	];
 }
 
-export function sfMaxes(data: EntityPeersResp): number[] {
-	const all = [data.hero, ...data.peers];
-	return data.topSubfields.map((_, si) =>
-		Math.max(1, ...all.map((e) => e.subfieldCitations[si] ?? 0))
-	);
+// Most selective tier (1-based) a citation count reaches within a subfield, given that subfield's
+// breakpoint row from /v1/ladder; 0 = none.
+export function citStandingTier(ladderRow: (number | null)[], c: number): number {
+	if (c <= 0) return 0;
+	let bestTier = 0;
+	let bestThr = 0;
+	for (let i = 0; i < ladderRow.length; i++) {
+		const thr = ladderRow[i];
+		if (thr != null && c >= thr && (bestTier === 0 || thr >= bestThr)) {
+			bestThr = thr;
+			bestTier = i + 1;
+		}
+	}
+	return bestTier;
+}
+
+export function standingLabel(tier: number, labels: string[]): string | null {
+	if (tier < 1 || tier > labels.length) return null;
+	return labels[tier - 1];
+}
+
+export function standingPhrase(
+	tier: number,
+	labels: string[],
+	rootType: string,
+	subfieldName: string
+): string | null {
+	const label = standingLabel(tier, labels);
+	if (!label) return null;
+	const noun = COHORT_NOUN[rootType] ?? 'entities';
+	return `${label} most cited of all ${noun} in ${subfieldName}`;
+}
+
+// Map a peer/hero ratio to a bar height (% of plot), pinning the hero's 1× line at `baselinePct`
+// regardless of the chart's own spread, so the baseline aligns across charts. Below 1× scales
+// linearly into the baseline; above 1× scales linearly up to the chart's max ratio.
+export function ratioBarHeight(ratio: number, maxRatio: number, baselinePct: number): number {
+	if (ratio <= 1) return baselinePct * ratio;
+	return baselinePct + ((100 - baselinePct) * (ratio - 1)) / (maxRatio - 1);
 }
