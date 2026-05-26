@@ -3,7 +3,7 @@
 	import { browser } from '$app/environment';
 	import { BE_REMOTE_URL, COMPLETE_YEAR } from '$lib/constants';
 	import type { Paper, EntityAttsForLinks, PaginatedPaperSetResp } from '$lib/tree-types';
-	import { resolveSourceName, formatShortAuthors } from '$lib/utils/paper-helpers';
+	import { resolveSourceName, resolveLinkedAuthors } from '$lib/utils/paper-helpers';
 	import { formatReference, type CitationStyle } from '$lib/utils/reference-format';
 	import ExportControls from './ExportControls.svelte';
 
@@ -233,9 +233,7 @@
 				<thead>
 					<tr>
 						<th class="col-num">#</th>
-						<th class="col-title">Title</th>
-						<th class="col-journal">Journal</th>
-						<th class="col-authors">Authors</th>
+						<th class="col-main">Work</th>
 						<th class="col-cites">Indexed citations</th>
 						{#if showOwnerActions}<th class="col-actions" aria-label="Actions" />{/if}
 					</tr>
@@ -244,21 +242,39 @@
 					{#each displayPapers as paper, idx (paper.wid)}
 						{@const mergeCount = mergedKeepCounts.get(paper.wid) ?? 0}
 						{@const isMergingSource = mergingWid === paper.wid}
+						{@const authors = resolveLinkedAuthors(paper, entityAtts, discAuthorNames)}
+						{@const journal = resolveSourceName(paper.source, entityAtts)}
 						<tr class:merging-source={isMergingSource}>
 							<td class="col-num">{idx + 1}</td>
-							<td class="col-title">
-								{#if paper.doi}<a href="https://doi.org/{paper.doi}" target="_blank" rel="noopener"
-										>{@html paper.name}</a
-									>{:else}{@html paper.name}{/if}
-								{#if paper.hitSemId}<a href="/hit-papers/{paper.hitSemId}" class="hit-page-link"
-										>breakdown →</a
-									>{/if}
+							<td class="col-main">
+								<div class="paper-title">
+									{#if paper.doi}<a
+											href="https://doi.org/{paper.doi}"
+											target="_blank"
+											rel="noopener">{@html paper.name}</a
+										>{:else}{@html paper.name}{/if}{#if paper.hitSemId}
+										<a href="/hit-papers/{paper.hitSemId}" class="hit-page-link">breakdown →</a
+										>{/if}
+								</div>
+								<div class="paper-byline">
+									<span class="byline-year">{paper.year}</span>
+									{#if journal}<span class="byline-sep">·</span><em class="byline-journal"
+											>{journal}</em
+										>{/if}
+									{#if authors.length}<span class="byline-sep">·</span
+										>{#each authors as a, i}{#if a.url}<a class="author-link" href={a.url}
+													>{a.name}</a
+												>{:else}<span class="author-plain">{a.name}</span
+												>{/if}{#if i < authors.length - 1}<span class="comma"
+													>,
+												</span>{/if}{/each}{/if}
+								</div>
 							</td>
-							<td class="col-journal"><em>{resolveSourceName(paper.source, entityAtts)}</em></td>
-							<td class="col-authors">{formatShortAuthors(paper, entityAtts, discAuthorNames)}</td>
 							<td class="col-cites">
-								{paper.citations}{#if mergeCount > 0}
-									<span class="merge-badge" title="merged duplicates">+{mergeCount}</span>{/if}
+								{paper.citations}{#if mergeCount > 0}<span
+										class="merge-badge"
+										title="merged duplicates">+{mergeCount}</span
+									>{/if}
 							</td>
 							{#if showOwnerActions}
 								<td class="col-actions">
@@ -387,7 +403,6 @@
 		opacity: 0.55;
 		padding: 4px 8px;
 		border-bottom: 1px solid rgba(var(--color-range-15), 0.2);
-		white-space: nowrap;
 	}
 
 	.works-table tbody td {
@@ -402,37 +417,65 @@
 
 	.col-num {
 		text-align: right;
-		opacity: 0.65;
+		opacity: 0.55;
 		font-variant-numeric: tabular-nums;
 		width: 2.5rem;
 	}
 
-	.col-title {
-		width: 45%;
+	.col-main {
+		width: auto;
 	}
 
-	.col-title a {
+	.paper-title {
+		font-weight: 500;
+	}
+
+	.paper-title a {
 		color: inherit;
 		text-decoration: none;
 	}
 
-	.col-title a:hover {
+	.paper-title a:hover {
 		text-decoration: underline;
 	}
 
-	.col-journal {
-		opacity: 0.8;
+	.paper-byline {
+		margin-top: 3px;
+		font-size: var(--text-xs);
+		line-height: 1.45;
+		opacity: 0.7;
 	}
 
-	.col-authors {
-		opacity: 0.8;
+	.byline-sep {
+		margin: 0 5px;
+		opacity: 0.45;
+	}
+
+	.byline-journal {
+		font-style: italic;
+	}
+
+	.author-link {
+		color: inherit;
+		text-decoration: none;
 		white-space: nowrap;
+		border-bottom: 1px dotted rgba(var(--color-range-15), 0.45);
+	}
+
+	.author-link:hover {
+		border-bottom-style: solid;
+	}
+
+	.author-plain {
+		white-space: nowrap;
+		opacity: 0.85;
 	}
 
 	.col-cites {
 		text-align: right;
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
+		width: 5rem;
 	}
 
 	.col-actions {
@@ -607,6 +650,30 @@
 		align-self: flex-start;
 	}
 
+	@media (max-width: 640px) {
+		.works-table {
+			font-size: var(--text-sm);
+		}
+
+		.works-table thead th,
+		.works-table tbody td {
+			padding: 7px 4px;
+		}
+
+		.col-num {
+			width: 1.4rem;
+			font-size: var(--text-xs);
+		}
+
+		.col-cites {
+			width: 3.4rem;
+		}
+
+		.paper-actions {
+			flex-direction: column;
+		}
+	}
+
 	@media (min-width: 1200px) {
 		.paper-ref {
 			font-size: var(--text-md);
@@ -618,6 +685,10 @@
 
 		.works-table {
 			font-size: var(--text-md);
+		}
+
+		.paper-byline {
+			font-size: var(--text-base);
 		}
 	}
 </style>
