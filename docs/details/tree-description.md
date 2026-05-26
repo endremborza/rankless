@@ -66,7 +66,7 @@ Axum server on port 3038. Loads pre-processed binary data; answers tree queries,
 
 | File | Role |
 |------|------|
-| `src/main.rs` | Routes: `/v1/query`, `/v1/search`, `/v1/specs`, `/v1/author-peers/:semid`; initializes `Getters` for Authors/Institutions/Subfields/Countries/Sources/HitPapers; loads `AuthorPeerData` at startup; pre-computed cache (`CACHEABLE_FROM=10k`); mimalloc allocator; page filter + semantic IDs loaded from pipeline |
+| `src/main.rs` | Routes: `/v1/query`, `/v1/search`, `/v1/specs`, `/v1/peers/:etype/:semid`, `/v1/ladder/:etype` (cit-rank breakpoint table the client caches per root type to derive standings); initializes `Getters` for Authors/Institutions/Subfields/Countries/Sources/HitPapers; loads `PeerAux` (per-subfield citations + ladder) at startup; pre-computed cache (`CACHEABLE_FROM=10k`); mimalloc allocator; page filter + semantic IDs loaded from pipeline |
 | `src/consts.rs` | `MAX_HITS=80`, `PORT=3038`, `SEARCH_SIZE=20`, `MAX_SLICE=40k`, `N_THREADS=16` |
 
 ---
@@ -150,7 +150,8 @@ SvelteKit app; SSR via `+page.server.ts` files; all visualizations are hand-writ
 | `DagChip.svelte` | Individual paper chip for ImpactDag: title, year, badges (standout/prestigious/nobel) |
 | `AllWorks.svelte` | Paginated author paper list; disown/undo UI (owner only); "breakdown →" link for hit papers |
 | `ExportControls.svelte` | Sort, filter, citation style, BibTeX copy/download controls |
-| `EntityPeers.svelte` | Peer entity comparison table: subfield citation heatmap + sparkline decade timeline |
+| `Peers.svelte` | Peer entity comparison: per-subfield + per-year bars relative to the hero; derives subfield standings client-side from the cached `/v1/ladder` breakpoints |
+| `BarChart.svelte` | Shared span-bar chart (slots, optional pinned baseline, value/axis labels, hover tooltip) used by `Peers.svelte` |
 | `WorkElem.svelte` | Single paper display |
 | `SearchResults.svelte` | Search autocomplete results |
 | `ScrollyGraph.svelte` / `ScrollySank.svelte` | Scrollytelling visualizations |
