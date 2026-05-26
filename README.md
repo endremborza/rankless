@@ -9,7 +9,7 @@ make bootstrap   # one-time: deps, build, fetch nano OA_ROOT
 make dev         # backend + frontend in one foreground process
 ```
 
-See [docs/dev-setup.md](docs/dev-setup.md) for prerequisites and troubleshooting.
+See [docs/architecture.md](docs/architecture.md) (Local development) for prerequisites and troubleshooting.
 
 ## Data Schema
 
