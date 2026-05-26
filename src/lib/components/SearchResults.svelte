@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { pluralize } from '$lib/text-format-util';
+	import { pluralize, rootEmoji } from '$lib/text-format-util';
 	import { BE_REMOTE_URL } from '$lib/constants';
 	import type { RootType, SearchResult } from '$lib/tree-types';
 	import { entToLink } from '$lib/tree-functions';
@@ -8,14 +8,14 @@
 	import HitPaperExplainer from './HitPaperExplainer.svelte';
 
 	export let searchTerm: string;
-	export let cat: RootType;
+	export let cat: RootType | 'all';
 	export let disclaimerPosition: 'top' | 'bottom' = 'bottom';
 
 	let mounted = false;
 	let delayedTerm = '';
 	let searchResults: SearchResult[] = [];
 
-	async function getSearchResults(searchTerm: string, cat: RootType, mounted: boolean) {
+	async function getSearchResults(searchTerm: string, cat: RootType | 'all', mounted: boolean) {
 		if (!mounted || cat == undefined) {
 			return;
 		}
@@ -27,7 +27,7 @@
 			const l: SearchResult[] = await res.json();
 			if (delayedTerm == searchTerm) {
 				searchResults = l.map((e) => {
-					return { ...e, rootType: cat };
+					return { ...e, rootType: e.rootType ?? (cat as RootType) };
 				});
 			}
 		} catch (e) {
@@ -60,10 +60,10 @@
 	{#each searchResults as searchResult}
 		<a class="result-card shadowy padded" href={entToLink(searchResult)}>
 			<h3 style="font-size: {getHeaderFontSize(searchResult.name.length)};">
-				{@html searchResult.name}
+				{#if cat === 'all'}<span class="type-emoji">{rootEmoji(searchResult.rootType)}</span> {/if}{@html searchResult.name}
 			</h3>
 			<span
-				>{#if cat !== 'hit-papers'}{pluralize('paper', searchResult.papers)},
+				>{#if searchResult.rootType !== 'hit-papers'}{pluralize('paper', searchResult.papers)},
 				{/if}{pluralize(
 					'citation',
 					searchResult.citations
