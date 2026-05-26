@@ -3,7 +3,7 @@
 	import { browser } from '$app/environment';
 	import { BE_REMOTE_URL, COMPLETE_YEAR } from '$lib/constants';
 	import type { Paper, EntityAttsForLinks, PaginatedPaperSetResp } from '$lib/tree-types';
-	import { resolveSourceName } from '$lib/utils/paper-helpers';
+	import { resolveSourceName, formatShortAuthors } from '$lib/utils/paper-helpers';
 	import { formatReference, type CitationStyle } from '$lib/utils/reference-format';
 	import ExportControls from './ExportControls.svelte';
 
@@ -228,53 +228,74 @@
 			</div>
 		{/if}
 
-		<div class="paper-list">
-			{#each displayPapers as paper, idx (paper.wid)}
-				{@const mergeCount = mergedKeepCounts.get(paper.wid) ?? 0}
-				{@const isMergingSource = mergingWid === paper.wid}
-				<div class="paper-row" class:merging-source={isMergingSource}>
-					<div class="paper-info">
-						{#if citationStyle === 'html'}
-							<div class="numbered-paper">
-								<span class="paper-num">{idx + 1}.</span>
-								<div>
-									<span class="paper-ref"
-										>{@html formatReference(paper, entityAtts, discAuthorNames, 'html')}</span
-									>
-									<span class="paper-meta">
-										{#if paper.citations > 0}{paper.citations} indexed citations{/if}
-										{#if mergeCount > 0}<span class="merge-badge">+{mergeCount} merged</span>{/if}
-										{#if paper.hitSemId}<a href="/hit-papers/{paper.hitSemId}" class="hit-page-link"
-												>breakdown →</a
-											>{/if}
-									</span>
-								</div>
-							</div>
-						{:else}
+		{#if citationStyle === 'html'}
+			<table class="works-table">
+				<thead>
+					<tr>
+						<th class="col-num">#</th>
+						<th class="col-title">Title</th>
+						<th class="col-journal">Journal</th>
+						<th class="col-authors">Authors</th>
+						<th class="col-cites">Indexed citations</th>
+						{#if showOwnerActions}<th class="col-actions" aria-label="Actions" />{/if}
+					</tr>
+				</thead>
+				<tbody>
+					{#each displayPapers as paper, idx (paper.wid)}
+						{@const mergeCount = mergedKeepCounts.get(paper.wid) ?? 0}
+						{@const isMergingSource = mergingWid === paper.wid}
+						<tr class:merging-source={isMergingSource}>
+							<td class="col-num">{idx + 1}</td>
+							<td class="col-title">
+								{#if paper.doi}<a href="https://doi.org/{paper.doi}" target="_blank" rel="noopener"
+										>{@html paper.name}</a
+									>{:else}{@html paper.name}{/if}
+								{#if paper.hitSemId}<a href="/hit-papers/{paper.hitSemId}" class="hit-page-link"
+										>breakdown →</a
+									>{/if}
+							</td>
+							<td class="col-journal"><em>{resolveSourceName(paper.source, entityAtts)}</em></td>
+							<td class="col-authors">{formatShortAuthors(paper, entityAtts, discAuthorNames)}</td>
+							<td class="col-cites">
+								{paper.citations}{#if mergeCount > 0}
+									<span class="merge-badge" title="merged duplicates">+{mergeCount}</span>{/if}
+							</td>
+							{#if showOwnerActions}
+								<td class="col-actions">
+									{#if isMergingSource}
+										<button class="btn-sm" on:click={cancelMerge}>Cancel</button>
+									{:else if mergingWid !== null}
+										<button class="btn-sm active-bg" on:click={() => selectMergeTarget(paper)}
+											>Merge here</button
+										>
+									{:else}
+										<div class="paper-actions">
+											<button class="btn-sm" on:click={() => startMerge(paper.wid)}>Merge</button>
+											<button
+												class="btn-sm destructive"
+												on:click={() => dispatch('disown', paper.wid)}>Disown</button
+											>
+										</div>
+									{/if}
+								</td>
+							{/if}
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		{:else}
+			<div class="paper-list">
+				{#each displayPapers as paper (paper.wid)}
+					<div class="paper-row">
+						<div class="paper-info">
 							<span class="paper-ref"
 								>{formatReference(paper, entityAtts, discAuthorNames, citationStyle)}</span
 							>
-						{/if}
+						</div>
 					</div>
-					{#if showOwnerActions}
-						{#if isMergingSource}
-							<button class="btn-sm" on:click={cancelMerge}>Cancel</button>
-						{:else if mergingWid !== null}
-							<button class="btn-sm active-bg" on:click={() => selectMergeTarget(paper)}
-								>Merge here</button
-							>
-						{:else}
-							<div class="paper-actions">
-								<button class="btn-sm" on:click={() => startMerge(paper.wid)}>Merge</button>
-								<button class="btn-sm destructive" on:click={() => dispatch('disown', paper.wid)}
-									>Disown</button
-								>
-							</div>
-						{/if}
-					{/if}
-				</div>
-			{/each}
-		</div>
+				{/each}
+			</div>
+		{/if}
 
 		{#if mergedDropPapers.length > 0 && showChangesSections}
 			<details class="merged-section">
@@ -350,6 +371,74 @@
 		gap: 2px;
 	}
 
+	.works-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: var(--text-base);
+		line-height: 1.3;
+	}
+
+	.works-table thead th {
+		text-align: left;
+		font-weight: 600;
+		font-size: var(--text-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		opacity: 0.55;
+		padding: 4px 8px;
+		border-bottom: 1px solid rgba(var(--color-range-15), 0.2);
+		white-space: nowrap;
+	}
+
+	.works-table tbody td {
+		padding: 6px 8px;
+		vertical-align: top;
+		border-bottom: 1px solid rgba(var(--color-range-15), 0.06);
+	}
+
+	.works-table tr.merging-source {
+		background: rgba(var(--color-range-15), 0.04);
+	}
+
+	.col-num {
+		text-align: right;
+		opacity: 0.65;
+		font-variant-numeric: tabular-nums;
+		width: 2.5rem;
+	}
+
+	.col-title {
+		width: 45%;
+	}
+
+	.col-title a {
+		color: inherit;
+		text-decoration: none;
+	}
+
+	.col-title a:hover {
+		text-decoration: underline;
+	}
+
+	.col-journal {
+		opacity: 0.8;
+	}
+
+	.col-authors {
+		opacity: 0.8;
+		white-space: nowrap;
+	}
+
+	.col-cites {
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+
+	.col-actions {
+		white-space: nowrap;
+	}
+
 	.paper-row {
 		display: flex;
 		align-items: flex-start;
@@ -357,11 +446,6 @@
 		gap: 8px;
 		padding: 6px 0;
 		border-bottom: 1px solid rgba(var(--color-range-15), 0.06);
-	}
-
-	.paper-row.merging-source {
-		background: rgba(var(--color-range-15), 0.04);
-		padding-left: 6px;
 	}
 
 	.paper-info {
@@ -519,20 +603,6 @@
 		opacity: 0.5;
 	}
 
-	.numbered-paper {
-		display: flex;
-		align-items: baseline;
-	}
-
-	.paper-num {
-		opacity: 0.65;
-		margin-right: 10px;
-		flex: 0 0 3rem;
-		text-align: right;
-		font-variant-numeric: tabular-nums;
-		line-height: 1.3;
-	}
-
 	.load-more-top {
 		align-self: flex-start;
 	}
@@ -544,6 +614,10 @@
 
 		.paper-meta {
 			font-size: var(--text-base);
+		}
+
+		.works-table {
+			font-size: var(--text-md);
 		}
 	}
 </style>
