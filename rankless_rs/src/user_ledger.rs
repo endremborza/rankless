@@ -271,7 +271,7 @@ impl UserLedger {
                 eprintln!(
                     "user_ledger: event {event_id} skipped — author oa_id {root} not in dataset. \
                      If this ID was recently deprecated by OpenAlex, re-implement merged_ids \
-                     redirect support (see docs/plans/author-profile-ledger.md §6.5)."
+                     redirect support (see docs/todo-backend.md, ledger deferred follow-ups)."
                 );
                 skipped.push(SkippedEvent {
                     event_id: *event_id,
@@ -287,7 +287,7 @@ impl UserLedger {
                 eprintln!(
                     "user_ledger: event {event_id} skipped — work oa_id {root} not in dataset. \
                      If this ID was recently deprecated by OpenAlex, re-implement merged_ids \
-                     redirect support (see docs/plans/author-profile-ledger.md §6.5)."
+                     redirect support (see docs/todo-backend.md, ledger deferred follow-ups)."
                 );
                 skipped.push(SkippedEvent {
                     event_id: *event_id,
