@@ -47,7 +47,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 
 	// Author-specific data (null/empty defaults for all other entity types)
 	let profile: tt.PaperProfileResp | null = null;
-	let peersPromise: Promise<tt.EntityPeersResp | null> = new Promise(() => null);
+	let peersPromise: Promise<tt.EntityPeersResp | null> = Promise.resolve(null);
 	let initialPapers: tt.Paper[] = [];
 	let initialEntityAtts: tt.EntityAttsForLinks = {};
 	let initialDiscAuthorNames: Record<string, string> = {};
