@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { EntityPeersResp, LadderData } from '$lib/tree-types';
+	import type { EntityPeersResp, LadderData, PeerEntry, SearchResult } from '$lib/tree-types';
 	import {
 		abbrSfName,
 		sfColorVar,
@@ -11,9 +11,11 @@
 		SUBFIELD_COLOR_VARS
 	} from '$lib/peers-utils';
 	import { formatNumber } from '$lib/text-format-util';
+	import { urlFriendlify } from '$lib/tree-functions';
 	import { BE_REMOTE_URL, LATEST_YEAR } from '$lib/constants';
 	import { onMount } from 'svelte';
 	import BarChart, { type Bar } from '$lib/components/BarChart.svelte';
+	import PeerSearch from '$lib/components/PeerSearch.svelte';
 
 	export let data: EntityPeersResp;
 	export let rootType = 'authors';
@@ -29,11 +31,40 @@
 	// the user can toggle MIN..MAX to change the comparison basis. Reset when the hero changes.
 	let sel: number[] = [];
 	let selHeroId = '';
+	// User-swapped peers, keyed by grid slot. Each entry overrides data.peers[slot] in `displayPeers`.
+	let overrides: Record<number, PeerEntry> = {};
 	$: if (data.hero.semanticId !== selHeroId) {
 		selHeroId = data.hero.semanticId;
 		sel = data.topSubfields.slice(0, DEFAULT_FIELD_N).map((_, i) => i);
+		overrides = {};
 	}
 	$: selPos = [...sel].sort((a, b) => a - b);
+	$: displayPeers = data.peers.map((p, i) => overrides[i] ?? p);
+
+	// A swapped-in entity's citations come ordered by its own top subfields, so realign them to the
+	// current hero's topSubfields by subfield dmId (0 where the entity has none in that subfield).
+	async function swapPeer(result: SearchResult) {
+		const slot = selectedIdx;
+		try {
+			const resp: EntityPeersResp | null = await fetch(
+				`${BE_REMOTE_URL}/peers/${rootType}/${urlFriendlify(result.semanticId)}`
+			).then((r) => (r.ok ? r.json() : null));
+			if (!resp) return;
+			const byDmId = new Map<number, number>();
+			resp.topSubfields.forEach((sf, i) => byDmId.set(sf.dmId, resp.hero.subfieldCitations[i] ?? 0));
+			const aligned: PeerEntry = {
+				...resp.hero,
+				subfieldCitations: data.topSubfields.map((sf) => byDmId.get(sf.dmId) ?? 0)
+			};
+			overrides = { ...overrides, [slot]: aligned };
+		} catch (e) {
+			console.error('swap peer failed', e);
+		}
+	}
+	function restorePeer(slot: number) {
+		const { [slot]: _, ...rest } = overrides;
+		overrides = rest;
+	}
 
 	function toggleSf(pos: number) {
 		if (sel.includes(pos)) {
@@ -76,13 +107,13 @@
 	);
 
 	$: heroSf = selPos.map((si) => Math.max(1, data.hero.subfieldCitations[si] ?? 0));
-	$: peerSfRatios = data.peers.map((p) =>
+	$: peerSfRatios = displayPeers.map((p) =>
 		selPos.map((si, k) => (p.subfieldCitations[si] ?? 0) / heroSf[k])
 	);
 	$: maxSfRatio = Math.max(1.5, ...peerSfRatios.flat());
 	$: peerSfMax = Math.max(
 		1,
-		...data.peers.flatMap((p) => selPos.map((si) => p.subfieldCitations[si] ?? 0))
+		...displayPeers.flatMap((p) => selPos.map((si) => p.subfieldCitations[si] ?? 0))
 	);
 
 	// Trim trailing incomplete years (current year has no/partial data → hero count 0).
@@ -97,14 +128,14 @@
 		(_, i) => LATEST_YEAR - (data.hero.yearlyCites.length - 1) + i
 	);
 	$: heroYearly = data.hero.yearlyCites.map((v) => Math.max(1, v));
-	$: peerYearRatios = data.peers.map((p) => p.yearlyCites.map((v, y) => v / (heroYearly[y] ?? 1)));
+	$: peerYearRatios = displayPeers.map((p) => p.yearlyCites.map((v, y) => v / (heroYearly[y] ?? 1)));
 	$: maxYearRatio = Math.max(1.5, ...peerYearRatios.flatMap((r) => r.slice(0, nYears)));
 
 	let selectedIdx = 0;
-	$: if (selectedIdx >= data.peers.length) selectedIdx = 0;
-	$: selectedPeer = data.peers[selectedIdx];
+	$: if (selectedIdx >= displayPeers.length) selectedIdx = 0;
+	$: selectedPeer = displayPeers[selectedIdx];
 
-	$: miniBars = data.peers.map((peer, pi) =>
+	$: miniBars = displayPeers.map((peer, pi) =>
 		selPos.map((si, k): Bar => {
 			const val = peer.subfieldCitations[si] ?? 0;
 			return {
@@ -201,17 +232,36 @@
 		</ul>
 	</div>
 
+	<div class="peer-add">
+		<span class="peer-add-label">Replace <b>{selectedPeer?.name}</b> with:</span>
+		<PeerSearch
+			{rootType}
+			placeholder="Search {rootType} to compare…"
+			excludeSemanticId={data.hero.semanticId}
+			on:select={(e) => swapPeer(e.detail)}
+		/>
+	</div>
+
 	<div class="peer-grid">
-		{#each data.peers as peer, pi}
+		{#each displayPeers as peer, pi}
 			<div
 				class="peer-card"
 				class:selected={pi === selectedIdx}
+				class:custom={!!overrides[pi]}
 				role="button"
 				tabindex="0"
 				aria-pressed={pi === selectedIdx}
 				on:click={() => selectPeer(pi)}
 				on:keydown={(e) => onCardKey(e, pi)}
 			>
+				{#if overrides[pi]}
+					<button
+						type="button"
+						class="peer-restore"
+						title="Restore original peer"
+						on:click|stopPropagation={() => restorePeer(pi)}>×</button
+					>
+				{/if}
 				<div class="peer-head">
 					<span class="peer-name">{peer.name}</span>
 					{#if peer.country}
@@ -407,6 +457,23 @@
 		flex-shrink: 0;
 	}
 
+	.peer-add {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.peer-add-label {
+		font-size: var(--text-sm);
+		opacity: 0.7;
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+
+	.peer-add-label b {
+		color: rgba(var(--sel-c), 1);
+	}
+
 	.peer-grid {
 		display: grid;
 		grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -414,6 +481,7 @@
 	}
 
 	.peer-card {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
@@ -426,6 +494,28 @@
 
 	.peer-card:hover {
 		border-color: rgba(var(--sel-c), 0.45);
+	}
+
+	.peer-card.custom {
+		border-style: dashed;
+		border-color: rgba(var(--sel-c), 0.55);
+	}
+
+	.peer-restore {
+		position: absolute;
+		top: 2px;
+		right: 4px;
+		padding: 0 4px;
+		font-size: var(--text-base);
+		line-height: 1;
+		color: rgba(var(--color-range-30), 0.7);
+		background: none;
+		border: none;
+		cursor: pointer;
+	}
+
+	.peer-restore:hover {
+		color: rgba(var(--sel-c), 1);
 	}
 
 	.peer-card.selected {
@@ -535,6 +625,11 @@
 		}
 		.hero-col {
 			max-width: none;
+		}
+		.peer-add {
+			flex-direction: column;
+			align-items: stretch;
+			gap: 6px;
 		}
 	}
 
