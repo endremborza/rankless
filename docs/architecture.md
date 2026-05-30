@@ -218,7 +218,8 @@ the only viz dependency).
 | File | Role |
 |------|------|
 | `lib/server/session.ts` | ORCID session management |
-| `lib/server/db.ts` | SQLite singleton (better-sqlite3, WAL); ledger tables |
+| `lib/server/db.ts` | SQLite singleton (`bun:sqlite`, WAL); ledger tables |
+| `lib/server/render.ts` | `renderSvgComponent` — server-side Svelte SSR `.render()` to HTML string |
 | `lib/server/id_resolver.ts` | Resolves UI entity refs to stable-ID payload blocks |
 | `lib/server/ledger-hash.ts` | `subject_hash` computation for ledger dedup |
 | `lib/utils/reference-format.ts` | Academic reference formatting (APA/MLA/Chicago, BibTeX) |
