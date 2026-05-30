@@ -5,7 +5,7 @@
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 	import { BE_REMOTE_URL } from '$lib/constants';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 
 	export let data: {
 		view: tt.View;
@@ -81,22 +81,23 @@
 	}
 
 	function treeToNamed(node: tt.OMap<{ w: number }>, atts: tt.AttributeLabels): tt.NamedNode {
-		const children: Record<string, tt.NamedNode> = {};
+		const children: Record<number, tt.NamedNode & { children: Record<number, tt.NamedNode> }> = {};
 		for (const [attId, child] of Object.entries(node || {})) {
 			let [sfId, _, domainId] = getHier(attId);
 			const att = atts[l1Type][attId];
 			if (att === undefined) continue;
-			let node = { weight: child.w, name: att.name };
-			let parentId = domainId;
-			if (children[parentId] == undefined) {
-				children[parentId] = { name: domains[domainId], weight: 0, children: {} };
+			let leaf = { weight: child.w, name: att.name };
+			let parent = children[domainId];
+			if (parent == undefined) {
+				parent = { name: domains[domainId], weight: 0, children: {} };
+				children[domainId] = parent;
 			}
-			children[parentId].children[sfId] = node;
-			children[parentId].weight += node.weight;
+			parent.children[sfId] = leaf;
+			parent.weight += leaf.weight;
 		}
 		return {
 			name: data.view.name,
-			weight: node.linkCount,
+			weight: Object.values(children).reduce((s, c) => s + c.weight, 0),
 			children
 		};
 	}
@@ -124,11 +125,11 @@
 			.then((res) => res.json())
 			.then((resp: tt.TreeResponse) => {
 				if (resp.tree === undefined) return;
-				let isSpec = $page.url.searchParams.has('spec');
+				let isSpec = page.url.searchParams.has('spec');
 				let flatTree = tf.flatFromResp(resp, isSpec, spec);
 				if (flatTree === undefined) return;
 				tree = treeToNamed(flatTree, resp.atts);
-				if ($page.url.searchParams.has('animated')) {
+				if (page.url.searchParams.has('animated')) {
 					play();
 				}
 			});
