@@ -116,10 +116,10 @@
 		if (flatOut != undefined && resp != undefined) {
 			try {
 				let countryAtts = resp.atts.countries || {};
-				let l1Kv = [];
+				let l1Kv: [string, { w: number; id: number }][] = [];
 				Object.entries(flatOut).map(([k, { w }]) => {
 					if (countryAtts[k] != undefined) {
-						l1Kv.push([countryAtts[k].name, { w, id: k }]);
+						l1Kv.push([countryAtts[k].name, { w, id: Number(k) }]);
 					}
 				});
 				countryLevels = Object.fromEntries(l1Kv);
