@@ -8,7 +8,7 @@ export class TypeWriterWordChanger {
 	text: string;
 	direction: number;
 	letterInd: number;
-	runner: number;
+	runner: ReturnType<typeof setInterval> | undefined;
 
 
 	constructor(texts: string[]) {
@@ -21,7 +21,7 @@ export class TypeWriterWordChanger {
 
 		this.letterInd = Math.floor(this.text.length / 2);
 		this.direction = +1;
-		this.runner = 0
+		this.runner = undefined;
 	}
 
 	changeText() {
