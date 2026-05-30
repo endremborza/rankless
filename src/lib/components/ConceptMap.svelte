@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { nodes, edges } from '$lib/assets/data/concept-map.json';
+	import { nodes as nodesData, edges } from '$lib/assets/data/concept-map.json';
 	import { subfields, fields, domains } from '$lib/assets/data/field-hierarchy.json';
 	import { getColor, getColorArr } from '$lib/style-util';
 	import { getNetworkText, SPEC_BPS } from '$lib/text-format-util';
@@ -42,9 +42,13 @@
 	const getSatFromRate = (x: number) =>
 		Math.pow(x, 0.35) * (maxSaturation - minSaturation) + minSaturation;
 	const getSizeFromRate = (x: number) => Math.pow(x, 0.65) * (maxSize - minSize) + minSize;
-	const backupNames = getMap(subfields);
+	const nodes = nodesData as Record<number, number[]>;
+	const backupNames = getMap(subfields as [string, number][]);
 	const nodeKeys = Object.keys(backupNames);
 	const parents = getParentsObject();
+	const parentEntries = Object.entries(parents).map(
+		([k, v]) => [Number(k), v] as [number, (typeof parents)[number]]
+	);
 
 	let svgEl: SVGSVGElement;
 	let styleEl: SVGStyleElement | null = null;
@@ -74,7 +78,7 @@
 	}
 
 	function getMap(ents: [string, number][]) {
-		let out = {};
+		let out: Record<number, string> = {};
 		for (let i = 0; i < ents.length; i++) {
 			out[i] = ents[i][0];
 		}
@@ -290,7 +294,7 @@
 								if (!fixedSelect) {
 									hoveredOverCircle = true;
 									hovered = sfi;
-									infoPath = [sfi];
+									infoPath = [parseInt(sfi)];
 								}
 							}}
 							on:mouseleave={() => {
@@ -299,7 +303,7 @@
 							on:click={() => {
 								fixedSelect = true;
 								hovered = sfi;
-								infoPath = [sfi];
+								infoPath = [parseInt(sfi)];
 								showPaper = true;
 							}}
 							r={nullSize}
@@ -316,7 +320,7 @@
 					{/each}
 				</svg>
 				<div class="concept-map-legend">
-					{#each Object.entries(parents) as [i, parent]}
+					{#each parentEntries as [i, parent]}
 						<span
 							class="vw-sm"
 							on:mouseover={() => (hoveredParent = [i, undefined])}
