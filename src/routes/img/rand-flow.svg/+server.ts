@@ -4,6 +4,7 @@ import type { RequestHandler } from './$types';
 
 import TreeSvg from '$lib/components/TreeSvg.svelte';
 import { getTopTreeLoader } from '$lib/loading-functions';
+import { renderSvgComponent } from '$lib/server/render';
 
 
 export const GET: RequestHandler = async ({ url }) => {
@@ -16,7 +17,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
 	let selectionState: tt.BareNode = spec.selectionState;
 	let props = { selectionState, height: 100, ...loader.getTreeSvgProps() };
-	const { html } = TreeSvg.render(props);
+	const html = renderSvgComponent(TreeSvg, props);
 	let urlFriendlySemId = tf.urlFriendlify(loader.conf.semanticId)
 	return new Response(html, {
 		headers: {
