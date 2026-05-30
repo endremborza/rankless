@@ -294,11 +294,13 @@
 
 	function getStyleMaker(d1Parser: (n: number) => number, d2Parser: (n: number) => number) {
 		return (d1Obj: object, d2Obj: object, d1RateObj: object) => {
-			return [
-				[d1Obj || {}, d1Parser, 'px'],
-				[d2Obj || {}, d2Parser, 'px'],
-				[d1RateObj || {}, (x: number) => x, '%']
-			]
+			return (
+				[
+					[d1Obj || {}, d1Parser, 'px'],
+					[d2Obj || {}, d2Parser, 'px'],
+					[d1RateObj || {}, (x: number) => x, '%']
+				] as [object, (n: number) => number, string][]
+			)
 				.map(([dObj, dParser, suffix]) =>
 					Object.entries(dObj)
 						.map(([k, v]) => `${k}: ${dParser(v)}${suffix};`)
