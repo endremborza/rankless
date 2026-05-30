@@ -73,8 +73,8 @@
 		// radial: radialWeightedLayout,
 		force: cytoscapeLayout
 	};
-	const possFuns = Object.keys(layoutMap);
-	let actFun: (typeof possFuns)[number] = 'force';
+	const possFuns = Object.keys(layoutMap) as (keyof typeof layoutMap)[];
+	let actFun: keyof typeof layoutMap = 'force';
 	$: positions = layoutMap[actFun](nodes, edgeWeights, options);
 	let showControls = false;
 </script>
