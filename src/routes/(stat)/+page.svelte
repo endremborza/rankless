@@ -21,7 +21,7 @@
 	import SpecConcrete from '$lib/components/SpecConcrete.svelte';
 	import SpecConcrete2 from '$lib/components/SpecConcrete2.svelte';
 	import { afterNavigate } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { APP_NAME, COMPLETE_YEAR, ROOT_TYPES } from '$lib/constants';
 	import TreeSvg from '$lib/components/TreeSvg.svelte';
 	import { resultsHidden } from '$lib/stores';
@@ -47,7 +47,7 @@
 	}
 
 	afterNavigate(() => {
-		let anchor = $page.url.href.split('#')[1];
+		let anchor = page.url.href.split('#')[1];
 		if (anchor) {
 			selectedId = anchor;
 		}
@@ -192,14 +192,14 @@
 	export let data;
 
 	let selectedQcRootId = 0;
-	let treeResp: tt.TreeResponse = data.treeResp;
-	let conf: tt.FullTreeConfig = data.conf;
+	let treeResp: tt.TreeResponse | undefined = data.treeResp;
+	let conf: tt.FullTreeConfig = data.conf!;
 	let rootName = data.rootName;
 	let prefixText = data.prefixText;
 	let selectionState: tt.BareNode = {};
 
 	let loader = reconstructLoader(data);
-	let props = loader.getTreeSvgProps();
+	let props = loader.getTreeSvgProps()!;
 
 	const ENTITY_CTA: Record<tt.RootType, undefined | { kicker: string; cta: string; desc: string }> =
 		{
@@ -245,7 +245,7 @@
 		return `${x0} ${y0} ${w} ${fullH - pad - headHeight}`;
 	}
 	const [bgWidth, bgOffset, bgHeight] = [300, 120, 300];
-	let options: string[] = ROOT_TYPES.filter((e) => e != 'hit-papers');
+	let options: tt.RootType[] = ROOT_TYPES.filter((e) => e != 'hit-papers');
 	let texts = options.map(prettifyRoot);
 </script>
 
