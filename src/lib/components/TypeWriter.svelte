@@ -8,7 +8,7 @@
 
 	let text = '';
 
-	let runner: number;
+	let runner: ReturnType<typeof setInterval>;
 
 	onMount(() => {
 		runner = setInterval(changeText, speed);

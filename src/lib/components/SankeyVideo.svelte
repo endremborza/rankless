@@ -56,7 +56,7 @@
 		return ds;
 	}
 
-	const setups = [
+	const setups: [number[], number, number, number, number][] = [
 		[[8, 3, 7, 1, 5, 2, 4], 0, 1, 0, h * 2],
 		[[8, 3, 7, 1, 5, 2, 4], 0, 1, 0, h * 2],
 		[[3, 4, 6, 3, 1, 5, 2], 0.2, 2, 3, h * 2],

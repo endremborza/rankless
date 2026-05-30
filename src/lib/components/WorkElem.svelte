@@ -44,7 +44,7 @@
 	$: updateByWorkId(workId);
 	$: parsePaperResp(paperResp);
 
-	function parsePaperResp(paperResp: OaPaperResp) {
+	function parsePaperResp(paperResp: OaPaperResp | undefined) {
 		if (paperResp == undefined) return;
 		let instOaId = `https://openalex.org/I${instOaNum}`;
 		title = paperResp.title;

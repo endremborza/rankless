@@ -152,17 +152,6 @@
 		text-transform: capitalize;
 	}
 
-	.back-link {
-		font-size: var(--text-sm);
-		opacity: 0.5;
-		text-decoration: none;
-		color: var(--color-text);
-	}
-
-	.back-link:hover {
-		opacity: 0.8;
-	}
-
 	.search-input {
 		flex: 1;
 		max-width: 320px;

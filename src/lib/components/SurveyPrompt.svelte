@@ -49,7 +49,6 @@
 
 	.survey-container {
 		width: min(1100px, calc(100% - 2rem));
-		backgroundx: linear-gradient(180deg, var(--text-bg), var(--text-bg-3));
 		background: var(--text-bg-2);
 		display: flex;
 		align-items: center;

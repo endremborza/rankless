@@ -31,13 +31,19 @@
 		`${Math.pow(subScaler, 2) * 100}%`
 	];
 
-	let mainLegend = [
+	let mainLegend: [number, string][] = [
 		[0.15, 'Total number of references'],
 		[0.22, 'in published articles']
 	];
-	let subLegend = [
+	let subLegend: [number, string][] = [
 		[0.32, 'References to papers with the'],
 		[0.39, 'same country of origin']
+	];
+
+	let legendSets: [[number, string][], string, string][];
+	$: legendSets = [
+		[mainLegend, mainColor, mainLop],
+		[subLegend, subColor, subLop]
 	];
 
 	$: minVal = Math.min(...citeGraph.citations);
@@ -65,7 +71,7 @@
 			>{formatNumber(minVal * citeGraph.maxval)}</text
 		>
 	</g>
-	{#each [[mainLegend, mainColor, mainLop], [subLegend, subColor, subLop]] as [legend, color, opacity]}
+	{#each legendSets as [legend, color, opacity]}
 		{#each legend as [y, line]}
 			<text
 				x="0.03"
