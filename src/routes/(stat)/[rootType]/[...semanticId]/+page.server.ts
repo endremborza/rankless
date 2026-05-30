@@ -199,7 +199,7 @@ function toDecorated(r: tt.RelatedEntity): DecoratedRelated {
 	};
 }
 
-function getSemantifyers(rootName: string, rootType: tt.RootType, paperText: number, citeText: number): [tt.RelTypes, Semantifyer][] {
+function getSemantifyers(rootName: string, rootType: tt.RootType, paperText: string, citeText: string): [tt.RelTypes, Semantifyer][] {
 	if (rootType == 'authors') {
 		return [
 			[
