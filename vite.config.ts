@@ -1,5 +1,6 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import { defineConfig, type UserConfig } from 'vite';
+import type { TestUserConfig } from 'vitest/config';
 
 export default defineConfig({
 	plugins: [sveltekit()],
@@ -13,4 +14,4 @@ export default defineConfig({
 			'$app': '/src/app'
 		}
 	}
-});
+} as UserConfig & { test: TestUserConfig });
