@@ -19,7 +19,7 @@ for (const route of sitemapRoutes) {
 		const body = await response?.text();
 		expect(body).toBeTruthy();
 
-		const validationResult = XMLValidator.validate(body);
+		const validationResult = XMLValidator.validate(body ?? '');
 		if (validationResult !== true) {
 			console.error(`XML validation failed for ${route}:`, validationResult.err);
 		}
