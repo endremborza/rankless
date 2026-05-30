@@ -443,7 +443,7 @@ export function flatFromResp(
 	resp: tt.TreeResponse | undefined,
 	isSpecialization: boolean,
 	spec: tt.TreeSpec
-): undefined | tt.OMap<{ w: number }> {
+): undefined | tt.LevelT {
 	if (resp == undefined) return;
 	let globConf: tt.FullControlSpecs = {
 		globalSizeBase: isSpecialization ? 'specialization' : 'volume',
@@ -453,8 +453,8 @@ export function flatFromResp(
 	let visTree = deriveVisibleTree(resp.tree, globConf, {}, resp.atts, spec);
 	if (visTree == undefined) return;
 	try {
-		let l1Kv = Object.entries(visTree.tree.children || {}).map(([k, v]) =>
-			[k, { w: v.weight }]
+		let l1Kv = Object.entries(visTree.tree.children || {}).map(
+			([k, v]) => [k, { w: v.weight, id: parseInt(k) }] as [string, { w: number; id: number }]
 		);
 		return Object.fromEntries(l1Kv);
 	} catch (error) {
