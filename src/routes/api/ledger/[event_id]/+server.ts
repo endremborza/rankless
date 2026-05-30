@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 import { LedgerDb } from '$lib/server/db';
-import type { LedgerPayload } from '$lib/server/ledger-hash';
+import type { LedgerPayload } from '$lib/types/ledger';
 
 export function DELETE({ locals, params }: RequestEvent) {
 	if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
