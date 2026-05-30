@@ -1,19 +1,19 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import fs from 'fs';
 
 test.setTimeout(120_000); // allow plenty of time for full run
 
 test('navigate all links and test map control states quickly', async ({ page }) => {
-	const visitedPages = new Set();
-	const paragraphTexts = new Set();
-	const paragraphSources = {}
-	const pagesToVisit = new Set(['/']);
+	const visitedPages = new Set<string>();
+	const paragraphTexts = new Set<string>();
+	const paragraphSources: Record<string, string> = {};
+	const pagesToVisit = new Set<string>(['/']);
 
 	await page.goto('/');
 	const links = await page.$$eval('a[href]', anchors =>
 		anchors
 			.map(a => a.getAttribute('href'))
-			.filter(h => h && h.startsWith('/') && !h.startsWith('//'))
+			.filter((h): h is string => !!h && h.startsWith('/') && !h.startsWith('//'))
 	);
 	links.forEach(l => pagesToVisit.add(l));
 	for (const url of pagesToVisit) {
@@ -61,7 +61,7 @@ test('navigate all links and test map control states quickly', async ({ page }) 
 	fs.writeFileSync('logs/paragraph_texts.txt', Array.from(paragraphTexts).join('\n\n'));
 });
 
-async function collectParagraphs(page, paragraphTexts, url: string, paragraphSources: Record<string, string>) {
+async function collectParagraphs(page: Page, paragraphTexts: Set<string>, url: string, paragraphSources: Record<string, string>) {
 	let elems = url.split('/')
 	if (elems.length > 2) {
 		let uType = elems[1]
