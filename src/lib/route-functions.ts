@@ -53,9 +53,9 @@ export async function semIdResolver(params: { rootType: string, semanticId: stri
 	let newSemId: string | undefined = semanticId.toLowerCase();
 	if (rootType == 'countries') {
 		if (semanticId.length == 2) {
-			newSemId = alpha2CC[semanticId.toUpperCase()] || newSemId;
+			newSemId = (alpha2CC as Record<string, string>)[semanticId.toUpperCase()] || newSemId;
 		} else if (semanticId.length != 3) {
-			newSemId = oldCountrySem[semanticId.toLowerCase()];
+			newSemId = (oldCountrySem as Record<string, string>)[semanticId.toLowerCase()];
 		}
 	}
 	if (newSemId == undefined) {
