@@ -32,7 +32,7 @@
 
 	// $: treeId = Math.floor(Math.random() * treeSpecs.specs[rootType].length);
 	let treeId = 0;
-	$: conf = { year: getDefaultYear(rootType), treeId, semanticId, rootType };
+	$: conf = { year: getDefaultYear(rootType), treeId, semanticId, rootType, wide: false };
 
 	$: href = toLinkWithParams(conf, {});
 	$: sem = getSem(treeId, rootType, treeSpecs);
