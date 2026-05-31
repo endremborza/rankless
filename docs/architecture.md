@@ -8,6 +8,7 @@ Pipeline shape: **OpenAlex CSVs → binary pipeline (`rankless_rs`) → Axum ser
 (`rankless_server`) → SvelteKit frontend (`src/`)**.
 
 Contents:
+
 1. [Overview](#overview) — data, visualizations, layers
 2. [Codebase reference](#codebase-reference) — file-by-file index
 3. [Data flow](#data-flow)
@@ -85,63 +86,63 @@ CLI tool that ingests OpenAlex/Scopus CSV dumps and produces binary data files c
 the server. Steps run in order via `mods_as_comms!` in `lib.rs`:
 `a1_entity_mapping → a2_init_atts → derive_links1 → … → derive_links5`.
 
-| File | Role |
-|------|------|
-| `src/lib.rs` | Module root; exports public API; dispatches pipeline steps |
-| `src/main.rs` | CLI entry; reads `OA_ROOT` env; calls `lib::runner()` |
-| `src/common.rs` | `Stowage` (file/data manager), marker traits, `reverse_id`, type aliases, `MmapBox`, parsing utils |
-| `src/csv_iter.rs` | Parallel CSV partition reader `ObjIter<T>`; one thread per partition file, prefetch into a sync channel |
-| `src/env_consts.rs` | Config constants: year ranges, thresholds (driven by `RANKLESS_ENV`) |
-| `src/data_consts.rs` | Dataset-level lookup tables |
-| `src/oa_structs.rs` | OpenAlex JSON schema structs |
-| `src/semantic_ids.rs` | Semantic ID generation for frontend URL slugs |
-| `src/agg_tree.rs` | Hierarchical aggregation tree construction |
-| `src/filter.rs` | Entity filtering (alias-aware counting + owner-pin filter from the ledger) |
-| `src/csv_writers.rs` | CSV output for validation |
-| `src/biblo_var_att.rs` | Variable-length bibliographic attribute handling |
-| `src/peers.rs` | KD-tree peer finding: `PartitionedTrees`, `Embed<D>`, `GenericPeerCtx`; log-PCA embedding, distance primitives |
-| `src/user_ledger.rs` | Loads + resolves the user ledger snapshot (stable OA id → BigId → dm_id); applies aliases/disowns/owner-pins; writes `applied_manifest.json` |
-| `src/steps/a1_entity_mapping.rs` | Parse CSVs; dedup + map entity IDs; year filtering; ledger drop-side skips |
-| `src/steps/a2_init_atts.rs` | Init attributes (DOIs, ORCIDs, biblio, topics, locations); Levenshtein name dedup; Nobel category; ledger alias/merge application |
-| `src/steps/derive_links1.rs` | work→subfields, work→institutions, work→countries |
-| `src/steps/derive_links2.rs` | work→sources; top source per work; per-subfield citation arrays |
-| `src/steps/derive_links3.rs` | Coauthor networks; hit papers; page filter + semantic IDs; unified peer discovery via `PeerConfig` |
-| `src/steps/derive_links4.rs` | Per-entity hit-paper sorted lists; author citing-hit sets; hit paper semantic IDs + peers |
-| `src/steps/derive_links5.rs` | Era records (yearly citations, top journals/authors/subfields) for hit papers |
-| `src/gen/` | Generated Rust source — **do not edit manually** |
+| File                             | Role                                                                                                                                         |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib.rs`                     | Module root; exports public API; dispatches pipeline steps                                                                                   |
+| `src/main.rs`                    | CLI entry; reads `OA_ROOT` env; calls `lib::runner()`                                                                                        |
+| `src/common.rs`                  | `Stowage` (file/data manager), marker traits, `reverse_id`, type aliases, `MmapBox`, parsing utils                                           |
+| `src/csv_iter.rs`                | Parallel CSV partition reader `ObjIter<T>`; one thread per partition file, prefetch into a sync channel                                      |
+| `src/env_consts.rs`              | Config constants: year ranges, thresholds (driven by `RANKLESS_ENV`)                                                                         |
+| `src/data_consts.rs`             | Dataset-level lookup tables                                                                                                                  |
+| `src/oa_structs.rs`              | OpenAlex JSON schema structs                                                                                                                 |
+| `src/semantic_ids.rs`            | Semantic ID generation for frontend URL slugs                                                                                                |
+| `src/agg_tree.rs`                | Hierarchical aggregation tree construction                                                                                                   |
+| `src/filter.rs`                  | Entity filtering (alias-aware counting + owner-pin filter from the ledger)                                                                   |
+| `src/csv_writers.rs`             | CSV output for validation                                                                                                                    |
+| `src/biblo_var_att.rs`           | Variable-length bibliographic attribute handling                                                                                             |
+| `src/peers.rs`                   | KD-tree peer finding: `PartitionedTrees`, `Embed<D>`, `GenericPeerCtx`; log-PCA embedding, distance primitives                               |
+| `src/user_ledger.rs`             | Loads + resolves the user ledger snapshot (stable OA id → BigId → dm_id); applies aliases/disowns/owner-pins; writes `applied_manifest.json` |
+| `src/steps/a1_entity_mapping.rs` | Parse CSVs; dedup + map entity IDs; year filtering; ledger drop-side skips                                                                   |
+| `src/steps/a2_init_atts.rs`      | Init attributes (DOIs, ORCIDs, biblio, topics, locations); Levenshtein name dedup; Nobel category; ledger alias/merge application            |
+| `src/steps/derive_links1.rs`     | work→subfields, work→institutions, work→countries                                                                                            |
+| `src/steps/derive_links2.rs`     | work→sources; top source per work; per-subfield citation arrays                                                                              |
+| `src/steps/derive_links3.rs`     | Coauthor networks; hit papers; page filter + semantic IDs; unified peer discovery via `PeerConfig`                                           |
+| `src/steps/derive_links4.rs`     | Per-entity hit-paper sorted lists; author citing-hit sets; hit paper semantic IDs + peers                                                    |
+| `src/steps/derive_links5.rs`     | Era records (yearly citations, top journals/authors/subfields) for hit papers                                                                |
+| `src/gen/`                       | Generated Rust source — **do not edit manually**                                                                                             |
 
 ### rankless_trees — tree query library
 
-| File | Role |
-|------|------|
-| `src/interfacing.rs` | `Getters` struct; loads data interfaces; `make_interfaces!` macro; `RootInterfaces` (sem_ids, peers, hit_sem_ids, hit_dois) |
-| `src/io.rs` | `TreeRunManager` (threaded execution), `CacheKey`/`CacheValue`, `TreeResponse`, attribute labels |
-| `src/path_finder.rs` | Citation path graph traversal; `RefGraph`; `author_to_work_paths()` |
-| `src/ids.rs` | ID encoding/decoding; `AttributeLabelUnion` |
-| `src/extensions.rs` | Extension methods for tree traversal |
-| `src/instances.rs` | Concrete tree instances and test configs |
-| `src/part_iterator.rs` | Incremental tree iteration; `TreeMakingParams` |
-| `src/components.rs` | Tree components (`DisJ`, `IntX`, `PostRefIterWrap`, `CountryInstsPost`); `StackBasis` folding |
-| `src/prune.rs` | Tree result pruning |
-| `src/arr_ext.rs` | Array manipulation extensions |
-| `src/test_utils.rs` | Test utilities (`#[cfg(test)]`) |
+| File                   | Role                                                                                                                        |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `src/interfacing.rs`   | `Getters` struct; loads data interfaces; `make_interfaces!` macro; `RootInterfaces` (sem_ids, peers, hit_sem_ids, hit_dois) |
+| `src/io.rs`            | `TreeRunManager` (threaded execution), `CacheKey`/`CacheValue`, `TreeResponse`, attribute labels                            |
+| `src/path_finder.rs`   | Citation path graph traversal; `RefGraph`; `author_to_work_paths()`                                                         |
+| `src/ids.rs`           | ID encoding/decoding; `AttributeLabelUnion`                                                                                 |
+| `src/extensions.rs`    | Extension methods for tree traversal                                                                                        |
+| `src/instances.rs`     | Concrete tree instances and test configs                                                                                    |
+| `src/part_iterator.rs` | Incremental tree iteration; `TreeMakingParams`                                                                              |
+| `src/components.rs`    | Tree components (`DisJ`, `IntX`, `PostRefIterWrap`, `CountryInstsPost`); `StackBasis` folding                               |
+| `src/prune.rs`         | Tree result pruning                                                                                                         |
+| `src/arr_ext.rs`       | Array manipulation extensions                                                                                               |
+| `src/test_utils.rs`    | Test utilities (`#[cfg(test)]`)                                                                                             |
 
 Key patterns: `BeS<M, E>` (Backend Selector) for flexible data loading; condvar-based
 thread pool in `TreeRunManager`.
 
 ### rankless_server — HTTP API server
 
-| File | Role |
-|------|------|
-| `src/main.rs` | Routes (`/v1/query`, `/v1/search`, `/v1/specs`, `/v1/peers/:etype/:semid`, `/v1/ladder/:etype`, `/v1/ledger-status`); init `Getters`; load `PeerAux`; pre-computed cache (`CACHEABLE_FROM=10k`); mimalloc |
-| `src/consts.rs` | `MAX_HITS=80`, `PORT=3038`, `SEARCH_SIZE=20`, `MAX_SLICE=40k`, `N_THREADS=16` |
+| File            | Role                                                                                                                                                                                                      |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/main.rs`   | Routes (`/v1/query`, `/v1/search`, `/v1/specs`, `/v1/peers/:etype/:semid`, `/v1/ladder/:etype`, `/v1/ledger-status`); init `Getters`; load `PeerAux`; pre-computed cache (`CACHEABLE_FROM=10k`); mimalloc |
+| `src/consts.rs` | `MAX_HITS=80`, `PORT=3038`, `SEARCH_SIZE=20`, `MAX_SLICE=40k`, `N_THREADS=16`                                                                                                                             |
 
 ### Supporting crates
 
-| Crate | Role |
-|-------|------|
+| Crate                   | Role                                                                                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dmove` / `dmove_macro` | Metaprogramming: generates entity/attribute/link Rust source tailored to dataset shape (see [Metaprogramming](#metaprogramming--make-pipeline)) |
-| `muwo_search` | Partial-string search engine for entity names: `lib.rs` (trie/engine), `io.rs` (serialization), `fixed_heap.rs`, `merging.rs`, `tests.rs` |
+| `muwo_search`           | Partial-string search engine for entity names: `lib.rs` (trie/engine), `io.rs` (serialization), `fixed_heap.rs`, `merging.rs`, `tests.rs`       |
 
 ### Svelte frontend (`src/`)
 
@@ -150,104 +151,104 @@ the only viz dependency).
 
 **Types & constants**
 
-| File | Role |
-|------|------|
-| `lib/tree-types.ts` | `TreeGen<T>`, `View`, `Paper`, `RelatedEntity`, `SearchResult`, `TreeResponse`, `BreakdownSpec`, `RootType`, `EntityType`, `InstRel` |
-| `lib/constants.ts` | `BE_URL`, `ENTITY_TYPES`, `MAX_LEVEL_COUNT=4`, `DEFAULT_LIMIT_N=10`, `COMPLETE_YEAR=1950`, ORCID endpoints |
-| `lib/v_constants.ts` | `VERSION`, `LAST_MOD` build-time info |
-| `lib/types.ts` | `SurveySubmit`, `SurveyRecord` |
+| File                 | Role                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `lib/tree-types.ts`  | `TreeGen<T>`, `View`, `Paper`, `RelatedEntity`, `SearchResult`, `TreeResponse`, `BreakdownSpec`, `RootType`, `EntityType`, `InstRel` |
+| `lib/constants.ts`   | `BE_URL`, `ENTITY_TYPES`, `MAX_LEVEL_COUNT=4`, `DEFAULT_LIMIT_N=10`, `COMPLETE_YEAR=1950`, ORCID endpoints                           |
+| `lib/v_constants.ts` | `VERSION`, `LAST_MOD` build-time info                                                                                                |
+| `lib/types.ts`       | `SurveySubmit`, `SurveyRecord`                                                                                                       |
 
 **Utility modules**
 
-| File | Role |
-|------|------|
-| `lib/tree-functions.ts` | Tree traversal/flattening/filtering; `getDefaultBreakdowns()`, `getBreakdownOptions()` |
-| `lib/tree-events.ts` | Click/hover/selection handlers |
-| `lib/visual-util.ts` | `rescale()`, `getSankeyPath()`, `pinRange()` |
-| `lib/metric-calculation.ts` | Specialization scores, impact metrics |
-| `lib/network-util.ts` | Co-authorship graph utilities |
-| `lib/route-functions.ts` | URL builders |
-| `lib/loading-functions.ts` | Data fetching orchestration |
-| `lib/text-format-util.ts` | Number/text formatting; `semantify` + `SEM_MAP` (see [breakdown selection](#breakdown-selection)) |
-| `lib/style-util.ts` | CSS/SVG styling |
-| `lib/stores.ts` | Svelte reactive stores |
-| `lib/sitemap-functions.ts` | SEO sitemap helpers |
-| `lib/util.ts` | General utilities |
-| `lib/utils/ledger-effective.ts` | Derives effective disowned/ledger sets for `AllWorks` from applied + pending events |
+| File                            | Role                                                                                              |
+| ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `lib/tree-functions.ts`         | Tree traversal/flattening/filtering; `getDefaultBreakdowns()`, `getBreakdownOptions()`            |
+| `lib/tree-events.ts`            | Click/hover/selection handlers                                                                    |
+| `lib/visual-util.ts`            | `rescale()`, `getSankeyPath()`, `pinRange()`                                                      |
+| `lib/metric-calculation.ts`     | Specialization scores, impact metrics                                                             |
+| `lib/network-util.ts`           | Co-authorship graph utilities                                                                     |
+| `lib/route-functions.ts`        | URL builders                                                                                      |
+| `lib/loading-functions.ts`      | Data fetching orchestration                                                                       |
+| `lib/text-format-util.ts`       | Number/text formatting; `semantify` + `SEM_MAP` (see [breakdown selection](#breakdown-selection)) |
+| `lib/style-util.ts`             | CSS/SVG styling                                                                                   |
+| `lib/stores.ts`                 | Svelte reactive stores                                                                            |
+| `lib/sitemap-functions.ts`      | SEO sitemap helpers                                                                               |
+| `lib/util.ts`                   | General utilities                                                                                 |
+| `lib/utils/ledger-effective.ts` | Derives effective disowned/ledger sets for `AllWorks` from applied + pending events               |
 
 **Routes**
 
-| Route | Role |
-|-------|------|
-| `(stat)/` | Home; top entity lists |
-| `(stat)/[rootType]/[...semanticId]/` | Entity hero page (tree + network + map; ledger panel for owners) |
-| `(stat)/[rootType]/table/` | Sortable/searchable entity stats table |
-| `(stat)/about/`, `(stat)/survey/` | About / survey |
-| `(stat)/login/`, `(stat)/logout/`, `callback/`, `dev-login/` | ORCID OAuth + dev bypass |
-| `api/ledger/`, `api/ledger/[event_id]/`, `api/ledger/[event_id]/revoke/`, `api/ledger-status/` | Ledger CRUD + status |
-| `api/papers/{disown,claim,merge}/`, `api/authors/merge-request/` | Legacy paper/author actions (forward to ledger; slated for removal) |
-| `tiles/[rootType]/[...semanticId]/` | Treemap visualization |
-| `path-to-person/[aidSrc]/[aidTarget]/` | Collaboration path finder |
-| `oa-id/[oaId]/` | OpenAlex ID → entity redirect |
-| `api/survey/`, `pic/.../breakdown.svg/`, `sitemap*.xml/`, `robots.txt/` | Survey / dynamic SVG / SEO |
+| Route                                                                                          | Role                                                                |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `(stat)/`                                                                                      | Home; top entity lists                                              |
+| `(stat)/[rootType]/[...semanticId]/`                                                           | Entity hero page (tree + network + map; ledger panel for owners)    |
+| `(stat)/[rootType]/table/`                                                                     | Sortable/searchable entity stats table                              |
+| `(stat)/about/`, `(stat)/survey/`                                                              | About / survey                                                      |
+| `(stat)/login/`, `(stat)/logout/`, `callback/`, `dev-login/`                                   | ORCID OAuth + dev bypass                                            |
+| `api/ledger/`, `api/ledger/[event_id]/`, `api/ledger/[event_id]/revoke/`, `api/ledger-status/` | Ledger CRUD + status                                                |
+| `api/papers/{disown,claim,merge}/`, `api/authors/merge-request/`                               | Legacy paper/author actions (forward to ledger; slated for removal) |
+| `tiles/[rootType]/[...semanticId]/`                                                            | Treemap visualization                                               |
+| `path-to-person/[aidSrc]/[aidTarget]/`                                                         | Collaboration path finder                                           |
+| `oa-id/[oaId]/`                                                                                | OpenAlex ID → entity redirect                                       |
+| `api/survey/`, `pic/.../breakdown.svg/`, `sitemap*.xml/`, `robots.txt/`                        | Survey / dynamic SVG / SEO                                          |
 
 **Key components**
 
-| Component | Role |
-|-----------|------|
-| `TreeSvg.svelte` | Main hierarchical breakdown tree |
-| `ConceptMap.svelte` | Research-space field network |
-| `AuthorNetwork.svelte` | Co-authorship network (Cytoscape) |
-| `WorldMapSvg.svelte` | Geographical citation impact map |
-| `TileTreeMap.svelte` | Treemap view |
-| `PaperRainbow.svelte` | Hit-paper citation area chart with scrollable list |
-| `HitPaperBreakdown.svelte` | Lazy citation breakdown for a single hit paper |
-| `ImpactDag.svelte` / `DagChip.svelte` | Citation impact DAG + paper chips |
-| `AllWorks.svelte` | Paginated author paper list; ledger/disown UI |
-| `AuthorLedgerPanel.svelte` | Owner's profile-changes panel (applied/pending events) |
-| `AuthorOwnerTools.svelte` | Legacy owner action UI (slated for removal) |
-| `ExportControls.svelte` | Sort/filter/citation-style/BibTeX controls |
-| `Peers.svelte` / `BarChart.svelte` | Peer comparison bars + shared span-bar chart |
-| `WorkElem.svelte`, `SearchResults.svelte` | Single paper / search autocomplete |
-| `ScrollyGraph.svelte` / `ScrollySank.svelte` / `TimelineViz.svelte` | Scrollytelling + timeline viz |
-| `PathLevelInfoBox.svelte` / `MidpathBar.svelte` | Path UI |
-| `HeadControl.svelte`, `Toc.svelte`, `FlatOutFrame.svelte` | Header / sticky nav / flat-view frame |
+| Component                                                           | Role                                                   |
+| ------------------------------------------------------------------- | ------------------------------------------------------ |
+| `TreeSvg.svelte`                                                    | Main hierarchical breakdown tree                       |
+| `ConceptMap.svelte`                                                 | Research-space field network                           |
+| `AuthorNetwork.svelte`                                              | Co-authorship network (Cytoscape)                      |
+| `WorldMapSvg.svelte`                                                | Geographical citation impact map                       |
+| `TileTreeMap.svelte`                                                | Treemap view                                           |
+| `PaperRainbow.svelte`                                               | Hit-paper citation area chart with scrollable list     |
+| `HitPaperBreakdown.svelte`                                          | Lazy citation breakdown for a single hit paper         |
+| `ImpactDag.svelte` / `DagChip.svelte`                               | Citation impact DAG + paper chips                      |
+| `AllWorks.svelte`                                                   | Paginated author paper list; ledger/disown UI          |
+| `AuthorLedgerPanel.svelte`                                          | Owner's profile-changes panel (applied/pending events) |
+| `AuthorOwnerTools.svelte`                                           | Legacy owner action UI (slated for removal)            |
+| `ExportControls.svelte`                                             | Sort/filter/citation-style/BibTeX controls             |
+| `Peers.svelte` / `BarChart.svelte`                                  | Peer comparison bars + shared span-bar chart           |
+| `WorkElem.svelte`, `SearchResults.svelte`                           | Single paper / search autocomplete                     |
+| `ScrollyGraph.svelte` / `ScrollySank.svelte` / `TimelineViz.svelte` | Scrollytelling + timeline viz                          |
+| `PathLevelInfoBox.svelte` / `MidpathBar.svelte`                     | Path UI                                                |
+| `HeadControl.svelte`, `Toc.svelte`, `FlatOutFrame.svelte`           | Header / sticky nav / flat-view frame                  |
 
 **Server utilities**
 
-| File | Role |
-|------|------|
-| `lib/server/session.ts` | ORCID session management |
-| `lib/server/db.ts` | SQLite singleton (`bun:sqlite`, WAL); ledger tables |
-| `lib/server/render.ts` | `renderSvgComponent` — server-side Svelte SSR `.render()` to HTML string |
-| `lib/server/id_resolver.ts` | Resolves UI entity refs to stable-ID payload blocks |
-| `lib/server/ledger-hash.ts` | `subject_hash` computation for ledger dedup |
-| `lib/utils/reference-format.ts` | Academic reference formatting (APA/MLA/Chicago, BibTeX) |
-| `lib/utils/paper-helpers.ts` | Paper/author/source name resolution; highlight detection |
-| `lib/utils/dag-builder.ts` | DAG construction from RefTree |
-| `lib/utils/impact-summary.ts` | Summary counts (Nobel, Science/Nature, standout) for citing papers |
-| `lib/utils/clipboard-download.ts` | Clipboard copy + file download |
-| `hooks.server.ts` | SvelteKit middleware |
+| File                              | Role                                                                      |
+| --------------------------------- | ------------------------------------------------------------------------- |
+| `lib/server/session.ts`           | ORCID session management                                                  |
+| `lib/server/db.ts`                | SQLite singleton (`bun:sqlite`, WAL); ledger tables                       |
+| `lib/server/render.ts`            | `renderSvgComponent` — Svelte 5 `svelte/server` `render()` to HTML string |
+| `lib/server/id_resolver.ts`       | Resolves UI entity refs to stable-ID payload blocks                       |
+| `lib/server/ledger-hash.ts`       | `subject_hash` computation for ledger dedup                               |
+| `lib/utils/reference-format.ts`   | Academic reference formatting (APA/MLA/Chicago, BibTeX)                   |
+| `lib/utils/paper-helpers.ts`      | Paper/author/source name resolution; highlight detection                  |
+| `lib/utils/dag-builder.ts`        | DAG construction from RefTree                                             |
+| `lib/utils/impact-summary.ts`     | Summary counts (Nobel, Science/Nature, standout) for citing papers        |
+| `lib/utils/clipboard-download.ts` | Clipboard copy + file download                                            |
+| `hooks.server.ts`                 | SvelteKit middleware                                                      |
 
 ### Python scripts (`pyscripts/`)
 
-| File | Role |
-|------|------|
-| `cache_prompting.py` | Query infrastructure: `BatchRequester`, `get_specs_and_ys`, `get_resdf`, URL gen; `addr` configurable |
-| `server_ops.py` | `ServerProcess`, `DockerServer`, `build_server()`, `current_branch()`, `checkout()` |
-| `stow_ops.py` | `StowManager` (rsync stash per branch), `RebuildLevel` |
-| `bm.py` | Benchmark suite: latency/throughput/memory across branches |
-| `branch_comparison.py` | Branch-to-branch structural diff + timing (see [benchmarking](benchmarking.md)) |
-| `sql_comparison.py` | Flask/PostgreSQL vs Rust diff + benchmark; two Docker containers |
-| `tree_diff.py` | Structural diff primitives: `flatten_tree`, `make_diff_df`, `metric_stats`, `top_source_stats` |
-| `comparison_report.py` | Shared report generation: `CompResult`, summary/grouped DFs, plots, md/HTML |
-| `export_user_ledger.py` | Exports SQLite ledger → `$OA_ROOT/user_ledger/` snapshot before `filter` |
-| `deploy.py` | EC2 deployment: Nginx, systemd, SSL, code push |
-| `live_monitoring.py` | Health monitoring + email alerts |
-| `log_parsing.py`, `report.py` | Nginx log parsing + hourly performance reports |
-| `make_test_dataset.py`, `lib_data_generation.py` | nano/micro/mini subset generation |
-| `extend_csvs.py` | CSV transforms: source area-fields, quartiles, author wiki-slugs, Nobel categories |
-| `sitemap_validation.py`, `survey_result_export.py`, `nobel.py`, `svg_export.py` | Sitemap / survey / Nobel / SVG export utilities |
+| File                                                                            | Role                                                                                                  |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `cache_prompting.py`                                                            | Query infrastructure: `BatchRequester`, `get_specs_and_ys`, `get_resdf`, URL gen; `addr` configurable |
+| `server_ops.py`                                                                 | `ServerProcess`, `DockerServer`, `build_server()`, `current_branch()`, `checkout()`                   |
+| `stow_ops.py`                                                                   | `StowManager` (rsync stash per branch), `RebuildLevel`                                                |
+| `bm.py`                                                                         | Benchmark suite: latency/throughput/memory across branches                                            |
+| `branch_comparison.py`                                                          | Branch-to-branch structural diff + timing (see [benchmarking](benchmarking.md))                       |
+| `sql_comparison.py`                                                             | Flask/PostgreSQL vs Rust diff + benchmark; two Docker containers                                      |
+| `tree_diff.py`                                                                  | Structural diff primitives: `flatten_tree`, `make_diff_df`, `metric_stats`, `top_source_stats`        |
+| `comparison_report.py`                                                          | Shared report generation: `CompResult`, summary/grouped DFs, plots, md/HTML                           |
+| `export_user_ledger.py`                                                         | Exports SQLite ledger → `$OA_ROOT/user_ledger/` snapshot before `filter`                              |
+| `deploy.py`                                                                     | EC2 deployment: Nginx, systemd, SSL, code push                                                        |
+| `live_monitoring.py`                                                            | Health monitoring + email alerts                                                                      |
+| `log_parsing.py`, `report.py`                                                   | Nginx log parsing + hourly performance reports                                                        |
+| `make_test_dataset.py`, `lib_data_generation.py`                                | nano/micro/mini subset generation                                                                     |
+| `extend_csvs.py`                                                                | CSV transforms: source area-fields, quartiles, author wiki-slugs, Nobel categories                    |
+| `sitemap_validation.py`, `survey_result_export.py`, `nobel.py`, `svg_export.py` | Sitemap / survey / Nobel / SVG export utilities                                                       |
 
 ---
 
@@ -268,7 +269,7 @@ ID → `Getters` traverses tree → `TreeRunManager` builds `TreeResponse` (tree
 related entities + yearly stats) → frontend renders `TreeSvg`, `ConceptMap`, `WorldMapSvg`.
 
 **Entity types:** `authors`, `institutions`, `sources` (journals), `countries`,
-`subfields`, `hit-papers`. Each entity has *production* (own papers) and *impact* (papers
+`subfields`, `hit-papers`. Each entity has _production_ (own papers) and _impact_ (papers
 citing those) sets.
 
 ---
@@ -400,7 +401,7 @@ nothing about entity definitions. Built via `cargo build --release -p dmove-macr
   dependency, giving correct incremental ordering.
 - **`pre-build -s <step>`** — modifies source so the crate compiles as if only steps up to
   (and including) `<step>` exist: rewrites `lib.rs` `mods_as_comms!`, `steps/mod.rs` (`pub
-  mod` up to `<step>`), and `gen/mod.rs` (all *previously completed* gen files, not the
+mod` up to `<step>`), and `gen/mod.rs` (all _previously completed_ gen files, not the
   current one).
 - **`post-run -s <step>`** — adds the newly generated file to `gen/mod.rs`.
 
@@ -426,6 +427,7 @@ file (or its gen dependency) re-triggers only that step and downstream ones.
 When step X compiles, `gen/mod.rs` includes only through step X−1, so step X **cannot** use
 trait impls from `gen/X.rs`. Any call requiring an impl in `gen/X.rs` must not appear in
 `steps/X.rs`:
+
 - `declare_iter::<…>()` — safe in same step (generates the impl)
 - `get_marked_interface::<E, M, Be>()` — requires `E: MarkedAttribute<M>`; only safe if that
   impl is in gen/(X−1) or earlier
@@ -473,15 +475,15 @@ struct whose fields load in parallel threads at construction. Two forms: 4-categ
 `Arc<Locators<E>>` via `get_locator`). `rankless_trees/src/interfacing.rs` calls the
 5-category form via `make_interfaces!`.
 
-| Module | Mechanism | Parallelized work |
-|---|---|---|
-| `rankless_rs/steps/a2_init_atts.rs` | `Worker<T>::para()` | CSV rows: works, biblios, authorship |
-| `rankless_rs/steps/a1_entity_mapping.rs` | `std::thread::spawn` + `Vec<JoinHandle>` | Independent entity ID mapping |
-| `rankless_rs/steps/derive_links2.rs` | `par_join!` | 5 `CiteDeriver` methods |
-| `rankless_rs/steps/derive_links3.rs` | `para_multi_gen_run!` + `Worker<T>::para()` | Work counts per entity; peer selection |
-| `rankless_rs/src/common.rs` | `make_interface_struct!` | Parallel data loading at server startup |
-| `rankless_trees/src/io.rs` | Persistent pool (`VecDeque` + `Condvar`) | Tree query serving; 16 threads |
-| `rankless_server/src/main.rs` | `para_multi_gen_run!` + Tokio (16 workers) | Entity state init; HTTP handling |
+| Module                                   | Mechanism                                   | Parallelized work                       |
+| ---------------------------------------- | ------------------------------------------- | --------------------------------------- |
+| `rankless_rs/steps/a2_init_atts.rs`      | `Worker<T>::para()`                         | CSV rows: works, biblios, authorship    |
+| `rankless_rs/steps/a1_entity_mapping.rs` | `std::thread::spawn` + `Vec<JoinHandle>`    | Independent entity ID mapping           |
+| `rankless_rs/steps/derive_links2.rs`     | `par_join!`                                 | 5 `CiteDeriver` methods                 |
+| `rankless_rs/steps/derive_links3.rs`     | `para_multi_gen_run!` + `Worker<T>::para()` | Work counts per entity; peer selection  |
+| `rankless_rs/src/common.rs`              | `make_interface_struct!`                    | Parallel data loading at server startup |
+| `rankless_trees/src/io.rs`               | Persistent pool (`VecDeque` + `Condvar`)    | Tree query serving; 16 threads          |
+| `rankless_server/src/main.rs`            | `para_multi_gen_run!` + Tokio (16 workers)  | Entity state init; HTTP handling        |
 
 `TreeRunManager` is intentionally a persistent pool (long-lived workers share mmapped data),
 not `Worker<T>` (one-shot batch).
@@ -525,12 +527,12 @@ uv run -m pyscripts.dev.run --open   # auto-launch browser
 
 **Troubleshooting:**
 
-| Symptom | Fix |
-|---|---|
-| `port 3038/5173 already in use` | `lsof -nP -iTCP:3038 -sTCP:LISTEN` to find the other instance |
-| `backend never became ready` | inspect `make dev` output; usually incomplete OA_ROOT — re-run `make bootstrap` |
-| `NANO_ARTIFACT_URL` 404 | the artifact host isn't reachable; get a fresh URL |
-| ccl-science-data import error | `rm -rf libs/ccl-science-data && make bootstrap` |
+| Symptom                         | Fix                                                                             |
+| ------------------------------- | ------------------------------------------------------------------------------- |
+| `port 3038/5173 already in use` | `lsof -nP -iTCP:3038 -sTCP:LISTEN` to find the other instance                   |
+| `backend never became ready`    | inspect `make dev` output; usually incomplete OA_ROOT — re-run `make bootstrap` |
+| `NANO_ARTIFACT_URL` 404         | the artifact host isn't reachable; get a fresh URL                              |
+| ccl-science-data import error   | `rm -rf libs/ccl-science-data && make bootstrap`                                |
 
 **Maintainer — refreshing / testing the snapshot artifact:** the artifact is just the
 filtered raw JSON snapshot (no pipeline output, no binaries). Prereq:

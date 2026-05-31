@@ -3,6 +3,7 @@
 Remaining frontend work. Delete a section when it lands.
 
 Sections:
+
 - [Fitted-text performance & SVG simplification](#fitted-text-performance--svg-simplification)
 - [Monospace for prose](#monospace-for-prose)
 
@@ -12,6 +13,7 @@ Sections:
 
 `BrokenFittedText` fits text at the largest font size into a rectangle by splitting it
 across lines. Two issues:
+
 1. **Performance** — `getStylesForWords` runs on every reactive update; it calls
    `formatTextToLinesOneWay` twice (horizontal + vertical), each iterating up to 7×.
 2. **SVG complexity** — broken text in SVG needs per-word transform strings, manual x/y
@@ -22,13 +24,14 @@ measurement, so no reflow benefit), still returns line data you place manually (
 simplification), and the monospace `widthMultiplier: 0.6` heuristic is already accurate.
 
 Improvement paths:
+
 - **`<foreignObject>`** — embed an HTML `<div>`; the browser handles line breaking, fonts,
   alignment via CSS. Binary-search `font-size` using `scrollHeight <= height` (or
   `canvas.measureText()` once and scale). Removes all per-word transform + line-splitting
   logic. Caveat: `<foreignObject>` behaves inconsistently across browsers for SVG
   export/screenshot — check whether that matters here.
 - **Memoization** — the computation is pure: same `(text, width, height, anchor,
-  bottomAligned, allowRotation, heightMultiplier, widthMultiplier)` → same result. A `Map`
+bottomAligned, allowRotation, heightMultiplier, widthMultiplier)` → same result. A `Map`
   keyed on `(text, width, height)` would avoid redundant work as tree nodes re-render during
   animations (labels don't change → frequent hits).
 - **Binary search** — replace `formatTextToLinesOneWay`'s linear `numOfLines` increment

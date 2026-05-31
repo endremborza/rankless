@@ -4,6 +4,7 @@ Remaining work on the Rust pipeline, server, and data-side features. When a sect
 **delete it from this file** (progress is tracked via git, not crossed-out bullets).
 
 Sections:
+
 - [Pipeline parallelism](#pipeline-parallelism)
 - [Institution peer quality](#institution-peer-quality)
 - [Author profile ledger — remaining](#author-profile-ledger--remaining)
@@ -19,7 +20,7 @@ Spots where additional parallelism could cut pipeline step wall time.
 
 `main` builds three inverted link structures sequentially (`WorkReferences`, `WorkTopics`,
 `WorkSources`). Each `from_stowage` is read-only and produces an independent in-memory
-`Box<[Box<[…]>]>`. Run the three *build* phases concurrently with `std::thread::scope`
+`Box<[Box<[…]>]>`. Run the three _build_ phases concurrently with `std::thread::scope`
 (the `par_join!` macro returns no values, so `thread::scope` is the right primitive); keep
 the subsequent `stow_as_work_link` writes sequential. Expected ~3× for this phase.
 
@@ -75,7 +76,7 @@ KD-tree, distance primitives), `rankless_rs/src/steps/derive_links3/peer_ctx.rs`
 ### Why it's weak
 
 Peers derive from **one signal**: `CitSubfieldsArrayMarker` (`[u32; 253]` per institution —
-the subfields of works that *cite* it; an impact profile). Three-stage pipeline: log-PCA
+the subfields of works that _cite_ it; an impact profile). Three-stage pipeline: log-PCA
 embedding → work-count-partitioned KD-tree candidate search (10 buckets, query sees its
 bucket ±1, `K_TREE=500` neighbors) → re-rank top 10 by a weighted sum:
 
@@ -84,11 +85,12 @@ bucket ±1, `K_TREE=500` neighbors) → re-rank top 10 by a weighted sum:
 ```
 
 Failure modes:
+
 1. **Incommensurate scales.** Terms are summed un-normalized; `geo_sq_dist` (raw squared
    lat/lon degrees: hundreds within a continent, 8000+ across) dominates → ranking becomes
    "nearest on the map." `sf_rate_dist` (~0.05–0.15) and `country` (0/1) never move the
    order. (Explains Corvinus → matched to Budapest neighbors, not other business schools.)
-2. **Size double-counted.** Log-count PC1 ≈ size; the candidate set is *also* size-bucketed.
+2. **Size double-counted.** Log-count PC1 ≈ size; the candidate set is _also_ size-bucketed.
    Field-mix axes get little weight.
 3. **Only the citing-field histogram.** No co-citation, direct inter-institution citation,
    or co-authorship — the signals that define genuine peers.
@@ -99,19 +101,19 @@ Failure modes:
 
 ### Improvements (by impact/effort)
 
-- **A. Normalize re-rank terms before weighting** *(cheap, high impact)* — replace
+- **A. Normalize re-rank terms before weighting** _(cheap, high impact)_ — replace
   `geo_sq_dist` with haversine squashed to [0,1] (`1 − exp(−d/d₀)`, d₀ ~few hundred km);
   z-score/min-max each term over the candidate set, or hand-tune against observed magnitudes.
-- **B. Decouple size from field mix** *(cheap–medium)* — embed from field *proportions*
+- **B. Decouple size from field mix** _(cheap–medium)_ — embed from field _proportions_
   (`count/total`, optionally CLR-transformed) not raw log counts; keep size strictly as the
   partition key; consider widening/overlapping the ±1 bucket window.
-- **C. Co-citation / shared-reference signal** *(medium, highest ceiling)* — bibliographic
+- **C. Co-citation / shared-reference signal** _(medium, highest ceiling)_ — bibliographic
   coupling via cosine of outgoing `RefSubfieldsArrayMarker` (already exists); and/or
   inter-institution direct-citation counts. Even folding `RefSubfieldsArrayMarker` in
-  (what the institution *studies*) sharpens specialised universities.
-- **D. Symmetrise the field distance** *(cheap)* — score on the union of a's and b's top
+  (what the institution _studies_) sharpens specialised universities.
+- **D. Symmetrise the field distance** _(cheap)_ — score on the union of a's and b's top
   subfields, or a symmetric divergence (cosine / Jensen–Shannon over the full histogram).
-- **E. Make peer quality measurable** *(supporting)* — hand-label a few obvious peer sets
+- **E. Make peer quality measurable** _(supporting)_ — hand-label a few obvious peer sets
   (business schools, technical universities, …), report precision@10 so changes can be
   compared rather than eyeballed.
 
@@ -183,6 +185,7 @@ are committed.**
 
 A Playwright e2e (`tests/ledger.spec.ts`, exists) is the primary gate; a fast Rust inner
 loop covers binary-side invariants. Still to build:
+
 - `rankless_rs/src/bin/fixture_build.rs` — writes a synthetic minimal OA snapshot to a
   TempDir so the TS side can invoke `cargo run -p rankless-rs --bin fixture-build -- $TMP`.
 - `rankless_rs/tests/ledger_pipeline.rs` (+ `tests/common/synthetic_oa.rs`) — runs the
@@ -250,7 +253,7 @@ one prompt (`author_impact_report`). Every response carries a `rankless_url` bac
 - **Paper/keyword search** (most impactful): index paper titles in `muwo_search` (papers are
   loaded as `WorksNames`; add a `NameState` for papers). ~930k papers is ~4–5× the largest
   current index (authors ~211k) — benchmark the trie. Expose `/v1/search-papers?q=&year_from=
-  &year_to=&subfield=`. Stretch: inverted title-token index for boolean keyword queries.
+&year_to=&subfield=`. Stretch: inverted title-token index for boolean keyword queries.
 - **`/v1/stats/:etype/:semantic_id`** → `{ papers, citations, top_subfields, year_range }`
   from coordinates + `WorkCountMarker` + subfield citation array (already computed, just not
   exposed flat).

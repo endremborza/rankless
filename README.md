@@ -17,7 +17,7 @@ The dataset is sourced primarily from OpenAlex, extended with SCImago rankings a
 
 The critical relationships in the graph are citations, authorships, and topical classifications of papers. Affiliations are a special case: they link one or more institutions to an authorship, which is itself already a link between an author and a paper.
 
-Each searchable entity — Authors, Institutions, Sources, Countries, and Subfields — has a hero page built around two sets of papers: its *production* (papers associated with the entity) and its *impact* (papers that cite those).
+Each searchable entity — Authors, Institutions, Sources, Countries, and Subfields — has a hero page built around two sets of papers: its _production_ (papers associated with the entity) and its _impact_ (papers that cite those).
 
 ```mermaid
 erDiagram
@@ -113,7 +113,7 @@ A co-authorship network scoped to an author's most frequent collaborators. It re
 
 ### Geographical Impact Map
 
-A map of citation flows by country: how many citations the entity's papers receive from authors working in each country. Can be colored by *specialization*, comparing observed citations against an expected baseline derived from each country's overall research output.
+A map of citation flows by country: how many citations the entity's papers receive from authors working in each country. Can be colored by _specialization_, comparing observed citations against an expected baseline derived from each country's overall research output.
 
 ## System Architecture
 
