@@ -37,9 +37,12 @@
 		return !!p && !!sourceAuthorSemId && isAuthored(p, sourceAuthorSemId, entityAtts);
 	};
 
-	$: componentLayers = components.map(c => classifyComponentLayers(c, seen, isAuthoredFn));
+	$: componentLayers = components.map((c) => classifyComponentLayers(c, seen, isAuthoredFn));
 
-	$: allImpacted = components.flatMap((_, i) => [...componentLayers[i].top, ...componentLayers[i].mid]);
+	$: allImpacted = components.flatMap((_, i) => [
+		...componentLayers[i].top,
+		...componentLayers[i].mid
+	]);
 	$: summary = computeImpactSummary(allImpacted, paperMap, entityAtts, authorsMeta);
 
 	let currentIndex = 0;
@@ -68,8 +71,13 @@
 
 	function onKeydown(e: KeyboardEvent) {
 		if (components.length <= 1) return;
-		if (e.key === 'ArrowLeft') { goTo(currentIndex - 1); e.preventDefault(); }
-		else if (e.key === 'ArrowRight') { goTo(currentIndex + 1); e.preventDefault(); }
+		if (e.key === 'ArrowLeft') {
+			goTo(currentIndex - 1);
+			e.preventDefault();
+		} else if (e.key === 'ArrowRight') {
+			goTo(currentIndex + 1);
+			e.preventDefault();
+		}
 	}
 
 	let touchStartX = 0;
@@ -101,19 +109,23 @@
 		const meta = seen[hovered];
 		if (!meta) return new Set<number>();
 		const s = new Set<number>();
-		const pq = [...meta.parents].filter(p => p !== 0);
+		const pq = [...meta.parents].filter((p) => p !== 0);
 		while (pq.length) {
 			const p = pq.pop()!;
 			if (s.has(p)) continue;
 			s.add(p);
-			seen[p]?.parents.forEach(pp => { if (pp !== 0 && !s.has(pp)) pq.push(pp); });
+			seen[p]?.parents.forEach((pp) => {
+				if (pp !== 0 && !s.has(pp)) pq.push(pp);
+			});
 		}
 		const cq = [...meta.children];
 		while (cq.length) {
 			const c = cq.pop()!;
 			if (s.has(c)) continue;
 			s.add(c);
-			seen[c]?.children.forEach(cc => { if (!s.has(cc)) cq.push(cc); });
+			seen[c]?.children.forEach((cc) => {
+				if (!s.has(cc)) cq.push(cc);
+			});
 		}
 		return s;
 	})();
@@ -123,10 +135,17 @@
 	let chipEls: Record<number, HTMLDivElement> = {};
 	let edges: ComputedEdge[] = [];
 
-	$: currentWids = new Set([...currentLayers.top, ...(midExpanded ? currentLayers.mid : []), ...currentLayers.bottom]);
+	$: currentWids = new Set([
+		...currentLayers.top,
+		...(midExpanded ? currentLayers.mid : []),
+		...currentLayers.bottom
+	]);
 
 	function computeEdges() {
-		if (!containerEl) { edges = []; return; }
+		if (!containerEl) {
+			edges = [];
+			return;
+		}
 		const containerRect = containerEl.getBoundingClientRect();
 		const newEdges: ComputedEdge[] = [];
 		for (const [widStr, meta] of Object.entries(seen)) {
@@ -167,7 +186,8 @@
 		if (
 			(edge.parentWid === hovered || relatedSet.has(edge.parentWid)) &&
 			(edge.childWid === hovered || relatedSet.has(edge.childWid))
-		) return 0.5;
+		)
+			return 0.5;
 		return 0.02;
 	}
 
@@ -183,9 +203,13 @@
 		return [...wids].sort((a, b) => (paperMap[b]?.year ?? 0) - (paperMap[a]?.year ?? 0));
 	}
 
-	$: visibleTop = sortByYear(topExpanded ? currentLayers.top : currentLayers.top.slice(0, MAX_VISIBLE));
+	$: visibleTop = sortByYear(
+		topExpanded ? currentLayers.top : currentLayers.top.slice(0, MAX_VISIBLE)
+	);
 	$: hiddenTopCount = Math.max(0, currentLayers.top.length - MAX_VISIBLE);
-	$: visibleBottom = sortByYear(bottomExpanded ? currentLayers.bottom : currentLayers.bottom.slice(0, MAX_VISIBLE));
+	$: visibleBottom = sortByYear(
+		bottomExpanded ? currentLayers.bottom : currentLayers.bottom.slice(0, MAX_VISIBLE)
+	);
 	$: hiddenBottomCount = Math.max(0, currentLayers.bottom.length - MAX_VISIBLE);
 	$: visibleMid = midExpanded ? sortByYear(currentLayers.mid) : [];
 
@@ -194,15 +218,22 @@
 
 <svelte:window on:keydown={onKeydown} />
 
-<!-- svelte-ignore a11y-no-static-element-interactions -->
-<div class="impact-dag" bind:this={containerEl} on:touchstart={onTouchStart} on:touchend={onTouchEnd}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+	class="impact-dag"
+	bind:this={containerEl}
+	on:touchstart={onTouchStart}
+	on:touchend={onTouchEnd}
+>
 	{#if summary.nobelCount > 0 || summary.prestigiousCount > 0 || summary.hitCount > 0}
 		<div class="summary-labels">
 			{#if summary.nobelCount > 0}
 				<span class="summary-badge hl-nobel">{summary.nobelCount} by Nobel laureates</span>
 			{/if}
 			{#if summary.prestigiousCount > 0}
-				<span class="summary-badge hl-prestigious">{summary.prestigiousCount} from Science/Nature</span>
+				<span class="summary-badge hl-prestigious"
+					>{summary.prestigiousCount} from Science/Nature</span
+				>
 			{/if}
 			{#if summary.hitCount > 0}
 				<span class="summary-badge hl-hit">{summary.hitCount} hit</span>
@@ -212,15 +243,27 @@
 
 	{#if components.length > 1}
 		<div class="subgraph-nav">
-			<button class="nav-btn" on:click={() => goTo(currentIndex - 1)} aria-label="Previous sub-graph">&larr;</button>
+			<button
+				class="nav-btn"
+				on:click={() => goTo(currentIndex - 1)}
+				aria-label="Previous sub-graph">&larr;</button
+			>
 			<span class="nav-label">Sub-graph {currentIndex + 1} of {components.length}</span>
-			<button class="nav-btn" on:click={() => goTo(currentIndex + 1)} aria-label="Next sub-graph">&rarr;</button>
+			<button class="nav-btn" on:click={() => goTo(currentIndex + 1)} aria-label="Next sub-graph"
+				>&rarr;</button
+			>
 		</div>
 	{/if}
 
 	<svg class="edge-overlay" aria-hidden="true">
 		{#each edges as edge}
-			<path d={edge.path} stroke="currentColor" stroke-width="1.2" fill="none" opacity={edgeOpacity(edge)} />
+			<path
+				d={edge.path}
+				stroke="currentColor"
+				stroke-width="1.2"
+				fill="none"
+				opacity={edgeOpacity(edge)}
+			/>
 		{/each}
 	</svg>
 
@@ -242,21 +285,35 @@
 							isRelated={relatedSet.has(wid)}
 							dimmed={hovered != undefined && hovered !== wid && !relatedSet.has(wid)}
 							isExpanded={expanded.has(wid)}
-							on:toggle={e => toggleExpand(e.detail)}
-							on:hover={e => { hovered = e.detail; }}
-							on:leave={() => { hovered = undefined; }}
+							on:toggle={(e) => toggleExpand(e.detail)}
+							on:hover={(e) => {
+								hovered = e.detail;
+							}}
+							on:leave={() => {
+								hovered = undefined;
+							}}
 						/>
 					</div>
 				{/each}
 			</div>
 			{#if !topExpanded && hiddenTopCount > 0}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<span class="expand-link" on:click={() => { topExpanded = true; }}>and {hiddenTopCount} more</span>
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<span
+					class="expand-link"
+					on:click={() => {
+						topExpanded = true;
+					}}>and {hiddenTopCount} more</span
+				>
 			{:else if topExpanded && hiddenTopCount > 0}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<span class="expand-link" on:click={() => { topExpanded = false; }}>see less</span>
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<span
+					class="expand-link"
+					on:click={() => {
+						topExpanded = false;
+					}}>see less</span
+				>
 			{/if}
 		</div>
 	{/if}
@@ -264,10 +321,16 @@
 	{#if currentLayers.mid.length > 0}
 		<div class="level-section">
 			{#if midExpanded}
-				<h4 class="level-label">Intermediate Papers
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<span class="expand-link" on:click={() => { midExpanded = false; }}>see less</span>
+				<h4 class="level-label">
+					Intermediate Papers
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<span
+						class="expand-link"
+						on:click={() => {
+							midExpanded = false;
+						}}>see less</span
+					>
 				</h4>
 				<div class="chips">
 					{#each visibleMid as wid (wid)}
@@ -284,17 +347,26 @@
 								isRelated={relatedSet.has(wid)}
 								dimmed={hovered != undefined && hovered !== wid && !relatedSet.has(wid)}
 								isExpanded={expanded.has(wid)}
-								on:toggle={e => toggleExpand(e.detail)}
-								on:hover={e => { hovered = e.detail; }}
-								on:leave={() => { hovered = undefined; }}
+								on:toggle={(e) => toggleExpand(e.detail)}
+								on:hover={(e) => {
+									hovered = e.detail;
+								}}
+								on:leave={() => {
+									hovered = undefined;
+								}}
 							/>
 						</div>
 					{/each}
 				</div>
 			{:else}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<span class="expand-link mid-summary" on:click={() => { midExpanded = true; }}>
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<span
+					class="expand-link mid-summary"
+					on:click={() => {
+						midExpanded = true;
+					}}
+				>
 					{pluralize('intermediate paper', currentLayers.mid.length)}
 				</span>
 			{/if}
@@ -319,21 +391,35 @@
 							isRelated={relatedSet.has(wid)}
 							dimmed={hovered != undefined && hovered !== wid && !relatedSet.has(wid)}
 							isExpanded={expanded.has(wid)}
-							on:toggle={e => toggleExpand(e.detail)}
-							on:hover={e => { hovered = e.detail; }}
-							on:leave={() => { hovered = undefined; }}
+							on:toggle={(e) => toggleExpand(e.detail)}
+							on:hover={(e) => {
+								hovered = e.detail;
+							}}
+							on:leave={() => {
+								hovered = undefined;
+							}}
 						/>
 					</div>
 				{/each}
 			</div>
 			{#if !bottomExpanded && hiddenBottomCount > 0}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<span class="expand-link" on:click={() => { bottomExpanded = true; }}>and {hiddenBottomCount} more</span>
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<span
+					class="expand-link"
+					on:click={() => {
+						bottomExpanded = true;
+					}}>and {hiddenBottomCount} more</span
+				>
 			{:else if bottomExpanded && hiddenBottomCount > 0}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<span class="expand-link" on:click={() => { bottomExpanded = false; }}>see less</span>
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<span
+					class="expand-link"
+					on:click={() => {
+						bottomExpanded = false;
+					}}>see less</span
+				>
 			{/if}
 		</div>
 	{/if}

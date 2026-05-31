@@ -16,7 +16,7 @@ const INITIAL_WORKS_N = 20;
 const PEER_ROOT_TYPES: tt.RootType[] = ['authors', 'institutions', 'countries', 'sources'];
 
 export const load: PageServerLoad = async ({ params, url, locals }) => {
-	let { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(params, url, "");
+	let { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(params, url, '');
 	const view: tt.View = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => res.json())
 		.then((view) => view)
@@ -33,7 +33,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	}
 	const { tree, atts, shallowed } = treeResp;
 
-	let svgLinkBase = `/pic/${rootType}/${semanticId}/breakdown.svg`
+	let svgLinkBase = `/pic/${rootType}/${semanticId}/breakdown.svg`;
 	let sp = url.searchParams.toString();
 	if (sp.length > 0) svgLinkBase += `?${sp}`;
 	let svgLink = getExternalUrl(svgLinkBase);
@@ -70,17 +70,15 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 
 	if (rootType === 'authors') {
 		const urlFriendlySemId = tf.urlFriendlify(semanticId);
-		const [profileResp, worksResp]: [
-			tt.PaperProfileResp | null,
-			tt.PaginatedPaperSetResp | null
-		] = await Promise.all([
-			fetch(`${BE_URL}/paper-profile/${urlFriendlySemId}`)
-				.then((r) => r.json())
-				.catch(() => null),
-			fetch(`${BE_URL}/works/authors/${urlFriendlySemId}/0?n=${INITIAL_WORKS_N}`)
-				.then((r) => r.json())
-				.catch(() => null)
-		]);
+		const [profileResp, worksResp]: [tt.PaperProfileResp | null, tt.PaginatedPaperSetResp | null] =
+			await Promise.all([
+				fetch(`${BE_URL}/paper-profile/${urlFriendlySemId}`)
+					.then((r) => r.json())
+					.catch(() => null),
+				fetch(`${BE_URL}/works/authors/${urlFriendlySemId}/0?n=${INITIAL_WORKS_N}`)
+					.then((r) => r.json())
+					.catch(() => null)
+			]);
 
 		profile = profileResp;
 
@@ -130,11 +128,21 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 					ledgerManifest = manifest;
 					ledgerEvents = events;
 					claimedDois = events
-						.filter((e) => e.kind === 'claim_paper' && e.revoked_at === null && e.payload.kind === 'claim_paper')
+						.filter(
+							(e) =>
+								e.kind === 'claim_paper' &&
+								e.revoked_at === null &&
+								e.payload.kind === 'claim_paper'
+						)
 						.map((e) => (e.payload.kind === 'claim_paper' ? (e.payload.work.doi ?? '') : ''))
 						.filter(Boolean);
 					authorMergeRequests = events
-						.filter((e) => e.kind === 'merge_authors' && e.revoked_at === null && e.payload.kind === 'merge_authors')
+						.filter(
+							(e) =>
+								e.kind === 'merge_authors' &&
+								e.revoked_at === null &&
+								e.payload.kind === 'merge_authors'
+						)
 						.map((e) => {
 							if (e.payload.kind !== 'merge_authors') return null;
 							return {
@@ -155,19 +163,38 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 
 	if (view) {
 		return {
-			view, conf, treeSpecs, selectionState: spec.selectionState, tree, atts, svgLink,
-			shallowed, aboutParagraph, metaDescriptions, paperText, citeText, prefixText,
-			profile, peersData,
-			initialPapers, initialEntityAtts, initialDiscAuthorNames,
-			initialTotalPapers, initialWorksSliceEnd,
-			isOwner, disownedWids, claimedDois, mergedPairs, authorMergeRequests,
-			ledgerEvents, ledgerManifest,
+			view,
+			conf,
+			treeSpecs,
+			selectionState: spec.selectionState,
+			tree,
+			atts,
+			svgLink,
+			shallowed,
+			aboutParagraph,
+			metaDescriptions,
+			paperText,
+			citeText,
+			prefixText,
+			profile,
+			peersData,
+			initialPapers,
+			initialEntityAtts,
+			initialDiscAuthorNames,
+			initialTotalPapers,
+			initialWorksSliceEnd,
+			isOwner,
+			disownedWids,
+			claimedDois,
+			mergedPairs,
+			authorMergeRequests,
+			ledgerEvents,
+			ledgerManifest
 		};
 	}
 
 	error(404, 'Not found');
 };
-
 
 type Semantifyer = (rels: tt.RelatedEntity[]) => string;
 
@@ -177,7 +204,6 @@ type DecoratedRelated = {
 	link: string;
 	bold: string;
 };
-
 
 function semFunMaker(prefix: string, fun: (r: DecoratedRelated) => string) {
 	return (rels: tt.RelatedEntity[]) =>
@@ -199,13 +225,20 @@ function toDecorated(r: tt.RelatedEntity): DecoratedRelated {
 	};
 }
 
-function getSemantifyers(rootName: string, rootType: tt.RootType, paperText: string, citeText: string): [tt.RelTypes, Semantifyer][] {
+function getSemantifyers(
+	rootName: string,
+	rootType: tt.RootType,
+	paperText: string,
+	citeText: string
+): [tt.RelTypes, Semantifyer][] {
 	if (rootType == 'authors') {
 		return [
 			[
 				'paper-fields',
-				semFunMaker(`According to data from OpenAlex, ${rootName} has authored ${paperText} receiving a total of ${citeText} (citations by other indexed papers that have themselves been cited), including `,
-					(r) => `${pluralize('paper', r.score)} in ${r.link}`)
+				semFunMaker(
+					`According to data from OpenAlex, ${rootName} has authored ${paperText} receiving a total of ${citeText} (citations by other indexed papers that have themselves been cited), including `,
+					(r) => `${pluralize('paper', r.score)} in ${r.link}`
+				)
 			],
 			[
 				'paper-topics',
@@ -221,7 +254,10 @@ function getSemantifyers(rootName: string, rootType: tt.RootType, paperText: str
 					(r) => `${r.name} (${pluralize('paper', r.score)})`
 				)
 			],
-			['collab-nation', semFunMaker(`${rootName} collaborates with scholars based in `, (r) => r.link)],
+			[
+				'collab-nation',
+				semFunMaker(`${rootName} collaborates with scholars based in `, (r) => r.link)
+			],
 			['paper-authors', semFunMaker(`${rootName}'s co-authors include `, (r) => r.link)],
 			[
 				'paper-journals',
@@ -332,10 +368,7 @@ function getSemantifyers(rootName: string, rootType: tt.RootType, paperText: str
 	} else if (rootType == 'hit-papers') {
 		return [
 			['paper-authors', semFunMaker('Written by ', (r) => r.link)],
-			[
-				'paper-fields',
-				semFunMaker('covering the research area of ', (r) => r.link)
-			],
+			['paper-fields', semFunMaker('covering the research area of ', (r) => r.link)],
 			[
 				'citing-fields',
 				semFunMaker(
@@ -354,18 +387,18 @@ function getFootText(rootType: tt.RootType, view: tt.View, semanticId: string) {
 	if (rootType == 'authors') {
 		let slug = (view.meta || {}).wikiSlug || '';
 		if (slug.length > 0) {
-			return `You can learn more about the impact of ${view.name} by visiting their  <a href="https://pantheon.world/profile/person/${slug}" target="_blank" class="ali">Pantheon page</a>.`
+			return `You can learn more about the impact of ${view.name} by visiting their  <a href="https://pantheon.world/profile/person/${slug}" target="_blank" class="ali">Pantheon page</a>.`;
 		}
 	} else if (rootType == 'countries') {
-		let oecLink = `https://oec.world/en/profile/country/${semanticId}`
-		return `You can explore the trade impact of ${view.name}, by visiting their  <a href="${oecLink}" target="_blank" class="ali">OEC page</a>.`
+		let oecLink = `https://oec.world/en/profile/country/${semanticId}`;
+		return `You can explore the trade impact of ${view.name}, by visiting their  <a href="${oecLink}" target="_blank" class="ali">OEC page</a>.`;
 	} else if (rootType == 'hit-papers') {
 		if (!semanticId.startsWith('W')) {
-			return `This paper is also available at <a href="https://doi.org/${semanticId}" target="_blank" class="ali">doi.org/${semanticId}</a>.`
+			return `This paper is also available at <a href="https://doi.org/${semanticId}" target="_blank" class="ali">doi.org/${semanticId}</a>.`;
 		}
-		return `This paper is also catalogued at <a href="https://openalex.org/${semanticId}" target="_blank" class="ali">OpenAlex</a>.`
+		return `This paper is also catalogued at <a href="https://openalex.org/${semanticId}" target="_blank" class="ali">OpenAlex</a>.`;
 	}
-	return ''
+	return '';
 }
 
 function getSemanticRels(
@@ -374,7 +407,7 @@ function getSemanticRels(
 	rootType: tt.RootType,
 	paperText: string,
 	citeText: string,
-	semanticId: string,
+	semanticId: string
 ): tt.AboutPara {
 	let semantifyers = getSemantifyers(rootName, rootType, paperText, citeText);
 	let relationsMap = Object.fromEntries(
@@ -390,7 +423,7 @@ function getSemanticRels(
 	}
 
 	let postText = sentenceJoiner(out);
-	const relFieldLinks = semFunMaker("", (r) => (r.link))(relationsMap['paper-fields']);
+	const relFieldLinks = semFunMaker('', (r) => r.link)(relationsMap['paper-fields']);
 	let prefixes: Record<tt.RootType, string> = {
 		authors: `${rootName} is a scholar working on ${relFieldLinks}`,
 		institutions: `In recent decades, authors affiliated with ${rootName} have published ${paperText}, which have received a total of ${citeText}`,

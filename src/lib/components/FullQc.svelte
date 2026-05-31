@@ -474,6 +474,13 @@
 		align-items: center;
 	}
 
+	/* Svelte 5's clientWidth/clientHeight bindings no longer force position:relative
+	   (Svelte 4 did, via its resize-detection iframe), so the absolute floaters below
+	   need this to anchor to the measured figure box rather than the page. */
+	.figure-container {
+		position: relative;
+	}
+
 	.floater {
 		position: absolute;
 	}

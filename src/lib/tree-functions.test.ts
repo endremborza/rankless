@@ -5,7 +5,17 @@ vi.mock('$lib/constants', () => ({
 	COMPLETE_YEAR: 1950,
 	DEFAULT_LIMIT_N: 10,
 	MAX_LEVEL_COUNT: 4,
-	ENTITY_TYPES: ['topics', 'works', 'qs', 'authors', 'institutions', 'sources', 'countries', 'subfields', 'hit-papers']
+	ENTITY_TYPES: [
+		'topics',
+		'works',
+		'qs',
+		'authors',
+		'institutions',
+		'sources',
+		'countries',
+		'subfields',
+		'hit-papers'
+	]
 }));
 
 import {
@@ -62,10 +72,16 @@ describe('insertKeepingOrder', () => {
 
 describe('getNodeByPath', () => {
 	const tree: tt.ResponseNode = {
-		linkCount: 100, sourceCount: 0, topSourceId: 0, topSourceLinks: 0,
+		linkCount: 100,
+		sourceCount: 0,
+		topSourceId: 0,
+		topSourceLinks: 0,
 		children: {
 			1: {
-				linkCount: 50, sourceCount: 0, topSourceId: 0, topSourceLinks: 0,
+				linkCount: 50,
+				sourceCount: 0,
+				topSourceId: 0,
+				topSourceLinks: 0,
 				children: {
 					10: { linkCount: 25, sourceCount: 0, topSourceId: 0, topSourceLinks: 0 }
 				}
@@ -211,16 +227,18 @@ describe('getDefaultLevelSpecs', () => {
 		expect(getDefaultLevelSpecs()).toHaveLength(4);
 	});
 	it('all invisible by default', () => {
-		expect(getDefaultLevelSpecs().every(l => !l.isVisible)).toBe(true);
+		expect(getDefaultLevelSpecs().every((l) => !l.isVisible)).toBe(true);
 	});
 });
 
 describe('idFromBd', () => {
 	it('formats breakdown id', () => {
-		expect(idFromBd({ attributeType: 'authors', specDenomInd: 0, sourceSide: true }))
-			.toBe('authors-true');
-		expect(idFromBd({ attributeType: 'countries', specDenomInd: 1, sourceSide: false }))
-			.toBe('countries-false');
+		expect(idFromBd({ attributeType: 'authors', specDenomInd: 0, sourceSide: true })).toBe(
+			'authors-true'
+		);
+		expect(idFromBd({ attributeType: 'countries', specDenomInd: 1, sourceSide: false })).toBe(
+			'countries-false'
+		);
 	});
 });
 
@@ -264,7 +282,10 @@ describe('nameById', () => {
 describe('deriveVisibleTree', () => {
 	it('produces valid tree info for simple input', () => {
 		const root: tt.ResponseNode = {
-			linkCount: 100, sourceCount: 10, topSourceId: 1, topSourceLinks: 5,
+			linkCount: 100,
+			sourceCount: 10,
+			topSourceId: 1,
+			topSourceLinks: 5,
 			children: {
 				1: { linkCount: 60, sourceCount: 5, topSourceId: 1, topSourceLinks: 3 },
 				2: { linkCount: 40, sourceCount: 5, topSourceId: 2, topSourceLinks: 2 }
@@ -280,7 +301,9 @@ describe('deriveVisibleTree', () => {
 			globalSizeBase: 'volume',
 			levelSpecs: [{ include: [], exclude: [], limit: 10, showTop: true, sizeBase: 'volume' }]
 		};
-		const labels = { subfields: { '1': { name: 'A', specBaseline: 0.5 }, '2': { name: 'B', specBaseline: 0.5 } } } as any;
+		const labels = {
+			subfields: { '1': { name: 'A', specBaseline: 0.5 }, '2': { name: 'B', specBaseline: 0.5 } }
+		} as any;
 
 		const result = deriveVisibleTree(root, controls, {}, labels, treeSpec);
 		expect(result.tree.weight).toBe(100);

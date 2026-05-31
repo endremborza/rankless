@@ -60,12 +60,17 @@ export function getDefaultControlSpecs(spec: boolean): tt.FullControlSpecs {
 	};
 }
 
-export function getBreakdownOptions(treeSpecs: tt.TreeSpecs, rootType: tt.RootType, maxD: number = MAX_LEVEL_COUNT, minD: number = 2) {
+export function getBreakdownOptions(
+	treeSpecs: tt.TreeSpecs,
+	rootType: tt.RootType,
+	maxD: number = MAX_LEVEL_COUNT,
+	minD: number = 2
+) {
 	//TODO: this should be cached, its just clutter
 	let entityTreeSpecs = treeSpecs.specs[rootType];
 	const entries = [];
 	for (let i = 0; i < entityTreeSpecs.length; i++) {
-		let v = entityTreeSpecs[i]
+		let v = entityTreeSpecs[i];
 		let valid = true;
 		for (let bd of v.breakdowns) {
 			if (!ENTITY_TYPES.includes(bd.attributeType)) valid = false;
@@ -73,10 +78,13 @@ export function getBreakdownOptions(treeSpecs: tt.TreeSpecs, rootType: tt.RootTy
 		if (!valid) continue;
 		if (v.breakdowns.length >= minD) entries.push([i, v] as [number, tt.TreeSpec]);
 	}
-	return fillBreakdownOptions(entries, maxD)
+	return fillBreakdownOptions(entries, maxD);
 }
 
-export function fillBreakdownOptions(specsEnum: ArrayIterator<[number, tt.TreeSpec]> | [number, tt.TreeSpec][], maxD: number = MAX_LEVEL_COUNT) {
+export function fillBreakdownOptions(
+	specsEnum: ArrayIterator<[number, tt.TreeSpec]> | [number, tt.TreeSpec][],
+	maxD: number = MAX_LEVEL_COUNT
+) {
 	let out: tt.BreakdownOptions = {};
 	for (let [i, v] of specsEnum) {
 		let boObj = out;
@@ -91,7 +99,6 @@ export function fillBreakdownOptions(specsEnum: ArrayIterator<[number, tt.TreeSp
 		}
 	}
 	return out;
-
 }
 
 export function idFromBd(bd: tt.BreakdownSpec): string {
@@ -99,48 +106,63 @@ export function idFromBd(bd: tt.BreakdownSpec): string {
 }
 
 export function urlFriendlify(s: string) {
-	return s.replace("/", "%2F")
+	return s.replace('/', '%2F');
 }
 
 export function viewBeUrl(root: string, conf: tt.FullTreeConfig): string {
 	let urlFriendlySemId = urlFriendlify(conf.semanticId);
-	return `${root}/views/${conf.rootType}/${urlFriendlySemId}`
+	return `${root}/views/${conf.rootType}/${urlFriendlySemId}`;
 }
 
-export function treeBeUrl(root: string, conf: tt.FullTreeConfig, shallow: undefined | number = undefined): string {
-	let urlFriendlySemId = urlFriendlify(conf.semanticId.replace("/", "%2F"));
+export function treeBeUrl(
+	root: string,
+	conf: tt.FullTreeConfig,
+	shallow: undefined | number = undefined
+): string {
+	let urlFriendlySemId = urlFriendlify(conf.semanticId.replace('/', '%2F'));
 	let url = `${root}/trees/${conf.rootType}/${urlFriendlySemId}?tid=${conf.treeId}&year=${conf.year}`;
 	if (shallow != undefined) {
-		url += `&shallow=${shallow}`
+		url += `&shallow=${shallow}`;
 	}
 	if (conf.wide) {
-		url += `&wide=true`
+		url += `&wide=true`;
 	}
-	return url
+	return url;
 }
 
-export async function fetchTree(root: string, conf: tt.FullTreeConfig, shallow?: number): Promise<tt.TreeResponse> {
+export async function fetchTree(
+	root: string,
+	conf: tt.FullTreeConfig,
+	shallow?: number
+): Promise<tt.TreeResponse> {
 	const res = await fetch(treeBeUrl(root, conf, shallow));
 	return res.json();
 }
 
-export function entToDirectedLink(e: { rootType: tt.RootType; semanticId: string }, dir: string): string {
+export function entToDirectedLink(
+	e: { rootType: tt.RootType; semanticId: string },
+	dir: string
+): string {
 	return `${base}${dir}${getEntityPath(e.rootType, e.semanticId)}`;
 }
 
 export function entToLink(e: { rootType: tt.RootType; semanticId: string }): string {
-	return entToDirectedLink(e, "")
+	return entToDirectedLink(e, '');
 }
 
 export function getEntityPath(rootType: tt.RootType, semanticId: string) {
-	return `/${rootType}/${semanticId}`
+	return `/${rootType}/${semanticId}`;
 }
 
 export function externalEntityUrl(rootType: tt.RootType, semanticId: string): string {
-	return getExternalUrl(getEntityPath(rootType, semanticId))
+	return getExternalUrl(getEntityPath(rootType, semanticId));
 }
 
-export function decorBaseLink(url: string, conf: tt.FullTreeConfig, selectionState: tt.BareNode): string {
+export function decorBaseLink(
+	url: string,
+	conf: tt.FullTreeConfig,
+	selectionState: tt.BareNode
+): string {
 	let params = [];
 	if (conf.year !== getDefaultYear(conf.rootType)) {
 		params.push(`since=${conf.year}`);
@@ -161,10 +183,14 @@ export function decorBaseLink(url: string, conf: tt.FullTreeConfig, selectionSta
 
 export function toLinkWithParams(conf: tt.FullTreeConfig, selectionState: tt.BareNode): string {
 	let url = entToLink({ rootType: conf.rootType, semanticId: conf.semanticId });
-	return decorBaseLink(url, conf, selectionState)
+	return decorBaseLink(url, conf, selectionState);
 }
 
-export function parseLinkWithParams(params: URLSearchParams, rootType: tt.RootType, treeSpecs: tt.TreeSpecs): tt.ShareSpec {
+export function parseLinkWithParams(
+	params: URLSearchParams,
+	rootType: tt.RootType,
+	treeSpecs: tt.TreeSpecs
+): tt.ShareSpec {
 	let year = parseInt(params.get('since') || getDefaultYear(rootType).toString());
 	let treeId = parseInt(params.get('tree') || '1') - 1 || 0;
 	let nTrees = treeSpecs.specs[rootType].length;
@@ -178,9 +204,9 @@ export function parseLinkWithParams(params: URLSearchParams, rootType: tt.RootTy
 
 export function getDefaultYear(rt: tt.RootType) {
 	if (['authors', 'sources', 'institutions', 'hit-papers'].includes(rt)) {
-		return COMPLETE_YEAR
+		return COMPLETE_YEAR;
 	}
-	return 2020
+	return 2020;
 }
 
 export function hasYearFilter(rt: tt.RootType): boolean {
@@ -230,7 +256,7 @@ export function pruneTree(tree: tt.BareNode, depth: number): tt.BareNode {
 export function intersectionTree(smallerTree: tt.BareNode, biggerTree: tt.BareNode): tt.BareNode {
 	const children: Record<number, tt.BareNode> = {};
 	if (smallerTree.children == undefined || biggerTree.children == undefined) {
-		return { children }
+		return { children };
 	}
 	for (let kStr of Object.keys(smallerTree.children)) {
 		if (Object.keys(biggerTree.children).includes(kStr)) {
@@ -355,10 +381,12 @@ function flatFilter(
 
 		const weightDerivation =
 			sizeBase === 'volume'
-				? (node: tt.ResponseNode, childId: number) => childId === 0 ? 0 : (node?.linkCount || 0)
-				: (node: tt.ResponseNode, childId: number, denominatorWeight: number) => childId === 0 ? 0 :
-					getSpecMetricObject(node, denominatorWeight, attributeLabels[entityKind], childId)
-						.specMetric;
+				? (node: tt.ResponseNode, childId: number) => (childId === 0 ? 0 : node?.linkCount || 0)
+				: (node: tt.ResponseNode, childId: number, denominatorWeight: number) =>
+						childId === 0
+							? 0
+							: getSpecMetricObject(node, denominatorWeight, attributeLabels[entityKind], childId)
+									.specMetric;
 
 		const isBetterExtreme = controlSpec.showTop
 			? (l: LevelNodeDescription, r: LevelNodeDescription) => l.derivedWeight - r.derivedWeight
@@ -484,7 +512,6 @@ export function getFlatRescaler(levels: tt.LevelT, nBreakPoints: number, pullerR
 	const linScaler = (w: number) => (w - (locMinw || 0)) / wspan;
 	return { linScaler, newBreakPoints, locMinw, locMaxw };
 }
-
 
 export function insertKeepingOrder<T>(elem: T, arr: T[], f: (l: T, r: T) => number) {
 	//0 if equal, -x if l is 'less desirable'

@@ -1,22 +1,29 @@
 export function getIndex(i: number, j: number, n: number) {
 	if (i === j) return -1;
 	if (i > j) [i, j] = [j, i];
-	let idx = n * i - i - i * (i - 1) / 2
-	return idx + j - i - 1
+	let idx = n * i - i - (i * (i - 1)) / 2;
+	return idx + j - i - 1;
 }
 
-export function circleLayout(nodes: string[], edgeWeights: number[], { height = 400, width = 400 }) {
+export function circleLayout(
+	nodes: string[],
+	edgeWeights: number[],
+	{ height = 400, width = 400 }
+) {
 	const cx = width / 2;
 	const cy = height / 2;
-	let radius = Math.min(cy, cx) * 0.8
+	let radius = Math.min(cy, cx) * 0.8;
 	return nodes.map((_, i) => {
 		const angle = (i / nodes.length) * Math.PI * 2 - Math.PI / 2;
 		return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius };
 	});
 }
 
-
-export function radialWeightedLayout(nodes: string[], edgeWeights: number[], { height = 400, width = 400 }) {
+export function radialWeightedLayout(
+	nodes: string[],
+	edgeWeights: number[],
+	{ height = 400, width = 400 }
+) {
 	const cx = width / 2;
 	const cy = height / 2;
 	const maxR = Math.min(width, height) * 0.35;
@@ -36,8 +43,8 @@ export function radialWeightedLayout(nodes: string[], edgeWeights: number[], { h
 }
 
 // cytoscape-fcose-headless.ts
-import cytoscape from "cytoscape";
-import fcose from "cytoscape-fcose";
+import cytoscape from 'cytoscape';
+import fcose from 'cytoscape-fcose';
 
 // register once
 if (!(cytoscape as any)._fcoseRegistered) {
@@ -48,9 +55,9 @@ if (!(cytoscape as any)._fcoseRegistered) {
 type FcoseOptions = {
 	width?: number;
 	height?: number;
-	initialTemp?: number,
-	coolingFactor?: number,
-	minTemp?: number,
+	initialTemp?: number;
+	coolingFactor?: number;
+	minTemp?: number;
 	idealEdgeLength?: number;
 	nodeRepulsion?: number;
 	edgeElasticity?: number;
@@ -64,11 +71,7 @@ type FcoseOptions = {
 	spacingFactor?: number;
 };
 
-export function cytoscapeLayout(
-	nodes: string[],
-	edgeWeights: number[],
-	opts: FcoseOptions = {}
-) {
+export function cytoscapeLayout(nodes: string[], edgeWeights: number[], opts: FcoseOptions = {}) {
 	const {
 		width = 400,
 		height = 400,
@@ -85,7 +88,7 @@ export function cytoscapeLayout(
 		// force animations off for headless
 		animate = false,
 		randomize = true,
-		tile = false,
+		tile = false
 	} = opts;
 
 	const n = nodes.length;
@@ -104,12 +107,12 @@ export function cytoscapeLayout(
 	// create cytoscape headless instance (no DOM)
 	const cy = cytoscape({
 		headless: true,
-		elements,
+		elements
 	});
 
 	// fcose layout options — keep animate false in headless mode
 	const layout = cy.layout({
-		name: "fcose",
+		name: 'fcose',
 		// core tuning
 		animate,
 		randomize,
@@ -125,7 +128,7 @@ export function cytoscapeLayout(
 		// fcose uses 'spacingFactor' rather than padding for internal gaps;
 		// we'll still use padding later for final bounding box
 		// spacingFactor,
-		tile,
+		tile
 	} as any);
 
 	layout.run();
@@ -148,17 +151,23 @@ export function cytoscapeLayout(
 		// fallback: random spread if fcose returned bad coords
 		positions = nodes.map((_, i) => ({
 			x: (i % 10) * (width / Math.min(10, n)),
-			y: Math.floor(i / 10) * (height / Math.ceil(n / 10)),
+			y: Math.floor(i / 10) * (height / Math.ceil(n / 10))
 		}));
-		minX = Math.min(...positions.map(p => p.x));
-		maxX = Math.max(...positions.map(p => p.x));
-		minY = Math.min(...positions.map(p => p.y));
-		maxY = Math.max(...positions.map(p => p.y));
+		minX = Math.min(...positions.map((p) => p.x));
+		maxX = Math.max(...positions.map((p) => p.x));
+		minY = Math.min(...positions.map((p) => p.y));
+		maxY = Math.max(...positions.map((p) => p.y));
 	}
 
 	// avoid zero range
-	if (maxX - minX < 1) { minX -= 0.5; maxX += 0.5; }
-	if (maxY - minY < 1) { minY -= 0.5; maxY += 0.5; }
+	if (maxX - minX < 1) {
+		minX -= 0.5;
+		maxX += 0.5;
+	}
+	if (maxY - minY < 1) {
+		minY -= 0.5;
+		maxY += 0.5;
+	}
 
 	const scaleX = width / (maxX - minX);
 	const scaleY = height / (maxY - minY);
@@ -170,9 +179,9 @@ export function cytoscapeLayout(
 	const offsetX = (width - usedW) / 2;
 	const offsetY = (height - usedH) / 2;
 
-	positions = positions.map(p => ({
+	positions = positions.map((p) => ({
 		x: (p.x - minX) * scale + offsetX,
-		y: (p.y - minY) * scale + offsetY,
+		y: (p.y - minY) * scale + offsetY
 	}));
 
 	return positions;
