@@ -1,13 +1,19 @@
-.DS_Store
-node_modules
-/build
-/.svelte-kit
-/package
-.env
-.env.*
-!.env.example
+# Polyglot repo: ignore everything by default, then re-include the
+# hand-written SvelteKit frontend + project docs/config.
+/*
 
-# Ignore files for PNPM, NPM and YARN
-pnpm-lock.yaml
+!/src
+!/tests
+!/docs
+!/*.md
+!/*.json
+!/*.ts
+!/*.js
+!/*.cjs
+
+# Carve-outs inside the re-included trees: generated data, reports, lockfiles
+/src/lib/assets/data
+/docs/*.html
+/docs/benchmarking
 package-lock.json
-yarn.lock
+bun.lock

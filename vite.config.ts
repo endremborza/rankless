@@ -1,6 +1,5 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig, type UserConfig } from 'vite';
-import type { TestUserConfig } from 'vitest/config';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	plugins: [sveltekit()],
@@ -8,10 +7,6 @@ export default defineConfig({
 	ssr: { external: ['bun:sqlite'] },
 	build: { rollupOptions: { external: ['bun:sqlite'] } },
 	test: {
-		include: ['src/**/*.test.ts'],
-		alias: {
-			'$lib': '/src/lib',
-			'$app': '/src/app'
-		}
+		include: ['src/**/*.test.ts']
 	}
-} as UserConfig & { test: TestUserConfig });
+});
