@@ -42,7 +42,11 @@ function initialsFromGiven(given: string[]): string {
 	return given.map((g) => (g ? g[0].toUpperCase() + '.' : '')).join(' ');
 }
 
-export function formatAuthorNames(names: string[], style: CitationStyle, forceEtAl = false): string {
+export function formatAuthorNames(
+	names: string[],
+	style: CitationStyle,
+	forceEtAl = false
+): string {
 	const parsed = names.map(splitName);
 
 	const apaName = (p: { last: string; given: string[] }) =>
@@ -75,7 +79,9 @@ export function formatAuthorNames(names: string[], style: CitationStyle, forceEt
 			const second = `${parsed[1].given.join(' ')} ${parsed[1].last}`.trim();
 			return `${first} and ${second}`;
 		}
-		const list = parsed.map((p, i) => (i === 0 ? mlaName(p, names[i]) : `${p.given.join(' ')} ${p.last}`.trim()));
+		const list = parsed.map((p, i) =>
+			i === 0 ? mlaName(p, names[i]) : `${p.given.join(' ')} ${p.last}`.trim()
+		);
 		return `${list[0]}, ${list[1]}, and ${list[2]}`;
 	}
 
@@ -92,11 +98,15 @@ export function formatAuthorNames(names: string[], style: CitationStyle, forceEt
 	}
 	if (parsed.length <= 5) {
 		if (forceEtAl) return `${chicagoName(parsed[0], names[0])}, et al.`;
-		const list = parsed.map((p, i) => (i === 0 ? chicagoName(p, names[i]) : `${p.given.join(' ')} ${p.last}`.trim()));
+		const list = parsed.map((p, i) =>
+			i === 0 ? chicagoName(p, names[i]) : `${p.given.join(' ')} ${p.last}`.trim()
+		);
 		const last = list.pop();
 		return `${list.join(', ')}, & ${last}`;
 	}
-	const firstThree = parsed.slice(0, 3).map((p, i) => (i === 0 ? chicagoName(p, names[i]) : `${p.given.join(' ')} ${p.last}`.trim()));
+	const firstThree = parsed
+		.slice(0, 3)
+		.map((p, i) => (i === 0 ? chicagoName(p, names[i]) : `${p.given.join(' ')} ${p.last}`.trim()));
 	return `${firstThree.join(', ')}, et al.`;
 }
 
@@ -118,7 +128,9 @@ export function formatReference(
 ): string {
 	const knownNames = buildKnownAuthorNames(paper.authorships, entityAtts, discAuthorNames);
 	const hasMore = knownNames.length < paper.authorships.length;
-	const authorStr = knownNames.length ? formatAuthorNames(knownNames, style === 'html' ? 'chicago' : style, hasMore) : '';
+	const authorStr = knownNames.length
+		? formatAuthorNames(knownNames, style === 'html' ? 'chicago' : style, hasMore)
+		: '';
 	const container = entityAtts.sources?.[String(paper.source)]?.name || '';
 	const vol = paper.biblio?.volume ?? '';
 	const issue = paper.biblio?.issue ?? '';

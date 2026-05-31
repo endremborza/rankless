@@ -1,7 +1,7 @@
 export type SurveySubmit = {
 	role: string;
 	customRole: string;
-	scores: { id: string, score: number }[];
+	scores: { id: string; score: number }[];
 	customOption?: string;
 	timestamp?: string;
 };

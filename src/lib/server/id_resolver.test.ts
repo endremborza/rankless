@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { resolveWorkSubject, resolveAuthorSubject, canonicalDoi, ResolveError } from './id_resolver';
+import {
+	resolveWorkSubject,
+	resolveAuthorSubject,
+	canonicalDoi,
+	ResolveError
+} from './id_resolver';
 
 type FetchResp = { status: number; body?: unknown };
 

@@ -44,9 +44,9 @@ export function buildSubgraphs(
 ): number[][] {
 	const topWids = Object.keys(seen)
 		.map(Number)
-		.filter(w => {
+		.filter((w) => {
 			const meta = seen[w];
-			return meta && [...meta.parents].every(p => p === 0);
+			return meta && [...meta.parents].every((p) => p === 0);
 		})
 		.sort((a, b) => (paperMap[b]?.year ?? 0) - (paperMap[a]?.year ?? 0));
 
@@ -89,7 +89,7 @@ export function classifyComponentLayers(
 			bottom.push(wid);
 		} else {
 			const meta = seen[wid];
-			const hasOnlyRoot = !meta || [...meta.parents].every(p => p === 0);
+			const hasOnlyRoot = !meta || [...meta.parents].every((p) => p === 0);
 			if (hasOnlyRoot) top.push(wid);
 			else mid.push(wid);
 		}

@@ -272,7 +272,9 @@ g {
 	font-family: inherit;
 	flex-shrink: 0;
 	opacity: 0.6;
-	transition: opacity 0.12s, background 0.12s;
+	transition:
+		opacity 0.12s,
+		background 0.12s;
 }
 .btn-sm:hover {
 	opacity: 1;

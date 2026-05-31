@@ -27,15 +27,15 @@ test.describe('Header search', () => {
 		expect(headerBox).toBeTruthy();
 		expect(searchBarBox).toBeTruthy();
 
-		const headerZ = await page.locator('#site-header').evaluate(
-			(el) => getComputedStyle(el).zIndex
-		);
-		const searchBarZ = await page.locator('#search-bar').evaluate(
-			(el) => getComputedStyle(el).zIndex
-		);
-		const overlayZ = await page.locator('.search-results').evaluate(
-			(el) => getComputedStyle(el).zIndex
-		);
+		const headerZ = await page
+			.locator('#site-header')
+			.evaluate((el) => getComputedStyle(el).zIndex);
+		const searchBarZ = await page
+			.locator('#search-bar')
+			.evaluate((el) => getComputedStyle(el).zIndex);
+		const overlayZ = await page
+			.locator('.search-results')
+			.evaluate((el) => getComputedStyle(el).zIndex);
 
 		expect(Number(headerZ)).toBeGreaterThan(Number(overlayZ));
 		expect(Number(searchBarZ)).toBeGreaterThan(Number(overlayZ));

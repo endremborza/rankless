@@ -3,12 +3,20 @@ import type { Paper, PaperAuthorship, EntityAttsForLinks } from '$lib/tree-types
 export const PRESTIGIOUS_SOURCE_SEM_IDS = new Set(['science', 'nature']);
 
 // Minimal entity table for the SSR fallback only; the browser path decodes all entities natively.
-const NAMED_ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+const NAMED_ENTITIES: Record<string, string> = {
+	amp: '&',
+	lt: '<',
+	gt: '>',
+	quot: '"',
+	apos: "'",
+	nbsp: ' '
+};
 
 function decodeEntities(s: string): string {
 	return s.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (m, body: string) => {
 		if (body[0] !== '#') return NAMED_ENTITIES[body.toLowerCase()] ?? m;
-		const code = body[1].toLowerCase() === 'x' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
+		const code =
+			body[1].toLowerCase() === 'x' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
 		return Number.isFinite(code) ? String.fromCodePoint(code) : m;
 	});
 }
@@ -75,17 +83,11 @@ export function resolveAuthorNameOrNull(
 	return discAuthorNames[id] ?? null;
 }
 
-export function resolveSourceName(
-	sourceId: number,
-	entityAtts: EntityAttsForLinks
-): string {
+export function resolveSourceName(sourceId: number, entityAtts: EntityAttsForLinks): string {
 	return entityAtts.sources?.[String(sourceId)]?.name ?? '';
 }
 
-export function resolveInstName(
-	instId: number,
-	entityAtts: EntityAttsForLinks
-): string {
+export function resolveInstName(instId: number, entityAtts: EntityAttsForLinks): string {
 	return entityAtts.institutions?.[String(instId)]?.name ?? '';
 }
 

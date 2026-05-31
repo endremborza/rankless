@@ -269,9 +269,9 @@
 				the world together.
 			</p>
 			<div class="cta">
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<!-- svelte-ignore a11y-missing-attribute -->
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<!-- svelte-ignore a11y_missing_attribute -->
 				<a class="button primary" on:click={() => resultsHidden.set(false)} rel="noopener"
 					>🔍 Explore <TypeWriter {texts} /></a
 				>
@@ -451,9 +451,9 @@
 			at <a href="https://www.uni-corvinus.hu/?lang=en" target="_blank">Corvinus University</a> of Budapest
 			by a team of four people. The main person behind the project is Endre Borza, an economist working
 			as a data engineer who constructed Rankless from the ground up. The graphic and interaction design
-			of Rankless is the work of Máté Barkóczi, a designer working on his Master’s at MOME and as an
-			intern at CCL. Vera Hamar, Executive Director of CCL, supported Rankless as a project manager and
-			coordinator. César A. Hidalgo, Director of CCL, supervised the project.
+			of Rankless is the work of Máté Barkóczi, a designer working on his Master’s at MOME and as an intern
+			at CCL. Vera Hamar, Executive Director of CCL, supported Rankless as a project manager and coordinator.
+			César A. Hidalgo, Director of CCL, supervised the project.
 		</p>
 
 		<p>
@@ -676,7 +676,9 @@
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		transition: transform 0.2s ease, box-shadow 0.2s ease;
+		transition:
+			transform 0.2s ease,
+			box-shadow 0.2s ease;
 	}
 	.card:hover {
 		transform: translateY(-4px);

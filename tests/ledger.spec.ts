@@ -56,8 +56,7 @@ test.describe('pre-pipeline', () => {
 		const worksResp = await fetch(worksUrl);
 		expect(worksResp.ok, `backend /works fetch failed: ${worksUrl}`).toBeTruthy();
 		const worksJson = await worksResp.json();
-		const papers: { wid: number; name: string; citations: number }[] =
-			worksJson.resp?.papers ?? [];
+		const papers: { wid: number; name: string; citations: number }[] = worksJson.resp?.papers ?? [];
 		expect(papers.length, 'author must have at least 3 papers').toBeGreaterThanOrEqual(3);
 
 		const totalPapersBefore: number = worksJson.totalPapers;
@@ -77,8 +76,10 @@ test.describe('pre-pipeline', () => {
 		expect(merge.status, 'merge should return 200').toBe(200);
 
 		// Verify events are recorded as pending.
-		const events: { event_id: number; kind: string; revoked_at: string | null }[] =
-			await apiGet(page, '/api/ledger');
+		const events: { event_id: number; kind: string; revoked_at: string | null }[] = await apiGet(
+			page,
+			'/api/ledger'
+		);
 		const disownEvent = events.find((e) => e.kind === 'disown_paper' && !e.revoked_at);
 		const mergeEvent = events.find((e) => e.kind === 'merge_papers' && !e.revoked_at);
 		expect(disownEvent, 'disown_paper event must exist').toBeDefined();
@@ -110,14 +111,12 @@ test.describe('post-pipeline', () => {
 		expect(status.run_id, 'run_id must be set after pipeline').toBeTruthy();
 
 		const applied: number[] = status.applied_event_ids ?? [];
-		expect(
-			applied,
-			`disown event ${state.disownEventId} must be in applied`
-		).toContain(state.disownEventId);
-		expect(
-			applied,
-			`merge event ${state.mergeEventId} must be in applied`
-		).toContain(state.mergeEventId);
+		expect(applied, `disown event ${state.disownEventId} must be in applied`).toContain(
+			state.disownEventId
+		);
+		expect(applied, `merge event ${state.mergeEventId} must be in applied`).toContain(
+			state.mergeEventId
+		);
 	});
 
 	test('disowned paper is absent from author works', async ({ page }) => {
@@ -146,9 +145,8 @@ test.describe('post-pipeline', () => {
 		const totalPapersAfter: number = worksJson.totalPapers;
 
 		// Disown removes one paper from the author. Merge removes the drop side.
-		expect(
-			totalPapersAfter,
-			'paper count must be lower after disown + merge'
-		).toBeLessThan(state.totalPapersBefore);
+		expect(totalPapersAfter, 'paper count must be lower after disown + merge').toBeLessThan(
+			state.totalPapersBefore
+		);
 	});
 });

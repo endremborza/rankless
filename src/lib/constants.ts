@@ -18,7 +18,7 @@ export const ROOT_TYPES: RootType[] = [
 	'sources',
 	'countries',
 	'subfields',
-	'hit-papers',
+	'hit-papers'
 ];
 
 export const REL_TYPES: RelTypes[] = [
@@ -43,7 +43,6 @@ export const MAX_LEVEL_COUNT = 4;
 export const COMPLETE_YEAR = 1950;
 export const LATEST_YEAR = new Date().getFullYear(); // == backend FINAL_YEAR: last year in EraRec yearly records
 
-
-export const ORCID_REDIRECT_URI = `${PUBLIC_ORIGIN}/callback`
-export const ORCID_AUTH_URL = 'https://orcid.org/oauth/authorize'
-export const ORCID_TOKEN_URL = 'https://orcid.org/oauth/token'
+export const ORCID_REDIRECT_URI = `${PUBLIC_ORIGIN}/callback`;
+export const ORCID_AUTH_URL = 'https://orcid.org/oauth/authorize';
+export const ORCID_TOKEN_URL = 'https://orcid.org/oauth/token';

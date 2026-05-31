@@ -10,12 +10,12 @@ test('navigate all links and test map control states quickly', async ({ page }) 
 	const pagesToVisit = new Set<string>(['/']);
 
 	await page.goto('/');
-	const links = await page.$$eval('a[href]', anchors =>
+	const links = await page.$$eval('a[href]', (anchors) =>
 		anchors
-			.map(a => a.getAttribute('href'))
+			.map((a) => a.getAttribute('href'))
 			.filter((h): h is string => !!h && h.startsWith('/') && !h.startsWith('//'))
 	);
-	links.forEach(l => pagesToVisit.add(l));
+	links.forEach((l) => pagesToVisit.add(l));
 	for (const url of pagesToVisit) {
 		if (visitedPages.has(url)) continue;
 		visitedPages.add(url);
@@ -33,7 +33,7 @@ test('navigate all links and test map control states quickly', async ({ page }) 
 
 			let dropdownValues = [''];
 			if (dropdown) {
-				dropdownValues = await dropdown.$$eval('option', opts => opts.map(o => o.value));
+				dropdownValues = await dropdown.$$eval('option', (opts) => opts.map((o) => o.value));
 			}
 
 			const checkboxStates = checkbox ? [false, true] : [false];
@@ -61,21 +61,23 @@ test('navigate all links and test map control states quickly', async ({ page }) 
 	fs.writeFileSync('logs/paragraph_texts.txt', Array.from(paragraphTexts).join('\n\n'));
 });
 
-async function collectParagraphs(page: Page, paragraphTexts: Set<string>, url: string, paragraphSources: Record<string, string>) {
-	let elems = url.split('/')
+async function collectParagraphs(
+	page: Page,
+	paragraphTexts: Set<string>,
+	url: string,
+	paragraphSources: Record<string, string>
+) {
+	let elems = url.split('/');
 	if (elems.length > 2) {
-		let uType = elems[1]
+		let uType = elems[1];
 		if (paragraphSources[uType] == undefined) paragraphSources[uType] = elems[2];
 		if (paragraphSources[uType] != elems[2]) return;
 	}
-	const texts = await page.$$eval('p', ps =>
-		ps.map(p => p.innerText.trim()).filter(Boolean)
-	);
-	texts.forEach(t => paragraphTexts.add(t));
+	const texts = await page.$$eval('p', (ps) => ps.map((p) => p.innerText.trim()).filter(Boolean));
+	texts.forEach((t) => paragraphTexts.add(t));
 }
 
 test('index page has expected h1', async ({ page }) => {
 	await page.goto('/');
 	await expect(page.getByText('Spotlights')).toBeVisible();
 });
-

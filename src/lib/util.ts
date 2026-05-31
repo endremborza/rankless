@@ -9,4 +9,3 @@ export function debounce<A extends unknown[]>(fn: (...args: A) => void, ms: numb
 		timer = setTimeout(() => fn(...args), ms);
 	};
 }
-

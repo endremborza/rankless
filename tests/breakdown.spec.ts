@@ -33,7 +33,7 @@ async function explore(page: Page, url: string, level: number) {
 	}
 
 	const options = await currentSelect.locator('option').all();
-	const optionValues = await Promise.all(options.map(o => o.getAttribute('value')));
+	const optionValues = await Promise.all(options.map((o) => o.getAttribute('value')));
 
 	for (const value of optionValues) {
 		if (!value) continue;
@@ -56,7 +56,9 @@ async function explore(page: Page, url: string, level: number) {
 
 		const key = `${url}-${level}`;
 		optionTrees[key] = (optionTrees[key] || []).concat(currentPathValues.join(' > '));
-		semanticDescriptions[key] = (semanticDescriptions[key] || []).concat(semanticPathTexts.join(' > ').replace(/\\n/g, '').replace(/\s+/g, ' ').trim());
+		semanticDescriptions[key] = (semanticDescriptions[key] || []).concat(
+			semanticPathTexts.join(' > ').replace(/\\n/g, '').replace(/\s+/g, ' ').trim()
+		);
 
 		await explore(page, url, level + 1);
 	}
