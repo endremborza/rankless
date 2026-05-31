@@ -35,13 +35,10 @@ const COHORT_NOUN: Record<string, string> = {
 	sources: 'journals'
 };
 
-// Build the tier labels from the ladder's band/rank definitions so they never drift from the
-// backend: "top 20%" … "top 0.1%" then "top 1000" / "top 100" / "top 10".
-export function tierLabels(pctBands: number[], absRanks: number[]): string[] {
-	return [
-		...pctBands.map((p) => `top ${Number((p * 100).toFixed(2))}%`),
-		...absRanks.map((r) => `top ${r}`)
-	];
+// Build the tier labels from the ladder's percentile bands so they never drift from the
+// backend: "top 20%" … "top 0.01%".
+export function tierLabels(pctBands: number[]): string[] {
+	return pctBands.map((p) => `top ${Number((p * 100).toFixed(4))}%`);
 }
 
 // Most selective tier (1-based) a citation count reaches within a subfield, given that subfield's

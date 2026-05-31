@@ -271,9 +271,8 @@ export type EntityPeersResp = {
 };
 
 // Rank-breakpoint table for one root type (cached per type). `ladder[subfieldDmId]` holds the
-// citation threshold at each percentile band then absolute rank; null where the cohort is too small.
+// citation threshold at each percentile band; null where the cohort is too small.
 export type LadderData = {
 	pctBands: number[];
-	absRanks: number[];
 	ladder: (number | null)[][];
 };
