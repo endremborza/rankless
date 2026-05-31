@@ -3,7 +3,6 @@ import { getEntityPath } from '$lib/tree-functions';
 import { getSitemapResponse } from '$lib/route-functions';
 import { getLinks, respsFromLinks } from '$lib/sitemap-functions';
 
-
 const STEP_SIZE = 200;
 
 export const GET: RequestHandler = async ({ params }) => {

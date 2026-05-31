@@ -49,7 +49,9 @@
 		border-radius: var(--control-bar-pill-radius);
 		text-decoration: none;
 		opacity: 0.45;
-		transition: opacity 0.15s, background 0.15s;
+		transition:
+			opacity 0.15s,
+			background 0.15s;
 		color: var(--color-text);
 		white-space: nowrap;
 	}

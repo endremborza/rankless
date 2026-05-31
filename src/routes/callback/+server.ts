@@ -37,5 +37,9 @@ export const GET: RequestHandler = async (event) => {
 	}
 
 	LedgerDb.pinOwner(data.orcid);
-	return setSession(event, { orcid: data.orcid, name: data.name || 'ORCID User', semanticId }, redirectTo);
+	return setSession(
+		event,
+		{ orcid: data.orcid, name: data.name || 'ORCID User', semanticId },
+		redirectTo
+	);
 };

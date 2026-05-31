@@ -15,7 +15,12 @@ export async function POST({ locals, request }: RequestEvent) {
 			resolveAuthorSubject({ orcid: locals.user.orcid, semantic_id: my_semantic_id }),
 			resolveAuthorSubject({ semantic_id: other_semantic_id })
 		]);
-		const payload = { kind: 'merge_authors' as const, keep, drop, ...(note ? { note: String(note) } : {}) };
+		const payload = {
+			kind: 'merge_authors' as const,
+			keep,
+			drop,
+			...(note ? { note: String(note) } : {})
+		};
 		LedgerDb.createEvent(locals.user.orcid, payload);
 		return json({ ok: true });
 	} catch (e) {
@@ -27,9 +32,13 @@ export async function POST({ locals, request }: RequestEvent) {
 export async function DELETE({ locals, request }: RequestEvent) {
 	if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
 	const { other_semantic_id } = await request.json();
-	if (typeof other_semantic_id !== 'string') return json({ error: 'Invalid input' }, { status: 400 });
+	if (typeof other_semantic_id !== 'string')
+		return json({ error: 'Invalid input' }, { status: 400 });
 	const event_id = LedgerDb.findPendingByPayload(
-		locals.user.orcid, 'merge_authors', '$.drop.semantic_id_at_creation', other_semantic_id
+		locals.user.orcid,
+		'merge_authors',
+		'$.drop.semantic_id_at_creation',
+		other_semantic_id
 	);
 	if (event_id !== null) LedgerDb.revokePending(locals.user.orcid, event_id);
 	return json({ ok: true });

@@ -47,7 +47,7 @@
 				{/each}
 			</select>
 		{/if}
-		<div class="bg filler" />
+		<div class="bg filler"></div>
 	</div>
 {/if}
 

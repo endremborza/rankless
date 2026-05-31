@@ -114,5 +114,8 @@ export async function resolveAuthorSubject(input: {
 }
 
 export function canonicalDoi(doi: string): string {
-	return doi.trim().toLowerCase().replace(/^https?:\/\/(dx\.)?doi\.org\//, '');
+	return doi
+		.trim()
+		.toLowerCase()
+		.replace(/^https?:\/\/(dx\.)?doi\.org\//, '');
 }

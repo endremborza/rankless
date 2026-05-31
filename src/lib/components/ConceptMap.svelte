@@ -257,11 +257,11 @@
 			showInfobox={conf.rootType !== 'hit-papers'}
 			{infoPath}
 		>
-			<!-- svelte-ignore a11y-mouse-events-have-key-events -->
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+			<!-- svelte-ignore a11y_mouse_events_have_key_events -->
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 			<div class="concept-map-container">
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<svg
 					bind:this={svgEl}
 					viewBox="-8 -8 146 116"

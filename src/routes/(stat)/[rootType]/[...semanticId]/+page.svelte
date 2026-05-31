@@ -191,7 +191,7 @@
 			Citations made by non-retracted papers categorized as "article", "book", or "review" that have
 			received at least one citation.
 		</HoverBlock>
-		<!-- svelte-ignore a11y-mouse-events-have-key-events -->
+		<!-- svelte-ignore a11y_mouse_events_have_key_events -->
 		<div id="nametag">
 			<h1>{@html data.view.name}</h1>
 			{#if isHitPaper}

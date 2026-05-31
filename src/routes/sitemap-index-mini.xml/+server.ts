@@ -8,6 +8,5 @@ export const GET: RequestHandler = async () => {
 	for (let i = 0; i <= Math.min(max_page, 100); i++) {
 		innards.push(`-mini-${i + 1}`);
 	}
-	return getSitemapIndex(innards)
+	return getSitemapIndex(innards);
 };
-

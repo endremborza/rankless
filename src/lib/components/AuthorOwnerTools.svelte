@@ -129,7 +129,7 @@
 				placeholder="Optional note (e.g. institution, ORCID, DOI of shared paper)"
 				class="text-input note-input"
 				rows="2"
-			/>
+			></textarea>
 			<div class="form-row">
 				<button class="btn-sm confirm" on:click={handleAuthorMergeRequest}>Submit Request</button>
 				{#if mergeRequestStatus}

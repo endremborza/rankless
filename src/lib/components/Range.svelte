@@ -29,7 +29,7 @@
 	}
 </script>
 
-<!-- svelte-ignore a11y-no-static-element-interactions -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <g on:mousedown={dragOn} on:mouseup={dragOff} on:mousemove={moveHandler} on:mouseleave={dragOff}>
 	<rect {height} rx={height / 2} {width} />
 

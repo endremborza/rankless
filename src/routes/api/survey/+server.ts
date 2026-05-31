@@ -3,7 +3,6 @@ import { appendFile } from 'fs/promises';
 import { type SurveyRecord } from '$lib/types';
 import { SURVEY_LOG_PATH } from '$lib/constants';
 
-
 export const POST: RequestHandler = async ({ request, locals, getClientAddress, cookies }) => {
 	try {
 		const data = await request.json();

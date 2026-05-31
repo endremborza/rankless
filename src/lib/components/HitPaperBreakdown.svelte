@@ -51,7 +51,7 @@
 		if (!childEntries.length) return null;
 		const childIds = childEntries.map(([id]) => id);
 		const etype = inferEntityType(childIds, atts);
-		const typeAtts = etype ? atts[etype as keyof typeof atts] ?? {} : {};
+		const typeAtts = etype ? (atts[etype as keyof typeof atts] ?? {}) : {};
 		entityLabel = etype ?? '';
 
 		if (spec && treeSpec) {

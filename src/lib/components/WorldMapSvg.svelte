@@ -54,8 +54,8 @@
 	$: weightText = isSpec
 		? 'Specialization' //'Revealed comparative advantage'
 		: isRefSide
-		? 'Total citations of papers'
-		: 'Citations';
+			? 'Total citations of papers'
+			: 'Citations';
 	$: updateL1(flatOut, resp);
 	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints, pullerRate);
 	$: updateTreeId(indsByEntityType);
@@ -238,9 +238,9 @@
 		>
 			<div class="world-map-container">
 				<svg bind:this={svgEl} viewBox="{xMin} {yMin} {mapWidth} {mapHeight}">
-					<!-- svelte-ignore a11y-mouse-events-have-key-events -->
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+					<!-- svelte-ignore a11y_mouse_events_have_key_events -->
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 					{#each Object.entries(countryPaths) as [cc, cpaths]}
 						{#each cpaths as d}
 							<path
@@ -261,7 +261,7 @@
 				</svg>
 				<div class="world-map-labels" style="--grad: {getGradient()}">
 					{#if nBreakPoints > 0}
-						<!-- svelte-ignore a11y-mouse-events-have-key-events -->
+						<!-- svelte-ignore a11y_mouse_events_have_key_events -->
 						<div class="label-bp-container">
 							{#each breakPoints as bp, i}
 								<div
@@ -289,7 +289,7 @@
 						<div>{formatNumber(minw || 0)}</div>
 						<div class="label-gradient-box">
 							{#if highlightedRate != undefined}
-								<div id="w-tick" style="--loff: {highlightedRate * 100}%" />{/if}
+								<div id="w-tick" style="--loff: {highlightedRate * 100}%"></div>{/if}
 						</div>
 						<div>{formatNumber(maxw || 0)}</div>
 					{/if}

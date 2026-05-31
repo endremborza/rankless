@@ -14,12 +14,11 @@ export const GET: RequestHandler = async ({ params }) => {
 	let resps: string[] = [];
 	await fetch(url).then((r) =>
 		r.json().then((l) => {
-			l.forEach(
-				(e: SearchResult) => {
-					if (isAsciiOnly(e.semanticId)) {
-						resps.push(e.semanticId);
-					}
-				})
+			l.forEach((e: SearchResult) => {
+				if (isAsciiOnly(e.semanticId)) {
+					resps.push(e.semanticId);
+				}
+			});
 		})
 	);
 	let paths = resps.map((e) => getEntityPath(entity, e));

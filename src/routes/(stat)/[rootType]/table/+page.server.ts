@@ -15,7 +15,9 @@ export const load: PageServerLoad = async ({ params, url }) => {
 
 	const from = Math.max(0, parseInt(url.searchParams.get('from') ?? '0'));
 
-	const rows: SearchResult[] = await fetch(`${BE_URL}/slice/${rootType}/${from}/${from + PAGE_SIZE}`)
+	const rows: SearchResult[] = await fetch(
+		`${BE_URL}/slice/${rootType}/${from}/${from + PAGE_SIZE}`
+	)
 		.then((r) => (r.ok ? r.json() : []))
 		.catch(() => []);
 

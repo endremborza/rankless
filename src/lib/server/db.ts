@@ -3,7 +3,6 @@ import { env } from '$env/dynamic/private';
 import { DEFAULT_MODERATION, subjectHash } from './ledger-hash';
 import type { LedgerKind, LedgerPayload, ModerationState } from '$lib/types/ledger';
 
-
 let _db: Database | null = null;
 
 export function getDb(): Database {
@@ -155,18 +154,22 @@ export const LedgerDb = {
 	},
 
 	pinOwner(orcid: string): void {
-		getDb()
-			.prepare('INSERT OR IGNORE INTO owner_pins (orcid) VALUES (?)')
-			.run(orcid);
+		getDb().prepare('INSERT OR IGNORE INTO owner_pins (orcid) VALUES (?)').run(orcid);
 	},
 
 	getOwnerPins(): { orcid: string; first_seen_at: string }[] {
-		return getDb()
-			.prepare('SELECT orcid, first_seen_at FROM owner_pins')
-			.all() as { orcid: string; first_seen_at: string }[];
+		return getDb().prepare('SELECT orcid, first_seen_at FROM owner_pins').all() as {
+			orcid: string;
+			first_seen_at: string;
+		}[];
 	},
 
-	findPendingByPayload(orcid: string, kind: LedgerKind, jsonPath: string, value: string | number | null): number | null {
+	findPendingByPayload(
+		orcid: string,
+		kind: LedgerKind,
+		jsonPath: string,
+		value: string | number | null
+	): number | null {
 		const row = getDb()
 			.prepare(
 				'SELECT event_id FROM ledger_events WHERE orcid = ? AND kind = ? AND revoked_at IS NULL AND json_extract(payload, ?) = ?'

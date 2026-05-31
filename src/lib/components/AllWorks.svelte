@@ -153,7 +153,7 @@
 		? {
 				keep: papers.find((p) => p.wid === mergeConfirm!.keep),
 				drop: papers.find((p) => p.wid === mergeConfirm!.drop)
-		  }
+			}
 		: null;
 
 	$: showOwnerActions = isOwner && ownerUnlocked && citationStyle === 'html';
@@ -235,7 +235,7 @@
 						<th class="col-num">#</th>
 						<th class="col-main">Work</th>
 						<th class="col-cites">Indexed citations</th>
-						{#if showOwnerActions}<th class="col-actions" aria-label="Actions" />{/if}
+						{#if showOwnerActions}<th class="col-actions" aria-label="Actions"></th>{/if}
 					</tr>
 				</thead>
 				<tbody>
@@ -325,7 +325,8 @@
 								<span class="paper-ref">{@html paper.name}</span>
 								<span class="paper-meta">
 									{paper.year}
-									{#if keepPaper} · merged into: {keepPaper.name}{/if}
+									{#if keepPaper}
+										· merged into: {keepPaper.name}{/if}
 								</span>
 							</div>
 							{#if isOwner && keepWid !== undefined}
@@ -353,7 +354,8 @@
 							<div class="paper-info">
 								<span class="paper-ref">{@html paper.name}</span>
 								<span class="paper-meta"
-									>{paper.year}{#if source} · {source}{/if}</span
+									>{paper.year}{#if source}
+										· {source}{/if}</span
 								>
 							</div>
 							{#if isOwner}

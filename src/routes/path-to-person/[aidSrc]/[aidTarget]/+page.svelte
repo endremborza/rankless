@@ -82,8 +82,8 @@
 			{#if srcFocused && srcResults.length > 0}
 				<ul class="dropdown">
 					{#each srcResults as r}
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 						<li on:click={() => selectSrc(r)}>
 							<strong>{r.name}</strong>
 							<span>{r.papers} papers · {r.citations} citations</span>
@@ -107,8 +107,8 @@
 			{#if targetFocused && targetResults.length > 0}
 				<ul class="dropdown">
 					{#each targetResults as r}
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 						<li on:click={() => selectTarget(r)}>
 							<strong>{r.name}</strong>
 							<span>{r.papers} papers · {r.citations} citations</span>

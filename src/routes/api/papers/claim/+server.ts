@@ -6,7 +6,8 @@ import { resolveWorkSubject, canonicalDoi, ResolveError } from '$lib/server/id_r
 export async function POST({ locals, request }: RequestEvent) {
 	if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
 	const { doi } = await request.json();
-	if (typeof doi !== 'string' || !doi.trim()) return json({ error: 'Invalid input' }, { status: 400 });
+	if (typeof doi !== 'string' || !doi.trim())
+		return json({ error: 'Invalid input' }, { status: 400 });
 	try {
 		const work = await resolveWorkSubject({ doi: canonicalDoi(doi) });
 		LedgerDb.createEvent(locals.user.orcid, { kind: 'claim_paper', work });
@@ -22,7 +23,12 @@ export async function DELETE({ locals, request }: RequestEvent) {
 	const { doi } = await request.json();
 	if (typeof doi !== 'string') return json({ error: 'Invalid input' }, { status: 400 });
 	const canonical = canonicalDoi(doi);
-	const event_id = LedgerDb.findPendingByPayload(locals.user.orcid, 'claim_paper', '$.work.doi', canonical);
+	const event_id = LedgerDb.findPendingByPayload(
+		locals.user.orcid,
+		'claim_paper',
+		'$.work.doi',
+		canonical
+	);
 	if (event_id !== null) LedgerDb.revokePending(locals.user.orcid, event_id);
 	return json({ ok: true });
 }

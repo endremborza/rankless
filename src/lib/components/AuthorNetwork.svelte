@@ -129,8 +129,8 @@
 		{#if !showControls}
 			<p class="vw-base">
 				This figure shows the co-authorship network connecting the top 25 collaborators of {rootName}.
-				A scholar is included among the top collaborators of {rootName} based on the total number of
-				citations received by their joint publications. <b class="edgecolor">Widths of edges</b>
+				A scholar is included among the top collaborators of {rootName} based on the total number of citations
+				received by their joint publications. <b class="edgecolor">Widths of edges</b>
 				represent the number of papers authors have co-authored together.
 				<b class="nodecolor">Node borders</b>
 				signify the number of papers an author published with {rootName}. {rootName} is excluded from

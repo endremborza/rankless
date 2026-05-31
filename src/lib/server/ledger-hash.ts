@@ -1,5 +1,11 @@
 import { createHash } from 'crypto';
-import type { LedgerKind, LedgerPayload, ModerationState, WorkSubject, AuthorSubject } from '$lib/types/ledger';
+import type {
+	LedgerKind,
+	LedgerPayload,
+	ModerationState,
+	WorkSubject,
+	AuthorSubject
+} from '$lib/types/ledger';
 
 export const DEFAULT_MODERATION: Record<LedgerKind, ModerationState> = {
 	disown_paper: 'auto_ok',

@@ -60,7 +60,8 @@
 	{#each searchResults as searchResult}
 		<a class="result-card shadowy padded" href={entToLink(searchResult)}>
 			<h3 style="font-size: {getHeaderFontSize(searchResult.name.length)};">
-				{#if cat === 'all'}<span class="type-emoji">{rootEmoji(searchResult.rootType)}</span> {/if}{@html searchResult.name}
+				{#if cat === 'all'}<span class="type-emoji">{rootEmoji(searchResult.rootType)}</span>
+				{/if}{@html searchResult.name}
 			</h3>
 			<span
 				>{#if searchResult.rootType !== 'hit-papers'}{pluralize('paper', searchResult.papers)},

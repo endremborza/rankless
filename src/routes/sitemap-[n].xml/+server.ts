@@ -4,7 +4,6 @@ import { getEntityPath } from '$lib/tree-functions';
 import { getSitemapResponse } from '$lib/route-functions';
 import { respsFromLinks, getLinks } from '$lib/sitemap-functions';
 
-
 export const GET: RequestHandler = async ({ params }) => {
 	let n = parseInt(params.n) - 1;
 	let start = n * SITEMAP_STEP_SIZE;

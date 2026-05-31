@@ -15,7 +15,13 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	let semanticId = params.semanticId;
 	const treeSpecs: tt.TreeSpecs = await loadSpecs();
 	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
-	let conf: tt.FullTreeConfig = { semanticId, year: spec.year, treeId: spec.treeId, rootType, wide: false };
+	let conf: tt.FullTreeConfig = {
+		semanticId,
+		year: spec.year,
+		treeId: spec.treeId,
+		rootType,
+		wide: false
+	};
 	const { tree, atts } = await fetch(tf.treeBeUrl(BE_URL, conf, 1))
 		.then((res) => res.json())
 		.then((resp) => resp);
@@ -31,7 +37,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	// let component = new TreeSvg({ target: new ShadowRoot() });
 	let props = { selectionState, treeSpec, tree, attributeLabels: atts, rootName, height: 100 };
 	const html = renderSvgComponent(TreeSvg, props);
-	let urlFriendlySemId = tf.urlFriendlify(conf.semanticId)
+	let urlFriendlySemId = tf.urlFriendlify(conf.semanticId);
 
 	return new Response(html, {
 		headers: {

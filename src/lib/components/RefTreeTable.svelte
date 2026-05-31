@@ -46,24 +46,34 @@
 		return classes.join(' ');
 	}
 
-	const levelDescs = ['Directly Cited', 'Cited by Directly Cited', 'Cited by Above', 'Cited by Above'];
+	const levelDescs = [
+		'Directly Cited',
+		'Cited by Directly Cited',
+		'Cited by Above',
+		'Cited by Above'
+	];
 
 	let highlighted: number | undefined;
 	$: seen = getSeen(tree);
 	$: levels = getLevels(seen);
-	$: highlightSet = (highlighted != undefined ? seen[highlighted]?.parents : undefined) || new Set<number>();
+	$: highlightSet =
+		(highlighted != undefined ? seen[highlighted]?.parents : undefined) || new Set<number>();
 </script>
 
-<!-- svelte-ignore a11y-mouse-events-have-key-events -->
-<!-- svelte-ignore a11y-no-static-element-interactions -->
+<!-- svelte-ignore a11y_mouse_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 {#each levels as level, i}
 	<h4>{levelDescs[i] ?? 'Cited by Above'}</h4>
 	<div class="level">
 		{#each level as { k }}
 			<div
 				class="paper {getClass(k, relWorks, highlightSet)}"
-				on:mouseover={() => { highlighted = k; }}
-				on:mouseleave={() => { highlighted = undefined; }}
+				on:mouseover={() => {
+					highlighted = k;
+				}}
+				on:mouseleave={() => {
+					highlighted = undefined;
+				}}
 			>
 				{#if doiMap[k] != undefined}
 					<a href="https://doi.org/{doiMap[k]}">{nameMap[k]}</a>

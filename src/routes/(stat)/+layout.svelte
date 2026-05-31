@@ -94,8 +94,8 @@
 </script>
 
 <svelte:window on:keydown={keyBind} bind:innerWidth />
-<!-- svelte-ignore a11y-click-events-have-key-events -->
-<!-- svelte-ignore a11y-no-static-element-interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div id="main-fix">
 	<header id="site-header">
 		<a href="/" class="header-logo" aria-label="Home">
@@ -270,7 +270,9 @@
 		padding: 6px 10px;
 		cursor: pointer;
 		color: var(--color-theme-darkgrey);
-		transition: background-color 0.15s, color 0.15s;
+		transition:
+			background-color 0.15s,
+			color 0.15s;
 		white-space: nowrap;
 	}
 
@@ -325,7 +327,9 @@
 		color: var(--color-theme-darkgrey);
 		text-align: left;
 		white-space: nowrap;
-		transition: background-color 0.15s, color 0.15s;
+		transition:
+			background-color 0.15s,
+			color 0.15s;
 	}
 
 	.dropdown-item:hover {
@@ -352,7 +356,9 @@
 		color: var(--color-theme-darkgrey);
 		text-decoration: none;
 		border: 1px solid transparent;
-		transition: background-color 0.15s, color 0.15s;
+		transition:
+			background-color 0.15s,
+			color 0.15s;
 	}
 
 	.login-btn:hover {
@@ -368,7 +374,9 @@
 		padding: 5px 10px;
 		cursor: pointer;
 		color: var(--color-theme-darkgrey);
-		transition: background-color 0.15s, color 0.15s;
+		transition:
+			background-color 0.15s,
+			color 0.15s;
 		white-space: nowrap;
 		max-width: 120px;
 		overflow: hidden;

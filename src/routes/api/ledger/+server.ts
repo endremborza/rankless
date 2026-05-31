@@ -2,7 +2,12 @@ import { json } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 import { LedgerDb } from '$lib/server/db';
 import type { LedgerKind, LedgerPayload } from '$lib/types/ledger';
-import { resolveWorkSubject, resolveAuthorSubject, canonicalDoi, ResolveError } from '$lib/server/id_resolver';
+import {
+	resolveWorkSubject,
+	resolveAuthorSubject,
+	canonicalDoi,
+	ResolveError
+} from '$lib/server/id_resolver';
 
 type PayloadInput = Record<string, unknown>;
 
@@ -25,7 +30,11 @@ function requireObject(val: unknown, name: string): PayloadInput {
 	return val as PayloadInput;
 }
 
-async function buildPayload(kind: LedgerKind, input: PayloadInput, orcid: string): Promise<LedgerPayload> {
+async function buildPayload(
+	kind: LedgerKind,
+	input: PayloadInput,
+	orcid: string
+): Promise<LedgerPayload> {
 	switch (kind) {
 		case 'disown_paper': {
 			const work = await resolveWorkSubject({
@@ -68,7 +77,10 @@ async function buildPayload(kind: LedgerKind, input: PayloadInput, orcid: string
 		case 'merge_authors': {
 			const dropInput = requireObject(input.drop, 'drop');
 			const [keep, drop] = await Promise.all([
-				resolveAuthorSubject({ orcid, semantic_id: requireString(input.my_semantic_id, 'my_semantic_id') }),
+				resolveAuthorSubject({
+					orcid,
+					semantic_id: requireString(input.my_semantic_id, 'my_semantic_id')
+				}),
 				resolveAuthorSubject({
 					semantic_id: requireString(dropInput.semantic_id, 'drop.semantic_id'),
 					orcid: requireString(dropInput.orcid, 'drop.orcid'),
@@ -78,15 +90,15 @@ async function buildPayload(kind: LedgerKind, input: PayloadInput, orcid: string
 				})
 			]);
 			const note = requireString(input.note, 'note');
-			return note?.trim()
-				? { kind, keep, drop, note: note.trim() }
-				: { kind, keep, drop };
+			return note?.trim() ? { kind, keep, drop, note: note.trim() } : { kind, keep, drop };
 		}
 		case 'revoke': {
 			const target_event_id = requireNumber(input.target_event_id, 'target_event_id');
 			if (target_event_id === undefined) throw new ResolveError('target_event_id is required', 400);
 			const reason = requireString(input.reason, 'reason');
-			return reason?.trim() ? { kind, target_event_id, reason: reason.trim() } : { kind, target_event_id };
+			return reason?.trim()
+				? { kind, target_event_id, reason: reason.trim() }
+				: { kind, target_event_id };
 		}
 		default:
 			throw new ResolveError(`unsupported kind: ${kind}`, 400);

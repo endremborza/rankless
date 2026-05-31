@@ -9,8 +9,8 @@
 
 <div id="spec-container">
 	<HoverI bind:hoverToggle />
-	<!-- svelte-ignore a11y-no-static-element-interactions -->
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<span
 		id="spec-label"
 		class="vw-md {interactText ? 'clickable' : ''}"

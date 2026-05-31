@@ -24,4 +24,3 @@ export const load: PageServerLoad = async ({ params, url }) => {
 
 	error(404, 'Not found');
 };
-

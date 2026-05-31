@@ -3,7 +3,7 @@ import { getSitemapIndex } from '$lib/route-functions';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async () => {
-	let max_pages: { name: string, count: number }[] = await fetch(`${BE_URL}/counts`)
+	let max_pages: { name: string; count: number }[] = await fetch(`${BE_URL}/counts`)
 		.then((r) => r.json())
 		.catch(() => []);
 	if (!Array.isArray(max_pages)) return getSitemapIndex([]);
@@ -14,8 +14,6 @@ export const GET: RequestHandler = async () => {
 		for (let i = 0; i <= max_page; i++) {
 			innards.push(`-entity-${name}-${i + 1}`);
 		}
-
 	}
-	return getSitemapIndex(innards)
+	return getSitemapIndex(innards);
 };
-

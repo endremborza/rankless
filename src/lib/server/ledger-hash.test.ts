@@ -3,7 +3,7 @@ import {
 	subjectHash,
 	workCanonicalKey,
 	authorCanonicalKey,
-	DEFAULT_MODERATION,
+	DEFAULT_MODERATION
 } from './ledger-hash';
 import type { AuthorSubject, WorkSubject, LedgerPayload } from '$lib/types/ledger';
 

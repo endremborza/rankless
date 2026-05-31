@@ -573,7 +573,9 @@
 		cursor: pointer;
 		color: inherit;
 		opacity: 0.5;
-		transition: opacity 0.15s, background 0.15s;
+		transition:
+			opacity 0.15s,
+			background 0.15s;
 	}
 
 	.toggle-btn.active {
@@ -645,7 +647,9 @@
 	}
 
 	path {
-		transition: opacity 400ms, stroke-width 400ms;
+		transition:
+			opacity 400ms,
+			stroke-width 400ms;
 	}
 
 	li {

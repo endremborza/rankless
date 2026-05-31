@@ -18,7 +18,7 @@ import { LedgerDb } from '$lib/server/db';
  * The semanticId param overrides the ORCID → profile lookup, so you can point
  * your session at any profile without needing a real ORCID match in the pipeline.
  */
-const TEST_ORCID = '0000-0003-4255-0492'
+const TEST_ORCID = '0000-0003-4255-0492';
 export const GET: RequestHandler = (event) => {
 	if (!dev) error(404, 'Not found');
 	const p = event.url.searchParams;

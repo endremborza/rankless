@@ -7,9 +7,8 @@
 	<p>
 		Hit papers significantly outperform the citation benchmark for their cohort. A paper qualifies
 		if it has ≥500 total citations, achieves ≥1.5× the top-1% citation threshold for papers in the
-		same subfield and year (this is the <em>minimum</em> needed to enter the top 1%, not the average
-		within it), or reaches the top citation threshold in at least one of its specific research
-		topics.
+		same subfield and year (this is the <em>minimum</em> needed to enter the top 1%, not the average within
+		it), or reaches the top citation threshold in at least one of its specific research topics.
 	</p>
 </details>
 
