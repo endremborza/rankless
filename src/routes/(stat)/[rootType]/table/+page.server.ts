@@ -7,7 +7,7 @@ const PAGE_SIZE = 100;
 
 export const ssr = true;
 
-export const load: PageServerLoad = async ({ params, url }) => {
+export const load: PageServerLoad = async ({ params, url, fetch }) => {
 	const rootType = params.rootType as RootType;
 	if (!ROOT_TYPES.includes(rootType) || rootType === 'hit-papers') {
 		error(404, 'Not found');

@@ -41,7 +41,8 @@ export function getSitemapIndex(subParams: string[]) {
 export async function semIdResolver(
 	params: { rootType: string; semanticId: string },
 	url: URL,
-	stem: string
+	stem: string,
+	fetchFn: typeof fetch = fetch
 ): Promise<{
 	rootType: tt.RootType;
 	semanticId: string;
@@ -57,7 +58,7 @@ export async function semIdResolver(
 	}
 	let semanticId: string = params.semanticId;
 
-	const treeSpecs = await lf.loadSpecs();
+	const treeSpecs = await lf.loadSpecs(fetchFn);
 	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
 	let conf: tt.FullTreeConfig = {
 		semanticId,

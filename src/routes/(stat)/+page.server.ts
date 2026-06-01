@@ -1,10 +1,10 @@
 import type { PageServerLoad } from './$types';
 import { getTopTreeLoader } from '$lib/loading-functions';
 
-export const load: PageServerLoad = async () => {
-	let loader = await getTopTreeLoader();
+export const load: PageServerLoad = async ({ fetch }) => {
+	let loader = await getTopTreeLoader(fetch);
 	while (loader.conf == undefined) {
-		await loader.setRandTree();
+		await loader.setRandTree(fetch);
 	}
 	return { ...loader };
 };

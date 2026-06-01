@@ -8,7 +8,7 @@ const LETTER_MAP: Record<string, RootType> = {
 	I: 'institutions'
 };
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, fetch }) => {
 	let id: string = params.oaId;
 	let rootType = LETTER_MAP[id[0]];
 	if (rootType == undefined) {

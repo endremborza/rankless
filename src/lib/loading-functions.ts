@@ -4,8 +4,8 @@ import * as tf from '$lib/tree-functions';
 import { SEMANTIC_CONF } from '$lib/text-format-util';
 import { randN } from './util';
 
-export async function loadSpecs(): Promise<tt.TreeSpecs> {
-	return fetch(`${BE_URL}/specs`)
+export async function loadSpecs(fetchFn: typeof fetch = fetch): Promise<tt.TreeSpecs> {
+	return fetchFn(`${BE_URL}/specs`)
 		.then((res) => res.json())
 		.then((specs: tt.TreeSpecs) => {
 			//possible quick fixes in specs
@@ -18,8 +18,8 @@ export async function loadSpecs(): Promise<tt.TreeSpecs> {
 		});
 }
 
-export async function loadTops(): Promise<tt.TopsResponse> {
-	return fetch(`${BE_URL}/tops`).then((res) => res.json());
+export async function loadTops(fetchFn: typeof fetch = fetch): Promise<tt.TopsResponse> {
+	return fetchFn(`${BE_URL}/tops`).then((res) => res.json());
 }
 
 export class TopTreeLoader {
@@ -41,7 +41,7 @@ export class TopTreeLoader {
 		this.treeRespCache = {};
 	}
 
-	async setTree(i: number, j: number, treeId: number) {
+	async setTree(i: number, j: number, treeId: number, fetchFn: typeof fetch = fetch) {
 		let rootType = this.tops[i].name as tt.RootType;
 		this.rootName = this.tops[i].entities[j].name;
 		this.prefixText = SEMANTIC_CONF[rootType]?.start || '';
@@ -55,12 +55,12 @@ export class TopTreeLoader {
 		};
 		let url = tf.treeBeUrl(BE_URL, this.conf, 1);
 		if (this.treeRespCache[url] == undefined) {
-			this.treeRespCache[url] = await fetch(url).then((res) => res.json());
+			this.treeRespCache[url] = await fetchFn(url).then((res) => res.json());
 		}
 		this.treeResp = this.treeRespCache[url];
 	}
 
-	setRandTree() {
+	setRandTree(fetchFn: typeof fetch = fetch) {
 		let i = randN(this.tops.length);
 		while (this.tops[i].entities.length === 0) {
 			i = randN(this.tops.length);
@@ -73,7 +73,7 @@ export class TopTreeLoader {
 		while (this.treeSpecs.specs[rootType][tid].breakdowns.length < 2) {
 			tid = randN(treeCount);
 		}
-		return this.setTree(i, j, tid);
+		return this.setTree(i, j, tid, fetchFn);
 	}
 
 	getTreeSvgProps() {
@@ -85,9 +85,9 @@ export class TopTreeLoader {
 	}
 }
 
-export async function getTopTreeLoader(): Promise<TopTreeLoader> {
-	const treeSpecs = await loadSpecs();
-	const tops = await loadTops();
+export async function getTopTreeLoader(fetchFn: typeof fetch = fetch): Promise<TopTreeLoader> {
+	const treeSpecs = await loadSpecs(fetchFn);
+	const tops = await loadTops(fetchFn);
 	const loader = new TopTreeLoader(tops, treeSpecs);
 	return loader;
 }

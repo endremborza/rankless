@@ -7,8 +7,8 @@ import { semIdResolver } from '$lib/route-functions';
 
 export const ssr = true;
 
-export const load: PageServerLoad = async ({ params, url }) => {
-	let { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(params, url, '/tiles');
+export const load: PageServerLoad = async ({ params, url, fetch }) => {
+	let { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(params, url, '/tiles', fetch);
 
 	const view: tt.View = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => res.json())
