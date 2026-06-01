@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { browser } from '$app/environment';
 	import { BE_REMOTE_URL } from '$lib/constants';
 	import type { TreeResponse, NamedNode, AttributeLabels, TreeSpec } from '$lib/tree-types';
 	import { urlFriendlify, flatFromResp } from '$lib/tree-functions';
@@ -19,7 +20,7 @@
 	$: height = width / aspectRatio;
 
 	async function loadBreakdown(semId: string, tid: number, spec: boolean) {
-		if (!semId) return;
+		if (!browser || !semId) return;
 		loading = true;
 		treeData = null;
 		entityLabel = '';
