@@ -15,8 +15,8 @@ export const ssr = true;
 const INITIAL_WORKS_N = 20;
 const PEER_ROOT_TYPES: tt.RootType[] = ['authors', 'institutions', 'countries', 'sources'];
 
-export const load: PageServerLoad = async ({ params, url, locals }) => {
-	let { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(params, url, '');
+export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
+	let { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(params, url, '', fetch);
 	const view: tt.View = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => res.json())
 		.then((view) => view)
@@ -48,6 +48,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	// Author-specific data (null/empty defaults for all other entity types)
 	let profile: tt.PaperProfileResp | null = null;
 	let peersPromise: Promise<tt.EntityPeersResp | null> = Promise.resolve(null);
+	let ladderPromise: Promise<tt.LadderData | null> = Promise.resolve(null);
 	let initialPapers: tt.Paper[] = [];
 	let initialEntityAtts: tt.EntityAttsForLinks = {};
 	let initialDiscAuthorNames: Record<string, string> = {};
@@ -62,8 +63,12 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 	let ledgerManifest: AppliedManifest = EMPTY_MANIFEST;
 
 	// Peers are available for these root entity types (each has a precomputed peer set + ladder).
+	// The ladder is fetched alongside so the hero header can render standing badges in SSR.
 	if (PEER_ROOT_TYPES.includes(rootType)) {
 		peersPromise = fetch(`${BE_URL}/peers/${rootType}/${tf.urlFriendlify(semanticId)}`)
+			.then((r) => (r.ok ? r.json() : null))
+			.catch(() => null);
+		ladderPromise = fetch(`${BE_URL}/ladder/${rootType}`)
 			.then((r) => (r.ok ? r.json() : null))
 			.catch(() => null);
 	}
@@ -159,7 +164,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		}
 	}
 
-	let peersData = await peersPromise;
+	let [peersData, ladder] = await Promise.all([peersPromise, ladderPromise]);
 
 	if (view) {
 		return {
@@ -178,6 +183,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 			prefixText,
 			profile,
 			peersData,
+			ladder,
 			initialPapers,
 			initialEntityAtts,
 			initialDiscAuthorNames,
@@ -206,8 +212,11 @@ type DecoratedRelated = {
 };
 
 function semFunMaker(prefix: string, fun: (r: DecoratedRelated) => string) {
-	return (rels: tt.RelatedEntity[]) =>
-		prefix + commaAndjoin([...rels.slice(0, 10).map((r) => fun(toDecorated(r)))]);
+	return (rels: tt.RelatedEntity[]) => {
+		const items = rels.slice(0, 10);
+		if (items.length === 0) return '';
+		return prefix + commaAndjoin(items.map((r) => fun(toDecorated(r))));
+	};
 }
 
 function toDecorated(r: tt.RelatedEntity): DecoratedRelated {
@@ -225,44 +234,29 @@ function toDecorated(r: tt.RelatedEntity): DecoratedRelated {
 	};
 }
 
-function getSemantifyers(
-	rootName: string,
-	rootType: tt.RootType,
-	paperText: string,
-	citeText: string
-): [tt.RelTypes, Semantifyer][] {
+function getSemantifyers(rootName: string, rootType: tt.RootType): [tt.RelTypes, Semantifyer][] {
 	if (rootType == 'authors') {
 		return [
 			[
-				'paper-fields',
-				semFunMaker(
-					`According to data from OpenAlex, ${rootName} has authored ${paperText} receiving a total of ${citeText} (citations by other indexed papers that have themselves been cited), including `,
-					(r) => `${pluralize('paper', r.score)} in ${r.link}`
-				)
-			],
-			[
 				'paper-topics',
 				semFunMaker(
-					`Recurrent topics in ${rootName}'s work include `,
+					`Recurring topics across this work include `,
 					(r) => `${r.bold} (${pluralize('paper', r.score)})`
 				)
 			],
 			[
-				'paper-topics',
+				'citing-fields',
 				semFunMaker(
-					`${rootName} is often cited by papers focused on `,
-					(r) => `${r.name} (${pluralize('paper', r.score)})`
+					`The work is most often cited by research in `,
+					(r) => `${r.name} (${pluralize('citation', r.score)})`
 				)
 			],
 			[
 				'collab-nation',
-				semFunMaker(`${rootName} collaborates with scholars based in `, (r) => r.link)
+				semFunMaker(`${rootName} has collaborated with scholars based in `, (r) => r.link)
 			],
-			['paper-authors', semFunMaker(`${rootName}'s co-authors include `, (r) => r.link)],
-			[
-				'paper-journals',
-				semFunMaker('and has published in prestigious journals such as ', (r) => r.link)
-			]
+			['paper-authors', semFunMaker(`Frequent co-authors include `, (r) => r.link)],
+			['paper-journals', semFunMaker(`Their work appears in journals such as `, (r) => r.link)]
 		];
 	} else if (rootType == 'institutions') {
 		return [
@@ -351,14 +345,14 @@ function getSemantifyers(
 			[
 				'paper-topics',
 				semFunMaker(
-					`Papers on ${rootType} are most often about the specific topic of `,
+					`Papers on ${rootName} are most often about the specific topic of `,
 					(r) => r.name
 				)
 			],
 			['paper-fields', semFunMaker('and also cover the fields of ', (r) => r.link)],
 			[
 				'citing-fields',
-				semFunMaker(`Papers citing papers on ${rootType} are usually about `, (r) => r.link)
+				semFunMaker(`Papers citing work on ${rootName} are usually about `, (r) => r.link)
 			],
 			[
 				'paper-authors',
@@ -409,7 +403,7 @@ function getSemanticRels(
 	citeText: string,
 	semanticId: string
 ): tt.AboutPara {
-	let semantifyers = getSemantifyers(rootName, rootType, paperText, citeText);
+	let semantifyers = getSemantifyers(rootName, rootType);
 	let relationsMap = Object.fromEntries(
 		REL_TYPES.map((e) => [e as tt.RelTypes, [] as tt.RelatedEntity[]])
 	) as Record<tt.RelTypes, tt.RelatedEntity[]>;
@@ -424,13 +418,16 @@ function getSemanticRels(
 
 	let postText = sentenceJoiner(out);
 	const relFieldLinks = semFunMaker('', (r) => r.link)(relationsMap['paper-fields']);
+	const authorPrefix = relFieldLinks
+		? `${rootName} is a scholar working on ${relFieldLinks}, having authored ${paperText} that have together received ${citeText}`
+		$`{ rootName } has authored ${paperText} that have together received ${citeText} `;
 	let prefixes: Record<tt.RootType, string> = {
-		authors: `${rootName} is a scholar working on ${relFieldLinks}`,
-		institutions: `In recent decades, authors affiliated with ${rootName} have published ${paperText}, which have received a total of ${citeText}`,
-		countries: `In recent decades scholars affiliated with institutions in ${rootName} have published ${paperText}, which have received a total of ${citeText}`,
-		subfields: `${paperText} covering ${rootName} have received a total of ${citeText} since ${COMPLETE_YEAR}`,
-		sources: `The ${paperText} published in ${rootName} in the last decades have received a total of ${citeText}`,
-		'hit-papers': `This paper, published in ${view.startYear}, received ${citeText}`
+		authors: authorPrefix,
+		institutions: `In recent decades, authors affiliated with ${rootName} have published ${paperText}, which have received a total of ${citeText} `,
+		countries: `In recent decades scholars affiliated with institutions in ${rootName} have published ${paperText}, which have received a total of ${citeText} `,
+		subfields: `${paperText} covering ${rootName} have received a total of ${citeText} since ${COMPLETE_YEAR} `,
+		sources: `The ${paperText} published in ${rootName} in the last decades have received a total of ${citeText} `,
+		'hit-papers': `This paper, published in ${view.startYear}, received ${citeText} `
 	};
 	return {
 		prefix: prefixes[rootType],
