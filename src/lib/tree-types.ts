@@ -19,6 +19,7 @@ export type RelTypes =
 	| 'paper-journals'
 	| 'paper-authors';
 
+export type DominatedTopic = { name: string; sharePct: number };
 export type View = {
 	name: string;
 	citations: number;
@@ -32,6 +33,7 @@ export type View = {
 	yearlyPapers: number[];
 	yearlyCites: number[];
 	meta?: Record<string, string>;
+	dominatedTopics?: DominatedTopic[];
 };
 export type RelatedEntity = {
 	name: string;
@@ -79,6 +81,7 @@ export type Paper = {
 	isHit: boolean;
 	hitBm?: number;
 	hitSemId?: string;
+	createdTopic?: string;
 };
 
 export type EntityAttLabel = { name: string; semantic_id: string; spec_baseline: number };

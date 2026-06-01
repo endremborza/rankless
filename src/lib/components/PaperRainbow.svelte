@@ -475,6 +475,11 @@
 						<span class="paper-cites">{formatNumber(paper.citations)} citations</span>
 						{#if authors}<span class="paper-authors">{authors}</span>{/if}
 						{#if source}<span class="paper-source">{source}</span>{/if}
+						{#if paper.createdTopic}
+							<span class="paper-created-topic" title="Earliest impactful paper of this topic"
+								>★ originated {@html paper.createdTopic}</span
+							>
+						{/if}
 						{#if paper.hitSemId}
 							<a
 								href="/hit-papers/{paper.hitSemId}"
@@ -714,6 +719,12 @@
 
 	.paper-source {
 		font-style: italic;
+	}
+
+	.paper-created-topic {
+		font-weight: 600;
+		color: var(--color-theme-blue);
+		flex-shrink: 0;
 	}
 
 	.paper-details {
