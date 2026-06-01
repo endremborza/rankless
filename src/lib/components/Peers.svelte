@@ -13,6 +13,7 @@
 	import { formatNumber } from '$lib/text-format-util';
 	import { urlFriendlify } from '$lib/tree-functions';
 	import { BE_REMOTE_URL, LATEST_YEAR } from '$lib/constants';
+	import { dev, version } from '$app/environment';
 	import { onMount } from 'svelte';
 	import BarChart, { type Bar, type Tick } from '$lib/components/BarChart.svelte';
 	import PeerSearch from '$lib/components/PeerSearch.svelte';
@@ -82,11 +83,15 @@
 
 	// Breakpoint ladder is the same across all heroes of a root type, so load it once and cache it;
 	// hero standings are derived on the client from the raw citation counts (mirrors the backend).
+	// The endpoint carries a 24h browser cache. In prod, `?v=version` (a per-build stamp) busts it
+	// on each deploy so a regenerated ladder takes effect immediately. In dev, a per-fetch timestamp
+	// always bypasses the cache, so a `make -B` rebuild shows up without restarting `bun run dev`.
 	const ladderCache = new Map<string, Promise<LadderData | null>>();
 	function loadLadder(rt: string): Promise<LadderData | null> {
 		let p = ladderCache.get(rt);
 		if (!p) {
-			p = fetch(`${BE_REMOTE_URL}/ladder/${rt}`)
+			const bust = dev ? Date.now() : version;
+			p = fetch(`${BE_REMOTE_URL}/ladder/${rt}?v=${bust}`)
 				.then((r) => (r.ok ? r.json() : null))
 				.catch(() => null);
 			ladderCache.set(rt, p);
