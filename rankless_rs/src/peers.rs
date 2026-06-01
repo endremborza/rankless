@@ -4,7 +4,7 @@ use std::{
 };
 
 use kd_tree::{KdPoint, KdTree};
-use muwo_search::{FixedHeap, Mined};
+use muwo_search::FixedHeap;
 use nalgebra::{DMatrix, SymmetricEigen};
 use ordered_float::FloatCore;
 use typenum;
@@ -49,6 +49,16 @@ pub trait PeerCalculator {
     const N_PARTITIONS: usize = 1;
     fn get_embedding_basis(&self) -> Box<[Self::EmbBasis]>;
     fn final_distance_calc(&self, ind: usize, candidate_ind: usize) -> f64;
+
+    // Grouping for the rank-discounted bonus: candidates sharing a query's group key (e.g. country)
+    // get their distance reduced by `group_discount(rank)`, where rank is their position among
+    // same-group candidates ordered by base distance. Default: no grouping.
+    fn group_key(&self, _ind: usize) -> Option<usize> {
+        None
+    }
+    fn group_discount(&self, _rank: usize) -> f64 {
+        0.0
+    }
 }
 
 macro_rules! impl_kdpoint {
@@ -170,8 +180,20 @@ where
     }
 }
 
-pub fn compute_top_sfs<const ID: usize, const OD: usize>(arrs: &[[u32; ID]]) -> Vec<[usize; OD]> {
-    arrs.iter().map(|arr| top_k_indices::<OD, _>(arr)).collect()
+/// Top subfields by specialization, not raw citations: each subfield's count is dampened by its
+/// field size `G[s]^beta` (number of papers in the subfield). `beta = 0` reproduces raw-count
+/// ranking; `beta = 1` ranks by the entity's share of the field. This decides which subfields enter
+/// the final distance — and since `sf_log_dist` compares `ln(a) - ln(b)`, the per-subfield `G[s]^beta`
+/// constant cancels there, so dampening only changes the *selection*, not the distance math.
+pub fn compute_top_sfs<const ID: usize, const OD: usize>(
+    arrs: &[[u32; ID]],
+    field_sizes: &[f64; ID],
+    beta: f64,
+) -> Vec<[usize; OD]> {
+    let denom: [f64; ID] = core::array::from_fn(|s| field_sizes[s].max(1.0).powf(beta));
+    arrs.iter()
+        .map(|arr| top_k_by_score::<OD, ID>(arr, &denom))
+        .collect()
 }
 
 pub fn compute_sf_totals<const D: usize>(arrs: &[[u32; D]]) -> Vec<f64> {
@@ -231,14 +253,25 @@ pub fn compute_peers<const D: usize, const N_PEERS: usize, C, ST>(
                                 eid: dm_id,
                             };
                             let candidates = parted_trees.query(st_val, embed, C::N_CANDIDATES);
-                            let mut heap = FixedHeap::<(f64, usize), { N_PEERS }>::new();
-                            for c in candidates {
-                                heap.push_unique((calculator.final_distance_calc(dm_id, c), c));
-                            }
-                            let mut arr = [NET::<C::E>::default(); N_PEERS];
-                            for (k, (_, cid)) in heap.into_iter().enumerate() {
-                                arr[k] = NET::<C::E>::from_usize(cid);
-                            }
+                            let dist_iter = candidates
+                                .iter()
+                                .map(|&c| (calculator.final_distance_calc(dm_id, c), c));
+                            let arr = match calculator.group_key(dm_id) {
+                                Some(q_key) => {
+                                    let mut scored: Vec<(f64, usize)> = dist_iter.collect();
+                                    let mut same: Vec<usize> = (0..scored.len())
+                                        .filter(|&j| {
+                                            calculator.group_key(scored[j].1) == Some(q_key)
+                                        })
+                                        .collect();
+                                    same.sort_by(|&a, &b| scored[a].0.total_cmp(&scored[b].0));
+                                    for (rank, &j) in same.iter().enumerate() {
+                                        scored[j].0 -= calculator.group_discount(rank);
+                                    }
+                                    pick_nearest_peers::<C::E, N_PEERS, _>(scored.into_iter())
+                                }
+                                None => pick_nearest_peers::<C::E, N_PEERS, _>(dist_iter),
+                            };
                             (dm_id, arr)
                         })
                         .collect::<Vec<_>>()
@@ -351,16 +384,29 @@ pub fn normalize_opt_arr<const DIM: usize>(embeds: Vec<[Option<f32>; DIM]>) -> V
         .collect()
 }
 
-fn top_k_indices<const K: usize, T>(arr: &[T]) -> [usize; K]
+fn pick_nearest_peers<E, const N: usize, I>(dists: I) -> [NET<E>; N]
 where
-    T: Ord + Mined + Copy,
+    E: NumberedEntity,
+    I: Iterator<Item = (f64, usize)>,
 {
-    let mut h = FixedHeap::<(Reverse<T>, usize), K>::new();
-    for (i, v) in arr.iter().enumerate() {
-        h.push_unique((Reverse(*v), i));
+    let mut heap = FixedHeap::<(f64, usize), N>::new();
+    for e in dists {
+        heap.push_unique(e);
     }
-    h.arr.sort();
-    std::array::from_fn(|i| h.arr[i].1)
+    let mut arr = [NET::<E>::default(); N];
+    for (k, (_, cid)) in heap.into_iter().enumerate() {
+        arr[k] = NET::<E>::from_usize(cid);
+    }
+    arr
+}
+
+fn top_k_by_score<const K: usize, const D: usize>(arr: &[u32; D], denom: &[f64; D]) -> [usize; K] {
+    let mut h = FixedHeap::<(Reverse<f64>, usize), K>::new();
+    for s in 0..D {
+        h.push_unique((Reverse(arr[s] as f64 / denom[s]), s));
+    }
+    h.sort();
+    core::array::from_fn(|i| h.arr[i].1)
 }
 
 fn compute_log_pca<const IN_DIM: usize, const OUT_DIM: usize>(
