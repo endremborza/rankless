@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { APP_NAME, REL_TYPES } from '$lib/constants';
-	import { prettifyRoot, pluralize } from '$lib/text-format-util';
+	import { prettifyRoot } from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
@@ -8,9 +8,8 @@
 	import { onMount } from 'svelte';
 
 	import FullQc from '$lib/components/FullQc.svelte';
-	import YearTicks from '$lib/components/YearTicks.svelte';
+	import EntityHero from '$lib/components/EntityHero.svelte';
 	import RandTreeLink from '$lib/components/RandTreeLink.svelte';
-	import HoverBlock from '$lib/components/HoverBlock.svelte';
 	import WorldMapSvg from '$lib/components/WorldMapSvg.svelte';
 	import ConceptMap from '$lib/components/ConceptMap.svelte';
 	import AuthorNetwork from '$lib/components/AuthorNetwork.svelte';
@@ -38,6 +37,7 @@
 		prefixText: string;
 		profile: tt.PaperProfileResp | null;
 		peersData: tt.EntityPeersResp | null;
+		ladder: tt.LadderData | null;
 		initialPapers: tt.Paper[];
 		initialEntityAtts: tt.EntityAttsForLinks;
 		initialDiscAuthorNames: Record<string, string>;
@@ -52,16 +52,11 @@
 		ledgerManifest: AppliedManifest;
 	};
 
-	let showIndexedCiteText = false;
-	let ticksHeight: number;
-
 	$: isAuthor = data.conf.rootType === 'authors';
 	$: hasPeers = (data.peersData?.peers.length ?? 0) > 0;
 	$: isHitPaper = data.conf.rootType === 'hit-papers';
-	// $: rawPapers = isAuthor ? parseInt(data.view.meta?.rawPapers ?? '0') || 0 : 0;
 
 	let hitPaperAbstract: string | null = null;
-	let abstractExpanded = false;
 	let mounted = false;
 	onMount(() => {
 		mounted = true;
@@ -74,7 +69,6 @@
 	} else {
 		hitPaperAbstract = null;
 	}
-	$: rawCites = isAuthor ? parseInt(data.view.meta?.rawCites ?? '0') || 0 : 0;
 
 	// Combined entity attribute maps (profile data + initial works batch)
 	$: entityAtts = {
@@ -183,102 +177,16 @@
 </svelte:head>
 
 <section id="overview" class="shadowy padded marged main-block">
-	<div id="name-block">
-		<HoverBlock
-			show={showIndexedCiteText}
-			style={'top: 20svh; left:20vw; width: 60vw;max-width: 550px'}
-		>
-			Citations made by non-retracted papers categorized as "article", "book", or "review" that have
-			received at least one citation.
-		</HoverBlock>
-		<!-- svelte-ignore a11y_mouse_events_have_key_events -->
-		<div id="nametag">
-			<h1>{@html data.view.name}</h1>
-			{#if isHitPaper}
-				<div>
-					<span>{data.citeText}</span>
-				</div>
-			{:else if rawCites > 0}
-				<div>
-					<span>{pluralize('total citation', rawCites)}</span>
-					{#if isAuthor && authoredHitPapers.length > 0}
-						·
-						<a href="#papers">{pluralize('hit paper', authoredHitPapers.length)}</a>
-					{/if}
-					<br />
-					<span class="indexed-subtext"
-						>{pluralize('paper', data.view.papers)}, {pluralize('citation', data.view.citations)}
-						<a
-							on:mouseover={() => {
-								showIndexedCiteText = true;
-							}}
-							on:mouseleave={() => {
-								showIndexedCiteText = false;
-							}}
-							href="/#indexed-citation"
-							target="blank_">indexed</a
-						></span
-					>
-				</div>
-			{:else}
-				<div>
-					<span>{data.paperText}</span>
-					and
-					<span
-						><a
-							on:mouseover={() => {
-								showIndexedCiteText = true;
-							}}
-							on:mouseleave={() => {
-								showIndexedCiteText = false;
-							}}
-							href="/#indexed-citation"
-							target="blank_">{data.citeText}</a
-						></span
-					>
-				</div>
-			{/if}
-		</div>
-		{#if isHitPaper}
-			<details id="abstract" bind:open={abstractExpanded}>
-				<summary><h2>Abstract</h2></summary>
-				{#if hitPaperAbstract}
-					<p class="abstract-text" class:abstract-truncated={!abstractExpanded}>
-						{hitPaperAbstract}
-					</p>
-				{:else}
-					<p class="abstract-loading">loading...</p>
-				{/if}
-			</details>
-		{/if}
-		<div id="about">
-			<h2>About</h2>
-			<div>
-				{@html data.aboutParagraph.prefix}.
-				{@html data.aboutParagraph.postText}
-			</div>
-		</div>
-	</div>
-	<div id="era">
-		<h2>In The Last Decade</h2>
-		<div bind:clientHeight={ticksHeight}>
-			<YearTicks
-				bottomStacks={data.view.yearlyPapers}
-				topStacks={data.view.yearlyCites}
-				fullHeight={ticksHeight}
-				showBottom={!isHitPaper}
-			/>
-		</div>
-		{#if isHitPaper}
-			{@const doi = !data.conf.semanticId.startsWith('W') ? data.conf.semanticId : null}
-			<a
-				href={doi ? `https://doi.org/${doi}` : `https://openalex.org/${data.conf.semanticId}`}
-				target="_blank"
-				rel="noopener"
-				class="dag-link">{doi ? `doi.org/${doi}` : 'OpenAlex'} →</a
-			>
-		{/if}
-	</div>
+	<EntityHero
+		view={data.view}
+		rootType={data.conf.rootType}
+		semanticId={data.conf.semanticId}
+		peersData={data.peersData}
+		ladder={data.ladder}
+		citeText={data.citeText}
+		hitPaperCount={authoredHitPapers.length}
+		abstract={hitPaperAbstract}
+	/>
 </section>
 
 <Toc sections={tocSections} />
@@ -385,6 +293,10 @@
 {/if}
 
 <section id="similars" class="shadowy padded marged">
+	<div class="about-seo">
+		<h3>About {@html data.view.name}</h3>
+		<p>{@html data.aboutParagraph.prefix}. {@html data.aboutParagraph.postText}</p>
+	</div>
 	<p>
 		Rankless uses publication and citation data sourced from OpenAlex, an open and comprehensive
 		bibliographic database. While OpenAlex provides broad and valuable coverage of the global
@@ -417,56 +329,33 @@
 		flex-wrap: wrap;
 	}
 
-	@media (max-width: 800px) {
-		#era > div {
-			width: 100%;
-		}
-	}
-
-	@media (min-width: 801px) {
-		#overview {
-			display: flex;
-			flex-wrap: wrap;
-			align-items: stretch;
-			gap: 40px;
-		}
-	}
-
 	#overview {
 		margin-top: var(--unified-margin);
 		margin-bottom: var(--unified-margin);
 	}
 
-	#name-block {
-		flex: 8;
-	}
-
-	#era {
-		flex: 4;
-		display: flex;
-		flex-direction: column;
-		justify-content: space-evenly;
-	}
-
-	#era > div {
-		aspect-ratio: 2.5;
-	}
-
-	.dag-link {
+	.about-seo {
+		opacity: 0.55;
 		font-size: var(--text-sm);
-		opacity: 0.4;
-		text-decoration: none;
-		color: var(--color-text);
-		transition: opacity 0.15s;
-		padding: 2px 0;
+		line-height: var(--lh-body);
+		margin-bottom: 24px;
 	}
 
-	.dag-link:hover {
-		opacity: 0.8;
+	.about-seo h3 {
+		text-align: left;
+		font-size: var(--text-base);
+		opacity: 0.85;
+		margin-bottom: 4px;
 	}
 
 	.main-block {
 		margin-bottom: 0px;
+	}
+
+	.tl-sub {
+		opacity: 0.7;
+		font-size: var(--text-sm);
+		margin: 0 0 16px;
 	}
 
 	#similars {
@@ -492,49 +381,9 @@
 		background: rgba(var(--color-range-15), 0.1);
 	}
 
-	.indexed-subtext {
-		opacity: 0.8;
-		font-size: var(--text-sm);
-	}
-
 	h2 {
 		margin-bottom: 8px;
 		text-align: center;
-	}
-
-	#abstract summary {
-		cursor: pointer;
-		list-style: none;
-	}
-
-	#abstract summary::-webkit-details-marker {
-		display: none;
-	}
-
-	#abstract summary h2 {
-		display: inline;
-		font-size: var(--text-sm);
-		font-weight: normal;
-		opacity: 0.55;
-	}
-
-	#abstract p {
-		font-size: var(--text-base);
-		line-height: var(--lh-body);
-		opacity: 0.85;
-	}
-
-	.abstract-text.abstract-truncated {
-		display: -webkit-box;
-		-webkit-line-clamp: 4;
-		line-clamp: 4;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
-	}
-
-	.abstract-loading {
-		opacity: 0.35;
-		font-size: var(--text-sm);
 	}
 
 	section {
