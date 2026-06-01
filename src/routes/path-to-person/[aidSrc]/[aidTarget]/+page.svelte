@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { BE_REMOTE_URL } from '$lib/constants';
 	import type { PathResp, SearchResult } from '$lib/tree-types';
@@ -44,7 +45,7 @@
 	}
 
 	async function fetchPaths(srcAid: string, targetAid: string) {
-		if (!srcAid || !targetAid) return;
+		if (!browser || !srcAid || !targetAid) return;
 		loading = true;
 		errorMsg = '';
 		pathResp = null;
