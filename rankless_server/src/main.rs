@@ -42,7 +42,7 @@ use rankless_rs::{
         a2_init_atts::{AuthorOrcids, DiscardedAuthorsNames, WorkBiblios, WorkDois},
         derive_links3::HitPapers,
     },
-    ladder::{LADDER_ABS_RANKS, LADDER_LEN, LADDER_PCT_BANDS},
+    ladder::{LADDER_LEN, LADDER_PCT_BANDS},
     steps::{
         a1_entity_mapping::{Qs, RawYear, YearInterface, Years},
         a2_init_atts::OrcidType,
@@ -152,10 +152,8 @@ struct EntityPeersResp {
 struct LadderResp {
     #[serde(rename = "pctBands")]
     pct_bands: &'static [f64],
-    #[serde(rename = "absRanks")]
-    abs_ranks: &'static [usize],
-    // One row per subfield dm_id; each cell is the citation threshold for that band/rank, or null
-    // when the cohort is too small for it.
+    // One row per subfield dm_id; each cell is the citation threshold for that percentile band, or
+    // null when the cohort is too small for it.
     ladder: Vec<Vec<Option<u32>>>,
 }
 
@@ -344,6 +342,8 @@ struct PaperOut {
     hit_bm: Option<u32>,
     #[serde(rename = "hitSemId", skip_serializing_if = "Option::is_none")]
     hit_sem_id: Option<String>,
+    #[serde(rename = "createdTopic", skip_serializing_if = "Option::is_none")]
+    created_topic: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -1308,7 +1308,6 @@ async fn ladder_get(Path(etype): Path<String>, states: StatesT) -> (HeaderMap, R
         .collect();
     let resp = LadderResp {
         pct_bands: &LADDER_PCT_BANDS,
-        abs_ranks: &LADDER_ABS_RANKS,
         ladder,
     };
     (cache_header(1440), Json(resp).into_response())
@@ -1512,6 +1511,7 @@ fn paper_out(
     let mut is_hit = false;
     let mut hit_bm = None;
     let mut hit_sem_id = None;
+    let mut created_topic = None;
     let (name, doi) = if let (Some(hwid), Some(hit_attlu)) = (
         gets.hit_wid_map.get(&WT::from_usize(wid)),
         att_union.get(HitPapers::NAME),
@@ -1519,6 +1519,13 @@ fn paper_out(
         let hit_atts = &hit_attlu[*hwid];
         let name = hit_atts.name.to_string();
         hit_sem_id = Some(hit_atts.semantic_id.to_string());
+        let ct = gets.hit_created_topic(hwid).to_usize();
+        if ct != 0 {
+            created_topic = att_union
+                .get(Topics::NAME)
+                .and_then(|labels| labels.get(ct))
+                .map(|label| label.name.to_string());
+        }
         let doi = if hit_atts.semantic_id.starts_with("W") {
             hit_atts.semantic_id.to_string()
         } else {
@@ -1611,6 +1618,7 @@ fn paper_out(
         authorships,
         is_hit,
         hit_bm,
+        created_topic,
     }
 }
 
