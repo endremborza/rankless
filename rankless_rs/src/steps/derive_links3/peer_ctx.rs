@@ -1,4 +1,4 @@
-use dmove::{ET, MAA};
+use dmove::{Entity, UnsignedNumber, ET, MAA};
 
 use crate::{
     common::{CitSubfieldsArrayMarker, YearCentroidMarker},
@@ -15,7 +15,12 @@ pub const W_PEER_SF: f64 = 1.0;
 pub const W_PEER_RATE: f64 = 0.5;
 pub const W_PEER_GEO: f64 = 0.3;
 pub const W_PEER_COUNTRY: f64 = 0.5;
+pub const W_PEER_COUNTRY_DECAY: f64 = 0.5;
 pub const W_PEER_TEMPORAL: f64 = 0.6;
+
+// Field-size dampening for top-subfield selection: score[s] = cit[s] / field_size[s]^beta.
+// 0.0 = raw citations (old behavior); 1.0 = entity's share of the field.
+pub const W_PEER_SPEC_BETA: f64 = 0.75;
 
 const K_TREE: usize = 500;
 
@@ -66,10 +71,14 @@ pub(super) struct SourcePeerCtx {
 }
 
 impl InstPeerCtx {
-    pub(super) fn new(stowage: &Stowage, filter: Vec<bool>, _wcounts: &[usize]) -> Self {
+    pub(super) fn new(
+        stowage: &Stowage,
+        filter: Vec<bool>,
+        field_sizes: &[f64; Subfields::N],
+    ) -> Self {
         let cit_sfs =
             stowage.get_marked_interface::<Institutions, CitSubfieldsArrayMarker, QuickestBox>();
-        let top_sfs = peers::compute_top_sfs(&*cit_sfs);
+        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, W_PEER_SPEC_BETA);
         let sf_totals = peers::compute_sf_totals(&*cit_sfs);
         let locs = stowage.get_entity_interface::<InstLocs, QuickestBox>();
         let countries = stowage.get_entity_interface::<InstCountries, QuickestBox>();
@@ -86,10 +95,14 @@ impl InstPeerCtx {
 }
 
 impl SfPeerCtx {
-    pub(super) fn new(stowage: &Stowage, filter: Vec<bool>, _wcounts: &[usize]) -> Self {
+    pub(super) fn new(
+        stowage: &Stowage,
+        filter: Vec<bool>,
+        field_sizes: &[f64; Subfields::N],
+    ) -> Self {
         let cit_sfs =
             stowage.get_marked_interface::<Subfields, CitSubfieldsArrayMarker, QuickestBox>();
-        let top_sfs = peers::compute_top_sfs(&*cit_sfs);
+        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, W_PEER_SPEC_BETA);
         Self {
             filter,
             cit_sfs,
@@ -100,10 +113,14 @@ impl SfPeerCtx {
 }
 
 impl CountryPeerCtx {
-    pub(super) fn new(stowage: &Stowage, filter: Vec<bool>, _wcounts: &[usize]) -> Self {
+    pub(super) fn new(
+        stowage: &Stowage,
+        filter: Vec<bool>,
+        field_sizes: &[f64; Subfields::N],
+    ) -> Self {
         let cit_sfs =
             stowage.get_marked_interface::<Countries, CitSubfieldsArrayMarker, QuickestBox>();
-        let top_sfs = peers::compute_top_sfs(&*cit_sfs);
+        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, W_PEER_SPEC_BETA);
         Self {
             filter,
             cit_sfs,
@@ -114,10 +131,14 @@ impl CountryPeerCtx {
 }
 
 impl SourcePeerCtx {
-    pub(super) fn new(stowage: &Stowage, filter: Vec<bool>, _wcounts: &[usize]) -> Self {
+    pub(super) fn new(
+        stowage: &Stowage,
+        filter: Vec<bool>,
+        field_sizes: &[f64; Subfields::N],
+    ) -> Self {
         let cit_sfs =
             stowage.get_marked_interface::<Sources, CitSubfieldsArrayMarker, QuickestBox>();
-        let top_sfs = peers::compute_top_sfs(&*cit_sfs);
+        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, W_PEER_SPEC_BETA);
         let sf_totals = peers::compute_sf_totals(&*cit_sfs);
         Self {
             filter,
@@ -130,10 +151,10 @@ impl SourcePeerCtx {
 }
 
 impl AuthorPeerCtx {
-    pub fn new(stowage: &Stowage, filter: Vec<bool>, _wcounts: &[usize]) -> Self {
+    pub fn new(stowage: &Stowage, filter: Vec<bool>, field_sizes: &[f64; Subfields::N]) -> Self {
         let cit_sfs =
             stowage.get_marked_interface::<Authors, CitSubfieldsArrayMarker, QuickestBox>();
-        let top_sfs = peers::compute_top_sfs(&*cit_sfs);
+        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, W_PEER_SPEC_BETA);
         let career_centroids_o: Vec<[Option<f32>; 1]> = stowage
             .get_marked_interface::<Authors, YearCentroidMarker, ReadFixIter>()
             .enumerate()
@@ -181,12 +202,15 @@ impl PeerCalculator for InstPeerCtx {
                     self.sf_totals[b],
                 )
             + W_PEER_GEO * peers::geo_sq_dist(self.locs[a], self.locs[b])
-            + W_PEER_COUNTRY
-                * if self.countries[a] != self.countries[b] {
-                    1.0
-                } else {
-                    0.0
-                }
+    }
+
+    fn group_key(&self, ind: usize) -> Option<usize> {
+        let c = self.countries[ind].to_usize();
+        (c != 0).then_some(c)
+    }
+
+    fn group_discount(&self, rank: usize) -> f64 {
+        W_PEER_COUNTRY * W_PEER_COUNTRY_DECAY.powi(rank as i32)
     }
 }
 

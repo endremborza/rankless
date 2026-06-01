@@ -24,6 +24,7 @@ use crate::{
 mod entity_sem_ids;
 mod hit_papers;
 mod peer_ctx;
+mod topic_tags;
 
 pub use hit_papers::get_nobeled_works;
 pub use peer_ctx::AuthorPeerCtx;
@@ -75,12 +76,16 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     });
     let sf_year_bms = hit_papers::compute_sf_year_bms(&w_sfs.0, &w_years, &cc_interface, &year_bms);
 
+    let (creates_topic, _topic_paper_counts) =
+        topic_tags::compute_creators(&w_topics.0, &w_years, &cc_interface);
+
     let name_interface = starc.get_entity_interface::<WorksNames, ReadIter>();
     let mut hit_names = vec!["Unknown".to_string()];
     let mut hit_dois = vec!["".to_string()];
     let mut hit_ccounts = vec![0];
     let mut hit_bms = vec![0usize];
     let mut hit_wids = vec![vec![].into_boxed_slice()];
+    let mut hit_created_topics = vec![0usize];
     let this_year = YearInterface::parse(FINAL_YEAR);
 
     let hit_papers = name_interface.enumerate().filter_map(|(wid, name)| {
@@ -107,10 +112,12 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
             0.0
         };
 
+        let created = creates_topic.get(&widt).copied();
         let qualifies = (cc_n >= hit_papers::MIN_NEEDED)
             & (cc_n >= hit_papers::MIN_UNIVERSAL
                 || reaches_any_topic_limit
-                || score >= hit_papers::SCORE_THRESHOLD);
+                || score >= hit_papers::SCORE_THRESHOLD
+                || created.is_some());
 
         if qualifies {
             hit_names.push(name);
@@ -118,6 +125,7 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
             hit_ccounts.push(cc_n);
             hit_bms.push(bm.round() as usize);
             hit_wids.push(vec![wid as ET<Works>].into_boxed_slice());
+            hit_created_topics.push(created.map(|t| t.to_usize()).unwrap_or(0));
             Some(wid as BigId)
         } else {
             None
@@ -161,7 +169,10 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         hit_bms.into_iter(),
         Some("hit-papers-benchmarks"),
     );
-
+    starc.add_iter_owned::<DowncastingBuilder, _, _>(
+        hit_created_topics.into_iter(),
+        Some("hit-papers-created-topic"),
+    );
     // --- Page filters, work counts, and semantic IDs ---
 
     let source_stats = starc.get_entity_interface::<SourceStats, QuickestBox>();
@@ -197,16 +208,19 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     let (country_filter, country_wcounts) = entity_sem_ids::country_page_filter(&starc);
 
     // Peers
+    // Subfield field sizes (papers per subfield) dampen top-subfield selection; shared across
+    // cohorts and overlap-agnostic, so the per-cohort recomputation is unnecessary.
+    let sf_field_sizes: [f64; Subfields::N] = core::array::from_fn(|s| sf_wcounts[s] as f64);
 
-    let inst_ctx = peer_ctx::InstPeerCtx::new(&starc, inst_filter, &inst_wcounts);
+    let inst_ctx = peer_ctx::InstPeerCtx::new(&starc, inst_filter, &sf_field_sizes);
     rank_dump::<Institutions, _>(&starc, &inst_ctx.cit_sfs);
     peers::compute_peers::<_, 10, _, _>(&*starc, &inst_ctx, &inst_ctx.filter, &inst_wcounts);
 
-    let sf_ctx = peer_ctx::SfPeerCtx::new(&starc, sf_filter, &sf_wcounts);
+    let sf_ctx = peer_ctx::SfPeerCtx::new(&starc, sf_filter, &sf_field_sizes);
     rank_dump::<Subfields, _>(&starc, &sf_ctx.cit_sfs);
     peers::compute_peers::<_, 10, _, _>(&*starc, &sf_ctx, &sf_ctx.filter, &sf_wcounts);
 
-    let country_ctx = peer_ctx::CountryPeerCtx::new(&starc, country_filter, &country_wcounts);
+    let country_ctx = peer_ctx::CountryPeerCtx::new(&starc, country_filter, &sf_field_sizes);
     rank_dump::<Countries, _>(&starc, &country_ctx.cit_sfs);
     peers::compute_peers::<_, 10, _, _>(
         &*starc,
@@ -215,12 +229,12 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         &country_wcounts,
     );
 
-    let source_ctx = peer_ctx::SourcePeerCtx::new(&starc, source_filter, &source_wcounts);
+    let source_ctx = peer_ctx::SourcePeerCtx::new(&starc, source_filter, &sf_field_sizes);
     rank_dump::<Sources, _>(&starc, &source_ctx.cit_sfs);
     peers::compute_peers::<_, 10, _, _>(&*starc, &source_ctx, &source_ctx.filter, &source_wcounts);
 
     println!("computing author peers");
-    let author_ctx = AuthorPeerCtx::new(&starc, author_filter, &author_wcounts);
+    let author_ctx = AuthorPeerCtx::new(&starc, author_filter, &sf_field_sizes);
     rank_dump::<Authors, _>(&starc, &author_ctx.cit_sfs);
     peers::compute_peers::<_, 10, _, _>(&*starc, &author_ctx, &author_ctx.filter, &author_wcounts);
 

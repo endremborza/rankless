@@ -33,7 +33,6 @@ export type View = {
 	yearlyPapers: number[];
 	yearlyCites: number[];
 	meta?: Record<string, string>;
-	dominatedTopics?: DominatedTopic[];
 };
 export type RelatedEntity = {
 	name: string;
