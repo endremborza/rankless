@@ -86,30 +86,30 @@ CLI tool that ingests OpenAlex/Scopus CSV dumps and produces binary data files c
 the server. Steps run in order via `mods_as_comms!` in `lib.rs`:
 `a1_entity_mapping → a2_init_atts → derive_links1 → … → derive_links5`.
 
-| File                             | Role                                                                                                                                         |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/lib.rs`                     | Module root; exports public API; dispatches pipeline steps                                                                                   |
-| `src/main.rs`                    | CLI entry; reads `OA_ROOT` env; calls `lib::runner()`                                                                                        |
-| `src/common.rs`                  | `Stowage` (file/data manager), marker traits, `reverse_id`, type aliases, `MmapBox`, parsing utils                                           |
-| `src/csv_iter.rs`                | Parallel CSV partition reader `ObjIter<T>`; one thread per partition file, prefetch into a sync channel                                      |
-| `src/env_consts.rs`              | Config constants: year ranges, thresholds (driven by `RANKLESS_ENV`)                                                                         |
-| `src/data_consts.rs`             | Dataset-level lookup tables                                                                                                                  |
-| `src/oa_structs.rs`              | OpenAlex JSON schema structs                                                                                                                 |
-| `src/semantic_ids.rs`            | Semantic ID generation for frontend URL slugs                                                                                                |
-| `src/agg_tree.rs`                | Hierarchical aggregation tree construction                                                                                                   |
-| `src/filter.rs`                  | Entity filtering (alias-aware counting + owner-pin filter from the ledger)                                                                   |
-| `src/csv_writers.rs`             | CSV output for validation                                                                                                                    |
-| `src/biblo_var_att.rs`           | Variable-length bibliographic attribute handling                                                                                             |
-| `src/peers.rs`                   | KD-tree peer finding: `PartitionedTrees`, `Embed<D>`, `GenericPeerCtx`; log-PCA embedding, distance primitives                               |
-| `src/user_ledger.rs`             | Loads + resolves the user ledger snapshot (stable OA id → BigId → dm_id); applies aliases/disowns/owner-pins; writes `applied_manifest.json` |
-| `src/steps/a1_entity_mapping.rs` | Parse CSVs; dedup + map entity IDs; year filtering; ledger drop-side skips                                                                   |
-| `src/steps/a2_init_atts.rs`      | Init attributes (DOIs, ORCIDs, biblio, topics, locations); Levenshtein name dedup; Nobel category; ledger alias/merge application            |
-| `src/steps/derive_links1.rs`     | work→subfields, work→institutions, work→countries                                                                                            |
-| `src/steps/derive_links2.rs`     | work→sources; top source per work; per-subfield citation arrays                                                                              |
-| `src/steps/derive_links3.rs`     | Coauthor networks; hit papers; page filter + semantic IDs; unified peer discovery via `PeerConfig`                                           |
-| `src/steps/derive_links4.rs`     | Per-entity hit-paper sorted lists; author citing-hit sets; hit paper semantic IDs + peers                                                    |
-| `src/steps/derive_links5.rs`     | Era records (yearly citations, top journals/authors/subfields) for hit papers                                                                |
-| `src/gen/`                       | Generated Rust source — **do not edit manually**                                                                                             |
+| File                             | Role                                                                                                                                                                    |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib.rs`                     | Module root; exports public API; dispatches pipeline steps                                                                                                              |
+| `src/main.rs`                    | CLI entry; reads `OA_ROOT` env; calls `lib::runner()`                                                                                                                   |
+| `src/common.rs`                  | `Stowage` (file/data manager), marker traits, `reverse_id`, type aliases, `MmapBox`, parsing utils                                                                      |
+| `src/csv_iter.rs`                | Parallel CSV partition reader `ObjIter<T>`; one thread per partition file, prefetch into a sync channel                                                                 |
+| `src/env_consts.rs`              | Config constants: year ranges, thresholds (driven by `RANKLESS_ENV`)                                                                                                    |
+| `src/data_consts.rs`             | Dataset-level lookup tables                                                                                                                                             |
+| `src/oa_structs.rs`              | OpenAlex JSON schema structs                                                                                                                                            |
+| `src/semantic_ids.rs`            | Semantic ID generation for frontend URL slugs                                                                                                                           |
+| `src/agg_tree.rs`                | Hierarchical aggregation tree construction                                                                                                                              |
+| `src/filter.rs`                  | Entity filtering (alias-aware counting + owner-pin filter from the ledger)                                                                                              |
+| `src/csv_writers.rs`             | CSV output for validation                                                                                                                                               |
+| `src/biblo_var_att.rs`           | Variable-length bibliographic attribute handling                                                                                                                        |
+| `src/peers.rs`                   | KD-tree peer finding: `PartitionedTrees`, `Embed<D>`, `GenericPeerCtx`; log-PCA embedding, distance primitives                                                          |
+| `src/user_ledger.rs`             | Loads + resolves the user ledger snapshot (stable OA id → BigId → dm_id); applies aliases/disowns/owner-pins; writes `applied_manifest.json`                            |
+| `src/steps/a1_entity_mapping.rs` | Parse CSVs; dedup + map entity IDs; year filtering; ledger drop-side skips                                                                                              |
+| `src/steps/a2_init_atts.rs`      | Init attributes (DOIs, ORCIDs, biblio, topics, locations); Levenshtein name dedup; Nobel category; ledger alias/merge application                                       |
+| `src/steps/derive_links1.rs`     | work→subfields, work→institutions, work→countries                                                                                                                       |
+| `src/steps/derive_links2.rs`     | work→sources; top source per work; per-subfield citation arrays                                                                                                         |
+| `src/steps/derive_links3.rs`     | Coauthor networks; hit papers; page filter + semantic IDs; unified peer discovery via `PeerConfig`; topic creator/dominator tags (`topic_tags.rs`, see `topic-tags.md`) |
+| `src/steps/derive_links4.rs`     | Per-entity hit-paper sorted lists; author citing-hit sets; hit paper semantic IDs + peers                                                                               |
+| `src/steps/derive_links5.rs`     | Era records (yearly citations, top journals/authors/subfields) for hit papers                                                                                           |
+| `src/gen/`                       | Generated Rust source — **do not edit manually**                                                                                                                        |
 
 ### rankless_trees — tree query library
 
@@ -194,25 +194,27 @@ the only viz dependency).
 
 **Key components**
 
-| Component                                                           | Role                                                   |
-| ------------------------------------------------------------------- | ------------------------------------------------------ |
-| `TreeSvg.svelte`                                                    | Main hierarchical breakdown tree                       |
-| `ConceptMap.svelte`                                                 | Research-space field network                           |
-| `AuthorNetwork.svelte`                                              | Co-authorship network (Cytoscape)                      |
-| `WorldMapSvg.svelte`                                                | Geographical citation impact map                       |
-| `TileTreeMap.svelte`                                                | Treemap view                                           |
-| `PaperRainbow.svelte`                                               | Hit-paper citation area chart with scrollable list     |
-| `HitPaperBreakdown.svelte`                                          | Lazy citation breakdown for a single hit paper         |
-| `ImpactDag.svelte` / `DagChip.svelte`                               | Citation impact DAG + paper chips                      |
-| `AllWorks.svelte`                                                   | Paginated author paper list; ledger/disown UI          |
-| `AuthorLedgerPanel.svelte`                                          | Owner's profile-changes panel (applied/pending events) |
-| `AuthorOwnerTools.svelte`                                           | Legacy owner action UI (slated for removal)            |
-| `ExportControls.svelte`                                             | Sort/filter/citation-style/BibTeX controls             |
-| `Peers.svelte` / `BarChart.svelte`                                  | Peer comparison bars + shared span-bar chart           |
-| `WorkElem.svelte`, `SearchResults.svelte`                           | Single paper / search autocomplete                     |
-| `ScrollyGraph.svelte` / `ScrollySank.svelte` / `TimelineViz.svelte` | Scrollytelling + timeline viz                          |
-| `PathLevelInfoBox.svelte` / `MidpathBar.svelte`                     | Path UI                                                |
-| `HeadControl.svelte`, `Toc.svelte`, `FlatOutFrame.svelte`           | Header / sticky nav / flat-view frame                  |
+| Component                                                           | Role                                                                                                           |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `TreeSvg.svelte`                                                    | Main hierarchical breakdown tree                                                                               |
+| `ConceptMap.svelte`                                                 | Research-space field network                                                                                   |
+| `AuthorNetwork.svelte`                                              | Co-authorship network (Cytoscape)                                                                              |
+| `WorldMapSvg.svelte`                                                | Geographical citation impact map                                                                               |
+| `TileTreeMap.svelte`                                                | Treemap view                                                                                                   |
+| `PaperRainbow.svelte`                                               | Hit-paper citation area chart with scrollable list                                                             |
+| `HitPaperBreakdown.svelte`                                          | Lazy citation breakdown for a single hit paper                                                                 |
+| `ImpactDag.svelte` / `DagChip.svelte`                               | Citation impact DAG + paper chips                                                                              |
+| `AllWorks.svelte`                                                   | Paginated author paper list; ledger/disown UI                                                                  |
+| `AuthorLedgerPanel.svelte`                                          | Owner's profile-changes panel (applied/pending events)                                                         |
+| `AuthorOwnerTools.svelte`                                           | Legacy owner action UI (slated for removal)                                                                    |
+| `ExportControls.svelte`                                             | Sort/filter/citation-style/BibTeX controls                                                                     |
+| `EntityHero.svelte`                                                 | Hero-page header: name + stats, standing-badge subfield chips, Topics/Journals/Geography leaders, decade chart |
+| `Peers.svelte` / `BarChart.svelte`                                  | Peer comparison bars + shared span-bar chart                                                                   |
+| `DominatedTopics.svelte`                                            | "Topic Leadership" list (entity's dominated topics)                                                            |
+| `WorkElem.svelte`, `SearchResults.svelte`                           | Single paper / search autocomplete                                                                             |
+| `ScrollyGraph.svelte` / `ScrollySank.svelte` / `TimelineViz.svelte` | Scrollytelling + timeline viz                                                                                  |
+| `PathLevelInfoBox.svelte` / `MidpathBar.svelte`                     | Path UI                                                                                                        |
+| `HeadControl.svelte`, `Toc.svelte`, `FlatOutFrame.svelte`           | Header / sticky nav / flat-view frame                                                                          |
 
 **Server utilities**
 
