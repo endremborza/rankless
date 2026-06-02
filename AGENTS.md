@@ -89,6 +89,33 @@ This distinction is used consistently throughout the codebase.
 
 ---
 
+## Checks & formatting
+
+Run **`make check`** before every change — it must stay clean. It is the read-only gate; **`make format`** applies every mechanical fix. Per-language sub-targets exist (`check-rs`/`check-py`/`check-js`, `format-rs`/`format-py`/`format-js`).
+
+| Layer                                    | `make check`                                                      | `make format`                       |
+| ---------------------------------------- | ----------------------------------------------------------------- | ----------------------------------- |
+| Rust                                     | `cargo fmt --check` + `cargo check --workspace --all-targets`     | `cargo fmt`                         |
+| Python (`pyscripts/` + `sql-yardstick/`) | `ruff format --check` + `ruff check`                              | `ruff check --fix` + `ruff format`  |
+| Frontend                                 | `prettier --check` + `eslint` + `svelte-check --fail-on-warnings` | `prettier --write` + `eslint --fix` |
+
+The JS commands live as `package.json` scripts (`lint`, `lint:fix`, `format`, `check`); the Makefile just calls them.
+
+Gotchas baked in so the gate stays stable:
+
+- **Generated Rust must emit fmt-clean output**, since `gen/`, `env_consts.rs`, and `steps/mod.rs` are never hand-edited. `build.rs` and `dmove_macro` (`pub_mods_to_file`) append a trailing newline; rustfmt's `ignore` option doesn't work on stable, so don't rely on it.
+- **ESLint is scoped to source** — `.venv/` and `target/` are in `eslint.config.js` ignores (flat config only auto-ignores `node_modules`).
+- **Four `svelte/*` rules are disabled** in `eslint.config.js`, with reasons inline:
+  - `no-at-html-tags` — every `{@html}` renders trusted backend/generated markup.
+  - `no-navigation-without-resolve` — conflicts with external links and the `entToLink`/`base` helpers.
+  - `no-reactive-functions` & `prefer-svelte-reactivity` — **runes-oriented; unsafe under legacy mode** (see below).
+- **Legacy-mode reactivity gotcha.** These components are legacy mode (`$:`, `export let`), where the compiler resolves template/`$:` dependencies _statically_ and wraps the actual call in `$.untrack(...)`. Consequences for the two disabled reactivity rules:
+  - A function that closes over reactive state must stay `$: fn = (...) => ...` — Svelte reassigns it when those vars change, which is what makes dependent markup/`$:` re-evaluate. Converting to `const` silently freezes it.
+  - A mutated `SvelteSet`/`SvelteMap` (never reassigned) is **not** tracked; the working pattern is a plain `Set`/`Map` plus reassignment (`x = new Set(x)` or `x = x`). Imported reactive objects like `$app/state`'s `page` _are_ tracked (compiler emits `deep_read_state`), so `{page.url...}` in markup is fine.
+- **`{#each}` blocks use index keys** (`, i (i)` or the `.entries()` index), behavior-identical to unkeyed rendering.
+
+---
+
 ## Workflow
 
 - Ask clarifying questions when ambiguous or conflicting information is presented, or critical architectural decisions are made

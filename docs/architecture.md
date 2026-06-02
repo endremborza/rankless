@@ -175,6 +175,7 @@ the only viz dependency).
 | `lib/sitemap-functions.ts`      | SEO sitemap helpers                                                                               |
 | `lib/util.ts`                   | General utilities                                                                                 |
 | `lib/utils/ledger-effective.ts` | Derives effective disowned/ledger sets for `AllWorks` from applied + pending events               |
+| `lib/hero-config.ts`            | Per-root-type `HERO_CONFIG` + chip/leader builders for `EntityHero` (stat, badge policy, leaders) |
 
 **Routes**
 
@@ -194,27 +195,28 @@ the only viz dependency).
 
 **Key components**
 
-| Component                                                           | Role                                                                                                           |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `TreeSvg.svelte`                                                    | Main hierarchical breakdown tree                                                                               |
-| `ConceptMap.svelte`                                                 | Research-space field network                                                                                   |
-| `AuthorNetwork.svelte`                                              | Co-authorship network (Cytoscape)                                                                              |
-| `WorldMapSvg.svelte`                                                | Geographical citation impact map                                                                               |
-| `TileTreeMap.svelte`                                                | Treemap view                                                                                                   |
-| `PaperRainbow.svelte`                                               | Hit-paper citation area chart with scrollable list                                                             |
-| `HitPaperBreakdown.svelte`                                          | Lazy citation breakdown for a single hit paper                                                                 |
-| `ImpactDag.svelte` / `DagChip.svelte`                               | Citation impact DAG + paper chips                                                                              |
-| `AllWorks.svelte`                                                   | Paginated author paper list; ledger/disown UI                                                                  |
-| `AuthorLedgerPanel.svelte`                                          | Owner's profile-changes panel (applied/pending events)                                                         |
-| `AuthorOwnerTools.svelte`                                           | Legacy owner action UI (slated for removal)                                                                    |
-| `ExportControls.svelte`                                             | Sort/filter/citation-style/BibTeX controls                                                                     |
-| `EntityHero.svelte`                                                 | Hero-page header: name + stats, standing-badge subfield chips, Topics/Journals/Geography leaders, decade chart |
-| `Peers.svelte` / `BarChart.svelte`                                  | Peer comparison bars + shared span-bar chart                                                                   |
-| `DominatedTopics.svelte`                                            | "Topic Leadership" list (entity's dominated topics)                                                            |
-| `WorkElem.svelte`, `SearchResults.svelte`                           | Single paper / search autocomplete                                                                             |
-| `ScrollyGraph.svelte` / `ScrollySank.svelte` / `TimelineViz.svelte` | Scrollytelling + timeline viz                                                                                  |
-| `PathLevelInfoBox.svelte` / `MidpathBar.svelte`                     | Path UI                                                                                                        |
-| `HeadControl.svelte`, `Toc.svelte`, `FlatOutFrame.svelte`           | Header / sticky nav / flat-view frame                                                                          |
+| Component                                                           | Role                                                                                                                                                                               |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TreeSvg.svelte`                                                    | Main hierarchical breakdown tree                                                                                                                                                   |
+| `ConceptMap.svelte`                                                 | Research-space field network                                                                                                                                                       |
+| `AuthorNetwork.svelte`                                              | Co-authorship network (Cytoscape)                                                                                                                                                  |
+| `WorldMapSvg.svelte`                                                | Geographical citation impact map                                                                                                                                                   |
+| `TileTreeMap.svelte`                                                | Treemap view                                                                                                                                                                       |
+| `PaperRainbow.svelte`                                               | Hit-paper citation area chart with scrollable list                                                                                                                                 |
+| `HitPaperBreakdown.svelte`                                          | Lazy citation breakdown for a single hit paper                                                                                                                                     |
+| `ImpactDag.svelte` / `DagChip.svelte`                               | Citation impact DAG + paper chips                                                                                                                                                  |
+| `AllWorks.svelte`                                                   | Paginated author paper list; ledger/disown UI                                                                                                                                      |
+| `AuthorLedgerPanel.svelte`                                          | Owner's profile-changes panel (applied/pending events)                                                                                                                             |
+| `AuthorOwnerTools.svelte`                                           | Legacy owner action UI (slated for removal)                                                                                                                                        |
+| `ExportControls.svelte`                                             | Sort/filter/citation-style/BibTeX controls                                                                                                                                         |
+| `EntityHero.svelte`                                                 | Hero-page header, config-driven per root type (`$lib/hero-config.ts`): per-entity stat, specialization chips (standing badge except countries), tailored leader rows, decade chart |
+| `IndexedCitationLink.svelte`                                        | "indexed" citation link + its hover-tooltip (shared across stat-line variants)                                                                                                     |
+| `Peers.svelte` / `BarChart.svelte`                                  | Peer comparison bars + shared span-bar chart                                                                                                                                       |
+| `DominatedTopics.svelte`                                            | "Topic Leadership" list (entity's dominated topics)                                                                                                                                |
+| `WorkElem.svelte`, `SearchResults.svelte`                           | Single paper / search autocomplete                                                                                                                                                 |
+| `ScrollyGraph.svelte` / `ScrollySank.svelte` / `TimelineViz.svelte` | Scrollytelling + timeline viz                                                                                                                                                      |
+| `PathLevelInfoBox.svelte` / `MidpathBar.svelte`                     | Path UI                                                                                                                                                                            |
+| `HeadControl.svelte`, `Toc.svelte`, `FlatOutFrame.svelte`           | Header / sticky nav / flat-view frame                                                                                                                                              |
 
 **Server utilities**
 
