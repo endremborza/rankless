@@ -129,15 +129,20 @@ export function buildLeaderRows(
 ): LeaderRow[] {
 	const rows: LeaderRow[] = [];
 	for (const spec of specs) {
-		const rels = (grouped[spec.relType] ?? []).slice(0, spec.n);
-		if (rels.length === 0) continue;
-		rows.push({
-			label: spec.label,
-			items: rels.map((r) => ({
-				text: spec.withCount ? `${r.name} (${pluralize('paper', r.score)})` : r.name,
-				href: rootHref(r.etype, r.semanticId)
-			}))
-		});
+		// Dedupe by display text: OpenAlex sometimes splits one scholar across author IDs, so the
+		// relation list can repeat a name (e.g. "Don L. Anderson" on /subfields/geophysics). Take the
+		// first n distinct entries so the keyed {#each} stays collision-free and the list reads clean.
+		const seen = new Set<string>();
+		const items: LeaderItem[] = [];
+		for (const r of grouped[spec.relType] ?? []) {
+			const text = spec.withCount ? `${r.name} (${pluralize('paper', r.score)})` : r.name;
+			if (seen.has(text)) continue;
+			seen.add(text);
+			items.push({ text, href: rootHref(r.etype, r.semanticId) });
+			if (items.length >= spec.n) break;
+		}
+		if (items.length === 0) continue;
+		rows.push({ label: spec.label, items });
 	}
 	return rows;
 }
