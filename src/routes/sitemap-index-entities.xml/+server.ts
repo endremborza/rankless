@@ -9,7 +9,6 @@ export const GET: RequestHandler = async () => {
 	if (!Array.isArray(max_pages)) return getSitemapIndex([]);
 	const innards = [];
 	for (const { name, count } of max_pages) {
-		if (name == 'hit-papers') continue;
 		const max_page = Math.floor(count / ENTITY_SITEMAP_STEP_SIZE);
 		for (let i = 0; i <= max_page; i++) {
 			innards.push(`-entity-${name}-${i + 1}`);
