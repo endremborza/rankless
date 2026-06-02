@@ -100,7 +100,8 @@
 	let expanded = new Set<number>();
 
 	function toggleExpand(wid: number) {
-		expanded.has(wid) ? expanded.delete(wid) : expanded.add(wid);
+		if (expanded.has(wid)) expanded.delete(wid);
+		else expanded.add(wid);
 		expanded = expanded;
 	}
 
@@ -256,7 +257,7 @@
 	{/if}
 
 	<svg class="edge-overlay" aria-hidden="true">
-		{#each edges as edge}
+		{#each edges as edge, __i (__i)}
 			<path
 				d={edge.path}
 				stroke="currentColor"
