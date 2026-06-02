@@ -5,7 +5,7 @@
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 	import { isAuthored, fetchOaAbstract, htmlToText } from '$lib/utils/paper-helpers';
-	import { onMount } from 'svelte';
+	import { afterNavigate } from '$app/navigation';
 
 	import FullQc from '$lib/components/FullQc.svelte';
 	import EntityHero from '$lib/components/EntityHero.svelte';
@@ -57,18 +57,7 @@
 	$: isHitPaper = data.conf.rootType === 'hit-papers';
 
 	let hitPaperAbstract: string | null = null;
-	let mounted = false;
-	onMount(() => {
-		mounted = true;
-	});
-	$: if (mounted && isHitPaper) {
-		hitPaperAbstract = null;
-		fetchOaAbstract(data.conf.semanticId).then((result) => {
-			hitPaperAbstract = result;
-		});
-	} else {
-		hitPaperAbstract = null;
-	}
+	let abstractLoading = false;
 
 	// Combined entity attribute maps (profile data + initial works batch)
 	$: entityAtts = {
@@ -86,8 +75,24 @@
 			isAuthored(p, data.conf.semanticId, entityAtts) && p.yearlyCites && p.yearlyCites.length > 0
 	);
 
-	$: disownedSet = new Set(data.disownedWids);
-	$: mergedPairsState = [...data.mergedPairs];
+	let disownedSet = new Set(data.disownedWids);
+	let mergedPairsState = [...data.mergedPairs];
+	afterNavigate(() => {
+		disownedSet = new Set(data.disownedWids);
+		mergedPairsState = [...data.mergedPairs];
+		hitPaperAbstract = null;
+		abstractLoading = isHitPaper;
+		if (isHitPaper) {
+			const sid = data.conf.semanticId;
+			fetchOaAbstract(sid).then((result) => {
+				// Ignore a slow fetch for a previous paper that resolves after we navigated away, so it
+				// can't clobber the current paper's abstract or loading state.
+				if (sid !== data.conf.semanticId) return;
+				hitPaperAbstract = result;
+				abstractLoading = false;
+			});
+		}
+	});
 
 	function getAuthorStats(view: tt.View) {
 		let authorNames: string[] = [];
@@ -186,6 +191,7 @@
 		citeText={data.citeText}
 		hitPaperCount={authoredHitPapers.length}
 		abstract={hitPaperAbstract}
+		{abstractLoading}
 	/>
 </section>
 
@@ -308,7 +314,7 @@
 	{#if data.aboutParagraph.footText.length > 0}<p>{@html data.aboutParagraph.footText}</p>{/if}
 	<h3>Explore {prettifyRoot(data.conf.rootType)} with similar magnitude of impact</h3>
 	<div class="similars-grid">
-		{#each data.view.similars as sim}
+		{#each data.view.similars as sim, __i (__i)}
 			<span>
 				<RandTreeLink
 					semanticId={sim.semanticId}
@@ -350,12 +356,6 @@
 
 	.main-block {
 		margin-bottom: 0px;
-	}
-
-	.tl-sub {
-		opacity: 0.7;
-		font-size: var(--text-sm);
-		margin: 0 0 16px;
 	}
 
 	#similars {

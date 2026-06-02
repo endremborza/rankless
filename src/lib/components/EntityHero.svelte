@@ -1,17 +1,10 @@
 <script lang="ts">
 	import type * as tt from '$lib/tree-types';
-	import { REL_TYPES, ROOT_TYPES, LATEST_YEAR } from '$lib/constants';
-	import { entToLink } from '$lib/tree-functions';
+	import { REL_TYPES, COMPLETE_YEAR, LATEST_YEAR } from '$lib/constants';
 	import { pluralize, formatNumber } from '$lib/text-format-util';
-	import {
-		sfColorVar,
-		tierLabels,
-		citStandingTier,
-		standingLabel,
-		standingPhrase
-	} from '$lib/peers-utils';
+	import { HERO_CONFIG, buildChips, buildLeaderRows } from '$lib/hero-config';
 	import YearTicks from '$lib/components/YearTicks.svelte';
-	import HoverBlock from '$lib/components/HoverBlock.svelte';
+	import IndexedCitationLink from '$lib/components/IndexedCitationLink.svelte';
 
 	export let view: tt.View;
 	export let rootType: tt.RootType;
@@ -21,29 +14,20 @@
 	export let citeText = '';
 	export let hitPaperCount = 0;
 	export let abstract: string | null = null;
+	export let abstractLoading = false;
 
 	const MAX_CHIPS = 5;
-	const MAX_LEADER_ITEMS = 3;
 	// Suppress the loosest standing band ("top 20%", tier 1): only tier 2+ (top 10% and stricter) is
 	// showcase-worthy on the header. The full ladder still surfaces in the Peers section.
 	const HERO_MIN_TIER = 2;
 
-	type Chip = {
-		name: string;
-		href: string | null;
-		colorVar: string;
-		badge: string | null;
-		badgeTitle: string | null;
-	};
-	type LeaderItem = { text: string; href: string | null };
-	type LeaderRow = { label: string; items: LeaderItem[] };
-
-	let showIndexedCiteText = false;
 	let abstractExpanded = false;
 	let ticksHeight: number;
 
+	$: cfg = HERO_CONFIG[rootType];
 	$: isHitPaper = rootType === 'hit-papers';
 	$: rawCites = parseInt(view.meta?.rawCites ?? '0') || 0;
+	$: hIndex = peersData?.hero.hIndex ?? null;
 	$: doi = isHitPaper && !semanticId.startsWith('W') ? semanticId : null;
 
 	// Group the flat relation list by type once, keyed by the relation name (paper-topics, …).
@@ -56,117 +40,39 @@
 		{} as Partial<Record<tt.RelTypes, tt.RelatedEntity[]>>
 	);
 
-	function rootHref(etype: tt.EntityType, sid: string): string | null {
-		return ROOT_TYPES.includes(etype as tt.RootType) && sid
-			? entToLink({ rootType: etype as tt.RootType, semanticId: sid })
-			: null;
-	}
-
-	$: labels = ladder ? tierLabels(ladder.pctBands) : [];
-
-	// Field chips: when peer data is present they carry the hero's per-subfield standing badge and
-	// align (color + order) with the Peers section. Otherwise fall back to the raw paper-fields
-	// relations — same subfields, no standing (no ladder for this root type).
-	$: chips = peersData
-		? peersData.topSubfields.slice(0, MAX_CHIPS).map((sf, i): Chip => {
-				const tier = ladder
-					? citStandingTier(ladder.ladder[sf.dmId] ?? [], peersData!.hero.subfieldCitations[i] ?? 0)
-					: 0;
-				const show = tier >= HERO_MIN_TIER;
-				return {
-					name: sf.name,
-					href: entToLink({ rootType: 'subfields', semanticId: sf.semanticId }),
-					colorVar: sfColorVar(i),
-					badge: show ? standingLabel(tier, labels) : null,
-					badgeTitle: show ? standingPhrase(tier, labels, rootType, sf.name) : null
-				};
-			})
-		: (grouped['paper-fields'] ?? []).slice(0, MAX_CHIPS).map(
-				(r, i): Chip => ({
-					name: r.name,
-					href: rootHref(r.etype, r.semanticId),
-					colorVar: sfColorVar(i),
-					badge: null,
-					badgeTitle: null
-				})
-			);
-
-	function relRow(
-		label: string,
-		key: tt.RelTypes,
-		withCount: boolean,
-		n: number
-	): LeaderRow | null {
-		const rels = (grouped[key] ?? []).slice(0, n);
-		if (rels.length === 0) return null;
-		return {
-			label,
-			items: rels.map((r) => ({
-				text: withCount ? `${r.name} (${pluralize('paper', r.score)})` : r.name,
-				href: rootHref(r.etype, r.semanticId)
-			}))
-		};
-	}
-
-	// A paper lists its people/venue; every other entity lists what it works on and where.
-	// TODO(topic-tags): once topic creator/dominator tags land, surface a "Originated / Dominates"
-	// leader row here from the new hit-paper / entity payload fields.
-	$: leaderRows = (
-		isHitPaper
-			? [
-					relRow('Authors', 'paper-authors', false, 5),
-					relRow('Journal', 'paper-journals', false, 1)
-				]
-			: [
-					relRow('Topics', 'paper-topics', true, MAX_LEADER_ITEMS),
-					relRow('Journals', 'paper-journals', false, MAX_LEADER_ITEMS),
-					relRow('Geography', 'collab-nation', false, MAX_LEADER_ITEMS)
-				]
-	).filter((r): r is LeaderRow => r !== null);
+	$: chips = buildChips(cfg, peersData, ladder, grouped, rootType, MAX_CHIPS, HERO_MIN_TIER);
+	$: leaderRows = buildLeaderRows(grouped, cfg.leaders);
 </script>
 
 <div class="hero">
 	<div class="hero-top">
 		<h1>{@html view.name}</h1>
 		<div class="stat">
-			<HoverBlock
-				show={showIndexedCiteText}
-				style="top: 20svh; left:20vw; width: 60vw;max-width: 550px"
-			>
-				Citations made by non-retracted papers categorized as "article", "book", or "review" that
-				have received at least one citation.
-			</HoverBlock>
-			{#if isHitPaper}
+			{#if cfg.statVariant === 'paper'}
 				<div class="stat-big">{citeText}</div>
 				<div class="stat-sub">published {view.startYear}</div>
-			{:else if rawCites > 0}
+			{:else if cfg.useRawCites && rawCites > 0}
 				<div class="stat-big">{formatNumber(rawCites)} citations</div>
 				<div class="stat-sub">
 					{pluralize('paper', view.papers)} · {formatNumber(view.citations)}
-					<a
-						href="/#indexed-citation"
-						target="blank_"
-						on:mouseover={() => (showIndexedCiteText = true)}
-						on:mouseleave={() => (showIndexedCiteText = false)}
-						on:focus={() => (showIndexedCiteText = true)}
-						on:blur={() => (showIndexedCiteText = false)}>indexed</a
-					>
-					{#if hitPaperCount > 0}
+					<IndexedCitationLink />
+					{#if cfg.showHitPapers && hitPaperCount > 0}
 						· <a href="#papers">{pluralize('hit paper', hitPaperCount)}</a>
+					{/if}
+					{#if cfg.showHIndex && hIndex != null}
+						· h-index {hIndex}
 					{/if}
 				</div>
 			{:else}
 				<div class="stat-big">{formatNumber(view.citations)} citations</div>
 				<div class="stat-sub">
 					{pluralize('paper', view.papers)} ·
-					<a
-						href="/#indexed-citation"
-						target="blank_"
-						on:mouseover={() => (showIndexedCiteText = true)}
-						on:mouseleave={() => (showIndexedCiteText = false)}
-						on:focus={() => (showIndexedCiteText = true)}
-						on:blur={() => (showIndexedCiteText = false)}>indexed</a
-					>
+					<IndexedCitationLink />
+					{#if cfg.sinceNote === 'complete'}
+						· since {COMPLETE_YEAR}
+					{:else if cfg.sinceNote === 'startYear'}
+						· active since {view.startYear}
+					{/if}
 				</div>
 			{/if}
 		</div>
@@ -229,7 +135,7 @@
 		</div>
 	</div>
 
-	{#if isHitPaper}
+	{#if isHitPaper && (abstract || abstractLoading)}
 		<details class="abstract" bind:open={abstractExpanded}>
 			<summary><h2>Abstract</h2></summary>
 			{#if abstract}
