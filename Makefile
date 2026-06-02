@@ -2,6 +2,38 @@
 export
 
 .PHONY: bootstrap dev build-nano-artifact test-dev-env py-build
+.PHONY: check format check-rs check-py check-js format-rs format-py format-js
+
+PY_LINT_PATHS := pyscripts sql-yardstick
+
+# Read-only verification gate. Run before every change; must be clean.
+check: check-rs check-py check-js
+
+# Auto-fix everything that can be fixed mechanically, then run `check`.
+format: format-rs format-py format-js
+
+check-rs:
+	cargo fmt --check
+	cargo check --workspace --all-targets
+
+check-py:
+	uv run ruff format --check $(PY_LINT_PATHS)
+	uv run ruff check $(PY_LINT_PATHS)
+
+check-js:
+	bun run lint
+	bun run check
+
+format-rs:
+	cargo fmt
+
+format-py:
+	uv run ruff check --fix $(PY_LINT_PATHS)
+	uv run ruff format $(PY_LINT_PATHS)
+
+format-js:
+	bun run format
+	bun run lint:fix
 
 bootstrap:
 	python3 -m pyscripts.dev.bootstrap

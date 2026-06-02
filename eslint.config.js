@@ -23,7 +23,14 @@ export default ts.config(
 			'svelte/no-at-html-tags': 'off',
 			// Conflicts with inherently-external links and the existing base-prepend link
 			// helpers (entToLink); satisfying it would require a routing refactor.
-			'svelte/no-navigation-without-resolve': 'off'
+			'svelte/no-navigation-without-resolve': 'off',
+			// Both rules assume runes-mode reactivity. These components are legacy mode, where
+			// the compiler resolves template/`$:` deps statically and `untrack`s the call — so a
+			// `$:`-defined function (reassigned when its closed-over reactive vars change) is what
+			// drives dependent re-eval, and a mutated SvelteSet/Map (not reassigned) is NOT tracked.
+			// "Fixing" these silently breaks reactivity; keep the legacy `$:` / reassign patterns.
+			'svelte/no-reactive-functions': 'off',
+			'svelte/prefer-svelte-reactivity': 'off'
 		}
 	},
 	{
