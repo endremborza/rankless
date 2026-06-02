@@ -2,27 +2,45 @@
 	import { getColorArr } from '$lib/style-util';
 	import type { NamedNode } from '$lib/tree-types';
 	import BrokenFittedText from './BrokenFittedText.svelte';
+	import TileTreeMap from './TileTreeMap.svelte';
 
-	export let data: NamedNode;
-	export let maxPad = 10;
-	export let width = 1000;
-	export let height = 1000;
-	export let xOffset = 0;
-	export let yOffset = 0;
-	export let colorStart = 0;
-	export let colorEnd = 1;
-	export let transitionMs = 400;
-	export let edgePad = 0.08;
-	export let expandedChild: string | undefined = undefined;
-	export let openChildren: string[] = [];
-	export let open = true;
-	export let showText = false;
+	let {
+		data,
+		maxPad = 10,
+		width = 1000,
+		height = 1000,
+		xOffset = 0,
+		yOffset = 0,
+		colorStart = 0,
+		colorEnd = 1,
+		transitionMs = 400,
+		edgePad = 0.08,
+		expandedChild = undefined,
+		openChildren = [],
+		open = true,
+		showText = false
+	}: {
+		data: NamedNode;
+		maxPad?: number;
+		width?: number;
+		height?: number;
+		xOffset?: number;
+		yOffset?: number;
+		colorStart?: number;
+		colorEnd?: number;
+		transitionMs?: number;
+		edgePad?: number;
+		expandedChild?: string | undefined;
+		openChildren?: string[];
+		open?: boolean;
+		showText?: boolean;
+	} = $props();
 
-	$: childVals = Object.values(data.children || {});
-	$: sumW = childVals?.reduce((l, r) => l + r.weight, 0);
-	$: pad = open ? maxPad : 0;
-	$: colorStep = (colorEnd - colorStart) / childVals.length;
-	$: theOne = (n: { name: string }, baseVal: number, expVal: number, disposedVal: number) =>
+	const childVals = $derived(Object.values(data.children || {}));
+	const sumW = $derived(childVals?.reduce((l, r) => l + r.weight, 0));
+	const pad = $derived(open ? maxPad : 0);
+	const colorStep = $derived((colorEnd - colorStart) / childVals.length);
+	const theOne = (n: { name: string }, baseVal: number, expVal: number, disposedVal: number) =>
 		expandedChild === undefined ? baseVal : expandedChild == n.name ? expVal : disposedVal;
 
 	function bsp(
@@ -81,7 +99,9 @@
 		return flats;
 	}
 
-	$: flats = bsp(childVals || [], [xOffset, yOffset], [width, height], sumW, 0, [], pad);
+	const flats = $derived(
+		bsp(childVals || [], [xOffset, yOffset], [width, height], sumW, 0, [], pad)
+	);
 </script>
 
 {#if childVals.length == 0}
@@ -93,8 +113,8 @@
 		style="--crgb: {getColorArr((colorStart + colorEnd) / 2)}; --transition-ms: {transitionMs}ms"
 	/>
 {:else}
-	{#each flats as node, i}
-		<svelte:self
+	{#each flats as node, i (i)}
+		<TileTreeMap
 			data={node.data}
 			width={theOne(node, node.sizes[0], width, 1)}
 			height={theOne(node, node.sizes[1], height, 1)}
