@@ -16,6 +16,11 @@ use crate::{
     Stowage,
 };
 
+// Field-size dampening exponent for top-subfield selection: score[s] = cit[s] / field_size[s]^beta.
+// 0.0 = raw citations; 1.0 = entity's share of the field. Shared so peer matching, the precomputed
+// top-subfield relations, and the server's displayed comparison basis all rank subfields the same.
+pub const SPEC_BETA: f64 = 0.75;
+
 pub struct GenericPeerCtx {}
 
 pub struct PartitionedTrees<const D: usize, T>

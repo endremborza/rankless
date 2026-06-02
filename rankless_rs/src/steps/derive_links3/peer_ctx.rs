@@ -18,10 +18,6 @@ pub const W_PEER_COUNTRY: f64 = 0.5;
 pub const W_PEER_COUNTRY_DECAY: f64 = 0.5;
 pub const W_PEER_TEMPORAL: f64 = 0.6;
 
-// Field-size dampening for top-subfield selection: score[s] = cit[s] / field_size[s]^beta.
-// 0.0 = raw citations (old behavior); 1.0 = entity's share of the field.
-pub const W_PEER_SPEC_BETA: f64 = 0.75;
-
 const K_TREE: usize = 500;
 
 pub(super) type InstCitSfsArr = ET<MAA<Institutions, CitSubfieldsArrayMarker>>;
@@ -78,7 +74,7 @@ impl InstPeerCtx {
     ) -> Self {
         let cit_sfs =
             stowage.get_marked_interface::<Institutions, CitSubfieldsArrayMarker, QuickestBox>();
-        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, W_PEER_SPEC_BETA);
+        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, peers::SPEC_BETA);
         let sf_totals = peers::compute_sf_totals(&*cit_sfs);
         let locs = stowage.get_entity_interface::<InstLocs, QuickestBox>();
         let countries = stowage.get_entity_interface::<InstCountries, QuickestBox>();
@@ -102,7 +98,7 @@ impl SfPeerCtx {
     ) -> Self {
         let cit_sfs =
             stowage.get_marked_interface::<Subfields, CitSubfieldsArrayMarker, QuickestBox>();
-        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, W_PEER_SPEC_BETA);
+        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, peers::SPEC_BETA);
         Self {
             filter,
             cit_sfs,
@@ -120,7 +116,7 @@ impl CountryPeerCtx {
     ) -> Self {
         let cit_sfs =
             stowage.get_marked_interface::<Countries, CitSubfieldsArrayMarker, QuickestBox>();
-        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, W_PEER_SPEC_BETA);
+        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, peers::SPEC_BETA);
         Self {
             filter,
             cit_sfs,
@@ -138,7 +134,7 @@ impl SourcePeerCtx {
     ) -> Self {
         let cit_sfs =
             stowage.get_marked_interface::<Sources, CitSubfieldsArrayMarker, QuickestBox>();
-        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, W_PEER_SPEC_BETA);
+        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, peers::SPEC_BETA);
         let sf_totals = peers::compute_sf_totals(&*cit_sfs);
         Self {
             filter,
@@ -154,7 +150,7 @@ impl AuthorPeerCtx {
     pub fn new(stowage: &Stowage, filter: Vec<bool>, field_sizes: &[f64; Subfields::N]) -> Self {
         let cit_sfs =
             stowage.get_marked_interface::<Authors, CitSubfieldsArrayMarker, QuickestBox>();
-        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, W_PEER_SPEC_BETA);
+        let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, peers::SPEC_BETA);
         let career_centroids_o: Vec<[Option<f32>; 1]> = stowage
             .get_marked_interface::<Authors, YearCentroidMarker, ReadFixIter>()
             .enumerate()
