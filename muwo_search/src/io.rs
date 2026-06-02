@@ -1,7 +1,9 @@
 use std::io;
 
-use super::{CustomTrie, FixedHeap, GenTrie, IndType, SearchEngine, TrieLeaf, TrieLeaves,
-    TrieNodeL1, TrieNodeRoot, WordViaCharr, CHAR_COUNT};
+use super::{
+    CustomTrie, FixedHeap, GenTrie, IndType, SearchEngine, TrieLeaf, TrieLeaves, TrieNodeL1,
+    TrieNodeRoot, WordViaCharr, CHAR_COUNT,
+};
 
 const MAGIC: &[u8; 4] = b"MWS\x01";
 
@@ -40,7 +42,10 @@ impl<const S: usize> SearchEngine<S> {
     }
 }
 
-fn save_heap<const S: usize>(heap: &FixedHeap<IndType, S>, w: &mut impl io::Write) -> io::Result<()> {
+fn save_heap<const S: usize>(
+    heap: &FixedHeap<IndType, S>,
+    w: &mut impl io::Write,
+) -> io::Result<()> {
     for &v in heap.arr.iter() {
         write_u32(w, v)?;
     }
