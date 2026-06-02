@@ -342,7 +342,7 @@
 					height={headerShape.height * 0.7}
 					width={headerShape.width * 0.8}
 					text={htmlToText(rootName) || ''}
-					anchor={'center'}
+					anchor="center"
 					bottomAligned={false}
 					x={headerShape.x + headerShape.width / 2}
 					y={headerShape.y + headerShape.height * 0.75}
@@ -380,17 +380,17 @@
 					<HeadControl
 						bind:hoverToggle={showSpecInfoHover}
 						bind:checked={isGlobalSpecialization}
-						text={'Specialization'}
+						text="Specialization"
 					/>
 					{#if tf.hasYearFilter(conf.rootType)}
 						<HeadControl
 							bind:hoverToggle={showFilterHover}
 							interactText={false}
 							checked={false}
-							text={`since`}
+							text="since"
 						>
 							<select bind:value={conf.year} aria-label="Since year"
-								>{#each treeSpecs.yearBreaks as y}
+								>{#each treeSpecs.yearBreaks as y, __i (__i)}
 									<option>{y}</option>
 								{/each}
 							</select>
@@ -398,7 +398,7 @@
 					{/if}
 				</div>
 			{/if}
-			{#each levelOutSpecs || [] as levelSpec, index}
+			{#each levelOutSpecs || [] as levelSpec, index (index)}
 				<MidpathBar
 					{index}
 					{levelSpec}
