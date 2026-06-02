@@ -141,7 +141,7 @@ fn step_rs_file_name(src_path: &Path, name: &str) -> String {
 fn pub_mods_to_file(mod_dir: &Path, steps: &Vec<&String>) {
     std::fs::write(
         &rs_file_name(mod_dir, MOD_STEM),
-        get_pub_mod_lines(steps.iter()).join("\n"),
+        get_pub_mod_lines(steps.iter()).join("\n") + "\n",
     )
     .unwrap();
 }
