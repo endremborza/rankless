@@ -46,8 +46,8 @@
 		[subLegend, subColor, subLop]
 	];
 
-	$: minVal = Math.min(...citeGraph.citations);
-	$: minTick = 1 - minVal;
+	const minVal = Math.min(...citeGraph.citations);
+	const minTick = 1 - minVal;
 	$: [height, width] = isWideScreen ? ['90svh', '50%'] : ['55svh', '100%'];
 </script>
 
@@ -71,8 +71,8 @@
 			>{formatNumber(minVal * citeGraph.maxval)}</text
 		>
 	</g>
-	{#each legendSets as [legend, color, opacity]}
-		{#each legend as [y, line]}
+	{#each legendSets as [legend, color, opacity], __i (__i)}
+		{#each legend as [y, line], __i (__i)}
 			<text
 				x="0.03"
 				{y}
@@ -83,7 +83,7 @@
 			>
 		{/each}
 	{/each}
-	{#each citeGraph.year.entries() as [i, y]}
+	{#each citeGraph.year.entries() as [i, y] (i)}
 		{#if y % 5 == 0}
 			<path
 				d="M{i / citeGraph.year.length},1.03v-0.06"
