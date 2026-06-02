@@ -43,6 +43,7 @@ use rankless_rs::{
         derive_links3::HitPapers,
     },
     ladder::{LADDER_LEN, LADDER_PCT_BANDS},
+    peers::SPEC_BETA,
     steps::{
         a1_entity_mapping::{Qs, RawYear, YearInterface, Years},
         a2_init_atts::OrcidType,
@@ -1336,13 +1337,18 @@ fn peers_inner(etype: &str, sem_id: &str, states: &StatesT) -> (HeaderMap, Respo
 
     let sf_atts = &satts[Subfields::NAME];
     let sf_row = aux.cit_subfields.row(hero_dm);
-    // All subfields the hero has citations in, most-cited first. The client defaults to the top few
-    // and lets the user expand the comparison basis, so no refetch is needed on selection change.
-    let mut sf_scores: Vec<(usize, u32)> = (0..N_SUBFIELDS)
-        .map(|si| (si, sf_row[si]))
-        .filter(|(_, c)| *c > 0)
+    let mut sf_scores: Vec<(usize, f64)> = (0..N_SUBFIELDS)
+        .filter(|&si| sf_row[si] > 0)
+        .map(|si| {
+            (
+                si,
+                sf_row[si] as f64
+                    / (states.2.state.gets.sfworks(si as ET<Subfields>).len() as f64)
+                        .powf(SPEC_BETA),
+            )
+        })
         .collect();
-    sf_scores.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+    sf_scores.sort_unstable_by(|a, b| b.1.total_cmp(&a.1));
     let sf_indices: Vec<usize> = sf_scores.into_iter().map(|(si, _)| si).collect();
 
     let top_subfields: Vec<PeerSubfieldInfo> = sf_indices
