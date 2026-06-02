@@ -265,7 +265,9 @@ describe('getDefaultYear', () => {
 
 describe('nameById', () => {
 	it('returns name from labels', () => {
-		const labels = { authors: { '5': { name: 'Alice', specBaseline: 0 } } } as unknown as tt.AttributeLabels;
+		const labels = {
+			authors: { '5': { name: 'Alice', specBaseline: 0 } }
+		} as unknown as tt.AttributeLabels;
 		expect(nameById(labels, 'authors', 5)).toBe('Alice');
 	});
 

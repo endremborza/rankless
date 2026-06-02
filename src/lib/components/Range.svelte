@@ -16,7 +16,6 @@
 
 	function trueMover(e: MouseEvent) {
 		let ind = Math.floor((e.layerX / width) * (valueSteps.length - 1));
-		cx = posSteps[ind];
 		value = valueSteps[ind];
 	}
 

@@ -16,7 +16,12 @@ const INITIAL_WORKS_N = 20;
 const PEER_ROOT_TYPES: tt.RootType[] = ['authors', 'institutions', 'countries', 'sources'];
 
 export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
-	const { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(params, url, '', fetch);
+	const { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(
+		params,
+		url,
+		'',
+		fetch
+	);
 	const view: tt.View = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => res.json())
 		.then((view) => view)
@@ -40,7 +45,14 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 
 	const paperText = pluralize('paper', view.papers);
 	const citeText = pluralize('indexed citation', view.citations);
-	const aboutParagraph = getSemanticRels(view, view.name, rootType, paperText, citeText, semanticId);
+	const aboutParagraph = getSemanticRels(
+		view,
+		view.name,
+		rootType,
+		paperText,
+		citeText,
+		semanticId
+	);
 
 	const prefixText = SEMANTIC_CONF[rootType]?.start || '';
 	const metaDescriptions = `Breaking down the academic impact of ${prefixText.toLowerCase()} ${view.name} - ( ${paperText}, ${citeText} )`;

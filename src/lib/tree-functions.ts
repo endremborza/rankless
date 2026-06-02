@@ -30,7 +30,9 @@ export function getDefaultLevelSpecs() {
 }
 
 export function getTreeIndsByEntityType(specs: tt.TreeSpec[]): tt.IndsByEntityType {
-	const out = Object.fromEntries(ENTITY_TYPES.map((e) => [e, []])) as unknown as tt.IndsByEntityType;
+	const out = Object.fromEntries(
+		ENTITY_TYPES.map((e) => [e, []])
+	) as unknown as tt.IndsByEntityType;
 	for (let i = 0; i < specs.length; i++) {
 		const aType = specs[i].breakdowns[0].attributeType;
 		if (ENTITY_TYPES.includes(aType)) out[aType].push(i);
