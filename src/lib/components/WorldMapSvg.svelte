@@ -38,8 +38,7 @@
 	let mapHeight = 950;
 	let maxw = 0;
 	let minw = 0;
-	let svgEl: SVGSVGElement;
-	let styleEl: SVGStyleElement | null = null;
+	let mounted = false;
 
 	let nBreakPoints = 3;
 	let pullerRate = 0.12;
@@ -57,7 +56,9 @@
 			? 'Total citations of papers'
 			: 'Citations';
 	$: updateL1(flatOut, resp);
-	$: updateStyle(styleEl, countryLevels, highlighted, highlightedQ, nBreakPoints, pullerRate);
+	$: styleTag = mounted
+		? `<style>${getClassStyles(countryLevels, highlighted, highlightedQ, nBreakPoints, pullerRate)}</style>`
+		: '';
 	$: updateTreeId(indsByEntityType);
 
 	const getColorRate = (r: number) => r * (maxColorRate - minColorRate) + minColorRate;
@@ -129,18 +130,6 @@
 		}
 	}
 
-	function updateStyle(
-		styleEl: SVGStyleElement | null,
-		l1Weights: tt.LevelT,
-		highlighted: string,
-		highlightedQ: number,
-		nbps: number,
-		pullerRate: number
-	) {
-		if (styleEl == undefined) return;
-		styleEl.textContent = getClassStyles(l1Weights, highlighted, highlightedQ, nbps, pullerRate);
-	}
-
 	function setHover(cc: string) {
 		return () => {
 			if (!clicked) {
@@ -179,9 +168,7 @@
 	}
 
 	onMount(() => {
-		const svgNS = 'http://www.w3.org/2000/svg';
-		styleEl = document.createElementNS(svgNS, 'style') as SVGStyleElement;
-		svgEl.insertBefore(styleEl, svgEl.firstChild);
+		mounted = true;
 	});
 
 	const C_SEM_MAP: Record<tt.RootType, Record<string, string>> = {
@@ -237,12 +224,13 @@
 			{infoPath}
 		>
 			<div class="world-map-container">
-				<svg bind:this={svgEl} viewBox="{xMin} {yMin} {mapWidth} {mapHeight}">
+				<svg viewBox="{xMin} {yMin} {mapWidth} {mapHeight}">
+					{@html styleTag}
 					<!-- svelte-ignore a11y_mouse_events_have_key_events -->
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-					{#each Object.entries(countryPaths) as [cc, cpaths]}
-						{#each cpaths as d}
+					{#each Object.entries(countryPaths) as [cc, cpaths] (cc)}
+						{#each cpaths as d, __i (__i)}
 							<path
 								{d}
 								style={getDefaultPathStyle(cc)}
@@ -263,7 +251,7 @@
 					{#if nBreakPoints > 0}
 						<!-- svelte-ignore a11y_mouse_events_have_key_events -->
 						<div class="label-bp-container">
-							{#each breakPoints as bp, i}
+							{#each breakPoints as bp, i (i)}
 								<div
 									class="label-bp-box"
 									style="background-color: rgba({getColorArr(
