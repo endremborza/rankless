@@ -1,37 +1,48 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { APP_NAME, BE_REMOTE_URL } from '$lib/constants';
 	import { prettifyRoot } from '$lib/text-format-util';
 	import type { SearchResult, RootType } from '$lib/tree-types';
 
-	export let data: {
-		rootType: RootType;
-		rows: SearchResult[];
-		from: number;
-		hasMore: boolean;
-		pageSize: number;
-	};
+	let {
+		data
+	}: {
+		data: {
+			rootType: RootType;
+			rows: SearchResult[];
+			from: number;
+			hasMore: boolean;
+			pageSize: number;
+		};
+	} = $props();
 
-	let searchQuery = '';
-	let sortCol: 'name' | 'papers' | 'citations' = 'citations';
-	let sortAsc = false;
-	let extraRows: SearchResult[] = [];
-	let loadingMore = false;
-	let noMore = !data.hasMore;
-	let currentFrom = data.from + data.rows.length;
+	let searchQuery = $state('');
+	let sortCol = $state<'name' | 'papers' | 'citations'>('citations');
+	let sortAsc = $state(false);
+	let extraRows = $state<SearchResult[]>([]);
+	let loadingMore = $state(false);
+	// Pagination state is seeded from the initial load, then mutated by loadMore (not reset on
+	// data changes — matches the pre-runes behavior); untrack marks the read as intentional.
+	let noMore = $state(untrack(() => !data.hasMore));
+	let currentFrom = $state(untrack(() => data.from + data.rows.length));
 
-	$: allRows = [...data.rows, ...extraRows];
+	const allRows = $derived([...data.rows, ...extraRows]);
 
-	$: filtered = searchQuery.trim()
-		? allRows.filter((r) => r.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
-		: allRows;
+	const filtered = $derived(
+		searchQuery.trim()
+			? allRows.filter((r) => r.name.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+			: allRows
+	);
 
-	$: sorted = [...filtered].sort((a, b) => {
-		let cmp = 0;
-		if (sortCol === 'name') cmp = a.name.localeCompare(b.name);
-		else if (sortCol === 'papers') cmp = a.papers - b.papers;
-		else cmp = a.citations - b.citations;
-		return sortAsc ? cmp : -cmp;
-	});
+	const sorted = $derived(
+		[...filtered].sort((a, b) => {
+			let cmp = 0;
+			if (sortCol === 'name') cmp = a.name.localeCompare(b.name);
+			else if (sortCol === 'papers') cmp = a.papers - b.papers;
+			else cmp = a.citations - b.citations;
+			return sortAsc ? cmp : -cmp;
+		})
+	);
 
 	function toggleSort(col: typeof sortCol) {
 		if (sortCol === col) sortAsc = !sortAsc;
@@ -60,7 +71,7 @@
 		loadingMore = false;
 	}
 
-	$: title = `${APP_NAME} | ${prettifyRoot(data.rootType)} table`;
+	const title = $derived(`${APP_NAME} | ${prettifyRoot(data.rootType)} table`);
 	const entityUrl = (r: SearchResult) => `/${data.rootType}/${r.semanticId}`;
 </script>
 
@@ -86,13 +97,13 @@
 			<thead>
 				<tr>
 					<th class="col-rank">#</th>
-					<th class="col-name sortable" on:click={() => toggleSort('name')}>
+					<th class="col-name sortable" onclick={() => toggleSort('name')}>
 						Name{sortIndicator('name')}
 					</th>
-					<th class="col-papers sortable" on:click={() => toggleSort('papers')}>
+					<th class="col-papers sortable" onclick={() => toggleSort('papers')}>
 						Papers{sortIndicator('papers')}
 					</th>
-					<th class="col-citations sortable" on:click={() => toggleSort('citations')}>
+					<th class="col-citations sortable" onclick={() => toggleSort('citations')}>
 						Citations{sortIndicator('citations')}
 					</th>
 				</tr>
@@ -121,7 +132,7 @@
 	</div>
 
 	{#if !noMore && !searchQuery}
-		<button class="load-more" on:click={loadMore} disabled={loadingMore}>
+		<button class="load-more" onclick={loadMore} disabled={loadingMore}>
 			{loadingMore ? 'Loading…' : `Load more (showing ${allRows.length})`}
 		</button>
 	{/if}
