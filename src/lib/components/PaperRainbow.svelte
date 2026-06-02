@@ -14,7 +14,6 @@
 	import HitPaperBreakdown from './HitPaperBreakdown.svelte';
 	import HitPaperExplainer from './HitPaperExplainer.svelte';
 	import { onMount } from 'svelte';
-	import { SvelteSet } from 'svelte/reactivity';
 
 	export let papers: tt.Paper[];
 	export let entityAtts: tt.EntityAttsForLinks = {};
@@ -54,7 +53,7 @@
 	let breakdownTreeId = 0;
 	let breakdownIsSpec = false;
 
-	let expandedSet = new SvelteSet<number>();
+	let expandedSet: Set<number> = new Set();
 	let listContainer: HTMLUListElement;
 	let listItemElements: HTMLLIElement[] = [];
 	let firstVisible: number | null = null;
@@ -243,8 +242,10 @@
 	}
 
 	function toggleExpand(i: number) {
-		if (expandedSet.has(i)) expandedSet.delete(i);
-		else expandedSet.add(i);
+		const next = new Set(expandedSet);
+		if (next.has(i)) next.delete(i);
+		else next.add(i);
+		expandedSet = next;
 	}
 
 	onMount(() => {
