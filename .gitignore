@@ -18,6 +18,7 @@ __pycache__
 *.tar.gz
 /reports
 /reports-v2
+/coverage
 *.profraw
 *.img
 *.json.gz
