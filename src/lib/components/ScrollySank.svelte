@@ -136,7 +136,7 @@
 	style="top: {topVh}; --ms: {rateScale(6.4, 0.2) < 0.5 ? 0 : 500}ms"
 >
 	<defs>
-		{#each [1, 2] as find}
+		{#each [1, 2] as find, __i (__i)}
 			<linearGradient id="fade-{find}" gradientTransform="rotate(90)">
 				<stop class="stop-{find}" offset="0%" stop-opacity="0%" />
 				<stop class="stop-{find}" offset="10%" stop-opacity="2%" />
@@ -147,7 +147,7 @@
 	</defs>
 	<path d={p1} fill="url(#fade-1)" />
 	<path d={p2} fill="url(#fade-2)" />
-	{#each [{ pO: p11Obj, cR: 5 }, { pO: p12Obj, cR: 20 }, { pO: p13Obj, cR: 50 }, { pO: p21Obj, cR: 60 }, { pO: p22Obj, cR: 70 }, { pO: p23Obj, cR: 90 }] as { pO, cR }, i}
+	{#each [{ pO: p11Obj, cR: 5 }, { pO: p12Obj, cR: 20 }, { pO: p13Obj, cR: 50 }, { pO: p21Obj, cR: 60 }, { pO: p22Obj, cR: 70 }, { pO: p23Obj, cR: 90 }] as { pO, cR }, i (i)}
 		<path d={toP(pO)} style=" fill: rgb(var(--color-range-{cR}));" opacity="{phaseTwo * 75}%" />
 		<g opacity="{Math.pow(phaseTwo, 2) * 100}%">
 			<BrokenFittedText
@@ -160,7 +160,7 @@
 		</g>
 	{/each}
 	<g opacity="{Math.pow(phaseTwo, 2) * 100}%">
-		{#each [p1Obj, p2Obj] as pO, i}
+		{#each [p1Obj, p2Obj] as pO, i (i)}
 			<BrokenFittedText
 				x={pO.cBot.x + pad}
 				y={pO.cBot.y + l1Bottom - pad}
