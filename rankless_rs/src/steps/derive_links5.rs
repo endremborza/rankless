@@ -1,4 +1,4 @@
-use std::{io, sync::Arc};
+use std::io;
 
 use dmove::{reverse_prefixed_n, MarkedAttribute, UnsignedNumber, VarAttBuilder, ET};
 use hashbrown::HashMap;
@@ -12,14 +12,14 @@ use crate::{
     env_consts::FINAL_YEAR,
     gen::{
         a1_entity_mapping::{Authors, Countries, Sources, Subfields, Topics},
-        derive_links2::WorkTopSource,
+        derive_links2::{SubfieldWorks, WorkTopSource},
         derive_links3::HitPapers,
     },
     steps::{
         a1_entity_mapping::YearInterface,
         derive_links2::{inc_year, CiteDeriver, EraRec, Top15Rec, Top3Rec},
     },
-    QuickestBox, QuickestNumbered, Stowage, WorkCountMarker,
+    QuickestBox, QuickestNumbered, QuickestVBox, Stowage, WorkCountMarker,
 };
 
 macro_rules! mark_empty {
@@ -142,9 +142,9 @@ impl CiteDeriver {
 
 pub fn main(stowage: Stowage) -> io::Result<()> {
     let wts = stowage.get_entity_interface::<WorkTopSource, QuickestBox>();
-    let cd = CiteDeriver::new(stowage, wts);
+    let sf_works = stowage.get_entity_interface::<SubfieldWorks, QuickestVBox>();
+    let cd = CiteDeriver::new(stowage, wts, &sf_works.0);
     cd.hit_paper_atts();
-    let sarc = Arc::new(cd.stowage);
-    Arc::try_unwrap(sarc).ok().unwrap().write_code()?;
+    cd.stowage.write_code()?;
     Ok(())
 }

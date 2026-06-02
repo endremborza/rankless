@@ -86,6 +86,8 @@ pub struct CiteDeriver {
     pub journal_vals: Arc<[u32]>,
     pub wcountries: Box<[Box<[ET<Countries>]>]>,
     pub w_top_source: Box<[ET<Sources>]>,
+    // Per-subfield field size raised to SPEC_BETA; denominator for specialization-ranked top subfields.
+    pub sf_spec_denoms: Arc<[f64; Subfields::N]>,
 }
 
 struct SelfExtender<T> {
@@ -107,6 +109,9 @@ where
 enum TopSorter {
     Default,
     TopJournal(Arc<[u32]>),
+    // Rank subfields by specialization: count / field_size^SPEC_BETA. The held slice is the
+    // per-subfield field size already raised to SPEC_BETA, indexed by subfield id.
+    Specialization(Arc<[f64; Subfields::N]>),
 }
 
 make_interface_struct!(CDBackends,
@@ -204,7 +209,7 @@ where
         self.push_from_it(cv.into_iter(), seid, sort_o)
     }
 
-    fn push_from_arr<'a, T>(&mut self, arr: &[T], seid: NET<SE>)
+    fn push_from_arr<'a, T>(&mut self, arr: &[T], seid: NET<SE>, sort_o: TopSorter)
     where
         T: UnsignedNumber + 'a,
         SE: Entity,
@@ -212,7 +217,7 @@ where
         self.push_from_it(
             arr.iter().map(|e| e.to_usize() as u32).enumerate(),
             seid,
-            TopSorter::Default,
+            sort_o,
         );
     }
 
@@ -318,10 +323,16 @@ where
         let mut rel_vec: Vec<InstRelation> = map_base.into_values().collect();
         rel_vec.sort_by(|l, r| (r.papers, (r.end - r.start)).cmp(&(l.papers, l.end - l.start)));
         push_cut::<N_RELS, InstRelation>(rel_vec, &mut self.rels);
-        self.top3_paper_sfs
-            .push_from_arr(&self.paper_subfields.rec.0, parent_id);
-        self.top3_citing_sfs
-            .push_from_arr(&self.citing_subfields.rec.0, parent_id);
+        self.top3_paper_sfs.push_from_arr(
+            &self.paper_subfields.rec.0,
+            parent_id,
+            TopSorter::Specialization(cd.sf_spec_denoms.clone()),
+        );
+        self.top3_citing_sfs.push_from_arr(
+            &self.citing_subfields.rec.0,
+            parent_id,
+            TopSorter::Specialization(cd.sf_spec_denoms.clone()),
+        );
         self.top3_paper_topics.push(parent_id, TopSorter::Default);
         self.top5_authors.push(parent_id, TopSorter::Default);
         self.top3_aff_countries.push(parent_id, TopSorter::Default);
@@ -363,10 +374,15 @@ where
 }
 
 impl CiteDeriver {
-    pub(crate) fn new(stowage: Stowage, w_top_source: Box<[ET<Sources>]>) -> Self {
+    pub(crate) fn new(
+        stowage: Stowage,
+        w_top_source: Box<[ET<Sources>]>,
+        sf_works: &[Box<[ET<Works>]>],
+    ) -> Self {
         let astow = Arc::new(stowage);
         let backends = CDBackends::new(astow.clone());
         let wcountries = get_work_countries(&backends);
+        let sf_spec_denoms = compute_sf_spec_denoms(sf_works);
 
         Self {
             backends,
@@ -374,6 +390,7 @@ impl CiteDeriver {
             journal_vals: init_empty_slice::<Sources, u32>().into(),
             wcountries,
             w_top_source,
+            sf_spec_denoms,
         }
     }
 
@@ -555,6 +572,17 @@ impl CiteDeriver {
     }
 }
 
+// Field size per subfield = works assigned to it (one sequential pass over WorkSubfields, equal to
+// the subfield→works inversion length used by peer matching). Returned already raised to SPEC_BETA
+// so callers divide raw counts by it directly.
+fn compute_sf_spec_denoms(sf_works: &[Box<[ET<Works>]>]) -> Arc<[f64; Subfields::N]> {
+    Arc::new(core::array::from_fn(|s| {
+        (sf_works[s].len() as f64)
+            .max(1.0)
+            .powf(crate::peers::SPEC_BETA)
+    }))
+}
+
 impl TopSorter {
     fn cmp<T>(&self, l: &(usize, T), r: &(usize, T)) -> Ordering
     where
@@ -563,6 +591,11 @@ impl TopSorter {
         match self {
             Self::Default => r.1.cmp(&l.1),
             Self::TopJournal(b) => b[r.0].cmp(&b[l.0]),
+            Self::Specialization(denom) => {
+                let sl = l.1.to_usize() as f64 / denom[l.0];
+                let sr = r.1.to_usize() as f64 / denom[r.0];
+                sr.total_cmp(&sl)
+            }
         }
     }
 }
@@ -648,7 +681,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let w_years = stowage.get_entity_interface::<WorkYears, QuickestBox>();
 
     let a_inverter = InvertedMultiLink::<WorkFilteredAuthors>::from_stowage(&stowage);
-    let sf_inferter = InvertedMultiLink::<WorkSubfields>::from_stowage(&stowage);
+    let sf_inverter = InvertedMultiLink::<WorkSubfields>::from_stowage(&stowage);
     let i_inverter = InvertedMultiLink::<WorkInstitutions>::from_stowage(&stowage);
 
     let w_top_source: Box<[ET<Sources>]> = w_sources
@@ -674,7 +707,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         })
         .collect();
 
-    let mut cd = CiteDeriver::new(stowage, w_top_source);
+    let mut cd = CiteDeriver::new(stowage, w_top_source, &sf_inverter.data);
     let country_works =
         multi_inverter::<Works, Countries, _>(cd.wcountries.iter().map(|e| e.clone()), true);
     let cwo_name = "country-works";
@@ -688,7 +721,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let (a, i, sf) = (
         a_inverter.data.clone(),
         i_inverter.data.clone(),
-        sf_inferter.data.clone(),
+        sf_inverter.data.clone(),
     );
     par_join!(
         {
@@ -721,8 +754,8 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     stowage.declare::<Works, CiteCountMarker>(wc_name);
 
     a_inverter.stow_as_work_link(&stowage, "author-works");
-    sf_inferter.stow_as_work_link(&stowage, "subfield-works");
     i_inverter.stow_as_work_link(&stowage, "institution-works");
+    sf_inverter.stow_as_work_link(&stowage, "subfield-works");
 
     stowage.add_barr::<VarAttBuilder, _>(cd.wcountries, "work-countries");
     stowage.add_barr::<FixAttBuilder, _>(cd.w_top_source, "work-top-source");
