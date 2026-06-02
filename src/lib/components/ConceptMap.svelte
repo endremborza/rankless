@@ -50,8 +50,6 @@
 		([k, v]) => [Number(k), v] as [number, (typeof parents)[number]]
 	);
 
-	let svgEl: SVGSVGElement;
-	let styleEl: SVGStyleElement | null = null;
 	let infoPath: number[] = [];
 	let mounted = false;
 	let hovered = '0';
@@ -65,7 +63,9 @@
 
 	let treeId: number;
 	$: sourceSide = getSourceSide(treeSpecs, conf.rootType, treeId);
-	$: setClassStyles(styleEl, flatOut, mounted, hovered, hoveredParent);
+	$: styleTag = mounted
+		? `<style>${getClassStyles(flatOut, hovered, hoveredParent, 0.2)}</style>`
+		: '';
 	$: updateTreeId(indsByEntityType);
 
 	function getSourceSide(treeSpecs: tt.TreeSpecs, rootType: tt.RootType, treeId: number) {
@@ -194,22 +194,7 @@
 		return sLines.join('\n');
 	}
 
-	function setClassStyles(
-		styleEl: SVGStyleElement | null,
-		flatOut: tt.LevelT | undefined,
-		mounted: boolean,
-		hovered: string,
-		hoveredParent: ParentSelect
-	) {
-		if (styleEl != undefined && flatOut != undefined && mounted) {
-			styleEl.textContent = getClassStyles(flatOut, hovered, hoveredParent, 0.2);
-		}
-	}
-
 	onMount(() => {
-		const svgNS = 'http://www.w3.org/2000/svg';
-		styleEl = document.createElementNS(svgNS, 'style') as SVGStyleElement;
-		svgEl.insertBefore(styleEl, svgEl.firstChild);
 		mounted = true;
 	});
 
@@ -263,7 +248,6 @@
 			<div class="concept-map-container">
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<svg
-					bind:this={svgEl}
 					viewBox="-8 -8 146 116"
 					style="--op: {defaultOp}; --lop: {defaultLineOp}; --sat: {defaultSat}"
 					on:click={() => {
@@ -272,7 +256,8 @@
 						}
 					}}
 				>
-					{#each edges as [s, t, w]}
+					{@html styleTag}
+					{#each edges as [s, t, w], __i (__i)}
 						<line
 							x1={nodes[s][0]}
 							y1={nodes[s][1]}
@@ -282,7 +267,7 @@
 							stroke-width="0.1"
 						/>
 					{/each}
-					{#each Object.entries(nodes) as [sfi, [cx, cy]]}
+					{#each Object.entries(nodes) as [sfi, [cx, cy]] (sfi)}
 						<circle
 							{cx}
 							{cy}
@@ -320,7 +305,7 @@
 					{/each}
 				</svg>
 				<div class="concept-map-legend">
-					{#each parentEntries as [i, parent]}
+					{#each parentEntries as [i, parent] (i)}
 						<span
 							class="vw-sm"
 							on:mouseover={() => (hoveredParent = [i, undefined])}
