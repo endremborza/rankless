@@ -35,7 +35,7 @@
 >
 	<input type="checkbox" bind:checked />
 	<span class="slider round"
-		>{#each labels as l}
+		>{#each labels as l, __i (__i)}
 			<div>{l}</div>
 		{/each}</span
 	>

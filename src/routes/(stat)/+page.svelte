@@ -187,7 +187,7 @@
 		mainEntity: ldInnards
 	};
 
-	const fullLd = '<script type="application/ld+json">' + JSON.stringify(jsonLd) + `<\/script>`;
+	const fullLd = '<script type="application/ld+json">' + JSON.stringify(jsonLd) + '</' + 'script>';
 
 	export let data;
 
@@ -318,7 +318,7 @@
 			/>
 			<div class="inner">
 				<div class="grid cards">
-					{#each spotlights as { cta, top }, i}
+					{#each spotlights as { cta, top }, i (i)}
 						<div class="card">
 							<TreeSvg
 								{...props}
@@ -333,7 +333,7 @@
 								<h3>{cta.cta}</h3>
 								<p>{cta.desc}</p>
 								<div class="links">
-									{#each top.entities.slice(0, 3) as ent}
+									{#each top.entities.slice(0, 3) as ent, __i (__i)}
 										<a
 											href={tf.entToLink({ rootType: top.name, semanticId: ent.semanticId })}
 											target="_blank"
@@ -427,7 +427,7 @@
 			Budapest, with a small, multidisciplinary team.
 		</p>
 		<div class="grid cards">
-			{#each protraits as port}
+			{#each protraits as port, __i (__i)}
 				<div class="card">
 					<img class="portrait" src={port.src} alt={port.name} />
 					<div class="content">
@@ -435,7 +435,7 @@
 						<h3>{port.name}</h3>
 						<p>{port.role}</p>
 						<div class="links">
-							{#each port.links as { text, href }}
+							{#each port.links as { text, href }, __i (__i)}
 								<a {href} target="_blank" rel="noopener">{text}</a>
 							{/each}
 						</div>
@@ -503,7 +503,7 @@
 			</div>
 		</div>
 		<div class="wsized">
-			{#each faQuestions as q}
+			{#each faQuestions as q, __i (__i)}
 				<AccordionElement bind:selectedId title={q.question} id={q.id}>
 					{@html q.answer}
 				</AccordionElement>
@@ -573,7 +573,7 @@
 
 <div class="logo-strip">
 	<h1>Created by</h1>
-	{#each uLogos as src}
+	{#each uLogos as src, __i (__i)}
 		<img class="logo" {src} alt="inst-logo" />
 	{/each}
 </div>

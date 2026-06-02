@@ -114,7 +114,7 @@
 					Author{authors.length > 1 ? 's' : ''}:
 				</h4>
 				<al class="vw-base">
-					{#each authors.slice(0, 3).entries() as [i, author]}
+					{#each authors.slice(0, 3).entries() as [i, author] (i)}
 						<a href={author.link} target="_blank"
 							>{author.name}{author.isOfInst ? '*' : ''}{i < Math.min(authors.length - 1, 2)
 								? ','

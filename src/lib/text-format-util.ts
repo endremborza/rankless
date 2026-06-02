@@ -26,7 +26,7 @@ export class TypeWriterWordChanger {
 		if (this.wordInd === this.texts.length) {
 			this.wordInd = 0;
 		}
-		let word = this.texts[this.wordInd];
+		const word = this.texts[this.wordInd];
 		this.text = word.slice(0, this.letterInd);
 		if (this.letterInd === word.length) {
 			clearInterval(this.runner);
@@ -46,7 +46,7 @@ export class TypeWriterWordChanger {
 }
 
 export function isAsciiOnly(str: string) {
-	return /^[\x01-\x7F]+$/.test(str);
+	return str.length > 0 && !/[\u0080-\uffff]/.test(str);
 }
 
 export function pluralize(word: string, num: number, maxFix = 2) {
@@ -70,7 +70,7 @@ export function formatNumber(n: number, maxFix: number = 2) {
 	} else if (n < 1) {
 		return n.toFixed(Math.min(2, maxFix));
 	} else if (n < 10) {
-		let round = n % 1 === 0 ? 0 : maxFix;
+		const round = n % 1 === 0 ? 0 : maxFix;
 		return n.toFixed(round);
 	} else {
 		return n.toFixed(0);
@@ -122,7 +122,7 @@ export function getStylesForWords(
 	}
 
 	const totalMult = widthMultiplier * baseFontSize;
-	let baseGetters = {
+	const baseGetters = {
 		center: (words: string[]) => (-lineLen(words) * totalMult) / 2,
 		left: () => 0,
 		right: (words: string[]) => -lineLen(words) * totalMult
@@ -162,7 +162,7 @@ export function eTypeFromBdDesc(bdDesc: string): RootType {
 }
 
 export function semOptioned(semId: string, bdDesc: string) {
-	let suffix = singularize(eTypeFromBdDesc(bdDesc));
+	const suffix = singularize(eTypeFromBdDesc(bdDesc));
 	return `${semId} <${suffix}>`;
 }
 
@@ -211,7 +211,7 @@ function formatTextToLinesOneWay(
 		widthBasedFontSize,
 		heightBasedFontSize,
 		fontSize: number = 0;
-	for (const _ of Array(7)) {
+	for (let iter = 0; iter < 7; iter++) {
 		maxLineLen = lines.reduce((a, b) => Math.max(a, b.length), -Infinity);
 		widthBasedFontSize = width / (maxLineLen * widthMultiplier);
 		heightBasedFontSize = getDimBasedSize(height, heightMultiplier, numOfLines);
@@ -287,7 +287,7 @@ export function getNetworkText(
 		midNodeExp = 'of impactful';
 		midPrefix = 'distribution of';
 	}
-	let lines = [
+	const lines = [
 		`This network shows the ${midPrefix} ${productionSemantics(rootType, rootName)}.`,
 		'Nodes represent research fields, and links connect fields that are likely to share authors.',
 		`Colored nodes show fields ${midNodeExp} ${productionSemantics(rootType, rootName)}.`
@@ -311,10 +311,10 @@ export function getMapText(
 	isSpec: boolean,
 	sourceSide: boolean
 ) {
-	let specExplIn = sourceSide
+	const specExplIn = sourceSide
 		? "country's share of papers is larger"
 		: `country cites ${rootName} more`;
-	let specExpl = `(numbers larger than one mean the ${specExplIn} than expected)`;
+	const specExpl = `(numbers larger than one mean the ${specExplIn} than expected)`;
 	let midPrefix = '';
 	if (!isSpec && sourceSide) {
 		midPrefix =
@@ -325,13 +325,13 @@ export function getMapText(
 		midPrefix =
 			'It shows the number of citations coming from papers published by authors working in each country. ';
 	}
-	let [geoNoun, subject] = sourceSide ? ['distribution', 'papers'] : ['impact', 'citations'];
-	let geoPrefix = `This map shows the geographic ${geoNoun} of `;
-	let specPref = isSpec
+	const [geoNoun, subject] = sourceSide ? ['distribution', 'papers'] : ['impact', 'citations'];
+	const geoPrefix = `This map shows the geographic ${geoNoun} of `;
+	const specPref = isSpec
 		? 'This is a graph of specialization, which compares'
 		: 'You can also color the map by specialization and compare';
-	let rootPref = rootSemanticPrefix(rootType, sourceSide);
-	let fullSpecSuffix = ` ${midPrefix}${specPref} the number of ${rootPref} ${rootName} with the expected number of ${subject} based on a country's size and research output ${specExpl}.`;
+	const rootPref = rootSemanticPrefix(rootType, sourceSide);
+	const fullSpecSuffix = ` ${midPrefix}${specPref} the number of ${rootPref} ${rootName} with the expected number of ${subject} based on a country's size and research output ${specExpl}.`;
 
 	return (
 		geoPrefix +
@@ -348,7 +348,7 @@ export function getMapText(
 }
 
 function rootSemanticPrefix(rootType: RootType, sourceSide: boolean) {
-	let citePref = 'citations received by';
+	const citePref = 'citations received by';
 	if (sourceSide) {
 		return {
 			authors: 'papers authored by',

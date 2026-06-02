@@ -9,17 +9,17 @@ const LETTER_MAP: Record<string, RootType> = {
 };
 
 export const load: PageServerLoad = async ({ params, fetch }) => {
-	let id: string = params.oaId;
-	let rootType = LETTER_MAP[id[0]];
+	const id: string = params.oaId;
+	const rootType = LETTER_MAP[id[0]];
 	if (rootType == undefined) {
 		redirect(302, `https://openalex.org/${id}`);
 	}
-	let idNum = id.slice(1);
-	let url = `${BE_URL}/sem-id-via-oa/${rootType}/${idNum}`;
-	let semId = await fetch(url)
+	const idNum = id.slice(1);
+	const url = `${BE_URL}/sem-id-via-oa/${rootType}/${idNum}`;
+	const semId = await fetch(url)
 		.then((resp) => resp.json())
 		.then((jsRes: [number | undefined]) => {
-			let candidate = jsRes[0];
+			const candidate = jsRes[0];
 			if (candidate == undefined) {
 				redirect(302, `https://openalex.org/${id}`);
 			}

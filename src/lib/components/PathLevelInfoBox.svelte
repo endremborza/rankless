@@ -129,8 +129,6 @@
 			: '';
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_mouse_events_have_key_events -->
 <div class="plibox-container shadowy" role="none" tabindex="-1">
 	<span class="load-indicator">
 		<LoadingCircle isArming={armingPath != null} {delay} />

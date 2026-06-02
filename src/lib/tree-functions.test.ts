@@ -145,13 +145,13 @@ describe('pruneTree', () => {
 	it('depth 1 keeps first level only', () => {
 		const pruned = pruneTree(tree, 1);
 		expect(pruned.children).toHaveProperty('1');
-		expect((pruned.children as any)[1].children).toEqual({});
+		expect(pruned.children![1].children).toEqual({});
 	});
 
 	it('depth 2 keeps two levels', () => {
 		const pruned = pruneTree(tree, 2);
-		expect((pruned.children as any)[1].children).toHaveProperty('10');
-		expect((pruned.children as any)[1].children[10].children).toEqual({});
+		expect(pruned.children![1].children).toHaveProperty('10');
+		expect(pruned.children![1].children![10].children).toEqual({});
 	});
 });
 
@@ -170,7 +170,7 @@ describe('intersectionTree', () => {
 	});
 
 	it('handles undefined children', () => {
-		const a: tt.BareNode = { children: undefined as any };
+		const a: tt.BareNode = { children: undefined };
 		const b: tt.BareNode = { children: { 1: { children: {} } } };
 		expect(Object.keys(intersectionTree(a, b).children || {})).toEqual([]);
 	});
@@ -265,17 +265,17 @@ describe('getDefaultYear', () => {
 
 describe('nameById', () => {
 	it('returns name from labels', () => {
-		const labels = { authors: { '5': { name: 'Alice', specBaseline: 0 } } } as any;
+		const labels = { authors: { '5': { name: 'Alice', specBaseline: 0 } } } as unknown as tt.AttributeLabels;
 		expect(nameById(labels, 'authors', 5)).toBe('Alice');
 	});
 
 	it('returns UNKNOWN_NAME for missing id', () => {
-		const labels = { authors: {} } as any;
+		const labels = { authors: {} } as unknown as tt.AttributeLabels;
 		expect(nameById(labels, 'authors', 99)).toBe(UNKNOWN_NAME);
 	});
 
 	it('returns UNKNOWN_NAME for missing entity type', () => {
-		expect(nameById({} as any, 'authors', 1)).toBe(UNKNOWN_NAME);
+		expect(nameById({} as unknown as tt.AttributeLabels, 'authors', 1)).toBe(UNKNOWN_NAME);
 	});
 });
 
@@ -303,7 +303,7 @@ describe('deriveVisibleTree', () => {
 		};
 		const labels = {
 			subfields: { '1': { name: 'A', specBaseline: 0.5 }, '2': { name: 'B', specBaseline: 0.5 } }
-		} as any;
+		} as unknown as tt.AttributeLabels;
 
 		const result = deriveVisibleTree(root, controls, {}, labels, treeSpec);
 		expect(result.tree.weight).toBe(100);

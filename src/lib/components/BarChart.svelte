@@ -69,7 +69,7 @@
 		<!-- gutter stays even without labels so side-by-side charts keep equal plot widths -->
 		<div class="y-axis" style="height: {plotHeight}px;">
 			{#if showLabels}
-				{#each ticks as t}
+				{#each ticks as t, __i (__i)}
 					{#if !(t.ref && refLabel)}
 						<span
 							class="y-label"
@@ -84,7 +84,7 @@
 		</div>
 	{/if}
 	<div class="bars" style="height: {plotHeight}px; gap: {gap}px;">
-		{#each ticks as t}
+		{#each ticks as t, __i (__i)}
 			<div
 				class="gridline"
 				class:ref={t.ref}
@@ -100,9 +100,9 @@
 				>{refLabel}</span
 			>
 		{/if}
-		{#each groups as group}
+		{#each groups as group, __i (__i)}
 			<div class="bar-group" style="gap: {groupGap}px;">
-				{#each group as bar}
+				{#each group as bar, __i (__i)}
 					<div
 						class="bar-slot"
 						role="presentation"

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { RootType } from './tree-types';
 import {
 	TypeWriterWordChanger,
 	isAsciiOnly,
@@ -142,7 +143,7 @@ describe('semantify', () => {
 		expect(semantify('works-true', 'authors', ['subfields-true'], 1)).toBe('specifically');
 	});
 	it('returns original string for unknown rootType', () => {
-		expect(semantify('anything', 'works' as any, [], 0)).toBe('anything');
+		expect(semantify('anything', 'works' as unknown as RootType, [], 0)).toBe('anything');
 	});
 	it('returns original string for unknown key', () => {
 		expect(semantify('nonexistent', 'authors', [], 0)).toBe('nonexistent');

@@ -35,7 +35,7 @@
 		Axes of Focus &amp Reach
 		<HoverI bind:hoverToggle={showAxesHelp} />
 	</h3>
-	<HoverBlock show={showAxesHelp} style={'x: 0; y:0;'}
+	<HoverBlock show={showAxesHelp} style="x: 0; y:0;"
 		>The position on this graph is based in the entropy of the categorization of the papers. For the
 		horizontal axis, the entropy for the subfields of the published papers are calculated, for the
 		vertical axis the entropy for the papers citing these papers are calculated. To make the graph
@@ -71,7 +71,7 @@
 					text={quadrantNames.NW}
 					width={axEnds / 2}
 					height={0.7}
-					anchor={'center'}
+					anchor="center"
 				/>
 			</g>
 			<g fill={colorRange[1]}>
@@ -81,7 +81,7 @@
 					text={quadrantNames.NE}
 					width={axEnds / 2}
 					height={0.7}
-					anchor={'center'}
+					anchor="center"
 				/>
 			</g>
 			<g fill={colorRange[2]}>
@@ -91,7 +91,7 @@
 					text={quadrantNames.SE}
 					width={axEnds / 2}
 					height={0.7}
-					anchor={'center'}
+					anchor="center"
 				/>
 			</g>
 			<g fill={colorRange[3]}>
@@ -101,7 +101,7 @@
 					text={quadrantNames.SW}
 					width={axEnds / 2}
 					height={0.7}
-					anchor={'center'}
+					anchor="center"
 				/>
 			</g>
 		</g>
@@ -132,7 +132,7 @@
 			text={axEndLabels.yPlus}
 			width={axEnds}
 			height={0.4}
-			anchor={'center'}
+			anchor="center"
 		/>
 		<BrokenFittedText
 			x={0}
@@ -140,7 +140,7 @@
 			text={axEndLabels.yMinus}
 			width={axEnds}
 			height={0.35}
-			anchor={'center'}
+			anchor="center"
 		/>
 		<BrokenFittedText
 			x={-axEnds + axWidth * 2}
@@ -148,7 +148,7 @@
 			text={axEndLabels.xMinus}
 			width={axEnds / 1.2}
 			height={0.7}
-			anchor={'left'}
+			anchor="left"
 		/>
 		<BrokenFittedText
 			x={axEnds - axWidth * 2}
@@ -156,11 +156,11 @@
 			text={axEndLabels.xPlus}
 			width={axEnds / 2}
 			height={0.7}
-			anchor={'right'}
+			anchor="right"
 		/>
 
 		{#if showComparisons}
-			{#each data.view.comparisons as comp}
+			{#each data.view.comparisons as comp, __i (__i)}
 				<circle
 					cx={comp.sfCoords[0]}
 					cy={-comp.sfCoords[1]}
@@ -188,7 +188,7 @@
 						y={-comp.sfCoords[1]}
 						height={axEnds / 20}
 						width={axEnds / 2}
-						anchor={'center'}
+						anchor="center"
 						text={comp.name}
 						allowRotation={false}
 					/>

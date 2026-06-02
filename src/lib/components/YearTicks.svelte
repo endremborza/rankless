@@ -66,7 +66,7 @@
 			stroke="black"
 			stroke-width={lineW}
 		/>
-		{#each topStacks.entries() as [i, _]}
+		{#each topStacks.entries() as [i, _] (i)}
 			<line x1={i * iMul} x2={i * iMul} y1={-0.1} y2={0.1} stroke-width={lineW} stroke="black" />
 		{/each}
 		<g transform="rotate(270) translate(0.5, {yearFontSize / 2.75})">

@@ -1,7 +1,7 @@
 export function getIndex(i: number, j: number, n: number) {
 	if (i === j) return -1;
 	if (i > j) [i, j] = [j, i];
-	let idx = n * i - i - (i * (i - 1)) / 2;
+	const idx = n * i - i - (i * (i - 1)) / 2;
 	return idx + j - i - 1;
 }
 
@@ -12,7 +12,7 @@ export function circleLayout(
 ) {
 	const cx = width / 2;
 	const cy = height / 2;
-	let radius = Math.min(cy, cx) * 0.8;
+	const radius = Math.min(cy, cx) * 0.8;
 	return nodes.map((_, i) => {
 		const angle = (i / nodes.length) * Math.PI * 2 - Math.PI / 2;
 		return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius };
@@ -47,9 +47,10 @@ import cytoscape from 'cytoscape';
 import fcose from 'cytoscape-fcose';
 
 // register once
-if (!(cytoscape as any)._fcoseRegistered) {
+const cyReg = cytoscape as typeof cytoscape & { _fcoseRegistered?: boolean };
+if (!cyReg._fcoseRegistered) {
 	cytoscape.use(fcose);
-	(cytoscape as any)._fcoseRegistered = true;
+	cyReg._fcoseRegistered = true;
 }
 
 type FcoseOptions = {
@@ -129,7 +130,7 @@ export function cytoscapeLayout(nodes: string[], edgeWeights: number[], opts: Fc
 		// we'll still use padding later for final bounding box
 		// spacingFactor,
 		tile
-	} as any);
+	} as cytoscape.LayoutOptions);
 
 	layout.run();
 

@@ -11,11 +11,11 @@ import { renderSvgComponent } from '$lib/server/render';
 // const TreeSvg = require('$lib/components/TreeSvg.svelte').default;
 
 export const GET: RequestHandler = async ({ params, url }) => {
-	let rootType = params.rootType as tt.RootType;
-	let semanticId = params.semanticId;
+	const rootType = params.rootType as tt.RootType;
+	const semanticId = params.semanticId;
 	const treeSpecs: tt.TreeSpecs = await loadSpecs();
-	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
-	let conf: tt.FullTreeConfig = {
+	const spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
+	const conf: tt.FullTreeConfig = {
 		semanticId,
 		year: spec.year,
 		treeId: spec.treeId,
@@ -29,15 +29,15 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	const view = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => res.json())
 		.then((view) => view);
-	let rootName = view.name;
-	let selectionState: tt.BareNode = spec.selectionState;
-	let treeSpec: tt.TreeSpec = treeSpecs.specs[rootType][conf.treeId];
+	const rootName = view.name;
+	const selectionState: tt.BareNode = spec.selectionState;
+	const treeSpec: tt.TreeSpec = treeSpecs.specs[rootType][conf.treeId];
 
 	// let height = svgD1 * (1 - (headerRate + d1BottomPadRate) / 100);
 	// let component = new TreeSvg({ target: new ShadowRoot() });
-	let props = { selectionState, treeSpec, tree, attributeLabels: atts, rootName, height: 100 };
+	const props = { selectionState, treeSpec, tree, attributeLabels: atts, rootName, height: 100 };
 	const html = renderSvgComponent(TreeSvg, props);
-	let urlFriendlySemId = tf.urlFriendlify(conf.semanticId);
+	const urlFriendlySemId = tf.urlFriendlify(conf.semanticId);
 
 	return new Response(html, {
 		headers: {

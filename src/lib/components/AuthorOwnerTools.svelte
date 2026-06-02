@@ -101,7 +101,7 @@
 		{#if localClaimedDois.length > 0}
 			<div class="item-list">
 				<h4>Claimed (pending validation)</h4>
-				{#each localClaimedDois as doi}
+				{#each localClaimedDois as doi, __i (__i)}
 					<div class="item-row">
 						<a href="https://doi.org/{doi}" target="_blank" rel="noopener">{doi}</a>
 						<button class="btn-sm" on:click={() => handleUnClaim(doi)}>Remove</button>
@@ -140,7 +140,7 @@
 		{#if localMergeRequests.length > 0}
 			<div class="item-list">
 				<h4>Pending Review</h4>
-				{#each localMergeRequests as req}
+				{#each localMergeRequests as req, __i (__i)}
 					<div class="item-row">
 						<a href="/authors/{req.other_semantic_id}" target="_blank" rel="noopener"
 							>{req.other_semantic_id}</a

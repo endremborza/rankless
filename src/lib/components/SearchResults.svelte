@@ -57,7 +57,7 @@
 			<HitPaperExplainer />
 		</div>
 	{/if}
-	{#each searchResults as searchResult}
+	{#each searchResults as searchResult, __i (__i)}
 		<a class="result-card shadowy padded" href={entToLink(searchResult)}>
 			<h3 style="font-size: {getHeaderFontSize(searchResult.name.length)};">
 				{#if cat === 'all'}<span class="type-emoji">{rootEmoji(searchResult.rootType)}</span>

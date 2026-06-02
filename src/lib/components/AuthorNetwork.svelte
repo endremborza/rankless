@@ -88,8 +88,8 @@
 	<div bind:clientWidth={svgWidth} bind:clientHeight={svgHeight} class="nw-container">
 		{#if svgWidth != undefined}
 			<svg {viewBox} role="img" aria-label="Author Network" transition:fade>
-				{#each Array(n) as _, i}
-					{#each Array(n) as _, j}
+				{#each Array(n) as _, i (i)}
+					{#each Array(n) as _, j (j)}
 						{#if j > i && getWeight(i, j, n, edgeWeights) > 0}
 							<line
 								x1={positions[i].x}
@@ -106,7 +106,7 @@
 					{/each}
 				{/each}
 
-				{#each nodes as label, i}
+				{#each nodes as label, i (i)}
 					<g transform="translate({positions[i].x},{positions[i].y})">
 						<ellipse
 							rx={r}
@@ -142,7 +142,7 @@
 					<label>
 						Layout:
 						<select bind:value={actFun}>
-							{#each possFuns as name}
+							{#each possFuns as name, __i (__i)}
 								<option value={name}>{name}</option>
 							{/each}
 						</select>

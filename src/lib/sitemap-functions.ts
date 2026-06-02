@@ -28,10 +28,10 @@ export async function getLinks(
 		.then((r) =>
 			r.json().then((entities) => {
 				if (!Array.isArray(entities)) return [];
-				let out: { url: string; name: RootType }[] = [];
+				const out: { url: string; name: RootType }[] = [];
 				entities.forEach((e: { count: number; name: string }) => {
 					if (e.count > start && e.name != 'hit-papers') {
-						let url = `${BE_URL}/slice/${e.name}/${start}/${end}`;
+						const url = `${BE_URL}/slice/${e.name}/${start}/${end}`;
 						out.push({ url, name: e.name as RootType });
 					}
 				});
@@ -48,7 +48,7 @@ export async function getMaxPage(stepSize: number): Promise<number> {
 				if (!Array.isArray(entities)) return 0;
 				let max = 0;
 				entities.forEach((e: { count: number; name: string }) => {
-					let maxPage = Math.floor(e.count / stepSize);
+					const maxPage = Math.floor(e.count / stepSize);
 					if (maxPage > max) {
 						max = maxPage;
 					}

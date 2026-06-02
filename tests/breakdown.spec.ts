@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, type Page } from '@playwright/test';
 import * as fs from 'fs';
 import { XMLParser } from 'fast-xml-parser';
 
@@ -15,7 +15,7 @@ async function getEntityUrlsFromSitemap(entityType: string): Promise<string[]> {
 	const sitemapContent = await response.text();
 	const parser = new XMLParser();
 	const sitemap = parser.parse(sitemapContent);
-	const urls = sitemap.urlset.url.map((u: any) => new URL(u.loc).pathname);
+	const urls = sitemap.urlset.url.map((u: { loc: string }) => new URL(u.loc).pathname);
 	return urls.slice(0, 2); // Take a small sample to keep the test fast
 }
 

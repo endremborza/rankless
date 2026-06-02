@@ -27,8 +27,6 @@
 	// let innerWidth = 900;
 	let innerWidth: number;
 
-	$: loginReturnTo = page.url.pathname + page.url.search;
-
 	$: visibleCount = innerWidth >= 600 ? options.length : innerWidth >= 500 ? 3 : 0;
 	$: visibleOptions = options.slice(0, visibleCount);
 	$: overflowOptions = options.slice(visibleCount);
@@ -113,7 +111,7 @@
 				Search
 			</button>
 
-			{#each visibleOptions as opt}
+			{#each visibleOptions as opt, __i (__i)}
 				<button
 					class="nav-link"
 					class:active={!$resultsHidden && cat === opt}
@@ -134,7 +132,7 @@
 					</button>
 					{#if dropdownOpen}
 						<div class="dropdown-menu" transition:slide={{ duration: 150, axis: 'y' }}>
-							{#each overflowOptions as opt}
+							{#each overflowOptions as opt, __i (__i)}
 								<button
 									class="dropdown-item"
 									class:active={!$resultsHidden && cat === opt}
@@ -180,7 +178,7 @@
 			{:else}
 				<a
 					class="login-btn"
-					href="/login?returnTo={encodeURIComponent(loginReturnTo)}"
+					href="/login?returnTo={encodeURIComponent(page.url.pathname + page.url.search)}"
 					data-sveltekit-preload-data="off">Login</a
 				>
 			{/if}

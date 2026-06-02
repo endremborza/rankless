@@ -60,7 +60,7 @@
 	/>
 	{#if open && results.length > 0}
 		<ul class="ps-results">
-			{#each results as r}
+			{#each results as r, __i (__i)}
 				<li>
 					<button type="button" on:mousedown|preventDefault={() => choose(r)}>
 						<span class="ps-name">{@html r.name}</span>

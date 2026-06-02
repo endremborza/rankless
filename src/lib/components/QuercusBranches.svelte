@@ -187,7 +187,7 @@
 {#each parsedChildren as { id, cachedProps, vizInfo, childNode, textShape, hoverShape } (id)}
 	<defs>
 		<linearGradient id="path-grad-{vizInfo.strId}" gradientTransform="rotate(90)">
-			{#each [[0, 5], [20, 15], [50, LOW_OP]] as [offsetPct, opaPct]}
+			{#each [[0, 5], [20, 15], [50, LOW_OP]] as [offsetPct, opaPct], __i (__i)}
 				<stop
 					offset="{offsetPct}%"
 					stop-opacity="{childNode.isSelected ? HIGH_OP : opaPct}%"
@@ -207,9 +207,6 @@
 		<BrokenFittedText text={childNode.name} {...textShape} {heightMultiplier} {widthMultiplier} />
 	{/if}
 
-	<!-- svelte-ignore a11y_mouse_events_have_key_events -->
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<rect
 		{...hoverShape}
 		fill-opacity="0"

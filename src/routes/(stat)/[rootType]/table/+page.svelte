@@ -61,7 +61,7 @@
 	}
 
 	$: title = `${APP_NAME} | ${prettifyRoot(data.rootType)} table`;
-	$: entityUrl = (r: SearchResult) => `/${data.rootType}/${r.semanticId}`;
+	const entityUrl = (r: SearchResult) => `/${data.rootType}/${r.semanticId}`;
 </script>
 
 <svelte:head>
@@ -98,7 +98,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each sorted as row, i}
+				{#each sorted as row, i (i)}
 					<tr>
 						<td class="col-rank">{data.from + i + 1}</td>
 						<td class="col-name">

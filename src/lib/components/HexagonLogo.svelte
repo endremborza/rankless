@@ -92,15 +92,15 @@
 	}
 </script>
 
-{#each bgPaths as bgPath, i}
+{#each bgPaths as bgPath, i (i)}
 	<g style="transform: {bgToMatrix(bgPath)}" fill-opacity="0.8">
 		<path id="bg-path-{i}" d={bgPath.path.d} fill="var({bgPath.path.fill})" />
 	</g>
 {/each}
 
-{#each grotGroups as gRots}
+{#each grotGroups as gRots, __i (__i)}
 	<g id="xagon-side">
-		{#each gRots as gRot}
+		{#each gRots as gRot, __i (__i)}
 			<g
 				stroke="var({gRot.color})"
 				style="--rotate: {gRot.rot}deg; --scale: {gRot.s}"

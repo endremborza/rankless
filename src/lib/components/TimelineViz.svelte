@@ -72,19 +72,19 @@
 <svg viewBox="-2 -3 {lineWidth + 4} {3 + spanConfig.spans.length}">
 	<text text-anchor="middle" y="-1.2" font-size="1.6">{spanConfig.min}</text>
 	<text text-anchor="middle" y="-1.2" x={lineWidth} font-size="1.6">{spanConfig.max}</text>
-	{#each spanConfig.spans.entries() as [i, el]}
+	{#each spanConfig.spans.entries() as [i, el] (i)}
 		<line x1={el.min} y1={i} x2={el.max} y2={i} stroke-width={1} stroke={spanConfig.colors[i]} />
 	{/each}
-	{#each spanConfig.ticks as tick}
+	{#each spanConfig.ticks as tick, __i (__i)}
 		<line x1={tick} x2={tick} y1={-1} y2={-0.5} stroke="black" stroke-width="0.1" />
 	{/each}
 </svg>
 <div id="affl">
-	{#each spanConfig.orderedRels.entries() as [i, oRels]}
-		{#each oRels as iRel}
+	{#each spanConfig.orderedRels.entries() as [i, oRels] (i)}
+		{#each oRels as iRel, __i (__i)}
 			<span>
 				<span style="color: {spanConfig.colors[i]}; font-size: x-large">■</span>
-				<MaybeLink name={iRel.name} semanticId={iRel.semId} rootType={'institutions'} />
+				<MaybeLink name={iRel.name} semanticId={iRel.semId} rootType="institutions" />
 				<ul>
 					<li style="font-size: small;">
 						{pluralize('paper', iRel.papers)} with {pluralize('citation', iRel.citations)}

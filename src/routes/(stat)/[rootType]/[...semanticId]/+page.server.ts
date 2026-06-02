@@ -16,7 +16,7 @@ const INITIAL_WORKS_N = 20;
 const PEER_ROOT_TYPES: tt.RootType[] = ['authors', 'institutions', 'countries', 'sources'];
 
 export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
-	let { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(params, url, '', fetch);
+	const { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(params, url, '', fetch);
 	const view: tt.View = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => res.json())
 		.then((view) => view)
@@ -34,16 +34,16 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 	const { tree, atts, shallowed } = treeResp;
 
 	let svgLinkBase = `/pic/${rootType}/${semanticId}/breakdown.svg`;
-	let sp = url.searchParams.toString();
+	const sp = url.searchParams.toString();
 	if (sp.length > 0) svgLinkBase += `?${sp}`;
-	let svgLink = getExternalUrl(svgLinkBase);
+	const svgLink = getExternalUrl(svgLinkBase);
 
-	let paperText = pluralize('paper', view.papers);
-	let citeText = pluralize('indexed citation', view.citations);
-	let aboutParagraph = getSemanticRels(view, view.name, rootType, paperText, citeText, semanticId);
+	const paperText = pluralize('paper', view.papers);
+	const citeText = pluralize('indexed citation', view.citations);
+	const aboutParagraph = getSemanticRels(view, view.name, rootType, paperText, citeText, semanticId);
 
-	let prefixText = SEMANTIC_CONF[rootType]?.start || '';
-	let metaDescriptions = `Breaking down the academic impact of ${prefixText.toLowerCase()} ${view.name} - ( ${paperText}, ${citeText} )`;
+	const prefixText = SEMANTIC_CONF[rootType]?.start || '';
+	const metaDescriptions = `Breaking down the academic impact of ${prefixText.toLowerCase()} ${view.name} - ( ${paperText}, ${citeText} )`;
 
 	// Author-specific data (null/empty defaults for all other entity types)
 	let profile: tt.PaperProfileResp | null = null;
@@ -164,7 +164,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 		}
 	}
 
-	let [peersData, ladder] = await Promise.all([peersPromise, ladderPromise]);
+	const [peersData, ladder] = await Promise.all([peersPromise, ladderPromise]);
 
 	if (view) {
 		return {
@@ -220,10 +220,10 @@ function semFunMaker(prefix: string, fun: (r: DecoratedRelated) => string) {
 }
 
 function toDecorated(r: tt.RelatedEntity): DecoratedRelated {
-	let bold = `<b>${r.name}</b>`;
+	const bold = `<b>${r.name}</b>`;
 	let link = bold;
 	if (ROOT_TYPES.includes(r.etype as tt.RootType) && r.semanticId.length > 0) {
-		let href = tf.entToLink({ rootType: r.etype as tt.RootType, semanticId: r.semanticId });
+		const href = tf.entToLink({ rootType: r.etype as tt.RootType, semanticId: r.semanticId });
 		link = `<a class="ali" href="${href}">${r.name}</a>`;
 	}
 	return {
@@ -379,12 +379,12 @@ function getSemantifyers(rootName: string, rootType: tt.RootType): [tt.RelTypes,
 
 function getFootText(rootType: tt.RootType, view: tt.View, semanticId: string) {
 	if (rootType == 'authors') {
-		let slug = (view.meta || {}).wikiSlug || '';
+		const slug = (view.meta || {}).wikiSlug || '';
 		if (slug.length > 0) {
 			return `You can learn more about the impact of ${view.name} by visiting their  <a href="https://pantheon.world/profile/person/${slug}" target="_blank" class="ali">Pantheon page</a>.`;
 		}
 	} else if (rootType == 'countries') {
-		let oecLink = `https://oec.world/en/profile/country/${semanticId}`;
+		const oecLink = `https://oec.world/en/profile/country/${semanticId}`;
 		return `You can explore the trade impact of ${view.name}, by visiting their  <a href="${oecLink}" target="_blank" class="ali">OEC page</a>.`;
 	} else if (rootType == 'hit-papers') {
 		if (!semanticId.startsWith('W')) {
@@ -403,8 +403,8 @@ function getSemanticRels(
 	citeText: string,
 	semanticId: string
 ): tt.AboutPara {
-	let semantifyers = getSemantifyers(rootName, rootType);
-	let relationsMap = Object.fromEntries(
+	const semantifyers = getSemantifyers(rootName, rootType);
+	const relationsMap = Object.fromEntries(
 		REL_TYPES.map((e) => [e as tt.RelTypes, [] as tt.RelatedEntity[]])
 	) as Record<tt.RelTypes, tt.RelatedEntity[]>;
 	for (const rel of view.primeRelations) {
@@ -416,12 +416,12 @@ function getSemanticRels(
 		if (result.trim()) out.push(result);
 	}
 
-	let postText = sentenceJoiner(out);
+	const postText = sentenceJoiner(out);
 	const relFieldLinks = semFunMaker('', (r) => r.link)(relationsMap['paper-fields']);
 	const authorPrefix = relFieldLinks
 		? `${rootName} is a scholar working on ${relFieldLinks}, having authored ${paperText} that have together received ${citeText}`
-		$`{ rootName } has authored ${paperText} that have together received ${citeText} `;
-	let prefixes: Record<tt.RootType, string> = {
+		: `${rootName} has authored ${paperText} that have together received ${citeText} `;
+	const prefixes: Record<tt.RootType, string> = {
 		authors: authorPrefix,
 		institutions: `In recent decades, authors affiliated with ${rootName} have published ${paperText}, which have received a total of ${citeText} `,
 		countries: `In recent decades scholars affiliated with institutions in ${rootName} have published ${paperText}, which have received a total of ${citeText} `,
@@ -439,7 +439,7 @@ function getSemanticRels(
 
 function commaAndjoin(parts: string[]) {
 	if (parts.length === 0) return '';
-	let lastN = parts.length - 1;
+	const lastN = parts.length - 1;
 	if (lastN == 0) return parts[lastN];
 	return [parts.slice(0, lastN).join(', '), parts[lastN]].join(' and ');
 }
@@ -447,7 +447,7 @@ function commaAndjoin(parts: string[]) {
 function sentenceJoiner(parts: string[]) {
 	const out = [];
 	for (let i = 0; i < parts.length - 1; i++) {
-		let nextS = parts[i + 1];
+		const nextS = parts[i + 1];
 		if (nextS.toLowerCase()[0] == nextS[0]) {
 			out.push(parts[i]);
 		} else {

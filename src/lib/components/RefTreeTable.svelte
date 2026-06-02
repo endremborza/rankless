@@ -62,10 +62,10 @@
 
 <!-- svelte-ignore a11y_mouse_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-{#each levels as level, i}
+{#each levels as level, i (i)}
 	<h4>{levelDescs[i] ?? 'Cited by Above'}</h4>
 	<div class="level">
-		{#each level as { k }}
+		{#each level as { k }, __i (__i)}
 			<div
 				class="paper {getClass(k, relWorks, highlightSet)}"
 				on:mouseover={() => {

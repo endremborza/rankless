@@ -23,7 +23,7 @@ export function getSubSitemap(suff: string) {
 }
 
 export function getSitemapUrlSet(paths: string[]) {
-	let innards = paths.map((e) => `<url>${getSitemapEntry(e)}</url>`).join('');
+	const innards = paths.map((e) => `<url>${getSitemapEntry(e)}</url>`).join('');
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${innards}</urlset>`;
 }
@@ -33,7 +33,7 @@ export function getSitemapResponse(paths: string[]) {
 }
 
 export function getSitemapIndex(subParams: string[]) {
-	let text = `<?xml version="1.0" encoding="UTF-8"?>
+	const text = `<?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${subParams.map(getSubSitemap).join('')}</sitemapindex>`;
 	return new Response(text, { headers: { 'Content-Type': 'application/xml' } });
 }
@@ -56,11 +56,11 @@ export async function semIdResolver(
 	} else {
 		error(404, 'Not found');
 	}
-	let semanticId: string = params.semanticId;
+	const semanticId: string = params.semanticId;
 
 	const treeSpecs = await lf.loadSpecs(fetchFn);
-	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
-	let conf: tt.FullTreeConfig = {
+	const spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
+	const conf: tt.FullTreeConfig = {
 		semanticId,
 		year: spec.year,
 		treeId: spec.treeId,
@@ -79,8 +79,8 @@ export async function semIdResolver(
 		error(404, 'Not found');
 	}
 	if (semanticId != newSemId) {
-		let linkBase = tf.entToDirectedLink({ rootType, semanticId: newSemId }, stem);
-		let link = tf.decorBaseLink(linkBase, conf, spec.selectionState);
+		const linkBase = tf.entToDirectedLink({ rootType, semanticId: newSemId }, stem);
+		const link = tf.decorBaseLink(linkBase, conf, spec.selectionState);
 		redirect(301, link);
 	}
 	return { rootType, semanticId, conf, spec, treeSpecs };

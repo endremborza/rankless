@@ -40,7 +40,7 @@
 				style="opacity: 0"
 				aria-label="Breakdown selection"
 			>
-				{#each levelSpec.levelOptions as bd}
+				{#each levelSpec.levelOptions as bd, __i (__i)}
 					<option value={bd}>
 						{semOptioned(semantify(bd, rootType, selectedBreakdowns, index), bd)}
 					</option>

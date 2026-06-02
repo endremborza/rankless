@@ -26,7 +26,7 @@
 </script>
 
 <nav class="toc" aria-label="Page sections">
-	{#each sections as sec}
+	{#each sections as sec, __i (__i)}
 		<a href="#{sec.id}" class:active={activeId === sec.id}>{sec.label}</a>
 	{/each}
 </nav>

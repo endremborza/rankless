@@ -3,14 +3,14 @@ import { getSitemapIndex } from '$lib/route-functions';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async () => {
-	let max_pages: { name: string; count: number }[] = await fetch(`${BE_URL}/counts`)
+	const max_pages: { name: string; count: number }[] = await fetch(`${BE_URL}/counts`)
 		.then((r) => r.json())
 		.catch(() => []);
 	if (!Array.isArray(max_pages)) return getSitemapIndex([]);
-	let innards = [];
+	const innards = [];
 	for (const { name, count } of max_pages) {
 		if (name == 'hit-papers') continue;
-		let max_page = Math.floor(count / ENTITY_SITEMAP_STEP_SIZE);
+		const max_page = Math.floor(count / ENTITY_SITEMAP_STEP_SIZE);
 		for (let i = 0; i <= max_page; i++) {
 			innards.push(`-entity-${name}-${i + 1}`);
 		}

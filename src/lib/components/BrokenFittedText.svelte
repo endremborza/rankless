@@ -36,7 +36,7 @@
 </script>
 
 <g style="{gstyle}; transition: all {transMs}ms" transition:fade={{ duration: fadeMs }}>
-	{#each words as word, wordInd}
+	{#each words as word, wordInd (wordInd)}
 		<text
 			style=" transform: {styles.translates[wordInd]}; transition: all {transMs}ms"
 			text-anchor="left">{word}</text

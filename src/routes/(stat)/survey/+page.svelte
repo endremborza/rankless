@@ -51,7 +51,7 @@
 	let success = false;
 	let errorMsg: string | null = null;
 
-	function shuffle(array: any[]) {
+	function shuffle<T>(array: T[]) {
 		let currentIndex = array.length;
 		while (currentIndex !== 0) {
 			let randomIndex = Math.floor(Math.random() * currentIndex);
@@ -104,7 +104,7 @@
 					<legend>What best describes your role?</legend>
 
 					<div class="radio-list">
-						{#each q1Options as option, i}
+						{#each q1Options as option, i (i)}
 							<label class="radio-item">
 								<input type="radio" bind:group={question1} value={i} required />
 								<span>{option}</span>
@@ -129,7 +129,7 @@
 					<h3 class="block-title">Rate these potential features (1–10)</h3>
 
 					<div class="score-list">
-						{#each ratables as { title, desc, score, id }}
+						{#each ratables as { title, desc, score, id }, __i (__i)}
 							<div class="score-row">
 								<div class="score-info">
 									<label for={id} class="score-title">{title}</label>

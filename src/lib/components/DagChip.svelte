@@ -84,7 +84,7 @@
 	</div>
 	<div class="chip-sub">
 		<span>{paper?.year}</span>
-		{#each highlights as hl}
+		{#each highlights as hl, __i (__i)}
 			{#if HIGHLIGHT_DEFS[hl.key]}
 				<span class="badge {HIGHLIGHT_DEFS[hl.key].cls}">{badgeLabel(hl)}</span>
 			{/if}
@@ -106,7 +106,7 @@
 			{/if}
 			{#if authors.length > 0}
 				<div class="chip-authors">
-					{#each authors as author, ai}
+					{#each authors as author, ai (ai)}
 						{#if ai > 0},&nbsp;{/if}
 						{#if author.url}
 							<a href={author.url}>{author.name}</a>

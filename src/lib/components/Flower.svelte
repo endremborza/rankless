@@ -5,6 +5,6 @@
 	export let paths: string[] = [];
 </script>
 
-{#each paths as d}
+{#each paths as d, __i (__i)}
 	<path {d} fill="none" style="stroke: {color}" stroke-opacity={opacity} stroke-width={width} />
 {/each}

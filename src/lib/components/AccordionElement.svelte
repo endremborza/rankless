@@ -16,8 +16,7 @@
 	$: isSelected = selectedId == id;
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions>
-<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
 <div {id} on:click={onClick} class="accord-header">
 	<svg viewBox="-10 -10 20 20">
 		<g style="transform: {isSelected ? 'rotate(45deg)' : 'rotate(0deg)'}">

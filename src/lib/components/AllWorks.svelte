@@ -262,7 +262,7 @@
 											>{journal}</em
 										>{/if}
 									{#if authors.length}<span class="byline-sep">·</span
-										>{#each authors as a, i}{#if a.url}<a class="author-link" href={a.url}
+										>{#each authors as a, i (i)}{#if a.url}<a class="author-link" href={a.url}
 													>{a.name}</a
 												>{:else}<span class="author-plain">{a.name}</span
 												>{/if}{#if i < authors.length - 1}<span class="comma"
@@ -426,6 +426,7 @@
 
 	.col-main {
 		width: auto;
+		overflow-wrap: anywhere;
 	}
 
 	.paper-title {
@@ -503,6 +504,7 @@
 	.paper-ref {
 		font-size: var(--text-base);
 		line-height: 1.3;
+		overflow-wrap: anywhere;
 	}
 
 	.paper-ref :global(a) {
@@ -523,8 +525,10 @@
 		opacity: 0.5;
 		margin-left: var(--text-md);
 		display: flex;
+		flex-wrap: wrap;
 		gap: 6px;
 		align-items: center;
+		overflow-wrap: anywhere;
 	}
 
 	.hit-page-link {

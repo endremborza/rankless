@@ -43,7 +43,7 @@
 </script>
 
 <g opacity={LOW_OP / 100}>
-	{#each scaledConf.scaled as [i, y]}
+	{#each scaledConf.scaled as [i, y] (i)}
 		{#if y > 0}
 			<line
 				x1={i * iMul}
@@ -63,7 +63,7 @@
 	{/each}
 </g>
 <g font-size={fontSize} transform="translate(-{startPad}, 0)">
-	{#each text.entries() as [i, line]}
+	{#each text.entries() as [i, line] (i)}
 		<text y={textYs[i]} text-anchor="start">{line}</text>
 	{/each}
 	<text y={textYs[text.length]} text-anchor="start">{formatNumber(scaledConf.total)}</text>

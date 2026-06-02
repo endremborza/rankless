@@ -71,13 +71,13 @@
 </script>
 
 <defs>
-	{#each paths as _, i}
+	{#each paths as _, i (i)}
 		<filter id="f{i}" x="0" y="0" xmlns="http://www.w3.org/2000/svg">
 			<feGaussianBlur id="blur{i}" in="SourceGraphic" stdDeviation="0" />
 		</filter>
 	{/each}
 </defs>
-{#each paths[0] as ds, i}
+{#each paths[0] as ds, i (i)}
 	<path
 		id="p{i}"
 		d={ds[0]}

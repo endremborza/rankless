@@ -7,17 +7,17 @@ import { getTopTreeLoader } from '$lib/loading-functions';
 import { renderSvgComponent } from '$lib/server/render';
 
 export const GET: RequestHandler = async ({ url }) => {
-	let loader = await getTopTreeLoader();
+	const loader = await getTopTreeLoader();
 	while (loader.conf == undefined) {
 		await loader.setRandTree();
 	}
 	const treeSpecs = loader.treeSpecs;
-	let rootType = loader.conf.rootType as tt.RootType;
-	let spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
-	let selectionState: tt.BareNode = spec.selectionState;
-	let props = { selectionState, height: 100, ...loader.getTreeSvgProps() };
+	const rootType = loader.conf.rootType as tt.RootType;
+	const spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
+	const selectionState: tt.BareNode = spec.selectionState;
+	const props = { selectionState, height: 100, ...loader.getTreeSvgProps() };
 	const html = renderSvgComponent(TreeSvg, props);
-	let urlFriendlySemId = tf.urlFriendlify(loader.conf.semanticId);
+	const urlFriendlySemId = tf.urlFriendlify(loader.conf.semanticId);
 	return new Response(html, {
 		headers: {
 			'Content-Type': 'image/svg+xml',

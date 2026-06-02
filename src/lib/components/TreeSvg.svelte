@@ -101,7 +101,7 @@
 			height={headerShape.height * 0.7}
 			width={headerShape.width * 0.8}
 			text={rootName}
-			anchor={'center'}
+			anchor="center"
 			bottomAligned={false}
 			x={headerShape.x + headerShape.width / 2}
 			y={headerShape.y + headerShape.height * 0.75}

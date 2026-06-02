@@ -14,6 +14,7 @@
 	import HitPaperBreakdown from './HitPaperBreakdown.svelte';
 	import HitPaperExplainer from './HitPaperExplainer.svelte';
 	import { onMount } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 
 	export let papers: tt.Paper[];
 	export let entityAtts: tt.EntityAttsForLinks = {};
@@ -53,7 +54,7 @@
 	let breakdownTreeId = 0;
 	let breakdownIsSpec = false;
 
-	let expandedSet: Set<number> = new Set();
+	let expandedSet = new SvelteSet<number>();
 	let listContainer: HTMLUListElement;
 	let listItemElements: HTMLLIElement[] = [];
 	let firstVisible: number | null = null;
@@ -242,10 +243,8 @@
 	}
 
 	function toggleExpand(i: number) {
-		const next = new Set(expandedSet);
-		if (next.has(i)) next.delete(i);
-		else next.add(i);
-		expandedSet = next;
+		if (expandedSet.has(i)) expandedSet.delete(i);
+		else expandedSet.add(i);
 	}
 
 	onMount(() => {
@@ -320,7 +319,7 @@
 					</select>
 				{:else if breakdownOptions.length > 0}
 					<select bind:value={breakdownTreeId} class="breakdown-select" aria-label="Breakdown type">
-						{#each breakdownOptions as opt}
+						{#each breakdownOptions as opt, __i (__i)}
 							<option value={opt.treeId}>{opt.label}</option>
 						{/each}
 					</select>
@@ -353,13 +352,13 @@
 				>
 					<!-- Y-axis grid lines -->
 					<g stroke="var(--color-text)" stroke-width="0.015" opacity="0.15">
-						{#each fb.yTicks as tick}
+						{#each fb.yTicks as tick, __i (__i)}
 							<line x1="0" y1={tick.y} x2={xBase} y2={tick.y} />
 						{/each}
 					</g>
 
 					<!-- Paper citation lines (cumulative) -->
-					{#each fb.figPapers as paper}
+					{#each fb.figPapers as paper, __i (__i)}
 						<path
 							role="region"
 							fill="none"
@@ -393,7 +392,7 @@
 						font-size={fontSize}
 					>
 						<path d="M 0 0 h {xBase}" />
-						{#each fb.yearTicks as tick}
+						{#each fb.yearTicks as tick, __i (__i)}
 							<path d="M {tick.x} 0 v 0.35" />
 							{#if tick.name !== undefined}
 								<text x={tick.x} y="0.9" text-anchor="middle">{tick.name}</text>
@@ -403,7 +402,7 @@
 
 					<!-- Paper publication year markers (only when x is calendar-aligned) -->
 					{#if !fb.align}
-						{#each fb.pubMarks as mark}
+						{#each fb.pubMarks as mark, __i (__i)}
 							<line
 								x1={mark.x}
 								y1="0"
@@ -425,7 +424,7 @@
 
 					<!-- Y-axis ticks and labels -->
 					<g fill="var(--color-text)" font-size="0.65">
-						{#each fb.yTicks as tick}
+						{#each fb.yTicks as tick, __i (__i)}
 							<line
 								x1={xBase}
 								y1={tick.y}
@@ -446,7 +445,7 @@
 		<HitPaperExplainer />
 
 		<ol id="paper-list" bind:this={listContainer}>
-			{#each chartPapers as paper, i}
+			{#each chartPapers as paper, i (i)}
 				{@const source = resolveSourceName(paper.source, entityAtts)}
 				{@const authors = formatShortAuthors(paper, entityAtts, discAuthorNames)}
 				{@const expanded = expandedSet.has(i)}

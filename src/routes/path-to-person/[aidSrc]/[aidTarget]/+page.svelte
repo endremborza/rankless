@@ -82,7 +82,7 @@
 			/>
 			{#if srcFocused && srcResults.length > 0}
 				<ul class="dropdown">
-					{#each srcResults as r}
+					{#each srcResults as r, __i (__i)}
 						<!-- svelte-ignore a11y_click_events_have_key_events -->
 						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 						<li on:click={() => selectSrc(r)}>
@@ -107,7 +107,7 @@
 			/>
 			{#if targetFocused && targetResults.length > 0}
 				<ul class="dropdown">
-					{#each targetResults as r}
+					{#each targetResults as r, __i (__i)}
 						<!-- svelte-ignore a11y_click_events_have_key_events -->
 						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 						<li on:click={() => selectTarget(r)}>
@@ -132,7 +132,7 @@
 			{#if pathResp.paths.length === 0}
 				<p class="status">No citation paths found between these authors.</p>
 			{:else}
-				{#each pathResp.paths as pathEntry}
+				{#each pathResp.paths as pathEntry, __i (__i)}
 					<div class="path-block">
 						<h2>
 							{#if pathEntry.doi}

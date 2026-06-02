@@ -67,9 +67,9 @@ async function collectParagraphs(
 	url: string,
 	paragraphSources: Record<string, string>
 ) {
-	let elems = url.split('/');
+	const elems = url.split('/');
 	if (elems.length > 2) {
-		let uType = elems[1];
+		const uType = elems[1];
 		if (paragraphSources[uType] == undefined) paragraphSources[uType] = elems[2];
 		if (paragraphSources[uType] != elems[2]) return;
 	}

@@ -1,16 +1,22 @@
 <script lang="ts">
 	import { getSankeyPath } from '$lib/visual-util';
 
-	let topY = 5.6;
-	let pLen = 9;
+	const topY = 5.6;
+	const pLen = 9;
 
-	$: y = topY + pLen;
-	$: botL = 20 - 1 - y;
-	$: topL = topY - 1;
+	const y = topY + pLen;
+	const botL = 20 - 1 - y;
+	const topL = topY - 1;
 
-	$: d1 = getSankeyPath({ x: 4, y: topY }, { x: 1, y }, { parent: 0.7, child: 4.5 }, botL, topL);
-	$: d2 = getSankeyPath({ x: 5.5, y: topY }, { x: 8.3, y }, { parent: 0.6, child: 11 }, botL, topL);
-	$: d3 = getSankeyPath({ x: 7, y: topY }, { x: 2.2, y }, { parent: 1, child: 3.3 }, botL, topL);
+	const d1 = getSankeyPath({ x: 4, y: topY }, { x: 1, y }, { parent: 0.7, child: 4.5 }, botL, topL);
+	const d2 = getSankeyPath(
+		{ x: 5.5, y: topY },
+		{ x: 8.3, y },
+		{ parent: 0.6, child: 11 },
+		botL,
+		topL
+	);
+	const d3 = getSankeyPath({ x: 7, y: topY }, { x: 2.2, y }, { parent: 1, child: 3.3 }, botL, topL);
 </script>
 
 <path

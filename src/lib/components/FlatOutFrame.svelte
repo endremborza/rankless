@@ -99,7 +99,7 @@
 					class="sel-base"
 					aria-label="Breakdown selection"
 				>
-					{#each Object.keys(levelOptions) as bd}
+					{#each Object.keys(levelOptions) as bd, __i (__i)}
 						<option value={bd}>
 							{semantifyer(conf.rootType, bd)}
 						</option>
@@ -109,7 +109,7 @@
 			{#if tf.hasYearFilter(conf.rootType)}
 				Since
 				<select bind:value={year} aria-label="Since year"
-					>{#each treeSpecs.yearBreaks as y}
+					>{#each treeSpecs.yearBreaks as y, __i (__i)}
 						<option>{y}</option>
 					{/each}
 				</select>
