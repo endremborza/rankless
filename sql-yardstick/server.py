@@ -103,7 +103,9 @@ def build_level_query(root_type: str, breakdowns: list, depth: int) -> str:
     level_selects = ", ".join(select_parts)
     group_aliases = ", ".join(f"level_{i}" for i in range(depth + 1))
     where_clause = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
-    join_condition = " AND ".join(f"g.level_{i} = ts.level_{i}" for i in range(depth + 1))
+    join_condition = " AND ".join(
+        f"g.level_{i} = ts.level_{i}" for i in range(depth + 1)
+    )
 
     return f"""
     WITH root_works AS (
@@ -187,24 +189,30 @@ def impact():
     breakdowns = data["breakdowns"]
 
     with engine.connect() as conn:
-        root_row = conn.execute(
-            text(build_root_query(root_type)), {"root_id": root_id}
-        ).mappings().one()
+        root_row = (
+            conn.execute(text(build_root_query(root_type)), {"root_id": root_id})
+            .mappings()
+            .one()
+        )
         level_results = [
             conn.execute(
                 text(build_level_query(root_type, breakdowns, depth)),
                 {"root_id": root_id},
-            ).mappings().all()
+            )
+            .mappings()
+            .all()
             for depth in range(len(breakdowns))
         ]
 
-    return jsonify({
-        "linkCount": root_row["linkcount"],
-        "sourceCount": root_row["sourcecount"],
-        "topSourceId": root_row["top_source_id"],
-        "topSourceLinks": root_row["top_source_links"],
-        "children": build_tree(level_results),
-    })
+    return jsonify(
+        {
+            "linkCount": root_row["linkcount"],
+            "sourceCount": root_row["sourcecount"],
+            "topSourceId": root_row["top_source_id"],
+            "topSourceLinks": root_row["top_source_links"],
+            "children": build_tree(level_results),
+        }
+    )
 
 
 if __name__ == "__main__":

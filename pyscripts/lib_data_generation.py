@@ -22,7 +22,7 @@ def get_loc_inds(gr: GenReader):
     our_full_names = [
         f"{sfn} - {f_names[fi]}"
         for sfn, fi in zip(
-            gr.get_names(EntC.SUBFIELDS), get_arr(f"a2_init_atts/subfield-ancestors", 8)
+            gr.get_names(EntC.SUBFIELDS), get_arr("a2_init_atts/subfield-ancestors", 8)
         )
     ]
     return {v: i for i, v in enumerate(our_full_names)}

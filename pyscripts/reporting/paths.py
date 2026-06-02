@@ -66,7 +66,6 @@ _RULES = [(re.compile(p), tpl) for p, tpl in _RAW_RULES]
 
 def template(path: str) -> str:
     """Return route template for a given URL path (with or without query)."""
-    raw = path
     if not path:
         return "_unknown"
     if path.startswith(("http://", "https://")):

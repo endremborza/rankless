@@ -101,7 +101,7 @@ class WFler:
                 self.insts.extend(i.get("id") for i in a["institutions"])
 
                 self.sources.extend(
-                    (l.get("source") or {}).get("id") for l in jso["locations"]
+                    (loc.get("source") or {}).get("id") for loc in jso["locations"]
                 )
 
                 try:

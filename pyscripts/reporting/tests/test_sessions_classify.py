@@ -5,7 +5,7 @@ from pathlib import Path
 
 import polars as pl
 
-from pyscripts.reporting import archive, config
+from pyscripts.reporting import config
 from pyscripts.reporting.archive import annotate_routes
 from pyscripts.reporting.classify import (
     annotate_events,

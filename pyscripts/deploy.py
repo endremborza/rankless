@@ -333,7 +333,7 @@ class ServiceMan:
         self._run("disable")
 
     def daemon_reload(self):
-        self.ssh.prun(f"systemctl daemon-reload")
+        self.ssh.prun("systemctl daemon-reload")
 
     def _run(self, comm):
         self.ssh.prun(f"systemctl {comm} --user {self.name}")
@@ -353,7 +353,7 @@ class Transper:
         self.deploy_dir = self.inst_home + "/rankless-deploy"
         self.data_dir = self.inst_home + "/rankless-data"
         self.systemd_dir = f"{self.inst_home}/{SERIVCE_DIR}/"
-        cache_dir = f"/var/cache"
+        cache_dir = "/var/cache"
         self.be_cache_dir = f"{cache_dir}/rankless-be"
         self.fe_cache_dir = f"{cache_dir}/rankless-fe"
         self.ssh.run(f"mkdir -p {self.data_dir} {self.deploy_dir} {self.systemd_dir}")
@@ -458,7 +458,7 @@ class Transper:
                     break
                 if FE_UPSTREAM in line:
                     upnext = True
-        except:
+        except Exception:
             pass
         return sorted(confiter, key=lambda c: c.start_port == active_start_port)
 
@@ -481,7 +481,7 @@ class Transper:
         if cert:
             self.get_cert(inst_domain)
         self._add_upstreams_from_conf(self.get_fe_systems()[1])
-        server_prefix = f"""
+        server_prefix = """
     listen 443 ssl;
 
     gzip on;
@@ -564,7 +564,7 @@ server {{
             self.ssh.run(f"sudo ls {cert_dir}")
             suffix = f"""ssl_certificate {cert_dir}/fullchain.pem;
     ssl_certificate_key {cert_dir}/privkey.pem;"""
-        except:
+        except Exception:
             pass
 
         return f"""
@@ -760,7 +760,7 @@ upstream {BE_UPSTREAM} {{
                 self.ssh.prun(
                     'curl -s -o /dev/null -w "%{http_code}" localhost:' + str(port)
                 )
-            except:
+            except Exception:
                 return True
         return False
 
@@ -822,7 +822,7 @@ def full_setup_from_nothing(
         try:
             get_running_tpr(live).pull_certs()
             tpr.push_certs()
-        except:
+        except Exception:
             pass
     tpr.push_certs()
     tpr.setup_nginx(cert=False)
@@ -955,7 +955,7 @@ def associate_id(inst, live: bool):
 def tryfloat(s):
     try:
         return float(s)
-    except:
+    except Exception:
         return float("nan")
 
 

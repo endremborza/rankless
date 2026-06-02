@@ -22,6 +22,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
 from .deploy import be_service_name
@@ -61,7 +62,7 @@ def _wait_http(
     url: str,
     timeout: int = 120,
     interval: float = 2.0,
-    dead_check: "None | (() -> bool)" = None,
+    dead_check: "Callable[[], bool] | None" = None,
 ) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:

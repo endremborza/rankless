@@ -50,7 +50,7 @@ if __name__ == "__main__":
         .count()
         .sort_values("ip", ascending=False)
     )
-    means = fill_exp.loc[:, lambda df: df.dtypes == int].mean().to_frame()
+    means = fill_exp.loc[:, lambda df: df.dtypes.eq(int)].mean().to_frame()
 
     exp_txt = f"""
     <!DOCTYPE html>

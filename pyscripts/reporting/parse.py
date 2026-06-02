@@ -1,4 +1,3 @@
-import datetime as dt
 from typing import Iterable
 
 import polars as pl

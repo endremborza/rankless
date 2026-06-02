@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -29,7 +30,7 @@ def warn(msg: str) -> None:
     print(f"  ! {msg}", file=sys.stderr, flush=True)
 
 
-def die(msg: str, code: int = 1) -> "NoReturn":  # type: ignore[name-defined]
+def die(msg: str, code: int = 1) -> NoReturn:
     print(f"\nerror: {msg}", file=sys.stderr, flush=True)
     sys.exit(code)
 

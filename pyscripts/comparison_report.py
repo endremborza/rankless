@@ -459,12 +459,12 @@ def save_markdown(
         sep = "|--------|" + "|".join("---" for _ in labels) + "|"
         peak_row = (
             "| Peak (MiB) | "
-            + " | ".join(f"{mem_stats[f'{l}_peak_mib']:.0f}" for l in labels)
+            + " | ".join(f"{mem_stats[f'{lbl}_peak_mib']:.0f}" for lbl in labels)
             + " |"
         )
         mean_row = (
             "| Mean (MiB) | "
-            + " | ".join(f"{mem_stats[f'{l}_mean_mib']:.0f}" for l in labels)
+            + " | ".join(f"{mem_stats[f'{lbl}_mean_mib']:.0f}" for lbl in labels)
             + " |"
         )
         lines += [
@@ -611,14 +611,14 @@ def save_html(
         ]
         mem_thead = (
             "<tr><th>Metric</th>"
-            + "".join(f"<th>{l}</th>" for l in mem_labels)
+            + "".join(f"<th>{lbl}</th>" for lbl in mem_labels)
             + "</tr>"
         )
         peak_cells = "".join(
-            f"<td>{mem_stats[f'{l}_peak_mib']:.0f}</td>" for l in mem_labels
+            f"<td>{mem_stats[f'{lbl}_peak_mib']:.0f}</td>" for lbl in mem_labels
         )
         mean_cells = "".join(
-            f"<td>{mem_stats[f'{l}_mean_mib']:.0f}</td>" for l in mem_labels
+            f"<td>{mem_stats[f'{lbl}_mean_mib']:.0f}</td>" for lbl in mem_labels
         )
         mem_html = (
             "<h2>Memory Usage</h2>"

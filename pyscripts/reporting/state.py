@@ -2,7 +2,7 @@ import datetime as dt
 import json
 import os
 import secrets
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from .config import SALTS_PATH, STATE_PATH

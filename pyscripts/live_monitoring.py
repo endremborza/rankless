@@ -78,7 +78,7 @@ def get_success_dic():
     try:
         url = FILE_CHANNEL_ADDR + "/files"  # pyright: ignore[reportOptionalOperand]
         return requests.get(url, timeout=5).json()
-    except:
+    except Exception:
         return {}
 
 

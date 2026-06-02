@@ -143,7 +143,7 @@ def resp_pipe(url):
     for _ in range(15):
         try:
             return parse_url(url)
-        except:
+        except Exception:
             print(f"failed {url}")
             time.sleep(600)
     return {"fail": url}

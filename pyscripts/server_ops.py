@@ -195,7 +195,7 @@ def checkout(branch: str) -> None:
     result = subprocess.run(
         ["git", "status", "--porcelain"], capture_output=True, text=True
     )
-    uncommitted = [l for l in result.stdout.splitlines() if not l.startswith("?")]
+    uncommitted = [ln for ln in result.stdout.splitlines() if not ln.startswith("?")]
     if uncommitted:
         print("WARNING: uncommitted changes present — git checkout may fail:")
         for line in uncommitted:
