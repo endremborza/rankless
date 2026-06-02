@@ -15,6 +15,7 @@
 	import { BE_REMOTE_URL, LATEST_YEAR } from '$lib/constants';
 	import { dev, version } from '$app/environment';
 	import { onMount } from 'svelte';
+	import { afterNavigate } from '$app/navigation';
 	import BarChart, { type Bar, type Tick } from '$lib/components/BarChart.svelte';
 	import PeerSearch from '$lib/components/PeerSearch.svelte';
 
@@ -99,26 +100,27 @@
 		return p;
 	}
 
-	let mounted = false;
+	function refreshLadder() {
+		loadLadder(rootType).then((l) => {
+			ladder = l;
+			labels = l ? tierLabels(l.pctBands) : [];
+		});
+	}
+
 	let ladder: LadderData | null = null;
 	let labels: string[] = [];
 	// The two detail charts only share a scale + axis side by side; once stacked (≤900px) each is on its
 	// own. Matches the .detail-grid media query so the JS scale and the CSS layout flip together.
 	let wide = true;
 	onMount(() => {
-		mounted = true;
+		refreshLadder();
 		const mq = window.matchMedia('(min-width: 901px)');
 		wide = mq.matches;
 		const onChange = (e: MediaQueryListEvent) => (wide = e.matches);
 		mq.addEventListener('change', onChange);
 		return () => mq.removeEventListener('change', onChange);
 	});
-	$: if (mounted && rootType) {
-		loadLadder(rootType).then((l) => {
-			ladder = l;
-			labels = l ? tierLabels(l.pctBands) : [];
-		});
-	}
+	afterNavigate(() => refreshLadder());
 	$: heroTiers = data.topSubfields.map((sf, pos) =>
 		ladder
 			? citStandingTier(ladder.ladder[sf.dmId] ?? [], data.hero.subfieldCitations[pos] ?? 0)
@@ -302,7 +304,7 @@
 			<details class="field-dd">
 				<summary>Comparison fields: {selPos.length} of {data.topSubfields.length}</summary>
 				<div class="field-dd-panel">
-					{#each data.topSubfields as sf, pos}
+					{#each data.topSubfields as sf, pos (pos)}
 						{@const cites = data.hero.subfieldCitations[pos] ?? 0}
 						{@const label = standingLabel(heroTiers[pos], labels)}
 						<label class="field-opt" class:checked={sel.includes(pos)}>
@@ -327,7 +329,7 @@
 			</details>
 		</div>
 		<ul class="field-legend">
-			{#each selPos as si, k}
+			{#each selPos as si, k (k)}
 				{@const label = standingLabel(heroTiers[si], labels)}
 				<li class="fl-row">
 					<span class="fl-swatch" style="--sf-c: var({sfColorVar(k)});"></span>
@@ -356,7 +358,7 @@
 	</div>
 
 	<div class="peer-grid">
-		{#each displayPeers as peer, pi}
+		{#each displayPeers as peer, pi (pi)}
 			<div
 				class="peer-card"
 				class:selected={pi === selectedIdx}
