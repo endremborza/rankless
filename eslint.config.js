@@ -6,7 +6,7 @@ import globals from 'globals';
 import svelteConfig from './svelte.config.js';
 
 export default ts.config(
-	{ ignores: ['build/', '.svelte-kit/', 'package/', 'dist/'] },
+	{ ignores: ['build/', '.svelte-kit/', 'package/', 'dist/', '.venv/', 'target/'] },
 	js.configs.recommended,
 	...ts.configs.recommended,
 	...svelte.configs.recommended,
@@ -16,7 +16,15 @@ export default ts.config(
 		languageOptions: {
 			globals: { ...globals.browser, ...globals.node }
 		},
-		rules: { 'no-undef': 'off' }
+		rules: {
+			'no-undef': 'off',
+			// All {@html} sites render trusted backend/generated markup (entity names with
+			// sub/sup/i, generated prose, JSON-LD). Disabled instead of scattering ignores.
+			'svelte/no-at-html-tags': 'off',
+			// Conflicts with inherently-external links and the existing base-prepend link
+			// helpers (entToLink); satisfying it would require a routing refactor.
+			'svelte/no-navigation-without-resolve': 'off'
+		}
 	},
 	{
 		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],

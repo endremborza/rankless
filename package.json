@@ -12,9 +12,10 @@
 		"alpha": "vite build && touch build/.nojekyll && gh-pages -d build -t true",
 		"test": "playwright test",
 		"test:unit": "vitest run",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
+		"lint:fix": "eslint --fix .",
 		"format": "prettier --write ."
 	},
 	"devDependencies": {
