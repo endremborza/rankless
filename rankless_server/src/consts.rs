@@ -134,4 +134,3 @@ pub const FIN_AUTHORS: [&str; 79] = [
     "john-jumper",           // Chemistryy
     "elinor-ostrom",         // Prize in Economic Sciences
 ];
-

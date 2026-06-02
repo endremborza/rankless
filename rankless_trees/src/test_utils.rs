@@ -7,12 +7,9 @@ use crate::{
     part_iterator::PartitioningIterator,
     path_finder::RefGraph,
 };
-use dmove::{ET, UnsignedNumber};
+use dmove::{UnsignedNumber, ET};
 use hashbrown::HashMap;
-use rankless_rs::{
-    gen::a1_entity_mapping::Institutions,
-    steps::a1_entity_mapping::N_PERS,
-};
+use rankless_rs::{gen::a1_entity_mapping::Institutions, steps::a1_entity_mapping::N_PERS};
 
 // ---- Graph access mock ----
 

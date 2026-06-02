@@ -4,8 +4,8 @@ pub mod ids;
 pub mod instances;
 pub mod interfacing;
 pub mod io;
-pub mod path_finder;
 mod part_iterator;
+pub mod path_finder;
 mod prune;
 #[cfg(test)]
 mod test_utils;
