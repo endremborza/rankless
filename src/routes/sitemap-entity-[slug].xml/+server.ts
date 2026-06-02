@@ -4,10 +4,14 @@ import type { RequestHandler } from './$types';
 import { getEntityPath } from '$lib/tree-functions';
 import { getSitemapResponse } from '$lib/route-functions';
 import { isAsciiOnly } from '$lib/text-format-util';
+import { error } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async ({ params }) => {
-	const n = parseInt(params.n) - 1;
-	const entity = params.entity as RootType;
+	const split = params.slug.lastIndexOf('-');
+	const n = parseInt(params.slug.slice(split + 1)) - 1;
+	if (split < 0 || isNaN(n)) error(404, 'invalid sitemap slug');
+	const entity = params.slug.slice(0, split) as RootType;
+
 	const start = n * ENTITY_SITEMAP_STEP_SIZE;
 	const end = (n + 1) * ENTITY_SITEMAP_STEP_SIZE;
 	const url = `${BE_URL}/slice/${entity}/${start}/${end}`;
