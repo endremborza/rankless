@@ -377,7 +377,7 @@ class Transper:
         self.ssh.prun(f"sudo rm -rf {self.be_cache_dir}/*")
         self.ssh.prun(f"sudo rm -rf {self.fe_cache_dir}/*")
 
-    def setup(self, backend=True, bun=False):
+    def setup(self, backend=True):
         self.ssh.prun("sudo apt update")
         self.ssh.prun(
             f"sudo DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt install {' '.join(APTS)} -y"
@@ -410,7 +410,7 @@ class Transper:
         self.be_service.enable()
         self.be_service.start()
 
-    def setup_fe_services(self, inst_domain: str, bun=False, procs: int = 2):
+    def setup_fe_services(self, inst_domain: str, procs: int = 2):
         confs = [
             FrontendServiceConf(sport, procs, suff)
             for sport, suff in zip(FE_BUILD_PORTS_STARTS, FE_BUILD_NAMES)
@@ -807,11 +807,11 @@ def sync_fe_to_live():
 
 
 def full_setup_from_nothing(
-    tpr: Transper, domain, procn: int, backend=True, bun=True, branch=None
+    tpr: Transper, domain, procn: int, backend=True, branch=None
 ):
-    tpr.setup(backend=backend, bun=bun)
+    tpr.setup(backend=backend)
     tpr.validate(backend=backend)
-    tpr.setup_fe_services(domain, bun=bun, procs=procn)
+    tpr.setup_fe_services(domain, procs=procn)
     tpr.setup_code(branch)
     tpr.update_fe()
     if backend:
@@ -932,7 +932,7 @@ def promote_alpha_to_live():
     alpha_inst = get_running_inst(False)
     assert alpha_inst is not None
     tpr = get_tpr(alpha_inst)
-    tpr.setup_fe_services(LIVE_DOMAIN, bun=True, procs=LARGE_FE_PROCS)
+    tpr.setup_fe_services(LIVE_DOMAIN, procs=LARGE_FE_PROCS)
     tpr.update_env()
     tpr.update_fe()
     tpr.ssh.prun(f"sudo rm -f {NGINX_ENDIR}/{ALPHA_DOMAIN}")
