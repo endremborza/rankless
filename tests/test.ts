@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './coverage/fixtures';
 import fs from 'fs';
 
 test.setTimeout(120_000); // allow plenty of time for full run

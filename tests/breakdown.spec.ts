@@ -1,4 +1,5 @@
-import { test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { test } from './coverage/fixtures';
 import * as fs from 'fs';
 import { XMLParser } from 'fast-xml-parser';
 

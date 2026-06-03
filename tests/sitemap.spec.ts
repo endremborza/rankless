@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './coverage/fixtures';
 import { XMLValidator } from 'fast-xml-parser';
 
 const sitemapRoutes = [

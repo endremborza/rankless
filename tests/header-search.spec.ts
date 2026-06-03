@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './coverage/fixtures';
 
 const NAV_LABELS = ['authors', 'institutions', 'journals', 'countries', 'fields'];
 
