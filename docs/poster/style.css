@@ -27,15 +27,24 @@
 		rgb(var(--r100)) 100%
 	);
 
-	/* --- mood-board canvas (dark, so the spectrum + white figure cards pop) --- */
-	--bg: #14161c;
-	--bg-2: #1b1e26;
-	--panel: #20242e;
-	--panel-2: #262b37;
-	--line: #343b49;
-	--ink: #eef1f6;
-	--ink-dim: #aab2c0;
-	--ink-faint: #79828f;
+	/* darker slice of the spectrum, for gradient *text* that stays legible on white
+	   (the cyan/gold ends of the full spectrum wash out against a light background) */
+	--text-grad: linear-gradient(
+		90deg,
+		rgb(38, 154, 218) 0%,
+		rgb(125, 0, 130) 52%,
+		rgb(200, 132, 55) 100%
+	);
+
+	/* --- mood-board canvas (light, matching the live site's default theme) --- */
+	--bg: #f6f7f9;
+	--bg-2: #eef1f5;
+	--panel: #ffffff;
+	--panel-2: #f1f3f7;
+	--line: #dfe3ea;
+	--ink: #21272a;
+	--ink-dim: #525a63;
+	--ink-faint: #8b939d;
 
 	--mono: 'SFMono-Regular', 'JetBrains Mono', 'Roboto Mono', 'Courier New', monospace;
 	--sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -68,7 +77,7 @@ body {
 	position: sticky;
 	top: 0;
 	z-index: 50;
-	background: rgba(20, 22, 28, 0.86);
+	background: rgba(255, 255, 255, 0.82);
 	backdrop-filter: blur(10px);
 	border-bottom: 1px solid var(--line);
 }
@@ -87,7 +96,7 @@ body {
 	letter-spacing: 0.5px;
 }
 .topnav .brand .dot {
-	background: var(--spectrum);
+	background: var(--text-grad);
 	-webkit-background-clip: text;
 	background-clip: text;
 	color: transparent;
@@ -126,7 +135,7 @@ section:last-of-type {
 	margin: 0 0 14px;
 }
 .eyebrow .num {
-	background: var(--spectrum);
+	background: var(--text-grad);
 	-webkit-background-clip: text;
 	background-clip: text;
 	color: transparent;
@@ -168,7 +177,7 @@ a.inline {
 	color: rgb(var(--r15));
 }
 strong {
-	color: #fff;
+	color: #0c1116;
 }
 code {
 	font-family: var(--mono);
@@ -176,7 +185,7 @@ code {
 	padding: 1px 6px;
 	border-radius: 5px;
 	font-size: 0.86em;
-	color: rgb(var(--r05));
+	color: rgb(125, 0, 130);
 }
 
 .spectrum-rule {
@@ -188,7 +197,7 @@ code {
 	opacity: 0.92;
 }
 .spectrum-text {
-	background: var(--spectrum);
+	background: var(--text-grad);
 	-webkit-background-clip: text;
 	background-clip: text;
 	color: transparent;
@@ -204,8 +213,8 @@ code {
 	position: absolute;
 	inset: 0;
 	background:
-		radial-gradient(60% 80% at 80% -10%, rgba(var(--r50), 0.32), transparent 60%),
-		radial-gradient(50% 70% at 0% 110%, rgba(var(--r05), 0.22), transparent 60%);
+		radial-gradient(60% 80% at 82% -10%, rgba(var(--r50), 0.1), transparent 60%),
+		radial-gradient(52% 70% at 0% 110%, rgba(var(--r05), 0.12), transparent 60%);
 	pointer-events: none;
 }
 .hero .inner {
@@ -281,6 +290,19 @@ code {
 	}
 }
 
+.card,
+figure,
+.stat,
+.scaleband,
+.diagram,
+.mock,
+.brief,
+.pillar-index a {
+	box-shadow:
+		0 1px 2px rgba(25, 35, 60, 0.05),
+		0 6px 20px rgba(25, 35, 60, 0.045);
+}
+
 .card {
 	background: var(--panel);
 	border: 1px solid var(--line);
@@ -329,8 +351,8 @@ code {
 /* a labelled "designer note" callout */
 .note {
 	border-radius: 10px;
-	background: rgba(var(--r80), 0.08);
-	border: 1px solid rgba(var(--r80), 0.35);
+	background: rgba(var(--r80), 0.09);
+	border: 1px solid rgba(var(--r80), 0.4);
 	padding: 16px 18px;
 	margin: 18px 0 0;
 	font-size: 0.95rem;
@@ -340,7 +362,7 @@ code {
 	font-size: 0.66rem;
 	letter-spacing: 1.5px;
 	text-transform: uppercase;
-	color: rgb(var(--r90));
+	color: rgb(176, 104, 22);
 	display: block;
 	margin-bottom: 4px;
 }
@@ -368,7 +390,7 @@ code {
 	font-weight: 700;
 	font-size: clamp(2.4rem, 5vw, 3.4rem);
 	line-height: 1;
-	background: var(--spectrum);
+	background: var(--text-grad);
 	-webkit-background-clip: text;
 	background-clip: text;
 	color: transparent;
@@ -499,59 +521,6 @@ figure figcaption b {
 }
 
 /* ----------------------------------------------------------------- palette swatches */
-.swatches {
-	display: flex;
-	border-radius: 12px;
-	overflow: hidden;
-	border: 1px solid var(--line);
-	height: 86px;
-}
-.swatches > div {
-	flex: 1;
-	display: flex;
-	align-items: flex-end;
-	justify-content: center;
-	padding-bottom: 6px;
-	font-family: var(--mono);
-	font-size: 0.6rem;
-	color: rgba(255, 255, 255, 0.85);
-	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-}
-
-.type-sample {
-	font-family: var(--mono);
-	border: 1px solid var(--line);
-	border-radius: 10px;
-	padding: 18px 22px;
-	margin-top: 14px;
-	background: var(--panel);
-}
-.type-sample .xl {
-	font-size: 2rem;
-	font-weight: 700;
-}
-.type-sample .sm {
-	color: var(--ink-faint);
-	font-size: 0.78rem;
-}
-
-/* tone-word chips */
-.chips {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 10px;
-	margin-top: 4px;
-}
-.chip {
-	font-family: var(--mono);
-	font-size: 0.8rem;
-	padding: 6px 14px;
-	border-radius: 999px;
-	border: 1px solid var(--line);
-	color: var(--ink-dim);
-	background: var(--panel);
-}
-
 /* ----------------------------------------------------------------- layout mockups */
 .mock {
 	background: var(--panel);
@@ -595,20 +564,20 @@ figure figcaption b {
 	font-weight: 700;
 }
 .mb.dark {
-	background: var(--panel-2);
+	background: #ffffff;
 	border: 1px solid var(--line);
 	color: var(--ink-dim);
 }
 .mb.fig {
-	background: #2c3340;
-	border: 1px dashed var(--line);
-	color: var(--ink-faint);
+	background: #e3e8ef;
+	border: 1px dashed #b9c2cf;
+	color: #6b7480;
 	flex: 1;
 }
 .mb.acc {
 	background: rgba(var(--r05), 0.18);
-	border: 1px solid rgba(var(--r05), 0.4);
-	color: rgb(var(--r05));
+	border: 1px solid rgba(var(--r05), 0.45);
+	color: rgb(22, 112, 162);
 }
 .mock .row {
 	display: flex;
@@ -728,7 +697,7 @@ footer {
 	font-family: var(--mono);
 	font-size: 2rem;
 	font-weight: 700;
-	background: var(--spectrum);
+	background: var(--text-grad);
 	-webkit-background-clip: text;
 	background-clip: text;
 	color: transparent;
