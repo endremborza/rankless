@@ -19,6 +19,7 @@ __pycache__
 /reports
 /reports-v2
 /coverage
+/coverage-e2e
 *.profraw
 *.img
 *.json.gz

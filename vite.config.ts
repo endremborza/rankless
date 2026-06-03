@@ -5,7 +5,12 @@ export default defineConfig({
 	plugins: [sveltekit()],
 	server: { fs: { allow: ['static'] }, watch: { ignored: ['**/target/**'] } },
 	ssr: { external: ['bun:sqlite'] },
-	build: { rollupOptions: { external: ['bun:sqlite'] } },
+	build: {
+		rollupOptions: { external: ['bun:sqlite'] },
+		// Inline maps for the e2e coverage build so monocart can remap V8 coverage
+		// (browser + SSR) back to .svelte/.ts without fetching external .map files.
+		sourcemap: process.env.COVERAGE ? 'inline' : false
+	},
 	test: {
 		include: ['src/**/*.test.ts'],
 		coverage: {
