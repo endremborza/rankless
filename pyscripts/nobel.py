@@ -7,7 +7,8 @@ from typing import TypedDict
 import numpy as np
 import pandas as pd
 from aswan import get_soup
-from ccl_science_data.common import EntC, get_dl_arr, load_map
+from ccl_science_data.common import get_dl_arr, load_map
+from ccl_science_data.gen import EntC
 from ccl_science_data.gen_reader_ext import GenReaderExt
 from rapidfuzz import fuzz
 from sklearn.metrics.pairwise import cosine_similarity

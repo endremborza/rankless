@@ -4,7 +4,8 @@ import os
 from pathlib import Path
 
 import pandas as pd
-from ccl_science_data.common import DN, PUBY, EntC, iter_snap_items, snap_dir
+from ccl_science_data.common import DN, PUBY, iter_snap_items, snap_dir
+from ccl_science_data.gen import EntC
 from dotenv import load_dotenv
 from tqdm import tqdm
 
