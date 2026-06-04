@@ -217,6 +217,8 @@ def impact():
 
 if __name__ == "__main__":
     view_sql = Path("sql-yardstick/views.sql").read_text()
+    print("running views sql on init")
     with engine.begin() as conn:
         conn.execute(text(view_sql))
-    app.run(debug=True, host=os.environ.get("FLASK_HOST", "127.0.0.1"))
+    print("app.run on host", os.environ.get("FLASK_HOST", "127.0.0.1"))
+    app.run(debug=True, host=os.environ.get("FLASK_HOST", "127.0.0.1"), port=5000)
