@@ -1,0 +1,6 @@
+[package]
+name = "dmove-util"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

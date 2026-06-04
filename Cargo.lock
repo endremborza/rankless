@@ -371,6 +371,7 @@ version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
  "dmove-macro",
+ "dmove-util",
  "hashbrown 0.14.5",
  "memmap2",
  "rand",
@@ -384,9 +385,14 @@ name = "dmove-macro"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "dmove-util",
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "dmove-util"
+version = "0.1.0"
 
 [[package]]
 name = "equivalent"

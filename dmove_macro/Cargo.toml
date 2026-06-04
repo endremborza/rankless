@@ -8,5 +8,6 @@ edition.workspace = true
 
 [dependencies]
 clap = { version = "4.5.20", features = ["derive"] }
+dmove-util = { path = "../dmove_util" }
 syn = "2.0"
 quote = "1.0"

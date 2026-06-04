@@ -656,6 +656,7 @@ pub fn init_empty_slice<E: Entity, T: Default>() -> Box<[T]> {
 
 pub fn code_path(suffix: &str) -> String {
     //TODO: this WET knows gen path :(
+    //move to dmove-util somehow
     format!("rankless_rs/src/gen/{}.rs", suffix)
 }
 

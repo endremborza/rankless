@@ -2,6 +2,7 @@
 members = [
     "dmove",
     "dmove_macro",
+    "dmove_util",
     "muwo_search",
     "rankless_rs",
     "rankless_server",

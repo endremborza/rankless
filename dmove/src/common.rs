@@ -1,8 +1,7 @@
 use std::{
     fmt::{Debug, Display},
-    fs::File,
     hash::Hash,
-    io::{self, Write},
+    io,
     ops::Add,
     path::PathBuf,
     rc::Rc,
@@ -10,6 +9,7 @@ use std::{
 };
 
 use dmove_macro::{def_me_struct, derive_meta_trait, impl_fbarrs};
+use dmove_util::write_rs_file;
 use hashbrown::HashSet;
 
 use crate::{var_size_attributes::VaST, VarSizedAttributeElement};
@@ -270,7 +270,7 @@ impl MainBuilder {
                 .map(|e| format!("pub struct {} {{ }}", e)),
         );
         all_defs.extend(self.meta_elems.iter().map(|e| e.impl_str.clone()));
-        File::create(path)?.write(&all_defs.join("\n\n").into_bytes())
+        write_rs_file(path, &all_defs.join("\n\n"))
     }
 }
 

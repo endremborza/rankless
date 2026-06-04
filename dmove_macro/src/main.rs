@@ -1,6 +1,7 @@
 use std::{fmt::Display, fs::create_dir_all, path::Path};
 
 use clap::{Parser, Subcommand};
+use dmove_util::write_rs_file;
 
 const CLI_PATH: &str = "./target/release/dmove-macro";
 const LIB_MACRO: &str = "mods_as_comms";
@@ -119,7 +120,7 @@ fn build_ends(steps: &Vec<String>, step: &String, src_path: &Path, skip_last_gen
         upto_steps.truncate(upto_steps.len() - 1)
     }
     pub_mods_to_file(&src_path.join(GEN_MODULE), &upto_steps);
-    std::fs::write(&lib_path, clean_inner).unwrap();
+    write_rs_file(&lib_path, &clean_inner).unwrap();
 }
 
 fn rs_file_name(src_path: &Path, name: &str) -> String {
@@ -139,9 +140,9 @@ fn step_rs_file_name(src_path: &Path, name: &str) -> String {
 }
 
 fn pub_mods_to_file(mod_dir: &Path, steps: &Vec<&String>) {
-    std::fs::write(
+    write_rs_file(
         &rs_file_name(mod_dir, MOD_STEM),
-        get_pub_mod_lines(steps.iter()).join("\n") + "\n",
+        &(get_pub_mod_lines(steps.iter()).join("\n") + "\n"),
     )
     .unwrap();
 }
