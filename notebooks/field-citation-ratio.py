@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from ccl_science_data.common import EntC
+from ccl_science_data.gen import EntC
 from ccl_science_data.gen_reader_ext import GenReaderExt
 from tqdm import tqdm
 

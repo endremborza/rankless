@@ -7,13 +7,13 @@ import pandas as pd
 import sqlalchemy as sa
 from ccl_science_data.common import (
     DN,
-    EntC,
     IDC,
     PARID,
     get_last_filter,
     iter_dfs,
     parse_id,
 )
+from ccl_science_data.gen import EntC
 from dotenv import load_dotenv
 from sqlmermaid import to_file
 from tqdm import tqdm

@@ -5,14 +5,13 @@ import requests
 from functools import partial
 from pathlib import Path
 from ccl_science_data.common import (
-    EntC,
-    StowC,
     iter_dfs,
     np_dtype,
     oa_root,
     parallel_map_snap_items,
     parse_id,
 )
+from ccl_science_data.gen import EntC, StowC
 from tqdm import tqdm
 
 oa_id = 5102416863

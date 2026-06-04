@@ -9,7 +9,8 @@ import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from ccl_science_data.common import EntC, Steps, load_map
+from ccl_science_data.common import load_map
+from ccl_science_data.gen import EntC, Steps
 from ccl_science_data.gen_reader_ext import GenReaderExt
 
 START_YEAR = 1950
