@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN pip install --no-cache-dir \
     flask sqlalchemy psycopg2-binary numpy python-dotenv sqlmermaid \
-    pandas polars tqdm
+    pandas polars tqdm zstandard
 
 WORKDIR /app
 

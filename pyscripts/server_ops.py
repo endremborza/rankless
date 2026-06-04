@@ -1,6 +1,7 @@
 """Local Rust server lifecycle management."""
 
 import os
+import socket
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -21,23 +22,71 @@ def _base_url(port: int) -> str:
 DEFAULT_BE_ADDR = os.environ.get("RANKLESS_BE_URL") or _base_url(DEFAULT_PORT)
 
 
+def port_free(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind(("0.0.0.0", port))
+            return True
+        except OSError:
+            return False
+
+
+def container_state(name: str) -> tuple[bool, int]:
+    """(running, exit_code). running=False with exit_code=-1 if the container is gone."""
+    r = subprocess.run(
+        [
+            "docker",
+            "inspect",
+            "--format",
+            "{{.State.Running}} {{.State.ExitCode}}",
+            name,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode != 0:
+        return (False, -1)
+    parts = r.stdout.split()
+    return (parts[0] == "true", int(parts[-1]))
+
+
+def container_logs(name: str, tail: int = 50) -> str:
+    r = subprocess.run(
+        ["docker", "logs", "--tail", str(tail), name], capture_output=True, text=True
+    )
+    return (r.stdout + r.stderr).strip() or "(no container logs)"
+
+
 def wait_for_url(
     spec_url: str,
     max_attempts: int,
     desc: str,
     dead_check: Optional[Callable[[], bool]] = None,
+    on_fail: Optional[Callable[[], str]] = None,
+    accept_any: bool = False,
 ) -> None:
+    """Poll until the URL responds. Fail fast if ``dead_check`` reports death.
+
+    ``accept_any`` treats any HTTP response (even 4xx) as ready — for servers
+    with no health endpoint. ``on_fail`` returns diagnostics (e.g. container
+    logs) appended to death/timeout errors so failures are self-explanatory.
+    """
+
+    def _diag() -> str:
+        return f"\n--- logs ---\n{on_fail()}" if on_fail else ""
+
     for _ in tqdm(range(max_attempts), desc=desc):
         try:
             r = requests.get(spec_url, timeout=5)
-            if r.ok:
+            if accept_any or r.ok:
                 return
         except Exception:
             pass
         if dead_check and not dead_check():
-            raise RuntimeError("Server process died")
+            raise RuntimeError(f"{desc}: died before becoming ready.{_diag()}")
         time.sleep(3)
-    raise TimeoutError(f"Server at {spec_url} not ready after {max_attempts * 3}s")
+    raise TimeoutError(f"{desc}: not ready after {max_attempts * 3}s.{_diag()}")
 
 
 @dataclass
@@ -171,8 +220,14 @@ class DockerServer:
             ]
         )
 
-    def wait_ready(self, max_attempts: int = 500) -> None:
-        wait_for_url(self.spec_url, max_attempts, desc=f"waiting for {self.container}")
+    def wait_ready(self, max_attempts: int = 200) -> None:
+        wait_for_url(
+            self.spec_url,
+            max_attempts,
+            desc=f"waiting for {self.container}",
+            dead_check=lambda: container_state(self.container)[0],
+            on_fail=lambda: container_logs(self.container),
+        )
 
     def __enter__(self):
         return self

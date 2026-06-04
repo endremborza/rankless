@@ -14,13 +14,15 @@ Options:
     --samples N            entities per citation-count bin (default: 4)
     --artifacts PATH       output directory (default: logs/comparison-artifacts)
 
-Artifacts written to logs/comparison-artifacts/{timestamp}-sql-vs-rust/.
+Artifacts written to logs/comparison-artifacts/{timestamp}-sql-vs-rust/:
+summary.csv, grouped.csv, memory_samples.csv (raw memory time-series), the
+PNG debug report (report.html), and poster-quality vector figures
+(timing/memory/accuracy as .svg + .pdf, via poster_figures).
 """
 
 import argparse
 import re
 import subprocess
-import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -29,9 +31,11 @@ from typing import Iterator
 import ccl_science_data
 import pandas as pd
 import requests
-from ccl_science_data.common import EntC, load_map, oa_root
+from ccl_science_data.common import load_map, oa_root
+from ccl_science_data.gen import EntC
 from tqdm import tqdm
 
+from pyscripts import poster_figures
 from pyscripts.cache_prompting import RTC, BatchRequester, get_specs_and_ys
 from pyscripts.comparison_report import (
     ARTIFACTS_ROOT,
@@ -49,9 +53,17 @@ from pyscripts.comparison_report import (
     print_report,
     save_html,
     save_markdown,
+    save_mem_samples,
     setup_logging,
 )
-from pyscripts.server_ops import DockerServer, build_server
+from pyscripts.server_ops import (
+    DockerServer,
+    build_server,
+    container_logs,
+    container_state,
+    port_free,
+    wait_for_url,
+)
 from pyscripts.stow_ops import RebuildLevel
 from pyscripts.tree_diff import make_diff_df
 
@@ -136,15 +148,14 @@ class FlaskPgServer:
             ]
         )
 
-    def wait_ready(self, max_attempts: int = 500) -> None:
-        for _ in tqdm(range(max_attempts), desc=f"waiting for {self.container}"):
-            try:
-                requests.get(self.base_url, timeout=5)
-                return  # any HTTP response = server is up
-            except Exception:
-                time.sleep(3)
-        raise TimeoutError(
-            f"Flask server at {self.base_url} not ready after {max_attempts * 3}s"
+    def wait_ready(self, max_attempts: int = 300) -> None:
+        wait_for_url(
+            self.base_url,
+            max_attempts,
+            desc=f"waiting for {self.container} (loading OA data into PostgreSQL)",
+            dead_check=lambda: container_state(self.container)[0],
+            on_fail=lambda: container_logs(self.container),
+            accept_any=True,
         )
 
 
@@ -325,6 +336,21 @@ def _prepare_rust(level: RebuildLevel, server: DockerServer) -> None:
     server.build_image()
 
 
+def _preflight(rust: DockerServer) -> None:
+    """Fail fast on environment problems before the expensive build + benchmark."""
+    if subprocess.run(["docker", "version"], capture_output=True).returncode != 0:
+        raise RuntimeError("docker is unavailable — is the daemon running?")
+    rust.stop()  # drop any stale comparison container so its host port frees up
+    if not port_free(rust.host_port):
+        raise RuntimeError(
+            f"host port {rust.host_port} is already in use — the Rust comparison "
+            f"container cannot bind it. If your local rankless backend is running on "
+            f"{rust.host_port}, stop it first (e.g. `systemctl --user stop "
+            f"rankless-backend`), then retry."
+        )
+    logger.info("preflight OK — docker available, port %d free", rust.host_port)
+
+
 # ── entry point ───────────────────────────────────────────────────────────────
 
 
@@ -349,6 +375,7 @@ def run_comparison(
         cpus=CPU_LIMIT,
     )
 
+    _preflight(rust)
     _prepare_rust(rebuild_rust, rust)
 
     if rebuild_sql or not flask.is_running():
@@ -380,14 +407,21 @@ def run_comparison(
 
     summary_df.to_csv(artifacts_dir / "summary.csv", index=False)
     grouped_df.to_csv(artifacts_dir / "grouped.csv", index=False)
+    save_mem_samples(mem_tracker.samples, artifacts_dir / "memory_samples.csv")
 
     timing_plot = artifacts_dir / "timing_plot.png"
     accuracy_plot = artifacts_dir / "accuracy_plot.png"
     memory_plot = artifacts_dir / "memory_plot.png"
     plot_timing(results, "flask", "rs", timing_plot)
     plot_accuracy(grouped_df, "flask", "rs", accuracy_plot)
-    plot_memory(mem_tracker.samples, memory_plot)
+    plot_memory(
+        mem_tracker.samples, memory_plot, colors={"flask": "#e45756", "rs": "#4c78a8"}
+    )
     plot_paths = [p for p in [timing_plot, accuracy_plot, memory_plot] if p.exists()]
+
+    poster_paths = poster_figures.generate_from_artifacts(artifacts_dir)
+    for p in poster_paths:
+        logger.info("poster figure → %s", p)
 
     print_report(grouped_df, totals, "flask", "rs")
     save_markdown(

@@ -121,6 +121,25 @@ def build_mem_stats(samples: list[MemSample]) -> dict:
     return stats
 
 
+def save_mem_samples(samples: list[MemSample], path: Path) -> None:
+    """Persist the raw memory time-series so it can be re-plotted later.
+
+    Wide format: one row per sample, columns ``elapsed_s`` + ``{label}_mib``.
+    """
+    if not samples:
+        return
+    labels = list(samples[0].values.keys())
+    df = pd.DataFrame(
+        {
+            "elapsed_s": [s.elapsed for s in samples],
+            **{f"{lbl}_mib": [s.values[lbl] for s in samples] for lbl in labels},
+        }
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(path, index=False)
+    logger.info("memory samples → %s", path)
+
+
 def setup_logging(log_path: Path) -> None:
     """Attach file (DEBUG) and console (INFO) handlers to the module logger."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -378,7 +397,11 @@ def plot_accuracy(
     logger.info("accuracy plot → %s", out_path)
 
 
-def plot_memory(samples: list[MemSample], out_path: Path) -> None:
+def plot_memory(
+    samples: list[MemSample],
+    out_path: Path,
+    colors: dict[str, str] | None = None,
+) -> None:
     if not samples:
         return
     labels = list(samples[0].values.keys())
@@ -387,10 +410,11 @@ def plot_memory(samples: list[MemSample], out_path: Path) -> None:
 
     fig, ax = plt.subplots(figsize=(9, 4))
     for i, label in enumerate(labels):
+        color = colors.get(label) if colors else palette[i % len(palette)]
         ax.plot(
             elapsed,
             [s.values[label] for s in samples],
-            color=palette[i % len(palette)],
+            color=color,
             label=label,
         )
     ax.set_xlabel("Elapsed time (s)")
