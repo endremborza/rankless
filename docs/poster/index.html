@@ -13,6 +13,7 @@
 				<span class="brand">Rankless<span class="dot">.</span> poster brief</span>
 				<span class="spacer"></span>
 				<a href="#message">Message</a>
+				<a href="#headline">Headline</a>
 				<a href="#pillar1">I · Technique</a>
 				<a href="#pillar2">II · Results</a>
 				<a href="#pillar3">III · What it enables</a>
@@ -59,6 +60,80 @@
 			</div>
 		</section>
 
+		<!-- ====================================================== HEADLINE -->
+		<section id="headline">
+			<p class="eyebrow">The title</p>
+			<hr class="spectrum-rule" />
+			<h2>Headline candidates</h2>
+			<p class="lead">
+				The title is the poster's hardest-working line — it has to name the
+				<em>technique</em> and the <em>payoff</em> in one breath and still read from 3 m away. Below
+				is a ladder from punchy to descriptive. Pick a main line, optionally pair it with one of the
+				deks.
+			</p>
+
+			<div class="grid g2" style="margin-top: 24px">
+				<div class="card">
+					<span class="tag">paper-aligned · descriptive</span>
+					<h3 class="spectrum-text">
+						Rankless: Data-Specific Compilation for Live Browsing of a 1.7-Billion-Edge Citation
+						Network
+					</h3>
+					<p class="dim">Closest to the paper title — safest and fully self-explanatory.</p>
+				</div>
+				<div class="card">
+					<span class="tag">benefit-first</span>
+					<h3 class="spectrum-text">
+						Browse a 1.7-billion-edge citation network — live, on one machine
+					</h3>
+					<p class="dim">Leads with the payoff; "Rankless" rides above it as a smaller kicker.</p>
+				</div>
+				<div class="card">
+					<span class="tag">technique hook</span>
+					<h3 class="spectrum-text">Compile the data, not just the code</h3>
+					<p class="dim">
+						Dek:
+						<em>real-time exploration of 1.7 billion citations from a single compiled binary.</em>
+					</p>
+				</div>
+				<div class="card">
+					<span class="tag">provocative · contrast</span>
+					<h3 class="spectrum-text">When the database becomes the program</h3>
+					<p class="dim">
+						Dek:
+						<em>instant breakdowns over a billion-edge graph — no cluster, no query planner.</em>
+					</p>
+				</div>
+				<div class="card">
+					<span class="tag">numbers-forward</span>
+					<h3 class="spectrum-text">A billion citations, redrawn instantly</h3>
+					<p class="dim">
+						Dek:
+						<em
+							>Rankless compiles a database cluster's work into one binary — ~70× faster, 3.7×
+							leaner.</em
+						>
+					</p>
+				</div>
+				<div class="card">
+					<span class="tag">sustainability angle · ICWE theme</span>
+					<h3 class="spectrum-text">A database cluster's work, on a single box</h3>
+					<p class="dim">
+						Dek: <em>data-specific compilation for performant, low-energy web systems.</em>
+					</p>
+				</div>
+			</div>
+
+			<div class="note">
+				<span class="lbl">Designer note · title mechanics</span>
+				Whichever line wins, keep both <strong>"Rankless"</strong> and
+				<strong>"data-specific compilation"</strong> on the poster — one is the name to remember,
+				the other the term to search later. A big main line plus a smaller one-line dek reads far
+				better at A0 than one long sentence. The current working title (top of this board) is the
+				descriptive option; the bolder lines are there to tempt you.
+			</div>
+		</section>
+
 		<!-- ====================================================== MESSAGE -->
 		<section id="message">
 			<p class="eyebrow">The north star</p>
@@ -84,7 +159,7 @@
 					<h3>Numbers, not adjectives</h3>
 					<p class="dim">
 						The benefit is quantified against a real, fairly-built database baseline:
-						<strong>~65× faster</strong>, <strong>3.4× less memory</strong>. These numbers should be
+						<strong>~70× faster</strong>, <strong>3.7× less memory</strong>. These numbers should be
 						impossible to miss.
 					</p>
 				</div>
@@ -307,7 +382,7 @@
 						<rect x="840" y="365" width="130" height="62" rx="10" fill="#e7f6ee" stroke="#8fccaa" />
 						<text x="905" y="392" text-anchor="middle" fill="#2f8f5f">answer</text>
 						<text x="905" y="410" text-anchor="middle" fill="#2f8f5f" font-size="10">
-							(~124 ms)
+							(~107 ms)
 						</text>
 					</g>
 					<g stroke="rgb(38,154,218)" stroke-width="1.8" marker-end="url(#arrg)" fill="none">
@@ -535,6 +610,204 @@
 				</div>
 			</div>
 
+			<h3 style="text-align: left; margin-top: 44px">
+				Concept diagram 3 — the stack you fall through
+			</h3>
+			<p class="dim">
+				The most literal architecture contrast, and an easy one to read: a SQL web service makes
+				every request <strong>fall down a tall stack of generic layers</strong> — and climb back up.
+				Rankless is a <strong>short walk</strong> into data already shaped to answer. Count the
+				boxes; that's the story.
+			</p>
+			<div class="diagram">
+				<svg viewBox="0 0 1000 540" role="img" aria-label="Architecture stack contrast diagram">
+					<defs>
+						<linearGradient id="spec3" x1="0" y1="0" x2="0" y2="1">
+							<stop offset="0" stop-color="rgb(13,198,243)" />
+							<stop offset="0.5" stop-color="rgb(125,0,130)" />
+							<stop offset="1" stop-color="rgb(225,176,30)" />
+						</linearGradient>
+						<marker id="arr3" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+							<path d="M0,0 L6,3 L0,6 Z" fill="#79828f" />
+						</marker>
+						<marker id="arrg3" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+							<path d="M0,0 L6,3 L0,6 Z" fill="rgb(38,154,218)" />
+						</marker>
+					</defs>
+
+					<!-- LEFT: SQL stack -->
+					<text x="60" y="40" fill="#525a63" font-family="monospace" font-size="13">
+						FLASK + POSTGRESQL — a tall stack of generic layers
+					</text>
+					<g font-family="monospace" font-size="12" fill="#3a424c" text-anchor="middle">
+						<rect x="60" y="60" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
+						<text x="245" y="85">browser request</text>
+						<rect x="60" y="108" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
+						<text x="245" y="133">Flask view · Python</text>
+						<rect x="60" y="156" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
+						<text x="245" y="181">ORM / query builder</text>
+						<rect x="60" y="204" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
+						<text x="245" y="229">SQL parser</text>
+						<rect x="60" y="252" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
+						<text x="245" y="277">planner + optimizer</text>
+						<rect x="60" y="300" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
+						<text x="245" y="325">executor · join · filter · aggregate</text>
+						<rect x="60" y="348" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
+						<text x="245" y="373">buffer pool / page cache</text>
+						<rect x="60" y="396" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
+						<text x="245" y="421">generic tables + B-tree indexes · disk</text>
+					</g>
+					<g stroke="#79828f" stroke-width="1.5" marker-end="url(#arr3)" fill="none">
+						<path d="M245,100 L245,107" />
+						<path d="M245,148 L245,155" />
+						<path d="M245,196 L245,203" />
+						<path d="M245,244 L245,251" />
+						<path d="M245,292 L245,299" />
+						<path d="M245,340 L245,347" />
+						<path d="M245,388 L245,395" />
+					</g>
+					<path
+						d="M60,416 C24,416 24,84 60,80"
+						stroke="#aeb4bd"
+						stroke-width="1.5"
+						stroke-dasharray="5 4"
+						fill="none"
+						marker-end="url(#arr3)"
+					/>
+					<text
+						transform="rotate(-90 34 250)"
+						x="34"
+						y="250"
+						text-anchor="middle"
+						fill="#8b939d"
+						font-family="monospace"
+						font-size="10.5"
+					>
+						result climbs back up → serialize
+					</text>
+					<text
+						x="245"
+						y="468"
+						text-anchor="middle"
+						fill="#c0455a"
+						font-family="monospace"
+						font-size="12"
+					>
+						8 generic layers · per query · ≈ seconds
+					</text>
+
+					<!-- RIGHT: Rankless stack -->
+					<text x="570" y="40" fill="#525a63" font-family="monospace" font-size="13">
+						RANKLESS — a short walk to the answer
+					</text>
+					<g font-family="monospace" font-size="12" fill="#21272a" text-anchor="middle">
+						<rect x="570" y="60" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
+						<text x="755" y="85" fill="#3a424c">browser request</text>
+						<rect
+							x="570"
+							y="108"
+							width="370"
+							height="40"
+							rx="7"
+							fill="#ffffff"
+							stroke="url(#spec3)"
+							stroke-width="2"
+						/>
+						<text x="755" y="133">Axum handler · Rust</text>
+						<rect
+							x="570"
+							y="156"
+							width="370"
+							height="56"
+							rx="7"
+							fill="#ffffff"
+							stroke="url(#spec3)"
+							stroke-width="2"
+						/>
+						<text x="755" y="180">index straight into</text>
+						<text x="755" y="197" font-size="11" fill="#79828f">mmap'd, entity-sized arrays</text>
+						<rect x="570" y="244" width="370" height="46" rx="7" fill="#e7f6ee" stroke="#8fccaa" />
+						<text x="755" y="272" fill="#2f8f5f">answer</text>
+						<g>
+							<rect x="586" y="160" width="8" height="8" fill="rgb(38,154,218)" />
+							<rect x="596" y="160" width="8" height="8" fill="rgb(63,110,193)" />
+							<rect x="606" y="160" width="8" height="8" fill="rgb(125,0,130)" />
+							<rect x="616" y="160" width="8" height="8" fill="rgb(175,88,80)" />
+							<rect x="626" y="160" width="8" height="8" fill="rgb(225,176,30)" />
+						</g>
+					</g>
+					<g stroke="rgb(38,154,218)" stroke-width="1.8" marker-end="url(#arrg3)" fill="none">
+						<path d="M755,100 L755,107" />
+						<path d="M755,148 L755,155" />
+						<path d="M755,212 L755,243" />
+					</g>
+					<text
+						x="755"
+						y="468"
+						text-anchor="middle"
+						fill="#2f8f5f"
+						font-family="monospace"
+						font-size="12"
+					>
+						3 layers · nothing generic · ≈ 0.1 s
+					</text>
+
+					<line x1="500" y1="60" x2="500" y2="480" stroke="#dfe3ea" stroke-width="1" />
+				</svg>
+				<div class="cap">
+					Same request, two stacks. Left: eight generic layers the query falls through and climbs
+					back up, every time. Right: three layers, none of them generic — the access path
+					<em>is</em> the data layout.
+				</div>
+			</div>
+
+			<h3 style="text-align: left; margin-top: 44px">More ways to draw the contrast</h3>
+			<p class="dim">
+				Smaller framings of the same idea — any one could be a sidebar motif rather than a full
+				diagram.
+			</p>
+			<div class="grid g2" style="margin-top: 8px">
+				<div class="card">
+					<span class="tag">latency budget</span>
+					<h3>Where the milliseconds go</h3>
+					<p class="dim">
+						A single 100%-width bar per side. The database bar is sliced into
+						<em>parse · plan · execute · serialize</em>; the Rankless bar is almost entirely one
+						thin <em>execute</em> sliver. Visualizes that most database time is spent
+						<strong>deciding what to do</strong>, not doing it.
+					</p>
+				</div>
+				<div class="card">
+					<span class="tag">storage</span>
+					<h3>The data <em>is</em> the index</h3>
+					<p class="dim">
+						A database keeps the data <em>and</em> separate B-tree indexes pointing into it. In
+						Rankless there's no separate index — the
+						<strong>array layout itself is the access path</strong>. Draw: two stacked layers
+						collapsing into one.
+					</p>
+				</div>
+				<div class="card">
+					<span class="tag">byte sizing</span>
+					<h3>Generic rows vs. entity-sized fields</h3>
+					<p class="dim">
+						A database stores everything in wide, padded, general-purpose rows. Rankless sizes each
+						field to the real data — a 16-bit id for 33k institutions, not a generic 64-bit column.
+						Draw: a fat padded row shrinking to a tight one.
+						<strong>Every byte earns its place.</strong>
+					</p>
+				</div>
+				<div class="card">
+					<span class="tag">when the work happens</span>
+					<h3>Cold path vs. hot path</h3>
+					<p class="dim">
+						The database re-derives the plan on the <em>request</em> path — the hot,
+						latency-critical one. Rankless moves that work to the <em>build</em> path, run once,
+						offline. Draw: a clock on the build step, a feather on the serve step.
+					</p>
+				</div>
+			</div>
+
 			<div class="note">
 				<span class="lbl">Designer note · the money shot</span>
 				If one image carries this panel, it's the contrast in diagram 1: a
@@ -568,25 +841,25 @@
 			<h2>Measurable, significant benefits — made loud</h2>
 			<p class="lead">
 				The proof is a controlled head-to-head against a properly-built PostgreSQL + Flask baseline,
-				over <strong>792 real hierarchical queries</strong> across 5 entity types. These numbers are
+				over <strong>777 real hierarchical queries</strong> across 5 entity types. These numbers are
 				the spine of the poster's credibility — they should be huge.
 			</p>
 
 			<div class="stats" style="margin-top: 30px">
 				<div class="stat">
-					<div class="big">65×</div>
+					<div class="big">70×</div>
 					<div class="lab">
-						faster total query time<br /><span class="faint">98 s vs 6 402 s</span>
+						faster total query time<br /><span class="faint">83 s vs 5 795 s</span>
 					</div>
 				</div>
 				<div class="stat">
-					<div class="big">3.4×</div>
-					<div class="lab">less peak memory<br /><span class="faint">1 225 vs 4 222 MiB</span></div>
+					<div class="big">3.7×</div>
+					<div class="lab">less peak memory<br /><span class="faint">1 030 vs 3 769 MiB</span></div>
 				</div>
 				<div class="stat">
-					<div class="big">~124 ms</div>
+					<div class="big">~107 ms</div>
 					<div class="lab">
-						average per deep query<br /><span class="faint">interactive, live</span>
+						average per query<br /><span class="faint">48 ms median · live</span>
 					</div>
 				</div>
 				<div class="stat">
@@ -597,64 +870,92 @@
 
 			<div class="note">
 				<span class="lbl">Designer note · the hero number</span>
-				<strong>65×</strong> is the single most quotable figure. It could be the biggest thing on
+				<strong>70×</strong> is the single most quotable figure. It could be the biggest thing on
 				the entire poster after the title — set in the spectrum gradient, with the small print (<em
-					>792 queries, fair baseline</em
+					>777 queries, fair baseline</em
 				>) tucked underneath so it reads as rigorous, not hand-wavy.
 			</div>
 
-			<h3 style="text-align: left; margin-top: 44px">The real figures (from the paper)</h3>
+			<h3 style="text-align: left; margin-top: 44px">The figures — now in brand, pick a version</h3>
 			<p class="dim">
-				These are the actual plots generated for the ICWE paper. They're shown here as reference —
-				see each caption for how they might be redrawn in the poster's palette and at poster scale.
+				These are freshly regenerated from the latest comparison run (<code>2026-06-03</code>, 777
+				queries) — already redrawn in the Rankless palette (hero in brand blue, baseline a muted
+				grey-red), with plain-language axes and the win called out on the chart. All are
+				<strong>editable SVG</strong> in <code>docs/poster/assets/</code>. For both
+				<em>speed</em> and <em>memory</em> there are alternate cuts of the same data — choose the
+				one that fits the panel. See <code>logs/POSTER.md</code> for how to regenerate them.
 			</p>
 
-			<div class="grid g2" style="margin-top: 8px">
+			<h3 style="text-align: left; margin-top: 30px; font-size: 1rem; color: var(--ink-dim)">
+				Speed — three ways to tell it
+			</h3>
+			<div class="grid g3" style="margin-top: 8px">
 				<figure>
-					<div class="frame"><img src="assets/timing_plot.png" alt="Response time scaling" /></div>
+					<div class="frame">
+						<img src="assets/timing_combined.svg" alt="Combined log-log timing" />
+					</div>
 					<figcaption>
-						<b>Speed, across the board.</b> Each dot is a query; blue (Rankless) sits ~1–2 orders of
-						magnitude below red (database) at every entity size and breakdown depth — the gap
-						doesn't close as queries get harder.
-						<div class="note" style="margin-top: 12px">
-							<span class="lbl">Redraw note</span>
-							Recolour to brand: Rankless in cyan/spectrum, baseline in a muted grey-red. The log
-							axes need a plain-language label ("bigger entities →", "slower ↑"). Consider
-							simplifying to the trend bands for poster distance.
-						</div>
+						<b>A · the gap.</b> Every query in one log–log panel; the shaded band is the persistent
+						~70× gap that holds across four orders of magnitude.
+						<em>Cleanest for a distance read.</em>
 					</figcaption>
 				</figure>
 				<figure>
-					<div class="frame"><img src="assets/memory_plot.png" alt="Memory usage over time" /></div>
+					<div class="frame">
+						<img src="assets/timing_speedup.svg" alt="Per-query speedup distribution" />
+					</div>
 					<figcaption>
-						<b>Calm vs. spiky memory.</b> Rankless (red line here) holds a flat, predictable
-						footprint; the database (blue) spikes violently toward 4+ GiB. A great "steady hand"
-						visual.
-						<div class="note" style="margin-top: 12px">
-							<span class="lbl">Redraw note</span>
-							Swap colours so Rankless is the calm spectrum line and the baseline is the jagged grey
-							one. The flat-vs-jagged contrast is the whole point — exaggerate legibility, not the
-							data.
-						</div>
+						<b>B · every query faster.</b> One dot per query, coloured along the spectrum by
+						speedup. All 777 sit right of parity (6×–4917×, median 59×).
+						<em>The most honest "we always win."</em>
+					</figcaption>
+				</figure>
+				<figure>
+					<div class="frame">
+						<img src="assets/timing_plot.svg" alt="Timing faceted by breakdown depth" />
+					</div>
+					<figcaption>
+						<b>C · by difficulty.</b> Faceted by breakdown depth — shows the gap doesn't close as
+						queries get harder. <em>The analytical version; best for a lean-in reader.</em>
 					</figcaption>
 				</figure>
 			</div>
 
-			<div class="grid g2" style="margin-top: 28px">
+			<h3 style="text-align: left; margin-top: 34px; font-size: 1rem; color: var(--ink-dim)">
+				Memory — two ways to tell it
+			</h3>
+			<div class="grid g2" style="margin-top: 8px">
 				<figure>
 					<div class="frame">
-						<img src="assets/accuracy_plot.png" alt="Structural accuracy by entity type" />
+						<img src="assets/memory_plot.svg" alt="Memory footprint over time" />
+					</div>
+					<figcaption>
+						<b>A · calm vs. spiky.</b> Rankless holds a flat ~1 GiB line; the database spikes toward
+						3.7 GiB. The flat-vs-jagged contrast is the whole point — a great "steady hand" visual.
+					</figcaption>
+				</figure>
+				<figure>
+					<div class="frame"><img src="assets/memory_peak.svg" alt="Peak memory bars" /></div>
+					<figcaption>
+						<b>B · the big number.</b> Just the peaks: 1.0 GiB vs 3.7 GiB, the Rankless bar in
+						spectrum, mean marked. <em>Legible from across the room — the "money" version.</em>
+					</figcaption>
+				</figure>
+			</div>
+
+			<div class="grid g2" style="margin-top: 34px">
+				<figure>
+					<div class="frame">
+						<img src="assets/accuracy_plot.svg" alt="Structural accuracy by entity type" />
 					</div>
 					<figcaption>
 						<b>Fast </b><em>and</em><b> correct.</b> Results were validated against the database:
 						most breakdowns match within a couple of percent (mean relative error). The largest gaps
-						are journal-level cases where Rankless intentionally applies extra journal-quality
-						adjustments.
+						are cases where Rankless intentionally applies extra journal-quality adjustments.
 						<div class="note" style="margin-top: 12px">
 							<span class="lbl">Use note</span>
 							This is the "we're not cheating" panel — important but secondary. Could shrink to a
-							single honest line:
-							<em>"20 of 32 configurations match the database at r &gt; 0.99."</em>
+							single honest line.
 						</div>
 					</figcaption>
 				</figure>
@@ -669,16 +970,16 @@
 					</p>
 					<ul class="ideas" style="margin-top: 10px">
 						<li><b>Visual:</b> a rack of servers greyed out, one server lit in spectrum.</li>
-						<li><b>Stat reuse:</b> 3.4× less peak memory ↔ smaller machine ↔ less power.</li>
+						<li><b>Stat reuse:</b> 3.7× less peak memory ↔ smaller machine ↔ less power.</li>
 					</ul>
 				</div>
 			</div>
 
 			<div class="note">
 				<span class="lbl">Designer note · chart honesty</span>
-				All three plots can be redrawn cleaner for print, but keep the data faithful — same numbers,
-				better legibility. Bigger fonts, fewer gridlines, plain-language axis hints, brand colours.
-				Don't invent trends.
+				These are already the brand redraws — same numbers as the run, just bigger fonts, fewer
+				gridlines, plain-language axes, brand colours. Keep them faithful if you tweak: the data is
+				the data. The variants differ only in framing, never in numbers. Don't invent trends.
 			</div>
 		</section>
 
@@ -855,7 +1156,7 @@
 						</div>
 						<div class="row" style="flex: 1.4">
 							<div class="mb dark">I · technique<br />(two-path diagram)</div>
-							<div class="mb spec" style="flex: 0.6">65×<br />3.4×</div>
+							<div class="mb spec" style="flex: 0.6">70×<br />3.7×</div>
 						</div>
 						<div class="mb fig">III · HERO TREE VISUAL (big)</div>
 						<div class="row" style="flex: 1">
@@ -881,8 +1182,8 @@
 							<div class="mb dark">how<br />(mini diagram)</div>
 						</div>
 						<div class="row" style="min-height: 12%">
-							<div class="mb spec">65× faster</div>
-							<div class="mb spec">3.4× leaner</div>
+							<div class="mb spec">70× faster</div>
+							<div class="mb spec">3.7× leaner</div>
 							<div class="mb spec">1 server</div>
 						</div>
 						<div class="row" style="min-height: 9%">
@@ -903,7 +1204,7 @@
 							<div class="mb dark">
 								I<br />TECHNIQUE<br /><br />two-path<br />diagram +<br />analogy
 							</div>
-							<div class="mb dark">II<br />RESULTS<br /><br />65× · 3.4×<br />+ charts</div>
+							<div class="mb dark">II<br />RESULTS<br /><br />70× · 3.7×<br />+ charts</div>
 							<div class="mb fig">III<br />ENABLES<br /><br />tree +<br />gallery</div>
 						</div>
 						<div class="row" style="min-height: 9%">
