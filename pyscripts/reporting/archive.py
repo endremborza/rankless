@@ -129,16 +129,30 @@ def list_cold_months() -> list[tuple[int, int]]:
 
 
 def read_hot(
-    date_from: dt.date | None = None, date_to: dt.date | None = None
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
+    columns: list[str] | None = None,
 ) -> pl.DataFrame:
+    """Read the hot window. ``columns`` restricts the projection at scan time so
+    the multi-million-row window never materializes its large free-text fields."""
+    repo = _hot()
     if date_from is None and date_to is None:
-        return _hot().get_full_df()
-    parts = [
-        _hot().get_partition_df(_date_parts(d))
-        for d in list_hot_dates()
-        if (date_from is None or d >= date_from) and (date_to is None or d <= date_to)
-    ]
-    return pl.concat(parts) if parts else pl.DataFrame()
+        if repo.n_files == 0:
+            return pl.DataFrame()
+        lf = repo.get_full_lf()
+    else:
+        lfs = [
+            repo.get_partition_lf(_date_parts(d))
+            for d in list_hot_dates()
+            if (date_from is None or d >= date_from)
+            and (date_to is None or d <= date_to)
+        ]
+        if not lfs:
+            return pl.DataFrame()
+        lf = pl.concat(lfs)
+    if columns is not None:
+        lf = lf.select(columns)
+    return lf.collect()
 
 
 def read_cold(

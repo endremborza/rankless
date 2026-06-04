@@ -9,6 +9,10 @@ from .config import AGGREGATES_DIR
 
 GROUP_KEYS = ["bucket", "route_template", "status_family", "bot_class", "cs"]
 
+# Only these columns feed _agg_block; projecting the full-archive rebuild read to
+# them keeps it from materializing the large free-text fields of every row ever.
+AGG_COLS = ["t", "status", "cs", "bot_class", "urt", "size", "route_template"]
+
 
 def _hourly_repo() -> TableRepo:
     return TableRepo(AGGREGATES_DIR / "hourly", compression="zstd")
@@ -32,20 +36,22 @@ def _sessions_repo() -> TableRepo:
 
 
 def _agg_block(df: pl.DataFrame, every: str) -> pl.DataFrame:
-    prepared = df.with_columns(
-        [
-            pl.col("t").dt.truncate(every).alias("bucket"),
-            ((pl.col("status").cast(pl.Int32) // 100).cast(pl.String) + "xx").alias(
-                "status_family"
-            ),
-            pl.col("cs")
-            .fill_null("")
-            .map_elements(lambda s: "-" if s == "" else s, return_dtype=pl.String),
-            pl.col("bot_class").fill_null("unknown"),
-        ]
-    )
     return (
-        prepared.group_by(GROUP_KEYS)
+        df.lazy()
+        .with_columns(
+            [
+                pl.col("t").dt.truncate(every).alias("bucket"),
+                ((pl.col("status").cast(pl.Int32) // 100).cast(pl.String) + "xx").alias(
+                    "status_family"
+                ),
+                pl.when(pl.col("cs").fill_null("") == "")
+                .then(pl.lit("-"))
+                .otherwise(pl.col("cs"))
+                .alias("cs"),
+                pl.col("bot_class").fill_null("unknown"),
+            ]
+        )
+        .group_by(GROUP_KEYS)
         .agg(
             [
                 pl.len().alias("n"),
@@ -58,6 +64,7 @@ def _agg_block(df: pl.DataFrame, every: str) -> pl.DataFrame:
             ]
         )
         .sort("bucket")
+        .collect(streaming=True)
     )
 
 
@@ -74,7 +81,7 @@ def _fill_missing_cols(df: pl.DataFrame) -> pl.DataFrame:
 
 def rebuild() -> dict[str, int]:
     parts = []
-    hot = archive.read_hot()
+    hot = archive.read_hot(columns=AGG_COLS)
     if not hot.is_empty():
         parts.append(hot)
     cold = archive.read_cold()
@@ -160,8 +167,18 @@ def update_sessions(new_sessions: pl.DataFrame) -> None:
     _sessions_repo().extend(_add_start_date(new_sessions))
 
 
-def load_sessions() -> pl.DataFrame:
-    df = _sessions_repo().get_full_df()
+def load_sessions(
+    date_from: dt.date | None = None, exclude: list[str] | None = None
+) -> pl.DataFrame:
+    repo = _sessions_repo()
+    if repo.n_files == 0:
+        return pl.DataFrame()
+    lf = repo.get_full_lf()
+    if date_from is not None:
+        lf = lf.filter(pl.col("start_date") >= date_from)
+    if exclude:
+        lf = lf.select(pl.exclude(exclude))
+    df = lf.collect()
     if "start_date" in df.columns:
         return df.drop("start_date")
     return df

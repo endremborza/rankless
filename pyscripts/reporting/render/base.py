@@ -21,7 +21,23 @@ Mode = Literal["local", "public"]
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 ASSET_DIR = Path(__file__).parent.parent / "assets"
+POSTER_DIR = Path(__file__).parents[3] / "docs" / "poster"
 HOT_WINDOW_DAYS = 31
+
+# Columns the render actually consumes from the hot window. Projecting to these
+# at scan time keeps the ~40M-row window from materializing its large free-text
+# fields, and drops `addr` (the only PII) so events need no anonymization.
+EVENT_RENDER_COLS = [
+    "t",
+    "session_id",
+    "status",
+    "cs",
+    "urt",
+    "bot_class",
+    "route_template",
+    "referrer_domain",
+    "size",
+]
 
 
 @dataclass
@@ -66,12 +82,9 @@ def build_context(mode: Mode) -> RenderContext:
 
     with timing.timed(f"render.{mode}.read_hot"):
         events_hot = archive.read_hot(
-            date_from=today - dt.timedelta(days=HOT_WINDOW_DAYS)
+            date_from=today - dt.timedelta(days=HOT_WINDOW_DAYS),
+            columns=EVENT_RENDER_COLS,
         )
-
-    with timing.timed(f"render.{mode}.anonymize_events"):
-        if mode == "public" and not events_hot.is_empty():
-            events_hot = anonymize_events(events_hot)
 
     cutoff_24h = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)
     events_24h = (
@@ -81,7 +94,10 @@ def build_context(mode: Mode) -> RenderContext:
     )
 
     with timing.timed(f"render.{mode}.load_sessions"):
-        sessions_table = aggregate.load_sessions()
+        sessions_table = aggregate.load_sessions(
+            date_from=today - dt.timedelta(days=HOT_WINDOW_DAYS),
+            exclude=["ua"] if mode == "public" else None,
+        )
         if mode == "public" and not sessions_table.is_empty():
             sessions_table = _anonymize_sessions(sessions_table)
 
@@ -184,37 +200,32 @@ def copy_assets(ctx: RenderContext) -> None:
     shutil.copytree(ASSET_DIR, target)
 
 
-anon_addr = (
-    pl.concat_str(
-        [
-            pl.col("start").dt.strftime("%Y-%m-%d"),
-            pl.lit("|"),
-            pl.col("addr"),
-        ]
+def copy_poster(ctx: RenderContext) -> None:
+    """Publish the self-contained ICWE poster mood board at /poster."""
+    if not POSTER_DIR.exists():
+        return
+    target = ctx.out_dir / "poster"
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(POSTER_DIR, target)
+
+
+def _anon_addr(ts_col: str) -> pl.Expr:
+    """Day-salted hash of the address; same salt as truncating ``ts_col`` to a day."""
+    return (
+        pl.concat_str(
+            [pl.col(ts_col).dt.strftime("%Y-%m-%d"), pl.lit("|"), pl.col("addr")]
+        )
+        .hash(742)
+        .cast(pl.String)
+        .str.slice(0, IP_HASH_LEN)
+        .alias("addr")
     )
-    .hash(742)
-    .cast(pl.String)
-    .str.slice(0, IP_HASH_LEN)
-    .alias("addr")
-)
-
-
-def anonymize_events(df: pl.DataFrame) -> pl.DataFrame:
-    if "addr" not in df.columns:
-        return df.drop([c for c in ("ua", "referrer", "path") if c in df.columns])
-
-    parts = []
-    for day_df in df.with_columns(
-        pl.col("t").dt.truncate("1d").alias("start")
-    ).partition_by("start", maintain_order=False):
-        parts.append(day_df.with_columns(anon_addr).drop("start"))
-    result = pl.concat(parts) if parts else df
-    return result.drop([c for c in ("ua", "referrer", "path") if c in result.columns])
 
 
 def _anonymize_sessions(df: pl.DataFrame) -> pl.DataFrame:
     if "addr" in df.columns:
-        df = df.with_columns(anon_addr)
+        df = df.with_columns(_anon_addr("start"))
     return df.drop([c for c in ("ua",) if c in df.columns])
 
 

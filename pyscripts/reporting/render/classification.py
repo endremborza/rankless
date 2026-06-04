@@ -1,6 +1,3 @@
-import collections
-import json
-
 import polars as pl
 
 from .. import classify
@@ -59,40 +56,51 @@ def _rule_stats(sessions: pl.DataFrame) -> dict:
         return {"hard": {}, "soft": {}, "score_dist_chart": "", "n_sessions": 0}
 
     n = len(sessions)
-    hard_counts: dict[str, int] = {}
-    soft_counts: dict[str, int] = {}
-    scores: list[int] = []
-
-    for sig_json in sessions["signals_json"].fill_null("[]").to_list():
-        try:
-            sigs = json.loads(sig_json)
-        except (json.JSONDecodeError, TypeError):
-            sigs = []
-        for sig in sigs:
-            if sig.startswith("hard:"):
-                name = sig[5:]
-                hard_counts[name] = hard_counts.get(name, 0) + 1
-            elif sig.startswith("soft:score="):
-                try:
-                    scores.append(int(sig[11:]))
-                except ValueError:
-                    pass
-            elif sig.startswith("soft:"):
-                parts = sig[5:].split(" ", 1)
-                if len(parts) == 2:
-                    name = parts[1]
-                    soft_counts[name] = soft_counts.get(name, 0) + 1
+    # Decode + explode the per-session signal arrays into one signal per row in
+    # polars; a Python json.loads loop over every session is what previously blew
+    # the millions of sessions up into millions of Python objects.
+    sigs = (
+        sessions.lazy()
+        .select(
+            pl.col("signals_json")
+            .fill_null("[]")
+            .str.json_decode(pl.List(pl.String))
+            .alias("sig")
+        )
+        .explode("sig")
+        .filter(pl.col("sig").is_not_null())
+        .collect(streaming=True)["sig"]
+    )
+    is_score = sigs.str.starts_with("soft:score=")
+    hard_counts = _signal_counts(
+        sigs.filter(sigs.str.starts_with("hard:")).str.slice(5)
+    )
+    soft_counts = _signal_counts(
+        sigs.filter(sigs.str.starts_with("soft:") & ~is_score)
+        .str.slice(5)
+        .str.splitn(" ", 2)
+        .struct.field("field_1")
+        .drop_nulls()
+    )
+    score_counts = _signal_counts(
+        sigs.filter(is_score).str.slice(11).cast(pl.Int64, strict=False).drop_nulls()
+    )
 
     return {
         "hard": {k: v / n for k, v in hard_counts.items()},
         "soft": {k: v / n for k, v in soft_counts.items()},
-        "score_dist_chart": _score_dist_chart(scores) if scores else "",
+        "score_dist_chart": _score_dist_chart(score_counts) if score_counts else "",
         "n_sessions": n,
     }
 
 
-def _score_dist_chart(scores: list[int]) -> str:
-    counts = collections.Counter(scores)
+def _signal_counts(series: pl.Series) -> dict:
+    vc = series.value_counts()
+    key = vc.columns[0]
+    return {row[key]: row["count"] for row in vc.iter_rows(named=True)}
+
+
+def _score_dist_chart(counts: dict[int, int]) -> str:
     xs = sorted(counts)
     bot_thresh = classify.SOFT_BOT_THRESHOLD
     human_thresh = classify.SOFT_HUMAN_THRESHOLD
