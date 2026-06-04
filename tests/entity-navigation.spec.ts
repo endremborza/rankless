@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './coverage/fixtures';
 import { XMLParser } from 'fast-xml-parser';
 
 // Exercises every root type through real in-app navigation, asserting that no page raises a Svelte

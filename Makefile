@@ -3,6 +3,7 @@ export
 
 .PHONY: bootstrap dev build-nano-artifact test-dev-env py-build
 .PHONY: check format check-rs check-py check-js format-rs format-py format-js
+.PHONY: coverage
 
 PY_LINT_PATHS := pyscripts sql-yardstick
 
@@ -113,6 +114,14 @@ test-js:
 
 test: test-rs test-js
 	echo OK
+
+# Run the JS unit + e2e suites with coverage, then open both reports in Firefox.
+# Tests are allowed to fail (the e2e suite needs a populated backend) — the
+# coverage reports still generate from whatever ran, which is the point here.
+coverage:
+	bun run test:unit:cov || true
+	bun run test:e2e:cov || true
+	nohup firefox "$(CURDIR)/coverage/index.html" "$(CURDIR)/coverage-e2e/index.html" >/dev/null 2>&1 &
 
 extend_csvs lib_data_generation bm live_monitoring reporting sitemap_validation survey_result_export log_parsing nobel sql_comparison export_user_ledger mega_test:
 	uv run -m pyscripts.$@
