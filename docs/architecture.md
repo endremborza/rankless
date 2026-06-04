@@ -246,6 +246,7 @@ the only viz dependency).
 | `sql_comparison.py`                                                             | Flask/PostgreSQL vs Rust diff + benchmark; two Docker containers                                      |
 | `tree_diff.py`                                                                  | Structural diff primitives: `flatten_tree`, `make_diff_df`, `metric_stats`, `top_source_stats`        |
 | `comparison_report.py`                                                          | Shared report generation: `CompResult`, summary/grouped DFs, plots, md/HTML                           |
+| `poster_figures.py`                                                             | Brand-palette SVG/PDF figures from a run's CSVs for the ICWE poster (see `logs/POSTER.md`)            |
 | `export_user_ledger.py`                                                         | Exports SQLite ledger → `$OA_ROOT/user_ledger/` snapshot before `filter`                              |
 | `deploy.py`                                                                     | EC2 deployment: Nginx, systemd, SSL, code push                                                        |
 | `live_monitoring.py`                                                            | Health monitoring + email alerts                                                                      |
@@ -523,6 +524,29 @@ finished steps.
 make dev            # backend 127.0.0.1:3038 + SvelteKit 127.0.0.1:5173, interleaved logs
 uv run -m pyscripts.dev.run --open   # auto-launch browser
 ```
+
+**Testing & coverage:**
+
+| Command                 | What runs                                                                                                                                                                               |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun run test`          | Playwright e2e (`tests/`, builds + previews on 4173). `ledger.spec.ts` is excluded via `testIgnore`                                                                                     |
+| `make mega_test`        | The ledger integration test (`ledger.spec.ts`) — orchestrates dev server + backend + a pipeline run between its `pre-pipeline`/`post-pipeline` phases via `playwright.ledger.config.ts` |
+| `bun run test:unit`     | Vitest unit tests (`src/**/*.test.ts`) — the TS logic in `src/lib`                                                                                                                      |
+| `bun run test:unit:cov` | Vitest with V8 coverage of `src/lib/**/*.ts` → `coverage/index.html`                                                                                                                    |
+| `bun run test:e2e:cov`  | Playwright (same specs as `bun run test`) with browser coverage → `coverage-e2e/index.html`                                                                                             |
+| `make coverage`         | Runs `test:unit:cov` + `test:e2e:cov` (failures tolerated — the reports still generate), then opens both reports in Firefox                                                             |
+
+`test:e2e:cov` builds with `COVERAGE=1` (inline sourcemaps via `vite.config.ts`) and collects
+Chromium V8 coverage per test (`tests/coverage/fixtures.ts`), which `monocart-coverage-reports`
+remaps through the sourcemaps back to `.svelte`/`.ts` (`global-setup`/`global-teardown` clean +
+merge). Specs import `test`/`expect` from `tests/coverage/fixtures` so the collector is a no-op
+when `COVERAGE` is unset.
+
+Only **browser-side** execution is captured: the app's SSR imports `bun:sqlite`, so build +
+preview must run under bun, which has no `NODE_V8_COVERAGE` equivalent for a long-running server
+— the node path that would dump SSR coverage can't load `bun:` URLs. Component logic is still
+covered (it runs during hydration); the gap is SSR-only `.ts` (load functions, `+server.ts`,
+hooks), part of which the vitest unit suite already exercises.
 
 **Where things live:** `data/nano-snapshot/` (downloaded JSON, gitignored),
 `data/nano-root/` (local pipeline output, gitignored), `libs/ccl-science-data` (symlink →
