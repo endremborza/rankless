@@ -206,218 +206,53 @@
 		<section id="pillar1">
 			<p class="eyebrow"><span class="num">I</span> &nbsp;The technique</p>
 			<hr class="spectrum-rule" />
-			<h2>Explaining data-specific compilation without jargon</h2>
+			<h2>One picture: data-specific compilation</h2>
 			<p class="lead">
-				This is the hard one to draw, and the most important. We need a picture a non-programmer
-				gets in a glance:
-				<strong
-					>most services think hard every time you ask a question; Rankless does the thinking once,
-					ahead of time, and bakes the answers' path straight into the program.</strong
-				>
+				The whole technique in a single graph. The raw dataset is fed through a chain of
+				<strong>interdependent build steps</strong> — each one reads the data and
+				<strong>writes the code the next step compiles against</strong>. They compile down to
+				<strong>one binary</strong> that, alone, loads the data and serves the entire backend as a
+				single multi-threaded process. <em>The data's shape literally becomes the program.</em>
 			</p>
 
-			<h3 style="text-align: left; margin-top: 34px">Analogies to pick from</h3>
+			<h3 style="text-align: left; margin-top: 32px">Candidate 1 — the build chain, end to end</h3>
 			<p class="dim">
-				One of these (or a blend) could become the central metaphor of this panel. We don't need all
-				of them — they're here to choose from.
-			</p>
-			<div class="grid g2" style="margin-top: 8px">
-				<div class="card">
-					<span class="tag">Analogy A · the favourite</span>
-					<h3>Memorised route vs. GPS recalculating every trip</h3>
-					<p class="dim">
-						A database is a GPS that re-plans the whole route from scratch for every single trip,
-						even when you drive the same roads daily. Rankless has the route burned into muscle
-						memory — it just <em>goes</em>. No re-planning tax.
-					</p>
-				</div>
-				<div class="card">
-					<span class="tag">Analogy B</span>
-					<h3>A key cut for one lock vs. a fumbling master key</h3>
-					<p class="dim">
-						A general database is a master key that has to feel its way into any lock. Rankless cuts
-						one perfect key for exactly this dataset — it turns instantly because it was made to
-						fit.
-					</p>
-				</div>
-				<div class="card">
-					<span class="tag">Analogy C</span>
-					<h3>A printing plate vs. handwriting each copy</h3>
-					<p class="dim">
-						The build pipeline studies the data and casts a "printing plate" (the compiled binary).
-						After that, stamping out an answer is near-instant — versus a database re-writing the
-						page by hand every time.
-					</p>
-				</div>
-				<div class="card">
-					<span class="tag">Analogy D</span>
-					<h3>Tailored suit vs. off-the-rack</h3>
-					<p class="dim">
-						General databases fit everything passably. Rankless is tailored to this dataset's exact
-						measurements — every byte sized to fit — so nothing is wasted and nothing snags.
-					</p>
-				</div>
-			</div>
-
-			<h3 style="text-align: left; margin-top: 44px">Concept diagram 1 — the two paths</h3>
-			<p class="dim">
-				Rough sketch of the comparison the panel could draw: the same question, two routes. The
-				database route is a long assembly line of generic steps repeated per query; the Rankless
-				route is a short, direct walk through data already shaped to answer.
+				The explanatory version: raw data on the left, the self-generating step chain in the middle,
+				and the single binary + single serving process on the right. Every arrow is a real
+				dependency, not decoration.
 			</p>
 			<div class="diagram">
-				<svg viewBox="0 0 1000 470" role="img" aria-label="Two-path comparison diagram">
+				<svg
+					viewBox="0 0 1010 600"
+					xmlns="http://www.w3.org/2000/svg"
+					role="img"
+					aria-label="Data-specific compilation pipeline"
+				>
 					<defs>
-						<linearGradient id="spec" x1="0" y1="0" x2="1" y2="0">
+						<linearGradient id="tg" x1="0" y1="0" x2="1" y2="0">
 							<stop offset="0" stop-color="rgb(13,198,243)" />
 							<stop offset="0.5" stop-color="rgb(125,0,130)" />
-							<stop offset="1" stop-color="rgb(250,220,5)" />
+							<stop offset="1" stop-color="rgb(225,176,30)" />
 						</linearGradient>
-						<marker id="arr" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+						<marker id="ta" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
 							<path d="M0,0 L6,3 L0,6 Z" fill="#79828f" />
 						</marker>
-						<marker id="arrg" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+						<marker id="tab" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
 							<path d="M0,0 L6,3 L0,6 Z" fill="rgb(38,154,218)" />
+						</marker>
+						<marker id="tam" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+							<path d="M0,0 L6,3 L0,6 Z" fill="rgb(125,0,130)" />
+						</marker>
+						<marker id="tagr" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+							<path d="M0,0 L6,3 L0,6 Z" fill="#2f8f5f" />
 						</marker>
 					</defs>
 
-					<!-- shared question -->
-					<rect x="20" y="200" width="150" height="70" rx="10" fill="#ffffff" stroke="#cdd3dc" />
+					<!-- RAW DATA -->
+					<rect x="22" y="168" width="150" height="120" rx="12" fill="#eef1f5" stroke="#cdd3dc" />
 					<text
-						x="95"
-						y="230"
-						text-anchor="middle"
-						fill="#21272a"
-						font-family="monospace"
-						font-size="15"
-					>
-						a question
-					</text>
-					<text
-						x="95"
-						y="250"
-						text-anchor="middle"
-						fill="#79828f"
-						font-family="monospace"
-						font-size="11"
-					>
-						"impact by
-					</text>
-					<text
-						x="95"
-						y="263"
-						text-anchor="middle"
-						fill="#79828f"
-						font-family="monospace"
-						font-size="11"
-					>
-						country → field"
-					</text>
-
-					<!-- top lane: database -->
-					<text x="210" y="55" fill="#525a63" font-family="monospace" font-size="13">
-						TRADITIONAL DATABASE — re-thinks every query
-					</text>
-					<g font-family="monospace" font-size="11.5" fill="#3a424c">
-						<rect x="210" y="75" width="120" height="56" rx="8" fill="#eef1f5" stroke="#cdd3dc" />
-						<text x="270" y="100" text-anchor="middle">parse the</text>
-						<text x="270" y="115" text-anchor="middle">query (SQL)</text>
-
-						<rect x="360" y="75" width="120" height="56" rx="8" fill="#eef1f5" stroke="#cdd3dc" />
-						<text x="420" y="100" text-anchor="middle">plan how to</text>
-						<text x="420" y="115" text-anchor="middle">fetch it</text>
-
-						<rect x="510" y="75" width="130" height="56" rx="8" fill="#eef1f5" stroke="#cdd3dc" />
-						<text x="575" y="100" text-anchor="middle">read generic</text>
-						<text x="575" y="115" text-anchor="middle">tables from disk</text>
-
-						<rect x="670" y="75" width="140" height="56" rx="8" fill="#eef1f5" stroke="#cdd3dc" />
-						<text x="740" y="100" text-anchor="middle">join · filter ·</text>
-						<text x="740" y="115" text-anchor="middle">aggregate</text>
-
-						<rect x="840" y="75" width="130" height="56" rx="8" fill="#fce6ea" stroke="#e2a3af" />
-						<text x="905" y="100" text-anchor="middle" fill="#c0455a">answer</text>
-						<text x="905" y="116" text-anchor="middle" fill="#c0455a" font-size="10">
-							(seconds)
-						</text>
-					</g>
-					<g stroke="#79828f" stroke-width="1.6" marker-end="url(#arr)" fill="none">
-						<path d="M170,220 C195,150 200,120 208,103" />
-						<path d="M330,103 L356,103" />
-						<path d="M480,103 L506,103" />
-						<path d="M640,103 L666,103" />
-						<path d="M810,103 L836,103" />
-					</g>
-
-					<!-- bottom lane: rankless -->
-					<text x="210" y="345" fill="#525a63" font-family="monospace" font-size="13">
-						RANKLESS — the thinking was done at build time
-					</text>
-					<g font-family="monospace" font-size="11.5">
-						<rect
-							x="210"
-							y="365"
-							width="600"
-							height="62"
-							rx="10"
-							fill="#ffffff"
-							stroke="url(#spec)"
-							stroke-width="2"
-						/>
-						<text x="510" y="390" text-anchor="middle" fill="#21272a">
-							walk straight through tightly-packed, purpose-built arrays
-						</text>
-						<text x="510" y="408" text-anchor="middle" fill="#79828f" font-size="10.5">
-							no parser · no planner · no generic tables · types sized to this exact data
-						</text>
-						<!-- packed array motif -->
-						<g>
-							<rect x="232" y="398" width="9" height="9" fill="rgb(38,154,218)" opacity="0.9" />
-							<rect x="244" y="398" width="9" height="9" fill="rgb(63,110,193)" opacity="0.9" />
-							<rect x="256" y="398" width="9" height="9" fill="rgb(125,0,130)" opacity="0.9" />
-							<rect x="268" y="398" width="9" height="9" fill="rgb(175,88,80)" opacity="0.9" />
-							<rect x="280" y="398" width="9" height="9" fill="rgb(225,176,30)" opacity="0.9" />
-						</g>
-
-						<rect x="840" y="365" width="130" height="62" rx="10" fill="#e7f6ee" stroke="#8fccaa" />
-						<text x="905" y="392" text-anchor="middle" fill="#2f8f5f">answer</text>
-						<text x="905" y="410" text-anchor="middle" fill="#2f8f5f" font-size="10">
-							(~107 ms)
-						</text>
-					</g>
-					<g stroke="rgb(38,154,218)" stroke-width="1.8" marker-end="url(#arrg)" fill="none">
-						<path d="M170,250 C195,320 200,360 208,395" />
-						<path d="M810,396 L836,396" />
-					</g>
-				</svg>
-				<div class="cap">
-					Same question, two routes. Top: a generic assembly line repeated for every query. Bottom:
-					a short, direct walk — the heavy thinking already compiled away.
-				</div>
-			</div>
-
-			<h3 style="text-align: left; margin-top: 44px">
-				Concept diagram 2 — the data's shape becomes the program
-			</h3>
-			<p class="dim">
-				The other half of the story: <em>where</em> the cleverness moves to. A build-time pipeline
-				reads the dataset's structure and
-				<strong>writes a custom program and binary layout for it</strong>. The shape of the data
-				literally becomes code.
-			</p>
-			<div class="diagram">
-				<svg viewBox="0 0 1000 300" role="img" aria-label="Build pipeline diagram">
-					<defs>
-						<linearGradient id="spec2" x1="0" y1="0" x2="1" y2="0">
-							<stop offset="0" stop-color="rgb(13,198,243)" />
-							<stop offset="1" stop-color="rgb(125,0,130)" />
-						</linearGradient>
-					</defs>
-					<!-- raw data -->
-					<rect x="20" y="95" width="170" height="110" rx="12" fill="#eef1f5" stroke="#cdd3dc" />
-					<text
-						x="105"
-						y="125"
+						x="97"
+						y="198"
 						text-anchor="middle"
 						fill="#21272a"
 						font-family="monospace"
@@ -426,412 +261,579 @@
 						raw dataset
 					</text>
 					<text
-						x="105"
-						y="145"
+						x="97"
+						y="222"
 						text-anchor="middle"
 						fill="#79828f"
 						font-family="monospace"
 						font-size="10.5"
 					>
-						80M papers,
+						OpenAlex dump
 					</text>
 					<text
-						x="105"
-						y="159"
+						x="97"
+						y="240"
 						text-anchor="middle"
 						fill="#79828f"
 						font-family="monospace"
 						font-size="10.5"
 					>
-						1.7B citations,
+						80M papers ·
 					</text>
 					<text
-						x="105"
-						y="173"
+						x="97"
+						y="254"
 						text-anchor="middle"
 						fill="#79828f"
 						font-family="monospace"
 						font-size="10.5"
 					>
-						authors, journals…
+						1.7B citations ·
+					</text>
+					<text
+						x="97"
+						y="268"
+						text-anchor="middle"
+						fill="#79828f"
+						font-family="monospace"
+						font-size="10.5"
+					>
+						authors · journals
+					</text>
+					<path
+						d="M172,228 L204,228"
+						stroke="#79828f"
+						stroke-width="1.8"
+						fill="none"
+						marker-end="url(#ta)"
+					/>
+
+					<!-- PIPELINE CONTAINER -->
+					<rect x="206" y="58" width="590" height="372" rx="14" fill="#ffffff" stroke="#e3e8ef" />
+					<text x="224" y="86" fill="#525a63" font-family="monospace" font-size="13">
+						BUILD-TIME PIPELINE — runs once, before launch
+					</text>
+					<text x="224" y="105" fill="#8b939d" font-family="monospace" font-size="11">
+						each step reads the data, then writes the code the next step compiles against
 					</text>
 
-					<!-- pipeline -->
+					<!-- top rail: generated code -->
+					<line x1="222" y1="152" x2="776" y2="152" stroke="url(#tg)" stroke-width="3" />
+					<text x="224" y="143" fill="#7a3a86" font-family="monospace" font-size="10.5">
+						generated Rust source · gen/*.rs
+					</text>
+
+					<!-- bottom rail: packed data -->
+					<line
+						x1="222"
+						y1="366"
+						x2="640"
+						y2="366"
+						stroke="#aeb4bd"
+						stroke-width="2"
+						marker-end="url(#ta)"
+					/>
+					<text x="224" y="356" fill="#79828f" font-family="monospace" font-size="10.5">
+						packed binary data · entity-sized arrays
+					</text>
+
+					<!-- step cells -->
+					<g font-family="monospace" font-size="12" fill="#21272a" text-anchor="middle">
+						<rect x="222" y="208" width="116" height="92" rx="9" fill="#f6f8fb" stroke="#cdd3dc" />
+						<text x="280" y="250">1 · map</text>
+						<text x="280" y="267">entities</text>
+						<rect x="356" y="208" width="116" height="92" rx="9" fill="#f6f8fb" stroke="#cdd3dc" />
+						<text x="414" y="250">2 · init</text>
+						<text x="414" y="267">attributes</text>
+						<rect x="490" y="208" width="116" height="92" rx="9" fill="#f6f8fb" stroke="#cdd3dc" />
+						<text x="548" y="250">3 · derive</text>
+						<text x="548" y="267">links</text>
+						<rect x="624" y="208" width="116" height="92" rx="9" fill="#f6f8fb" stroke="#cdd3dc" />
+						<text x="682" y="250">4–7</text>
+						<text x="682" y="267">more links</text>
+					</g>
+					<text
+						x="481"
+						y="320"
+						text-anchor="middle"
+						fill="#8b939d"
+						font-family="monospace"
+						font-size="10"
+					>
+						7 build steps in all — each generates the next
+					</text>
+
+					<!-- emit code: cell -> top rail -->
+					<g stroke="rgb(38,154,218)" stroke-width="1.5" fill="none" marker-end="url(#tab)">
+						<path d="M280,208 L280,158" />
+						<path d="M414,208 L414,158" />
+						<path d="M548,208 L548,158" />
+					</g>
+					<!-- consume code: top rail -> next cell (the ratchet) -->
+					<g stroke="rgb(125,0,130)" stroke-width="1.5" fill="none" marker-end="url(#tam)">
+						<path d="M360,152 C360,180 376,188 392,206" />
+						<path d="M494,152 C494,180 510,188 526,206" />
+						<path d="M628,152 C628,180 644,188 660,206" />
+					</g>
+					<text
+						x="612"
+						y="138"
+						text-anchor="middle"
+						fill="#7a3a86"
+						font-family="monospace"
+						font-size="9.5"
+					>
+						each step compiles against all prior steps' code
+					</text>
+
+					<!-- emit data: cell -> bottom rail -->
+					<g stroke="#aeb4bd" stroke-width="1.5" fill="none" marker-end="url(#ta)">
+						<path d="M280,300 L280,360" />
+						<path d="M414,300 L414,360" />
+						<path d="M548,300 L548,360" />
+						<path d="M682,300 C682,330 660,350 646,360" />
+					</g>
+
+					<!-- packed data node -->
+					<rect x="628" y="350" width="150" height="34" rx="8" fill="#eef1f5" stroke="#cdd3dc" />
+					<text
+						x="703"
+						y="371"
+						text-anchor="middle"
+						fill="#525a63"
+						font-family="monospace"
+						font-size="11"
+					>
+						packed data files
+					</text>
+
+					<!-- BINARY -->
 					<rect
-						x="280"
-						y="75"
-						width="220"
-						height="150"
-						rx="12"
+						x="834"
+						y="146"
+						width="150"
+						height="132"
+						rx="14"
 						fill="#ffffff"
-						stroke="url(#spec2)"
-						stroke-width="2.2"
+						stroke="url(#tg)"
+						stroke-width="2.4"
 					/>
 					<text
-						x="390"
-						y="110"
+						x="909"
+						y="186"
 						text-anchor="middle"
 						fill="#21272a"
 						font-family="monospace"
 						font-size="14"
 					>
-						build-time
+						ONE BINARY
 					</text>
 					<text
-						x="390"
-						y="129"
+						x="909"
+						y="206"
 						text-anchor="middle"
-						fill="#21272a"
+						fill="#525a63"
 						font-family="monospace"
-						font-size="14"
+						font-size="11"
 					>
-						compiler
+						rankless-server
 					</text>
 					<text
-						x="390"
-						y="158"
-						text-anchor="middle"
-						fill="#79828f"
-						font-family="monospace"
-						font-size="10.5"
-					>
-						studies the data's shape,
-					</text>
-					<text
-						x="390"
-						y="173"
-						text-anchor="middle"
-						fill="#79828f"
-						font-family="monospace"
-						font-size="10.5"
-					>
-						writes code + binary layout
-					</text>
-					<text
-						x="390"
-						y="195"
-						text-anchor="middle"
-						fill="rgb(38,154,218)"
-						font-family="monospace"
-						font-size="10.5"
-					>
-						(runs once, before launch)
-					</text>
-
-					<!-- outputs -->
-					<rect x="590" y="55" width="200" height="80" rx="12" fill="#eef1f5" stroke="#cdd3dc" />
-					<text
-						x="690"
-						y="88"
-						text-anchor="middle"
-						fill="#21272a"
-						font-family="monospace"
-						font-size="12"
-					>
-						custom program
-					</text>
-					<text
-						x="690"
-						y="107"
+						x="909"
+						y="230"
 						text-anchor="middle"
 						fill="#79828f"
 						font-family="monospace"
 						font-size="10"
 					>
-						tailored to this data
-					</text>
-
-					<rect x="590" y="165" width="200" height="80" rx="12" fill="#eef1f5" stroke="#cdd3dc" />
-					<text
-						x="690"
-						y="198"
-						text-anchor="middle"
-						fill="#21272a"
-						font-family="monospace"
-						font-size="12"
-					>
-						packed binary
+						types sized to
 					</text>
 					<text
-						x="690"
-						y="217"
+						x="909"
+						y="244"
 						text-anchor="middle"
 						fill="#79828f"
 						font-family="monospace"
 						font-size="10"
 					>
-						every byte sized to fit
+						this exact data
+					</text>
+					<text
+						x="909"
+						y="262"
+						text-anchor="middle"
+						fill="#7a3a86"
+						font-family="monospace"
+						font-size="9.5"
+					>
+						16-bit id for 33k insts
 					</text>
 
-					<!-- server -->
-					<rect x="855" y="95" width="125" height="110" rx="12" fill="#e7f6ee" stroke="#8fccaa" />
+					<!-- code rail -> binary (compiled in) -->
+					<path
+						d="M776,152 C800,152 812,168 832,182"
+						stroke="rgb(125,0,130)"
+						stroke-width="1.8"
+						fill="none"
+						marker-end="url(#tam)"
+					/>
 					<text
-						x="917"
-						y="140"
+						x="806"
+						y="146"
+						text-anchor="middle"
+						fill="#7a3a86"
+						font-family="monospace"
+						font-size="9.5"
+					>
+						compiled in
+					</text>
+
+					<!-- RUNTIME -->
+					<rect x="206" y="470" width="778" height="104" rx="14" fill="#e7f6ee" stroke="#8fccaa" />
+					<text
+						x="595"
+						y="502"
 						text-anchor="middle"
 						fill="#2f8f5f"
 						font-family="monospace"
-						font-size="13"
+						font-size="13.5"
 					>
-						one
+						ONE MULTI-THREADED PROCESS — serves the entire backend
 					</text>
 					<text
-						x="917"
-						y="158"
+						x="595"
+						y="525"
 						text-anchor="middle"
-						fill="#2f8f5f"
+						fill="#3f7a5a"
 						font-family="monospace"
-						font-size="13"
+						font-size="11"
 					>
-						server
+						loads compact tables into RAM · memory-maps the big arrays
 					</text>
 					<text
-						x="917"
-						y="178"
+						x="595"
+						y="543"
 						text-anchor="middle"
-						fill="#2f8f5f"
+						fill="#3f7a5a"
+						font-family="monospace"
+						font-size="11"
+					>
+						16 threads answer HTTP · no database · no query planner
+					</text>
+
+					<!-- binary -> runtime -->
+					<path
+						d="M909,278 L909,468"
+						stroke="#2f8f5f"
+						stroke-width="1.8"
+						fill="none"
+						marker-end="url(#tagr)"
+					/>
+					<text
+						x="958"
+						y="380"
+						text-anchor="middle"
+						fill="#3f7a5a"
+						font-family="monospace"
+						font-size="10"
+						transform="rotate(90 958 380)"
+					>
+						starts as one process
+					</text>
+					<!-- data -> runtime -->
+					<path
+						d="M703,384 L703,468"
+						stroke="#aeb4bd"
+						stroke-width="1.8"
+						fill="none"
+						marker-end="url(#ta)"
+					/>
+					<text
+						x="690"
+						y="428"
+						text-anchor="end"
+						fill="#79828f"
 						font-family="monospace"
 						font-size="10"
 					>
-						answers live
+						load · mmap
 					</text>
-
-					<g stroke="#79828f" stroke-width="1.8" fill="none" marker-end="url(#arr)">
-						<path d="M190,150 L276,150" />
-						<path d="M500,130 C540,110 555,98 586,95" />
-						<path d="M500,170 C540,190 555,202 586,205" />
-						<path d="M790,95 C820,110 830,120 851,135" />
-						<path d="M790,205 C820,190 830,180 851,165" />
-					</g>
 				</svg>
 				<div class="cap">
-					The expensive thinking moves <em>left</em> — to a one-time build — leaving a lean binary
-					that a single server runs.
+					The dataset feeds a chain of build steps; each reads the data and emits the next step's
+					source (the spectrum rail), so every step is compiled against the ones before it. The
+					chain compiles into a single binary and a set of packed data files — which one
+					multi-threaded process loads, memory-maps, and serves from. No database anywhere in the
+					path.
 				</div>
 			</div>
 
 			<h3 style="text-align: left; margin-top: 44px">
-				Concept diagram 3 — the stack you fall through
+				Candidate 2 — the same idea, stripped to the icon
 			</h3>
 			<p class="dim">
-				The most literal architecture contrast, and an easy one to read: a SQL web service makes
-				every request <strong>fall down a tall stack of generic layers</strong> — and climb back up.
-				Rankless is a <strong>short walk</strong> into data already shaped to answer. Count the
-				boxes; that's the story.
+				For a distance read: four beats, big type, the self-generating loop made the hero motif. Use
+				this if the panel needs to land in three seconds rather than reward a lean-in.
 			</p>
 			<div class="diagram">
-				<svg viewBox="0 0 1000 540" role="img" aria-label="Architecture stack contrast diagram">
+				<svg
+					viewBox="0 0 1020 300"
+					xmlns="http://www.w3.org/2000/svg"
+					role="img"
+					aria-label="Data-specific compilation, iconic"
+				>
 					<defs>
-						<linearGradient id="spec3" x1="0" y1="0" x2="0" y2="1">
+						<linearGradient id="t2g" x1="0" y1="0" x2="1" y2="0">
 							<stop offset="0" stop-color="rgb(13,198,243)" />
 							<stop offset="0.5" stop-color="rgb(125,0,130)" />
 							<stop offset="1" stop-color="rgb(225,176,30)" />
 						</linearGradient>
-						<marker id="arr3" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
-							<path d="M0,0 L6,3 L0,6 Z" fill="#79828f" />
+						<marker id="t2a" markerWidth="10" markerHeight="10" refX="6.5" refY="3" orient="auto">
+							<path d="M0,0 L6.5,3 L0,6 Z" fill="rgb(125,0,130)" />
 						</marker>
-						<marker id="arrg3" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+						<marker id="t2b" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
 							<path d="M0,0 L6,3 L0,6 Z" fill="rgb(38,154,218)" />
 						</marker>
 					</defs>
 
-					<!-- LEFT: SQL stack -->
-					<text x="60" y="40" fill="#525a63" font-family="monospace" font-size="13">
-						FLASK + POSTGRESQL — a tall stack of generic layers
-					</text>
-					<g font-family="monospace" font-size="12" fill="#3a424c" text-anchor="middle">
-						<rect x="60" y="60" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
-						<text x="245" y="85">browser request</text>
-						<rect x="60" y="108" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
-						<text x="245" y="133">Flask view · Python</text>
-						<rect x="60" y="156" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
-						<text x="245" y="181">ORM / query builder</text>
-						<rect x="60" y="204" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
-						<text x="245" y="229">SQL parser</text>
-						<rect x="60" y="252" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
-						<text x="245" y="277">planner + optimizer</text>
-						<rect x="60" y="300" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
-						<text x="245" y="325">executor · join · filter · aggregate</text>
-						<rect x="60" y="348" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
-						<text x="245" y="373">buffer pool / page cache</text>
-						<rect x="60" y="396" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
-						<text x="245" y="421">generic tables + B-tree indexes · disk</text>
-					</g>
-					<g stroke="#79828f" stroke-width="1.5" marker-end="url(#arr3)" fill="none">
-						<path d="M245,100 L245,107" />
-						<path d="M245,148 L245,155" />
-						<path d="M245,196 L245,203" />
-						<path d="M245,244 L245,251" />
-						<path d="M245,292 L245,299" />
-						<path d="M245,340 L245,347" />
-						<path d="M245,388 L245,395" />
-					</g>
-					<path
-						d="M60,416 C24,416 24,84 60,80"
-						stroke="#aeb4bd"
-						stroke-width="1.5"
-						stroke-dasharray="5 4"
-						fill="none"
-						marker-end="url(#arr3)"
+					<!-- spine -->
+					<line
+						x1="60"
+						y1="160"
+						x2="966"
+						y2="160"
+						stroke="url(#t2g)"
+						stroke-width="2.5"
+						opacity="0.5"
 					/>
+
+					<!-- RAW -->
+					<rect x="36" y="120" width="132" height="80" rx="12" fill="#eef1f5" stroke="#cdd3dc" />
 					<text
-						transform="rotate(-90 34 250)"
-						x="34"
-						y="250"
+						x="102"
+						y="155"
 						text-anchor="middle"
-						fill="#8b939d"
+						fill="#21272a"
+						font-family="monospace"
+						font-size="14"
+					>
+						raw dataset
+					</text>
+					<text
+						x="102"
+						y="177"
+						text-anchor="middle"
+						fill="#79828f"
 						font-family="monospace"
 						font-size="10.5"
 					>
-						result climbs back up → serialize
-					</text>
-					<text
-						x="245"
-						y="468"
-						text-anchor="middle"
-						fill="#c0455a"
-						font-family="monospace"
-						font-size="12"
-					>
-						8 generic layers · per query · ≈ seconds
+						1.7B citations
 					</text>
 
-					<!-- RIGHT: Rankless stack -->
-					<text x="570" y="40" fill="#525a63" font-family="monospace" font-size="13">
-						RANKLESS — a short walk to the answer
-					</text>
-					<g font-family="monospace" font-size="12" fill="#21272a" text-anchor="middle">
-						<rect x="570" y="60" width="370" height="40" rx="7" fill="#eef1f5" stroke="#cdd3dc" />
-						<text x="755" y="85" fill="#3a424c">browser request</text>
-						<rect
-							x="570"
-							y="108"
-							width="370"
-							height="40"
-							rx="7"
-							fill="#ffffff"
-							stroke="url(#spec3)"
-							stroke-width="2"
-						/>
-						<text x="755" y="133">Axum handler · Rust</text>
-						<rect
-							x="570"
-							y="156"
-							width="370"
-							height="56"
-							rx="7"
-							fill="#ffffff"
-							stroke="url(#spec3)"
-							stroke-width="2"
-						/>
-						<text x="755" y="180">index straight into</text>
-						<text x="755" y="197" font-size="11" fill="#79828f">mmap'd, entity-sized arrays</text>
-						<rect x="570" y="244" width="370" height="46" rx="7" fill="#e7f6ee" stroke="#8fccaa" />
-						<text x="755" y="272" fill="#2f8f5f">answer</text>
-						<g>
-							<rect x="586" y="160" width="8" height="8" fill="rgb(38,154,218)" />
-							<rect x="596" y="160" width="8" height="8" fill="rgb(63,110,193)" />
-							<rect x="606" y="160" width="8" height="8" fill="rgb(125,0,130)" />
-							<rect x="616" y="160" width="8" height="8" fill="rgb(175,88,80)" />
-							<rect x="626" y="160" width="8" height="8" fill="rgb(225,176,30)" />
-						</g>
-					</g>
-					<g stroke="rgb(38,154,218)" stroke-width="1.8" marker-end="url(#arrg3)" fill="none">
-						<path d="M755,100 L755,107" />
-						<path d="M755,148 L755,155" />
-						<path d="M755,212 L755,243" />
-					</g>
+					<!-- STEPS group -->
+					<rect x="214" y="86" width="300" height="148" rx="14" fill="#ffffff" stroke="#e3e8ef" />
 					<text
-						x="755"
-						y="468"
+						x="364"
+						y="110"
+						text-anchor="middle"
+						fill="#525a63"
+						font-family="monospace"
+						font-size="11.5"
+					>
+						steps that write their own successors
+					</text>
+					<g>
+						<circle cx="266" cy="168" r="26" fill="#f6f8fb" stroke="#cdd3dc" />
+						<text
+							x="266"
+							y="173"
+							text-anchor="middle"
+							font-family="monospace"
+							font-size="15"
+							fill="#21272a"
+						>
+							1
+						</text>
+						<circle cx="350" cy="168" r="26" fill="#f6f8fb" stroke="#cdd3dc" />
+						<text
+							x="350"
+							y="173"
+							text-anchor="middle"
+							font-family="monospace"
+							font-size="15"
+							fill="#21272a"
+						>
+							2
+						</text>
+						<circle cx="434" cy="168" r="26" fill="#f6f8fb" stroke="#cdd3dc" />
+						<text
+							x="434"
+							y="173"
+							text-anchor="middle"
+							font-family="monospace"
+							font-size="15"
+							fill="#21272a"
+						>
+							3
+						</text>
+						<text x="478" y="173" font-family="monospace" font-size="14" fill="#8b939d">…7</text>
+					</g>
+					<!-- ratchet loops: each generates the next -->
+					<path
+						d="M286,150 C300,128 316,128 330,150"
+						stroke="rgb(125,0,130)"
+						stroke-width="1.6"
+						fill="none"
+						marker-end="url(#t2a)"
+					/>
+					<path
+						d="M370,150 C384,128 400,128 414,150"
+						stroke="rgb(125,0,130)"
+						stroke-width="1.6"
+						fill="none"
+						marker-end="url(#t2a)"
+					/>
+					<text
+						x="350"
+						y="218"
+						text-anchor="middle"
+						fill="#7a3a86"
+						font-family="monospace"
+						font-size="10.5"
+					>
+						each writes the next step's code
+					</text>
+
+					<!-- BINARY -->
+					<rect
+						x="562"
+						y="118"
+						width="152"
+						height="84"
+						rx="13"
+						fill="#ffffff"
+						stroke="url(#t2g)"
+						stroke-width="2.4"
+					/>
+					<text
+						x="638"
+						y="152"
+						text-anchor="middle"
+						fill="#21272a"
+						font-family="monospace"
+						font-size="14"
+					>
+						ONE BINARY
+					</text>
+					<text
+						x="638"
+						y="174"
+						text-anchor="middle"
+						fill="#79828f"
+						font-family="monospace"
+						font-size="10.5"
+					>
+						tailored to the data
+					</text>
+
+					<!-- PROCESS -->
+					<rect x="762" y="104" width="222" height="112" rx="13" fill="#e7f6ee" stroke="#8fccaa" />
+					<text
+						x="873"
+						y="138"
 						text-anchor="middle"
 						fill="#2f8f5f"
 						font-family="monospace"
-						font-size="12"
+						font-size="13.5"
 					>
-						3 layers · nothing generic · ≈ 0.1 s
+						ONE PROCESS
+					</text>
+					<text
+						x="873"
+						y="160"
+						text-anchor="middle"
+						fill="#3f7a5a"
+						font-family="monospace"
+						font-size="10.5"
+					>
+						loads + memory-maps data
+					</text>
+					<text
+						x="873"
+						y="177"
+						text-anchor="middle"
+						fill="#3f7a5a"
+						font-family="monospace"
+						font-size="10.5"
+					>
+						many threads · one box
+					</text>
+					<text
+						x="873"
+						y="194"
+						text-anchor="middle"
+						fill="#3f7a5a"
+						font-family="monospace"
+						font-size="10.5"
+					>
+						no database, no planner
 					</text>
 
-					<line x1="500" y1="60" x2="500" y2="480" stroke="#dfe3ea" stroke-width="1" />
+					<!-- connectors -->
+					<g stroke="rgb(125,0,130)" stroke-width="2" fill="none" marker-end="url(#t2a)">
+						<path d="M168,160 L210,160" />
+						<path d="M514,160 L558,160" />
+						<path d="M714,160 L758,160" />
+					</g>
 				</svg>
 				<div class="cap">
-					Same request, two stacks. Left: eight generic layers the query falls through and climbs
-					back up, every time. Right: three layers, none of them generic — the access path
-					<em>is</em> the data layout.
+					Raw data → a short chain of steps that write their own successors → one binary tailored to
+					the data → one process that serves it all.
 				</div>
 			</div>
 
-			<h3 style="text-align: left; margin-top: 44px">More ways to draw the contrast</h3>
+			<h3 style="text-align: left; margin-top: 44px">The one piece of annotation — pick a voice</h3>
 			<p class="dim">
-				Smaller framings of the same idea — any one could be a sidebar motif rather than a full
+				The graph carries the picture; one short caption carries the term we want people to remember
+				and search later. Three drafts of the same idea — choose one to sit beside the chosen
 				diagram.
 			</p>
-			<div class="grid g2" style="margin-top: 8px">
+			<div class="grid g3" style="margin-top: 8px">
 				<div class="card">
-					<span class="tag">latency budget</span>
-					<h3>Where the milliseconds go</h3>
+					<span class="tag">A · plain-language</span>
+					<h3 class="spectrum-text">Data-specific compilation</h3>
 					<p class="dim">
-						A single 100%-width bar per side. The database bar is sliced into
-						<em>parse · plan · execute · serialize</em>; the Rankless bar is almost entirely one
-						thin <em>execute</em> sliver. Visualizes that most database time is spent
-						<strong>deciding what to do</strong>, not doing it.
+						The build studies this exact dataset and writes a program — and a memory layout — shaped
+						to it. The data's structure becomes code.
 					</p>
 				</div>
 				<div class="card">
-					<span class="tag">storage</span>
-					<h3>The data <em>is</em> the index</h3>
+					<span class="tag">B · the mechanism</span>
+					<h3 class="spectrum-text">The data writes the program</h3>
 					<p class="dim">
-						A database keeps the data <em>and</em> separate B-tree indexes pointing into it. In
-						Rankless there's no separate index — the
-						<strong>array layout itself is the access path</strong>. Draw: two stacked layers
-						collapsing into one.
+						Seven build steps run in sequence; each inspects the data and generates the code the
+						next one compiles against. What comes out is a single binary with no generic database
+						underneath.
 					</p>
 				</div>
 				<div class="card">
-					<span class="tag">byte sizing</span>
-					<h3>Generic rows vs. entity-sized fields</h3>
+					<span class="tag">C · why it's fast</span>
+					<h3 class="spectrum-text">No planner, no generic tables</h3>
 					<p class="dim">
-						A database stores everything in wide, padded, general-purpose rows. Rankless sizes each
-						field to the real data — a 16-bit id for 33k institutions, not a generic 64-bit column.
-						Draw: a fat padded row shrinking to a tight one.
-						<strong>Every byte earns its place.</strong>
-					</p>
-				</div>
-				<div class="card">
-					<span class="tag">when the work happens</span>
-					<h3>Cold path vs. hot path</h3>
-					<p class="dim">
-						The database re-derives the plan on the <em>request</em> path — the hot,
-						latency-critical one. Rankless moves that work to the <em>build</em> path, run once,
-						offline. Draw: a clock on the build step, a feather on the serve step.
+						Because the access path is decided at build time and baked into the binary, answering a
+						request is a direct walk through purpose-built arrays — not a query to plan and execute.
 					</p>
 				</div>
 			</div>
 
 			<div class="note">
 				<span class="lbl">Designer note · the money shot</span>
-				If one image carries this panel, it's the contrast in diagram 1: a
-				<strong>long, repeating, generic pipeline</strong> versus a
-				<strong>single direct stroke</strong>. Consider showing the database path faded/grey and the
-				Rankless path in full spectrum — visually, "all that machinery, gone."
+				If one image carries this panel, it's the chain that
+				<strong>builds itself into a single binary</strong>, then a
+				<strong>single process</strong> doing the whole job. The punchline is an absence: there's
+				nothing generic left to fall through. Let the spectrum rail (generated code) be the one
+				thing in full colour; everything else can recede.
 			</div>
-
-			<ul class="ideas" style="margin-top: 22px">
-				<li>
-					<b>Animate-then-freeze:</b> if there's a digital screen near the poster, an animated loop
-					of the two paths racing would be devastatingly effective. The poster shows the freeze
-					frame.
-				</li>
-				<li>
-					<b>"Where did the work go?"</b> A small clock/hourglass icon on the build step and a
-					feather on the serve step — the cost is paid once, up front.
-				</li>
-				<li>
-					<b>Honest jargon, defined once:</b> the term <em>data-specific compilation</em> should
-					appear, big, with a one-line plain definition beneath it. It's the thing we want people to
-					remember and search later.
-				</li>
-			</ul>
 		</section>
 
 		<!-- ====================================================== PILLAR II -->
@@ -840,26 +842,54 @@
 			<hr class="spectrum-rule" />
 			<h2>Measurable, significant benefits — made loud</h2>
 			<p class="lead">
-				The proof is a controlled head-to-head against a properly-built PostgreSQL + Flask baseline,
-				over <strong>777 real hierarchical queries</strong> across 5 entity types. These numbers are
-				the spine of the poster's credibility — they should be huge.
+				A controlled head-to-head against a properly-built PostgreSQL + Flask baseline, over
+				<strong>777 real hierarchical queries</strong> across 5 entity types, 0 errors. Four blocks:
+				the headline numbers, then three charts that each tell one thing the numbers can't.
 			</p>
 
-			<div class="stats" style="margin-top: 30px">
+			<h3 style="text-align: left; margin-top: 30px; font-size: 1rem; color: var(--ink-dim)">
+				Block 1 · the headline numbers
+			</h3>
+			<div class="stats" style="grid-template-columns: repeat(3, 1fr); margin-top: 8px">
 				<div class="stat">
 					<div class="big">70×</div>
 					<div class="lab">
-						faster total query time<br /><span class="faint">83 s vs 5 795 s</span>
+						faster, total query time<br /><span class="faint"
+							>83 s vs 5 795 s · 777 queries, 0 errors</span
+						>
 					</div>
 				</div>
 				<div class="stat">
 					<div class="big">3.7×</div>
-					<div class="lab">less peak memory<br /><span class="faint">1 030 vs 3 769 MiB</span></div>
+					<div class="lab">less peak memory<br /><span class="faint">1.0 GiB vs 3.7 GiB</span></div>
 				</div>
 				<div class="stat">
-					<div class="big">~107 ms</div>
+					<div class="big">48 ms</div>
 					<div class="lab">
-						average per query<br /><span class="faint">48 ms median · live</span>
+						median query time<br /><span class="faint"
+							>vs 2 910 ms on the database — same 777 queries</span
+						>
+					</div>
+				</div>
+			</div>
+			<p class="dim" style="margin-top: 18px">
+				More numbers from the same run — pick whichever fit the space:
+			</p>
+			<div class="stats" style="grid-template-columns: repeat(3, 1fr); margin-top: 8px">
+				<div class="stat">
+					<div class="big">59×</div>
+					<div class="lab">
+						median per-query speedup<br /><span class="faint"
+							>range 6×–4917× · every query faster</span
+						>
+					</div>
+				</div>
+				<div class="stat">
+					<div class="big">≈2%</div>
+					<div class="lab">
+						mean difference vs the database<br /><span class="faint"
+							>same answers, just faster</span
+						>
 					</div>
 				</div>
 				<div class="stat">
@@ -870,44 +900,35 @@
 
 			<div class="note">
 				<span class="lbl">Designer note · the hero number</span>
-				<strong>70×</strong> is the single most quotable figure. It could be the biggest thing on
-				the entire poster after the title — set in the spectrum gradient, with the small print (<em
-					>777 queries, fair baseline</em
-				>) tucked underneath so it reads as rigorous, not hand-wavy.
+				<strong>70×</strong> is the single most quotable figure — set it in the spectrum gradient,
+				biggest thing after the title, with <em>777 queries, fair baseline</em> tucked underneath so
+				it reads rigorous, not hand-wavy. The <strong>48 ms vs 2.9 s</strong> tile is the one to set
+				as a literal face-off: our median directly opposite theirs. (Sustainability angle for ICWE:
+				3.7× less memory on one box ↔ a smaller machine ↔ less power — worth one line.)
 			</div>
 
-			<h3 style="text-align: left; margin-top: 44px">The figures — now in brand, pick a version</h3>
+			<h3 style="text-align: left; margin-top: 44px; font-size: 1rem; color: var(--ink-dim)">
+				Blocks 2–4 · three charts, each with its one job
+			</h3>
 			<p class="dim">
-				These are freshly regenerated from the latest comparison run (<code>2026-06-03</code>, 777
-				queries) — already redrawn in the Rankless palette (hero in brand blue, baseline a muted
-				grey-red), with plain-language axes and the win called out on the chart. All are
-				<strong>editable SVG</strong> in <code>docs/poster/assets/</code>. For both
-				<em>speed</em> and <em>memory</em> there are alternate cuts of the same data — choose the
-				one that fits the panel. See <code>logs/POSTER.md</code> for how to regenerate them.
+				Freshly redrawn in the brand palette (hero in brand blue, baseline a muted grey-red), plain
+				axes, the win called out on the chart. All are editable SVG in
+				<code>docs/poster/assets/</code>.
 			</p>
 
-			<h3 style="text-align: left; margin-top: 30px; font-size: 1rem; color: var(--ink-dim)">
-				Speed — three ways to tell it
-			</h3>
-			<div class="grid g3" style="margin-top: 8px">
-				<figure>
-					<div class="frame">
-						<img src="assets/timing_combined.svg" alt="Combined log-log timing" />
-					</div>
-					<figcaption>
-						<b>A · the gap.</b> Every query in one log–log panel; the shaded band is the persistent
-						~70× gap that holds across four orders of magnitude.
-						<em>Cleanest for a distance read.</em>
-					</figcaption>
-				</figure>
+			<div class="grid g2" style="margin-top: 8px">
 				<figure>
 					<div class="frame">
 						<img src="assets/timing_speedup.svg" alt="Per-query speedup distribution" />
 					</div>
 					<figcaption>
-						<b>B · every query faster.</b> One dot per query, coloured along the spectrum by
-						speedup. All 777 sit right of parity (6×–4917×, median 59×).
-						<em>The most honest "we always win."</em>
+						<b>B · every single query is faster.</b> One dot per query, placed by how many times
+						faster Rankless answered it. All 777 land right of parity — the slowest win is 6×, the
+						median 59×, the best 4917×. There is no losing case.
+						<div class="note" style="margin-top: 12px">
+							<span class="lbl">Poster callout</span>
+							“777 / 777 queries faster — median 59×.”
+						</div>
 					</figcaption>
 				</figure>
 				<figure>
@@ -915,71 +936,39 @@
 						<img src="assets/timing_plot.svg" alt="Timing faceted by breakdown depth" />
 					</div>
 					<figcaption>
-						<b>C · by difficulty.</b> Faceted by breakdown depth — shows the gap doesn't close as
-						queries get harder. <em>The analytical version; best for a lean-in reader.</em>
-					</figcaption>
-				</figure>
-			</div>
-
-			<h3 style="text-align: left; margin-top: 34px; font-size: 1rem; color: var(--ink-dim)">
-				Memory — two ways to tell it
-			</h3>
-			<div class="grid g2" style="margin-top: 8px">
-				<figure>
-					<div class="frame">
-						<img src="assets/memory_plot.svg" alt="Memory footprint over time" />
-					</div>
-					<figcaption>
-						<b>A · calm vs. spiky.</b> Rankless holds a flat ~1 GiB line; the database spikes toward
-						3.7 GiB. The flat-vs-jagged contrast is the whole point — a great "steady hand" visual.
-					</figcaption>
-				</figure>
-				<figure>
-					<div class="frame"><img src="assets/memory_peak.svg" alt="Peak memory bars" /></div>
-					<figcaption>
-						<b>B · the big number.</b> Just the peaks: 1.0 GiB vs 3.7 GiB, the Rankless bar in
-						spectrum, mean marked. <em>Legible from across the room — the "money" version.</em>
-					</figcaption>
-				</figure>
-			</div>
-
-			<div class="grid g2" style="margin-top: 34px">
-				<figure>
-					<div class="frame">
-						<img src="assets/accuracy_plot.svg" alt="Structural accuracy by entity type" />
-					</div>
-					<figcaption>
-						<b>Fast </b><em>and</em><b> correct.</b> Results were validated against the database:
-						most breakdowns match within a couple of percent (mean relative error). The largest gaps
-						are cases where Rankless intentionally applies extra journal-quality adjustments.
+						<b>C · the lead holds as questions get harder.</b> Faceted by how deep the breakdown
+						goes; the gap between the two lines never closes. Harder queries don't erode the
+						advantage — the baseline degrades faster than Rankless does.
 						<div class="note" style="margin-top: 12px">
-							<span class="lbl">Use note</span>
-							This is the "we're not cheating" panel — important but secondary. Could shrink to a
-							single honest line.
+							<span class="lbl">Poster callout</span>
+							“Deeper breakdowns — the gap only widens.”
 						</div>
 					</figcaption>
 				</figure>
-				<div class="card" style="display: flex; flex-direction: column; justify-content: center">
-					<span class="tag">The angle ICWE will love</span>
-					<h3>Less hardware = less energy</h3>
-					<p class="dim">
-						ICWE 2026 explicitly cares about <strong>performant and sustainable</strong> web
-						systems. Replacing a database cluster with a single compiled binary isn't just faster —
-						it's a concrete, <strong>lower-energy</strong> web architecture. Worth a small panel:
-						<em>"a database cluster's worth of work, on one box."</em>
-					</p>
-					<ul class="ideas" style="margin-top: 10px">
-						<li><b>Visual:</b> a rack of servers greyed out, one server lit in spectrum.</li>
-						<li><b>Stat reuse:</b> 3.7× less peak memory ↔ smaller machine ↔ less power.</li>
-					</ul>
-				</div>
 			</div>
+
+			<figure style="margin-top: 28px">
+				<div class="frame">
+					<img src="assets/memory_plot.svg" alt="Memory footprint over time" />
+				</div>
+				<figcaption>
+					<b>D · a steady hand vs. a shaky one.</b> Rankless holds a flat ~1 GiB for the whole run;
+					the database climbs and spikes toward 3.7 GiB. Same workload, a third of the peak — and
+					none of the jagged spikes that force you to provision a bigger machine for the worst case.
+					<div class="note" style="margin-top: 12px">
+						<span class="lbl">Poster callout</span>
+						“Steady 1 GiB — no spikes to provision around.”
+					</div>
+				</figcaption>
+			</figure>
 
 			<div class="note">
 				<span class="lbl">Designer note · chart honesty</span>
-				These are already the brand redraws — same numbers as the run, just bigger fonts, fewer
-				gridlines, plain-language axes, brand colours. Keep them faithful if you tweak: the data is
-				the data. The variants differ only in framing, never in numbers. Don't invent trends.
+				These are brand redraws of the run's real numbers — bigger fonts, fewer gridlines, plain
+				axes, brand colours. Keep them faithful: the variants differ only in framing, never in
+				numbers. The dropped charts (the log–log gap band, the peak-memory bars, the accuracy panel)
+				are folded into the numbers block above — bring one back as a chart only if a panel feels
+				empty.
 			</div>
 		</section>
 
@@ -990,23 +979,63 @@
 			<h2>The payoff: billion-citation breakdowns you can actually explore</h2>
 			<p class="lead">
 				All that engineering buys one thing: you can take <strong>1.7 billion citations</strong> and
-				slice them, live, into a deep hierarchy — country → field → institution — and it redraws
-				instantly. This panel should be the <em>beautiful</em> part of the poster.
+				slice them, live, into a deep hierarchy that redraws instantly. The figure below is a real,
+				editable SVG straight from the site's <code>breakdown.svg</code> endpoint — not a
+				screenshot.
 			</p>
 
 			<figure style="margin-top: 26px">
 				<div class="frame">
-					<img src="assets/tree_figure.png" alt="Hierarchical citation breakdown" />
+					<img
+						src="assets/breakdown_impact_inst.svg"
+						alt="Multi-level citation breakdown for France"
+					/>
 				</div>
 				<figcaption>
-					<b>The hero visualization.</b> Papers by scholars in France since 2020, broken down by
-					citing country → field → institution, with the most-cited paper surfaced on each branch.
-					This single image proves the claim: a multi-level breakdown over a billion-edge graph,
-					rendered interactively. <em>This is likely the poster's centrepiece.</em>
+					<b>The hero breakdown.</b> Who cites research from <strong>France</strong>, broken down by
+					citing <strong>country → institution</strong>, with two branches expanded. Every band is a
+					slice of the billion-edge graph, and the whole thing is one inline SVG the server renders
+					on demand. <em>This is the centrepiece candidate.</em>
 				</figcaption>
 			</figure>
 
-			<h3 style="text-align: left; margin-top: 40px">The scale behind one screenshot</h3>
+			<h3 style="text-align: left; margin-top: 40px">
+				One breakdown, or two? — both sides of every citation
+			</h3>
+			<p class="dim">
+				Still up for debate: a single Sankey, or a pair that shows the two sides of a citation edge
+				— the work an entity <em>produces</em>, and the impact it <em>receives</em>. Both are the
+				same endpoint, different selection. Candidates:
+			</p>
+			<div class="grid g2" style="margin-top: 8px">
+				<figure>
+					<div class="frame">
+						<img
+							src="assets/breakdown_production_inst.svg"
+							alt="France production by institution"
+						/>
+					</div>
+					<figcaption>
+						<b>Production side.</b> France's own output, broken down by the institutions that
+						produced it — a clean single-level fan.
+					</figcaption>
+				</figure>
+				<figure>
+					<div class="frame">
+						<img
+							src="assets/breakdown_impact_field.svg"
+							alt="France impact by citing country and field"
+						/>
+					</div>
+					<figcaption>
+						<b>Impact side.</b> The same France, but by who cites it — citing
+						<strong>country → research field</strong>. Pair it with the hero for a “gives / gets”
+						diptych.
+					</figcaption>
+				</figure>
+			</div>
+
+			<h3 style="text-align: left; margin-top: 44px">What this enables</h3>
 			<div class="scaleband">
 				<div>
 					<div class="n">1.7B</div>
@@ -1025,105 +1054,37 @@
 					<div class="t">institutions</div>
 				</div>
 			</div>
-			<p class="dim" style="margin-top: 14px">
-				Plus journals, countries, and a four-level discipline hierarchy (4 domains → 26 fields → 252
-				subfields → 4 516 topics). Every one of those entities is a queryable starting point.
-			</p>
-
-			<h3 style="text-align: left; margin-top: 40px">
-				The family of views (each its own little showcase)
-			</h3>
-			<p class="dim">
-				The site renders several complementary visualizations, all hand-drawn SVG. A "gallery strip"
-				of these along one edge of the poster would say "this is a real, rich tool" at a glance.
-			</p>
-			<div class="grid g3" style="margin-top: 8px">
-				<div class="card">
-					<span class="tag">flagship</span>
-					<h3>Hierarchical tree</h3>
-					<p class="dim">
-						The Sankey-style breakdown above. Configurable at every level; surfaces the top paper
-						per branch. The interactive reconfiguration is the live demo's "wow."
-					</p>
-				</div>
-				<div class="card">
-					<span class="tag">network</span>
-					<h3>Research space</h3>
-					<p class="dim">
-						A field-to-field map built from how often disciplines co-occur — shows an entity's
-						intellectual neighbourhood.
-					</p>
-				</div>
-				<div class="card">
-					<span class="tag">network</span>
-					<h3>Collaborator graph</h3>
-					<p class="dim">
-						Co-authorship network scoped to an author's frequent collaborators (the one place we use
-						Cytoscape.js).
-					</p>
-				</div>
-				<div class="card">
-					<span class="tag">geo</span>
-					<h3>Geographical impact map</h3>
-					<p class="dim">
-						World map of citation flows by country, optionally tinted by specialization vs. a
-						baseline. Instantly legible to anyone.
-					</p>
-				</div>
-				<div class="card">
-					<span class="tag">comparison</span>
-					<h3>Peers heatmap</h3>
-					<p class="dim">
-						An entity against its closest peers — subfield citation heatmap, decade sparkline,
-						totals. "How do I compare?"
-					</p>
-				</div>
-				<div class="card">
-					<span class="tag">drill-down</span>
-					<h3>Hit-paper treemap</h3>
-					<p class="dim">
-						For a standout paper, a treemap of who's citing it. The deepest level of the drill-down.
-					</p>
-				</div>
-			</div>
-
-			<h3 style="text-align: left; margin-top: 40px">
-				Screenshots to capture for the final poster
-			</h3>
-			<p class="dim">
-				We only have the tree figure on hand. These are the live captures worth grabbing from
-				<a class="inline" href="https://rankless.org">rankless.org</a> at high resolution — slots
-				left here as placeholders for the designer to drop in.
-			</p>
-			<div class="grid g3" style="margin-top: 8px">
-				<div class="shot">
-					<div class="ico">🌍</div>
-					<div class="ttl">Geographical impact map</div>
-					<div class="desc">
-						A recognizable country (e.g. France or the US) coloured by citation flow.
-					</div>
-				</div>
-				<div class="shot">
-					<div class="ico">🕸️</div>
-					<div class="ttl">Research-space network</div>
-					<div class="desc">
-						A visually dense, colourful field network for a well-known institution.
-					</div>
-				</div>
-				<div class="shot">
-					<div class="ico">▦</div>
-					<div class="ttl">Peers heatmap</div>
-					<div class="desc">A clean subfield heatmap comparing an entity to its peers.</div>
-				</div>
-			</div>
+			<ul class="ideas" style="margin-top: 18px">
+				<li>
+					<b>Multi-level hierarchical breakdowns.</b> Drill country → field → institution → topic,
+					any order, reconfigurable at every level — and it redraws instantly, live in the browser.
+				</li>
+				<li>
+					<b>Both sides of every edge.</b> Each entity has a <em>production</em> set (its own
+					papers) and an <em>impact</em> set (the papers citing those) — so you can break down what
+					it gives and what it gets, by any dimension.
+				</li>
+				<li>
+					<b>Every entity is a starting point.</b> Authors, institutions, journals, countries, and a
+					four-level discipline hierarchy (4 domains → 26 fields → 252 subfields → 4 516 topics) —
+					all queryable, all instant.
+				</li>
+				<li>
+					<b>More than one view.</b> The same data also drives a geographical impact map, a
+					research-space network, a co-authorship graph, and peer heatmaps — all hand-drawn SVG.
+				</li>
+			</ul>
 
 			<div class="two-col" style="margin-top: 34px; align-items: center">
 				<div class="note" style="margin-top: 0">
 					<span class="lbl">Designer note · invite interaction</span>
-					The poster's last move should be "go try it." A prominent
-					<strong>QR code to rankless.org</strong> turns a poster into a live demo in the visitor's
-					own hand — search yourself, your university, watch the billion-edge breakdown redraw. Pair
-					it with a one-line dare: <em>"Find your institution. Under 2 minutes."</em>
+					The poster's last move is “go try it.” A prominent
+					<strong>QR code to rankless.org</strong>
+					turns the poster into a live demo in the visitor's hand — search yourself, your
+					university, watch the billion-edge breakdown redraw. Pair it with a one-line dare:
+					<em>“Find your institution. Under 2 minutes.”</em> Live captures still worth grabbing at
+					high res for the final board: the geo impact map, the research-space network, and a peers
+					heatmap.
 				</div>
 				<div style="display: flex; flex-direction: column; align-items: center; gap: 10px">
 					<div class="qr">QR → rankless.org<br />(place final code)</div>
@@ -1155,7 +1116,7 @@
 							ONE LINE: compile the data → instant billion-edge breakdowns
 						</div>
 						<div class="row" style="flex: 1.4">
-							<div class="mb dark">I · technique<br />(two-path diagram)</div>
+							<div class="mb dark">I · technique<br />(compilation graph)</div>
 							<div class="mb spec" style="flex: 0.6">70×<br />3.7×</div>
 						</div>
 						<div class="mb fig">III · HERO TREE VISUAL (big)</div>
@@ -1202,7 +1163,7 @@
 						</div>
 						<div class="row" style="flex: 2.4">
 							<div class="mb dark">
-								I<br />TECHNIQUE<br /><br />two-path<br />diagram +<br />analogy
+								I<br />TECHNIQUE<br /><br />compilation<br />graph +<br />annotation
 							</div>
 							<div class="mb dark">II<br />RESULTS<br /><br />70× · 3.7×<br />+ charts</div>
 							<div class="mb fig">III<br />ENABLES<br /><br />tree +<br />gallery</div>
