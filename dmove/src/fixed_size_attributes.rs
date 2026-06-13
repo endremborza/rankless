@@ -119,6 +119,13 @@ impl<V: ByteFixArrayInterface> MmapSlice<V> {
     }
 }
 
+impl<E: ByteFixArrayInterface, const AS: usize> MmapSlice<[E; AS]> {
+    pub fn elem(&self, row: usize, col: usize) -> E {
+        let start = (row * AS + col) * E::S;
+        E::from_fbytes(&self.mmap[start..start + E::S])
+    }
+}
+
 impl<E, V> BackendLoading<E> for MmapSlice<V>
 where
     E: FixWriteSizeEntity<FWT = V> + Entity<T = V>,

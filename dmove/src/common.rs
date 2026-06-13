@@ -300,14 +300,7 @@ where
     }
 
     fn from_fbytes(buf: &[u8]) -> Self {
-        let size = T::S;
-        let mut out = Vec::with_capacity(AS);
-        let (mut s, mut e) = (0, size);
-        while e <= buf.len() {
-            out.push(T::from_fbytes(&buf[s..e]));
-            (s, e) = (e, e + size);
-        }
-        out.try_into().unwrap()
+        core::array::from_fn(|i| T::from_fbytes(&buf[i * T::S..(i + 1) * T::S]))
     }
 }
 
