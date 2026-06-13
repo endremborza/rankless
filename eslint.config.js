@@ -6,7 +6,18 @@ import globals from 'globals';
 import svelteConfig from './svelte.config.js';
 
 export default ts.config(
-	{ ignores: ['build/', '.svelte-kit/', 'package/', 'dist/', '.venv/', 'target/'] },
+	{
+		ignores: [
+			'build/',
+			'.svelte-kit/',
+			'package/',
+			'dist/',
+			'.venv/',
+			'target/',
+			'coverage/',
+			'coverage-e2e/'
+		]
+	},
 	js.configs.recommended,
 	...ts.configs.recommended,
 	...svelte.configs.recommended,
