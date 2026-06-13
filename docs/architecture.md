@@ -113,29 +113,37 @@ the server. Steps run in order via `mods_as_comms!` in `lib.rs`:
 
 ### rankless_trees — tree query library
 
-| File                   | Role                                                                                                                        |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `src/interfacing.rs`   | `Getters` struct; loads data interfaces; `make_interfaces!` macro; `RootInterfaces` (sem_ids, peers, hit_sem_ids, hit_dois) |
-| `src/io.rs`            | `TreeRunManager` (threaded execution), `CacheKey`/`CacheValue`, `TreeResponse`, attribute labels                            |
-| `src/path_finder.rs`   | Citation path graph traversal; `RefGraph`; `author_to_work_paths()`                                                         |
-| `src/ids.rs`           | ID encoding/decoding; `AttributeLabelUnion`                                                                                 |
-| `src/extensions.rs`    | Extension methods for tree traversal                                                                                        |
-| `src/instances.rs`     | Concrete tree instances and test configs                                                                                    |
-| `src/part_iterator.rs` | Incremental tree iteration; `TreeMakingParams`                                                                              |
-| `src/components.rs`    | Tree components (`DisJ`, `IntX`, `PostRefIterWrap`, `CountryInstsPost`); `StackBasis` folding                               |
-| `src/prune.rs`         | Tree result pruning                                                                                                         |
-| `src/arr_ext.rs`       | Array manipulation extensions                                                                                               |
-| `src/test_utils.rs`    | Test utilities (`#[cfg(test)]`)                                                                                             |
+| File                   | Role                                                                                                                                                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/interfacing.rs`   | `Getters` struct; loads data interfaces; `make_interfaces!` macro; `RootInterfaces` (sem_ids, peers, hit_sem_ids, hit_dois); `PeerAux`/`build_peer_aux` (per-root peer aux: mmap subfield-cites + author h-index/year-centroid) |
+| `src/io.rs`            | `TreeRunManager` (threaded execution), `CacheKey`/`CacheValue`, `TreeResponse`, attribute labels                                                                                                                                |
+| `src/path_finder.rs`   | Citation path graph traversal; `RefGraph`; `author_to_work_paths()`                                                                                                                                                             |
+| `src/ids.rs`           | ID encoding/decoding; `AttributeLabelUnion`                                                                                                                                                                                     |
+| `src/extensions.rs`    | Extension methods for tree traversal                                                                                                                                                                                            |
+| `src/instances.rs`     | Concrete tree instances and test configs                                                                                                                                                                                        |
+| `src/part_iterator.rs` | Incremental tree iteration; `TreeMakingParams`                                                                                                                                                                                  |
+| `src/components.rs`    | Tree components (`DisJ`, `IntX`, `PostRefIterWrap`, `CountryInstsPost`); `StackBasis` folding                                                                                                                                   |
+| `src/prune.rs`         | Tree result pruning                                                                                                                                                                                                             |
+| `src/arr_ext.rs`       | Array manipulation extensions                                                                                                                                                                                                   |
+| `src/test_utils.rs`    | Test utilities (`#[cfg(test)]`)                                                                                                                                                                                                 |
 
 Key patterns: `BeS<M, E>` (Backend Selector) for flexible data loading; condvar-based
 thread pool in `TreeRunManager`.
 
 ### rankless_server — HTTP API server
 
-| File            | Role                                                                                                                                                                                                      |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/main.rs`   | Routes (`/v1/query`, `/v1/search`, `/v1/specs`, `/v1/peers/:etype/:semid`, `/v1/ladder/:etype`, `/v1/ledger-status`); init `Getters`; load `PeerAux`; pre-computed cache (`CACHEABLE_FROM=10k`); mimalloc |
-| `src/consts.rs` | `MAX_HITS=80`, `PORT=3038`, `SEARCH_SIZE=20`, `MAX_SLICE=40k`, `N_THREADS=16`                                                                                                                             |
+Split by concern; `main.rs` holds only the allocator, module declarations, and route wiring.
+
+| File                  | Role                                                                                                                                                           |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/main.rs`         | Allocator (mimalloc), module decls, `main`/`async_main`: `/v1` route table + socket bind                                                                       |
+| `src/consts.rs`       | Server constants (`PORT=3038`, `MAX_HITS=80`, `SEARCH_SIZE=20`, `MAX_SLICE=40k`, `CACHEABLE_FROM=10k`, `N_SUBFIELDS`, `ETYPE_ENC`) + `FIN_*` showcase lists    |
+| `src/responses.rs`    | Wire/DTO + query-param structs (`SearchResult`, `ViewResult`, `PaperOut`, `EntityPeersResp`, `LadderResp`, `Resolve*`, …)                                      |
+| `src/state.rs`        | In-memory state model: `NameState`, `EntityExt`, `IsTop`, type aliases (`StatesT`, `InstTrm`, `NameStateMap`)                                                  |
+| `src/search_cache.rs` | On-disk cache for the per-entity `SearchEngine` (fnv64 content stamp, load/save)                                                                               |
+| `src/startup.rs`      | Server bootstrap (`get_rest`): parallel per-entity state load (`para_multi_gen_run!`), node stats, `TreeRunManager` build                                      |
+| `src/util.rs`         | Shared handler helpers (`cache_header`, `static_router`, `parse_semantic_id`, `get_empty`)                                                                     |
+| `src/handlers/`       | Axum handlers by concern: `search` (names/slice/sem-id/orcid/resolve), `entity` (views/trees/shallows/ladder/tops + meta), `peers`, `works` (paper sets + DAG) |
 
 ### Supporting crates
 
@@ -166,7 +174,8 @@ the only viz dependency).
 | `lib/tree-events.ts`            | Click/hover/selection handlers                                                                    |
 | `lib/visual-util.ts`            | `rescale()`, `getSankeyPath()`, `pinRange()`                                                      |
 | `lib/metric-calculation.ts`     | Specialization scores, impact metrics                                                             |
-| `lib/network-util.ts`           | Co-authorship graph utilities                                                                     |
+| `lib/network-util.ts`           | Co-authorship graph utilities (light layouts)                                                     |
+| `lib/network-force.ts`          | Cytoscape/fcose force layout — lazily imported so the vendor chunk stays off initial load         |
 | `lib/route-functions.ts`        | URL builders                                                                                      |
 | `lib/loading-functions.ts`      | Data fetching orchestration                                                                       |
 | `lib/text-format-util.ts`       | Number/text formatting; `semantify` + `SEM_MAP` (see [breakdown selection](#breakdown-selection)) |

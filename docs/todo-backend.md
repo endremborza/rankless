@@ -8,7 +8,8 @@ Sections:
 - [Pipeline parallelism](#pipeline-parallelism)
 - [Institution peer quality](#institution-peer-quality)
 - [Author profile ledger — remaining](#author-profile-ledger--remaining)
-- [MCP server](#mcp-server)
+
+MCP / agentic-browser work moved to `.cril/ideas.md` (next main focus).
 
 ---
 
@@ -217,62 +218,3 @@ loop covers binary-side invariants. Still to build:
   `doi → wid` build at server start, or leave (claims store DOI as primary id).
 - E-mail notifications on Applied transitions; cross-owner conflict resolution UI; per-event
   dry-run ("what changes in your numbers"); historical rollback via `ledger_runs.manifest_json`.
-
----
-
-## MCP server
-
-Wrap the existing low-latency binary backend in MCP so any MCP-compatible agent can consume
-citation data without bespoke integration. **Nothing is built yet** (`mcp_server/` does not
-exist). Separate process (Python, `mcp` SDK + `httpx`) proxying to `rankless_server` on
-localhost:3038 — MCP SDKs are mature in Python/TS not Rust, response shaping is simpler in a
-scripting language, and rate-limiting/task logic shouldn't sit in the data hot path.
-
-### Phase 1 — MVP (no backend changes)
-
-`mcp_server/` (uv-managed) with `server.py`, `tools.py`, `resources.py`, `prompts.py`,
-`client.py` (async HTTP to Rust), `response_shaping.py` (flatten trees, add URLs). stdio
-transport for local Claude Desktop / claude-code.
-
-Six core tools wrapping existing endpoints:
-| Tool | Maps to |
-|------|---------|
-| `search_entities(query, entity_type)` | `/v1/names/:etype?q=` |
-| `get_entity_profile(entity_type, semantic_id)` | `/v1/views/:etype/:id` |
-| `get_citation_tree(entity_type, semantic_id, year?, depth?)` | `/v1/trees/:root/:id` (flattened in MCP) |
-| `get_papers(entity_type, semantic_id, offset?, limit?)` | `/v1/works/:etype/:id/:from` |
-| `get_author_peers(semantic_id)` | `/v1/author-peers/:asem` |
-| `lookup_by_orcid(orcid)` | `/v1/orcid/:id` |
-
-Two resources (`rankless://schema/entity-types`, `rankless://schema/discipline-hierarchy`),
-one prompt (`author_impact_report`). Every response carries a `rankless_url` backlink. Demo:
-"Tell me about David Baker's research impact."
-
-### Phase 2 — paper search & stats (needs backend work)
-
-- **Paper/keyword search** (most impactful): index paper titles in `muwo_search` (papers are
-  loaded as `WorksNames`; add a `NameState` for papers). ~930k papers is ~4–5× the largest
-  current index (authors ~211k) — benchmark the trie. Expose `/v1/search-papers?q=&year_from=
-&year_to=&subfield=`. Stretch: inverted title-token index for boolean keyword queries.
-- **`/v1/stats/:etype/:semantic_id`** → `{ papers, citations, top_subfields, year_range }`
-  from coordinates + `WorkCountMarker` + subfield citation array (already computed, just not
-  exposed flat).
-- **DOI lookup** `/v1/doi/:doi` — `WorkDois` + a startup hash map (DOI → work dm_id).
-- MCP tools `search_papers`, `get_entity_stats`, `lookup_by_doi`; SSE transport; IP-based
-  rate limiting (no keys yet).
-
-### Phase 3 — batch, paths, remote
-
-- `POST /v1/batch` dispatcher over existing handlers (cuts round-trips for bibliographies).
-- Tools: `find_citation_path`, `find_collaboration_path` (path pages), `compare_entities`
-  (`/v1/shallows`), `get_field_landscape`, `batch_lookup`.
-- Deploy alongside web server; HTTP+SSE with CORS.
-- Optional `?format=flat|summary` query param on tree endpoints for agent-friendly output.
-
-### Phase 4+ — "work-for-us" exchange & analytics (aspirational)
-
-Agents earn elevated API access by doing in-context tasks (name disambiguation, affiliation
-resolution, topic classification, …) validated via gold tasks (20% known answers) + consensus
-(3+ agreeing). `request_elevated_access` / `submit_task_results`; API-key issuance + rate
-tiers (anon 100/min, keyed 1000/min); reputation + audit log. Then query-pattern analytics,
-coverage-gap reports, agent-tuned cache, workflow-derived prompts.
