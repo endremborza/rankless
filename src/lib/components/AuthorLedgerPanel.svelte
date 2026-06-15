@@ -23,7 +23,7 @@
 		const p = e.payload;
 		switch (p.kind) {
 			case 'disown_paper':
-				return `Disowned: "${p.work.display_snapshot.title || p.work.doi || 'Untitled'}"`;
+				return `Removed: "${p.work.display_snapshot.title || p.work.doi || 'Untitled'}"`;
 			case 'claim_paper':
 				return `Claimed: ${p.work.doi || p.work.display_snapshot.title || '(no DOI)'}`;
 			case 'merge_papers':
