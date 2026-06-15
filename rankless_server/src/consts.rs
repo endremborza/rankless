@@ -1,4 +1,29 @@
+use dmove::Entity;
+use rankless_rs::gen::{
+    a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
+    derive_links3::HitPapers,
+};
+
+pub const MAX_HITS: usize = 80;
+pub const PORT: u16 = 3038;
+pub const SEARCH_SIZE: usize = 20;
+pub const MAX_SLICE: usize = 40_000;
+pub const CACHEABLE_FROM: u32 = 10_000;
+pub const DEFAULT_N_THREADS: usize = 16;
+pub const N_SUBFIELDS: usize = Subfields::N;
 pub const WORKS_PAGE_SIZE_MAX: usize = 400;
+
+pub const ETYPE_ENC: [&str; 7] = [
+    Institutions::NAME,
+    Authors::NAME,
+    Subfields::NAME,
+    Countries::NAME,
+    Sources::NAME,
+    Topics::NAME,
+    HitPapers::NAME,
+];
+
+pub const FIN_UNIS: [&str; 2] = ["budapesti-corvinus-egyetem", "tse"];
 
 pub const FIN_SOURCES: [&str; 50] = [
     "psychological-review",
