@@ -572,7 +572,7 @@ where
         while data.len() == 0 {
             data = cvar.wait(data).unwrap();
         }
-        return data.pop_back().unwrap();
+        return data.pop_front().unwrap();
     }
 }
 
