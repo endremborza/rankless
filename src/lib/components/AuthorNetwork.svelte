@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { circleLayout, cytoscapeLayout, getIndex } from '$lib/network-util';
+	import { circleLayout, getIndex } from '$lib/network-util';
+	import type { cytoscapeLayout } from '$lib/network-force';
+	import { onMount } from 'svelte';
 	import { fade, slide } from 'svelte/transition';
 
 	export let nodes: string[] = [];
@@ -68,14 +70,16 @@
 		minTemp
 	};
 
-	const layoutMap = {
-		circle: circleLayout,
-		// radial: radialWeightedLayout,
-		force: cytoscapeLayout
-	};
-	const possFuns = Object.keys(layoutMap) as (keyof typeof layoutMap)[];
-	let actFun: keyof typeof layoutMap = 'force';
-	$: positions = layoutMap[actFun](nodes, edgeWeights, options);
+	// cytoscape + fcose are heavy; load them lazily and fall back to the circle
+	// layout until they arrive (also keeps the force layout off the SSR path)
+	let forceLayout: typeof cytoscapeLayout | undefined;
+	onMount(() => {
+		import('$lib/network-force').then((m) => (forceLayout = m.cytoscapeLayout));
+	});
+	const possFuns = ['force', 'circle'] as const;
+	let actFun: (typeof possFuns)[number] = 'force';
+	$: layoutFun = actFun === 'force' && forceLayout ? forceLayout : circleLayout;
+	$: positions = layoutFun(nodes, edgeWeights, options);
 	let showControls = false;
 </script>
 
