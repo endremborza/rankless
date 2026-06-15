@@ -3,7 +3,11 @@
 	import { browser } from '$app/environment';
 	import { BE_REMOTE_URL, COMPLETE_YEAR } from '$lib/constants';
 	import type { Paper, EntityAttsForLinks, PaginatedPaperSetResp } from '$lib/tree-types';
-	import { resolveSourceName, resolveLinkedAuthors } from '$lib/utils/paper-helpers';
+	import {
+		resolveSourceName,
+		resolveLinkedAuthors,
+		mergeEntityAtts
+	} from '$lib/utils/paper-helpers';
 	import { formatReference, type CitationStyle } from '$lib/utils/reference-format';
 	import ExportControls from './ExportControls.svelte';
 
@@ -30,10 +34,12 @@
 	let totalPapers = 0;
 	let sliceEnd = 0;
 	let loading = false;
+	let loadingAll = false;
 	let initialLoaded = false;
 	let ownerUnlocked = false;
 
 	let sortBy: 'year' | 'citations' = 'year';
+	let sortDir: 'asc' | 'desc' = 'desc';
 	let minCitations = 0;
 	let minYear = COMPLETE_YEAR;
 	let topN = 0;
@@ -56,10 +62,7 @@
 			papers = [...papers, ...data.resp.papers];
 			totalPapers = data.totalPapers;
 			sliceEnd = data.sliceStart + data.resp.papers.length;
-			for (const [k, v] of Object.entries(data.resp.entityAtts)) {
-				entityAtts[k] = { ...(entityAtts[k] ?? {}), ...v };
-			}
-			entityAtts = entityAtts;
+			entityAtts = mergeEntityAtts(entityAtts, data.resp.entityAtts);
 			discAuthorNames = { ...discAuthorNames, ...data.resp.discAuthorNames };
 		} finally {
 			loading = false;
@@ -98,6 +101,35 @@
 		}
 	}
 
+	async function loadAll() {
+		if (loadingAll) return;
+		loadingAll = true;
+		try {
+			while (sliceEnd < totalPapers) await fetchPage(sliceEnd, MORE_PAGE_SIZE);
+			if (totalPapers > 0) ownerUnlocked = true;
+		} finally {
+			loadingAll = false;
+		}
+	}
+
+	// Sorting the full list, and owners (logged in) inspecting their works, both
+	// require every page present — a partial sort would mislead. The page-count
+	// reads live in plain functions, not in the `$:` deps, so loadAll mutating them
+	// can't feed back into these statements (no reactive loop).
+	let prevSortId: string | null = null;
+	$: sortId = `${sortBy}|${sortDir}`;
+	$: if (initialLoaded) onSortChange(sortId);
+	$: if (initialLoaded && isOwner) ensureFullyLoaded();
+
+	function onSortChange(id: string) {
+		if (prevSortId !== null && id !== prevSortId) ensureFullyLoaded();
+		prevSortId = id;
+	}
+
+	function ensureFullyLoaded() {
+		if (sliceEnd < totalPapers) void loadAll();
+	}
+
 	$: mergedDrops = new Set(mergedPairs.map(([, d]) => d));
 	$: mergedKeepCounts = mergedPairs.reduce(
 		(acc, [k]) => acc.set(k, (acc.get(k) ?? 0) + 1),
@@ -114,10 +146,19 @@
 		if (topN > 0) {
 			result = [...result].sort((a, b) => b.citations - a.citations).slice(0, topN);
 		}
-		return result.sort((a, b) =>
-			sortBy === 'citations' ? b.citations - a.citations : b.year - a.year
-		);
+		return result.sort((a, b) => {
+			const diff = sortBy === 'citations' ? a.citations - b.citations : a.year - b.year;
+			return sortDir === 'desc' ? -diff : diff;
+		});
 	})();
+
+	function setSort(col: 'year' | 'citations') {
+		if (sortBy === col) sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+		else {
+			sortBy = col;
+			sortDir = 'desc';
+		}
+	}
 
 	function startMerge(wid: number) {
 		mergingWid = wid;
@@ -234,7 +275,28 @@
 					<tr>
 						<th class="col-num">#</th>
 						<th class="col-main">Work</th>
-						<th class="col-cites">Indexed citations</th>
+						<th class="col-year">
+							<button
+								class="sort-btn"
+								class:sorted={sortBy === 'year'}
+								on:click={() => setSort('year')}
+							>
+								Year{#if sortBy === 'year'}<span class="sort-ind"
+										>{sortDir === 'desc' ? '▾' : '▴'}</span
+									>{/if}
+							</button>
+						</th>
+						<th class="col-cites">
+							<button
+								class="sort-btn"
+								class:sorted={sortBy === 'citations'}
+								on:click={() => setSort('citations')}
+							>
+								Indexed citations{#if sortBy === 'citations'}<span class="sort-ind"
+										>{sortDir === 'desc' ? '▾' : '▴'}</span
+									>{/if}
+							</button>
+						</th>
 						{#if showOwnerActions}<th class="col-actions" aria-label="Actions"></th>{/if}
 					</tr>
 				</thead>
@@ -257,19 +319,18 @@
 										>{/if}
 								</div>
 								<div class="paper-byline">
-									<span class="byline-year">{paper.year}</span>
-									{#if journal}<span class="byline-sep">·</span><em class="byline-journal"
-											>{journal}</em
-										>{/if}
-									{#if authors.length}<span class="byline-sep">·</span
-										>{#each authors as a, i (i)}{#if a.url}<a class="author-link" href={a.url}
-													>{a.name}</a
+									{#if journal}<em class="byline-journal">{journal}</em>{/if}
+									{#if authors.length}{#if journal}<span class="byline-sep">·</span
+											>{/if}{#each authors as a, i (i)}{#if a.url}<a
+													class="author-link"
+													href={a.url}>{a.name}</a
 												>{:else}<span class="author-plain">{a.name}</span
 												>{/if}{#if i < authors.length - 1}<span class="comma"
 													>,
 												</span>{/if}{/each}{/if}
 								</div>
 							</td>
+							<td class="col-year">{paper.year}</td>
 							<td class="col-cites">
 								{paper.citations}{#if mergeCount > 0}<span
 										class="merge-badge"
@@ -289,7 +350,7 @@
 											<button class="btn-sm" on:click={() => startMerge(paper.wid)}>Merge</button>
 											<button
 												class="btn-sm destructive"
-												on:click={() => dispatch('disown', paper.wid)}>Disown</button
+												on:click={() => dispatch('disown', paper.wid)}>Remove</button
 											>
 										</div>
 									{/if}
@@ -344,9 +405,7 @@
 
 		{#if disownedPapersList.length > 0 && showChangesSections}
 			<details class="disowned-section">
-				<summary
-					>{isOwner ? 'Disowned' : 'Disowned by author'} ({disownedPapersList.length})</summary
-				>
+				<summary>{isOwner ? 'Removed' : 'Removed by author'} ({disownedPapersList.length})</summary>
 				<div class="paper-list dimmed">
 					{#each disownedPapersList as paper (paper.wid)}
 						{@const source = resolveSourceName(paper.source, entityAtts)}
@@ -413,6 +472,34 @@
 		border-bottom: 1px solid rgba(var(--color-range-15), 0.06);
 	}
 
+	.works-table thead th.col-year,
+	.works-table thead th.col-cites {
+		text-align: right;
+		opacity: 1; /* dim via the button so the sorted state can brighten past 0.55 */
+	}
+
+	.sort-btn {
+		font: inherit;
+		text-transform: inherit;
+		letter-spacing: inherit;
+		color: inherit;
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		white-space: nowrap;
+		opacity: 0.55;
+	}
+
+	.sort-btn:hover,
+	.sort-btn.sorted {
+		opacity: 1;
+	}
+
+	.sort-ind {
+		margin-left: 3px;
+	}
+
 	.works-table tr.merging-source {
 		background: rgba(var(--color-range-15), 0.04);
 	}
@@ -472,6 +559,13 @@
 	.author-plain {
 		white-space: nowrap;
 		opacity: 0.85;
+	}
+
+	.col-year {
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+		width: 3rem;
 	}
 
 	.col-cites {
@@ -669,6 +763,10 @@
 		.col-num {
 			width: 1.4rem;
 			font-size: var(--text-xs);
+		}
+
+		.col-year {
+			width: 2.4rem;
 		}
 
 		.col-cites {
