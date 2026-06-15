@@ -70,17 +70,34 @@ export type PaperHighlight = {
 	label?: string; // for prestigious: actual source name
 };
 
+// Backend sentinel for a discarded author whose OpenAlex display_name is missing.
+const DISC_NAME_SENTINEL = 'Unknown';
+
 export function resolveAuthorNameOrNull(
 	ship: PaperAuthorship,
 	entityAtts: EntityAttsForLinks,
 	discAuthorNames: Record<string, string>
 ): string | null {
-	const prefix = ship.author[0];
-	const id = ship.author.slice(1);
-	if (prefix === 'F') {
-		return entityAtts.authors?.[id]?.name ?? null;
+	// entityAtts.authors is keyed by the bare dm_id, but discAuthorNames is keyed by the
+	// full prefixed id ("D{id}") — each branch must use its own key form.
+	if (ship.author[0] === 'F') {
+		return entityAtts.authors?.[ship.author.slice(1)]?.name ?? null;
 	}
-	return discAuthorNames[id] ?? null;
+	const name = discAuthorNames[ship.author];
+	return name && name !== DISC_NAME_SENTINEL ? name : null;
+}
+
+// Combine entity-att maps without clobbering nested per-type records. A shallow spread would
+// let a later source's `sources`/`authors`/`institutions` map replace an earlier, richer one.
+export function mergeEntityAtts(...parts: (EntityAttsForLinks | undefined)[]): EntityAttsForLinks {
+	const out: EntityAttsForLinks = {};
+	for (const part of parts) {
+		if (!part) continue;
+		for (const [etype, recs] of Object.entries(part)) {
+			out[etype] = { ...(out[etype] ?? {}), ...recs };
+		}
+	}
+	return out;
 }
 
 export function resolveSourceName(sourceId: number, entityAtts: EntityAttsForLinks): string {

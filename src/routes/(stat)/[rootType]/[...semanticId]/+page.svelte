@@ -1,10 +1,15 @@
 <script lang="ts">
-	import { APP_NAME, REL_TYPES } from '$lib/constants';
+	import { APP_NAME } from '$lib/constants';
 	import { prettifyRoot } from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
-	import { isAuthored, fetchOaAbstract, htmlToText } from '$lib/utils/paper-helpers';
+	import {
+		isAuthored,
+		fetchOaAbstract,
+		htmlToText,
+		mergeEntityAtts
+	} from '$lib/utils/paper-helpers';
 	import { afterNavigate } from '$app/navigation';
 
 	import FullQc from '$lib/components/FullQc.svelte';
@@ -59,11 +64,9 @@
 	let hitPaperAbstract: string | null = null;
 	let abstractLoading = false;
 
-	// Combined entity attribute maps (profile data + initial works batch)
-	$: entityAtts = {
-		...(data.profile?.papers.entityAtts ?? {}),
-		...data.initialEntityAtts
-	} as tt.EntityAttsForLinks;
+	// Combined entity attribute maps (profile data + initial works batch); deep-merged so the
+	// initial batch's smaller per-type maps don't clobber the profile's fuller ones.
+	$: entityAtts = mergeEntityAtts(data.profile?.papers.entityAtts, data.initialEntityAtts);
 	$: discAuthorNames = {
 		...(data.profile?.papers.discAuthorNames ?? {}),
 		...data.initialDiscAuthorNames
@@ -95,15 +98,12 @@
 	});
 
 	function getAuthorStats(view: tt.View) {
-		let authorNames: string[] = [];
-		let authorScores: number[] = [];
-		for (const rel of view.primeRelations) {
-			if (REL_TYPES[rel.relType] == 'paper-authors') {
-				authorNames.push(rel.name);
-				authorScores.push(rel.score);
-			}
-		}
-		return { authorNames, authorScores, edgeWeights: view.authorNetwork };
+		const authors = view.relations['paper-authors'] ?? [];
+		return {
+			authorNames: authors.map((r) => r.name),
+			authorScores: authors.map((r) => r.score),
+			edgeWeights: view.authorNetwork
+		};
 	}
 
 	$: indsByEntityType = tf.getTreeIndsByEntityType(data.treeSpecs.specs[data.conf.rootType]);
