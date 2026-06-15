@@ -97,21 +97,23 @@ class WFler:
         except KeyError:
             return False
 
-        for a in jso.get("authorships", []):
-            if any(i.get("id") in self.oa_ids for i in a["institutions"]):
-                self.insts.extend(i.get("id") for i in a["institutions"])
+        ships = jso.get("authorships", [])
+        if not any(
+            i.get("id") in self.oa_ids for a in ships for i in a["institutions"]
+        ):
+            return False
 
-                self.sources.extend(
-                    (loc.get("source") or {}).get("id") for loc in jso["locations"]
-                )
-
-                try:
-                    self.authors.append(a["author"]["id"])
-                except KeyError:
-                    pass
-
-                return True
-        return False
+        # Keep every entity this work references, not just the matching author, so no
+        # co-author/institution/source renders as (unknown) in the generated dataset.
+        for a in ships:
+            self.insts.extend(i.get("id") for i in a["institutions"])
+            aid = (a.get("author") or {}).get("id")
+            if aid:
+                self.authors.append(aid)
+        self.sources.extend(
+            (loc.get("source") or {}).get("id") for loc in jso["locations"]
+        )
+        return True
 
     def snowball(self, src_snap, target_snap):
         _sets = list(map(set, [self.authors, self.insts, self.sources]))
