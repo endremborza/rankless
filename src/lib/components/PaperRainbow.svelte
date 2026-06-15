@@ -44,10 +44,11 @@
 	};
 	type BreakdownOption = { key: string; label: string; treeId: number };
 
-	let maxN = 5;
+	let maxN = 15;
 	let highlighted = 0;
 	let alignTrajectories = false;
-	let sortBy: 'citations' | 'overperf' | 'year' = 'citations';
+	let logScale = false;
+	let sortBy: 'citations' | 'overperf' | 'year' = 'year';
 	let viewMode: 'lines' | 'breakdown' = 'lines';
 
 	let breakdownTreeId = 0;
@@ -106,12 +107,19 @@
 		return [0.25, 0.5, 0.75, 1].map((f) => Math.round(f * yMax));
 	}
 
+	function logYTickSteps(yMax: number): number[] {
+		const steps: number[] = [];
+		for (let p = 1; p <= yMax; p *= 10) steps.push(p);
+		return steps;
+	}
+
 	function getFigureBasis(
 		ps: tt.Paper[],
 		inds: number[],
 		globalMin: number,
 		align: boolean,
-		rates: number[]
+		rates: number[],
+		log: boolean
 	) {
 		const nVis = inds.length;
 		const yearSpan = LATEST_YEAR - globalMin;
@@ -123,10 +131,11 @@
 		const xMin = -xPad;
 		const yMin = -height + yPad;
 
+		const yTransform = log ? (v: number) => Math.log2(v + 1) : (v: number) => v;
 		let yMax = 0;
 		for (const i of inds) yMax = Math.max(yMax, ps[i].citations);
 		if (yMax === 0) yMax = 1;
-		const yScale = yMax / yBase;
+		const yScale = yTransform(yMax) / yBase;
 
 		const figPapers: FigPaper[] = [];
 		const pubMarks: PubMark[] = [];
@@ -147,7 +156,7 @@
 			for (let y = 0; y < yc.length && y < lifespan; y++) {
 				cumSum += yc[y];
 				const xPos = ((align ? 0 : startYear) + y) / xScale;
-				const yVal = -(cumSum / yScale);
+				const yVal = -(yTransform(cumSum) / yScale);
 				endX = xPos;
 				endY = yVal;
 				pBasis.push(`${y === 0 ? 'M' : 'L'} ${xPos.toFixed(3)} ${yVal.toFixed(3)}`);
@@ -202,8 +211,8 @@
 		}
 
 		const yTicks: YTick[] = [];
-		for (const val of niceYTickSteps(yMax)) {
-			yTicks.push({ label: formatNumber(val), y: -(val / yMax) * yBase });
+		for (const val of log ? logYTickSteps(yMax) : niceYTickSteps(yMax)) {
+			yTicks.push({ label: formatNumber(val), y: -(yTransform(val) / yScale) });
 		}
 
 		return { width, height, xMin, yMin, figPapers, yearTicks, yTicks, pubMarks, aspect, align };
@@ -276,7 +285,7 @@
 			return b.citations - a.citations;
 		});
 
-	$: paperCap = Math.min(25, chartPapers.length);
+	$: paperCap = Math.min(40, chartPapers.length);
 	$: if (maxN > paperCap) maxN = paperCap;
 
 	$: globalMinYear =
@@ -284,7 +293,7 @@
 
 	$: rates = computeYearRates(chartPapers);
 	$: visInds = getVisInds(chartPapers, firstVisible ?? 0, maxN);
-	$: fb = getFigureBasis(chartPapers, visInds, globalMinYear, alignTrajectories, rates);
+	$: fb = getFigureBasis(chartPapers, visInds, globalMinYear, alignTrajectories, rates, logScale);
 	$: highlightedVis = visInds.includes(highlighted) ? highlighted - visInds[0] : undefined;
 </script>
 
@@ -312,6 +321,10 @@
 					<label>
 						<input type="checkbox" bind:checked={alignTrajectories} />
 						align trajectories
+					</label>
+					<label>
+						<input type="checkbox" bind:checked={logScale} />
+						log scale
 					</label>
 					<select bind:value={sortBy} class="breakdown-select" aria-label="Sort by">
 						<option value="citations">sort: citations</option>
@@ -456,74 +469,95 @@
 					on:mouseover={() => fixHighlight(i)}
 					on:focus={() => fixHighlight(i)}
 				>
-					<div class="paper-header">
-						<span class="paper-title">
-							{#if paper.doi.length > 0}
-								<a href="https://doi.org/{paper.doi}" target="_blank">{@html paper.name}</a>
+					<div
+						class="paper-block"
+						role="button"
+						tabindex="0"
+						on:click={() => toggleExpand(i)}
+						on:keydown={(e) => {
+							if (e.key === 'Enter' || e.key === ' ') {
+								e.preventDefault();
+								toggleExpand(i);
+							}
+						}}
+					>
+						<div class="paper-collapsed">
+							<span class="paper-year">{paper.year}</span>
+							{#if source}
+								<span class="paper-source">{source}</span>
 							{:else}
-								{@html paper.name}
-							{/if}
-						</span>
-						<button
-							class="expand-btn"
-							on:click|stopPropagation={() => toggleExpand(i)}
-							aria-label={expanded ? 'Collapse' : 'Expand'}>{expanded ? '▲' : '▼'}</button
-						>
-					</div>
-					<div class="paper-meta">
-						<span class="paper-year">{paper.year}</span>
-						<span class="paper-cites">{formatNumber(paper.citations)} citations</span>
-						{#if authors}<span class="paper-authors">{authors}</span>{/if}
-						{#if source}<span class="paper-source">{source}</span>{/if}
-						{#if paper.createdTopic}
-							<span class="paper-created-topic" title="Earliest impactful paper of this topic"
-								>★ originated {@html paper.createdTopic}</span
-							>
-						{/if}
-						{#if paper.hitSemId}
-							<a
-								href="/hit-papers/{paper.hitSemId}"
-								class="paper-profile-link"
-								on:click|stopPropagation={() => {}}>profile →</a
-							>
-						{/if}
-					</div>
-					{#if expanded}
-						<div class="paper-details">
-							{#if paper.authorships.length > 2}
-								<div class="detail-row">
-									<span class="detail-label">Authors:</span>
-									<span>{resolveAllAuthorNames(paper, entityAtts, discAuthorNames).join(', ')}</span
-									>
-								</div>
-							{/if}
-							{#if paper.biblio}
-								{@const b = paper.biblio}
-								<div class="detail-row">
-									<span class="detail-label">Published in:</span>
-									<span>
-										{#if b.volume}Vol.&nbsp;{b.volume}{/if}{#if b.issue}, No.&nbsp;{b.issue}{/if}{#if b.first_page},
-											pp.&nbsp;{b.first_page}{#if b.last_page}–{b.last_page}{/if}{/if}
-									</span>
-								</div>
-							{/if}
-							{#if paper.hitBm && paper.hitBm >= bmThreshold}
-								<div class="detail-row">
-									<span class="detail-label">Top-1% benchmark:</span>
-									<span>{formatNumber(paper.hitBm)} citations</span>
-								</div>
-								<div class="detail-row selection-basis">
-									<span class="detail-label">Performance:</span>
-									<span>{overperf(paper).toFixed(1)}× above cohort benchmark</span>
-								</div>
-							{:else if paper.citations >= globalMinCites}
-								<div class="detail-row selection-basis">
-									<span class="detail-label">Selection:</span>
-									<span>Universal threshold (≥{globalMinCites} citations)</span>
-								</div>
+								<span class="paper-source paper-source-fallback">{@html paper.name}</span>
 							{/if}
 						</div>
-					{/if}
+						{#if expanded}
+							<div class="paper-expanded">
+								<div class="paper-title">
+									{#if paper.doi.length > 0}
+										<a
+											href="https://doi.org/{paper.doi}"
+											target="_blank"
+											on:click|stopPropagation={() => {}}>{@html paper.name}</a
+										>
+									{:else}
+										{@html paper.name}
+									{/if}
+								</div>
+								<div class="paper-meta">
+									<span class="paper-cites">{formatNumber(paper.citations)} citations</span>
+									{#if authors}<span class="paper-authors">{authors}</span>{/if}
+									{#if paper.createdTopic}
+										<span class="paper-created-topic" title="Earliest impactful paper of this topic"
+											>★ originated {@html paper.createdTopic}</span
+										>
+									{/if}
+									{#if paper.hitSemId}
+										<a
+											href="/hit-papers/{paper.hitSemId}"
+											class="paper-profile-link"
+											on:click|stopPropagation={() => {}}>profile →</a
+										>
+									{/if}
+								</div>
+								<div class="paper-details">
+									{#if paper.authorships.length > 2}
+										<div class="detail-row">
+											<span class="detail-label">Authors:</span>
+											<span
+												>{resolveAllAuthorNames(paper, entityAtts, discAuthorNames).join(
+													', '
+												)}</span
+											>
+										</div>
+									{/if}
+									{#if paper.biblio}
+										{@const b = paper.biblio}
+										<div class="detail-row">
+											<span class="detail-label">Published in:</span>
+											<span>
+												{#if b.volume}Vol.&nbsp;{b.volume}{/if}{#if b.issue}, No.&nbsp;{b.issue}{/if}{#if b.first_page},
+													pp.&nbsp;{b.first_page}{#if b.last_page}–{b.last_page}{/if}{/if}
+											</span>
+										</div>
+									{/if}
+									{#if paper.hitBm && paper.hitBm >= bmThreshold}
+										<div class="detail-row">
+											<span class="detail-label">Top-1% benchmark:</span>
+											<span>{formatNumber(paper.hitBm)} citations</span>
+										</div>
+										<div class="detail-row selection-basis">
+											<span class="detail-label">Performance:</span>
+											<span>{overperf(paper).toFixed(1)}× above cohort benchmark</span>
+										</div>
+									{:else if paper.citations >= globalMinCites}
+										<div class="detail-row selection-basis">
+											<span class="detail-label">Selection:</span>
+											<span>Universal threshold (≥{globalMinCites} citations)</span>
+										</div>
+									{/if}
+								</div>
+							</div>
+						{/if}
+					</div>
 				</li>
 			{/each}
 		</ol>
@@ -671,32 +705,32 @@
 	}
 
 	#paper-list > li {
-		margin-top: var(--unified-margin);
-		padding: var(--unified-padding);
+		margin-top: 3px;
 		font-weight: 600;
 	}
 
-	.paper-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		gap: 8px;
+	.paper-block {
+		padding: 3px 8px;
+		cursor: pointer;
 	}
 
-	.paper-title {
-		flex: 1;
+	.paper-collapsed {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
 		min-width: 0;
 	}
 
-	.expand-btn {
-		background: none;
-		border: none;
-		cursor: pointer;
-		font-size: var(--text-xs);
-		opacity: 0.55;
-		padding: 0 2px;
-		flex-shrink: 0;
-		line-height: 1.6;
+	.paper-expanded {
+		margin-top: 5px;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.paper-title {
+		font-weight: 600;
+		line-height: 1.3;
 	}
 
 	.paper-meta {
@@ -706,11 +740,11 @@
 		font-size: var(--text-sm);
 		font-weight: 400;
 		opacity: 0.65;
-		margin-top: 2px;
 	}
 
 	.paper-year {
 		font-weight: 600;
+		flex-shrink: 0;
 	}
 
 	.paper-cites {
@@ -718,7 +752,18 @@
 	}
 
 	.paper-source {
+		flex: 1;
+		min-width: 0;
 		font-style: italic;
+		font-weight: 400;
+		opacity: 0.7;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.paper-source-fallback {
+		font-style: normal;
 	}
 
 	.paper-created-topic {
