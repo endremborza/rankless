@@ -89,7 +89,7 @@
 		}
 	});
 
-	$: childD1Rate = expandControlInd == undefined ? defaultChildD1Rate : 0.7;
+	const childD1Rate = expandControlInd == undefined ? defaultChildD1Rate : 0.7;
 	$: svgD1 = (containerHeight / containerWidth) * svgD2;
 	$: d1ToPixels = (d1: number) => (d1 * containerHeight) / svgD1;
 	$: d2ToPixels = (d2: number) => (d2 * containerWidth) / svgD2;

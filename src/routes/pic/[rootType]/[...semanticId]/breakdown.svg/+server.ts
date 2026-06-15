@@ -31,14 +31,13 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		.then((view) => view);
 	const rootName = view.name;
 	const selectionState: tt.BareNode = spec.selectionState;
-	let treeSpec: tt.TreeSpec = treeSpecs.specs[rootType][conf.treeId];
+	const treeSpec: tt.TreeSpec = treeSpecs.specs[rootType][conf.treeId];
 
 	// let height = svgD1 * (1 - (headerRate + d1BottomPadRate) / 100);
 	// let component = new TreeSvg({ target: new ShadowRoot() });
 	const isSpec = url.searchParams.get('isSpec');
 	if (isSpec != null) {
 		treeSpec.defaultIsSpec = isSpec == '1';
-
 	}
 	const props = { selectionState, treeSpec, tree, attributeLabels: atts, rootName, height: 100 };
 	const html = renderSvgComponent(TreeSvg, props);
