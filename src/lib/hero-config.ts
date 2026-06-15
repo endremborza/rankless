@@ -47,6 +47,12 @@ export type Chip = {
 };
 export type LeaderItem = { text: string; href: string | null };
 export type LeaderRow = { label: string; items: LeaderItem[] };
+export type TopicItem = { name: string; count: number };
+// One field ("subfield" in code) heading its top topics — the explicit topic↔field hierarchy.
+// `semanticId` (may be empty) is the field's page id, used when this group becomes its own chip.
+export type FieldTopicGroup = { field: string; semanticId: string; topics: TopicItem[] };
+// A field chip that also carries its top topics, so the hierarchy lives inside the chip.
+export type FieldCard = Chip & { topics: TopicItem[] };
 
 // Co-author / top-scholar rows share one list size: generous enough to read as a community of
 // contributors rather than an elite few. The server precomputes up to 25 paper-authors per entity.
@@ -61,9 +67,8 @@ export const HERO_CONFIG: Record<tt.RootType, HeroSpec> = {
 		showStandingBadge: true,
 		leaders: [
 			{ label: 'Co-authors', relType: 'paper-authors', n: PEOPLE_LEADER_N },
-			{ label: 'Topics', relType: 'paper-topics', withCount: true, n: 3 },
 			{ label: 'Cited by', relType: 'citing-fields', n: 3 },
-			{ label: 'Journals', relType: 'paper-journals', n: 3 },
+			{ label: 'Journals', relType: 'paper-journals', withCount: true, n: 3 },
 			{ label: 'Partner nations', relType: 'collab-nation', n: 3 }
 		]
 	},
@@ -72,8 +77,7 @@ export const HERO_CONFIG: Record<tt.RootType, HeroSpec> = {
 		showStandingBadge: true,
 		leaders: [
 			{ label: 'Top scholars', relType: 'paper-authors', n: PEOPLE_LEADER_N },
-			{ label: 'Topics', relType: 'paper-topics', withCount: true, n: 3 },
-			{ label: 'Journals', relType: 'paper-journals', n: 3 },
+			{ label: 'Journals', relType: 'paper-journals', withCount: true, n: 3 },
 			{ label: 'Partner nations', relType: 'collab-nation', n: 3 }
 		]
 	},
@@ -81,7 +85,6 @@ export const HERO_CONFIG: Record<tt.RootType, HeroSpec> = {
 		statVariant: 'cites',
 		showStandingBadge: false,
 		leaders: [
-			{ label: 'Topics', relType: 'paper-topics', withCount: true, n: 3 },
 			{ label: 'Partner nations', relType: 'collab-nation', n: 3 },
 			{ label: 'Cited by', relType: 'citing-fields', n: 3 }
 		]
@@ -90,19 +93,13 @@ export const HERO_CONFIG: Record<tt.RootType, HeroSpec> = {
 		statVariant: 'cites',
 		sinceNote: 'startYear',
 		showStandingBadge: true,
-		leaders: [
-			{ label: 'Fields', relType: 'paper-fields', withCount: true, n: 3 },
-			{ label: 'Topics', relType: 'paper-topics', n: 3 },
-			{ label: 'Top scholars', relType: 'paper-authors', n: PEOPLE_LEADER_N }
-		]
+		leaders: [{ label: 'Top scholars', relType: 'paper-authors', n: PEOPLE_LEADER_N }]
 	},
 	subfields: {
 		statVariant: 'cites',
 		sinceNote: 'complete',
 		showStandingBadge: false,
 		leaders: [
-			{ label: 'Topics', relType: 'paper-topics', n: 3 },
-			{ label: 'Fields', relType: 'paper-fields', n: 3 },
 			{ label: 'Cited by', relType: 'citing-fields', n: 3 },
 			{ label: 'Top scholars', relType: 'paper-authors', n: PEOPLE_LEADER_N }
 		]
@@ -145,6 +142,55 @@ export function buildLeaderRows(
 		rows.push({ label: spec.label, items });
 	}
 	return rows;
+}
+
+// Top topics grouped by their parent field (subfield), keyed by field name so they can be matched
+// to the field chips. Every topic rolls up to one field, so this is the explicit hierarchy.
+export function buildFieldTopicGroups(
+	grouped: Partial<Record<tt.RelTypes, tt.RelatedEntity[]>>,
+	maxTopics: number
+): FieldTopicGroup[] {
+	const order: string[] = [];
+	const byField = new Map<string, FieldTopicGroup>();
+	const seen = new Set<string>();
+	for (const t of grouped['paper-topics'] ?? []) {
+		const field = t.parentName ?? '';
+		if (!field || seen.has(t.name)) continue;
+		seen.add(t.name);
+		let group = byField.get(field);
+		if (!group) {
+			group = { field, semanticId: t.parentSemanticId ?? '', topics: [] };
+			byField.set(field, group);
+			order.push(field);
+		}
+		group.topics.push({ name: t.name, count: t.score });
+		if (seen.size >= maxTopics) break;
+	}
+	return order.map((k) => byField.get(k)!);
+}
+
+// Merge the top topics into their field chip (matched by field name), then append any field that
+// parents a top topic but didn't make the chip cutoff (no standing badge) so no topic is orphaned.
+export function buildFieldCards(chips: Chip[], groups: FieldTopicGroup[]): FieldCard[] {
+	const byField = new Map(groups.map((g) => [g.field, g]));
+	const cards: FieldCard[] = chips.map((c) => ({
+		...c,
+		topics: byField.get(c.name)?.topics ?? []
+	}));
+	const inChips = new Set(chips.map((c) => c.name));
+	let i = chips.length;
+	for (const g of groups) {
+		if (inChips.has(g.field)) continue;
+		cards.push({
+			name: g.field,
+			href: g.semanticId ? entToLink({ rootType: 'subfields', semanticId: g.semanticId }) : null,
+			colorVar: sfColorVar(i++),
+			badge: null,
+			badgeTitle: null,
+			topics: g.topics
+		});
+	}
+	return cards;
 }
 
 // Specialization chips: when peer data is present they carry the per-subfield standing badge

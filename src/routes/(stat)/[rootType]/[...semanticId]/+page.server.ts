@@ -417,11 +417,8 @@ function getSemanticRels(
 ): tt.AboutPara {
 	const semantifyers = getSemantifyers(rootName, rootType);
 	const relationsMap = Object.fromEntries(
-		REL_TYPES.map((e) => [e as tt.RelTypes, [] as tt.RelatedEntity[]])
+		REL_TYPES.map((e) => [e, view.relations[e] ?? []])
 	) as Record<tt.RelTypes, tt.RelatedEntity[]>;
-	for (const rel of view.primeRelations) {
-		relationsMap[REL_TYPES[rel.relType]].push(rel);
-	}
 	const out: string[] = [];
 	for (const [relK, relSemantifyer] of semantifyers) {
 		const result = relSemantifyer(relationsMap[relK]);
@@ -472,18 +469,8 @@ function sentenceJoiner(parts: string[]) {
 	return out.join(' ');
 }
 
-function getTopRels(view: tt.View) {
-	const out = [];
-	let id = 0;
-	let sub: tt.SubbedRel = { desc: REL_TYPES[id], subs: [] };
-	for (const rel of view.primeRelations) {
-		if (rel.relType != id) {
-			out.push(sub);
-			id = rel.relType;
-			sub = { desc: REL_TYPES[id], subs: [] };
-		}
-		sub.subs.push(rel);
-	}
-	out.push(sub);
-	return out;
+function getTopRels(view: tt.View): tt.SubbedRel[] {
+	return REL_TYPES.map((rt) => ({ desc: rt, subs: view.relations[rt] ?? [] })).filter(
+		(sub) => sub.subs.length > 0
+	);
 }

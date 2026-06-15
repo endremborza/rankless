@@ -1,8 +1,14 @@
 <script lang="ts">
 	import type * as tt from '$lib/tree-types';
-	import { REL_TYPES, COMPLETE_YEAR, LATEST_YEAR } from '$lib/constants';
+	import { COMPLETE_YEAR, LATEST_YEAR } from '$lib/constants';
 	import { pluralize, formatNumber } from '$lib/text-format-util';
-	import { HERO_CONFIG, buildChips, buildLeaderRows } from '$lib/hero-config';
+	import {
+		HERO_CONFIG,
+		buildChips,
+		buildLeaderRows,
+		buildFieldTopicGroups,
+		buildFieldCards
+	} from '$lib/hero-config';
 	import YearTicks from '$lib/components/YearTicks.svelte';
 	import IndexedCitationLink from '$lib/components/IndexedCitationLink.svelte';
 
@@ -17,6 +23,7 @@
 	export let abstractLoading = false;
 
 	const MAX_CHIPS = 5;
+	const MAX_TOPICS = 8;
 	// Suppress the loosest standing band ("top 20%", tier 1): only tier 2+ (top 10% and stricter) is
 	// showcase-worthy on the header. The full ladder still surfaces in the Peers section.
 	const HERO_MIN_TIER = 2;
@@ -30,18 +37,12 @@
 	$: hIndex = peersData?.hero.hIndex ?? null;
 	$: doi = isHitPaper && !semanticId.startsWith('W') ? semanticId : null;
 
-	// Group the flat relation list by type once, keyed by the relation name (paper-topics, …).
-	$: grouped = view.primeRelations.reduce(
-		(acc, r) => {
-			const k = REL_TYPES[r.relType];
-			(acc[k] ??= []).push(r);
-			return acc;
-		},
-		{} as Partial<Record<tt.RelTypes, tt.RelatedEntity[]>>
-	);
+	// Relations arrive already grouped by relation type, keyed by name (paper-topics, …).
+	$: grouped = view.relations;
 
 	$: chips = buildChips(cfg, peersData, ladder, grouped, rootType, MAX_CHIPS, HERO_MIN_TIER);
 	$: leaderRows = buildLeaderRows(grouped, cfg.leaders);
+	$: fieldCards = buildFieldCards(chips, buildFieldTopicGroups(grouped, MAX_TOPICS));
 </script>
 
 <div class="hero">
@@ -78,17 +79,29 @@
 		</div>
 	</div>
 
-	{#if chips.length > 0}
+	{#if fieldCards.length > 0}
 		<ul class="chip-row">
-			{#each chips as c (c.name)}
+			{#each fieldCards as c (c.name)}
 				<li class="chip" style="--chip-c: var({c.colorVar});">
-					{#if c.href}
-						<a class="chip-name" href={c.href}>{c.name}</a>
-					{:else}
-						<span class="chip-name">{c.name}</span>
-					{/if}
-					{#if c.badge}
-						<span class="chip-badge" title={c.badgeTitle ?? ''}>{c.badge}</span>
+					<div class="chip-head">
+						{#if c.href}
+							<a class="chip-name" href={c.href}>{c.name}</a>
+						{:else}
+							<span class="chip-name">{c.name}</span>
+						{/if}
+						{#if c.badge}
+							<span class="chip-badge" title={c.badgeTitle ?? ''}>{c.badge}</span>
+						{/if}
+					</div>
+					{#if c.topics.length > 0}
+						<ul class="chip-topics">
+							{#each c.topics as t (t.name)}
+								<li>
+									<span class="topic-name">{t.name}</span>
+									<span class="topic-count" title={pluralize('paper', t.count)}>{t.count}</span>
+								</li>
+							{/each}
+						</ul>
 					{/if}
 				</li>
 			{/each}
@@ -96,22 +109,24 @@
 	{/if}
 
 	<div class="hero-body">
-		<dl class="leaders">
-			{#each leaderRows as row (row.label)}
-				<div class="leader">
-					<dt>{row.label}</dt>
-					<dd>
-						{#each row.items as it (it.text)}
-							{#if it.href}
-								<a href={it.href}>{it.text}</a>
-							{:else}
-								<span>{it.text}</span>
-							{/if}
-						{/each}
-					</dd>
-				</div>
-			{/each}
-		</dl>
+		{#if leaderRows.length > 0}
+			<dl class="leaders">
+				{#each leaderRows as row (row.label)}
+					<div class="leader">
+						<dt>{row.label}</dt>
+						<dd>
+							{#each row.items as it (it.text)}
+								{#if it.href}
+									<a href={it.href}>{it.text}</a>
+								{:else}
+									<span>{it.text}</span>
+								{/if}
+							{/each}
+						</dd>
+					</div>
+				{/each}
+			</dl>
+		{/if}
 
 		<div class="era">
 			<h2>In The Last Decade</h2>
@@ -194,24 +209,30 @@
 		gap: 10px;
 	}
 
+	/* Each chip is a field card: the field (+ standing badge) heads it, its top topics list below —
+	   the hierarchy lives inside the chip rather than in a separate, differently-styled block. */
 	.chip {
 		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 8px;
+		flex-direction: column;
+		gap: 6px;
 		padding: 8px 12px;
-		text-align: center;
 		background-color: rgba(var(--chip-c), 0.16);
 		border-bottom: 2px solid rgba(var(--chip-c), 0.55);
+	}
+
+	.chip-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 8px;
 	}
 
 	.chip-name {
 		font-size: var(--text-sm);
 		font-weight: 600;
 		color: var(--color-text);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 
 	a.chip-name:hover {
@@ -229,6 +250,34 @@
 		white-space: nowrap;
 		color: var(--text-bg);
 		background: var(--color-text);
+	}
+
+	.chip-topics {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+	}
+
+	.chip-topics li {
+		display: flex;
+		justify-content: space-between;
+		gap: 8px;
+		font-size: var(--text-xs);
+		opacity: 0.85;
+	}
+
+	.topic-name {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.topic-count {
+		flex-shrink: 0;
+		opacity: 0.55;
+		font-variant-numeric: tabular-nums;
 	}
 
 	.hero-body {

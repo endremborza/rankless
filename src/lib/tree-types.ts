@@ -25,7 +25,7 @@ export type View = {
 	citations: number;
 	papers: number;
 	dmId: number;
-	primeRelations: RelatedEntity[];
+	relations: Record<RelTypes, RelatedEntity[]>;
 	similars: SearchResult[];
 	authorNetwork: number[];
 	instRels: InstRel[];
@@ -38,8 +38,10 @@ export type RelatedEntity = {
 	name: string;
 	semanticId: string;
 	etype: EntityType;
-	relType: number;
 	score: number;
+	// Topic relations carry their parent subfield ("field" in the UI) so the hero can nest them.
+	parentName?: string;
+	parentSemanticId?: string;
 };
 export type SelectionOption = {
 	name: string;
