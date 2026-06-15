@@ -17,7 +17,7 @@ use crate::{
         init_empty_slice, BeS, CitSubfieldsArrayMarker, HIndexMarker, InstRelMarker,
         MainWorkMarker, NumberedEntity, QuickAttPair, QuickMap, RefSubfieldsArrayMarker,
         Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker,
-        Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader, YearCentroidMarker,
+        Top3PaperSfMarker, TopNPaperTopicMarker, WorkLoader, YearCentroidMarker,
         YearlyCitationsMarker, YearlyPapersMarker, NET,
     },
     env_consts::{FINAL_YEAR, START_YEAR},
@@ -46,11 +46,13 @@ pub const MIN_YEAR: usize = MAX_YEAR - ERA_SIZE + 1;
 pub type EraRec = [u32; ERA_SIZE];
 pub type TopNRec<E, const N: usize> = [(u32, NET<E>); N];
 pub type Top3Rec<E> = TopNRec<E, 3>;
+pub type Top8Rec<E> = TopNRec<E, 8>;
 pub type Top15Rec<E> = TopNRec<E, 25>;
 
 type YT = ET<Years>;
 type IT = ET<Institutions>;
 type Top3RelExtender<E, SE> = TopNRelExtender<3, E, SE, HashMap<ET<E>, u32>>;
+type Top8RelExtender<E, SE> = TopNRelExtender<8, E, SE, HashMap<ET<E>, u32>>;
 type Top15HRelExtender<E, SE> = TopNRelExtender<25, E, SE, HashMap<ET<E>, f64>>;
 
 #[derive(Debug, ByteFixArrayInterface)]
@@ -67,12 +69,12 @@ struct ExtensionContainer<E: NumberedEntity> {
     citing_subfields: SelfExtender<SfDistRec>,
     papers_by_years: SelfExtender<EraRec>,
     citing_by_years: SelfExtender<EraRec>,
-    top3_paper_sfs: Top3RelExtender<Subfields, E>,
-    top3_paper_topics: Top3RelExtender<Topics, E>,
-    top3_citing_sfs: Top3RelExtender<Subfields, E>,
-    top3_aff_countries: Top3RelExtender<Countries, E>,
-    top3_journals: Top3RelExtender<Sources, E>,
-    top5_authors: Top15HRelExtender<Authors, E>,
+    top_paper_sfs: Top3RelExtender<Subfields, E>,
+    top_paper_topics: Top8RelExtender<Topics, E>,
+    top_citing_sfs: Top3RelExtender<Subfields, E>,
+    top_aff_countries: Top3RelExtender<Countries, E>,
+    top_journals: Top3RelExtender<Sources, E>,
+    top_authors: Top15HRelExtender<Authors, E>,
     rels: Vec<[InstRelation; N_RELS]>,
     rel_map_rec: HashMap<ET<Institutions>, InstRelation>,
 }
@@ -257,12 +259,12 @@ where
             citing_subfields: SelfExtender::new(),
             papers_by_years: SelfExtender::new(),
             citing_by_years: SelfExtender::new(),
-            top3_paper_sfs: Top3RelExtender::new(),
-            top3_paper_topics: Top3RelExtender::new(),
-            top3_citing_sfs: Top3RelExtender::new(),
-            top3_aff_countries: Top3RelExtender::new(),
-            top3_journals: Top3RelExtender::new(),
-            top5_authors: Top15HRelExtender::new(),
+            top_paper_sfs: Top3RelExtender::new(),
+            top_paper_topics: Top8RelExtender::new(),
+            top_citing_sfs: Top3RelExtender::new(),
+            top_aff_countries: Top3RelExtender::new(),
+            top_journals: Top3RelExtender::new(),
+            top_authors: Top15HRelExtender::new(),
             rels: Vec::new(),
             rel_map_rec: HashMap::new(),
         }
@@ -285,12 +287,12 @@ where
             self.paper_subfields.rec.0[*sf_id as usize].inc();
         }
         for topic_id in bends.wtopics.get(&wu).unwrap() {
-            self.top3_paper_topics.add(*topic_id);
+            self.top_paper_topics.add(*topic_id);
         }
         for cid in &cd.wcountries[wu] {
-            self.top3_aff_countries.add(*cid);
+            self.top_aff_countries.add(*cid);
         }
-        self.top3_journals.add(cd.w_top_source[wu]);
+        self.top_journals.add(cd.w_top_source[wu]);
         let wcs = bends.wciting.get(&wu).unwrap();
         let wlen = wcs.len();
         let coauthships = bends.w_aships.get(&wu).unwrap();
@@ -298,7 +300,7 @@ where
         for any_ship_id in coauthships {
             let (is_filtered, ship_id) = reverse_prefixed_n(any_ship_id.to_usize());
             if is_filtered {
-                self.top5_authors
+                self.top_authors
                     .add((bends.ship_fa[ship_id], wlen as f64 / ccn));
             }
         }
@@ -323,20 +325,20 @@ where
         let mut rel_vec: Vec<InstRelation> = map_base.into_values().collect();
         rel_vec.sort_by(|l, r| (r.papers, (r.end - r.start)).cmp(&(l.papers, l.end - l.start)));
         push_cut::<N_RELS, InstRelation>(rel_vec, &mut self.rels);
-        self.top3_paper_sfs.push_from_arr(
+        self.top_paper_sfs.push_from_arr(
             &self.paper_subfields.rec.0,
             parent_id,
             TopSorter::Specialization(cd.sf_spec_denoms.clone()),
         );
-        self.top3_citing_sfs.push_from_arr(
+        self.top_citing_sfs.push_from_arr(
             &self.citing_subfields.rec.0,
             parent_id,
             TopSorter::Specialization(cd.sf_spec_denoms.clone()),
         );
-        self.top3_paper_topics.push(parent_id, TopSorter::Default);
-        self.top5_authors.push(parent_id, TopSorter::Default);
-        self.top3_aff_countries.push(parent_id, TopSorter::Default);
-        self.top3_journals
+        self.top_paper_topics.push(parent_id, TopSorter::Default);
+        self.top_authors.push(parent_id, TopSorter::Default);
+        self.top_aff_countries.push(parent_id, TopSorter::Default);
+        self.top_journals
             .push(parent_id, TopSorter::TopJournal(cd.journal_vals.clone()));
         self.paper_subfields.push();
         self.citing_subfields.push();
@@ -362,13 +364,12 @@ where
         stowage.ditf::<RefSubfieldsArrayMarker, E, _>(pasu_vec, "ref-subfields");
         stowage.ditf::<YearlyPapersMarker, E, _>(self.papers_by_years.vec, "papers-yearly");
         stowage.ditf::<YearlyCitationsMarker, E, _>(self.citing_by_years.vec, "citations-yearly");
-        stowage.ditf::<Top3PaperSfMarker, E, _>(self.top3_paper_sfs.vec, "top-paper-subfields");
-        stowage.ditf::<Top3CitingSfMarker, E, _>(self.top3_citing_sfs.vec, "top-citing-subfields");
-        stowage.ditf::<Top3PaperTopicMarker, E, _>(self.top3_paper_topics.vec, "top-paper-topics");
-        stowage.ditf::<Top15AuthorMarker, E, _>(self.top5_authors.vec, "top-paper-authors");
-        stowage.ditf::<Top3JournalMarker, E, _>(self.top3_journals.vec, "top-journals");
-        stowage
-            .ditf::<Top3AffCountryMarker, E, _>(self.top3_aff_countries.vec, "top-aff-countries");
+        stowage.ditf::<Top3PaperSfMarker, E, _>(self.top_paper_sfs.vec, "top-paper-subfields");
+        stowage.ditf::<Top3CitingSfMarker, E, _>(self.top_citing_sfs.vec, "top-citing-subfields");
+        stowage.ditf::<TopNPaperTopicMarker, E, _>(self.top_paper_topics.vec, "top-paper-topics");
+        stowage.ditf::<Top15AuthorMarker, E, _>(self.top_authors.vec, "top-paper-authors");
+        stowage.ditf::<Top3JournalMarker, E, _>(self.top_journals.vec, "top-journals");
+        stowage.ditf::<Top3AffCountryMarker, E, _>(self.top_aff_countries.vec, "top-aff-countries");
         stowage.ditf::<InstRelMarker, E, _>(self.rels, "rel-insts");
     }
 }

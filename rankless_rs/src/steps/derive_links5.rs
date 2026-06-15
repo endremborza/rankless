@@ -7,7 +7,7 @@ use crate::{
     common::{
         init_empty_slice, EmptyAttributeEntity, HitWorkMarker, Top15AuthorMarker,
         Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker,
-        Top3PaperTopicMarker, YearlyCitationsMarker, YearlyPapersMarker, NET,
+        TopNPaperTopicMarker, YearlyCitationsMarker, YearlyPapersMarker, NET,
     },
     env_consts::FINAL_YEAR,
     gen::{
@@ -17,7 +17,7 @@ use crate::{
     },
     steps::{
         a1_entity_mapping::YearInterface,
-        derive_links2::{inc_year, CiteDeriver, EraRec, Top15Rec, Top3Rec},
+        derive_links2::{inc_year, CiteDeriver, EraRec, Top15Rec, Top3Rec, Top8Rec},
     },
     QuickestBox, QuickestNumbered, QuickestVBox, Stowage, WorkCountMarker,
 };
@@ -39,7 +39,7 @@ mark_empty!(
     YearlyPapersMarker => EraRec,
     HitWorkMarker => Box<[ET<HitPapers>]>,
     Top3AffCountryMarker => Top3Rec<Countries>,
-    Top3PaperTopicMarker => Top3Rec<Topics>
+    TopNPaperTopicMarker => Top8Rec<Topics>
 );
 
 impl CiteDeriver {
