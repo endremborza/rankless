@@ -45,10 +45,28 @@ pub(crate) struct SerializableExt {
     pub yearly_papers: EraRec,
     #[serde(rename = "yearlyCites")]
     pub yearly_cites: EraRec,
-    #[serde(rename = "primeRelations")]
-    pub prime_relations: Vec<PostAttRelatedEntity>,
+    pub relations: RelationGroups,
     #[serde(rename = "authorNetwork")]
     pub author_network: Box<[u8]>,
+}
+
+// Hero relations grouped by relation type, keyed by the names the frontend consumes directly (no
+// numeric rel-type contract, no client-side regrouping). Built per request from the mmapped top-N
+// tables.
+#[derive(Serialize, Clone, Default)]
+pub(crate) struct RelationGroups {
+    #[serde(rename = "paper-fields")]
+    pub paper_fields: Vec<PostAttRelatedEntity>,
+    #[serde(rename = "citing-fields")]
+    pub citing_fields: Vec<PostAttRelatedEntity>,
+    #[serde(rename = "paper-topics")]
+    pub paper_topics: Vec<PostAttRelatedEntity>,
+    #[serde(rename = "collab-nation")]
+    pub collab_nation: Vec<PostAttRelatedEntity>,
+    #[serde(rename = "paper-journals")]
+    pub paper_journals: Vec<PostAttRelatedEntity>,
+    #[serde(rename = "paper-authors")]
+    pub paper_authors: Vec<PostAttRelatedEntity>,
 }
 
 #[derive(Serialize, Clone)]
@@ -57,9 +75,12 @@ pub(crate) struct PostAttRelatedEntity {
     #[serde(rename = "semanticId")]
     pub semantic_id: String,
     pub etype: String,
-    #[serde(rename = "relType")]
-    pub rel_type: u8,
     pub score: u32,
+    // Parent subfield label for topic relations, so the hero can nest topics under their field.
+    #[serde(rename = "parentName", skip_serializing_if = "Option::is_none")]
+    pub parent_name: Option<String>,
+    #[serde(rename = "parentSemanticId", skip_serializing_if = "Option::is_none")]
+    pub parent_semantic_id: Option<String>,
 }
 
 #[derive(Serialize)]

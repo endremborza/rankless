@@ -5,11 +5,17 @@ use axum::{
     Json,
 };
 
-use dmove::{Entity, ET};
-use rankless_rs::{gen::a1_entity_mapping::Subfields, peers::SPEC_BETA};
-use rankless_trees::{interfacing::PeerAux, AttributeLabelUnion};
+use dmove::{Entity, UnsignedNumber, ET};
+use rankless_rs::{
+    gen::a1_entity_mapping::{Countries, Subfields},
+    peers::SPEC_BETA,
+};
+use rankless_trees::{
+    interfacing::{PeerAux, TopRels},
+    AttributeLabelUnion,
+};
 
-use crate::consts::{ETYPE_ENC, N_SUBFIELDS};
+use crate::consts::N_SUBFIELDS;
 use crate::responses::{EntityPeersResp, PeerEntry, PeerSubfieldInfo};
 use crate::state::{NameState, StatesT};
 use crate::util::{cache_header, get_empty};
@@ -26,6 +32,8 @@ fn peers_inner(etype: &str, sem_id: &str, states: &StatesT) -> (HeaderMap, Respo
         return get_empty();
     };
     let satts = &states.0 .1;
+    let gets = &states.2.state.gets;
+    let top_rels = gets.top_rels_for(etype);
 
     let Some(&hero_dm) = astates.semantic_id_map.get(sem_id) else {
         return get_empty();
@@ -43,8 +51,7 @@ fn peers_inner(etype: &str, sem_id: &str, states: &StatesT) -> (HeaderMap, Respo
             (
                 si,
                 sf_row[si] as f64
-                    / (states.2.state.gets.sfworks(si as ET<Subfields>).len() as f64)
-                        .powf(SPEC_BETA),
+                    / (gets.sfworks(si as ET<Subfields>).len() as f64).powf(SPEC_BETA),
             )
         })
         .collect();
@@ -63,16 +70,24 @@ fn peers_inner(etype: &str, sem_id: &str, states: &StatesT) -> (HeaderMap, Respo
         })
         .collect();
 
-    let hero = build_peer_entry(hero_rid, hero_dm, astates, aux, satts, &sf_indices);
+    let hero = build_peer_entry(
+        hero_rid,
+        hero_dm,
+        astates,
+        aux,
+        satts,
+        top_rels,
+        &sf_indices,
+    );
 
     let peers: Vec<PeerEntry> = astates.peers[hero_dm]
         .iter()
         .filter(|&&pid| pid != 0)
         .filter_map(|&pid| {
             let peer_dm = pid as usize;
-            astates
-                .response_id_from_dm(peer_dm)
-                .map(|rid| build_peer_entry(rid, peer_dm, astates, aux, satts, &sf_indices))
+            astates.response_id_from_dm(peer_dm).map(|rid| {
+                build_peer_entry(rid, peer_dm, astates, aux, satts, top_rels, &sf_indices)
+            })
         })
         .collect();
 
@@ -90,6 +105,7 @@ fn build_peer_entry(
     astates: &NameState,
     aux: &PeerAux,
     satts: &AttributeLabelUnion,
+    top_rels: Option<&TopRels>,
     sf_indices: &[usize],
 ) -> PeerEntry {
     let sr = &astates.responses[rid];
@@ -98,15 +114,19 @@ fn build_peer_entry(
         .iter()
         .map(|&si| aux.cit_subfields.elem(dm_id, si))
         .collect();
-    let country = ext
-        .prime_relations
-        .iter()
-        .find(|r| r.rel_type == 3)
-        .and_then(|r| {
-            satts
-                .get(ETYPE_ENC[r.etype_id as usize])
-                .and_then(|labels| labels.get(r.dm_id as usize))
-                .map(|l| l.name.clone())
+    let country = top_rels
+        .and_then(|tr| tr.aff_countries.as_ref())
+        .and_then(|m| {
+            m.row(dm_id)
+                .into_iter()
+                .map(|(_, c)| c.to_usize())
+                .find(|&c| c != 0)
+                .and_then(|cdm| {
+                    satts
+                        .get(Countries::NAME)
+                        .and_then(|labels| labels.get(cdm))
+                        .map(|l| l.name.clone())
+                })
         });
     PeerEntry {
         name: sr.name.clone(),

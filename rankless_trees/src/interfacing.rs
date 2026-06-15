@@ -6,11 +6,11 @@ use crate::{
 };
 use rankless_rs::{
     common::{
-        reverse_id, BeS, CitRankLadderMarker, HitWorkMarker, MainEntity, MainWorkMarker,
-        MarkedBackendLoader, NumberedEntity, QuickAttPair, QuickMap, QuickestBox, QuickestVBox,
-        Stowage, Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker,
-        Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader, YearlyCitationsMarker,
-        YearlyPapersMarker, NET,
+        reverse_id, BeS, CitRankLadderMarker, CitSubfieldsArrayMarker, HIndexMarker, HitWorkMarker,
+        MainEntity, MainWorkMarker, MarkedBackendLoader, MmapBox, NumberedEntity, QuickAttPair,
+        QuickMap, QuickestBox, QuickestVBox, Stowage, Top15AuthorMarker, Top3AffCountryMarker,
+        Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader,
+        YearCentroidMarker, YearlyCitationsMarker, YearlyPapersMarker, NET,
     },
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
@@ -33,7 +33,7 @@ use rankless_rs::{
         a1_entity_mapping::YearInterface,
         a2_init_atts::OrcidType,
         derive_links1::{CountryInsts, WorkPeriods},
-        derive_links2::{EraRec, Top15Rec, Top3Rec},
+        derive_links2::EraRec,
     },
     CiteCountMarker, NameExtensionMarker, NameMarker, PeerMarker, SemanticIdMarker,
     WorkCountMarker, N_PEERS,
@@ -41,17 +41,20 @@ use rankless_rs::{
 
 use dmove::{
     BigId, ByteArrayInterface, ByteFixArrayInterface, CompactEntity, Entity,
-    EntityImmutableRefMapperBackend, Locators, MappableEntity, MarkedAttribute, NamespacedEntity,
-    UnsignedNumber, VaST, VarAttBuilder, VarBox, VarSizedAttributeElement, VariableSizeAttribute,
-    VattArrPair, ET, MAA,
+    EntityImmutableRefMapperBackend, Locators, MappableEntity, MarkedAttribute, MmapSlice,
+    NamespacedEntity, UnsignedNumber, VaST, VarAttBuilder, VarBox, VarSizedAttributeElement,
+    VariableSizeAttribute, VattArrPair, ET, MAA,
 };
 use hashbrown::HashMap;
 use rand::Rng;
 
 const SPEC_CORR_RATE: f64 = 0.45;
+const N_SUBFIELDS: usize = Subfields::N;
 
 type FB<E> = BeS<QuickestBox, E>;
 type MB<E> = BeS<QuickMap, E>;
+
+pub type PeerAuxMap = HashMap<&'static str, PeerAux>;
 
 pub struct Getters {
     ifs: Interfaces,
@@ -61,6 +64,40 @@ pub struct Getters {
     pub hit_papers: Box<[WT]>,
     pub hit_wid_map: HashMap<WT, usize>,
     pub orcid_map: HashMap<ET<AuthorOrcids>, usize>,
+    pub top_rels: TopRelsMap,
+}
+
+// Per-root-type peer auxiliary data loaded once at server startup: the memory-mapped per-subfield
+// citation profile (used for peer subfield ranking) plus the author-only h-index / career-year
+// centroid columns. Kept here, alongside `Getters`, so all `get_marked_interface` loading stays in
+// the interfacing layer rather than leaking into request-handling code.
+pub struct PeerAux {
+    pub cit_subfields: MmapSlice<[u32; N_SUBFIELDS]>,
+    pub h_indices: Option<Box<[u32]>>,
+    pub year_centroids: Option<Box<[f32]>>,
+}
+
+// One representative root (any RootInterfaceable type) names each top-N record type: the record is
+// `[(score, target_id); N]`, identical across root types since it depends only on the target entity
+// and N, not the root. The frontend rebuilds the hero relations from these per request.
+type TopSfRec = ET<MAA<Subfields, Top3PaperSfMarker>>;
+type TopJournalRec = ET<MAA<Sources, Top3JournalMarker>>;
+type TopAuthorRec = ET<MAA<Authors, Top15AuthorMarker>>;
+type TopCountryRec = ET<MAA<Countries, Top3AffCountryMarker>>;
+type TopTopicRec = ET<MAA<Topics, Top3PaperTopicMarker>>;
+
+pub type TopRelsMap = HashMap<&'static str, TopRels>;
+
+// Per-root-type top-N relation tables, memory-mapped (read once per entity view, never resident in
+// full). Replaces the eager `RootInterfaces` load + startup `prime_relations` materialization.
+// `aff_countries`/`paper_topic` are absent for hit papers (empty placeholders, no data file).
+pub struct TopRels {
+    pub paper_sfc: MmapSlice<TopSfRec>,
+    pub citing_sfc: MmapSlice<TopSfRec>,
+    pub journals: MmapSlice<TopJournalRec>,
+    pub authors: MmapSlice<TopAuthorRec>,
+    pub aff_countries: Option<MmapSlice<TopCountryRec>>,
+    pub paper_topic: Option<MmapSlice<TopTopicRec>>,
 }
 
 macro_rules! make_interfaces {
@@ -265,12 +302,6 @@ make_ent_interfaces!(
     hit_works - HitWorkMarker = Box<[ET<HitPapers>]>;
     yearly_papers - YearlyPapersMarker | EraRec,
     yearly_cites - YearlyCitationsMarker | EraRec,
-    top_journals - Top3JournalMarker | Top3Rec<Sources>,
-    top_authors - Top15AuthorMarker | Top15Rec<Authors>,
-    top_aff_countries - Top3AffCountryMarker | Top3Rec<Countries>,
-    top_paper_topic - Top3PaperTopicMarker | Top3Rec<Topics>,
-    top_citing_sfc - Top3CitingSfMarker | Top3Rec<Subfields>,
-    top_paper_sfc - Top3PaperSfMarker | Top3Rec<Subfields>,
     cit_rank_ladder - CitRankLadderMarker | [u32; LADDER_LEN],
     peers - PeerMarker | [NET<Self>; N_PEERS];;
     oa_id; MainEntity, NamespacedEntity
@@ -286,6 +317,40 @@ make_ent_interfaces!(
     names => NameMarker;
     ccounts -> CiteCountMarker;;;;;
 );
+
+// The four core top-N tables exist for every root type; hit papers lack the country/topic tables.
+macro_rules! core_top_rels {
+    ($stow:expr, $E:ty) => {
+        TopRels {
+            paper_sfc: $stow.get_marked_interface::<$E, Top3PaperSfMarker, MmapBox>(),
+            citing_sfc: $stow.get_marked_interface::<$E, Top3CitingSfMarker, MmapBox>(),
+            journals: $stow.get_marked_interface::<$E, Top3JournalMarker, MmapBox>(),
+            authors: $stow.get_marked_interface::<$E, Top15AuthorMarker, MmapBox>(),
+            aff_countries: None,
+            paper_topic: None,
+        }
+    };
+}
+
+fn load_top_rels_map(stow: &Stowage) -> TopRelsMap {
+    let mut m: TopRelsMap = HashMap::new();
+    macro_rules! full {
+        ($E:ty) => {{
+            let mut tr = core_top_rels!(stow, $E);
+            tr.aff_countries =
+                Some(stow.get_marked_interface::<$E, Top3AffCountryMarker, MmapBox>());
+            tr.paper_topic = Some(stow.get_marked_interface::<$E, Top3PaperTopicMarker, MmapBox>());
+            tr
+        }};
+    }
+    m.insert(Institutions::NAME, full!(Institutions));
+    m.insert(Authors::NAME, full!(Authors));
+    m.insert(Subfields::NAME, full!(Subfields));
+    m.insert(Countries::NAME, full!(Countries));
+    m.insert(Sources::NAME, full!(Sources));
+    m.insert(HitPapers::NAME, core_top_rels!(stow, HitPapers));
+    m
+}
 
 pub trait StringAtt<Mark>: MarkedAttribute<Mark> + VarAtt<Mark, VT = String> {}
 
@@ -344,6 +409,54 @@ impl Getters {
         self.ifs.citing.locators.divided_sizes[wid].to_usize()
     }
 
+    pub fn build_peer_aux(&self) -> PeerAuxMap {
+        let stow = &self.stowage;
+        let mut m: PeerAuxMap = HashMap::new();
+        m.insert(
+            Authors::NAME,
+            PeerAux {
+                cit_subfields: stow
+                    .get_marked_interface::<Authors, CitSubfieldsArrayMarker, MmapBox>(),
+                h_indices: Some(stow.get_marked_interface::<Authors, HIndexMarker, QuickestBox>()),
+                year_centroids: Some(
+                    stow.get_marked_interface::<Authors, YearCentroidMarker, QuickestBox>(),
+                ),
+            },
+        );
+        m.insert(
+            Institutions::NAME,
+            PeerAux {
+                cit_subfields: stow
+                    .get_marked_interface::<Institutions, CitSubfieldsArrayMarker, MmapBox>(),
+                h_indices: None,
+                year_centroids: None,
+            },
+        );
+        m.insert(
+            Countries::NAME,
+            PeerAux {
+                cit_subfields: stow
+                    .get_marked_interface::<Countries, CitSubfieldsArrayMarker, MmapBox>(),
+                h_indices: None,
+                year_centroids: None,
+            },
+        );
+        m.insert(
+            Sources::NAME,
+            PeerAux {
+                cit_subfields: stow
+                    .get_marked_interface::<Sources, CitSubfieldsArrayMarker, MmapBox>(),
+                h_indices: None,
+                year_centroids: None,
+            },
+        );
+        m
+    }
+
+    pub fn top_rels_for(&self, etype: &str) -> Option<&TopRels> {
+        self.top_rels.get(etype)
+    }
+
     pub fn new(stowage: Arc<Stowage>) -> Self {
         let inst_oa = reverse_id::<Institutions>(&stowage);
         let work_oa = reverse_id::<Works>(&stowage);
@@ -364,6 +477,7 @@ impl Getters {
                     orcid_map.insert(*orcid_id, aid);
                 }
             });
+        let top_rels = load_top_rels_map(&stowage);
         println!("loaded full Getters");
         Self {
             ifs,
@@ -373,6 +487,7 @@ impl Getters {
             hit_papers,
             hit_wid_map,
             orcid_map,
+            top_rels,
         }
     }
 
@@ -403,6 +518,7 @@ impl Getters {
             hit_papers: Vec::new().into(),
             hit_wid_map: HashMap::new(),
             orcid_map: HashMap::new(),
+            top_rels: HashMap::new(),
         }
     }
 }

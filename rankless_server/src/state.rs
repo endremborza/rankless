@@ -25,8 +25,8 @@ use rankless_trees::{
     AttributeLabelUnion,
 };
 
-use crate::consts::{ETYPE_ENC, MAX_HITS, SEARCH_SIZE};
-use crate::responses::{PostAttRelatedEntity, SearchResult, SerializableExt};
+use crate::consts::{MAX_HITS, SEARCH_SIZE};
+use crate::responses::{PostAttRelatedEntity, RelationGroups, SearchResult, SerializableExt};
 use crate::search_cache::{fnv64, save_engine, try_load_engine};
 
 pub(crate) type InstTrm = TreeRunManager<(
@@ -60,16 +60,7 @@ pub(crate) struct EntityExt {
     pub start_year: RawYear,
     pub yearly_papers: EraRec,
     pub yearly_cites: EraRec,
-    pub prime_relations: Box<[PreAttRelatedEntity]>,
     pub hit_papers: Box<[ET<HitPapers>]>,
-    author_network: Box<[u8]>,
-}
-
-pub(crate) struct PreAttRelatedEntity {
-    pub dm_id: u32,
-    pub etype_id: u8,
-    pub rel_type: u8,
-    pub score: u32,
 }
 
 pub(crate) trait IsTop: RootInterfaceable + Sized {
@@ -137,52 +128,8 @@ impl EntityExt {
                     sy_ind = gets.year(&wid.to_usize()).to_usize();
                 }
 
-                let mut prime_relations = Vec::new();
                 let mut hit_papers = Vec::new();
-                let mut author_collabs = Vec::new();
-                add_to_relations::<Subfields, _>(&entif.top_paper_sfc[i], &mut prime_relations, 0);
-                add_to_relations::<Subfields, _>(&entif.top_citing_sfc[i], &mut prime_relations, 1);
-                add_to_relations::<Sources, _>(&entif.top_journals[i], &mut prime_relations, 4);
-                const TA_RTYPE: u8 = 5;
-                add_to_relations::<Authors, _>(
-                    &entif.top_authors[i],
-                    &mut prime_relations,
-                    TA_RTYPE,
-                );
-                let author_dm_ids: Vec<u32> = prime_relations
-                    .iter()
-                    .filter(|e| e.rel_type == TA_RTYPE)
-                    .map(|e| e.dm_id)
-                    .collect();
-                author_dm_ids
-                    .iter()
-                    .take(author_dm_ids.len().saturating_sub(1))
-                    .enumerate()
-                    .for_each(|(si, said)| {
-                        let coll_nums = gets.coathors(*said);
-                        for ti in (si + 1)..author_dm_ids.len() {
-                            let taid = author_dm_ids[ti];
-                            let mut coll_num = 0;
-                            for (ctaid, n) in coll_nums {
-                                if ctaid.to_usize() == taid.to_usize() {
-                                    coll_num = *n;
-                                    break;
-                                }
-                            }
-                            author_collabs.push(coll_num);
-                        }
-                    });
                 if E::NAME != HitPapers::NAME {
-                    add_to_relations::<Countries, _>(
-                        &entif.top_aff_countries[i],
-                        &mut prime_relations,
-                        3,
-                    );
-                    add_to_relations::<Topics, _>(
-                        &entif.top_paper_topic[i],
-                        &mut prime_relations,
-                        2,
-                    );
                     if let Some(hits) = entif.hit_works.0.get(i) {
                         hits.iter().take(MAX_HITS).for_each(|e| hit_papers.push(*e));
                     }
@@ -192,47 +139,156 @@ impl EntityExt {
                     start_year: YearInterface::reverse(sy_ind as ET<Years>),
                     yearly_cites: entif.yearly_cites[i].clone(),
                     yearly_papers,
-                    prime_relations: prime_relations.into(),
                     hit_papers: hit_papers.into(),
-                    author_network: author_collabs.into_boxed_slice(),
                 }
             })
             .collect()
     }
 
+    // Relations + co-author network are rebuilt on demand from the mmapped top-N tables rather than
+    // held resident: each entity view reads only its own rows. `dm_id` is the raw entity dm id.
     pub fn to_serializable(
         &self,
+        etype: &str,
+        dm_id: usize,
         satts: &AttributeLabelUnion,
         nstates: &NameStateMap,
+        gets: &Getters,
     ) -> SerializableExt {
-        let prime_relations = self
-            .prime_relations
-            .iter()
-            .map(|sr| {
-                let etype = ETYPE_ENC[sr.etype_id as usize];
-                let att = &satts[etype][sr.dm_id.to_usize()];
-                let semantic_id = nstates
-                    .get(etype)
-                    .and_then(|rstate| rstate.semantic_id_map.get(att.semantic_id.as_ref()))
-                    .map(|_| att.semantic_id.to_string())
-                    .unwrap_or_default();
-                PostAttRelatedEntity {
-                    semantic_id,
-                    name: att.name.to_string(),
-                    etype: etype.to_string(),
-                    rel_type: sr.rel_type,
-                    score: sr.score,
-                }
-            })
-            .collect();
+        let (relations, author_network) = build_relations(etype, dm_id, satts, nstates, gets);
         SerializableExt {
             start_year: self.start_year,
             yearly_papers: self.yearly_papers,
             yearly_cites: self.yearly_cites,
-            prime_relations,
-            author_network: self.author_network.clone(),
+            relations,
+            author_network,
         }
     }
+}
+
+fn build_relations(
+    etype: &str,
+    dm_id: usize,
+    satts: &AttributeLabelUnion,
+    nstates: &NameStateMap,
+    gets: &Getters,
+) -> (RelationGroups, Box<[u8]>) {
+    let Some(tr) = gets.top_rels_for(etype) else {
+        return (RelationGroups::default(), Box::new([]));
+    };
+    // Hit papers don't surface affiliation-country or topic relations (empty placeholders, no mmap).
+    let collab_nation = tr
+        .aff_countries
+        .as_ref()
+        .map(|m| resolve_group(m.row(dm_id), Countries::NAME, satts, nstates, gets))
+        .unwrap_or_default();
+    let paper_topics = tr
+        .paper_topic
+        .as_ref()
+        .map(|m| resolve_group(m.row(dm_id), Topics::NAME, satts, nstates, gets))
+        .unwrap_or_default();
+    let relations = RelationGroups {
+        paper_fields: resolve_group(
+            tr.paper_sfc.row(dm_id),
+            Subfields::NAME,
+            satts,
+            nstates,
+            gets,
+        ),
+        citing_fields: resolve_group(
+            tr.citing_sfc.row(dm_id),
+            Subfields::NAME,
+            satts,
+            nstates,
+            gets,
+        ),
+        paper_journals: resolve_group(tr.journals.row(dm_id), Sources::NAME, satts, nstates, gets),
+        paper_authors: resolve_group(tr.authors.row(dm_id), Authors::NAME, satts, nstates, gets),
+        collab_nation,
+        paper_topics,
+    };
+    let author_network = build_author_network(tr.authors.row(dm_id), gets);
+    (relations, author_network)
+}
+
+// One top-N row → resolved related entities. dm id 0 is the empty/padding sentinel. Topics carry
+// their parent field, resolved via `gets.tsuf`, so the hero can nest them.
+fn resolve_group<ID, const N: usize>(
+    row: [(u32, ID); N],
+    target_etype: &'static str,
+    satts: &AttributeLabelUnion,
+    nstates: &NameStateMap,
+    gets: &Getters,
+) -> Vec<PostAttRelatedEntity>
+where
+    ID: UnsignedNumber,
+{
+    let is_topic = target_etype == Topics::NAME;
+    row.into_iter()
+        .filter_map(|(score, id)| {
+            let dm = id.to_usize();
+            if dm == 0 {
+                return None;
+            }
+            let att = &satts[target_etype][dm];
+            let semantic_id = nstates
+                .get(target_etype)
+                .and_then(|rs| rs.semantic_id_map.get(att.semantic_id.as_ref()))
+                .map(|_| att.semantic_id.to_string())
+                .unwrap_or_default();
+            let (parent_name, parent_semantic_id) = if is_topic {
+                let sf_dm = gets.tsuf(&dm).to_usize();
+                if sf_dm != 0 {
+                    let p = &satts[Subfields::NAME][sf_dm];
+                    let sid = nstates
+                        .get(Subfields::NAME)
+                        .and_then(|rs| rs.semantic_id_map.get(p.semantic_id.as_ref()))
+                        .map(|_| p.semantic_id.to_string());
+                    (Some(p.name.to_string()), sid)
+                } else {
+                    (None, None)
+                }
+            } else {
+                (None, None)
+            };
+            Some(PostAttRelatedEntity {
+                name: att.name.to_string(),
+                semantic_id,
+                etype: target_etype.to_string(),
+                score,
+                parent_name,
+                parent_semantic_id,
+            })
+        })
+        .collect()
+}
+
+// Upper-triangular co-authorship counts among the entity's top paper-authors (same order as the
+// `paper-authors` group), each looked up against the resident per-author `coathors` lists.
+fn build_author_network<ID, const N: usize>(row: [(u32, ID); N], gets: &Getters) -> Box<[u8]>
+where
+    ID: UnsignedNumber,
+{
+    let ids: Vec<usize> = row
+        .into_iter()
+        .map(|(_, a)| a.to_usize())
+        .filter(|&a| a != 0)
+        .collect();
+    let mut out: Vec<u8> = Vec::new();
+    for si in 0..ids.len().saturating_sub(1) {
+        let coll_nums = gets.coathors(ids[si]);
+        for &taid in ids.iter().skip(si + 1) {
+            let mut coll_num: u8 = 0;
+            for (ctaid, n) in coll_nums {
+                if ctaid.to_usize() == taid {
+                    coll_num = *n;
+                    break;
+                }
+            }
+            out.push(coll_num);
+        }
+    }
+    out.into()
 }
 
 impl NameState {
@@ -346,23 +402,4 @@ fn dedup_search_text(name: &str, ext: &str) -> String {
         .filter(|w| seen.insert(w.to_lowercase()))
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-fn add_to_relations<RE, T>(arr: &[(u32, T)], prels: &mut Vec<PreAttRelatedEntity>, rel_type: u8)
-where
-    RE: Entity,
-    T: UnsignedNumber,
-{
-    let etype_id = ETYPE_ENC.iter().position(|name| *name == RE::NAME).unwrap() as u8;
-    arr.iter().for_each(|e| {
-        let dm_id = e.1.to_usize() as u32;
-        if dm_id != 0 {
-            prels.push(PreAttRelatedEntity {
-                rel_type,
-                dm_id,
-                etype_id,
-                score: e.0,
-            })
-        }
-    });
 }

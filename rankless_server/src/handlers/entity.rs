@@ -113,7 +113,13 @@ pub(crate) async fn view_get(
                 let meta = compute_meta(etype.as_str(), dm_id_u, gets, &state.exts[i]);
                 let vr = ViewResult {
                     similars,
-                    ext: state.exts[i].to_serializable(satts, &states.0 .0),
+                    ext: state.exts[i].to_serializable(
+                        etype.as_str(),
+                        dm_id_u,
+                        satts,
+                        &states.0 .0,
+                        gets,
+                    ),
                     sr: srs.clone(),
                     meta,
                 };
