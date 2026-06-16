@@ -10,6 +10,11 @@ pub const DEFAULT_N_THREADS: usize = 16;
 pub const N_SUBFIELDS: usize = Subfields::N;
 pub const WORKS_PAGE_SIZE_MAX: usize = 400;
 
+pub const INTERSECT_MAX_CLAUSES: usize = 8;
+pub const INTERSECT_MAX_OPERANDS: usize = 32;
+pub const INTERSECT_MAX_BASE: usize = 100_000;
+pub const INTERSECT_DEFAULT_N: usize = 200;
+
 pub const FIN_UNIS: [&str; 2] = ["budapesti-corvinus-egyetem", "tse"];
 
 pub const FIN_SOURCES: [&str; 50] = [
