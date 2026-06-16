@@ -27,7 +27,9 @@
 	// let innerWidth = 900;
 	let innerWidth: number;
 
-	$: visibleCount = innerWidth >= 600 ? options.length : innerWidth >= 500 ? 3 : 0;
+	// Width thresholds for how many type links sit inline before the rest fold into the "More"/"Types"
+	// dropdown. All six only fit past ~880px; below that show three, and on phones fold them all away.
+	$: visibleCount = innerWidth >= 880 ? options.length : innerWidth >= 620 ? 3 : 0;
 	$: visibleOptions = options.slice(0, visibleCount);
 	$: overflowOptions = options.slice(visibleCount);
 
