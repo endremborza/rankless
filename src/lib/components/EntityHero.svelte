@@ -411,6 +411,10 @@
 	@media (max-width: 700px) {
 		.stat {
 			text-align: left;
+			/* Drop onto its own full-width row so the subtitle (papers · citations · …) wraps instead of
+			   forcing a single overflowing line — flex-shrink:0 otherwise pins it to its max-content width. */
+			flex-basis: 100%;
+			min-width: 0;
 		}
 	}
 </style>
