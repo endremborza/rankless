@@ -339,7 +339,7 @@ fn load_top_rels_map(stow: &Stowage) -> TopRelsMap {
             let mut tr = core_top_rels!(stow, $E);
             tr.aff_countries =
                 Some(stow.get_marked_interface::<$E, Top3AffCountryMarker, MmapBox>());
-            tr.paper_topic = Some(stow.get_marked_interface::<$E, Top3PaperTopicMarker, MmapBox>());
+            tr.paper_topic = Some(stow.get_marked_interface::<$E, TopNPaperTopicMarker, MmapBox>());
             tr
         }};
     }
