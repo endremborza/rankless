@@ -440,15 +440,12 @@
 		--hero-c: var(--color-range-40);
 		--sel-c: var(--color-range-15);
 		--peer-track-bg: rgba(var(--color-range-25), 0.04);
-		/* hero fill: full-opacity 45° lines over a faded base. Uses currentColor (not var(--sf-c)) so the
-		   line color resolves per element where applied — a nested var() would resolve here, undefined. */
-		--hero-hatch: repeating-linear-gradient(
-			45deg,
-			currentColor 0,
-			currentColor 1.5px,
-			transparent 1.5px,
-			transparent 6px
-		);
+		/* Hero "ghost" reference look — shared by the legend swatches and BarChart's ghost bars (both
+		   inherit these through the DOM). The color comes from each element's own --sf-c; only these
+		   numeric knobs live here, so tweak them in one place to iterate on the look. */
+		--ghost-fill-op: 0.12;
+		--ghost-edge-op: 0.85;
+		--ghost-edge-w: 1.5px;
 		display: flex;
 		flex-direction: column;
 		gap: 20px;
@@ -500,7 +497,8 @@
 		margin-top: 6px;
 		max-height: 320px;
 		overflow-y: auto;
-		min-width: 280px;
+		min-width: min(280px, calc(100vw - 24px));
+		max-width: calc(100vw - 24px);
 		padding: 6px;
 		background: var(--text-bg, #fff);
 		border: 1px solid rgba(var(--color-range-30), 0.35);
@@ -570,9 +568,9 @@
 		width: 14px;
 		height: 18px;
 		flex-shrink: 0;
-		color: rgba(var(--sf-c), 1);
-		background-color: rgba(var(--sf-c), 0.22);
-		background-image: var(--hero-hatch);
+		box-sizing: border-box;
+		background-color: rgba(var(--sf-c), var(--ghost-fill-op));
+		border: var(--ghost-edge-w) solid rgba(var(--sf-c), var(--ghost-edge-op));
 	}
 
 	.fl-name {
@@ -601,12 +599,12 @@
 	.peer-add-label {
 		font-size: var(--text-sm);
 		opacity: 0.7;
-		white-space: nowrap;
-		flex-shrink: 0;
+		min-width: 0;
 	}
 
 	.peer-add-label b {
 		color: rgba(var(--sel-c), 1);
+		overflow-wrap: anywhere;
 	}
 
 	.peer-grid {
@@ -724,11 +722,12 @@
 
 	.profile-link {
 		margin-left: auto;
+		min-width: 0;
 		font-size: var(--text-sm);
 		font-weight: 600;
 		color: rgba(var(--sel-c), 1);
 		text-decoration: none;
-		white-space: nowrap;
+		overflow-wrap: anywhere;
 	}
 
 	.profile-link:hover {

@@ -219,12 +219,12 @@
 		transition: background 0.12s;
 	}
 
-	/* hero reference bars: faded fill with full-opacity 45° hatching (--hero-hatch supplied by host;
-	   its currentColor resolves against this color) */
+	/* hero reference bars: faded fill outlined with a border. The opacity/width knobs (--ghost-*) are
+	   supplied by the host so the look is tuned in one place; defaults keep it sane standalone. */
 	.bar.ghost {
-		color: rgba(var(--sf-c), 1);
-		background-color: rgba(var(--sf-c), 0.22);
-		background-image: var(--hero-hatch);
+		box-sizing: border-box;
+		background-color: rgba(var(--sf-c), var(--ghost-fill-op, 0.12));
+		border: var(--ghost-edge-w, 1.5px) solid rgba(var(--sf-c), var(--ghost-edge-op, 0.85));
 	}
 
 	.bar-slot:hover .bar {
@@ -232,8 +232,7 @@
 	}
 
 	.bar-slot:hover .bar.ghost {
-		background-color: rgba(var(--sf-c), 0.4);
-		background-image: var(--hero-hatch);
+		background-color: rgba(var(--sf-c), calc(var(--ghost-fill-op, 0.12) + 0.18));
 	}
 
 	.ref-pill {
