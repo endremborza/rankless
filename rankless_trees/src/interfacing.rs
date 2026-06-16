@@ -9,7 +9,7 @@ use rankless_rs::{
         reverse_id, BeS, CitRankLadderMarker, CitSubfieldsArrayMarker, HIndexMarker, HitWorkMarker,
         MainEntity, MainWorkMarker, MarkedBackendLoader, MmapBox, NumberedEntity, QuickAttPair,
         QuickMap, QuickestBox, QuickestVBox, Stowage, Top15AuthorMarker, Top3AffCountryMarker,
-        Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker, Top3PaperTopicMarker, WorkLoader,
+        Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker, TopNPaperTopicMarker, WorkLoader,
         YearCentroidMarker, YearlyCitationsMarker, YearlyPapersMarker, NET,
     },
     gen::{
@@ -84,7 +84,7 @@ type TopSfRec = ET<MAA<Subfields, Top3PaperSfMarker>>;
 type TopJournalRec = ET<MAA<Sources, Top3JournalMarker>>;
 type TopAuthorRec = ET<MAA<Authors, Top15AuthorMarker>>;
 type TopCountryRec = ET<MAA<Countries, Top3AffCountryMarker>>;
-type TopTopicRec = ET<MAA<Topics, Top3PaperTopicMarker>>;
+type TopTopicRec = ET<MAA<Topics, TopNPaperTopicMarker>>;
 
 pub type TopRelsMap = HashMap<&'static str, TopRels>;
 
