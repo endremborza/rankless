@@ -33,7 +33,7 @@ use crate::{
     peers::compute_career_centroid,
     steps::{
         a1_entity_mapping::{Qs, Years},
-        derive_links1::{multi_inverter, InvertedMultiLink},
+        derive_links1::{invert_links_sorted, InvertedMultiLink},
     },
     CiteCountMarker, QuickestBox, ReadIter, Stowage,
 };
@@ -710,7 +710,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
 
     let mut cd = CiteDeriver::new(stowage, w_top_source, &sf_inverter.data);
     let country_works =
-        multi_inverter::<Works, Countries, _>(cd.wcountries.iter().map(|e| e.clone()), true);
+        invert_links_sorted::<Works, Countries, _>(cd.wcountries.iter().map(|e| e.clone()), true);
     let cwo_name = "country-works";
     cd.stowage
         .add_barr::<VarAttBuilder, _>(country_works.clone(), cwo_name);

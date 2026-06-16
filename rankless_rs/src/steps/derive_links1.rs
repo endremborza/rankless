@@ -118,7 +118,7 @@ where
     L::Target: NumberedEntity,
 {
     pub fn build(interface: impl Iterator<Item = L::T>, ignore_zero: bool) -> Self {
-        let data = multi_inverter::<L::Source, L::Target, _>(interface, ignore_zero);
+        let data = invert_links_sorted::<L::Source, L::Target, _>(interface, ignore_zero);
         Self {
             data: data.into(),
             _marker: PhantomData,
@@ -130,10 +130,6 @@ where
         L: NamespacedEntity + CompactEntity + VariableSizeAttribute,
     {
         Self::build(stowage.get_entity_interface::<L, ReadIter>(), true)
-    }
-
-    pub fn stow(self, stowage: &Stowage, name: &str) {
-        self.stow_inner(stowage, name);
     }
 
     pub fn stow_as_work_link(self, stowage: &Stowage, name: &str) {
@@ -149,7 +145,16 @@ where
     }
 }
 
-pub fn multi_inverter<E1, E2, I>(it: I, ignore_zero: bool) -> Box<[Box<[NET<E1>]>]>
+/// Invert a forward multi-link `E1 -> [E2]` into `E2 -> [E1]`, with each output
+/// bucket sorted ascending.
+///
+/// The ordering needs no explicit sort: the only value ever pushed into
+/// `inverted[target]` is `source_id`, the outer `enumerate` index, which
+/// increases monotonically and visits each source once. A bucket can therefore
+/// only ever receive larger ids over time — nothing data-derived is pushed, so
+/// no input ordering can break this. Downstream code relies on this order for
+/// binary-search set operations (`rankless_trees::work_set`).
+pub fn invert_links_sorted<E1, E2, I>(it: I, ignore_zero: bool) -> Box<[Box<[NET<E1>]>]>
 where
     E1: NumberedEntity,
     E2: NumberedEntity,
