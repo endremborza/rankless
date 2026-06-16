@@ -333,6 +333,7 @@ macro_rules! core_top_rels {
 }
 
 fn load_top_rels_map(stow: &Stowage) -> TopRelsMap {
+    //TODO this is flimsy
     let mut m: TopRelsMap = HashMap::new();
     macro_rules! full {
         ($E:ty) => {{
