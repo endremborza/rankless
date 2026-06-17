@@ -24,6 +24,7 @@
 	import AllWorks from '$lib/components/AllWorks.svelte';
 	import AuthorOwnerTools from '$lib/components/AuthorOwnerTools.svelte';
 	import AuthorLedgerPanel from '$lib/components/AuthorLedgerPanel.svelte';
+	import { createWorksLoader } from '$lib/utils/works-loader';
 	import type { LedgerEvent, AppliedManifest } from '$lib/types/ledger';
 
 	export let data: {
@@ -97,19 +98,21 @@
 		}
 	});
 
-	function getAuthorStats(view: tt.View) {
-		const authors = view.relations['paper-authors'] ?? [];
-		return {
-			authorNames: authors.map((r) => r.name),
-			authorScores: authors.map((r) => r.score),
-			edgeWeights: view.authorNetwork
-		};
-	}
+	// One shared works loader feeds both the works table and the co-author network, seeded with the
+	// SSR batch so the table renders instantly while the network can pull the full set on demand.
+	const works = createWorksLoader();
+	$: if (isAuthor)
+		works.loadInitial(data.conf.semanticId, {
+			papers: data.initialPapers,
+			entityAtts,
+			discAuthorNames,
+			sliceEnd: data.initialWorksSliceEnd,
+			totalPapers: data.initialTotalPapers
+		});
 
 	$: indsByEntityType = tf.getTreeIndsByEntityType(data.treeSpecs.specs[data.conf.rootType]);
 	$: showsCountry = indsByEntityType.countries.length > 0;
 	$: showsSubfields = indsByEntityType.subfields.length > 0;
-	$: authorStats = getAuthorStats(data.view);
 
 	$: tocSections = [
 		{ id: 'overview', label: 'Overview' },
@@ -256,12 +259,13 @@
 {/if}
 
 {#if isAuthor}
-	<section id="network" class="shadowy padded marged main-block heighted">
+	<section id="network" class="shadowy padded marged main-block">
 		<AuthorNetwork
-			nodes={authorStats.authorNames}
-			edgeWeights={authorStats.edgeWeights}
-			nodeIntensities={authorStats.authorScores}
+			authors={data.view.relations['paper-authors'] ?? []}
+			edgeWeights={data.view.authorNetwork}
 			rootName={data.view.name}
+			heroSemanticId={data.conf.semanticId}
+			{works}
 		/>
 	</section>
 
@@ -277,12 +281,7 @@
 		{/if}
 
 		<AllWorks
-			semanticId={data.conf.semanticId}
-			{entityAtts}
-			{discAuthorNames}
-			initialPapers={data.initialPapers}
-			initialSliceEnd={data.initialWorksSliceEnd}
-			initialTotalPapers={data.initialTotalPapers}
+			{works}
 			disownedWids={disownedSet}
 			mergedPairs={mergedPairsState}
 			isOwner={data.isOwner}

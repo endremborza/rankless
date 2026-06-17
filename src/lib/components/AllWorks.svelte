@@ -1,26 +1,16 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import { browser } from '$app/environment';
-	import { BE_REMOTE_URL, COMPLETE_YEAR } from '$lib/constants';
-	import type { Paper, EntityAttsForLinks, PaginatedPaperSetResp } from '$lib/tree-types';
-	import {
-		resolveSourceName,
-		resolveLinkedAuthors,
-		mergeEntityAtts
-	} from '$lib/utils/paper-helpers';
+	import { COMPLETE_YEAR } from '$lib/constants';
+	import type { Paper } from '$lib/tree-types';
+	import type { WorksLoader } from '$lib/utils/works-loader';
+	import { resolveSourceName, resolveLinkedAuthors } from '$lib/utils/paper-helpers';
 	import { formatReference, type CitationStyle } from '$lib/utils/reference-format';
 	import ExportControls from './ExportControls.svelte';
 
-	export let semanticId: string;
-	export let entityAtts: EntityAttsForLinks;
-	export let discAuthorNames: Record<string, string>;
+	export let works: WorksLoader;
 	export let disownedWids: Set<number> = new Set();
 	export let mergedPairs: [number, number][] = [];
 	export let isOwner = false;
-	// SSR-provided initial batch — skips the first client fetch when non-empty
-	export let initialPapers: Paper[] = [];
-	export let initialSliceEnd: number = 0;
-	export let initialTotalPapers: number = 0;
 
 	type MergeEvent = { keep: number; drop: number };
 	const dispatch = createEventDispatcher<{
@@ -30,13 +20,16 @@
 		unmerge: MergeEvent;
 	}>();
 
-	let papers: Paper[] = [];
-	let totalPapers = 0;
-	let sliceEnd = 0;
-	let loading = false;
-	let loadingAll = false;
-	let initialLoaded = false;
-	let ownerUnlocked = false;
+	// Data layer lives in the shared works loader (also feeding the co-author network),
+	// so every page is fetched once. These aliases keep the rest of the component unchanged.
+	$: papers = $works.papers;
+	$: entityAtts = $works.entityAtts;
+	$: discAuthorNames = $works.discAuthorNames;
+	$: totalPapers = $works.totalPapers;
+	$: sliceEnd = $works.sliceEnd;
+	$: loading = $works.loading;
+	$: initialLoaded = $works.initialLoaded;
+	$: ownerUnlocked = initialLoaded && totalPapers > 0 && sliceEnd >= totalPapers;
 
 	let sortBy: 'year' | 'citations' = 'year';
 	let sortDir: 'asc' | 'desc' = 'desc';
@@ -49,67 +42,8 @@
 	let mergingWid: number | null = null;
 	let mergeConfirm: { keep: number; drop: number } | null = null;
 
-	const INITIAL_PAGE_SIZE = 20;
-	const MORE_PAGE_SIZE = 200;
-
-	async function fetchPage(from: number, pageSize: number) {
-		loading = true;
-		try {
-			const resp = await fetch(
-				`${BE_REMOTE_URL}/works/authors/${semanticId}/${from}?n=${pageSize}`
-			);
-			const data: PaginatedPaperSetResp = await resp.json();
-			papers = [...papers, ...data.resp.papers];
-			totalPapers = data.totalPapers;
-			sliceEnd = data.sliceStart + data.resp.papers.length;
-			entityAtts = mergeEntityAtts(entityAtts, data.resp.entityAtts);
-			discAuthorNames = { ...discAuthorNames, ...data.resp.discAuthorNames };
-		} finally {
-			loading = false;
-		}
-	}
-
-	let activeSemanticId = '';
-
-	async function loadInitial(id: string) {
-		initialLoaded = false;
-		papers = [];
-		sliceEnd = 0;
-		totalPapers = 0;
-		ownerUnlocked = false;
-		if (initialPapers.length > 0 && id === semanticId) {
-			papers = initialPapers;
-			sliceEnd = initialSliceEnd;
-			totalPapers = initialTotalPapers;
-		} else if (browser) {
-			await fetchPage(0, INITIAL_PAGE_SIZE);
-		}
-		if (id !== semanticId) return; // navigated away during fetch
-		initialLoaded = true;
-		if (totalPapers > 0 && sliceEnd >= totalPapers) ownerUnlocked = true;
-	}
-
-	$: if (semanticId !== activeSemanticId) {
-		activeSemanticId = semanticId;
-		loadInitial(semanticId);
-	}
-
 	async function loadMore() {
-		if (!loading && sliceEnd < totalPapers) {
-			await fetchPage(sliceEnd, MORE_PAGE_SIZE);
-			if (totalPapers > 0 && sliceEnd >= totalPapers) ownerUnlocked = true;
-		}
-	}
-
-	async function loadAll() {
-		if (loadingAll) return;
-		loadingAll = true;
-		try {
-			while (sliceEnd < totalPapers) await fetchPage(sliceEnd, MORE_PAGE_SIZE);
-			if (totalPapers > 0) ownerUnlocked = true;
-		} finally {
-			loadingAll = false;
-		}
+		await works.loadMore();
 	}
 
 	// Sorting the full list, and owners (logged in) inspecting their works, both
@@ -127,7 +61,7 @@
 	}
 
 	function ensureFullyLoaded() {
-		if (sliceEnd < totalPapers) void loadAll();
+		if (sliceEnd < totalPapers) void works.loadAll();
 	}
 
 	$: mergedDrops = new Set(mergedPairs.map(([, d]) => d));
@@ -270,96 +204,98 @@
 		{/if}
 
 		{#if citationStyle === 'html'}
-			<table class="works-table">
-				<thead>
-					<tr>
-						<th class="col-num">#</th>
-						<th class="col-main">Work</th>
-						<th class="col-year">
-							<button
-								class="sort-btn"
-								class:sorted={sortBy === 'year'}
-								on:click={() => setSort('year')}
-							>
-								Year{#if sortBy === 'year'}<span class="sort-ind"
-										>{sortDir === 'desc' ? '▾' : '▴'}</span
-									>{/if}
-							</button>
-						</th>
-						<th class="col-cites">
-							<button
-								class="sort-btn"
-								class:sorted={sortBy === 'citations'}
-								on:click={() => setSort('citations')}
-							>
-								Indexed citations{#if sortBy === 'citations'}<span class="sort-ind"
-										>{sortDir === 'desc' ? '▾' : '▴'}</span
-									>{/if}
-							</button>
-						</th>
-						{#if showOwnerActions}<th class="col-actions" aria-label="Actions"></th>{/if}
-					</tr>
-				</thead>
-				<tbody>
-					{#each displayPapers as paper, idx (paper.wid)}
-						{@const mergeCount = mergedKeepCounts.get(paper.wid) ?? 0}
-						{@const isMergingSource = mergingWid === paper.wid}
-						{@const authors = resolveLinkedAuthors(paper, entityAtts, discAuthorNames)}
-						{@const journal = resolveSourceName(paper.source, entityAtts)}
-						<tr class:merging-source={isMergingSource}>
-							<td class="col-num">{idx + 1}</td>
-							<td class="col-main">
-								<div class="paper-title">
-									{#if paper.doi}<a
-											href="https://doi.org/{paper.doi}"
-											target="_blank"
-											rel="noopener">{@html paper.name}</a
-										>{:else}{@html paper.name}{/if}{#if paper.hitSemId}
-										<a href="/hit-papers/{paper.hitSemId}" class="hit-page-link">breakdown →</a
+			<div class="works-scroll">
+				<table class="works-table">
+					<thead>
+						<tr>
+							<th class="col-num">#</th>
+							<th class="col-main">Work</th>
+							<th class="col-year">
+								<button
+									class="sort-btn"
+									class:sorted={sortBy === 'year'}
+									on:click={() => setSort('year')}
+								>
+									Year{#if sortBy === 'year'}<span class="sort-ind"
+											>{sortDir === 'desc' ? '▾' : '▴'}</span
 										>{/if}
-								</div>
-								<div class="paper-byline">
-									{#if journal}<em class="byline-journal">{journal}</em>{/if}
-									{#if authors.length}{#if journal}<span class="byline-sep">·</span
-											>{/if}{#each authors as a, i (i)}{#if a.url}<a
-													class="author-link"
-													href={a.url}>{a.name}</a
-												>{:else}<span class="author-plain">{a.name}</span
-												>{/if}{#if i < authors.length - 1}<span class="comma"
-													>,
-												</span>{/if}{/each}{/if}
-								</div>
-							</td>
-							<td class="col-year">{paper.year}</td>
-							<td class="col-cites">
-								{paper.citations}{#if mergeCount > 0}<span
-										class="merge-badge"
-										title="merged duplicates">+{mergeCount}</span
-									>{/if}
-							</td>
-							{#if showOwnerActions}
-								<td class="col-actions">
-									{#if isMergingSource}
-										<button class="btn-sm" on:click={cancelMerge}>Cancel</button>
-									{:else if mergingWid !== null}
-										<button class="btn-sm active-bg" on:click={() => selectMergeTarget(paper)}
-											>Merge here</button
-										>
-									{:else}
-										<div class="paper-actions">
-											<button class="btn-sm" on:click={() => startMerge(paper.wid)}>Merge</button>
-											<button
-												class="btn-sm destructive"
-												on:click={() => dispatch('disown', paper.wid)}>Remove</button
-											>
-										</div>
-									{/if}
-								</td>
-							{/if}
+								</button>
+							</th>
+							<th class="col-cites">
+								<button
+									class="sort-btn"
+									class:sorted={sortBy === 'citations'}
+									on:click={() => setSort('citations')}
+								>
+									Indexed citations{#if sortBy === 'citations'}<span class="sort-ind"
+											>{sortDir === 'desc' ? '▾' : '▴'}</span
+										>{/if}
+								</button>
+							</th>
+							{#if showOwnerActions}<th class="col-actions" aria-label="Actions"></th>{/if}
 						</tr>
-					{/each}
-				</tbody>
-			</table>
+					</thead>
+					<tbody>
+						{#each displayPapers as paper, idx (paper.wid)}
+							{@const mergeCount = mergedKeepCounts.get(paper.wid) ?? 0}
+							{@const isMergingSource = mergingWid === paper.wid}
+							{@const authors = resolveLinkedAuthors(paper, entityAtts, discAuthorNames)}
+							{@const journal = resolveSourceName(paper.source, entityAtts)}
+							<tr class:merging-source={isMergingSource}>
+								<td class="col-num">{idx + 1}</td>
+								<td class="col-main">
+									<div class="paper-title">
+										{#if paper.doi}<a
+												href="https://doi.org/{paper.doi}"
+												target="_blank"
+												rel="noopener">{@html paper.name}</a
+											>{:else}{@html paper.name}{/if}{#if paper.hitSemId}
+											<a href="/hit-papers/{paper.hitSemId}" class="hit-page-link">breakdown →</a
+											>{/if}
+									</div>
+									<div class="paper-byline">
+										{#if journal}<em class="byline-journal">{journal}</em>{/if}
+										{#if authors.length}{#if journal}<span class="byline-sep">·</span
+												>{/if}{#each authors as a, i (i)}{#if a.url}<a
+														class="author-link"
+														href={a.url}>{a.name}</a
+													>{:else}<span class="author-plain">{a.name}</span
+													>{/if}{#if i < authors.length - 1}<span class="comma"
+														>,
+													</span>{/if}{/each}{/if}
+									</div>
+								</td>
+								<td class="col-year">{paper.year}</td>
+								<td class="col-cites">
+									{paper.citations}{#if mergeCount > 0}<span
+											class="merge-badge"
+											title="merged duplicates">+{mergeCount}</span
+										>{/if}
+								</td>
+								{#if showOwnerActions}
+									<td class="col-actions">
+										{#if isMergingSource}
+											<button class="btn-sm" on:click={cancelMerge}>Cancel</button>
+										{:else if mergingWid !== null}
+											<button class="btn-sm active-bg" on:click={() => selectMergeTarget(paper)}
+												>Merge here</button
+											>
+										{:else}
+											<div class="paper-actions">
+												<button class="btn-sm" on:click={() => startMerge(paper.wid)}>Merge</button>
+												<button
+													class="btn-sm destructive"
+													on:click={() => dispatch('disown', paper.wid)}>Remove</button
+												>
+											</div>
+										{/if}
+									</td>
+								{/if}
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
 		{:else}
 			<div class="paper-list">
 				{#each displayPapers as paper (paper.wid)}
@@ -446,6 +382,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
+	}
+
+	/* On narrow screens the table's columns can't shrink below their content; scroll it horizontally
+	   instead of letting it push the whole page wide. */
+	.works-scroll {
+		overflow-x: auto;
 	}
 
 	.works-table {
