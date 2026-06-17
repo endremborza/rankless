@@ -9,5 +9,6 @@ pub mod path_finder;
 mod prune;
 #[cfg(test)]
 mod test_utils;
+pub mod work_set;
 
 pub use ids::AttributeLabelUnion;
