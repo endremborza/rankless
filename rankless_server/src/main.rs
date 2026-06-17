@@ -19,7 +19,7 @@ use rankless_rs::Stowage;
 
 use crate::consts::{DEFAULT_N_THREADS, PORT};
 use crate::handlers::{
-    ladder_get, name_get, orcid_get, paper_profile, peers_get, resolve_author_get,
+    intersect_get, ladder_get, name_get, orcid_get, paper_profile, peers_get, resolve_author_get,
     resolve_work_get, sem_id_get, shallows_get, slice_get, stats_get, tops_get, tree_get, view_get,
     works_get,
 };
@@ -72,6 +72,7 @@ async fn async_main(n_threads: usize) {
         .route("/trees/:root_type/:semantic_id", get(tree_get))
         .route("/shallows/:root_type", get(shallows_get))
         .route("/works/:etype/:semantic_id/:from", get(works_get))
+        .route("/works-intersect/*spec", get(intersect_get))
         .with_state((ns_map_arc, satts, tree_manager.clone(), peer_aux));
 
     let count_api = static_router(&counts_response);

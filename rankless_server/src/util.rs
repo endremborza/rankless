@@ -35,6 +35,13 @@ pub(crate) fn get_empty() -> (HeaderMap, Response) {
     )
 }
 
+pub(crate) fn bad_request(msg: &'static str) -> (HeaderMap, Response) {
+    (
+        HeaderMap::new(),
+        (StatusCode::BAD_REQUEST, msg).into_response(),
+    )
+}
+
 async fn state_get(str_state: State<Arc<str>>) -> (HeaderMap, Response<Body>) {
     (cache_header(60), str_state.to_string().into_response())
 }

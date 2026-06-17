@@ -1,8 +1,11 @@
-use std::{cmp::min, sync::Arc};
+use std::{
+    cmp::{min, Reverse},
+    sync::Arc,
+};
 
 use axum::{
     extract::{Path, Query},
-    http::HeaderMap,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
@@ -14,7 +17,7 @@ use dmove::{
 };
 use rankless_rs::{
     gen::{
-        a1_entity_mapping::{Authors, Institutions, Sources, Topics},
+        a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
         a2_init_atts::{DiscardedAuthorsNames, WorkBiblios, WorkDois},
         derive_links3::HitPapers,
     },
@@ -24,16 +27,32 @@ use rankless_trees::{
     interfacing::Getters,
     io::{EntityAttsForLinks, ManFileHandle, WT},
     path_finder::{extend_with_once_removed, get_direct_links},
+    work_set::cnf_intersect,
     AttributeLabelUnion,
 };
 
-use crate::consts::WORKS_PAGE_SIZE_MAX;
+use crate::consts::{
+    INTERSECT_DEFAULT_N, INTERSECT_MAX_BASE, INTERSECT_MAX_CLAUSES, INTERSECT_MAX_OPERANDS,
+    WORKS_PAGE_SIZE_MAX,
+};
 use crate::responses::{
     PaginatedPaperSetResp, PaperAuthorMeta, PaperAuthorship, PaperOut, PaperProfileResp,
     PaperSetResp,
 };
 use crate::state::{InstTrm, StatesT};
-use crate::util::{cache_header, get_empty, parse_semantic_id};
+use crate::util::{bad_request, cache_header, get_empty, parse_semantic_id};
+
+// Entity types whose work-lists may be intersected. Restricted to the five "stat" facets: their
+// semantic IDs are slugs containing none of the path separators (`/ , :`), so the catch-all CNF
+// encoding stays unambiguous. Hit-papers/citing-works carry `/` in DOIs and aren't meaningful
+// facets, so they are excluded.
+const INTERSECTABLE: [&str; 5] = [
+    Authors::NAME,
+    Countries::NAME,
+    Institutions::NAME,
+    Sources::NAME,
+    Subfields::NAME,
+];
 
 pub(crate) async fn works_get(
     Path((etype, sem_id, pstart)): Path<(String, String, usize)>,
@@ -66,6 +85,71 @@ pub(crate) async fn works_get(
         }
     }
     get_empty()
+}
+
+// Intersect entity work-sets given as a conjunctive normal form (AND of OR-clauses) encoded in the
+// path: `/` separates AND-clauses, `,` separates OR-operands, `:` separates `etype:id,id,...`.
+// Returns the intersection ranked by citation count, capped at `n`, shaped exactly like the
+// paginated works endpoint so the same UI renders it. See `rankless_trees::work_set::cnf_intersect`.
+pub(crate) async fn intersect_get(
+    Path(spec): Path<String>,
+    Query(wq): Query<crate::responses::WorksQ>,
+    states: StatesT,
+) -> (HeaderMap, Response) {
+    let n = wq.n.unwrap_or(INTERSECT_DEFAULT_N).min(WORKS_PAGE_SIZE_MAX);
+    let nstates = &states.0 .0;
+    let gets = &states.0 .2.state.gets;
+
+    let clause_strs: Vec<&str> = spec.split('/').filter(|s| !s.is_empty()).collect();
+    if clause_strs.is_empty() || clause_strs.len() > INTERSECT_MAX_CLAUSES {
+        return bad_request("bad clause count");
+    }
+
+    let mut clauses: Vec<Vec<&[WT]>> = Vec::with_capacity(clause_strs.len());
+    let mut total_operands = 0;
+    for cs in clause_strs {
+        let Some((etype, ids)) = cs.split_once(':') else {
+            return bad_request("clause missing etype");
+        };
+        if !INTERSECTABLE.contains(&etype) {
+            return bad_request("etype not intersectable");
+        }
+        let Some(ns) = nstates.get(etype) else {
+            return bad_request("unknown etype");
+        };
+        let mut operands: Vec<&[WT]> = Vec::new();
+        for raw_id in ids.split(',').filter(|s| !s.is_empty()) {
+            total_operands += 1;
+            if total_operands > INTERSECT_MAX_OPERANDS {
+                return bad_request("too many operands");
+            }
+            // Unresolved ids drop out; a clause left with no operand makes the AND empty.
+            if let Some(&dm_id) = ns
+                .semantic_id_map
+                .get(parse_semantic_id(raw_id.into()).as_str())
+            {
+                if let Some(slice) = gets.works_of_entity(dm_id as usize, etype.into()) {
+                    operands.push(slice);
+                }
+            }
+        }
+        clauses.push(operands);
+    }
+
+    match cnf_intersect(&clauses, INTERSECT_MAX_BASE) {
+        Ok(mut wids) => {
+            let total = wids.len();
+            wids.sort_by_key(|&w| Reverse(gets.wccount(w.to_usize())));
+            let top = wids.into_iter().take(n).map(|w| w.to_usize());
+            let out = PaginatedPaperSetResp {
+                resp: get_paper_set_resp(top, states.2.clone()),
+                total_papers: total,
+                slice_start: 0,
+            };
+            (cache_header(60), Json(out).into_response())
+        }
+        Err(_) => bad_request("couldn't intersect query, too broad"),
+    }
 }
 
 pub(crate) async fn paper_profile(
