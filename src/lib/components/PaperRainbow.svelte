@@ -28,7 +28,7 @@
 	const bmThreshold = 5;
 	const globalMinCites = 500;
 
-	type PubMark = { x: number; year: number; color: string; row: number };
+	type PubMark = { x: number; color: string };
 	type YTick = { label: string; y: number };
 	type FigPaper = {
 		i: number;
@@ -163,7 +163,7 @@
 			}
 
 			const markerX = align ? 0 : startYear / xScale;
-			pubMarks.push({ x: markerX, year: paper.year, color: getColor(rate), row: vi % 2 });
+			pubMarks.push({ x: markerX, color: getColor(rate) });
 
 			if (pBasis.length === 1) {
 				pBasis.push(`L ${(endX + 0.5).toFixed(3)} ${endY.toFixed(3)}`);
@@ -388,7 +388,7 @@
 						/>
 					{/each}
 
-					<!-- Highlighted paper name follows the line via textPath -->
+					<!-- Highlighted paper name follows the line via textPath; total cites sit at its tip -->
 					{#if highlightedVis !== undefined}
 						{@const hp = fb.figPapers[highlightedVis]}
 						<text font-size="0.4" fill="var(--color-text)" dy="-0.28">
@@ -396,6 +396,14 @@
 								>{hp.pathName}</textPath
 							>
 						</text>
+						<text
+							x={hp.endX + 0.2}
+							y={hp.endY + 0.15}
+							font-size="0.5"
+							font-weight="600"
+							text-anchor="start"
+							fill={getColor(hp.rate)}>{formatNumber(hp.citations)}</text
+						>
 					{/if}
 
 					<!-- X axis baseline and ticks -->
@@ -414,7 +422,7 @@
 						{/each}
 					</g>
 
-					<!-- Paper publication year markers (only when x is calendar-aligned) -->
+					<!-- Paper publication markers (only when x is calendar-aligned) -->
 					{#if !fb.align}
 						{#each fb.pubMarks as mark, __i (__i)}
 							<line
@@ -425,14 +433,6 @@
 								stroke={mark.color}
 								stroke-width="0.09"
 							/>
-							<text
-								x={mark.x}
-								y={mark.row === 0 ? 1.65 : 2.15}
-								text-anchor="middle"
-								font-size="0.38"
-								style="fill: {mark.color}"
-								stroke="none">{mark.year}</text
-							>
 						{/each}
 					{/if}
 
