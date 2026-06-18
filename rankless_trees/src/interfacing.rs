@@ -9,7 +9,7 @@ use rankless_rs::{
         reverse_id, BeS, CitRankLadderMarker, CitSubfieldsArrayMarker, HIndexMarker, HitWorkMarker,
         MainEntity, MainWorkMarker, MarkedBackendLoader, MmapBox, NumberedEntity, QuickAttPair,
         QuickMap, QuickestBox, QuickestVBox, Stowage, Top15AuthorMarker, Top3AffCountryMarker,
-        Top3CitingSfMarker, Top3JournalMarker, Top3PaperSfMarker, TopNPaperTopicMarker, WorkLoader,
+        Top3CitingSfMarker, Top3PaperSfMarker, TopJournalMarker, TopNPaperTopicMarker, WorkLoader,
         YearCentroidMarker, YearlyCitationsMarker, YearlyPapersMarker, NET,
     },
     gen::{
@@ -81,7 +81,7 @@ pub struct PeerAux {
 // `[(score, target_id); N]`, identical across root types since it depends only on the target entity
 // and N, not the root. The frontend rebuilds the hero relations from these per request.
 type TopSfRec = ET<MAA<Subfields, Top3PaperSfMarker>>;
-type TopJournalRec = ET<MAA<Sources, Top3JournalMarker>>;
+type TopJournalRec = ET<MAA<Sources, TopJournalMarker>>;
 type TopAuthorRec = ET<MAA<Authors, Top15AuthorMarker>>;
 type TopCountryRec = ET<MAA<Countries, Top3AffCountryMarker>>;
 type TopTopicRec = ET<MAA<Topics, TopNPaperTopicMarker>>;
@@ -324,7 +324,7 @@ macro_rules! core_top_rels {
         TopRels {
             paper_sfc: $stow.get_marked_interface::<$E, Top3PaperSfMarker, MmapBox>(),
             citing_sfc: $stow.get_marked_interface::<$E, Top3CitingSfMarker, MmapBox>(),
-            journals: $stow.get_marked_interface::<$E, Top3JournalMarker, MmapBox>(),
+            journals: $stow.get_marked_interface::<$E, TopJournalMarker, MmapBox>(),
             authors: $stow.get_marked_interface::<$E, Top15AuthorMarker, MmapBox>(),
             aff_countries: None,
             paper_topic: None,

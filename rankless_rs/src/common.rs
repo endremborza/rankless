@@ -54,7 +54,7 @@ pub struct Top3CitingSfMarker;
 pub struct TopNPaperTopicMarker;
 pub struct Top15AuthorMarker;
 pub struct Top3CitingTopicMarker;
-pub struct Top3JournalMarker;
+pub struct TopJournalMarker;
 pub struct Top3AffCountryMarker;
 pub struct PeerMarker;
 pub struct HIndexMarker;

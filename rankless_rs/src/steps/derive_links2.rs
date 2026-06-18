@@ -16,16 +16,16 @@ use crate::{
     common::{
         init_empty_slice, BeS, CitSubfieldsArrayMarker, HIndexMarker, InstRelMarker,
         MainWorkMarker, NumberedEntity, QuickAttPair, QuickMap, RefSubfieldsArrayMarker,
-        Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker, Top3JournalMarker,
-        Top3PaperSfMarker, TopNPaperTopicMarker, WorkLoader, YearCentroidMarker,
+        Top15AuthorMarker, Top3AffCountryMarker, Top3CitingSfMarker, Top3PaperSfMarker,
+        TopJournalMarker, TopNPaperTopicMarker, WorkLoader, YearCentroidMarker,
         YearlyCitationsMarker, YearlyPapersMarker, NET,
     },
     env_consts::{FINAL_YEAR, START_YEAR},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{
-            AuthorshipFilteredAuthor, FilteredAuthorshipInstitutions, InstCountries, SourceYearQs,
-            WorkAnyAuthorships, WorkSources, WorkTopics, WorkYears,
+            AuthorshipFilteredAuthor, FilteredAuthorshipInstitutions, InstCountries,
+            SourceIsJournal, SourceYearQs, WorkAnyAuthorships, WorkSources, WorkTopics, WorkYears,
         },
         derive_links1::{WorkFilteredAuthors, WorkInstitutions, WorkSubfields, WorksCiting},
     },
@@ -42,16 +42,24 @@ pub const N_RELS: usize = 8;
 pub const ERA_SIZE: usize = 11;
 pub const MAX_YEAR: usize = (FINAL_YEAR - START_YEAR) as usize;
 pub const MIN_YEAR: usize = MAX_YEAR - ERA_SIZE + 1;
+// Exponent on the entity's own paper count when ranking its top journals: sublinear so global
+// journal quality leads but a real body of work overtakes a single placement in a top journal.
+pub const JOURNAL_COUNT_BETA: f64 = 0.5;
+// Small-sample shrinkage for journal_vals: a journal's quality is scaled by n/(n+K) so journals
+// with few works can't spike to a misleadingly high value.
+const JVAL_SHRINK_K: f64 = 50.0;
 
 pub type EraRec = [u32; ERA_SIZE];
 pub type TopNRec<E, const N: usize> = [(u32, NET<E>); N];
 pub type Top3Rec<E> = TopNRec<E, 3>;
+pub type Top5Rec<E> = TopNRec<E, 5>;
 pub type Top8Rec<E> = TopNRec<E, 8>;
 pub type Top15Rec<E> = TopNRec<E, 25>;
 
 type YT = ET<Years>;
 type IT = ET<Institutions>;
 type Top3RelExtender<E, SE> = TopNRelExtender<3, E, SE, HashMap<ET<E>, u32>>;
+type Top5RelExtender<E, SE> = TopNRelExtender<5, E, SE, HashMap<ET<E>, u32>>;
 type Top8RelExtender<E, SE> = TopNRelExtender<8, E, SE, HashMap<ET<E>, u32>>;
 type Top15HRelExtender<E, SE> = TopNRelExtender<25, E, SE, HashMap<ET<E>, f64>>;
 
@@ -73,7 +81,7 @@ struct ExtensionContainer<E: NumberedEntity> {
     top_paper_topics: Top8RelExtender<Topics, E>,
     top_citing_sfs: Top3RelExtender<Subfields, E>,
     top_aff_countries: Top3RelExtender<Countries, E>,
-    top_journals: Top3RelExtender<Sources, E>,
+    top_journals: Top5RelExtender<Sources, E>,
     top_authors: Top15HRelExtender<Authors, E>,
     rels: Vec<[InstRelation; N_RELS]>,
     rel_map_rec: HashMap<ET<Institutions>, InstRelation>,
@@ -263,7 +271,7 @@ where
             top_paper_topics: Top8RelExtender::new(),
             top_citing_sfs: Top3RelExtender::new(),
             top_aff_countries: Top3RelExtender::new(),
-            top_journals: Top3RelExtender::new(),
+            top_journals: Top5RelExtender::new(),
             top_authors: Top15HRelExtender::new(),
             rels: Vec::new(),
             rel_map_rec: HashMap::new(),
@@ -368,7 +376,7 @@ where
         stowage.ditf::<Top3CitingSfMarker, E, _>(self.top_citing_sfs.vec, "top-citing-subfields");
         stowage.ditf::<TopNPaperTopicMarker, E, _>(self.top_paper_topics.vec, "top-paper-topics");
         stowage.ditf::<Top15AuthorMarker, E, _>(self.top_authors.vec, "top-paper-authors");
-        stowage.ditf::<Top3JournalMarker, E, _>(self.top_journals.vec, "top-journals");
+        stowage.ditf::<TopJournalMarker, E, _>(self.top_journals.vec, "top-journals");
         stowage.ditf::<Top3AffCountryMarker, E, _>(self.top_aff_countries.vec, "top-aff-countries");
         stowage.ditf::<InstRelMarker, E, _>(self.rels, "rel-insts");
     }
@@ -526,6 +534,7 @@ impl CiteDeriver {
             .stowage
             .get_entity_interface::<SourceYearQs, QuickMap>();
         let mut source_stats = init_empty_slice::<Sources, ([u32; 2], u8)>();
+        let mut source_nworks = init_empty_slice::<Sources, u32>();
 
         let mut source_ext = ExtensionContainer::<Sources>::new();
         let iter = self.witer::<Sources>().map(|(i, ws)| {
@@ -549,13 +558,19 @@ impl CiteDeriver {
             let h = get_h_index_and_sort(&mut counts);
             let median = *counts.get(counts.len() / 2).unwrap_or(&0) as u32;
             source_stats[i] = ([h, median], best_q);
+            source_nworks[i] = counts.len() as u32;
             counts.into_iter().sum()
         });
 
         add_iter_cc::<Sources, _>(&self.stowage, iter);
         self.journal_vals = source_stats
             .iter()
-            .map(|hm| (5 - hm.1) as u32 * hm.0[0] * 2 + hm.0[1] * 3)
+            .zip(source_nworks.iter())
+            .map(|(hm, &n)| {
+                let raw = (5 - hm.1) as f64 * hm.0[0] as f64 * 2.0 + hm.0[1] as f64 * 3.0;
+                let shrink = n as f64 / (n as f64 + JVAL_SHRINK_K);
+                (raw * shrink).round() as u32
+            })
             .collect();
 
         source_ext.add_iters(&self.stowage);
@@ -591,7 +606,12 @@ impl TopSorter {
     {
         match self {
             Self::Default => r.1.cmp(&l.1),
-            Self::TopJournal(b) => b[r.0].cmp(&b[l.0]),
+            Self::TopJournal(b) => {
+                let weight = |id: usize, count: usize| {
+                    b[id] as f64 * (count as f64).powf(JOURNAL_COUNT_BETA)
+                };
+                weight(r.0, r.1.to_usize()).total_cmp(&weight(l.0, l.1.to_usize()))
+            }
             Self::Specialization(denom) => {
                 let sl = l.1.to_usize() as f64 / denom[l.0];
                 let sr = r.1.to_usize() as f64 / denom[r.0];
@@ -680,6 +700,9 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let sqy = stowage.get_entity_interface::<SourceYearQs, QuickMap>();
     let w_sources = stowage.get_entity_interface::<WorkSources, ReadIter>();
     let w_years = stowage.get_entity_interface::<WorkYears, QuickestBox>();
+    // Only real journals are eligible as a work's representative source — excludes repositories /
+    // aggregators (by OpenAlex type) and aggregator-homepage churn like SHILAP (see a2 add_source_kinds).
+    let is_journal = stowage.get_entity_interface::<SourceIsJournal, QuickestBox>();
 
     let a_inverter = InvertedMultiLink::<WorkFilteredAuthors>::from_stowage(&stowage);
     let sf_inverter = InvertedMultiLink::<WorkSubfields>::from_stowage(&stowage);
@@ -701,6 +724,9 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
                 }
             };
             for sid in sources {
+                if is_journal[sid.to_usize()] == 0 {
+                    continue;
+                }
                 let q = *sqy.get(&(sid, wy)).unwrap_or(&5);
                 update(q, sid);
             }
