@@ -240,8 +240,6 @@ pub struct Publisher {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Source {
     id: String,
-    #[serde(default, rename = "type")]
-    source_type: Option<String>,
     issn_l: Option<String>,
     #[serde(default, deserialize_with = "deserialize_json_array")]
     issn: Option<String>,

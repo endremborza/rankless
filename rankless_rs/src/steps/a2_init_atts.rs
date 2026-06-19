@@ -47,11 +47,6 @@ const MIN_LEN: usize = 10;
 const EXT_STOP_WORDS: &[&str] = &[
     "a", "an", "and", "at", "by", "for", "in", "of", "or", "the", "to", "with",
 ];
-// Homepage hosts that mark an aggregator masquerading as a journal. OpenAlex source-id churn can
-// leave a real journal's id (right name/ISSN, type=journal) pointing at an aggregator's works with
-// an aggregator homepage — e.g. SHILAP (S112646816) carries a doaj.org browse URL and millions of
-// DOAJ-indexed works. Such ids are excluded from being journals.
-const AGGREGATOR_HOSTS: &[&str] = &["doaj.org"];
 
 pub type OrcidType = [u8; 19];
 
@@ -60,15 +55,6 @@ struct SourceQ {
     publication_year: u16,
     id: BigId,
     best_q: u8,
-}
-
-#[derive(Deserialize)]
-struct SourceKind {
-    id: Option<String>,
-    #[serde(default, rename = "type")]
-    source_type: Option<String>,
-    #[serde(default)]
-    homepage_url: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -208,29 +194,6 @@ impl Stowage {
             (<Sources as Entity>::T, <Years as Entity>::T),
             <Qs as Entity>::T,
         >, _, _>(source_q_kv_iter, Some("source-year-qs"));
-    }
-
-    // Per-source 1/0 flag: is this id a real journal (OpenAlex type "journal", non-aggregator
-    // homepage)? Consumed in derive_links2 to keep repositories/aggregators out of journal relations.
-    fn add_source_kinds<SIF>(&self, sources_interface: &SIF)
-    where
-        SIF: EntityImmutableMapperBackend<Sources>,
-    {
-        let mut is_journal = init_empty_slice::<Sources, u8>();
-        for sk in self.read_csv_objs::<SourceKind>(Sources::NAME, MAIN_NAME) {
-            if let Some(sid) = sk
-                .id
-                .as_deref()
-                .and_then(oa_id_parse_opt)
-                .and_then(|oa| sources_interface.get_via_immut(&oa))
-            {
-                is_journal[sid.to_usize()] = is_real_journal(&sk) as u8;
-            }
-        }
-        self.add_iter_owned::<FixAttBuilder, _, _>(
-            is_journal.into_vec().into_iter(),
-            Some("source-is-journal"),
-        );
     }
 
     fn add_inst_atts(
@@ -1094,14 +1057,6 @@ where
     }
 }
 
-fn is_real_journal(sk: &SourceKind) -> bool {
-    if sk.source_type.as_deref() != Some("journal") {
-        return false;
-    }
-    let homepage = sk.homepage_url.as_deref().unwrap_or("");
-    !AGGREGATOR_HOSTS.iter().any(|host| homepage.contains(host))
-}
-
 fn write_entity_name<CsvObj, E>(stowage: &Stowage) -> BeS<QuickestNumbered, E>
 where
     CsvObj: DeserializeOwned + ParsedId + AttGetter<String, NameMarker> + Send,
@@ -1187,7 +1142,6 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         || sarc.add_empty_name_ext::<Countries>(),
         || sarc.add_empty_name_ext::<Subfields>(),
         || sarc.add_source_qs(&sources_interface, &YearInterface {}),
-        || sarc.add_source_kinds(&sources_interface),
     );
 
     // Wave 3: parallel property writes, multi-object properties, and work-references

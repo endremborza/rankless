@@ -24,8 +24,8 @@ use crate::{
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{
-            AuthorshipFilteredAuthor, FilteredAuthorshipInstitutions, InstCountries,
-            SourceIsJournal, SourceYearQs, WorkAnyAuthorships, WorkSources, WorkTopics, WorkYears,
+            AuthorshipFilteredAuthor, FilteredAuthorshipInstitutions, InstCountries, SourceYearQs,
+            WorkAnyAuthorships, WorkSources, WorkTopics, WorkYears,
         },
         derive_links1::{WorkFilteredAuthors, WorkInstitutions, WorkSubfields, WorksCiting},
     },
@@ -42,12 +42,9 @@ pub const N_RELS: usize = 8;
 pub const ERA_SIZE: usize = 11;
 pub const MAX_YEAR: usize = (FINAL_YEAR - START_YEAR) as usize;
 pub const MIN_YEAR: usize = MAX_YEAR - ERA_SIZE + 1;
-// Exponent on the entity's own paper count when ranking its top journals: sublinear so global
-// journal quality leads but a real body of work overtakes a single placement in a top journal.
+// Exponent on the entity's own paper count when ranking its top journals: sublinear so journal
+// quality leads but a real body of work overtakes a single placement in a higher-quality journal.
 pub const JOURNAL_COUNT_BETA: f64 = 0.5;
-// Small-sample shrinkage for journal_vals: a journal's quality is scaled by n/(n+K) so journals
-// with few works can't spike to a misleadingly high value.
-const JVAL_SHRINK_K: f64 = 50.0;
 
 pub type EraRec = [u32; ERA_SIZE];
 pub type TopNRec<E, const N: usize> = [(u32, NET<E>); N];
@@ -534,7 +531,6 @@ impl CiteDeriver {
             .stowage
             .get_entity_interface::<SourceYearQs, QuickMap>();
         let mut source_stats = init_empty_slice::<Sources, ([u32; 2], u8)>();
-        let mut source_nworks = init_empty_slice::<Sources, u32>();
 
         let mut source_ext = ExtensionContainer::<Sources>::new();
         let iter = self.witer::<Sources>().map(|(i, ws)| {
@@ -558,19 +554,17 @@ impl CiteDeriver {
             let h = get_h_index_and_sort(&mut counts);
             let median = *counts.get(counts.len() / 2).unwrap_or(&0) as u32;
             source_stats[i] = ([h, median], best_q);
-            source_nworks[i] = counts.len() as u32;
             counts.into_iter().sum()
         });
 
         add_iter_cc::<Sources, _>(&self.stowage, iter);
+        // Journal quality comes only from the SCImago quartile (matched by ISSN in extend_csvs), not
+        // citation/h-index stats: the quartile is immune to the work-count contamination that
+        // OpenAlex source-id churn can inject (e.g. SHILAP's id carrying millions of DOAJ works).
+        // Sources with no SCImago rank — repositories, aggregators, non-indexed venues — score 0.
         self.journal_vals = source_stats
             .iter()
-            .zip(source_nworks.iter())
-            .map(|(hm, &n)| {
-                let raw = (5 - hm.1) as f64 * hm.0[0] as f64 * 2.0 + hm.0[1] as f64 * 3.0;
-                let shrink = n as f64 / (n as f64 + JVAL_SHRINK_K);
-                (raw * shrink).round() as u32
-            })
+            .map(|hm| journal_quality(hm.1))
             .collect();
 
         source_ext.add_iters(&self.stowage);
@@ -700,9 +694,6 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let sqy = stowage.get_entity_interface::<SourceYearQs, QuickMap>();
     let w_sources = stowage.get_entity_interface::<WorkSources, ReadIter>();
     let w_years = stowage.get_entity_interface::<WorkYears, QuickestBox>();
-    // Only real journals are eligible as a work's representative source — excludes repositories /
-    // aggregators (by OpenAlex type) and aggregator-homepage churn like SHILAP (see a2 add_source_kinds).
-    let is_journal = stowage.get_entity_interface::<SourceIsJournal, QuickestBox>();
 
     let a_inverter = InvertedMultiLink::<WorkFilteredAuthors>::from_stowage(&stowage);
     let sf_inverter = InvertedMultiLink::<WorkSubfields>::from_stowage(&stowage);
@@ -724,9 +715,6 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
                 }
             };
             for sid in sources {
-                if is_journal[sid.to_usize()] == 0 {
-                    continue;
-                }
                 let q = *sqy.get(&(sid, wy)).unwrap_or(&5);
                 update(q, sid);
             }
@@ -789,6 +777,20 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
 
     stowage.write_code()?;
     Ok(())
+}
+
+// SCImago quartile → journal quality weight. Lower quartile is better; no SCImago rank (5) scores 0
+// so repositories/aggregators/unranked venues never surface as top journals. The spread keeps
+// quality leading, while a substantial per-entity paper count (count^JOURNAL_COUNT_BETA in the
+// TopJournal sorter) can still lift a journal a tier when the body of work warrants it.
+fn journal_quality(best_q: u8) -> u32 {
+    match best_q {
+        1 => 27,
+        2 => 9,
+        3 => 3,
+        4 => 1,
+        _ => 0,
+    }
 }
 
 fn get_h_index_and_sort<T>(counts: &mut Vec<T>) -> u32
