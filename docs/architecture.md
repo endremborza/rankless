@@ -107,7 +107,7 @@ the server. Steps run in order via `mods_as_comms!` in `lib.rs`:
 | `src/steps/a1_entity_mapping.rs` | Parse CSVs; dedup + map entity IDs; year filtering; ledger drop-side skips                                                                                              |
 | `src/steps/a2_init_atts.rs`      | Init attributes (DOIs, ORCIDs, biblio, topics, locations); Levenshtein name dedup; Nobel category; ledger alias/merge application                                       |
 | `src/steps/derive_links1.rs`     | work→subfields, work→institutions, work→countries                                                                                                                       |
-| `src/steps/derive_links2.rs`     | work→sources; top source per work; per-subfield citation arrays                                                                                                         |
+| `src/steps/derive_links2.rs`     | work→sources; top source per work; per-source `journal_vals` (SCImago-quartile quality only, h-index-free); per-entity top-5 journal relation (quality × paper-count^β); per-subfield citation arrays |
 | `src/steps/derive_links3.rs`     | Coauthor networks; hit papers; page filter + semantic IDs; unified peer discovery via `PeerConfig`; topic creator/dominator tags (`topic_tags.rs`, see `topic-tags.md`) |
 | `src/steps/derive_links4.rs`     | Per-entity hit-paper sorted lists; author citing-hit sets; hit paper semantic IDs + peers                                                                               |
 | `src/steps/derive_links5.rs`     | Era records (yearly citations, top journals/authors/subfields) for hit papers                                                                                           |
