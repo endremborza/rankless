@@ -161,11 +161,6 @@
 		const maxW = Math.max(...weights);
 		return weights.map((e) => e / (maxW * 1.2) + 0.2);
 	}
-	function getFontSize(label: string, r: number) {
-		if (lastWord(label).length > 10) return 0.6 * r;
-		if (lastWord(label).length > 6) return 0.8 * r;
-		return r;
-	}
 	function paperHref(p: Paper): string | null {
 		return p.doi ? `https://doi.org/${p.doi}` : null;
 	}
@@ -278,6 +273,8 @@
 					{#each authors as a, i (i)}
 						{@const active = nodeActive(i, focus)}
 						{@const sel = selection?.kind === 'node' && selection.i === i}
+						{@const label = lastWord(a.name)}
+						{@const labelW = label.length * 7 + 8}
 						<g
 							class="node"
 							class:active={!!focus && active}
@@ -293,9 +290,15 @@
 							on:mouseleave={() => (hovered = null)}
 						>
 							<ellipse rx={r} ry={r} stroke-width={(nodeScales[i] || 1) * 1.8} />
-							<text text-anchor="middle" font-size={getFontSize(a.name, r)} y={r * 0.3}>
-								{lastWord(a.name)}</text
-							>
+							<rect
+								class="label-bg"
+								x={-labelW / 2}
+								y={r * 0.3 - 11}
+								width={labelW}
+								height={15}
+								rx={2}
+							/>
+							<text text-anchor="middle" font-size="12" y={r * 0.3}>{label}</text>
 						</g>
 					{/each}
 				</svg>
@@ -449,7 +452,7 @@
 		--accent-soft: rgba(var(--color-range-40), 0.28);
 		--node-fill: var(--text-bg-2, #eee);
 		--node-stroke: rgb(var(--color-range-20));
-		--edge-color: rgb(var(--color-range-40));
+		--edge-color: rgba(var(--color-range-40), 0.8);
 		--hair: rgba(var(--color-range-15), 0.12);
 		display: flex;
 		flex-direction: column;
@@ -532,20 +535,24 @@
 	}
 
 	.node ellipse {
-		fill: var(--node-fill);
-		fill-opacity: 0.92;
+		fill: var(--node-stroke);
+		fill-opacity: 0.32;
 		stroke: var(--node-stroke);
 		transition:
 			fill 0.15s ease,
 			stroke 0.15s ease;
 	}
 
+	.label-bg {
+		fill: var(--text-bg, #fff);
+		fill-opacity: 0.9;
+		filter: blur(3px);
+		pointer-events: none;
+	}
+
 	.node text {
 		fill: var(--color-text);
-		font-weight: 600;
-		paint-order: stroke;
-		stroke: var(--node-fill);
-		stroke-width: 3px;
+		font-weight: 100;
 		pointer-events: none;
 		user-select: none;
 	}
