@@ -6,8 +6,8 @@ use hashbrown::HashMap;
 use crate::{
     common::{
         init_empty_slice, EmptyAttributeEntity, HitWorkMarker, Top15AuthorMarker,
-        Top3AffCountryMarker, Top3CitingSfMarker, Top3PaperSfMarker, TopJournalMarker,
-        TopNPaperTopicMarker, YearlyCitationsMarker, YearlyPapersMarker, NET,
+        Top3AffCountryMarker, TopJournalMarker, TopNCitingSfMarker, TopNCitingTopicMarker,
+        TopNPaperSfMarker, TopNPaperTopicMarker, YearlyCitationsMarker, YearlyPapersMarker, NET,
     },
     env_consts::FINAL_YEAR,
     gen::{
@@ -39,7 +39,8 @@ mark_empty!(
     YearlyPapersMarker => EraRec,
     HitWorkMarker => Box<[ET<HitPapers>]>,
     Top3AffCountryMarker => Top3Rec<Countries>,
-    TopNPaperTopicMarker => Top8Rec<Topics>
+    TopNPaperTopicMarker => Top8Rec<Topics>,
+    TopNCitingTopicMarker => Top8Rec<Topics>
 );
 
 impl CiteDeriver {
@@ -48,8 +49,8 @@ impl CiteDeriver {
         let mut cy_eras = init_empty_slice::<HitPapers, EraRec>();
         let mut top5_journals = init_empty_slice::<HitPapers, Top5Rec<Sources>>();
         let mut top15_authors = init_empty_slice::<HitPapers, Top15Rec<Authors>>();
-        let mut top3_paper_sfs = init_empty_slice::<HitPapers, Top3Rec<Subfields>>();
-        let mut top3_citing_sfs = init_empty_slice::<HitPapers, Top3Rec<Subfields>>();
+        let mut top5_paper_sfs = init_empty_slice::<HitPapers, Top5Rec<Subfields>>();
+        let mut top5_citing_sfs = init_empty_slice::<HitPapers, Top5Rec<Subfields>>();
         self.stowage
             .get_entity_interface::<HitPapers, QuickestNumbered>()
             .0
@@ -82,8 +83,8 @@ impl CiteDeriver {
                 }
                 let mut sf_vec: Vec<(usize, u32)> = sf_counts.into_iter().collect();
                 sf_vec.sort_unstable_by(|a, b| b.1.cmp(&a.1));
-                for (k, (sfid, score)) in sf_vec.iter().take(3).enumerate() {
-                    top3_paper_sfs[hi][k] = (*score, NET::<Subfields>::from_usize(*sfid));
+                for (k, (sfid, score)) in sf_vec.iter().take(5).enumerate() {
+                    top5_paper_sfs[hi][k] = (*score, NET::<Subfields>::from_usize(*sfid));
                 }
 
                 let mut csf_counts: HashMap<usize, u32> = HashMap::new();
@@ -94,8 +95,8 @@ impl CiteDeriver {
                 }
                 let mut csf_vec: Vec<(usize, u32)> = csf_counts.into_iter().collect();
                 csf_vec.sort_unstable_by(|a, b| b.1.cmp(&a.1));
-                for (k, (sfid, score)) in csf_vec.iter().take(3).enumerate() {
-                    top3_citing_sfs[hi][k] = (*score, NET::<Subfields>::from_usize(*sfid));
+                for (k, (sfid, score)) in csf_vec.iter().take(5).enumerate() {
+                    top5_citing_sfs[hi][k] = (*score, NET::<Subfields>::from_usize(*sfid));
                 }
 
                 let coauthships = self.backends.w_aships.get(&wu).unwrap();
@@ -129,12 +130,12 @@ impl CiteDeriver {
             .ditf::<TopJournalMarker, HitPapers, _>(top5_journals.into_vec(), "top-journals");
         self.stowage
             .ditf::<Top15AuthorMarker, HitPapers, _>(top15_authors.into_vec(), "top-paper-authors");
-        self.stowage.ditf::<Top3PaperSfMarker, HitPapers, _>(
-            top3_paper_sfs.into_vec(),
+        self.stowage.ditf::<TopNPaperSfMarker, HitPapers, _>(
+            top5_paper_sfs.into_vec(),
             "top-paper-subfields",
         );
-        self.stowage.ditf::<Top3CitingSfMarker, HitPapers, _>(
-            top3_citing_sfs.into_vec(),
+        self.stowage.ditf::<TopNCitingSfMarker, HitPapers, _>(
+            top5_citing_sfs.into_vec(),
             "top-citing-subfields",
         );
     }
