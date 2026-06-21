@@ -261,6 +261,18 @@ def get_new_inst(vol_size: int, itype: str, img: str = ubuntu24_image_id, ext=Fa
     return inst
 
 
+def run_logged(cmd: list[str], label: str | None = None, verbose: bool = False) -> str:
+    print(f"[{dt.datetime.now():%Y-%m-%d %H:%M:%S}] {label or ' '.join(cmd)}")
+    try:
+        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
+    except subprocess.CalledProcessError as e:
+        print(f"  failed (exit {e.returncode}):\n{e.output}")
+        raise
+    if verbose:
+        print(out, end="")
+    return out
+
+
 class SSHrer:
     def __init__(self, host, user=None, key_path=None, reset=False, port=None):
         if reset:
@@ -282,31 +294,16 @@ class SSHrer:
         self.full_host = host if user is None else f"{user}@{host}"
         self.basis.append(self.full_host)
 
-    def run(self, comm):
-        try:
-            return subprocess.check_output(
-                [*self.basis, comm], stderr=subprocess.STDOUT, text=True
-            )
-        except subprocess.CalledProcessError as e:
-            print(f"{comm}\nexit code {e.returncode}:\n", e.output)
-            raise e
+    def run(self, comm, verbose=False):
+        return run_logged([*self.basis, comm], comm, verbose)
 
-    def prun(self, comm):
-        print("running", comm)
-        print(self.run(comm))
-
-    def rsync(self, src, target, excludes=[]):
+    def rsync(self, src, target, excludes=[], verbose=False):
         comm = self.rsync_basis + [f"--exclude={e}" for e in excludes] + [src]
         comm.append(f"{self.full_host}:{target}/")
-        return subprocess.check_output(comm).decode()
+        return run_logged(comm, verbose=verbose)
 
     def download(self, fpath):
-        return subprocess.check_output(
-            ["scp", *self.basis[1:-1], f"{self.full_host}:{fpath}", "./"]
-        )
-
-    def prsync(self, src, target, excludes=[]):
-        print(self.rsync(src, target, excludes=excludes))
+        return run_logged(["scp", *self.basis[1:-1], f"{self.full_host}:{fpath}", "./"])
 
 
 class ServiceMan:
@@ -333,23 +330,25 @@ class ServiceMan:
         self._run("disable")
 
     def daemon_reload(self):
-        self.ssh.prun("systemctl daemon-reload")
+        self.ssh.run("systemctl daemon-reload")
 
     def _run(self, comm):
-        self.ssh.prun(f"systemctl {comm} --user {self.name}")
+        self.ssh.run(f"systemctl {comm} --user {self.name}")
 
 
 class Transper:
     def __init__(self, sshc: SSHrer):
-        for _ in range(4):
+        self.ssh = sshc
+        for _ in range(12):
             try:
                 sshc.run("echo working")
+                self.inst_home = sshc.run("pwd").strip()
                 break
             except Exception as e:
                 print(e)
                 time.sleep(5)
-        self.ssh = sshc
-        self.inst_home = sshc.run("pwd").strip()
+        else:
+            raise RuntimeError(f"could not establish ssh to {sshc.full_host}")
         self.deploy_dir = self.inst_home + "/rankless-deploy"
         self.data_dir = self.inst_home + "/rankless-data"
         self.systemd_dir = f"{self.inst_home}/{SERIVCE_DIR}/"
@@ -365,29 +364,29 @@ class Transper:
         self.bun_exc = f"{self.inst_home}/.bun/bin/bun"
 
     def bun_run(self, comm):
-        self.ssh.prun(f"{self.bun_exc} {comm}")
+        self.ssh.run(f"{self.bun_exc} {comm}")
 
     def validate(self, backend=True):
         self.bun_run("--version")
         if backend:
-            self.ssh.prun("source .profile;cargo --version")
+            self.ssh.run("source .profile;cargo --version")
 
     def clean_caches(self):
-        self.ssh.prun(f"rm -rf {self.data_dir}/cache")
-        self.ssh.prun(f"sudo rm -rf {self.be_cache_dir}/*")
-        self.ssh.prun(f"sudo rm -rf {self.fe_cache_dir}/*")
+        self.ssh.run(f"rm -rf {self.data_dir}/cache")
+        self.ssh.run(f"sudo rm -rf {self.be_cache_dir}/*")
+        self.ssh.run(f"sudo rm -rf {self.fe_cache_dir}/*")
 
     def setup(self, backend=True):
-        self.ssh.prun("sudo apt update")
-        self.ssh.prun(
+        self.ssh.run("sudo apt update")
+        self.ssh.run(
             f"sudo DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt install {' '.join(APTS)} -y"
         )
         if backend:
-            self.ssh.prun(
+            self.ssh.run(
                 "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
             )
-        self.ssh.prun("sudo systemctl enable --now systemd-oomd")
-        self.ssh.prun("curl -fsSL https://bun.sh/install | bash")
+        self.ssh.run("sudo systemctl enable --now systemd-oomd")
+        self.ssh.run("curl -fsSL https://bun.sh/install | bash")
 
     def sync_txt(self, txt, name, dir):
         p = Path(name)
@@ -396,7 +395,7 @@ class Transper:
         if existed:
             past_blob = p.read_bytes()
         p.write_text(txt)
-        self.ssh.prsync(p.as_posix(), dir)
+        self.ssh.rsync(p.as_posix(), dir)
         p.unlink()
         if existed:
             p.write_bytes(past_blob)
@@ -575,18 +574,18 @@ server {{
         self._send_nginx_conf("", "default")
 
     def get_cert(self, domain):
-        self.ssh.prun(
+        self.ssh.run(
             f"sudo certbot --nginx --non-interactive --agree-tos --register-unsafely-without-email -d {domain}"
         )
         self.clean_cert_default()
 
     def pull_certs(self):
-        self.ssh.prun(f"sudo tar zpcvf {LOCAL_SSL_TAR} /etc/letsencrypt/")
+        self.ssh.run(f"sudo tar zpcvf {LOCAL_SSL_TAR} /etc/letsencrypt/")
         self.ssh.download(f"{self.inst_home}/{LOCAL_SSL_TAR}")
 
     def push_certs(self):
         self.ssh.rsync(LOCAL_SSL_TAR, self.inst_home)
-        self.ssh.prun(f"sudo tar zxvf {LOCAL_SSL_TAR} -C /")
+        self.ssh.run(f"sudo tar zxvf {LOCAL_SSL_TAR} -C /")
 
     def refresh_certs(self, *other_domains):
         for domain in [self.get_domain(), self.get_backend_domain(), *other_domains]:
@@ -646,8 +645,8 @@ upstream {BE_UPSTREAM} {{
             self.ssh.rsync(f"{local_data_root}/{subdir}", self.data_dir, ignores)
 
     def setup_code(self, branch=None):
-        self.ssh.prun(f"rm -rf {self.deploy_dir}")
-        self.ssh.prun(
+        self.ssh.run(f"rm -rf {self.deploy_dir}")
+        self.ssh.run(
             f"git clone https://github.com/endremborza/rankless {self.deploy_dir}"
         )
         if branch:
@@ -683,7 +682,7 @@ upstream {BE_UPSTREAM} {{
             pass
         self._add_upstreams_from_conf(stage_conf)
         self.reload_nginx()
-        self.ssh.prun(f"sudo rm -rf {self.fe_cache_dir}/*")
+        self.ssh.run(f"sudo rm -rf {self.fe_cache_dir}/*")
         for service in self._iter_conf_services(live_conf):
             service.stop()
 
@@ -695,7 +694,7 @@ upstream {BE_UPSTREAM} {{
             service.status()
 
     def reload_systemctl(self):
-        self.ssh.prun("sudo systemctl daemon-reload")
+        self.ssh.run("sudo systemctl daemon-reload")
 
     def get_backend_open_files_df(self):
         comm = f"cat /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/{be_service_name}/cgroup.procs"
@@ -747,7 +746,7 @@ upstream {BE_UPSTREAM} {{
         )
 
     def _depcomm(self, comm: str):
-        self.ssh.prun(f"cd {self.deploy_dir};source ~/.profile;{comm}")
+        self.ssh.run(f"cd {self.deploy_dir};source ~/.profile;{comm}")
 
     def _get_fe_service(self, conf: FrontendServiceConf, port):
         return ServiceMan(conf.template_fname().replace("@", f"@{port}"), self.ssh)
@@ -757,7 +756,7 @@ upstream {BE_UPSTREAM} {{
         for i in range(conf.n_procs):
             port = conf.start_port + i
             try:
-                self.ssh.prun(
+                self.ssh.run(
                     'curl -s -o /dev/null -w "%{http_code}" localhost:' + str(port)
                 )
             except Exception:
@@ -773,17 +772,17 @@ upstream {BE_UPSTREAM} {{
             yield self._get_fe_service(conf, conf.start_port + i)
 
     def _nginx_run(self, comms):
-        self.ssh.prun("sudo nginx -t")
+        self.ssh.run("sudo nginx -t")
         self.reload_systemctl()
         for comm in comms:
-            self.ssh.prun(f"sudo systemctl {comm} nginx")
+            self.ssh.run(f"sudo systemctl {comm} nginx")
 
     def _send_nginx_conf(self, conf_txt, slug):
-        self.ssh.prun(f"sudo rm -f {NGINX_AVDIR}/{slug} {NGINX_ENDIR}/{slug}")
+        self.ssh.run(f"sudo rm -f {NGINX_AVDIR}/{slug} {NGINX_ENDIR}/{slug}")
         if conf_txt:
             self.sync_txt(conf_txt, slug, self.inst_home)
-            self.ssh.prun(f"sudo mv {self.inst_home}/{slug} {NGINX_AVDIR}/")
-            self.ssh.prun(f"sudo ln -s {NGINX_AVDIR}/{slug} {NGINX_ENDIR}/")
+            self.ssh.run(f"sudo mv {self.inst_home}/{slug} {NGINX_AVDIR}/")
+            self.ssh.run(f"sudo ln -s {NGINX_AVDIR}/{slug} {NGINX_ENDIR}/")
 
 
 def pull_live_certs():
@@ -837,11 +836,18 @@ def new_large_alpha():
     return _new_alpha(LARGE_STORAGE_GB, LARGE_INSTANCE_TYPE, LARGE_FE_PROCS, True)
 
 
+def kill_dangling():
+    for inst in get_dangling_instances():
+        inst.terminate()
+
+
 def _new_alpha(storage, itype, fe_procn, backend):
     inst = get_new_inst(storage, itype)
     tpr = get_tpr(inst)
     full_setup_from_nothing(tpr, ALPHA_DOMAIN, fe_procn, backend=backend)
-    new_tpr = get_tpr(associate_id(inst, False))
+    associate_id(inst, False)
+    time.sleep(15)
+    new_tpr = get_tpr(inst)
     new_tpr.refresh_certs()
     new_tpr.restart_nginx()
     return new_tpr
@@ -935,7 +941,7 @@ def promote_alpha_to_live():
     tpr.setup_fe_services(LIVE_DOMAIN, procs=LARGE_FE_PROCS)
     tpr.update_env()
     tpr.update_fe()
-    tpr.ssh.prun(f"sudo rm -f {NGINX_ENDIR}/{ALPHA_DOMAIN}")
+    tpr.ssh.run(f"sudo rm -f {NGINX_ENDIR}/{ALPHA_DOMAIN}")
     tpr.setup_nginx(cert=False)
     tpr.add_domain_fw(FW_DOMAIN, cert=False)
     tpr.restart_nginx()

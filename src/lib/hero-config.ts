@@ -67,8 +67,7 @@ export const HERO_CONFIG: Record<tt.RootType, HeroSpec> = {
 		showStandingBadge: true,
 		leaders: [
 			{ label: 'Co-authors', relType: 'paper-authors', n: PEOPLE_LEADER_N },
-			{ label: 'Cited by', relType: 'citing-fields', n: 3 },
-			{ label: 'Journals', relType: 'paper-journals', withCount: true, n: 3 },
+			{ label: 'Journals', relType: 'paper-journals', withCount: true, n: 5 },
 			{ label: 'Partner nations', relType: 'collab-nation', n: 3 }
 		]
 	},
@@ -77,7 +76,7 @@ export const HERO_CONFIG: Record<tt.RootType, HeroSpec> = {
 		showStandingBadge: true,
 		leaders: [
 			{ label: 'Top scholars', relType: 'paper-authors', n: PEOPLE_LEADER_N },
-			{ label: 'Journals', relType: 'paper-journals', withCount: true, n: 3 },
+			{ label: 'Journals', relType: 'paper-journals', withCount: true, n: 5 },
 			{ label: 'Partner nations', relType: 'collab-nation', n: 3 }
 		]
 	},

@@ -5,7 +5,7 @@ use std::{
 
 use axum::{
     extract::{Path, Query},
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     response::{IntoResponse, Response},
     Json,
 };

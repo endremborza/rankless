@@ -19,6 +19,7 @@
 	const OPA_SF = 'opa';
 	const FILL_SF = 'fill';
 	const PW_SF = 'pw';
+	const SC_SF = 'sc';
 
 	let resp: tt.TreeResponse | undefined;
 	let countryLevels: tt.LevelT = {};
@@ -107,6 +108,7 @@
 			sLines.push(`${varNamer(c, OPA_SF)}: ${op / 100};`);
 			if (isHighlighted) {
 				sLines.push(`${varNamer(c, PW_SF)}: 4.5;`);
+				sLines.push(`${varNamer(c, SC_SF)}: rgb(var(--color-range-20));`);
 			}
 		}
 		[minw, maxw, breakPoints] = [locMinw || 0, locMaxw || 1, newBreakPoints];
@@ -198,7 +200,8 @@
 		let lines = [
 			`fill: var(${varNamer(cc, FILL_SF)}, none)`,
 			`fill-opacity: var(${varNamer(cc, OPA_SF)}, 0);`,
-			`stroke-width: var(${varNamer(cc, PW_SF)}, 1);`
+			`stroke-width: var(${varNamer(cc, PW_SF)}, 1);`,
+			`stroke: var(${varNamer(cc, SC_SF)}, var(--color-text));`
 		];
 		return lines.join(';');
 	}
