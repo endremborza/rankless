@@ -9,8 +9,9 @@ use rankless_rs::{
         reverse_id, BeS, CitRankLadderMarker, CitSubfieldsArrayMarker, HIndexMarker, HitWorkMarker,
         MainEntity, MainWorkMarker, MarkedBackendLoader, MmapBox, NumberedEntity, QuickAttPair,
         QuickMap, QuickestBox, QuickestVBox, Stowage, Top15AuthorMarker, Top3AffCountryMarker,
-        Top3CitingSfMarker, Top3PaperSfMarker, TopJournalMarker, TopNPaperTopicMarker, WorkLoader,
-        YearCentroidMarker, YearlyCitationsMarker, YearlyPapersMarker, NET,
+        TopJournalMarker, TopNCitingSfMarker, TopNCitingTopicMarker, TopNPaperSfMarker,
+        TopNPaperTopicMarker, WorkLoader, YearCentroidMarker, YearlyCitationsMarker,
+        YearlyPapersMarker, NET,
     },
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
@@ -80,7 +81,7 @@ pub struct PeerAux {
 // One representative root (any RootInterfaceable type) names each top-N record type: the record is
 // `[(score, target_id); N]`, identical across root types since it depends only on the target entity
 // and N, not the root. The frontend rebuilds the hero relations from these per request.
-type TopSfRec = ET<MAA<Subfields, Top3PaperSfMarker>>;
+type TopSfRec = ET<MAA<Subfields, TopNPaperSfMarker>>;
 type TopJournalRec = ET<MAA<Sources, TopJournalMarker>>;
 type TopAuthorRec = ET<MAA<Authors, Top15AuthorMarker>>;
 type TopCountryRec = ET<MAA<Countries, Top3AffCountryMarker>>;
@@ -90,7 +91,7 @@ pub type TopRelsMap = HashMap<&'static str, TopRels>;
 
 // Per-root-type top-N relation tables, memory-mapped (read once per entity view, never resident in
 // full). Replaces the eager `RootInterfaces` load + startup `prime_relations` materialization.
-// `aff_countries`/`paper_topic` are absent for hit papers (empty placeholders, no data file).
+// `aff_countries`/`paper_topic`/`citing_topic` are absent for hit papers (empty placeholders).
 pub struct TopRels {
     pub paper_sfc: MmapSlice<TopSfRec>,
     pub citing_sfc: MmapSlice<TopSfRec>,
@@ -98,6 +99,7 @@ pub struct TopRels {
     pub authors: MmapSlice<TopAuthorRec>,
     pub aff_countries: Option<MmapSlice<TopCountryRec>>,
     pub paper_topic: Option<MmapSlice<TopTopicRec>>,
+    pub citing_topic: Option<MmapSlice<TopTopicRec>>,
 }
 
 macro_rules! make_interfaces {
@@ -322,12 +324,13 @@ make_ent_interfaces!(
 macro_rules! core_top_rels {
     ($stow:expr, $E:ty) => {
         TopRels {
-            paper_sfc: $stow.get_marked_interface::<$E, Top3PaperSfMarker, MmapBox>(),
-            citing_sfc: $stow.get_marked_interface::<$E, Top3CitingSfMarker, MmapBox>(),
+            paper_sfc: $stow.get_marked_interface::<$E, TopNPaperSfMarker, MmapBox>(),
+            citing_sfc: $stow.get_marked_interface::<$E, TopNCitingSfMarker, MmapBox>(),
             journals: $stow.get_marked_interface::<$E, TopJournalMarker, MmapBox>(),
             authors: $stow.get_marked_interface::<$E, Top15AuthorMarker, MmapBox>(),
             aff_countries: None,
             paper_topic: None,
+            citing_topic: None,
         }
     };
 }
@@ -341,6 +344,8 @@ fn load_top_rels_map(stow: &Stowage) -> TopRelsMap {
             tr.aff_countries =
                 Some(stow.get_marked_interface::<$E, Top3AffCountryMarker, MmapBox>());
             tr.paper_topic = Some(stow.get_marked_interface::<$E, TopNPaperTopicMarker, MmapBox>());
+            tr.citing_topic =
+                Some(stow.get_marked_interface::<$E, TopNCitingTopicMarker, MmapBox>());
             tr
         }};
     }
