@@ -27,6 +27,9 @@ pub(crate) struct SearchResult {
     pub distinct_text: Option<String>,
     pub papers: u32,
     pub citations: u32,
+    // Total (unfiltered) OpenAlex citation count; carried only for authors, omitted otherwise.
+    #[serde(rename = "rawCites", skip_serializing_if = "Option::is_none")]
+    pub raw_cites: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -61,6 +64,8 @@ pub(crate) struct RelationGroups {
     pub citing_fields: Vec<PostAttRelatedEntity>,
     #[serde(rename = "paper-topics")]
     pub paper_topics: Vec<PostAttRelatedEntity>,
+    #[serde(rename = "citing-topics")]
+    pub citing_topics: Vec<PostAttRelatedEntity>,
     #[serde(rename = "collab-nation")]
     pub collab_nation: Vec<PostAttRelatedEntity>,
     #[serde(rename = "paper-journals")]
@@ -334,6 +339,7 @@ impl SearchResult {
         name: Arc<str>,
         semantic_id: Arc<str>,
         distinct_text: Option<String>,
+        raw_cites: Option<u32>,
         entif: &RootInterfaces<E>,
     ) -> Self
     where
@@ -350,6 +356,7 @@ impl SearchResult {
             distinct_text,
             papers,
             citations: entif.ccounts[i].to_usize() as u32,
+            raw_cites,
             oa_id: entif.oa_id[i],
             dm_id: i,
         }
