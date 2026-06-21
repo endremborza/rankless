@@ -3,7 +3,7 @@ export
 
 .PHONY: bootstrap dev build-nano-artifact test-dev-env py-build
 .PHONY: check format check-rs check-py check-js format-rs format-py format-js
-.PHONY: coverage
+.PHONY: coverage sanity-check
 
 PY_LINT_PATHS := pyscripts sql-yardstick
 
@@ -114,6 +114,10 @@ test-js:
 
 test: test-rs test-js
 	echo OK
+
+sanity-check:
+	bun run test -- tests/sanity-data.spec.ts
+	uv run -m pyscripts.sanity_check
 
 # Run the JS unit + e2e suites with coverage, then open both reports in Firefox.
 # Tests are allowed to fail (the e2e suite needs a populated backend) — the
