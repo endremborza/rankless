@@ -4,13 +4,13 @@
 	import { pluralize, formatNumber } from '$lib/text-format-util';
 	import {
 		HERO_CONFIG,
-		buildChips,
 		buildLeaderRows,
-		buildFieldTopicGroups,
-		buildFieldCards
+		buildImpactTiles,
+		buildProductionTiles
 	} from '$lib/hero-config';
 	import YearTicks from '$lib/components/YearTicks.svelte';
 	import IndexedCitationLink from '$lib/components/IndexedCitationLink.svelte';
+	import HeroFieldBlocks from '$lib/components/HeroFieldBlocks.svelte';
 
 	export let view: tt.View;
 	export let rootType: tt.RootType;
@@ -40,9 +40,18 @@
 	// Relations arrive already grouped by relation type, keyed by name (paper-topics, …).
 	$: grouped = view.relations;
 
-	$: chips = buildChips(cfg, peersData, ladder, grouped, rootType, MAX_CHIPS, HERO_MIN_TIER);
 	$: leaderRows = buildLeaderRows(grouped, cfg.leaders);
-	$: fieldCards = buildFieldCards(chips, buildFieldTopicGroups(grouped, MAX_TOPICS));
+	$: impactTiles = buildImpactTiles(
+		cfg,
+		peersData,
+		ladder,
+		grouped,
+		rootType,
+		MAX_CHIPS,
+		HERO_MIN_TIER,
+		MAX_TOPICS
+	);
+	$: productionTiles = buildProductionTiles(grouped, MAX_CHIPS, MAX_TOPICS);
 </script>
 
 <div class="hero">
@@ -79,34 +88,7 @@
 		</div>
 	</div>
 
-	{#if fieldCards.length > 0}
-		<ul class="chip-row">
-			{#each fieldCards as c (c.name)}
-				<li class="chip" style="--chip-c: var({c.colorVar});">
-					<div class="chip-head">
-						{#if c.href}
-							<a class="chip-name" href={c.href}>{c.name}</a>
-						{:else}
-							<span class="chip-name">{c.name}</span>
-						{/if}
-						{#if c.badge}
-							<span class="chip-badge" title={c.badgeTitle ?? ''}>{c.badge}</span>
-						{/if}
-					</div>
-					{#if c.topics.length > 0}
-						<ul class="chip-topics">
-							{#each c.topics as t (t.name)}
-								<li>
-									<span class="topic-name">{t.name}</span>
-									<span class="topic-count" title={pluralize('paper', t.count)}>{t.count}</span>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</li>
-			{/each}
-		</ul>
-	{/if}
+	<HeroFieldBlocks {impactTiles} {productionTiles} />
 
 	<div class="hero-body">
 		{#if leaderRows.length > 0}
@@ -198,86 +180,6 @@
 		font-size: var(--text-sm);
 		opacity: 0.8;
 		margin-top: 2px;
-	}
-
-	.chip-row {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-		gap: 10px;
-	}
-
-	/* Each chip is a field card: the field (+ standing badge) heads it, its top topics list below —
-	   the hierarchy lives inside the chip rather than in a separate, differently-styled block. */
-	.chip {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-		padding: 8px 12px;
-		background-color: rgba(var(--chip-c), 0.16);
-		border-bottom: 2px solid rgba(var(--chip-c), 0.55);
-	}
-
-	.chip-head {
-		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: 8px;
-	}
-
-	.chip-name {
-		font-size: var(--text-sm);
-		font-weight: 600;
-		color: var(--color-text);
-		min-width: 0;
-		overflow-wrap: anywhere;
-	}
-
-	a.chip-name:hover {
-		text-decoration: underline;
-	}
-
-	/* Inverse pill: text-bg on color-text guarantees strong contrast in both light and dark themes,
-	   independent of the chip's hue (which varies in luminance across the palette). */
-	.chip-badge {
-		flex-shrink: 0;
-		font-size: var(--text-xs);
-		font-weight: 700;
-		letter-spacing: 0.02em;
-		padding: 1px 7px;
-		white-space: nowrap;
-		color: var(--text-bg);
-		background: var(--color-text);
-	}
-
-	.chip-topics {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 1px;
-	}
-
-	.chip-topics li {
-		display: flex;
-		justify-content: space-between;
-		gap: 8px;
-		font-size: var(--text-xs);
-		opacity: 0.85;
-	}
-
-	.topic-name {
-		min-width: 0;
-		overflow-wrap: anywhere;
-	}
-
-	.topic-count {
-		flex-shrink: 0;
-		opacity: 0.55;
-		font-variant-numeric: tabular-nums;
 	}
 
 	.hero-body {
