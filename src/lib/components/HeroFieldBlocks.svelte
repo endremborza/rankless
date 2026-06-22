@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { fly } from 'svelte/transition';
+	import { quintOut } from 'svelte/easing';
 	import type { HeroTile } from '$lib/hero-config';
 	import { pluralize, formatNumber } from '$lib/text-format-util';
 
@@ -6,31 +8,44 @@
 	// Production side = paper-fields + paper-topics with papers-authored counts. Two color families.
 	export let impactTiles: HeroTile[] = [];
 	export let productionTiles: HeroTile[] = [];
-	// Tiles shown per block before the user expands — two each fills one row on a wide screen.
+	export let impactLabel = 'Impact in';
+	export let productionLabel = 'Papers in';
+	// Tiles shown per block before the user expands — two each fills the one row a block allows.
 	export let defaultVisible = 2;
+
+	// Cascade the revealed tiles in one after another instead of snapping the whole set into place.
+	const STAGGER = 45;
 
 	let expanded = false;
 
 	$: canExpand = impactTiles.length > defaultVisible || productionTiles.length > defaultVisible;
 	$: impactVisible = expanded ? impactTiles : impactTiles.slice(0, defaultVisible);
 	$: productionVisible = expanded ? productionTiles : productionTiles.slice(0, defaultVisible);
-
-	const blocks = [
-		{ key: 'impact', label: 'Impact in' },
-		{ key: 'production', label: 'Papers in' }
-	] as const;
+	$: blocks = [
+		{ key: 'impact', label: impactLabel, tiles: impactVisible },
+		{ key: 'production', label: productionLabel, tiles: productionVisible }
+	];
 </script>
 
 {#if impactTiles.length > 0 || productionTiles.length > 0}
 	<div class="field-blocks">
 		{#each blocks as b (b.key)}
-			{@const tiles = b.key === 'impact' ? impactVisible : productionVisible}
-			{#if tiles.length > 0}
+			{#if b.tiles.length > 0}
 				<section class="block">
 					<h3 class="block-label">{b.label}</h3>
 					<ul class="tiles">
-						{#each tiles as t, i (i)}
-							<li class="tile" style="--tile-c: var({t.colorVar});">
+						{#each b.tiles as t, i (i)}
+							<li
+								class="tile"
+								style="--tile-c: {t.tileColor};"
+								in:fly|local={{
+									y: 10,
+									duration: 260,
+									delay: Math.max(0, i - defaultVisible) * STAGGER,
+									easing: quintOut
+								}}
+								out:fly|local={{ y: 8, duration: 140, easing: quintOut }}
+							>
 								<div class="tile-head">
 									{#if t.href}
 										<a class="tile-name" href={t.href}>{t.name}</a>
@@ -66,7 +81,7 @@
 	</div>
 	{#if canExpand}
 		<button type="button" class="expand-btn" on:click={() => (expanded = !expanded)}>
-			{expanded ? 'show fewer fields' : 'show all fields'}
+			{expanded ? 'show fewer fields' : 'show more fields'}
 		</button>
 	{/if}
 {/if}
@@ -97,12 +112,13 @@
 		opacity: 0.55;
 	}
 
+	/* Two tiles per row within a block; the expand toggle stacks the rest in fresh rows beneath. */
 	.tiles {
 		list-style: none;
 		margin: 0;
 		padding: 0;
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 10px;
 		align-content: start;
 	}
@@ -209,6 +225,10 @@
 
 	@media (max-width: 640px) {
 		.field-blocks {
+			grid-template-columns: 1fr;
+		}
+
+		.tiles {
 			grid-template-columns: 1fr;
 		}
 	}
