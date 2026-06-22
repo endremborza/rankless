@@ -15,6 +15,7 @@ export type RelTypes =
 	| 'paper-fields'
 	| 'citing-fields'
 	| 'paper-topics'
+	| 'citing-topics'
 	| 'collab-nation'
 	| 'paper-journals'
 	| 'paper-authors';
@@ -122,6 +123,8 @@ export type SearchResult = {
 	rootType: RootType;
 	papers: number;
 	citations: number;
+	// Total (unfiltered) OpenAlex citations; present only for authors.
+	rawCites?: number;
 	distinctText?: string;
 	oaId?: number;
 	dmId?: number;
