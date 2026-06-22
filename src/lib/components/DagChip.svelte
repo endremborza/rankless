@@ -2,11 +2,11 @@
 	import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
 	import {
 		resolveSourceName,
-		getChipAuthors,
 		getPaperHighlights,
 		type PaperHighlight
 	} from '$lib/utils/paper-helpers';
 	import { createEventDispatcher } from 'svelte';
+	import AuthorList from './AuthorList.svelte';
 
 	export let paper: Paper | undefined;
 	export let wid: number;
@@ -93,7 +93,6 @@
 	{#if isExpanded && paper}
 		{@const source = resolveSourceName(paper.source, entityAtts)}
 		{@const sourceSemId = entityAtts.sources?.[String(paper.source)]?.semantic_id}
-		{@const authors = getChipAuthors(paper, entityAtts, discAuthorNames, 3)}
 		<div class="chip-details">
 			<span>{paper.citations} citations</span>
 			{#if source}
@@ -104,19 +103,9 @@
 					<span class="source-name">{source}</span>
 				{/if}
 			{/if}
-			{#if authors.length > 0}
+			{#if paper.authorships.length > 0}
 				<div class="chip-authors">
-					{#each authors as author, ai (ai)}
-						{#if ai > 0},&nbsp;{/if}
-						{#if author.url}
-							<a href={author.url}>{author.name}</a>
-						{:else}
-							{author.name}
-						{/if}
-					{/each}
-					{#if paper.authorships.length > authors.length}
-						&nbsp;et al.
-					{/if}
+					<AuthorList {paper} {entityAtts} {discAuthorNames} max={3} showInst />
 				</div>
 			{/if}
 		</div>

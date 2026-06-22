@@ -3,8 +3,9 @@
 	import { COMPLETE_YEAR } from '$lib/constants';
 	import type { Paper } from '$lib/tree-types';
 	import type { WorksLoader } from '$lib/utils/works-loader';
-	import { resolveSourceName, resolveLinkedAuthors, htmlToText } from '$lib/utils/paper-helpers';
+	import { resolveSourceName, htmlToText } from '$lib/utils/paper-helpers';
 	import { formatReference, type CitationStyle } from '$lib/utils/reference-format';
+	import AuthorList from './AuthorList.svelte';
 	import ExportControls from './ExportControls.svelte';
 
 	export let works: WorksLoader;
@@ -207,7 +208,6 @@
 							{@const mergeCount = mergedKeepCounts.get(paper.wid) ?? 0}
 							{@const isSelected = selectedWids.has(paper.wid)}
 							{@const isRep = repWid === paper.wid && selectedWids.size >= 2}
-							{@const authors = resolveLinkedAuthors(paper, entityAtts, discAuthorNames)}
 							{@const journal = resolveSourceName(paper.source, entityAtts)}
 							<tr class:selected-row={isSelected} class:rep-row={isRep}>
 								<td class="col-num">{idx + 1}</td>
@@ -221,14 +221,8 @@
 									</div>
 									<div class="paper-byline">
 										{#if journal}<em class="byline-journal">{journal}</em>{/if}
-										{#if authors.length}{#if journal}<span class="byline-sep">·</span
-												>{/if}{#each authors as a, i (i)}{#if a.url}<a
-														class="author-link"
-														href={a.url}>{a.name}</a
-													>{:else}<span class="author-plain">{a.name}</span
-													>{/if}{#if i < authors.length - 1}<span class="comma"
-														>,
-													</span>{/if}{/each}{/if}
+										{#if paper.authorships.length}{#if journal}<span class="byline-sep">·</span
+												>{/if}<AuthorList {paper} {entityAtts} {discAuthorNames} />{/if}
 									</div>
 									{#if paper.hitSemId}<a href="/hit-papers/{paper.hitSemId}" class="hit-breakdown"
 											>Hit paper breakdown →</a
@@ -504,22 +498,6 @@
 
 	.byline-journal {
 		font-style: italic;
-	}
-
-	.author-link {
-		color: inherit;
-		text-decoration: none;
-		white-space: nowrap;
-		border-bottom: 1px dotted rgba(var(--color-range-15), 0.45);
-	}
-
-	.author-link:hover {
-		border-bottom-style: solid;
-	}
-
-	.author-plain {
-		white-space: nowrap;
-		opacity: 0.85;
 	}
 
 	.col-year {

@@ -4,13 +4,8 @@
 	import { formatNumber } from '$lib/text-format-util';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
-	import {
-		formatShortAuthors,
-		overperf,
-		resolveAllAuthorNames,
-		resolveSourceName,
-		htmlToText
-	} from '$lib/utils/paper-helpers';
+	import { overperf, resolveSourceName, htmlToText } from '$lib/utils/paper-helpers';
+	import AuthorList from './AuthorList.svelte';
 	import HitPaperBreakdown from './HitPaperBreakdown.svelte';
 	import HitPaperExplainer from './HitPaperExplainer.svelte';
 	import { onMount } from 'svelte';
@@ -472,7 +467,6 @@
 		<ol id="paper-list" bind:this={listContainer}>
 			{#each chartPapers as paper, i (i)}
 				{@const source = resolveSourceName(paper.source, entityAtts)}
-				{@const authors = formatShortAuthors(paper, entityAtts, discAuthorNames)}
 				{@const expanded = expandedSet.has(i)}
 				<li
 					style={getLiStyle(i, visInds ?? [], highlighted, rates[i])}
@@ -515,7 +509,9 @@
 								</div>
 								<div class="paper-meta">
 									<span class="paper-cites">{formatNumber(paper.citations)} citations</span>
-									{#if authors}<span class="paper-authors">{authors}</span>{/if}
+									{#if paper.authorships.length}<span class="paper-authors"
+											><AuthorList {paper} {entityAtts} {discAuthorNames} max={2} /></span
+										>{/if}
 									{#if paper.createdTopic}
 										<span class="paper-created-topic" title="Earliest impactful paper of this topic"
 											>★ originated {@html paper.createdTopic}</span
@@ -533,11 +529,7 @@
 									{#if paper.authorships.length > 2}
 										<div class="detail-row">
 											<span class="detail-label">Authors:</span>
-											<span
-												>{resolveAllAuthorNames(paper, entityAtts, discAuthorNames).join(
-													', '
-												)}</span
-											>
+											<span><AuthorList {paper} {entityAtts} {discAuthorNames} showInst /></span>
 										</div>
 									{/if}
 									{#if paper.biblio}

@@ -113,87 +113,49 @@ export function overperf(paper: Paper): number {
 	return paper.citations / paper.hitBm;
 }
 
-export function formatShortAuthors(
-	paper: Paper,
-	entityAtts: EntityAttsForLinks,
-	discAuthorNames: Record<string, string>
-): string {
-	if (!paper.authorships?.length) return '';
-	const total = paper.authorships.length;
-	const known: string[] = [];
-	for (const s of paper.authorships) {
-		if (known.length >= 2) break;
-		const name = resolveAuthorNameOrNull(s, entityAtts, discAuthorNames);
-		if (name !== null) known.push(name);
-	}
-	if (known.length === 0) return `${total} author${total > 1 ? 's' : ''}`;
-	return known.join(', ') + (total > known.length ? ' et al.' : '');
-}
-
-export function resolveAllAuthorNames(
-	paper: Paper,
-	entityAtts: EntityAttsForLinks,
-	discAuthorNames: Record<string, string>
-): string[] {
-	return paper.authorships.map(
-		(s) => resolveAuthorNameOrNull(s, entityAtts, discAuthorNames) ?? '(unknown)'
-	);
-}
-
-export type LinkedAuthor = { name: string; url?: string };
-
-export function resolveLinkedAuthors(
-	paper: Paper,
-	entityAtts: EntityAttsForLinks,
-	discAuthorNames: Record<string, string>
-): LinkedAuthor[] {
-	return paper.authorships.map((ship) => {
-		const name = resolveAuthorNameOrNull(ship, entityAtts, discAuthorNames) ?? '(unknown)';
-		if (ship.author[0] === 'F') {
-			const semId = entityAtts.authors?.[ship.author.slice(1)]?.semantic_id;
-			if (semId) return { name, url: `/authors/${semId}` };
-		}
-		return { name };
-	});
-}
-
-export function buildPaperMap(papers: Paper[]): Record<number, Paper> {
-	const map: Record<number, Paper> = {};
-	for (const p of papers) map[p.wid] = p;
-	return map;
-}
-
-export type ChipAuthor = {
+export type Author = {
 	name: string;
 	url?: string;
 	inst?: string;
 	instUrl?: string;
 };
 
-export function getChipAuthors(
+// Single resolver behind the shared <AuthorList>: maps a paper's authorships to display rows with
+// optional profile + institution links. `skipUnknown` drops co-authors whose display name is
+// missing (for compact, capped lists); full bibliographic lists keep them as "(unknown)".
+export function resolveAuthors(
 	paper: Paper,
 	entityAtts: EntityAttsForLinks,
 	discAuthorNames: Record<string, string>,
-	maxN = 3
-): ChipAuthor[] {
-	const result: ChipAuthor[] = [];
+	skipUnknown = false
+): Author[] {
+	const out: Author[] = [];
 	for (const ship of paper.authorships) {
-		if (result.length >= maxN) break;
 		const name = resolveAuthorNameOrNull(ship, entityAtts, discAuthorNames);
-		if (name === null) continue;
-		const chipAuthor: ChipAuthor = { name };
+		if (name === null && skipUnknown) continue;
+		const author: Author = { name: name ?? '(unknown)' };
 		if (ship.author[0] === 'F') {
-			const att = entityAtts.authors?.[ship.author.slice(1)];
-			if (att?.semantic_id) chipAuthor.url = `/authors/${att.semantic_id}`;
+			const semId = entityAtts.authors?.[ship.author.slice(1)]?.semantic_id;
+			if (semId) author.url = `/authors/${semId}`;
 		}
-		if (ship.insts[0] != null) {
-			chipAuthor.inst = resolveInstName(ship.insts[0], entityAtts);
-			const instAtt = entityAtts.institutions?.[String(ship.insts[0])];
-			if (instAtt?.semantic_id) chipAuthor.instUrl = `/institutions/${instAtt.semantic_id}`;
+		const instId = ship.insts[0];
+		if (instId != null) {
+			const inst = resolveInstName(instId, entityAtts);
+			if (inst) {
+				author.inst = inst;
+				const instSemId = entityAtts.institutions?.[String(instId)]?.semantic_id;
+				if (instSemId) author.instUrl = `/institutions/${instSemId}`;
+			}
 		}
-		result.push(chipAuthor);
+		out.push(author);
 	}
-	return result;
+	return out;
+}
+
+export function buildPaperMap(papers: Paper[]): Record<number, Paper> {
+	const map: Record<number, Paper> = {};
+	for (const p of papers) map[p.wid] = p;
+	return map;
 }
 
 export function isAuthored(
