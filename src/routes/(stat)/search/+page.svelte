@@ -23,7 +23,7 @@
 		<button type="submit">Search</button>
 	</form>
 	{#if q}
-		<SearchResults searchTerm={q} cat="all" overlay={false} />
+		<SearchResults searchTerm={q} cat="all" overlay={false} listboxId="search-page-list" />
 	{:else}
 		<p class="search-hint">
 			Type a query above to search across authors, institutions, journals, countries and research
