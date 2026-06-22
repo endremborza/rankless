@@ -187,6 +187,11 @@ fn build_relations(
         .as_ref()
         .map(|m| resolve_group(m.row(dm_id), Topics::NAME, satts, nstates, gets))
         .unwrap_or_default();
+    let citing_topics = tr
+        .citing_topic
+        .as_ref()
+        .map(|m| resolve_group(m.row(dm_id), Topics::NAME, satts, nstates, gets))
+        .unwrap_or_default();
     let relations = RelationGroups {
         paper_fields: resolve_group(
             tr.paper_sfc.row(dm_id),
@@ -206,6 +211,7 @@ fn build_relations(
         paper_authors: resolve_group(tr.authors.row(dm_id), Authors::NAME, satts, nstates, gets),
         collab_nation,
         paper_topics,
+        citing_topics,
     };
     let author_network = build_author_network(tr.authors.row(dm_id), gets);
     (relations, author_network)
@@ -365,6 +371,7 @@ impl NameState {
         E: RootInterfaceable + IsTop + DistinctionText,
     {
         let dist_txt = <E as DistinctionText>::get_distinction_text_arr(entif, gets);
+        let raw_cites = <E as DistinctionText>::get_raw_cites_arr(entif, gets);
         let ext_txt = &entif.name_exts.0;
         let mut pairs: Vec<(SearchResult, String)> = names_arc
             .iter()
@@ -375,7 +382,9 @@ impl NameState {
             .map(|(i, ((name, semantic_id), dist_txt))| {
                 let ext = ext_txt.get(i).map(|s| s.as_str()).unwrap_or("");
                 let full_name = dedup_search_text(name, ext);
-                let sr = SearchResult::new(i, name.clone(), semantic_id.clone(), dist_txt, entif);
+                let raw_c = raw_cites.get(i).copied().flatten();
+                let sr =
+                    SearchResult::new(i, name.clone(), semantic_id.clone(), dist_txt, raw_c, entif);
                 (sr, full_name)
             })
             .collect();

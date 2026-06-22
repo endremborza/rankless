@@ -1,4 +1,4 @@
-use dmove::Entity;
+use dmove::{Entity, UnsignedNumber};
 use rankless_rs::{
     common::init_empty_slice,
     gen::a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields},
@@ -16,13 +16,26 @@ pub trait DistinctionText: RootInterfaceable + Sized {
     ) -> Box<[Option<String>]> {
         init_empty_slice::<Self, _>()
     }
+
+    // Total (unfiltered OpenAlex) citation count per entity for the search subtitle. Only authors
+    // carry a value; every other type returns all-None, so the field drops from their payload.
+    fn get_raw_cites_arr(_rif: &RootInterfaces<Self>, _gets: &Getters) -> Box<[Option<u32>]> {
+        init_empty_slice::<Self, _>()
+    }
 }
 
 impl DistinctionText for Countries {}
 impl DistinctionText for Subfields {}
 impl DistinctionText for Sources {}
-impl DistinctionText for Authors {}
 impl DistinctionText for HitPapers {}
+
+impl DistinctionText for Authors {
+    fn get_raw_cites_arr(_rif: &RootInterfaces<Self>, gets: &Getters) -> Box<[Option<u32>]> {
+        (0..(Self::N + 1))
+            .map(|aid| Some(gets.raw_cites(&aid).to_usize() as u32))
+            .collect()
+    }
+}
 
 impl DistinctionText for Institutions {
     fn get_distinction_text_arr(
