@@ -27,6 +27,32 @@ export function sfColorVar(displayIdx: number): string {
 	return SUBFIELD_COLOR_VARS[displayIdx % SUBFIELD_COLOR_VARS.length];
 }
 
+// Two non-overlapping halves of the --color-range ramp, so the hero's impact and production blocks
+// read as distinct color families: impact takes the cool end (cyan→magenta), production the warm
+// end (magenta→yellow). Index in by tile order; later tiles step further along each half.
+export const IMPACT_COLOR_VARS: readonly string[] = [
+	'--color-range-15',
+	'--color-range-25',
+	'--color-range-35',
+	'--color-range-45',
+	'--color-range-50'
+];
+export const PRODUCTION_COLOR_VARS: readonly string[] = [
+	'--color-range-90',
+	'--color-range-80',
+	'--color-range-70',
+	'--color-range-65',
+	'--color-range-60'
+];
+
+export function impactColorVar(displayIdx: number): string {
+	return IMPACT_COLOR_VARS[displayIdx % IMPACT_COLOR_VARS.length];
+}
+
+export function productionColorVar(displayIdx: number): string {
+	return PRODUCTION_COLOR_VARS[displayIdx % PRODUCTION_COLOR_VARS.length];
+}
+
 // Cohort noun per root entity type, for framing standings ("top 5% of <noun> ...").
 const COHORT_NOUN: Record<string, string> = {
 	authors: 'authors',

@@ -3,7 +3,8 @@ import { ROOT_TYPES } from '$lib/constants';
 import { entToLink } from '$lib/tree-functions';
 import { pluralize } from '$lib/text-format-util';
 import {
-	sfColorVar,
+	impactColorVar,
+	productionColorVar,
 	tierLabels,
 	citStandingTier,
 	standingLabel,
@@ -38,21 +39,24 @@ export type HeroSpec = {
 	leaders: LeaderSpec[];
 };
 
-export type Chip = {
+export type LeaderItem = { text: string; href: string | null };
+export type LeaderRow = { label: string; items: LeaderItem[] };
+// A topic inside a tile. `count` is shown inline (production = papers authored); impact leaves it
+// null and relies on `hover` ("X citations" / "X papers authored") for the on-hover figure.
+export type HeroTopic = { name: string; count: number | null; hover: string };
+// One subfield tile heading its top topics — the explicit topic↔field hierarchy. The impact side
+// fills `badge` ("top X%" standing); the production side fills `count` (papers authored). A tile
+// shows only the one its block uses.
+export type HeroTile = {
 	name: string;
 	href: string | null;
 	colorVar: string;
 	badge: string | null;
 	badgeTitle: string | null;
+	count: number | null;
+	topics: HeroTopic[];
 };
-export type LeaderItem = { text: string; href: string | null };
-export type LeaderRow = { label: string; items: LeaderItem[] };
-export type TopicItem = { name: string; count: number };
-// One field ("subfield" in code) heading its top topics — the explicit topic↔field hierarchy.
-// `semanticId` (may be empty) is the field's page id, used when this group becomes its own chip.
-export type FieldTopicGroup = { field: string; semanticId: string; topics: TopicItem[] };
-// A field chip that also carries its top topics, so the hierarchy lives inside the chip.
-export type FieldCard = Chip & { topics: TopicItem[] };
+type TopicScore = { name: string; score: number };
 
 // Co-author / top-scholar rows share one list size: generous enough to read as a community of
 // contributors rather than an elite few. The server precomputes up to 25 paper-authors per entity.
@@ -143,71 +147,79 @@ export function buildLeaderRows(
 	return rows;
 }
 
-// Top topics grouped by their parent field (subfield), keyed by field name so they can be matched
-// to the field chips. Every topic rolls up to one field, so this is the explicit hierarchy.
-export function buildFieldTopicGroups(
-	grouped: Partial<Record<tt.RelTypes, tt.RelatedEntity[]>>,
+// Top topics grouped by parent field name, so each tile can pull the topics that roll up to it.
+// `maxTopics` caps the total distinct topics across all fields (the backend returns them ordered by
+// score). Dedupes by topic name — OpenAlex occasionally repeats one across the relation list.
+function groupTopicsByField(
+	rels: tt.RelatedEntity[] | undefined,
 	maxTopics: number
-): FieldTopicGroup[] {
-	const order: string[] = [];
-	const byField = new Map<string, FieldTopicGroup>();
+): Map<string, TopicScore[]> {
+	const byField = new Map<string, TopicScore[]>();
 	const seen = new Set<string>();
-	for (const t of grouped['paper-topics'] ?? []) {
+	for (const t of rels ?? []) {
 		const field = t.parentName ?? '';
 		if (!field || seen.has(t.name)) continue;
 		seen.add(t.name);
-		let group = byField.get(field);
-		if (!group) {
-			group = { field, semanticId: t.parentSemanticId ?? '', topics: [] };
-			byField.set(field, group);
-			order.push(field);
+		let arr = byField.get(field);
+		if (!arr) {
+			arr = [];
+			byField.set(field, arr);
 		}
-		group.topics.push({ name: t.name, count: t.score });
+		arr.push({ name: t.name, score: t.score });
 		if (seen.size >= maxTopics) break;
 	}
-	return order.map((k) => byField.get(k)!);
+	return byField;
 }
 
-// Merge the top topics into their field chip (matched by field name), then append any field that
-// parents a top topic but didn't make the chip cutoff (no standing badge) so no topic is orphaned.
-export function buildFieldCards(chips: Chip[], groups: FieldTopicGroup[]): FieldCard[] {
-	const byField = new Map(groups.map((g) => [g.field, g]));
-	const cards: FieldCard[] = chips.map((c) => ({
-		...c,
-		topics: byField.get(c.name)?.topics ?? []
-	}));
-	const inChips = new Set(chips.map((c) => c.name));
-	let i = chips.length;
-	for (const g of groups) {
-		if (inChips.has(g.field)) continue;
-		cards.push({
-			name: g.field,
-			href: g.semanticId ? entToLink({ rootType: 'subfields', semanticId: g.semanticId }) : null,
-			colorVar: sfColorVar(i++),
+// Production tiles: the entity's top subfields by papers authored, each heading its top topics (also
+// by papers). The count shows inline; the hover spells out "X papers authored".
+export function buildProductionTiles(
+	grouped: Partial<Record<tt.RelTypes, tt.RelatedEntity[]>>,
+	maxChips: number,
+	maxTopics: number
+): HeroTile[] {
+	const topicsByField = groupTopicsByField(grouped['paper-topics'], maxTopics);
+	return (grouped['paper-fields'] ?? []).slice(0, maxChips).map(
+		(r, i): HeroTile => ({
+			name: r.name,
+			href: rootHref(r.etype, r.semanticId),
+			colorVar: productionColorVar(i),
 			badge: null,
 			badgeTitle: null,
-			topics: g.topics
-		});
-	}
-	return cards;
+			count: r.score,
+			topics: (topicsByField.get(r.name) ?? []).map((t) => ({
+				name: t.name,
+				count: t.score,
+				hover: `${pluralize('paper', t.score)} authored`
+			}))
+		})
+	);
 }
 
-// Specialization chips: when peer data is present they carry the per-subfield standing badge
-// (aligned with the Peers section by color + order); otherwise fall back to the raw paper-fields
-// relations with no standing (no ladder for this root type). `minTier` suppresses the loosest
-// bands so only showcase-worthy standings reach the header.
-export function buildChips(
+// Impact tiles: the entity's specialization subfields with the per-subfield "top X%" standing badge
+// (aligned with the Peers section by order; `minTier` suppresses the loosest bands), each heading
+// the topics whose citing works roll up to it. Topics carry no inline number — the hover gives "X
+// citations". Without peer data (no ladder for this root type) it falls back to citing-fields counts.
+export function buildImpactTiles(
 	cfg: HeroSpec,
 	peersData: tt.EntityPeersResp | null,
 	ladder: tt.LadderData | null,
 	grouped: Partial<Record<tt.RelTypes, tt.RelatedEntity[]>>,
 	rootType: tt.RootType,
 	maxChips: number,
-	minTier: number
-): Chip[] {
+	minTier: number,
+	maxTopics: number
+): HeroTile[] {
+	const topicsByField = groupTopicsByField(grouped['citing-topics'], maxTopics);
+	const topicsFor = (field: string): HeroTopic[] =>
+		(topicsByField.get(field) ?? []).map((t) => ({
+			name: t.name,
+			count: null,
+			hover: pluralize('citation', t.score)
+		}));
 	if (peersData) {
 		const labels = ladder ? tierLabels(ladder.pctBands) : [];
-		return peersData.topSubfields.slice(0, maxChips).map((sf, i): Chip => {
+		return peersData.topSubfields.slice(0, maxChips).map((sf, i): HeroTile => {
 			const tier =
 				cfg.showStandingBadge && ladder
 					? citStandingTier(ladder.ladder[sf.dmId] ?? [], peersData.hero.subfieldCitations[i] ?? 0)
@@ -216,19 +228,23 @@ export function buildChips(
 			return {
 				name: sf.name,
 				href: entToLink({ rootType: 'subfields', semanticId: sf.semanticId }),
-				colorVar: sfColorVar(i),
+				colorVar: impactColorVar(i),
 				badge: show ? standingLabel(tier, labels) : null,
-				badgeTitle: show ? standingPhrase(tier, labels, rootType, sf.name) : null
+				badgeTitle: show ? standingPhrase(tier, labels, rootType, sf.name) : null,
+				count: null,
+				topics: topicsFor(sf.name)
 			};
 		});
 	}
-	return (grouped['paper-fields'] ?? []).slice(0, maxChips).map(
-		(r, i): Chip => ({
+	return (grouped['citing-fields'] ?? []).slice(0, maxChips).map(
+		(r, i): HeroTile => ({
 			name: r.name,
 			href: rootHref(r.etype, r.semanticId),
-			colorVar: sfColorVar(i),
+			colorVar: impactColorVar(i),
 			badge: null,
-			badgeTitle: null
+			badgeTitle: null,
+			count: r.score,
+			topics: topicsFor(r.name)
 		})
 	);
 }
