@@ -1,4 +1,4 @@
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
@@ -22,12 +22,13 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 		'',
 		fetch
 	);
-	const view: tt.View = await fetch(tf.viewBeUrl(BE_URL, conf))
-		.then((res) => res.json())
-		.then((view) => view)
-		.catch(() => error(404, 'Not found'));
-	if (view == undefined) {
-		error(404, 'Not found');
+	const view: tt.View | undefined = await fetch(tf.viewBeUrl(BE_URL, conf))
+		.then((res) => (res.ok ? res.json() : undefined))
+		.catch(() => undefined);
+	// An unresolved entity (renamed/mistyped slug) sends the visitor to search rather than a dead
+	// 404 — the slug usually reads as the query (e.g. "geoffrey-e-hinton" → "geoffrey e hinton").
+	if (view == undefined || view.name == undefined) {
+		redirect(307, `/search?q=${encodeURIComponent(semanticId.replace(/-/g, ' '))}`);
 	}
 
 	const treeResp: tt.TreeResponse = await fetch(tf.treeBeUrl(BE_URL, conf, 1))
