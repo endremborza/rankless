@@ -3,7 +3,7 @@
 	import { COMPLETE_YEAR } from '$lib/constants';
 	import type { Paper } from '$lib/tree-types';
 	import type { WorksLoader } from '$lib/utils/works-loader';
-	import { resolveSourceName, resolveLinkedAuthors } from '$lib/utils/paper-helpers';
+	import { resolveSourceName, resolveLinkedAuthors, htmlToText } from '$lib/utils/paper-helpers';
 	import { formatReference, type CitationStyle } from '$lib/utils/reference-format';
 	import ExportControls from './ExportControls.svelte';
 
@@ -38,9 +38,9 @@
 	let topN = 0;
 	let citationStyle: CitationStyle = 'html';
 
-	// Merge UI state
-	let mergingWid: number | null = null;
-	let mergeConfirm: { keep: number; drop: number } | null = null;
+	// Merge UI state — multi-select papers, pick the representative to keep, merge the rest into it.
+	let selectedWids: Set<number> = new Set();
+	let repWid: number | null = null;
 
 	async function loadMore() {
 		await works.loadMore();
@@ -94,42 +94,46 @@
 		}
 	}
 
-	function startMerge(wid: number) {
-		mergingWid = wid;
-		mergeConfirm = null;
-	}
-
-	function cancelMerge() {
-		mergingWid = null;
-		mergeConfirm = null;
-	}
-
-	function selectMergeTarget(target: Paper) {
-		if (mergingWid === null) return;
-		const source = papers.find((p) => p.wid === mergingWid)!;
-		const keep = source.citations >= target.citations ? source.wid : target.wid;
-		const drop = keep === source.wid ? target.wid : source.wid;
-		mergeConfirm = { keep, drop };
-		mergingWid = null;
-	}
-
-	function swapMergeKeepDrop() {
-		if (!mergeConfirm) return;
-		mergeConfirm = { keep: mergeConfirm.drop, drop: mergeConfirm.keep };
-	}
-
-	function confirmMerge() {
-		if (!mergeConfirm) return;
-		dispatch('merge', mergeConfirm);
-		mergeConfirm = null;
-	}
-
-	$: mergeConfirmPapers = mergeConfirm
-		? {
-				keep: papers.find((p) => p.wid === mergeConfirm!.keep),
-				drop: papers.find((p) => p.wid === mergeConfirm!.drop)
+	function pickDefaultRep(sel: Set<number>): number | null {
+		// Default the kept paper to the most-cited in the selection — usually the canonical version.
+		let best: number | null = null;
+		let bestCites = -1;
+		for (const wid of sel) {
+			const p = papers.find((q) => q.wid === wid);
+			if (p && p.citations > bestCites) {
+				bestCites = p.citations;
+				best = wid;
 			}
-		: null;
+		}
+		return best;
+	}
+
+	function toggleSelect(wid: number) {
+		const next = new Set(selectedWids);
+		if (next.has(wid)) next.delete(wid);
+		else next.add(wid);
+		selectedWids = next;
+		if (repWid === null || !next.has(repWid)) repWid = pickDefaultRep(next);
+	}
+
+	function clearSelection() {
+		selectedWids = new Set();
+		repWid = null;
+	}
+
+	function confirmMultiMerge() {
+		// One merge event per non-representative paper; the parent appends each pair synchronously
+		// before its await, so a batch of dispatches accumulates correctly.
+		if (repWid === null || selectedWids.size < 2) return;
+		for (const wid of selectedWids) {
+			if (wid !== repWid) dispatch('merge', { keep: repWid, drop: wid });
+		}
+		clearSelection();
+	}
+
+	$: selectedPapers = [...selectedWids]
+		.map((wid) => papers.find((p) => p.wid === wid))
+		.filter((p): p is Paper => p != null);
 
 	$: showOwnerActions = isOwner && ownerUnlocked && citationStyle === 'html';
 	$: showChangesSections = isOwner ? ownerUnlocked : true;
@@ -163,46 +167,6 @@
 			</button>
 		{/if}
 
-		{#if mergingWid !== null}
-			{@const sourcePaper = papers.find((p) => p.wid === mergingWid)}
-			<div class="merge-mode-bar">
-				<span
-					>Merging: <em>{sourcePaper?.name ?? mergingWid}</em> — click another paper to select target</span
-				>
-				<button class="btn-sm" on:click={cancelMerge}>Cancel</button>
-			</div>
-		{/if}
-
-		{#if mergeConfirm && mergeConfirmPapers?.keep && mergeConfirmPapers?.drop}
-			<div class="merge-confirm-bar">
-				<div class="merge-confirm-papers">
-					<div class="merge-paper">
-						<span class="merge-label kept">Keep</span>
-						<span class="merge-title">{mergeConfirmPapers.keep.name}</span>
-						<span class="merge-meta"
-							>{mergeConfirmPapers.keep.citations} cites · {mergeConfirmPapers.keep.year}</span
-						>
-					</div>
-					<button class="btn-sm icon" on:click={swapMergeKeepDrop} title="Swap keep/drop">⇄</button>
-					<div class="merge-paper">
-						<span class="merge-label dropped">Drop</span>
-						<span class="merge-title">{mergeConfirmPapers.drop.name}</span>
-						<span class="merge-meta"
-							>{mergeConfirmPapers.drop.citations} cites · {mergeConfirmPapers.drop.year}</span
-						>
-					</div>
-				</div>
-				<p class="hint-text">
-					The dropped paper will be hidden from your list. This change is local only — contact us to
-					apply it to all figures.
-				</p>
-				<div class="merge-confirm-actions">
-					<button class="btn-sm confirm" on:click={confirmMerge}>Confirm merge</button>
-					<button class="btn-sm" on:click={cancelMerge}>Cancel</button>
-				</div>
-			</div>
-		{/if}
-
 		{#if citationStyle === 'html'}
 			<div class="works-scroll">
 				<table class="works-table">
@@ -232,16 +196,20 @@
 										>{/if}
 								</button>
 							</th>
-							{#if showOwnerActions}<th class="col-actions" aria-label="Actions"></th>{/if}
+							{#if showOwnerActions}<th class="col-select">Merge</th><th
+									class="col-actions"
+									aria-label="Actions"
+								></th>{/if}
 						</tr>
 					</thead>
 					<tbody>
 						{#each displayPapers as paper, idx (paper.wid)}
 							{@const mergeCount = mergedKeepCounts.get(paper.wid) ?? 0}
-							{@const isMergingSource = mergingWid === paper.wid}
+							{@const isSelected = selectedWids.has(paper.wid)}
+							{@const isRep = repWid === paper.wid && selectedWids.size >= 2}
 							{@const authors = resolveLinkedAuthors(paper, entityAtts, discAuthorNames)}
 							{@const journal = resolveSourceName(paper.source, entityAtts)}
-							<tr class:merging-source={isMergingSource}>
+							<tr class:selected-row={isSelected} class:rep-row={isRep}>
 								<td class="col-num">{idx + 1}</td>
 								<td class="col-main">
 									<div class="paper-title">
@@ -249,9 +217,7 @@
 												href="https://doi.org/{paper.doi}"
 												target="_blank"
 												rel="noopener">{@html paper.name}</a
-											>{:else}{@html paper.name}{/if}{#if paper.hitSemId}
-											<a href="/hit-papers/{paper.hitSemId}" class="hit-page-link">breakdown →</a
-											>{/if}
+											>{:else}{@html paper.name}{/if}
 									</div>
 									<div class="paper-byline">
 										{#if journal}<em class="byline-journal">{journal}</em>{/if}
@@ -264,7 +230,10 @@
 														>,
 													</span>{/if}{/each}{/if}
 									</div>
-								</td>
+									{#if paper.hitSemId}<a href="/hit-papers/{paper.hitSemId}" class="hit-breakdown"
+											>Hit paper breakdown →</a
+										>{/if}</td
+								>
 								<td class="col-year">{paper.year}</td>
 								<td class="col-cites">
 									{paper.citations}{#if mergeCount > 0}<span
@@ -273,22 +242,20 @@
 										>{/if}
 								</td>
 								{#if showOwnerActions}
+									<td class="col-select">
+										<input
+											type="checkbox"
+											checked={isSelected}
+											on:change={() => toggleSelect(paper.wid)}
+											aria-label="Select for merge"
+										/>
+										{#if isRep}<span class="rep-tag">keep</span>{/if}
+									</td>
 									<td class="col-actions">
-										{#if isMergingSource}
-											<button class="btn-sm" on:click={cancelMerge}>Cancel</button>
-										{:else if mergingWid !== null}
-											<button class="btn-sm active-bg" on:click={() => selectMergeTarget(paper)}
-												>Merge here</button
-											>
-										{:else}
-											<div class="paper-actions">
-												<button class="btn-sm" on:click={() => startMerge(paper.wid)}>Merge</button>
-												<button
-													class="btn-sm destructive"
-													on:click={() => dispatch('disown', paper.wid)}>Remove</button
-												>
-											</div>
-										{/if}
+										<button
+											class="btn-sm destructive"
+											on:click={() => dispatch('disown', paper.wid)}>Remove</button
+										>
 									</td>
 								{/if}
 							</tr>
@@ -307,6 +274,34 @@
 						</div>
 					</div>
 				{/each}
+			</div>
+		{/if}
+
+		{#if showOwnerActions && selectedWids.size > 0}
+			<div class="merge-bar">
+				<div class="merge-bar-main">
+					<span class="merge-count">{selectedWids.size} selected</span>
+					{#if selectedWids.size >= 2}
+						<label class="merge-rep">
+							Keep
+							<select bind:value={repWid}>
+								{#each selectedPapers as p (p.wid)}
+									<option value={p.wid}>{htmlToText(p.name)} ({p.citations} cites)</option>
+								{/each}
+							</select>
+						</label>
+					{/if}
+				</div>
+				<div class="merge-bar-actions">
+					{#if selectedWids.size >= 2}
+						<button class="btn-sm confirm" on:click={confirmMultiMerge}
+							>Merge {selectedWids.size - 1} into the kept paper</button
+						>
+					{:else}
+						<span class="merge-hint">Select another paper to merge it in</span>
+					{/if}
+					<button class="btn-sm" on:click={clearSelection}>Clear</button>
+				</div>
 			</div>
 		{/if}
 
@@ -442,8 +437,32 @@
 		margin-left: 3px;
 	}
 
-	.works-table tr.merging-source {
-		background: rgba(var(--color-range-15), 0.04);
+	.works-table tr.selected-row {
+		background: rgba(var(--color-range-15), 0.08);
+	}
+
+	.works-table tr.rep-row {
+		background: rgba(var(--color-range-15), 0.16);
+	}
+
+	.col-select {
+		width: 1%;
+		white-space: nowrap;
+		text-align: center;
+		font-size: var(--text-xs);
+	}
+
+	.col-select input {
+		cursor: pointer;
+	}
+
+	.rep-tag {
+		display: block;
+		margin-top: 2px;
+		font-size: var(--text-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		opacity: 0.7;
 	}
 
 	.col-num {
@@ -567,13 +586,19 @@
 		overflow-wrap: anywhere;
 	}
 
-	.hit-page-link {
+	.hit-breakdown {
+		display: inline-block;
+		margin-top: 4px;
+		font-size: var(--text-xs);
+		font-weight: 600;
 		color: var(--color-text);
 		text-decoration: none;
+		opacity: 0.65;
 	}
 
-	.hit-page-link:hover {
-		opacity: 0.8;
+	.hit-breakdown:hover {
+		opacity: 1;
+		text-decoration: underline;
 	}
 
 	.merge-badge {
@@ -583,77 +608,54 @@
 		opacity: 1;
 	}
 
-	.paper-actions {
+	.merge-bar {
+		position: sticky;
+		bottom: 0;
+		z-index: 5;
 		display: flex;
-		gap: 4px;
-		flex-shrink: 0;
-	}
-
-	.merge-mode-bar {
-		display: flex;
+		flex-wrap: wrap;
+		gap: 10px 16px;
 		align-items: center;
 		justify-content: space-between;
-		gap: 8px;
-		padding: 8px 10px;
-		border: 1px dashed rgba(var(--color-range-15), 0.25);
-		font-size: var(--text-sm);
+		padding: 10px 14px;
+		background: var(--text-bg-2);
+		border: 1px solid var(--color-theme-darkblue);
+		box-shadow: 0 -3px 12px var(--color-theme-shadow);
 	}
 
-	.merge-mode-bar em {
-		font-style: italic;
-		opacity: 0.7;
-	}
-
-	.merge-confirm-bar {
+	.merge-bar-main {
 		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		padding: 10px 12px;
-		border: 1px solid rgba(var(--color-range-15), 0.2);
-		font-size: var(--text-sm);
+		flex-wrap: wrap;
+		gap: 8px 14px;
+		align-items: center;
+		min-width: 0;
 	}
 
-	.merge-confirm-papers {
+	.merge-count {
+		font-weight: 700;
+	}
+
+	.merge-rep {
 		display: flex;
-		gap: 10px;
+		gap: 6px;
+		align-items: center;
+		font-size: var(--text-sm);
+		min-width: 0;
+	}
+
+	.merge-rep select {
+		max-width: 340px;
+	}
+
+	.merge-bar-actions {
+		display: flex;
+		gap: 8px;
 		align-items: center;
 	}
 
-	.merge-paper {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-
-	.merge-label {
-		font-size: var(--text-xs);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		opacity: 0.6;
-	}
-
-	.merge-label.kept {
-		color: var(--color-theme-darkblue, inherit);
-	}
-
-	.merge-label.dropped {
-		opacity: 0.4;
-	}
-
-	.merge-title {
+	.merge-hint {
 		font-size: var(--text-sm);
-		line-height: 1.2;
-	}
-
-	.merge-meta {
-		font-size: var(--text-xs);
-		opacity: 0.5;
-	}
-
-	.merge-confirm-actions {
-		display: flex;
-		gap: 8px;
+		opacity: 0.7;
 	}
 
 	.load-more {
@@ -713,10 +715,6 @@
 
 		.col-cites {
 			width: 3.4rem;
-		}
-
-		.paper-actions {
-			flex-direction: column;
 		}
 	}
 
