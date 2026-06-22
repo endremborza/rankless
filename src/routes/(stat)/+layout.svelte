@@ -4,7 +4,7 @@
 	import TextedLogo from '$lib/components/TextedLogo.svelte';
 	import PathLogo from '$lib/components/PathLogo.svelte';
 	import SurveyPrompt from '$lib/components/SurveyPrompt.svelte';
-	import { afterNavigate } from '$app/navigation';
+	import { afterNavigate, goto } from '$app/navigation';
 	import { onMount, tick } from 'svelte';
 	import { slide } from 'svelte/transition';
 
@@ -18,8 +18,13 @@
 		surveyShouldPrompt: boolean;
 		user: { orcid: string; name: string; semanticId?: string } | null;
 	};
+	const SEARCH_LISTBOX_ID = 'search-listbox';
+
 	let options: RootType[] = ROOT_TYPES;
 	let cat: RootType | 'all' = 'all';
+
+	let searchComp: SearchResults;
+	let activeIndex = -1;
 
 	let mounted = false;
 	let dropdownOpen = false;
@@ -72,10 +77,30 @@
 
 	let searchTerm = '';
 
-	function keyBind(key: { key: string }) {
-		if (key.key == 'Escape') {
+	function openFullSearch() {
+		const q = searchTerm.trim();
+		if (!q) return;
+		resultsHidden.set(true);
+		goto(`/search?q=${encodeURIComponent(q)}`);
+	}
+
+	function keyBind(e: KeyboardEvent) {
+		if (e.key === 'Escape') {
 			resultsHidden.set(true);
 			dropdownOpen = false;
+			return;
+		}
+		if ($resultsHidden) return;
+		if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			searchComp?.move(1);
+		} else if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			searchComp?.move(-1);
+		} else if (e.key === 'Enter') {
+			e.preventDefault();
+			// Open the highlighted result, or fall through to the full /search page.
+			if (!searchComp?.openActive()) openFullSearch();
 		}
 	}
 
@@ -205,11 +230,25 @@
 				use:init
 				type="text"
 				id="search-input"
+				role="combobox"
+				aria-expanded={!$resultsHidden}
+				aria-controls={SEARCH_LISTBOX_ID}
+				aria-activedescendant={activeIndex >= 0
+					? `${SEARCH_LISTBOX_ID}-opt-${activeIndex}`
+					: undefined}
+				aria-autocomplete="list"
+				autocomplete="off"
 			/>
 		</div>
 	{/if}
 
-	<SearchResults {searchTerm} {cat} />
+	<SearchResults
+		bind:this={searchComp}
+		bind:activeIndex
+		listboxId={SEARCH_LISTBOX_ID}
+		{searchTerm}
+		{cat}
+	/>
 	<div
 		id="main-content"
 		on:click={() => {
