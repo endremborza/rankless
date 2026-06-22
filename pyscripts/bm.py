@@ -186,8 +186,13 @@ def p99(s):
     return np.quantile(s, 0.99)
 
 
-if __name__ == "__main__":
+def run(args=None) -> None:
+    """Local throughput + memory benchmark; auto-compares against rankless-main."""
     bmer = Benchmarker()
     bmer.setup()
     bmer.run_requests()
     bmer.close()
+
+
+if __name__ == "__main__":
+    run()
