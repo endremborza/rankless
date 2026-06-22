@@ -8,10 +8,10 @@ use rankless_rs::{
     common::{
         reverse_id, BeS, CitRankLadderMarker, CitSubfieldsArrayMarker, HIndexMarker, HitWorkMarker,
         MainEntity, MainWorkMarker, MarkedBackendLoader, MmapBox, NumberedEntity, QuickAttPair,
-        QuickMap, QuickestBox, QuickestVBox, Stowage, Top15AuthorMarker, Top3AffCountryMarker,
-        TopJournalMarker, TopNCitingSfMarker, TopNCitingTopicMarker, TopNPaperSfMarker,
-        TopNPaperTopicMarker, WorkLoader, YearCentroidMarker, YearlyCitationsMarker,
-        YearlyPapersMarker, NET,
+        QuickMap, QuickestBox, QuickestVBox, RefSubfieldsArrayMarker, Stowage, Top15AuthorMarker,
+        Top3AffCountryMarker, TopJournalMarker, TopNCitingSfMarker, TopNCitingTopicMarker,
+        TopNPaperSfMarker, TopNPaperTopicMarker, WorkLoader, YearCentroidMarker,
+        YearlyCitationsMarker, YearlyPapersMarker, NET,
     },
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
@@ -69,11 +69,13 @@ pub struct Getters {
 }
 
 // Per-root-type peer auxiliary data loaded once at server startup: the memory-mapped per-subfield
-// citation profile (used for peer subfield ranking) plus the author-only h-index / career-year
-// centroid columns. Kept here, alongside `Getters`, so all `get_marked_interface` loading stays in
-// the interfacing layer rather than leaking into request-handling code.
+// citation profile (used for peer subfield ranking) and the matching per-subfield paper profile (the
+// production-side counts), plus the author-only h-index / career-year centroid columns. Kept here,
+// alongside `Getters`, so all `get_marked_interface` loading stays in the interfacing layer rather
+// than leaking into request-handling code.
 pub struct PeerAux {
     pub cit_subfields: MmapSlice<[u32; N_SUBFIELDS]>,
+    pub ref_subfields: MmapSlice<[u32; N_SUBFIELDS]>,
     pub h_indices: Option<Box<[u32]>>,
     pub year_centroids: Option<Box<[f32]>>,
 }
@@ -423,6 +425,8 @@ impl Getters {
             PeerAux {
                 cit_subfields: stow
                     .get_marked_interface::<Authors, CitSubfieldsArrayMarker, MmapBox>(),
+                ref_subfields: stow
+                    .get_marked_interface::<Authors, RefSubfieldsArrayMarker, MmapBox>(),
                 h_indices: Some(stow.get_marked_interface::<Authors, HIndexMarker, QuickestBox>()),
                 year_centroids: Some(
                     stow.get_marked_interface::<Authors, YearCentroidMarker, QuickestBox>(),
@@ -434,6 +438,8 @@ impl Getters {
             PeerAux {
                 cit_subfields: stow
                     .get_marked_interface::<Institutions, CitSubfieldsArrayMarker, MmapBox>(),
+                ref_subfields: stow
+                    .get_marked_interface::<Institutions, RefSubfieldsArrayMarker, MmapBox>(),
                 h_indices: None,
                 year_centroids: None,
             },
@@ -443,6 +449,8 @@ impl Getters {
             PeerAux {
                 cit_subfields: stow
                     .get_marked_interface::<Countries, CitSubfieldsArrayMarker, MmapBox>(),
+                ref_subfields: stow
+                    .get_marked_interface::<Countries, RefSubfieldsArrayMarker, MmapBox>(),
                 h_indices: None,
                 year_centroids: None,
             },
@@ -452,6 +460,8 @@ impl Getters {
             PeerAux {
                 cit_subfields: stow
                     .get_marked_interface::<Sources, CitSubfieldsArrayMarker, MmapBox>(),
+                ref_subfields: stow
+                    .get_marked_interface::<Sources, RefSubfieldsArrayMarker, MmapBox>(),
                 h_indices: None,
                 year_centroids: None,
             },

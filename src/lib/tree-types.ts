@@ -271,8 +271,13 @@ export type PeerEntry = {
 	country: string | null;
 };
 
+// The hero's papers per subfield (production side), one entry per nonzero subfield — lets a field
+// tile pulled in by a top topic (one outside the top paper-fields) still show its paper count.
+export type RefSubfield = { semanticId: string; papers: number };
+
 export type EntityPeersResp = {
 	topSubfields: PeerSubfield[];
+	refSubfields: RefSubfield[];
 	peers: PeerEntry[];
 	hero: PeerEntry;
 };

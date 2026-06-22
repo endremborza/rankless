@@ -150,10 +150,22 @@ pub(crate) struct PeerEntry {
     pub country: Option<Arc<str>>,
 }
 
+// The hero's papers per subfield (production side), one entry per nonzero subfield. Lets the hero
+// header show a paper count on a field tile pulled in by a top topic that falls outside the top
+// paper-fields relation, which only carries the top few.
+#[derive(Serialize)]
+pub(crate) struct RefSubfieldInfo {
+    #[serde(rename = "semanticId")]
+    pub semantic_id: Arc<str>,
+    pub papers: u32,
+}
+
 #[derive(Serialize)]
 pub(crate) struct EntityPeersResp {
     #[serde(rename = "topSubfields")]
     pub top_subfields: Vec<PeerSubfieldInfo>,
+    #[serde(rename = "refSubfields")]
+    pub ref_subfields: Vec<RefSubfieldInfo>,
     pub peers: Vec<PeerEntry>,
     pub hero: PeerEntry,
 }

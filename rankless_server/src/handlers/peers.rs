@@ -16,7 +16,7 @@ use rankless_trees::{
 };
 
 use crate::consts::N_SUBFIELDS;
-use crate::responses::{EntityPeersResp, PeerEntry, PeerSubfieldInfo};
+use crate::responses::{EntityPeersResp, PeerEntry, PeerSubfieldInfo, RefSubfieldInfo};
 use crate::state::{NameState, StatesT};
 use crate::util::{cache_header, get_empty};
 
@@ -70,6 +70,15 @@ fn peers_inner(etype: &str, sem_id: &str, states: &StatesT) -> (HeaderMap, Respo
         })
         .collect();
 
+    let ref_row = aux.ref_subfields.row(hero_dm);
+    let ref_subfields: Vec<RefSubfieldInfo> = (0..N_SUBFIELDS)
+        .filter(|&si| ref_row[si] > 0)
+        .map(|si| RefSubfieldInfo {
+            semantic_id: sf_atts[si].semantic_id.clone(),
+            papers: ref_row[si],
+        })
+        .collect();
+
     let hero = build_peer_entry(
         hero_rid,
         hero_dm,
@@ -93,6 +102,7 @@ fn peers_inner(etype: &str, sem_id: &str, states: &StatesT) -> (HeaderMap, Respo
 
     let resp = EntityPeersResp {
         top_subfields,
+        ref_subfields,
         peers,
         hero,
     };
