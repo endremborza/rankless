@@ -1,6 +1,5 @@
 use dmove_macro::def_srecs;
 use serde::{Deserialize, Serialize};
-use std::{cmp::Reverse, collections::BinaryHeap as MaxHeap};
 
 def_srecs!(7);
 
@@ -11,35 +10,49 @@ pub struct AggTreeBase<IdType, Node, Child> {
     pub children: Vec<Child>,
 }
 
-pub struct MinHeap<T>(MaxHeap<Reverse<T>>);
+// Records are only ever pushed in bulk and then fully drained in ascending order, so this is a
+// sort, not a heap. A lazily `sort_unstable`'d `Vec` replaces the old `BinaryHeap<Reverse<T>>`
+// heapsort: ~12x faster at scale, since draining a large binary heap is cache-hostile (see
+// docs/tree-perf-profiling.md). Push-after-drain is supported (re-sorts on the next `pop`) but
+// never happens in practice — the fill/drain phases are disjoint.
+pub struct MinHeap<T> {
+    data: Vec<T>,
+    sorted: bool,
+}
 
 impl<T> MinHeap<T>
 where
     T: Ord,
 {
     pub fn new() -> Self {
-        Self(MaxHeap::new())
-    }
-
-    pub fn pop(&mut self) -> Option<T> {
-        if let Some(e) = self.0.pop() {
-            Some(e.0)
-        } else {
-            None
+        Self {
+            data: Vec::new(),
+            sorted: false,
         }
     }
 
+    pub fn pop(&mut self) -> Option<T> {
+        if !self.sorted {
+            // Descending sort so `Vec::pop` (off the back) yields ascending order.
+            self.data.sort_unstable_by(|a, b| b.cmp(a));
+            self.sorted = true;
+        }
+        self.data.pop()
+    }
+
     pub fn push(&mut self, e: T) {
-        self.0.push(Reverse(e))
+        self.data.push(e);
+        self.sorted = false;
     }
 
     pub fn from_iter<I>(iter: I) -> Self
     where
         I: Iterator<Item = T>,
     {
-        let mut heap = Self::new();
-        iter.for_each(|e| heap.push(e));
-        heap
+        Self {
+            data: iter.collect(),
+            sorted: false,
+        }
     }
 }
 
