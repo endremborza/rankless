@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAuthorNameOrNull, resolveLinkedAuthors, mergeEntityAtts } from './paper-helpers';
+import { resolveAuthorNameOrNull, resolveAuthors, mergeEntityAtts } from './paper-helpers';
 import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
 
 const atts: EntityAttsForLinks = {
@@ -47,7 +47,7 @@ describe('resolveAuthorNameOrNull', () => {
 	});
 });
 
-describe('resolveLinkedAuthors', () => {
+describe('resolveAuthors', () => {
 	it('does not surface (unknown) for resolvable discarded co-authors', () => {
 		const paper = makePaper({
 			authorships: [
@@ -55,9 +55,23 @@ describe('resolveLinkedAuthors', () => {
 				{ author: 'D73073403', insts: [] }
 			]
 		});
-		const names = resolveLinkedAuthors(paper, atts, disc).map((a) => a.name);
+		const names = resolveAuthors(paper, atts, disc).map((a) => a.name);
 		expect(names).toEqual(['Alice Smith', 'Carlos Navarrete']);
 		expect(names).not.toContain('(unknown)');
+	});
+
+	it('keeps unknown co-authors as "(unknown)" by default but drops them when skipUnknown', () => {
+		const paper = makePaper({
+			authorships: [
+				{ author: 'F1', insts: [] },
+				{ author: 'F99', insts: [] }
+			]
+		});
+		expect(resolveAuthors(paper, atts, disc).map((a) => a.name)).toEqual([
+			'Alice Smith',
+			'(unknown)'
+		]);
+		expect(resolveAuthors(paper, atts, disc, true).map((a) => a.name)).toEqual(['Alice Smith']);
 	});
 });
 
