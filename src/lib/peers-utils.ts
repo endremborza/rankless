@@ -1,3 +1,5 @@
+import { getColorArr } from '$lib/style-util';
+
 const STOP = /^(and|of|the|in|for|a|an|at|by|to)$/i;
 
 // Categorical palette for comparison subfields. Spread across the --color-range ramp so adjacent
@@ -27,30 +29,29 @@ export function sfColorVar(displayIdx: number): string {
 	return SUBFIELD_COLOR_VARS[displayIdx % SUBFIELD_COLOR_VARS.length];
 }
 
-// Two non-overlapping halves of the --color-range ramp, so the hero's impact and production blocks
-// read as distinct color families: impact takes the cool end (cyan→magenta), production the warm
-// end (magenta→yellow). Index in by tile order; later tiles step further along each half.
-export const IMPACT_COLOR_VARS: readonly string[] = [
-	'--color-range-15',
-	'--color-range-25',
-	'--color-range-35',
-	'--color-range-45',
-	'--color-range-50'
-];
-export const PRODUCTION_COLOR_VARS: readonly string[] = [
-	'--color-range-90',
-	'--color-range-80',
-	'--color-range-70',
-	'--color-range-65',
-	'--color-range-60'
-];
+// Hero field-tile colors. The two blocks read as opposite color families by drawing from opposite
+// ends of the rate→color ramp (getColorArr: 0 cyan → 0.5 purple → 1 yellow), leaving the muddy
+// purple middle empty: impact stays cool (cyan→indigo), production stays warm (yellow→rose). A block
+// holds an open-ended number of tiles (a top topic can pull in a field beyond the top few), so the
+// color is spread across the band by position rather than picked from a fixed list — the first tile
+// sits at the cool/warm extreme, the last at the band's inner edge. Returns an "r, g, b" triple for
+// rgba(var(--tile-c), …).
+const IMPACT_BAND: readonly [number, number] = [0.02, 0.36];
+const PRODUCTION_BAND: readonly [number, number] = [0.98, 0.64];
 
-export function impactColorVar(displayIdx: number): string {
-	return IMPACT_COLOR_VARS[displayIdx % IMPACT_COLOR_VARS.length];
+function bandColor([start, end]: readonly [number, number], idx: number, total: number): string {
+	const rate = total <= 1 ? start : start + ((end - start) * idx) / (total - 1);
+	return getColorArr(rate)
+		.map((c) => Math.round(c))
+		.join(', ');
 }
 
-export function productionColorVar(displayIdx: number): string {
-	return PRODUCTION_COLOR_VARS[displayIdx % PRODUCTION_COLOR_VARS.length];
+export function impactColor(idx: number, total: number): string {
+	return bandColor(IMPACT_BAND, idx, total);
+}
+
+export function productionColor(idx: number, total: number): string {
+	return bandColor(PRODUCTION_BAND, idx, total);
 }
 
 // Cohort noun per root entity type, for framing standings ("top 5% of <noun> ...").
