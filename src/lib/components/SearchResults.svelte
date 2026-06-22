@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { pluralize, rootEmoji } from '$lib/text-format-util';
+	import { pluralize, rootEmoji, formatNumber } from '$lib/text-format-util';
 	import { BE_REMOTE_URL } from '$lib/constants';
 	import type { RootType, SearchResult } from '$lib/tree-types';
 	import { entToLink } from '$lib/tree-functions';
@@ -10,6 +10,9 @@
 	export let searchTerm: string;
 	export let cat: RootType | 'all';
 	export let disclaimerPosition: 'top' | 'bottom' = 'bottom';
+	// Overlay (default) floats over the page as a slightly-opaque panel toggled by `resultsHidden`;
+	// inline mode (e.g. the /search page) renders the same list in normal document flow.
+	export let overlay = true;
 
 	let mounted = false;
 	let delayedTerm = '';
@@ -35,43 +38,40 @@
 		}
 	}
 
-	function getHeaderFontSize(textLen: number) {
-		let n = textLen > 50 ? 1 : 1.1;
-		if (textLen > 120) {
-			n = 0.8;
-		}
-		return `${n}rem`;
-	}
-
 	onMount(() => {
 		mounted = true;
 	});
 
-	$: currentHidden = $resultsHidden;
+	$: hidden = overlay && $resultsHidden;
 	$: getSearchResults(searchTerm, cat, mounted);
 </script>
 
-<div class="search-results" style="display: {currentHidden ? 'none' : 'flex'};">
+<div class="search-results" class:overlay class:hidden>
 	{#if cat === 'hit-papers' && disclaimerPosition === 'top'}
 		<div class="disclaimer-wrap">
 			<HitPaperExplainer />
 		</div>
 	{/if}
-	{#each searchResults as searchResult, __i (__i)}
-		<a class="result-card shadowy padded" href={entToLink(searchResult)}>
-			<h3 style="font-size: {getHeaderFontSize(searchResult.name.length)};">
-				{#if cat === 'all'}<span class="type-emoji">{rootEmoji(searchResult.rootType)}</span>
-				{/if}{@html searchResult.name}
-			</h3>
-			<span
-				>{#if searchResult.rootType !== 'hit-papers'}{pluralize('paper', searchResult.papers)},
-				{/if}{pluralize(
-					'citation',
-					searchResult.citations
-				)}{#if searchResult.distinctText != undefined}<br />{searchResult.distinctText}{/if}</span
-			>
-		</a>
-	{/each}
+	<ul class="result-list">
+		{#each searchResults as r, __i (__i)}
+			<li class="result-item">
+				<a class="result-link" href={entToLink(r)}>
+					<span class="result-name">
+						{#if cat === 'all'}<span class="type-emoji">{rootEmoji(r.rootType)}</span>
+						{/if}{@html r.name}
+					</span>
+					<span class="result-meta">
+						{#if r.rootType !== 'hit-papers'}{pluralize('paper', r.papers)} ·
+						{/if}{#if r.rootType === 'authors' && r.rawCites}{formatNumber(r.rawCites)} citations{:else}{pluralize(
+								'citation',
+								r.citations
+							)}{/if}{#if r.distinctText}
+							· {r.distinctText}{/if}
+					</span>
+				</a>
+			</li>
+		{/each}
+	</ul>
 	{#if cat === 'hit-papers' && disclaimerPosition === 'bottom'}
 		<div class="disclaimer-wrap">
 			<HitPaperExplainer />
@@ -80,60 +80,85 @@
 </div>
 
 <style>
-	h3 {
-		margin: 0px;
-	}
-
 	.search-results {
 		width: 100%;
-		height: 100dvh;
-		overflow: scroll;
 		box-sizing: border-box;
-		backdrop-filter: blur(6px);
-		-webkit-backdrop-filter: blur(6px);
-		position: fixed;
-		top: 0px;
-		left: 0px;
-		z-index: 20;
-		flex-direction: rows;
-		flex-wrap: wrap;
-		justify-content: center;
-		align-items: start;
-		padding-top: 120px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
 		gap: var(--unified-margin);
 	}
 
-	.result-card {
-		cursor: pointer;
-		height: 160px;
-		min-width: 200px;
-		background-color: var(--text-bg-2);
-		border: solid var(--color-theme-darkblue) 1px;
-		margin-bottom: var(--unified-margin);
-		margin-top: 0px;
-		flex: 0 0 15%;
-		display: flex;
-		flex-direction: column;
-		justify-content: space-between;
-		transition: transform 0.2s ease;
+	.search-results.overlay {
+		height: 100dvh;
+		overflow: auto;
+		backdrop-filter: blur(6px);
+		-webkit-backdrop-filter: blur(6px);
+		position: fixed;
+		top: 0;
+		left: 0;
 		z-index: 20;
+		padding-top: 120px;
 	}
 
-	.result-card:hover {
-		transform: scale(1.03);
+	.hidden {
+		display: none;
+	}
+
+	/* Left-aligned, idiomatic <li> list: name as the primary line, supporting figures below it. Wraps
+	   naturally on long names — no per-result font-size juggling, no fixed-height cards. */
+	.result-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		width: 100%;
+		max-width: 760px;
+	}
+
+	.search-results.overlay .result-list {
+		background: var(--text-bg-2);
+		border: 1px solid var(--color-theme-darkblue);
+	}
+
+	.result-item + .result-item {
+		border-top: 1px solid var(--color-theme-lightgrey);
+	}
+
+	.result-link {
+		display: block;
+		padding: 11px 16px;
+		color: var(--color-text);
+		text-decoration: none;
+	}
+
+	.result-link:hover {
 		background-color: var(--color-theme-lightgrey);
 		color: var(--color-theme-darkblue);
-		box-shadow: 3px 3px 13px var(--color-theme-shadow);
 	}
 
-	.result-card > span {
+	.result-name {
+		display: block;
 		font-size: var(--text-base);
+		font-weight: 600;
+		line-height: 1.25;
+	}
+
+	.result-meta {
+		display: block;
+		margin-top: 3px;
+		font-size: var(--text-sm);
+		opacity: 0.75;
+	}
+
+	.type-emoji {
+		margin-right: 2px;
 	}
 
 	.disclaimer-wrap {
 		width: 100%;
-		padding: 12px 20px;
+		max-width: 760px;
 		box-sizing: border-box;
+		padding: 12px 20px;
 		background: var(--text-bg-2);
 		border: solid var(--color-theme-darkblue) 1px;
 	}
