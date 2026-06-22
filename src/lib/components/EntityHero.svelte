@@ -51,7 +51,10 @@
 		HERO_MIN_TIER,
 		MAX_TOPICS
 	);
-	$: productionTiles = buildProductionTiles(grouped, MAX_CHIPS, MAX_TOPICS);
+	// Papers-per-subfield (semantic id → count) from the peers profile, so a field tile a top topic
+	// pulls in beyond the top paper-fields still shows its count.
+	$: refPapers = new Map((peersData?.refSubfields ?? []).map((s) => [s.semanticId, s.papers]));
+	$: productionTiles = buildProductionTiles(grouped, refPapers, MAX_CHIPS, MAX_TOPICS, !isHitPaper);
 </script>
 
 <div class="hero">
@@ -88,7 +91,7 @@
 		</div>
 	</div>
 
-	<HeroFieldBlocks {impactTiles} {productionTiles} />
+	<HeroFieldBlocks {impactTiles} {productionTiles} productionLabel={cfg.productionLabel} />
 
 	<div class="hero-body">
 		{#if leaderRows.length > 0}
