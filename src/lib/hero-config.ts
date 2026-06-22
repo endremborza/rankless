@@ -3,8 +3,8 @@ import { ROOT_TYPES } from '$lib/constants';
 import { entToLink } from '$lib/tree-functions';
 import { pluralize } from '$lib/text-format-util';
 import {
-	impactColorVar,
-	productionColorVar,
+	impactColor,
+	productionColor,
 	tierLabels,
 	citStandingTier,
 	standingLabel,
@@ -33,6 +33,10 @@ export type HeroSpec = {
 	showHIndex?: boolean;
 	// Trailing sub-line note: subfields are dated to the indexed era, journals to first activity.
 	sinceNote?: 'complete' | 'startYear';
+	// Field-tile block headers. The production side defaults to "Papers in"; entities whose tiles
+	// aren't "papers this entity authored" relabel it (a single paper is "Classified as" its fields,
+	// a subfield's papers are "Also classified as" sibling fields).
+	productionLabel?: string;
 	// "top X%" standing badge on the subfield chips. Off for cohorts where percentile rank is
 	// uninformative (countries: the largest are top-fraction in nearly everything).
 	showStandingBadge: boolean;
@@ -50,13 +54,27 @@ export type HeroTopic = { name: string; count: number | null; hover: string };
 export type HeroTile = {
 	name: string;
 	href: string | null;
-	colorVar: string;
+	// "r, g, b" triple driving the tile's hue (impact = cool, production = warm); see peers-utils.
+	tileColor: string;
 	badge: string | null;
 	badgeTitle: string | null;
 	count: number | null;
 	topics: HeroTopic[];
 };
-type TopicScore = { name: string; score: number };
+// A field on its way to becoming a tile, before topics and color are attached. The production side
+// fills `count` (papers); the impact side fills `badge` (standing). Extra tiles surfaced from a top
+// topic's parent field carry neither.
+type FieldBase = {
+	name: string;
+	href: string | null;
+	badge: string | null;
+	badgeTitle: string | null;
+	count: number | null;
+};
+// Top topics under one parent field, plus that field's own link and semantic id (from the topic's
+// parent ref) so the field can stand up its own tile — and resolve its badge/count — even when it
+// isn't among the base fields.
+type FieldTopics = { href: string | null; semanticId: string | null; topics: HeroTopic[] };
 
 // Co-author / top-scholar rows share one list size: generous enough to read as a community of
 // contributors rather than an elite few. The server precomputes up to 25 paper-authors per entity.
@@ -102,6 +120,7 @@ export const HERO_CONFIG: Record<tt.RootType, HeroSpec> = {
 		statVariant: 'cites',
 		sinceNote: 'complete',
 		showStandingBadge: false,
+		productionLabel: 'Also classified as',
 		leaders: [
 			{ label: 'Cited by', relType: 'citing-fields', n: 3 },
 			{ label: 'Top scholars', relType: 'paper-authors', n: PEOPLE_LEADER_N }
@@ -110,6 +129,7 @@ export const HERO_CONFIG: Record<tt.RootType, HeroSpec> = {
 	'hit-papers': {
 		statVariant: 'paper',
 		showStandingBadge: false,
+		productionLabel: 'Classified as',
 		leaders: [
 			{ label: 'Authors', relType: 'paper-authors', n: 5 },
 			{ label: 'Journal', relType: 'paper-journals', n: 1 }
@@ -147,59 +167,115 @@ export function buildLeaderRows(
 	return rows;
 }
 
-// Top topics grouped by parent field name, so each tile can pull the topics that roll up to it.
-// `maxTopics` caps the total distinct topics across all fields (the backend returns them ordered by
-// score). Dedupes by topic name — OpenAlex occasionally repeats one across the relation list.
+// Top topics grouped by parent field, each carrying that field's link so an orphan field (one heading
+// a top topic but absent from the base fields) can still become a tile. `maxTopics` caps the total
+// distinct topics across all fields (backend returns them ordered by score); dedupes by topic name —
+// OpenAlex occasionally repeats one. `toTopic` shapes each topic, since count/hover differ per block.
 function groupTopicsByField(
 	rels: tt.RelatedEntity[] | undefined,
-	maxTopics: number
-): Map<string, TopicScore[]> {
-	const byField = new Map<string, TopicScore[]>();
+	maxTopics: number,
+	toTopic: (t: tt.RelatedEntity) => HeroTopic
+): Map<string, FieldTopics> {
+	const byField = new Map<string, FieldTopics>();
 	const seen = new Set<string>();
 	for (const t of rels ?? []) {
 		const field = t.parentName ?? '';
 		if (!field || seen.has(t.name)) continue;
 		seen.add(t.name);
-		let arr = byField.get(field);
-		if (!arr) {
-			arr = [];
-			byField.set(field, arr);
+		let grp = byField.get(field);
+		if (!grp) {
+			grp = {
+				href: t.parentSemanticId
+					? entToLink({ rootType: 'subfields', semanticId: t.parentSemanticId })
+					: null,
+				semanticId: t.parentSemanticId ?? null,
+				topics: []
+			};
+			byField.set(field, grp);
 		}
-		arr.push({ name: t.name, score: t.score });
+		grp.topics.push(toTopic(t));
 		if (seen.size >= maxTopics) break;
 	}
 	return byField;
 }
 
-// Production tiles: the entity's top subfields by papers authored, each heading its top topics (also
-// by papers). The count shows inline; the hover spells out "X papers authored".
-export function buildProductionTiles(
-	grouped: Partial<Record<tt.RelTypes, tt.RelatedEntity[]>>,
-	maxChips: number,
-	maxTopics: number
+// Final tile list for one block: each base field heads the topics that roll up to it, then any top
+// topic whose parent field isn't already a base tile pulls that field in as an extra tile — so no top
+// topic is dropped. That union is why a block can hold more tiles than its base fields. `enrichExtra`
+// resolves the extra tile's badge/count from the per-subfield profile (the same standing/paper data
+// the base tiles use), keyed by the field's semantic id — so an extra tile keeps its "top X%" banner
+// or paper count instead of going blank. Colors span the band by final position (open-ended count).
+function assembleTiles(
+	base: FieldBase[],
+	topicsByField: Map<string, FieldTopics>,
+	colorFn: (idx: number, total: number) => string,
+	enrichExtra?: (semanticId: string | null) => Partial<FieldBase>
 ): HeroTile[] {
-	const topicsByField = groupTopicsByField(grouped['paper-topics'], maxTopics);
-	return (grouped['paper-fields'] ?? []).slice(0, maxChips).map(
-		(r, i): HeroTile => ({
-			name: r.name,
-			href: rootHref(r.etype, r.semanticId),
-			colorVar: productionColorVar(i),
+	const order: FieldBase[] = [];
+	const seen = new Set<string>();
+	for (const f of base) {
+		if (seen.has(f.name)) continue;
+		seen.add(f.name);
+		order.push(f);
+	}
+	for (const [name, grp] of topicsByField) {
+		if (seen.has(name)) continue;
+		seen.add(name);
+		order.push({
+			name,
+			href: grp.href,
 			badge: null,
 			badgeTitle: null,
-			count: r.score,
-			topics: (topicsByField.get(r.name) ?? []).map((t) => ({
-				name: t.name,
-				count: t.score,
-				hover: `${pluralize('paper', t.score)} authored`
-			}))
+			count: null,
+			...enrichExtra?.(grp.semanticId)
+		});
+	}
+	return order.map(
+		(f, i): HeroTile => ({
+			...f,
+			tileColor: colorFn(i, order.length),
+			topics: topicsByField.get(f.name)?.topics ?? []
 		})
 	);
 }
 
+// Production tiles: the entity's top subfields by papers authored, each heading its top topics (also
+// by papers). The count shows inline; the hover spells out "X papers authored". `withCounts` is off
+// for a single paper (hit-papers), where every field/topic count is just 1 and reads as noise.
+// `refPapers` maps subfield semantic id → papers authored, covering fields beyond the top few that
+// the `paper-fields` relation carries, so a topic-surfaced extra tile still shows its count.
+export function buildProductionTiles(
+	grouped: Partial<Record<tt.RelTypes, tt.RelatedEntity[]>>,
+	refPapers: Map<string, number>,
+	maxChips: number,
+	maxTopics: number,
+	withCounts = true
+): HeroTile[] {
+	const topicsByField = groupTopicsByField(grouped['paper-topics'], maxTopics, (t) => ({
+		name: t.name,
+		count: withCounts ? t.score : null,
+		hover: withCounts ? `${pluralize('paper', t.score)} authored` : ''
+	}));
+	const base = (grouped['paper-fields'] ?? []).slice(0, maxChips).map(
+		(r): FieldBase => ({
+			name: r.name,
+			href: rootHref(r.etype, r.semanticId),
+			badge: null,
+			badgeTitle: null,
+			count: withCounts ? r.score : null
+		})
+	);
+	return assembleTiles(base, topicsByField, productionColor, (sid) => {
+		const papers = withCounts && sid ? refPapers.get(sid) : undefined;
+		return papers != null ? { count: papers } : {};
+	});
+}
+
 // Impact tiles: the entity's specialization subfields with the per-subfield "top X%" standing badge
-// (aligned with the Peers section by order; `minTier` suppresses the loosest bands), each heading
-// the topics whose citing works roll up to it. Topics carry no inline number — the hover gives "X
-// citations". Without peer data (no ladder for this root type) it falls back to citing-fields counts.
+// (`minTier` suppresses the loosest bands), each heading the topics whose citing works roll up to it.
+// Topics carry no inline number — the hover gives "X citations". The standing is computed over the
+// full topSubfields list (not just the top few) and keyed by semantic id, so a subfield a top topic
+// pulls in as an extra tile keeps its banner. Without peer data it falls back to citing-fields counts.
 export function buildImpactTiles(
 	cfg: HeroSpec,
 	peersData: tt.EntityPeersResp | null,
@@ -210,41 +286,49 @@ export function buildImpactTiles(
 	minTier: number,
 	maxTopics: number
 ): HeroTile[] {
-	const topicsByField = groupTopicsByField(grouped['citing-topics'], maxTopics);
-	const topicsFor = (field: string): HeroTopic[] =>
-		(topicsByField.get(field) ?? []).map((t) => ({
-			name: t.name,
-			count: null,
-			hover: pluralize('citation', t.score)
-		}));
+	const topicsByField = groupTopicsByField(grouped['citing-topics'], maxTopics, (t) => ({
+		name: t.name,
+		count: null,
+		hover: pluralize('citation', t.score)
+	}));
+	let base: FieldBase[];
+	let enrichExtra: ((semanticId: string | null) => Partial<FieldBase>) | undefined;
 	if (peersData) {
 		const labels = ladder ? tierLabels(ladder.pctBands) : [];
-		return peersData.topSubfields.slice(0, maxChips).map((sf, i): HeroTile => {
+		const standing = new Map<string, Partial<FieldBase>>();
+		peersData.topSubfields.forEach((sf, i) => {
 			const tier =
 				cfg.showStandingBadge && ladder
 					? citStandingTier(ladder.ladder[sf.dmId] ?? [], peersData.hero.subfieldCitations[i] ?? 0)
 					: 0;
-			const show = tier >= minTier;
-			return {
+			if (tier >= minTier) {
+				standing.set(sf.semanticId, {
+					badge: standingLabel(tier, labels),
+					badgeTitle: standingPhrase(tier, labels, rootType, sf.name)
+				});
+			}
+		});
+		base = peersData.topSubfields.slice(0, maxChips).map(
+			(sf): FieldBase => ({
 				name: sf.name,
 				href: entToLink({ rootType: 'subfields', semanticId: sf.semanticId }),
-				colorVar: impactColorVar(i),
-				badge: show ? standingLabel(tier, labels) : null,
-				badgeTitle: show ? standingPhrase(tier, labels, rootType, sf.name) : null,
+				badge: null,
+				badgeTitle: null,
 				count: null,
-				topics: topicsFor(sf.name)
-			};
-		});
+				...standing.get(sf.semanticId)
+			})
+		);
+		enrichExtra = (sid) => (sid ? (standing.get(sid) ?? {}) : {});
+	} else {
+		base = (grouped['citing-fields'] ?? []).slice(0, maxChips).map(
+			(r): FieldBase => ({
+				name: r.name,
+				href: rootHref(r.etype, r.semanticId),
+				badge: null,
+				badgeTitle: null,
+				count: r.score
+			})
+		);
 	}
-	return (grouped['citing-fields'] ?? []).slice(0, maxChips).map(
-		(r, i): HeroTile => ({
-			name: r.name,
-			href: rootHref(r.etype, r.semanticId),
-			colorVar: impactColorVar(i),
-			badge: null,
-			badgeTitle: null,
-			count: r.score,
-			topics: topicsFor(r.name)
-		})
-	);
+	return assembleTiles(base, topicsByField, impactColor, enrichExtra);
 }
