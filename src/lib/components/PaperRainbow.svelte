@@ -232,7 +232,7 @@
 
 	function getLiStyle(i: number, visInds: number[], hl: number, rate: number) {
 		if (!visInds.includes(i)) return '';
-		const ext = hl === i ? '0.5); box-shadow: 3px 3px 10px var(--color-theme-shadow);' : '0.3)';
+		const ext = hl === i ? '0.4); box-shadow: 3px 3px 10px var(--color-theme-shadow);' : '0.2)';
 		return `background-color: rgba(${getColorArr(rate)}, ${ext}`;
 	}
 
@@ -360,97 +360,108 @@
 					<p class="no-breakdown">No breakdown available for this paper.</p>
 				{/if}
 			{:else}
-				<svg
-					viewBox="{fb.xMin} {fb.yMin} {fb.width} {fb.height}"
-					style="aspect-ratio: {fb.aspect.toFixed(3)};"
-				>
-					<!-- Y-axis grid lines -->
-					<g stroke="var(--color-text)" stroke-width="0.015" opacity="0.15">
-						{#each fb.yTicks as tick, __i (__i)}
-							<line x1="0" y1={tick.y} x2={xBase} y2={tick.y} />
-						{/each}
-					</g>
-
-					<!-- Paper citation lines (cumulative) -->
-					{#each fb.figPapers as paper, __i (__i)}
-						<path
-							role="region"
-							fill="none"
-							stroke={getColor(paper.rate)}
-							stroke-width={paper.i === highlighted ? 0.18 : 0.1}
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d={paper.path}
-							opacity={paper.i === highlighted ? 1.0 : 0.4}
-							id="hit-paper-path-{paper.i}"
-							on:mouseover={() => fixHighlight(paper.i)}
-							on:focus={() => fixHighlight(paper.i)}
-						/>
-					{/each}
-
-					<!-- Highlighted paper name follows the line via textPath; total cites sit at its tip -->
+				<div class="plot">
 					{#if highlightedVis !== undefined}
 						{@const hp = fb.figPapers[highlightedVis]}
-						<text font-size="0.4" fill="var(--color-text)" dy="-0.28">
-							<textPath href="#hit-paper-path-{hp.i}" startOffset="3%" text-anchor="start"
-								>{hp.pathName}</textPath
-							>
-						</text>
-						<text
-							x={hp.endX + 0.2}
-							y={hp.endY + 0.15}
-							font-size="0.5"
-							font-weight="600"
-							text-anchor="start"
-							fill={getColor(hp.rate)}>{formatNumber(hp.citations)}</text
-						>
-					{/if}
-
-					<!-- X axis baseline and ticks -->
-					<g
-						stroke-width="0.03"
-						stroke="var(--color-text)"
-						fill="var(--color-text)"
-						font-size={fontSize}
-					>
-						<path d="M 0 0 h {xBase}" />
-						{#each fb.yearTicks as tick, __i (__i)}
-							<path d="M {tick.x} 0 v 0.35" />
-							{#if tick.name !== undefined}
-								<text x={tick.x} y="0.9" text-anchor="middle">{tick.name}</text>
+						<div class="chart-title">
+							{#if hp.doi.length > 0}
+								<a href="https://doi.org/{hp.doi}" target="_blank" rel="noopener">{@html hp.name}</a
+								>
+							{:else}
+								<span>{@html hp.name}</span>
 							{/if}
-						{/each}
-					</g>
-
-					<!-- Paper publication markers (only when x is calendar-aligned) -->
-					{#if !fb.align}
-						{#each fb.pubMarks as mark, __i (__i)}
-							<line
-								x1={mark.x}
-								y1="0"
-								x2={mark.x}
-								y2="0.45"
-								stroke={mark.color}
-								stroke-width="0.09"
-							/>
-						{/each}
+							<span class="chart-title-meta"
+								>{hp.year} · {formatNumber(hp.citations)} citations</span
+							>
+						</div>
 					{/if}
+					<svg
+						viewBox="{fb.xMin} {fb.yMin} {fb.width} {fb.height}"
+						style="aspect-ratio: {fb.aspect.toFixed(3)};"
+					>
+						<!-- Y-axis grid lines -->
+						<g stroke="var(--color-text)" stroke-width="0.015" opacity="0.15">
+							{#each fb.yTicks as tick, __i (__i)}
+								<line x1="0" y1={tick.y} x2={xBase} y2={tick.y} />
+							{/each}
+						</g>
 
-					<!-- Y-axis ticks and labels -->
-					<g fill="var(--color-text)" font-size="0.65">
-						{#each fb.yTicks as tick, __i (__i)}
-							<line
-								x1={xBase}
-								y1={tick.y}
-								x2={xBase + 0.4}
-								y2={tick.y}
-								stroke="var(--color-text)"
-								stroke-width="0.025"
+						<!-- Paper citation lines (cumulative) -->
+						{#each fb.figPapers as paper, __i (__i)}
+							<path
+								role="region"
+								fill="none"
+								stroke={getColor(paper.rate)}
+								stroke-width={paper.i === highlighted ? 0.18 : 0.1}
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d={paper.path}
+								opacity={paper.i === highlighted ? 1.0 : 0.4}
+								id="hit-paper-path-{paper.i}"
+								on:mouseover={() => fixHighlight(paper.i)}
+								on:focus={() => fixHighlight(paper.i)}
 							/>
-							<text x={xBase + 0.55} y={tick.y + 0.15} text-anchor="start">{tick.label}</text>
 						{/each}
-					</g>
-				</svg>
+
+						<!-- Total cites for the highlighted paper sit at its line tip (name moved to top-left) -->
+						{#if highlightedVis !== undefined}
+							{@const hp = fb.figPapers[highlightedVis]}
+							<text
+								x={hp.endX + 0.2}
+								y={hp.endY + 0.15}
+								font-size="0.5"
+								font-weight="600"
+								text-anchor="start"
+								fill={getColor(hp.rate)}>{formatNumber(hp.citations)}</text
+							>
+						{/if}
+
+						<!-- X axis baseline and ticks -->
+						<g
+							stroke-width="0.03"
+							stroke="var(--color-text)"
+							fill="var(--color-text)"
+							font-size={fontSize}
+						>
+							<path d="M 0 0 h {xBase}" />
+							{#each fb.yearTicks as tick, __i (__i)}
+								<path d="M {tick.x} 0 v 0.35" />
+								{#if tick.name !== undefined}
+									<text x={tick.x} y="0.9" text-anchor="middle">{tick.name}</text>
+								{/if}
+							{/each}
+						</g>
+
+						<!-- Paper publication markers (only when x is calendar-aligned) -->
+						{#if !fb.align}
+							{#each fb.pubMarks as mark, __i (__i)}
+								<line
+									x1={mark.x}
+									y1="0"
+									x2={mark.x}
+									y2="0.45"
+									stroke={mark.color}
+									stroke-width="0.09"
+								/>
+							{/each}
+						{/if}
+
+						<!-- Y-axis ticks and labels -->
+						<g fill="var(--color-text)" font-size="0.65">
+							{#each fb.yTicks as tick, __i (__i)}
+								<line
+									x1={xBase}
+									y1={tick.y}
+									x2={xBase + 0.4}
+									y2={tick.y}
+									stroke="var(--color-text)"
+									stroke-width="0.025"
+								/>
+								<text x={xBase + 0.55} y={tick.y + 0.15} text-anchor="start">{tick.label}</text>
+							{/each}
+						</g>
+					</svg>
+				</div>
 			{/if}
 		</div>
 	{/if}
@@ -540,13 +551,12 @@
 										</div>
 									{/if}
 									{#if paper.hitBm && paper.hitBm >= bmThreshold}
-										<div class="detail-row">
-											<span class="detail-label">Top-1% benchmark:</span>
-											<span>{formatNumber(paper.hitBm)} citations</span>
-										</div>
 										<div class="detail-row selection-basis">
 											<span class="detail-label">Performance:</span>
-											<span>{overperf(paper).toFixed(1)}× above cohort benchmark</span>
+											<span
+												>{overperf(paper).toFixed(1)}× {formatNumber(paper.hitBm)} citations - what a
+												same-subfield, same-year paper needs to reach the top 1%</span
+											>
 										</div>
 									{:else if paper.citations >= globalMinCites}
 										<div class="detail-row selection-basis">
@@ -575,6 +585,41 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+	}
+
+	/* The rising trajectories leave the plot's top-left empty, so the highlighted paper's full title
+	   lives there (wrapping freely) instead of being squeezed onto the line. */
+	.plot {
+		position: relative;
+	}
+
+	.chart-title {
+		position: absolute;
+		top: 0;
+		left: 0;
+		max-width: 58%;
+		font-size: var(--text-sm);
+		font-weight: 600;
+		line-height: 1.25;
+		/* Let line hovering through the empty region; only the DOI link itself is clickable. */
+		pointer-events: none;
+	}
+
+	.chart-title a {
+		pointer-events: auto;
+		color: var(--color-text);
+	}
+
+	.chart-title a:hover {
+		text-decoration: underline;
+	}
+
+	.chart-title-meta {
+		display: block;
+		margin-top: 2px;
+		font-weight: 400;
+		font-size: var(--text-xs);
+		opacity: 0.6;
 	}
 
 	.chart-controls {
