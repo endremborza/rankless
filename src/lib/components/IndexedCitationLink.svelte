@@ -4,7 +4,10 @@
 	let show = false;
 </script>
 
-<HoverBlock {show} style="top: 20svh; left:20vw; width: 60vw;max-width: 550px">
+<HoverBlock
+	{show}
+	style="position: fixed; top: 20svh; left: 20vw; width: 60vw; max-width: 550px; z-index: 40;"
+>
 	Citations made by non-retracted papers categorized as "article", "book", or "review" that have
 	received at least one citation.
 </HoverBlock><a
