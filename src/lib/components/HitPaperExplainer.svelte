@@ -6,10 +6,16 @@
 	<summary>{summaryLabel}</summary>
 	<p>
 		Hit papers significantly outperform the citation benchmark for their cohort. A paper qualifies
-		if it has ≥500 total citations, achieves ≥1.5× the top-1% citation threshold for papers in the
-		same subfield and year (this is the <em>minimum</em> needed to enter the top 1%, not the average within
-		it), or reaches the top citation threshold in at least one of its specific research topics.
+		if <strong>any</strong> of the following hold:
 	</p>
+	<ul>
+		<li>it has ≥500 total citations;</li>
+		<li>
+			it reaches ≥1.5× the top-1% citation threshold for papers in the same subfield and year (the
+			threshold is the <em>minimum</em> needed to enter the top 1%, not the average within it);
+		</li>
+		<li>it reaches the top citation threshold in at least one of its specific research topics.</li>
+	</ul>
 </details>
 
 <style>
@@ -28,5 +34,15 @@
 		margin-top: 6px;
 		line-height: 1.4;
 		padding-left: 4px;
+	}
+
+	.hit-paper-explainer ul {
+		margin: 6px 0 0;
+		padding-left: 22px;
+		line-height: 1.4;
+	}
+
+	.hit-paper-explainer li {
+		margin-bottom: 4px;
 	}
 </style>
