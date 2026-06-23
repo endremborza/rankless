@@ -4,8 +4,8 @@ Runs both backends as Docker containers, queries the same entities via both,
 and evaluates correctness and timing. The Flask/PG container is kept running
 between invocations by default for fast iteration.
 
-Usage:
-    python -m pyscripts.sql_comparison [options]
+Run via the unified CLI:
+    uv run -m pyscripts compare-sql [options]
 
 Options:
     --rebuild-rust LEVEL   none | binary | pipeline | full  (default: binary)
@@ -23,66 +23,42 @@ PNG debug report (report.html), and poster-quality vector figures
 import argparse
 import re
 import subprocess
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator
 
 import ccl_science_data
 import pandas as pd
 import requests
 from ccl_science_data.common import load_map, oa_root
 from ccl_science_data.gen import EntC
-from tqdm import tqdm
 
-from pyscripts import poster_figures
-from pyscripts.cache_prompting import RTC, BatchRequester, get_specs_and_ys
+from pyscripts.cache_prompting import RTC, BatchRequester
+from pyscripts.comparison_driver import (
+    prepare_backend,
+    run_query_loop,
+    sample_entities,
+    write_artifacts,
+)
 from pyscripts.comparison_report import (
     ARTIFACTS_ROOT,
-    CompResult,
     MemoryTracker,
-    build_grouped_df,
-    build_mem_stats,
-    build_summary_df,
-    build_totals,
     logger,
-    open_report,
-    plot_accuracy,
-    plot_memory,
-    plot_timing,
-    print_report,
-    save_html,
-    save_markdown,
-    save_mem_samples,
     setup_logging,
 )
-from pyscripts.server_ops import (
-    DockerServer,
-    build_server,
-    container_logs,
-    container_state,
-    port_free,
-    wait_for_url,
-)
+from pyscripts.server_ops import DockerServer, FlaskPgServer, port_free
 from pyscripts.stow_ops import RebuildLevel
-from pyscripts.tree_diff import make_diff_df
 
 CCL_LIB = Path(ccl_science_data.__file__).parent.parent
 
-RUST_IMAGE = "rankless-rust-sql"
-RUST_CONTAINER = "rankless-rust-sql"
+RUST_IMAGE = RUST_CONTAINER = "rankless-rust-sql"
 RUST_PORT = 3038
-
-FLASK_IMAGE = "rankless-pg-python"
-FLASK_CONTAINER = "rankless-pg-python"
+FLASK_IMAGE = FLASK_CONTAINER = "rankless-pg-python"
 FLASK_PORT = 5000
-FLASK_DOCKERFILE = "sql-yardstick/docker/Dockerfile.pg-python"
 
 MEMORY_LIMIT = "8g"
 CPU_LIMIT = "4"
 
-FINAL_STEP = "rankless_rs/src/gen/derive_links5.rs"
-
+SAMPLE_BINS = [5_000, 10_000, 30_000, 100_000, 200_000]
 SUPPORTED_ETYPES = {
     EntC.AUTHORS,
     EntC.INSTITUTIONS,
@@ -92,77 +68,6 @@ SUPPORTED_ETYPES = {
     EntC.TOPICS,
     EntC.WORKS,
 }
-
-
-# ── Flask/PG container ────────────────────────────────────────────────────────
-
-
-@dataclass
-class FlaskPgServer:
-    data_root: Path
-    ccl_lib: Path
-    container: str = FLASK_CONTAINER
-    image: str = FLASK_IMAGE
-    host_port: int = FLASK_PORT
-    memory: str = MEMORY_LIMIT
-    cpus: str = CPU_LIMIT
-    dockerfile: str = FLASK_DOCKERFILE
-
-    @property
-    def base_url(self) -> str:
-        return f"http://localhost:{self.host_port}"
-
-    def is_running(self) -> bool:
-        r = subprocess.run(
-            ["docker", "inspect", "--format", "{{.State.Running}}", self.container],
-            capture_output=True,
-            text=True,
-        )
-        return r.returncode == 0 and r.stdout.strip() == "true"
-
-    def build_image(self) -> None:
-        _docker(["build", "-f", self.dockerfile, "-t", self.image, "."])
-
-    def stop(self) -> None:
-        subprocess.run(["docker", "rm", "-f", self.container], capture_output=True)
-
-    def start(self) -> None:
-        self.stop()
-        _docker(
-            [
-                "run",
-                "-d",
-                "--name",
-                self.container,
-                "--memory",
-                self.memory,
-                "--cpus",
-                self.cpus,
-                "-p",
-                f"{self.host_port}:5000",
-                "-v",
-                f"{self.data_root}:/data/oa-root:ro",
-                "-v",
-                f"{self.ccl_lib}:/ccl-science-data:ro",
-                self.image,
-            ]
-        )
-
-    def wait_ready(self, max_attempts: int = 300) -> None:
-        wait_for_url(
-            self.base_url,
-            max_attempts,
-            desc=f"waiting for {self.container} (loading OA data into PostgreSQL)",
-            dead_check=lambda: container_state(self.container)[0],
-            on_fail=lambda: container_logs(self.container),
-            accept_any=True,
-        )
-
-
-def _docker(args: list) -> None:
-    cmd = ["docker", *[str(a) for a in args]]
-    print("$", " ".join(cmd))
-    subprocess.run(cmd, check=True)
 
 
 # ── OA → DM ID translation ────────────────────────────────────────────────────
@@ -208,132 +113,48 @@ def _translate_tree(
     return translated
 
 
-# ── comparison ────────────────────────────────────────────────────────────────
+# ── sampling + per-query fetch ──────────────────────────────────────────────────
 
 
-class SqlComparator:
-    def __init__(self, rust_url: str, flask_url: str) -> None:
-        self.rust_url = rust_url
-        self.flask_url = f"{flask_url}/impact-tree"
-        self.specs, _ = get_specs_and_ys(rust_url)
-        self.oa_dm_maps = _build_oa_to_dm_maps()
+def _build_sample_df(urled_sample: pd.DataFrame, e_per_bin: int) -> pd.DataFrame:
+    """Attach OpenAlex ids (Flask queries by OA id) then stratified-sample."""
+    with_oa = pd.concat(
+        pd.DataFrame(
+            [{"dmId": v, "oa_id": k2} for k2, v in load_map(k).items()]
+        ).assign(**{RTC: k})
+        for k in urled_sample[RTC].unique()
+    ).merge(urled_sample)
+    return sample_entities(with_oa, SAMPLE_BINS, e_per_bin).drop_duplicates(
+        [RTC, "oa_id"]
+    )
 
-    def _build_sample_df(self, e_per_bin: int) -> pd.DataFrame:
-        bins = [5_000, 10_000, 30_000, 100_000, 200_000]
-        sample_df = BatchRequester(
-            min_citations=bins[0], addr=self.rust_url
-        ).urled_sample
+
+def _make_fetch_pair(flask_url: str, oa_dm_maps: dict):
+    impact_url = f"{flask_url}/impact-tree"
+
+    def fetch_pair(row, tid, bds):
+        flask_bds = [
+            {"node": b["attributeType"], "sourceSide": b["sourceSide"]} for b in bds
+        ]
+        root_id = (
+            _id_to_cc(int(row["oa_id"])) if row[RTC] == EntC.COUNTRIES else row["oa_id"]
+        )
+        payload = {"root_type": row[RTC], "root_id": root_id, "breakdowns": flask_bds}
+        url = re.sub(r"tid=\d", f"tid={tid}", row["url"])
+        flask_resp = requests.post(impact_url, json=payload)
+        flask_resp.raise_for_status()
+        rs_resp = requests.get(url)
+        rs_resp.raise_for_status()
+        flask_children = _translate_tree(flask_resp.json()["children"], bds, oa_dm_maps)
+        rs_children = rs_resp.json()["tree"]["children"]
         return (
-            pd.concat(
-                pd.DataFrame(
-                    [{"dmId": v, "oa_id": k2} for k2, v in load_map(k).items()]
-                ).assign(**{RTC: k})
-                for k in sample_df[RTC].unique()
-            )
-            .merge(sample_df)
-            .assign(ccut=lambda df: pd.cut(df["citations"], bins))
-            .loc[lambda df: df["ccut"].notna()]
-            .groupby([RTC, "ccut"], observed=True)
-            .apply(
-                lambda gdf: gdf.sample(min(e_per_bin, len(gdf)), random_state=742),
-                include_groups=False,
-            )
-            .reset_index()
-            .drop_duplicates([RTC, "oa_id"])
+            flask_children,
+            rs_children,
+            flask_resp.elapsed.total_seconds(),
+            rs_resp.elapsed.total_seconds(),
         )
 
-    def iter_comparisons(self, e_per_bin: int = 4) -> Iterator[CompResult]:
-        df = self._build_sample_df(e_per_bin)
-        for _, row in tqdm(list(df.iterrows())):
-            root_type: str = row[RTC]
-            for tid, tree_spec in enumerate(self.specs[root_type]):
-                bds = tree_spec["breakdowns"]
-                bd_etypes = [b["attributeType"] for b in bds]
-                if not all(et in SUPPORTED_ETYPES for et in bd_etypes):
-                    continue
-                bd_label = ";".join(
-                    f"{b['attributeType']}-{'S' if b['sourceSide'] else 'T'}"
-                    for b in bds
-                )
-                flask_bds = [
-                    {"node": b["attributeType"], "sourceSide": b["sourceSide"]}
-                    for b in bds
-                ]
-                root_id = (
-                    _id_to_cc(int(row["oa_id"]))
-                    if root_type == EntC.COUNTRIES
-                    else row["oa_id"]
-                )
-                payload = {
-                    "root_type": root_type,
-                    "root_id": root_id,
-                    "breakdowns": flask_bds,
-                }
-                ccount: int = row["citations"]
-                url = re.sub(r"tid=\d", f"tid={tid}", row["url"])
-                logger.debug(
-                    "comparing %s/%s tid=%d ccount=%d", root_type, bd_label, tid, ccount
-                )
-                try:
-                    flask_resp = requests.post(self.flask_url, json=payload)
-                    flask_resp.raise_for_status()
-                    rs_resp = requests.get(url)
-                    rs_resp.raise_for_status()
-                    flask_json = flask_resp.json()
-                    flask_json["children"] = _translate_tree(
-                        flask_json["children"], bds, self.oa_dm_maps
-                    )
-                    rs_json = rs_resp.json()
-                    logger.debug(
-                        "  flask=%.3fs rs=%.3fs",
-                        flask_resp.elapsed.total_seconds(),
-                        rs_resp.elapsed.total_seconds(),
-                    )
-                    yield CompResult(
-                        root_type=root_type,
-                        bd_label=bd_label,
-                        citation_count=ccount,
-                        time_a=flask_resp.elapsed.total_seconds(),
-                        time_b=rs_resp.elapsed.total_seconds(),
-                        diff_df=make_diff_df(
-                            flask_json["children"],
-                            "a",
-                            rs_json["tree"]["children"],
-                            "b",
-                        ),
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "error for %s/%s tid=%d: %s", root_type, bd_label, tid, e
-                    )
-                    yield CompResult(
-                        root_type,
-                        bd_label,
-                        ccount,
-                        0.0,
-                        0.0,
-                        pd.DataFrame(),
-                        error=str(e),
-                    )
-
-
-# ── preparation ───────────────────────────────────────────────────────────────
-
-
-def _prepare_rust(level: RebuildLevel, server: DockerServer) -> None:
-    if level == RebuildLevel.none:
-        return
-    match level:
-        case RebuildLevel.binary:
-            subprocess.run(["make", "clean-cache"], check=True)
-            build_server()
-        case RebuildLevel.pipeline:
-            subprocess.run(["make", "-B", FINAL_STEP], check=True)
-            build_server()
-        case RebuildLevel.full:
-            subprocess.run(["make", "complete"], check=True)
-            build_server()
-    server.build_image()
+    return fetch_pair
 
 
 def _preflight(rust: DockerServer) -> None:
@@ -365,7 +186,15 @@ def run_comparison(
     setup_logging(artifacts_dir / "comparison.log")
     logger.info(f"SQL (Flask/PG) vs Rust comparison from {oa_root}")
 
-    flask = FlaskPgServer(data_root=oa_root, ccl_lib=CCL_LIB)
+    flask = FlaskPgServer(
+        container=FLASK_CONTAINER,
+        image=FLASK_IMAGE,
+        host_port=FLASK_PORT,
+        data_root=oa_root,
+        ccl_lib=CCL_LIB,
+        memory=MEMORY_LIMIT,
+        cpus=CPU_LIMIT,
+    )
     rust = DockerServer(
         container=RUST_CONTAINER,
         image=RUST_IMAGE,
@@ -376,7 +205,7 @@ def run_comparison(
     )
 
     _preflight(rust)
-    _prepare_rust(rebuild_rust, rust)
+    prepare_backend(rebuild_rust, rust)
 
     if rebuild_sql or not flask.is_running():
         logger.info("starting Flask/PG container")
@@ -389,65 +218,42 @@ def run_comparison(
     rust.start()
     rust.wait_ready()
 
+    requester = BatchRequester(min_citations=SAMPLE_BINS[0], addr=rust.base_url)
+    sample_df = _build_sample_df(requester.urled_sample, e_per_bin)
+    fetch_pair = _make_fetch_pair(flask.base_url, _build_oa_to_dm_maps())
+
     mem_tracker = MemoryTracker({rust.container: "rs", flask.container: "flask"})
     try:
-        comparator = SqlComparator(rust_url=rust.base_url, flask_url=flask.base_url)
         mem_tracker.start()
-        results = list(comparator.iter_comparisons(e_per_bin))
+        results = list(
+            run_query_loop(
+                sample_df,
+                requester.specs,
+                fetch_pair,
+                bd_filter=lambda bds: all(
+                    b["attributeType"] in SUPPORTED_ETYPES for b in bds
+                ),
+            )
+        )
     finally:
         mem_tracker.stop()
         rust.stop()
         if not keep_sql:
             flask.stop()
 
-    mem_stats = build_mem_stats(mem_tracker.samples)
-    summary_df = build_summary_df(results)
-    grouped_df = build_grouped_df(summary_df)
-    totals = build_totals(results, summary_df)
-
-    summary_df.to_csv(artifacts_dir / "summary.csv", index=False)
-    grouped_df.to_csv(artifacts_dir / "grouped.csv", index=False)
-    save_mem_samples(mem_tracker.samples, artifacts_dir / "memory_samples.csv")
-
-    timing_plot = artifacts_dir / "timing_plot.png"
-    accuracy_plot = artifacts_dir / "accuracy_plot.png"
-    memory_plot = artifacts_dir / "memory_plot.png"
-    plot_timing(results, "flask", "rs", timing_plot)
-    plot_accuracy(grouped_df, "flask", "rs", accuracy_plot)
-    plot_memory(
-        mem_tracker.samples, memory_plot, colors={"flask": "#e45756", "rs": "#4c78a8"}
-    )
-    plot_paths = [p for p in [timing_plot, accuracy_plot, memory_plot] if p.exists()]
-
-    poster_paths = poster_figures.generate_from_artifacts(artifacts_dir)
-    for p in poster_paths:
-        logger.info("poster figure → %s", p)
-
-    print_report(grouped_df, totals, "flask", "rs")
-    save_markdown(
-        grouped_df,
-        totals,
+    write_artifacts(
+        results,
         "flask",
         "rs",
-        artifacts_dir / "report.md",
-        plot_paths,
-        mem_stats=mem_stats,
+        artifacts_dir,
+        mem_tracker=mem_tracker,
+        mem_colors={"flask": "#e45756", "rs": "#4c78a8"},
+        save_mem_csv=True,
+        poster=True,
     )
-    html_path = artifacts_dir / "report.html"
-    save_html(
-        grouped_df,
-        totals,
-        "flask",
-        "rs",
-        html_path,
-        plot_paths,
-        mem_stats=mem_stats,
-    )
-    open_report(html_path)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Compare Flask/PG vs Rust server")
+def add_arguments(parser: argparse.ArgumentParser) -> None:
     rvals = [r.value for r in RebuildLevel]
     parser.add_argument(
         "--rebuild-rust",
@@ -474,8 +280,9 @@ if __name__ == "__main__":
         default=ARTIFACTS_ROOT,
         help=f"Output directory (default: {ARTIFACTS_ROOT})",
     )
-    args = parser.parse_args()
 
+
+def run(args: argparse.Namespace) -> None:
     ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
     run_comparison(
         rebuild_rust=RebuildLevel(args.rebuild_rust),
