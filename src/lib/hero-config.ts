@@ -209,6 +209,7 @@ function assembleTiles(
 	base: FieldBase[],
 	topicsByField: Map<string, FieldTopics>,
 	colorFn: (idx: number, total: number) => string,
+	selfSemanticId: string | null,
 	enrichExtra?: (semanticId: string | null) => Partial<FieldBase>
 ): HeroTile[] {
 	const order: FieldBase[] = [];
@@ -220,6 +221,9 @@ function assembleTiles(
 	}
 	for (const [name, grp] of topicsByField) {
 		if (seen.has(name)) continue;
+		// Drop the entity's own field, which a top topic of its can otherwise pull back in as an extra
+		// tile (the base list already excludes it) — on a subfield page that self-tile is just noise.
+		if (selfSemanticId && grp.semanticId === selfSemanticId) continue;
 		seen.add(name);
 		order.push({
 			name,
@@ -249,6 +253,7 @@ export function buildProductionTiles(
 	refPapers: Map<string, number>,
 	maxChips: number,
 	maxTopics: number,
+	selfSemanticId: string | null = null,
 	withCounts = true
 ): HeroTile[] {
 	const topicsByField = groupTopicsByField(grouped['paper-topics'], maxTopics, (t) => ({
@@ -256,16 +261,19 @@ export function buildProductionTiles(
 		count: withCounts ? t.score : null,
 		hover: withCounts ? `${pluralize('paper', t.score)} authored` : ''
 	}));
-	const base = (grouped['paper-fields'] ?? []).slice(0, maxChips).map(
-		(r): FieldBase => ({
-			name: r.name,
-			href: rootHref(r.etype, r.semanticId),
-			badge: null,
-			badgeTitle: null,
-			count: withCounts ? r.score : null
-		})
-	);
-	return assembleTiles(base, topicsByField, productionColor, (sid) => {
+	const base = (grouped['paper-fields'] ?? [])
+		.filter((r) => r.semanticId !== selfSemanticId)
+		.slice(0, maxChips)
+		.map(
+			(r): FieldBase => ({
+				name: r.name,
+				href: rootHref(r.etype, r.semanticId),
+				badge: null,
+				badgeTitle: null,
+				count: withCounts ? r.score : null
+			})
+		);
+	return assembleTiles(base, topicsByField, productionColor, selfSemanticId, (sid) => {
 		const papers = withCounts && sid ? refPapers.get(sid) : undefined;
 		return papers != null ? { count: papers } : {};
 	});
@@ -284,7 +292,8 @@ export function buildImpactTiles(
 	rootType: tt.RootType,
 	maxChips: number,
 	minTier: number,
-	maxTopics: number
+	maxTopics: number,
+	selfSemanticId: string | null = null
 ): HeroTile[] {
 	const topicsByField = groupTopicsByField(grouped['citing-topics'], maxTopics, (t) => ({
 		name: t.name,
@@ -308,27 +317,33 @@ export function buildImpactTiles(
 				});
 			}
 		});
-		base = peersData.topSubfields.slice(0, maxChips).map(
-			(sf): FieldBase => ({
-				name: sf.name,
-				href: entToLink({ rootType: 'subfields', semanticId: sf.semanticId }),
-				badge: null,
-				badgeTitle: null,
-				count: null,
-				...standing.get(sf.semanticId)
-			})
-		);
+		base = peersData.topSubfields
+			.filter((sf) => sf.semanticId !== selfSemanticId)
+			.slice(0, maxChips)
+			.map(
+				(sf): FieldBase => ({
+					name: sf.name,
+					href: entToLink({ rootType: 'subfields', semanticId: sf.semanticId }),
+					badge: null,
+					badgeTitle: null,
+					count: null,
+					...standing.get(sf.semanticId)
+				})
+			);
 		enrichExtra = (sid) => (sid ? (standing.get(sid) ?? {}) : {});
 	} else {
-		base = (grouped['citing-fields'] ?? []).slice(0, maxChips).map(
-			(r): FieldBase => ({
-				name: r.name,
-				href: rootHref(r.etype, r.semanticId),
-				badge: null,
-				badgeTitle: null,
-				count: r.score
-			})
-		);
+		base = (grouped['citing-fields'] ?? [])
+			.filter((r) => r.semanticId !== selfSemanticId)
+			.slice(0, maxChips)
+			.map(
+				(r): FieldBase => ({
+					name: r.name,
+					href: rootHref(r.etype, r.semanticId),
+					badge: null,
+					badgeTitle: null,
+					count: r.score
+				})
+			);
 	}
-	return assembleTiles(base, topicsByField, impactColor, enrichExtra);
+	return assembleTiles(base, topicsByField, impactColor, selfSemanticId, enrichExtra);
 }
