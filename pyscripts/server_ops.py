@@ -1,6 +1,7 @@
 """Local Rust server lifecycle management."""
 
 import os
+import re
 import socket
 import subprocess
 import time
@@ -168,23 +169,41 @@ def build_server() -> None:
     subprocess.run(["cargo", "build", "--release"], check=True)
 
 
-# ── Docker container server ───────────────────────────────────────────────────
+# ── Docker container servers ──────────────────────────────────────────────────
 
 RUST_DOCKERFILE = "sql-yardstick/docker/Dockerfile.rust"
+FLASK_DOCKERFILE = "sql-yardstick/docker/Dockerfile.pg-python"
 TARGET_PORT = 3000
+
+# containerd's overlayfs snapshotter intermittently corrupts its snapshot store
+# and aborts the export step of an otherwise-successful build. Pruning the build
+# cache clears it, so we detect that signature and retry once.
+_SNAPSHOT_CORRUPTION = re.compile(
+    r"parent snapshot .* does not exist|failed to prepare extraction snapshot"
+)
 
 
 @dataclass
 class DockerServer:
-    """Rust server running inside a Docker container, port-mapped to the host."""
+    """A server running inside a Docker container, port-mapped to the host.
+
+    Generic over the Rust server and the Flask/PG comparison backend: set
+    ``target_port`` / ``extra_volumes`` / ``ready_accept_any`` to specialise.
+    ``data_root`` is mounted read-only at ``/data/oa-root``; ``extra_volumes``
+    are ``(host_path, container_path)`` pairs mounted read-only too.
+    """
 
     container: str
     image: str
     host_port: int
     data_root: Path
     dockerfile: str = RUST_DOCKERFILE
+    target_port: int = TARGET_PORT
     memory: str = "16g"
     cpus: str = "8"
+    ready_accept_any: bool = False
+    extra_volumes: list[tuple[Path, str]] = field(default_factory=list)
+    ready_desc: Optional[str] = None
 
     @property
     def base_url(self) -> str:
@@ -194,14 +213,20 @@ class DockerServer:
     def spec_url(self) -> str:
         return f"{self.base_url}/v1/specs"
 
+    def is_running(self) -> bool:
+        return container_state(self.container)[0]
+
     def build_image(self) -> None:
-        _docker(["build", "-f", self.dockerfile, "-t", self.image, "."])
+        _docker_build(self.dockerfile, self.image)
 
     def stop(self) -> None:
         subprocess.run(["docker", "rm", "-f", self.container], capture_output=True)
 
     def start(self) -> None:
         self.stop()
+        volumes = ["-v", f"{self.data_root}:/data/oa-root:ro"]
+        for host, dest in self.extra_volumes:
+            volumes += ["-v", f"{host}:{dest}:ro"]
         _docker(
             [
                 "run",
@@ -213,20 +238,21 @@ class DockerServer:
                 "--cpus",
                 self.cpus,
                 "-p",
-                f"{self.host_port}:{TARGET_PORT}",
-                "-v",
-                f"{self.data_root}:/data/oa-root:ro",
+                f"{self.host_port}:{self.target_port}",
+                *volumes,
                 self.image,
             ]
         )
 
-    def wait_ready(self, max_attempts: int = 200) -> None:
+    def wait_ready(self, max_attempts: int = 300) -> None:
+        ready_url = self.base_url if self.ready_accept_any else self.spec_url
         wait_for_url(
-            self.spec_url,
+            ready_url,
             max_attempts,
-            desc=f"waiting for {self.container}",
+            desc=self.ready_desc or f"waiting for {self.container}",
             dead_check=lambda: container_state(self.container)[0],
             on_fail=lambda: container_logs(self.container),
+            accept_any=self.ready_accept_any,
         )
 
     def __enter__(self):
@@ -236,10 +262,70 @@ class DockerServer:
         self.stop()
 
 
+@dataclass
+class FlaskPgServer(DockerServer):
+    """Flask/PostgreSQL comparison backend: mounts the ccl-science-data lib next
+    to the data root, and is ready on any HTTP response (no health endpoint)."""
+
+    ccl_lib: Optional[Path] = None
+    dockerfile: str = FLASK_DOCKERFILE
+    target_port: int = 5000
+    memory: str = "8g"
+    cpus: str = "4"
+    ready_accept_any: bool = True
+
+    def __post_init__(self) -> None:
+        if self.ccl_lib is not None:
+            self.extra_volumes = [
+                *self.extra_volumes,
+                (self.ccl_lib, "/ccl-science-data"),
+            ]
+        if self.ready_desc is None:
+            self.ready_desc = (
+                f"waiting for {self.container} (loading OA data into PostgreSQL)"
+            )
+
+
 def _docker(args: list) -> None:
     cmd = ["docker", *[str(a) for a in args]]
     print("$", " ".join(cmd))
     subprocess.run(cmd, check=True)
+
+
+def _docker_build(dockerfile: str, image: str, context: str = ".") -> None:
+    """Build an image, self-healing the containerd snapshot corruption that
+    intermittently aborts the export of an otherwise-successful build: on that
+    signature, prune the build cache once and retry."""
+    cmd = ["docker", "build", "-f", str(dockerfile), "-t", image, context]
+    print("$", " ".join(cmd))
+    code, output = _stream(cmd)
+    if code == 0:
+        return
+    if _SNAPSHOT_CORRUPTION.search(output):
+        print("[docker] snapshot store corruption — pruning build cache and retrying")
+        subprocess.run(["docker", "builder", "prune", "-af"], check=False)
+        code, _ = _stream(cmd)
+        if code == 0:
+            return
+        raise RuntimeError(
+            f"docker build still failing after cache prune for {image}; "
+            f"try `docker system prune -af` (or restart the docker daemon)"
+        )
+    raise RuntimeError(f"docker build failed for {image}")
+
+
+def _stream(cmd: list) -> tuple[int, str]:
+    """Run a command, echoing combined output live while capturing it."""
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+    )
+    assert proc.stdout is not None
+    captured = []
+    for line in proc.stdout:
+        print(line, end="")
+        captured.append(line)
+    proc.wait()
+    return proc.returncode, "".join(captured)
 
 
 def current_branch() -> str:
