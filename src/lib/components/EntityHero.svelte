@@ -41,6 +41,9 @@
 	$: grouped = view.relations;
 
 	$: leaderRows = buildLeaderRows(grouped, cfg.leaders);
+	// On a subfield page the entity is itself a subfield, so it can surface among its own field tiles
+	// (e.g. via one of its top topics) — strip it so the tiles show only sibling fields, never self.
+	$: selfSemanticId = rootType === 'subfields' ? semanticId : null;
 	$: impactTiles = buildImpactTiles(
 		cfg,
 		peersData,
@@ -49,12 +52,20 @@
 		rootType,
 		MAX_CHIPS,
 		HERO_MIN_TIER,
-		MAX_TOPICS
+		MAX_TOPICS,
+		selfSemanticId
 	);
 	// Papers-per-subfield (semantic id → count) from the peers profile, so a field tile a top topic
 	// pulls in beyond the top paper-fields still shows its count.
 	$: refPapers = new Map((peersData?.refSubfields ?? []).map((s) => [s.semanticId, s.papers]));
-	$: productionTiles = buildProductionTiles(grouped, refPapers, MAX_CHIPS, MAX_TOPICS, !isHitPaper);
+	$: productionTiles = buildProductionTiles(
+		grouped,
+		refPapers,
+		MAX_CHIPS,
+		MAX_TOPICS,
+		selfSemanticId,
+		!isHitPaper
+	);
 </script>
 
 <div class="hero">
