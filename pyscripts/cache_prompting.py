@@ -2,7 +2,6 @@ import hashlib
 import json
 import os
 import re
-import sys
 import time
 from datetime import datetime
 from multiprocessing import Pool
@@ -183,27 +182,22 @@ def validate(urls):
     list(map(resp_pipe, tqdm(urls)))
 
 
-if __name__ == "__main__":
-    do_big_prep = "cache_big_prep" in sys.argv
-    do_big_read = "cache_big_read" in sys.argv
-    do_rest = "cache_do_rest" in sys.argv
+CACHE_ACTIONS = ("prep", "read", "rest", "validate-all", "validate-bigs")
 
-    validate_all = "cache_validate_all" in sys.argv
-    validate_big = "cache_validate_bigs" in sys.argv
 
+def add_arguments(parser) -> None:
+    parser.add_argument("action", choices=CACHE_ACTIONS)
+
+
+def run(args) -> None:
+    """Warm or validate the server response cache. See `uv run -m pyscripts cache -h`."""
     runner = BatchRequester()
-
-    if do_big_prep:
-        runner.do_big_prep()
-
-    if do_big_read:
-        runner.do_big_read()
-
-    if validate_big:
-        validate(runner.big_urls)
-
-    if do_rest:
-        runner.do_rest()
-
-    if validate_all:
-        validate(runner.urled_sample["url"].tolist())
+    dispatch = {
+        "prep": runner.do_big_prep,
+        "read": runner.do_big_read,
+        "rest": runner.do_rest,
+        "validate-all": lambda: validate(runner.urled_sample["url"].tolist()),
+        "validate-bigs": lambda: validate(runner.big_urls),
+    }
+    assert set(dispatch) == set(CACHE_ACTIONS)  # choices and dispatch stay in lockstep
+    dispatch[args.action]()
