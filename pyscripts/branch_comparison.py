@@ -1,197 +1,284 @@
-"""Branch-to-branch comparison of Rankless server outputs.
+"""Perf comparison of two git refs of the Rankless server.
 
-Runs two Docker containers — one per branch — then evaluates correctness
-(structural tree diff) and timing against the same query set.
+Benchmarks cold tree-build cost (the server's ``tlog`` phase timers) and peak
+memory of two refs (tags / branches / commit-ish) on the SAME dataset, in
+isolated git worktrees — the working tree you are sitting in is never touched.
 
-Run via the unified CLI:
-    uv run -m pyscripts compare-branch [options]
+    uv run -m pyscripts compare-branch --config pyscripts/perf_comparisons.toml
+    uv run -m pyscripts compare-branch --only heap-to-sort
+    make compare-branch ARGS="--only heap-to-sort"
 
-Options:
-    --branch-a BRANCH    Branch A (default: current branch)
-    --branch-b BRANCH    Branch B (default: rankless-main)
-    --rebuild-a LEVEL    none | binary | pipeline | full  (default: pipeline)
-    --rebuild-b LEVEL    none | binary | pipeline | full  (default: pipeline)
-    --samples N          Entities per citation-count bin (default: 4)
-    --artifacts PATH     Output directory (default: logs/comparison-artifacts)
-
-See docs/benchmarking.md for the full explanation.
+Each comparison: each ref is checked out detached into /tmp/rankless-perf, built,
+imaged (cached by sha), then run sequentially (one container at a time, so timing
+is contention-free) against the same sampled query set. Queries use
+``cacheable=false`` + no ``year`` over a read-only data mount, so every request is
+a full cold recompute. See docs/perf-benchmark-framework.md.
 """
 
 import argparse
+import dataclasses
 import datetime as dt
 import re
+import statistics
+import subprocess
+import tomllib
+from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import quote_plus
 
 import requests
 from ccl_science_data.common import oa_root
+from tqdm import tqdm
 
+from pyscripts import perf_report
 from pyscripts.cache_prompting import BatchRequester
-from pyscripts.comparison_driver import (
-    prepare_backend,
-    run_query_loop,
-    sample_entities,
-    write_artifacts,
+from pyscripts.comparison_driver import sample_entities
+from pyscripts.comparison_report import ARTIFACTS_ROOT, logger, setup_logging
+from pyscripts.perf_report import QueryPerf, RefPerf
+from pyscripts.server_ops import (
+    DockerServer,
+    build_perf_image,
+    cgroup_mem_bytes,
+    ensure_worktree,
+    remove_worktree,
 )
-from pyscripts.comparison_report import (
-    ARTIFACTS_ROOT,
-    MemoryTracker,
-    logger,
-    setup_logging,
+
+DEFAULT_CONFIG = Path("pyscripts/perf_comparisons.toml")
+PORT = 3038
+MIB = 1024 * 1024
+
+PHASE_LINE = re.compile(
+    r"\): (got heaps|got roots|converted, ingested and wrote trees) in (\d+)ms"
 )
-from pyscripts.server_ops import DockerServer, checkout, current_branch
-from pyscripts.stow_ops import RebuildLevel, StowManager
-
-MAIN_BRANCH = "rankless-main"
-PORT_A = 3038
-PORT_B = 3039
-MEMORY_LIMIT = "10g"
-CPU_LIMIT = "4"
-
-SAMPLE_BINS = [1_000, 5_000, 10_000, 30_000, 100_000, 200_000]
+PHASE_MAP = {
+    "got heaps": "heaps",
+    "got roots": "roots",
+    "converted, ingested and wrote trees": "serialize",
+}
 
 
-def _slug(branch: str) -> str:
-    return "rankless-branch-" + re.sub(r"[^a-z0-9]", "-", branch.lower())
-
-
-def _server(branch: str, host_port: int, data_root: Path) -> DockerServer:
-    return DockerServer(
-        container=_slug(branch),
-        image=_slug(branch),
-        host_port=host_port,
-        data_root=data_root,
-        memory=MEMORY_LIMIT,
-        cpus=CPU_LIMIT,
+@dataclass
+class Settings:
+    repeats: int = 3  # timed cold recomputes per query (median + min reported)
+    warmups: int = 1  # untimed runs to warm the OS page cache for the mmaps
+    samples: int = 3  # entities per citation bin
+    min_citations: int = 100_000
+    bins: list[int] = field(
+        default_factory=lambda: [100_000, 1_000_000, 5_000_000, 20_000_000]
     )
+    cpus: str = "4"
+    mem_limit: str = "32g"  # generous so peak reflects real usage, not a cap
+    keep_worktrees: bool = True
 
 
-def _prepare_branch(branch: str, rebuild: RebuildLevel, stow: StowManager) -> None:
-    """Checkout the branch, build per rebuild level, stash data, build the image."""
-    checkout(branch)
-    prepare_backend(
-        rebuild,
-        _server(branch, PORT_A, oa_root),
-        stow=stow,
-        stash_label=branch,
-    )
+@dataclass
+class Comparison:
+    name: str
+    a: str  # candidate ref
+    b: str  # baseline ref
+    settings: Settings
 
 
-def _make_fetch_pair(url_a: str, url_b: str):
-    def fetch_pair(row, tid, _bds):
-        a = re.sub(r"tid=\d+", f"tid={tid}", row["url"])
-        b = a.replace(url_a, url_b, 1)
-        resp_a = requests.get(a, timeout=120)
-        resp_b = requests.get(b, timeout=120)
-        resp_a.raise_for_status()
-        resp_b.raise_for_status()
-        return (
-            resp_a.json()["tree"]["children"],
-            resp_b.json()["tree"]["children"],
-            resp_a.elapsed.total_seconds(),
-            resp_b.elapsed.total_seconds(),
+class LogTailer:
+    """Incrementally read a container's stdout (the ``tlog`` phase lines)."""
+
+    def __init__(self, container: str) -> None:
+        self.container = container
+        self.offset = 0
+
+    def new_lines(self) -> list[str]:
+        r = subprocess.run(
+            ["docker", "logs", self.container], capture_output=True, text=True
         )
+        lines = r.stdout.splitlines()
+        new = lines[self.offset :]
+        self.offset = len(lines)
+        return new
 
-    return fetch_pair
+
+def _settings(defaults: dict, override: dict) -> Settings:
+    valid = {f.name for f in dataclasses.fields(Settings)}
+    merged = {**defaults, **override}
+    unknown = set(merged) - valid
+    if unknown:
+        raise SystemExit(f"unknown config keys: {sorted(unknown)}")
+    return Settings(**merged)
 
 
-# ── entry point ───────────────────────────────────────────────────────────────
+def load_config(path: Path, only: str | None) -> list[Comparison]:
+    data = tomllib.loads(path.read_text())
+    defaults = data.get("defaults", {})
+    comps = [
+        Comparison(
+            name=c["name"],
+            a=c["a"],
+            b=c["b"],
+            settings=_settings(
+                defaults, {k: v for k, v in c.items() if k not in ("name", "a", "b")}
+            ),
+        )
+        for c in data.get("comparison", [])
+    ]
+    if only:
+        comps = [c for c in comps if c.name == only]
+        if not comps:
+            raise SystemExit(f"no comparison named {only!r} in {path}")
+    return comps
 
 
-def run_comparison(
-    branch_a: str,
-    branch_b: str,
-    rebuild_a: RebuildLevel,
-    rebuild_b: RebuildLevel,
-    e_per_bin: int,
-    artifacts_dir: Path,
-) -> None:
+def _bd_label(specs: dict, rt: str, tid: int) -> str:
+    try:
+        bds = specs[rt][tid]["breakdowns"]
+    except (KeyError, IndexError):
+        return f"tid{tid}"
+    return ";".join(
+        f"{b['attributeType']}-{'S' if b['sourceSide'] else 'T'}" for b in bds
+    )
+
+
+def _parse_phases(lines: list[str]) -> dict[str, float]:
+    out: dict[str, float] = {}
+    for ln in lines:
+        m = PHASE_LINE.search(ln)
+        if m:
+            out[PHASE_MAP[m.group(1)]] = float(m.group(2))
+    return out
+
+
+def _make_server(sha: str, image: str, s: Settings) -> DockerServer:
+    return DockerServer(
+        container=f"rankless-perf-{sha[:12]}",
+        image=image,
+        host_port=PORT,
+        data_root=oa_root,
+        memory=s.mem_limit,
+        cpus=s.cpus,
+    )
+
+
+def _measure_query(
+    server: DockerServer, tailer: LogTailer, row, bd_label: str, s: Settings
+) -> QueryPerf | None:
+    sem = row["semanticId"]
+    url = (
+        f"{server.base_url}/v1/trees/{row['rt']}/{quote_plus(sem)}"
+        f"?tid={int(row['tid'])}&cacheable=false"
+    )
+    for _ in range(s.warmups):
+        try:
+            requests.get(url, timeout=600).raise_for_status()
+        except Exception as e:
+            logger.warning("warmup failed %s: %s", url, e)
+            return None
+    tailer.new_lines()  # discard warmup phase lines
+
+    peak_before = cgroup_mem_bytes(server.container, "peak") or 0
+    per_phase: dict[str, list[float]] = {}
+    https: list[float] = []
+    children: dict = {}
+    for i in range(s.repeats):
+        try:
+            resp = requests.get(url, timeout=600)
+            resp.raise_for_status()
+        except Exception as e:
+            logger.warning("query failed %s: %s", url, e)
+            return None
+        https.append(resp.elapsed.total_seconds())
+        for k, v in _parse_phases(tailer.new_lines()).items():
+            per_phase.setdefault(k, []).append(v)
+        if i == 0:
+            children = resp.json().get("tree", {}).get("children", {})
+    peak_after = cgroup_mem_bytes(server.container, "peak") or peak_before
+
+    if not per_phase:
+        logger.warning("no phase timers parsed for %s — skipping", url)
+        return None
+    return QueryPerf(
+        rt=row["rt"],
+        sem=sem,
+        tid=int(row["tid"]),
+        bd_label=bd_label,
+        citations=int(row["citations"]),
+        http_s=statistics.median(https),
+        phases_ms={k: statistics.median(v) for k, v in per_phase.items()},
+        phases_min_ms={k: min(v) for k, v in per_phase.items()},
+        mem_delta_mib=(peak_after - peak_before) / MIB,
+        children=children,
+    )
+
+
+def _measure_ref(
+    server: DockerServer, label: str, sha: str, sample_df, specs: dict, s: Settings
+) -> RefPerf:
+    tailer = LogTailer(server.container)
+    baseline = (cgroup_mem_bytes(server.container, "current") or 0) / MIB
+    queries: list[QueryPerf] = []
+    try:
+        for _, row in tqdm(list(sample_df.iterrows()), desc=label):
+            q = _measure_query(
+                server, tailer, row, _bd_label(specs, row["rt"], int(row["tid"])), s
+            )
+            if q:
+                queries.append(q)
+        peak = (cgroup_mem_bytes(server.container, "peak") or 0) / MIB
+    finally:
+        server.stop()
+    return RefPerf(
+        label=label, sha=sha, baseline_mib=baseline, peak_mib=peak, queries=queries
+    )
+
+
+def _label(ref: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9._~-]", "-", ref)
+
+
+def run_comparison(comp: Comparison, artifacts_root: Path) -> None:
+    ts = dt.datetime.now().strftime("%Y-%m-%d-%H-%M")
+    artifacts_dir = artifacts_root / f"{ts}-perf-{comp.name}"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     setup_logging(artifacts_dir / "comparison.log")
-    logger.info("comparing A=%s vs B=%s", branch_a, branch_b)
+    s = comp.settings
+    logger.info("perf %s: A=%s vs B=%s", comp.name, comp.a, comp.b)
 
-    label_a = re.sub(r"[^a-zA-Z0-9._-]", "-", branch_a)
-    label_b = re.sub(r"[^a-zA-Z0-9._-]", "-", branch_b)
+    sha_a, wt_a = ensure_worktree(comp.a)
+    sha_b, wt_b = ensure_worktree(comp.b)
+    img_a = build_perf_image(sha_a, wt_a)
+    img_b = build_perf_image(sha_b, wt_b)
 
-    stow = StowManager()
-    original_branch = current_branch()
-    mem_tracker: MemoryTracker | None = None
+    server_a = _make_server(sha_a, img_a, s)
+    server_a.start()
+    server_a.wait_ready()
+    requester = BatchRequester(min_citations=s.min_citations, addr=server_a.base_url)
+    sample_df = sample_entities(requester.urled_sample, s.bins, s.samples).sort_values(
+        "citations"
+    )
+    logger.info("sampled %d (entity, tid) queries", len(sample_df))
+    run_a = _measure_ref(server_a, _label(comp.a), sha_a, sample_df, requester.specs, s)
 
-    try:
-        for branch, rb in [(branch_a, rebuild_a), (branch_b, rebuild_b)]:
-            logger.info("preparing branch %s (rebuild=%s)", branch, rb.value)
-            _prepare_branch(branch, rb, stow)
-        checkout(original_branch)
+    server_b = _make_server(sha_b, img_b, s)
+    server_b.start()
+    server_b.wait_ready()
+    run_b = _measure_ref(server_b, _label(comp.b), sha_b, sample_df, requester.specs, s)
 
-        server_a = _server(branch_a, PORT_A, stow.data_root_for(branch_a))
-        server_b = _server(branch_b, PORT_B, stow.data_root_for(branch_b))
-        server_a.start()
-        server_b.start()
-        server_a.wait_ready()
-        server_b.wait_ready()
+    perf_report.write_report(run_a, run_b, artifacts_dir)
 
-        requester = BatchRequester(min_citations=SAMPLE_BINS[0], addr=server_a.base_url)
-        sample_df = sample_entities(requester.urled_sample, SAMPLE_BINS, e_per_bin)
-        fetch_pair = _make_fetch_pair(server_a.base_url, server_b.base_url)
-
-        mem_tracker = MemoryTracker(
-            {server_a.container: label_a, server_b.container: label_b}
-        )
-        mem_tracker.start()
-        results = list(run_query_loop(sample_df, requester.specs, fetch_pair))
-        mem_tracker.stop()
-
-        server_a.stop()
-        server_b.stop()
-    finally:
-        if current_branch() != original_branch:
-            checkout(original_branch)
-
-    write_artifacts(results, label_a, label_b, artifacts_dir, mem_tracker=mem_tracker)
+    if not s.keep_worktrees:
+        remove_worktree(wt_a)
+        remove_worktree(wt_b)
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:
-    rvals = [r.value for r in RebuildLevel]
-    parser.add_argument("--branch-a", default=None, help="Branch A (default: current)")
     parser.add_argument(
-        "--branch-b", default=MAIN_BRANCH, help=f"Branch B (default: {MAIN_BRANCH})"
+        "--config", type=Path, default=DEFAULT_CONFIG, help="TOML comparison config"
     )
     parser.add_argument(
-        "--rebuild-a",
-        default="pipeline",
-        choices=rvals,
-        help="Rebuild level for branch A (default: pipeline)",
+        "--only", default=None, help="run only the comparison with this name"
     )
     parser.add_argument(
-        "--rebuild-b",
-        default="pipeline",
-        choices=rvals,
-        help="Rebuild level for branch B (default: pipeline)",
-    )
-    parser.add_argument(
-        "--samples", type=int, default=4, help="Entities per citation-count bin"
-    )
-    parser.add_argument(
-        "--artifacts",
-        type=Path,
-        default=ARTIFACTS_ROOT,
-        help=f"Output directory (default: {ARTIFACTS_ROOT})",
+        "--artifacts", type=Path, default=ARTIFACTS_ROOT, help="output directory root"
     )
 
 
 def run(args: argparse.Namespace) -> None:
-    branch_a = args.branch_a or current_branch()
-    slug = (
-        "branch-"
-        + re.sub(r"[^a-z0-9]", "-", branch_a.lower())
-        + "-vs-"
-        + re.sub(r"[^a-z0-9]", "-", args.branch_b.lower())
-    )
-    ts = dt.datetime.now().strftime("%Y-%m-%d-%H-%M")
-    run_comparison(
-        branch_a=branch_a,
-        branch_b=args.branch_b,
-        rebuild_a=RebuildLevel(args.rebuild_a),
-        rebuild_b=RebuildLevel(args.rebuild_b),
-        e_per_bin=args.samples,
-        artifacts_dir=args.artifacts / f"{ts}-{slug}",
-    )
+    for comp in load_config(args.config, args.only):
+        run_comparison(comp, args.artifacts)

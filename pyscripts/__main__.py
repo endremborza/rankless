@@ -4,7 +4,7 @@
 
 Commands:
     compare-sql        Flask/PostgreSQL vs Rust server comparison (correctness + timing)
-    compare-branch     branch-vs-branch Rust server comparison
+    compare-branch     perf comparison of two git refs (tlog phase timing + peak memory)
     bench              local throughput + memory benchmark (current branch vs main)
     cache <action>     warm/validate the server response cache
 

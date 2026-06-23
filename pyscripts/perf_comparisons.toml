@@ -1,0 +1,19 @@
+# Perf comparisons for `uv run -m pyscripts compare-branch`.
+# [defaults] apply to every comparison; each [[comparison]] may override any key.
+# `a` (candidate) and `b` (baseline) are any git ref: tag, branch, or commit-ish.
+# See docs/perf-benchmark-framework.md.
+
+[defaults]
+repeats = 3                                          # timed cold recomputes per query
+warmups = 1                                          # untimed page-cache warmups
+samples = 3                                          # entities per citation bin
+min_citations = 100_000
+bins = [100_000, 1_000_000, 5_000_000, 20_000_000]
+cpus = "4"
+mem_limit = "32g"
+keep_worktrees = true                                # reuse worktree + image next run
+
+[[comparison]]
+name = "heap-to-sort"
+a = "1c01d0178"                                      # MinHeap = Vec + sort_unstable
+b = "1c01d0178~1"                                    # BinaryHeap<Reverse<T>> baseline

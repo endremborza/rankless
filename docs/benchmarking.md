@@ -10,16 +10,32 @@ Part 2 — [SQL vs Rust results](#sql-vs-rust-results)
 
 ## Running comparisons & benchmarks
 
-Two comparison modes:
+All benchmark/comparison tooling runs through one entry point — `uv run -m pyscripts
+<command>` (see `uv run -m pyscripts -h`). Each command's module is imported lazily, so a
+missing/broken dependency in one (e.g. `bench` needs `psutil`) never breaks the others.
 
-| Mode                  | Script                           | Purpose                                                                             |
-| --------------------- | -------------------------------- | ----------------------------------------------------------------------------------- |
-| **Branch comparison** | `pyscripts/branch_comparison.py` | Two Docker containers (one per branch), structural tree diff — correctness + timing |
-| **SQL comparison**    | `pyscripts/sql_comparison.py`    | Flask/PostgreSQL vs Rust — structural diff, Pearson, relative error                 |
+| Command          | Module                           | Purpose                                                                                                                                                                     |
+| ---------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compare-branch` | `pyscripts/branch_comparison.py` | Perf comparison of two git refs (worktree-isolated) — `tlog` phase timing + cgroup peak memory, with a structural-diff correctness guard. See `perf-benchmark-framework.md` |
+| `compare-sql`    | `pyscripts/sql_comparison.py`    | Flask/PostgreSQL vs Rust — structural diff, Pearson, relative error                                                                                                         |
+| `bench`          | `pyscripts/bm.py`                | Local throughput + memory benchmark; auto-compares current branch vs `rankless-main`                                                                                        |
+| `cache <action>` | `pyscripts/cache_prompting.py`   | Warm/validate the server response cache (`prep`/`read`/`rest`/`validate-*`)                                                                                                 |
 
-Both produce identical artifact sets via the shared `pyscripts/comparison_report.py`.
+`compare-sql` is thin: it defines only its backend pair and a `fetch_pair` callback over the
+shared three-stage skeleton — rebuild dispatch, the sample → query → diff loop, and the
+artifact/report tail — in `pyscripts/comparison_driver.py`, emitting the correctness-oriented
+artifact set via `pyscripts/comparison_report.py`. `compare-branch` is a separate perf driver
+(`branch_comparison.py` + `perf_report.py`): it reuses `sample_entities`, `setup_logging`, and
+`tree_diff` but runs refs sequentially with `tlog`-timer + cgroup-memory capture instead of the
+simultaneous `fetch_pair` loop.
 
 ### Shared infrastructure
+
+**`comparison_driver.py`** — orchestration shared by both comparison modes:
+`prepare_backend(level, server, stow=, stash_label=)` (rebuild dispatch),
+`sample_entities(df, bins, e_per_bin)` (stratified sample), `run_query_loop(sample_df, specs,
+fetch_pair, bd_filter=)` (yields `CompResult`s), `write_artifacts(...)` (CSVs + plots +
+report, with `poster=`/`save_mem_csv=` toggles).
 
 **`comparison_report.py`** — analysis + reporting used by both modes; `open_report(html_path)`
 opens the result in Firefox (silently ignored if unavailable).
@@ -45,7 +61,20 @@ relerr > 5%), `top_source_stats` (top-source ID match + link rel-error).
 `get_specs_and_ys(addr)`.
 
 **`server_ops.py`** — `ServerProcess` (local: `start`/`wait_ready`/`stop`), `DockerServer`
-(container + port mapping), `build_server()`, `current_branch()`/`checkout()`.
+(generic container + port mapping; `FlaskPgServer` subclasses it with the ccl-lib mount and
+no health endpoint), `build_server()`, `current_branch()`/`checkout()`. `build_image()` is
+**self-healing**: it detects containerd's intermittent snapshot-store corruption
+(`failed to prepare extraction snapshot … parent snapshot … does not exist`), prunes the
+build cache (`docker builder prune -af`), and retries once before failing. Perf-comparison
+helpers (worktree-isolated, never touch the working tree): `ensure_worktree(ref)` /
+`remove_worktree`, `build_server_at(worktree)`, `build_perf_image(sha, worktree)` (cached as
+`rankless-perf-<sha>`), and `cgroup_mem_bytes(container, kind)` (cgroup v2 `memory.current` /
+`memory.peak`).
+
+**`perf_report.py`** — perf-comparison reporting: `QueryPerf` / `RefPerf` dataclasses,
+`build_pairs` / `build_grouped` / `build_totals`, and `write_report(run_a, run_b, dir)`
+(console + markdown + HTML + `timing_plot.png` + `per_query.csv`). Per-phase speedup is
+`t_B / t_A` (>1 ⇒ candidate A faster); a structural diff via `tree_diff` guards correctness.
 
 **`stow_ops.py`** — `RebuildLevel` enum (`none|binary|pipeline|full`), `StowManager`
 (`stash(label)`, `data_root_for(label)`, `has_data(label)`); stash = full rsync of
@@ -61,41 +90,46 @@ Both modes write to `logs/comparison-artifacts/{timestamp}-{slug}/`:
 | `timing_plot.png`, `accuracy_plot.png`         | Yes         |
 | `comparison.log`, `summary.csv`, `grouped.csv` | No          |
 
-### Branch comparison
+### Branch comparison (perf)
 
-Two Docker containers simultaneously (branch A on port 3038, branch B on 3039), same entity
-set, node-by-node tree diff.
+Benchmarks two git refs of the server on the **same** dataset, isolating cold tree-build
+cost and peak memory. Each ref is checked out _detached_ into a git worktree under
+`/tmp/rankless-perf/` and built there (the working tree is never touched), then run
+**sequentially** — one container at a time, so timing is contention-free — against the same
+sampled query set. Full design + rationale: `docs/perf-benchmark-framework.md`.
 
 ```bash
-make branch_comparison
-python -m pyscripts.branch_comparison --branch-a move-from-server --branch-b rankless-main
-python -m pyscripts.branch_comparison --rebuild-a pipeline --rebuild-b pipeline
-python -m pyscripts.branch_comparison --rebuild-a none --rebuild-b none   # reuse images
-python -m pyscripts.branch_comparison --samples 8 --artifacts /tmp/my-cmp
+make compare-branch                                       # all comparisons in the default config
+make compare-branch ARGS="--only heap-to-sort"            # one named comparison
+uv run -m pyscripts compare-branch --config pyscripts/perf_comparisons.toml --only heap-to-sort
 ```
 
-Rebuild levels:
+Comparisons live in `pyscripts/perf_comparisons.toml`: `[defaults]` + one `[[comparison]]`
+per `(name, a, b)`, where `a` (candidate) / `b` (baseline) are any git ref (tag / branch /
+commit-ish). Per-comparison keys override the defaults (`repeats`, `samples`, `bins`,
+`cpus`, `mem_limit`, `keep_worktrees`, …).
 
-| Level      | Binary  | Pipeline                      | Cache   | Use when                       |
-| ---------- | ------- | ----------------------------- | ------- | ------------------------------ |
-| `none`     | —       | —                             | —       | nothing changed since last run |
-| `binary`   | rebuild | existing data                 | cleared | server/tree code changed       |
-| `pipeline` | rebuild | `make filter`                 | cleared | pipeline code changed          |
-| `full`     | rebuild | `make to-csv` + `make filter` | cleared | input data changed             |
+**Why it measures what it does:** queries use `cacheable=false` + no `year` over a read-only
+data mount, so every request is a full cold recompute. The primary signal is the server's
+`tlog` phase timers (`got heaps` / `got roots` / serialize), parsed per-request from the
+container's stdout (single-in-flight ⇒ unambiguous) — HTTP wall-clock is a sanity column
+only. Memory is the container's cgroup v2 `memory.peak` minus the post-startup baseline. A
+and B responses are diffed (`tree_diff.make_diff_df`) as a correctness guard: a perf change
+must not alter output, so `max rel-error` must stay ≈0. Images are cached as
+`rankless-perf-<sha>`, so re-running a ref is instant.
 
-After a `pipeline`/`full` rebuild the data root is rsynced to `/tmp/rankless-stow/{branch}/`;
-later `--rebuild-* none` runs mount the stowed directory (binary captured in the image).
-`relerr_sc` (sourceCount relative error) is the primary correctness metric; `missing_in_b`
-counts nodes present in A but absent in B.
+Output (`logs/comparison-artifacts/<ts>-perf-<name>/`): console + `report.md` + `report.html`
+(per-phase speedup `t_B/t_A`, memory, correctness), `timing_plot.png` (phase time vs
+citations, A vs B), and `per_query.csv`.
 
 ### SQL / reference comparison
 
 ```bash
-make sql_comparison
-python -m pyscripts.sql_comparison --rebuild-rust binary   # default
-python -m pyscripts.sql_comparison --rebuild-rust none     # reuse image
-python -m pyscripts.sql_comparison --rebuild-sql           # also rebuild Flask/PG
-python -m pyscripts.sql_comparison --no-keep-sql --samples 8
+make compare-sql                                       # or: uv run -m pyscripts compare-sql
+uv run -m pyscripts compare-sql --rebuild-rust binary  # default
+uv run -m pyscripts compare-sql --rebuild-rust none    # reuse image
+uv run -m pyscripts compare-sql --rebuild-sql          # also rebuild Flask/PG
+uv run -m pyscripts compare-sql --no-keep-sql --samples 8
 ```
 
 Manages two containers: Rust `rankless-rust-sql` (port 3038, rebuilt per `--rebuild-rust`,
@@ -110,7 +144,7 @@ Rebuild levels (`--rebuild-rust`): `none` / `binary` (default) / `pipeline` (`ma
 ### Benchmarking
 
 ```bash
-make bm
+make bench                # or: uv run -m pyscripts bench  (needs psutil installed)
 ```
 
 `pyscripts/bm.py` — standalone throughput/latency benchmark: builds + starts a local server,
