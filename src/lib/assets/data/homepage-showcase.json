@@ -1,0 +1,176 @@
+{
+  "scholar": {
+    "name": "Richard H. Thaler",
+    "semanticId": "richard-h-thaler",
+    "papers": 171,
+    "citations": 59501
+  },
+  "coauthors": {
+    "rootName": "Richard H. Thaler",
+    "nodes": [
+      {
+        "name": "Werner F. M. De Bondt",
+        "semanticId": "werner-f-m-de-bondt",
+        "score": 3843
+      },
+      {
+        "name": "Shlomo Benartzi",
+        "semanticId": "shlomo-benartzi",
+        "score": 3111
+      },
+      {
+        "name": "Daniel Kahneman",
+        "semanticId": "daniel-kahneman",
+        "score": 2729
+      },
+      {
+        "name": "Jack L. Knetsch",
+        "semanticId": "jack-l-knetsch",
+        "score": 2329
+      },
+      {
+        "name": "Cass R. Sunstein",
+        "semanticId": "cass-r-sunstein",
+        "score": 1399
+      },
+      {
+        "name": "Hersh Shefrin",
+        "semanticId": "hersh-shefrin",
+        "score": 1194
+      }
+    ],
+    "edges": [
+      [
+        1,
+        4,
+        4
+      ],
+      [
+        2,
+        3,
+        6
+      ],
+      [
+        2,
+        4,
+        14
+      ],
+      [
+        3,
+        4,
+        1
+      ]
+    ]
+  },
+  "peers": {
+    "subfields": [
+      {
+        "name": "Economics and Econometrics",
+        "cites": 28163
+      },
+      {
+        "name": "Finance",
+        "cites": 18427
+      },
+      {
+        "name": "Accounting",
+        "cites": 16168
+      },
+      {
+        "name": "General Decision Sciences",
+        "cites": 14975
+      },
+      {
+        "name": "Safety Research",
+        "cites": 8269
+      },
+      {
+        "name": "Sociology and Political Science",
+        "cites": 7119
+      }
+    ],
+    "yearFrom": 2016,
+    "yearly": [
+      2616,
+      2773,
+      3123,
+      3236,
+      3068,
+      3315,
+      2584,
+      2242,
+      1756,
+      916,
+      13
+    ]
+  },
+  "samplePaper": {
+    "paper": {
+      "wid": 55629298,
+      "oaId": 1974758328,
+      "year": 1989,
+      "name": "Interhemispheric asymmetry in climate response to a gradual increase of atmospheric CO2",
+      "doi": "10.1038/342660a0",
+      "citations": 239,
+      "source": 31078,
+      "authorships": [
+        {
+          "author": "F3294938",
+          "insts": [
+            31280,
+            22807
+          ]
+        },
+        {
+          "author": "F4038857",
+          "insts": [
+            27097,
+            31280,
+            22807
+          ]
+        },
+        {
+          "author": "F1047948",
+          "insts": [
+            22807,
+            31280
+          ]
+        }
+      ],
+      "biblio": {
+        "volume": "342",
+        "issue": "6250",
+        "first_page": "660",
+        "last_page": "662"
+      },
+      "isHit": false
+    },
+    "entityAtts": {
+      "sources": {
+        "31078": {
+          "name": "Nature",
+          "semantic_id": "nature",
+          "spec_baseline": 0.005058136389759843
+        }
+      },
+      "authors": {
+        "4038857": {
+          "name": "Syukuro Manabe",
+          "semantic_id": "syukuro-manabe",
+          "spec_baseline": 5.950790278456059e-06
+        },
+        "1047948": {
+          "name": "K. Bryan",
+          "semantic_id": "k-bryan",
+          "spec_baseline": 9.510326874224985e-07
+        },
+        "3294938": {
+          "name": "Ronald J. Stouffer",
+          "semantic_id": "ronald-j-stouffer",
+          "spec_baseline": 1.3897855997762094e-05
+        }
+      }
+    },
+    "discAuthorNames": {}
+  }
+}
