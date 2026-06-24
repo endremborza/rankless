@@ -32,7 +32,9 @@
 	let lineW = 0.022;
 </script>
 
-{#if fullW != undefined && fullHeight != undefined}
+<!-- `fullHeight` rides a bind:clientHeight that reads 0 mid-layout; a `!= undefined` guard lets that
+	 0 through and `fontSize = fullH / 0` cascades to NaN/Infinity SVG attrs. Require a real height. -->
+{#if fullHeight > 0 && Number.isFinite(fullW)}
 	<svg viewBox="-{leftP} -{h + p} {fullW} {fullH}">
 		{#if showBottom}
 			<TickBars
