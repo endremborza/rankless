@@ -7,6 +7,7 @@
 	import { isAuthored, resolveSourceName } from '$lib/utils/paper-helpers';
 	import { onMount } from 'svelte';
 	import { fade, slide } from 'svelte/transition';
+	import AuthorTimeline from './AuthorTimeline.svelte';
 
 	export let authors: RelatedEntity[] = [];
 	export let edgeWeights: number[] = [];
@@ -24,12 +25,22 @@
 	let hovered: Selection = null;
 	$: focus = hovered ?? selection;
 
+	let view: 'network' | 'timeline' = 'network';
+
 	// Reset the drilldown when the hero changes (component is reused across navigations).
 	let seenHero = '';
 	$: if (heroSemanticId !== seenHero) {
 		seenHero = heroSemanticId;
 		selection = null;
 		hovered = null;
+		view = 'network';
+	}
+
+	// The timeline places every collaborator, so it needs the full work set, not just the page.
+	let timelineLoadedFor = '';
+	$: if (view === 'timeline' && timelineLoadedFor !== heroSemanticId) {
+		timelineLoadedFor = heroSemanticId;
+		works.loadAll();
 	}
 
 	// The first drilldown needs every work to find all shared papers; pull them lazily and once.
@@ -193,7 +204,9 @@
 	const marge = 0.09;
 	const height = 400;
 	const margify = (x: number) => x * (1 + 2 * marge);
-	$: width = (height * svgWidth) / svgHeight;
+	// While the graph is hidden (timeline tab) the clientHeight bind reports 0, so guard the ratio:
+	// an unguarded `x/0` yields NaN and paints `MNaN` paths until the ResizeObserver re-fires.
+	$: width = svgWidth && svgHeight ? (height * svgWidth) / svgHeight : height;
 	$: r = Math.min(14, width / 20);
 	$: viewBox = `-${width * marge} -${height * marge} ${margify(width)} ${margify(height)}`;
 
@@ -220,10 +233,29 @@
 	const possFuns = ['force', 'circle'] as const;
 	let actFun: (typeof possFuns)[number] = 'force';
 	$: layoutFun = actFun === 'force' && forceLayout ? forceLayout : circleLayout;
-	$: positions = layoutFun(nodeIds, edgeWeights, options);
+	$: positions = safePositions(layoutFun, nodeIds, edgeWeights, options);
 	// Bow the edges in free layouts; keep them straight chords on the circle.
 	$: edgeCurve = layoutFun === circleLayout ? 0 : 0.15;
 	let showControls = false;
+
+	// The force layout can throw (cytoscape on bad data) or return non-finite coords; never let that
+	// break the graph — fall back to the always-valid circle layout so a render is guaranteed.
+	function safePositions(
+		fn: (ids: string[], weights: number[], opts: typeof options) => { x: number; y: number }[],
+		ids: string[],
+		weights: number[],
+		opts: typeof options
+	) {
+		let p: { x: number; y: number }[] = [];
+		try {
+			p = fn(ids, weights, opts);
+		} catch {
+			p = [];
+		}
+		const ok =
+			p.length === ids.length && p.every((c) => Number.isFinite(c?.x) && Number.isFinite(c?.y));
+		return ok ? p : circleLayout(ids, weights, opts);
+	}
 </script>
 
 {#if n === 0}
@@ -231,217 +263,246 @@
 {:else}
 	<div class="net">
 		<header class="net-head">
-			<h3>Co-authorship network</h3>
-			<p class="net-sub">
-				The {n} scholars most cited alongside <strong>{rootName}</strong>, linked wherever they have
-				co-authored with each other. Click a name or a connecting line to browse the papers they
-				share.
-			</p>
+			<div class="net-head-top">
+				<h3>Co-authors</h3>
+				<div class="view-toggle">
+					<button
+						class="toggle-btn"
+						class:active={view === 'network'}
+						aria-pressed={view === 'network'}
+						on:click={() => (view = 'network')}>network</button
+					>
+					<button
+						class="toggle-btn"
+						class:active={view === 'timeline'}
+						aria-pressed={view === 'timeline'}
+						on:click={() => (view = 'timeline')}>timeline</button
+					>
+				</div>
+			</div>
+			{#if view === 'network'}
+				<p class="net-sub">
+					The {n} scholars most cited alongside <strong>{rootName}</strong>, linked wherever they
+					have co-authored with each other. Click a name or a connecting line to browse the papers
+					they share.
+				</p>
+			{:else}
+				<p class="net-sub">
+					Every collaborator across <strong>{rootName}</strong>'s works, placed by the years they
+					published together — including recent or minor co-authors the network leaves out. Raise
+					the threshold to focus on closer collaborators; marks flag hit papers, hover for details.
+				</p>
+			{/if}
 		</header>
 
-		<div class="graph-wrap" bind:clientWidth={svgWidth} bind:clientHeight={svgHeight}>
-			{#if svgWidth != undefined}
-				<svg {viewBox} role="img" aria-label="Co-authorship network" transition:fade>
-					{#each Array(n) as _, i (i)}
-						{#each Array(n) as _, j (j)}
-							{#if j > i && getWeight(i, j) > 0}
-								{@const w = getWeight(i, j)}
-								{@const active = edgeActive(i, j, focus)}
-								<path
-									class="hit"
-									d={edgePath(positions[i], positions[j], edgeCurve)}
-									role="button"
-									tabindex="-1"
-									aria-label={`Papers shared by ${authors[i].name} and ${authors[j].name}`}
-									on:click={() => selectEdge(i, j)}
-									on:keydown={(e) => onKey(e, () => selectEdge(i, j))}
-									on:mouseenter={() => (hovered = { kind: 'edge', i, j })}
-									on:mouseleave={() => (hovered = null)}
-								/>
-								<path
-									class="edge"
-									class:active={!!focus && active}
-									class:dim={focus && !active}
-									d={edgePath(positions[i], positions[j], edgeCurve)}
-									stroke-width={Math.min(r / 2, 1 + Math.sqrt(w))}
-									stroke-opacity={Math.max(0.25, Math.min(0.95, 0.25 + 0.15 * Math.log1p(w)))}
-								/>
-							{/if}
+		{#if view === 'network'}
+			<div class="graph-wrap" bind:clientWidth={svgWidth} bind:clientHeight={svgHeight}>
+				{#if svgWidth && svgHeight}
+					<svg {viewBox} role="img" aria-label="Co-authorship network" transition:fade>
+						{#each Array(n) as _, i (i)}
+							{#each Array(n) as _, j (j)}
+								{#if j > i && getWeight(i, j) > 0}
+									{@const w = getWeight(i, j)}
+									{@const active = edgeActive(i, j, focus)}
+									<path
+										class="hit"
+										d={edgePath(positions[i], positions[j], edgeCurve)}
+										role="button"
+										tabindex="-1"
+										aria-label={`Papers shared by ${authors[i].name} and ${authors[j].name}`}
+										on:click={() => selectEdge(i, j)}
+										on:keydown={(e) => onKey(e, () => selectEdge(i, j))}
+										on:mouseenter={() => (hovered = { kind: 'edge', i, j })}
+										on:mouseleave={() => (hovered = null)}
+									/>
+									<path
+										class="edge"
+										class:active={!!focus && active}
+										class:dim={focus && !active}
+										d={edgePath(positions[i], positions[j], edgeCurve)}
+										stroke-width={Math.min(r / 2, 1 + Math.sqrt(w))}
+										stroke-opacity={Math.max(0.25, Math.min(0.95, 0.25 + 0.15 * Math.log1p(w)))}
+									/>
+								{/if}
+							{/each}
 						{/each}
-					{/each}
 
-					{#each authors as a, i (i)}
-						{@const active = nodeActive(i, focus)}
-						{@const sel = selection?.kind === 'node' && selection.i === i}
-						{@const label = lastWord(a.name)}
-						{@const labelW = label.length * 7 + 8}
-						<g
-							class="node"
-							class:active={!!focus && active}
-							class:dim={focus && !active}
-							class:sel
-							transform="translate({positions[i].x},{positions[i].y})"
-							role="button"
-							tabindex="0"
-							aria-label={`Papers by ${rootName} and ${a.name}`}
-							on:click={() => selectNode(i)}
-							on:keydown={(e) => onKey(e, () => selectNode(i))}
-							on:mouseenter={() => (hovered = { kind: 'node', i })}
-							on:mouseleave={() => (hovered = null)}
-						>
-							<ellipse rx={r} ry={r} stroke-width={(nodeScales[i] || 1) * 1.8} />
-							<rect
-								class="label-bg"
-								x={-labelW / 2}
-								y={r * 0.3 - 11}
-								width={labelW}
-								height={15}
-								rx={2}
-							/>
-							<text text-anchor="middle" font-size="12" y={r * 0.3}>{label}</text>
-						</g>
-					{/each}
-				</svg>
-			{/if}
-
-			<button
-				class="gear"
-				class:on={showControls}
-				aria-label="Layout controls"
-				on:click={() => (showControls = !showControls)}>⚙</button
-			>
-			{#if showControls}
-				<div class="controls" transition:slide>
-					<label class="ctl">
-						<span>Layout</span>
-						<select bind:value={actFun}>
-							{#each possFuns as name, __i (__i)}<option value={name}>{name}</option>{/each}
-						</select>
-					</label>
-					{#if actFun === 'force'}
-						<label class="ctl"
-							><span>Gravity {gravity}</span><input
-								type="range"
-								min="0"
-								max="1"
-								step="0.01"
-								bind:value={gravity}
-							/></label
-						>
-						<label class="ctl"
-							><span>Iterations {numIter}</span><input
-								type="range"
-								min="1"
-								max="1000"
-								step="1"
-								bind:value={numIter}
-							/></label
-						>
-						<label class="ctl"
-							><span>Initial temp {initialTemp}</span><input
-								type="range"
-								min="10"
-								max="2000"
-								step="1"
-								bind:value={initialTemp}
-							/></label
-						>
-						<label class="ctl"
-							><span>Cooling {coolingFactor}</span><input
-								type="range"
-								min="0"
-								max="1"
-								step="0.01"
-								bind:value={coolingFactor}
-							/></label
-						>
-						<label class="ctl"
-							><span>Min temp {minTemp}</span><input
-								type="range"
-								min="1"
-								max="1000"
-								step="1"
-								bind:value={minTemp}
-							/></label
-						>
-					{/if}
-				</div>
-			{/if}
-		</div>
-
-		<div class="legend">
-			<span class="lg"><span class="sw sw-node"></span>Border = papers with {rootName}</span>
-			<span class="lg"><span class="sw sw-edge"></span>Line = papers co-authored together</span>
-			<span class="lg muted">{rootName} links everyone, so they are left out of the graph.</span>
-		</div>
-
-		{#if selection}
-			<section class="drawer" transition:slide>
-				<header class="drawer-head">
-					<div class="drawer-titles">
-						<span class="kicker">Shared papers</span>
-						<h4>{displayTitle}</h4>
-					</div>
-					<div class="drawer-tools">
-						<span class="count"
-							>{showingPair ? pairTotal : displayPapers.length}{!showingPair && worksLoading
-								? '+'
-								: ''}</span
-						>
-						<button class="close" aria-label="Close" on:click={() => (selection = null)}>✕</button>
-					</div>
-				</header>
-
-				{#if offerPair && selection.kind === 'edge'}
-					<div class="offer">
-						<p class="status">
-							{rootName} has no paper co-authored with both {authors[selection.i].name} and {authors[
-								selection.j
-							].name}.
-						</p>
-						{#if pairError}
-							<p class="status thin">Couldn't load their shared papers.</p>
-						{/if}
-						<button class="offer-btn" disabled={pairLoading} on:click={loadPair}>
-							{pairLoading
-								? 'Loading…'
-								: `Show ${authors[selection.i].name} & ${authors[selection.j].name}'s own shared papers`}
-						</button>
-					</div>
-				{:else if displayPapers.length === 0}
-					<p class="status">
-						{!showingPair && worksLoading
-							? `Loading works… (${$works.sliceEnd} of ${$works.totalPapers})`
-							: 'No shared papers found.'}
-					</p>
-				{:else}
-					{#if !showingPair && worksLoading}
-						<p class="status thin">Loading works… ({$works.sliceEnd} of {$works.totalPapers})</p>
-					{/if}
-					<ul class="papers">
-						{#each displayPapers as p (p.wid)}
-							{@const journal = resolveSourceName(p.source, displayEntityAtts)}
-							{@const href = paperHref(p)}
-							<li class="paper">
-								<div class="p-main">
-									<div class="p-title">
-										{#if href}<a {href} target="_blank" rel="noopener">{@html p.name}</a
-											>{:else}{@html p.name}{/if}{#if p.hitSemId}<a
-												class="p-breakdown"
-												href="/hit-papers/{p.hitSemId}">breakdown →</a
-											>{/if}
-									</div>
-									{#if journal}<div class="p-journal">{journal}</div>{/if}
-								</div>
-								<div class="p-meta">
-									<span class="p-year">{p.year}</span>
-									<span class="p-cites">{p.citations.toLocaleString()} cites</span>
-								</div>
-							</li>
+						{#each authors as a, i (i)}
+							{@const active = nodeActive(i, focus)}
+							{@const sel = selection?.kind === 'node' && selection.i === i}
+							{@const label = lastWord(a.name)}
+							{@const labelW = label.length * 7 + 8}
+							<g
+								class="node"
+								class:active={!!focus && active}
+								class:dim={focus && !active}
+								class:sel
+								transform="translate({positions[i].x},{positions[i].y})"
+								role="button"
+								tabindex="0"
+								aria-label={`Papers by ${rootName} and ${a.name}`}
+								on:click={() => selectNode(i)}
+								on:keydown={(e) => onKey(e, () => selectNode(i))}
+								on:mouseenter={() => (hovered = { kind: 'node', i })}
+								on:mouseleave={() => (hovered = null)}
+							>
+								<ellipse rx={r} ry={r} stroke-width={(nodeScales[i] || 1) * 1.8} />
+								<rect
+									class="label-bg"
+									x={-labelW / 2}
+									y={r * 0.3 - 11}
+									width={labelW}
+									height={15}
+									rx={2}
+								/>
+								<text text-anchor="middle" font-size="12" y={r * 0.3}>{label}</text>
+							</g>
 						{/each}
-					</ul>
+					</svg>
 				{/if}
-			</section>
+
+				<button
+					class="gear"
+					class:on={showControls}
+					aria-label="Layout controls"
+					on:click={() => (showControls = !showControls)}>⚙</button
+				>
+				{#if showControls}
+					<div class="controls" transition:slide>
+						<label class="ctl">
+							<span>Layout</span>
+							<select bind:value={actFun}>
+								{#each possFuns as name, __i (__i)}<option value={name}>{name}</option>{/each}
+							</select>
+						</label>
+						{#if actFun === 'force'}
+							<label class="ctl"
+								><span>Gravity {gravity}</span><input
+									type="range"
+									min="0"
+									max="1"
+									step="0.01"
+									bind:value={gravity}
+								/></label
+							>
+							<label class="ctl"
+								><span>Iterations {numIter}</span><input
+									type="range"
+									min="1"
+									max="1000"
+									step="1"
+									bind:value={numIter}
+								/></label
+							>
+							<label class="ctl"
+								><span>Initial temp {initialTemp}</span><input
+									type="range"
+									min="10"
+									max="2000"
+									step="1"
+									bind:value={initialTemp}
+								/></label
+							>
+							<label class="ctl"
+								><span>Cooling {coolingFactor}</span><input
+									type="range"
+									min="0"
+									max="1"
+									step="0.01"
+									bind:value={coolingFactor}
+								/></label
+							>
+							<label class="ctl"
+								><span>Min temp {minTemp}</span><input
+									type="range"
+									min="1"
+									max="1000"
+									step="1"
+									bind:value={minTemp}
+								/></label
+							>
+						{/if}
+					</div>
+				{/if}
+			</div>
+
+			<div class="legend">
+				<span class="lg"><span class="sw sw-node"></span>Border = papers with {rootName}</span>
+				<span class="lg"><span class="sw sw-edge"></span>Line = papers co-authored together</span>
+				<span class="lg muted">{rootName} links everyone, so they are left out of the graph.</span>
+			</div>
+
+			{#if selection}
+				<section class="drawer" transition:slide>
+					<header class="drawer-head">
+						<div class="drawer-titles">
+							<span class="kicker">Shared papers</span>
+							<h4>{displayTitle}</h4>
+						</div>
+						<div class="drawer-tools">
+							<span class="count"
+								>{showingPair ? pairTotal : displayPapers.length}{!showingPair && worksLoading
+									? '+'
+									: ''}</span
+							>
+							<button class="close" aria-label="Close" on:click={() => (selection = null)}>✕</button
+							>
+						</div>
+					</header>
+
+					{#if offerPair && selection.kind === 'edge'}
+						<div class="offer">
+							<p class="status">
+								{rootName} has no paper co-authored with both {authors[selection.i].name} and {authors[
+									selection.j
+								].name}.
+							</p>
+							{#if pairError}
+								<p class="status thin">Couldn't load their shared papers.</p>
+							{/if}
+							<button class="offer-btn" disabled={pairLoading} on:click={loadPair}>
+								{pairLoading
+									? 'Loading…'
+									: `Show ${authors[selection.i].name} & ${authors[selection.j].name}'s own shared papers`}
+							</button>
+						</div>
+					{:else if displayPapers.length === 0}
+						<p class="status">
+							{!showingPair && worksLoading
+								? `Loading works… (${$works.sliceEnd} of ${$works.totalPapers})`
+								: 'No shared papers found.'}
+						</p>
+					{:else}
+						{#if !showingPair && worksLoading}
+							<p class="status thin">Loading works… ({$works.sliceEnd} of {$works.totalPapers})</p>
+						{/if}
+						<ul class="papers">
+							{#each displayPapers as p (p.wid)}
+								{@const journal = resolveSourceName(p.source, displayEntityAtts)}
+								{@const href = paperHref(p)}
+								<li class="paper">
+									<div class="p-main">
+										<div class="p-title">
+											{#if href}<a {href} target="_blank" rel="noopener">{@html p.name}</a
+												>{:else}{@html p.name}{/if}{#if p.hitSemId}<a
+													class="p-breakdown"
+													href="/hit-papers/{p.hitSemId}">breakdown →</a
+												>{/if}
+										</div>
+										{#if journal}<div class="p-journal">{journal}</div>{/if}
+									</div>
+									<div class="p-meta">
+										<span class="p-year">{p.year}</span>
+										<span class="p-cites">{p.citations.toLocaleString()} cites</span>
+									</div>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</section>
+			{/if}
+		{:else}
+			<AuthorTimeline {works} {heroSemanticId} {rootName} />
 		{/if}
 	</div>
 {/if}
@@ -467,9 +528,44 @@
 		}
 	}
 
+	.net-head-top {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		margin-bottom: 4px;
+	}
+
 	.net-head h3 {
-		margin: 0 0 4px;
-		width: 100%;
+		margin: 0;
+	}
+
+	.view-toggle {
+		display: flex;
+		gap: 2px;
+		flex-shrink: 0;
+		border: 1px solid rgba(var(--color-range-15), 0.2);
+		border-radius: var(--control-bar-pill-radius);
+		overflow: hidden;
+	}
+
+	.toggle-btn {
+		background: none;
+		border: none;
+		font-family: inherit;
+		font-size: var(--control-bar-font);
+		padding: var(--control-bar-pill-pad);
+		cursor: pointer;
+		color: inherit;
+		opacity: 0.5;
+		transition:
+			opacity 0.15s,
+			background 0.15s;
+	}
+
+	.toggle-btn.active {
+		opacity: 1;
+		background: rgba(var(--color-range-15), 0.1);
 	}
 
 	.net-sub {
