@@ -30,8 +30,8 @@ type FcoseOptions = {
 
 export function cytoscapeLayout(nodes: string[], edgeWeights: number[], opts: FcoseOptions = {}) {
 	const {
-		width = 400,
-		height = 400,
+		width: rawWidth = 400,
+		height: rawHeight = 400,
 		numIter = 1000,
 		gravity = 1,
 		initialTemp = 1000,
@@ -48,16 +48,24 @@ export function cytoscapeLayout(nodes: string[], edgeWeights: number[], opts: Fc
 		tile = false
 	} = opts;
 
+	// Callers may hand us NaN/0 dimensions while the container is hidden or unmeasured; the
+	// destructure default only covers `undefined`, so coerce to a sane positive number here too.
+	const width = Number.isFinite(rawWidth) && rawWidth > 0 ? rawWidth : 400;
+	const height = Number.isFinite(rawHeight) && rawHeight > 0 ? rawHeight : 400;
+
 	const n = nodes.length;
 	if (n === 0) return [];
 
-	// build elements
-	const elements: cytoscape.ElementDefinition[] = nodes.map((id) => ({ data: { id } }));
+	// Index-based element IDs: never trust the caller's semantic IDs — they can be empty or
+	// duplicated (sparse datasets), and cytoscape throws on an empty/clashing string ID.
+	const elements: cytoscape.ElementDefinition[] = nodes.map((_, i) => ({
+		data: { id: String(i) }
+	}));
 	let idx = 0;
 	for (let i = 0; i < n; i++) {
 		for (let j = i + 1; j < n; j++) {
 			const w = edgeWeights[idx++] || 0;
-			if (w > 0) elements.push({ data: { source: nodes[i], target: nodes[j], weight: w } });
+			if (w > 0) elements.push({ data: { source: String(i), target: String(j), weight: w } });
 		}
 	}
 
@@ -91,8 +99,8 @@ export function cytoscapeLayout(nodes: string[], edgeWeights: number[], opts: Fc
 	layout.run();
 
 	// extract positions
-	let positions = nodes.map((id) => {
-		const pos = cy.getElementById(id).position();
+	let positions = nodes.map((_, i) => {
+		const pos = cy.getElementById(String(i)).position();
 		return { x: pos.x, y: pos.y };
 	});
 
