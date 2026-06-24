@@ -115,7 +115,7 @@ export function createWorksLoader() {
 		if (get(store).loadingAll) return;
 		store.update((s) => ({ ...s, loadingAll: true }));
 		try {
-			for (; ;) {
+			for (;;) {
 				const s = get(store);
 				if (s.sliceEnd >= s.totalPapers) break;
 				await fetchPage(s.sliceEnd, MORE_PAGE_SIZE, s.semanticId);
