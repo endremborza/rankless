@@ -127,14 +127,22 @@ coverage:
 	bun run test:e2e:cov || true
 	nohup firefox "$(CURDIR)/coverage/index.html" "$(CURDIR)/coverage-e2e/index.html" >/dev/null 2>&1 &
 
-extend_csvs lib_data_generation bm live_monitoring reporting sitemap_validation survey_result_export log_parsing nobel sql_comparison export_user_ledger mega_test:
+extend_csvs lib_data_generation homepage_showcase live_monitoring reporting sitemap_validation survey_result_export log_parsing nobel export_user_ledger mega_test:
 	uv run -m pyscripts.$@
 
 hit-paper-analysis field-citation-ratio author-missed-works:
 	uv run notebooks/$@.py
 
-cache_big_prep cache_big_read cache_do_rest cache_validate_all cache_validate_bigs:
-	uv run -m pyscripts.cache_prompting $@
+# Benchmark / comparison tooling — unified CLI (`uv run -m pyscripts -h`).
+# Pass extra flags via ARGS, e.g. `make compare-sql ARGS="--rebuild-rust pipeline"`.
+bench:
+	uv run -m pyscripts bench
+
+compare-sql compare-branch:
+	uv run -m pyscripts $@ $(ARGS)
+
+cache-prep cache-read cache-rest cache-validate-all cache-validate-bigs:
+	uv run -m pyscripts cache $(@:cache-%=%)
 
 pull_live_certs sync_fe_to_alpha sync_fe_to_live sync_fe_to_local setup_local_test bump_v bump_v_minor rolling_restart_live_fe new_small_alpha new_large_alpha kill_dangling:
 	echo "from pyscripts.deploy import $@;$@()" | uv run -

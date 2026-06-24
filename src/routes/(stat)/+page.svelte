@@ -27,6 +27,7 @@
 	import { resultsHidden } from '$lib/stores';
 	import { prettifyRoot } from '$lib/text-format-util.js';
 	import TypeWriter from '$lib/components/TypeWriter.svelte';
+	import FeatureShowcase from '$lib/components/FeatureShowcase.svelte';
 
 	let selectedId: string | undefined = undefined;
 
@@ -298,6 +299,17 @@
 				</a>
 			{/if}
 		</div>
+	</div>
+</section>
+
+<section id="features">
+	<div class="container">
+		<h2>Meet the new features</h2>
+		<p class="lede spotlead">
+			Real profiles, citation trails, and collaboration networks — built from open data and
+			explorable in a click.
+		</p>
+		<FeatureShowcase />
 	</div>
 </section>
 
@@ -625,7 +637,6 @@
 		gap: 10px;
 		background: linear-gradient(135deg, var(--accent-text), var(--highlight-text));
 		padding: 14px 18px;
-		border-radius: 14px;
 		color: var(--text-bg);
 		border: 0;
 		font-weight: 700;
@@ -672,7 +683,6 @@
 	.card {
 		background: var(--card);
 		border: 1px solid rgba(148, 163, 184, 0.18);
-		border-radius: 18px;
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
@@ -724,14 +734,11 @@
 	}
 	.links a {
 		padding: 6px 10px;
-		border-radius: 10px;
 		border: 1px solid rgba(148, 163, 184, 0.25);
 		background: rgba(148, 163, 184, 0.08);
 	}
 	.spotlight {
 		position: relative;
-		margin-top: 10px;
-		border-radius: 22px;
 		margin-top: 10px;
 		overflow: hidden;
 		border: 1px solid rgba(148, 163, 184, 0.2);
