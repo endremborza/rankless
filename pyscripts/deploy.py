@@ -841,6 +841,10 @@ def kill_dangling():
         inst.terminate()
 
 
+def kill_alpha():
+    get_running_inst(False).terminate()
+
+
 def _new_alpha(storage, itype, fe_procn, backend):
     inst = get_new_inst(storage, itype)
     tpr = get_tpr(inst)
