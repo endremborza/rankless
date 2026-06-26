@@ -156,7 +156,7 @@ fn authorship_filter(
                     wa.entry(k).or_default().extend(v);
                 }
             },
-            None,
+            Some(4),
         );
 
     let inst_ids = inst_map
