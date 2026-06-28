@@ -32,7 +32,17 @@
 		{#each blocks as b (b.key)}
 			{#if b.tiles.length > 0}
 				<section class="block">
-					<h3 class="block-label">{b.label}</h3>
+					<h3 class="block-label">
+						{b.label}
+						{#if b.key === 'production' && b.tiles.some((t) => t.count != null)}
+							<span
+								class="block-note"
+								title="A paper can belong to several fields and topics, so these counts can add up to more than the total number of papers."
+								aria-label="A paper can belong to several fields and topics, so these counts can add up to more than the total number of papers."
+								>ⓘ</span
+							>
+						{/if}
+					</h3>
 					<ul class="tiles">
 						{#each b.tiles as t, i (i)}
 							<li
@@ -110,6 +120,12 @@
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		opacity: 0.55;
+	}
+
+	.block-note {
+		margin-left: 4px;
+		font-weight: 400;
+		cursor: help;
 	}
 
 	/* Two tiles per row within a block; the expand toggle stacks the rest in fresh rows beneath. */
