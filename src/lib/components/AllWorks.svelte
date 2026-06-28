@@ -4,6 +4,7 @@
 	import type { Paper } from '$lib/tree-types';
 	import type { WorksLoader } from '$lib/utils/works-loader';
 	import { resolveSourceName, htmlToText } from '$lib/utils/paper-helpers';
+	import { formatNumber } from '$lib/text-format-util';
 	import { formatReference, type CitationStyle } from '$lib/utils/reference-format';
 	import AuthorList from './AuthorList.svelte';
 	import ExportControls from './ExportControls.svelte';
@@ -32,7 +33,7 @@
 	$: initialLoaded = $works.initialLoaded;
 	$: ownerUnlocked = initialLoaded && totalPapers > 0 && sliceEnd >= totalPapers;
 
-	let sortBy: 'year' | 'citations' = 'year';
+	let sortBy: 'year' | 'citations' = 'citations';
 	let sortDir: 'asc' | 'desc' = 'desc';
 	let minCitations = 0;
 	let minYear = COMPLETE_YEAR;
@@ -163,6 +164,10 @@
 		/>
 
 		{#if !allLoaded}
+			<p class="works-note">
+				Showing the {formatNumber(sliceEnd)} most-cited of {formatNumber(totalPapers)} papers — load more,
+				or switch the sort, to bring in the rest.
+			</p>
 			<button class="load-more load-more-top" on:click={loadMore} disabled={loading}>
 				{loading ? 'Loading...' : loadMoreLabel}
 			</button>
@@ -670,6 +675,12 @@
 
 	.load-more-top {
 		align-self: flex-start;
+	}
+
+	.works-note {
+		margin: 0;
+		font-size: var(--text-xs);
+		opacity: 0.6;
 	}
 
 	@media (max-width: 640px) {
