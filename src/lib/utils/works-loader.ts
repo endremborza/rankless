@@ -6,6 +6,9 @@ import { mergeEntityAtts } from '$lib/utils/paper-helpers';
 
 const INITIAL_PAGE_SIZE = 20;
 const MORE_PAGE_SIZE = 200;
+// Pages arrive ranked by citation count so the first screen is the entity's most-cited works and
+// every appended page stays contiguous in that order (the backend re-sorts deterministically).
+const WORKS_SORT = 'citations';
 
 export type WorksState = {
 	semanticId: string;
@@ -59,7 +62,7 @@ export function createWorksLoader() {
 		let data: PaginatedPaperSetResp;
 		try {
 			const resp = await fetch(
-				`${BE_REMOTE_URL}/works/authors/${semanticId}/${from}?n=${pageSize}`
+				`${BE_REMOTE_URL}/works/authors/${semanticId}/${from}?n=${pageSize}&sort=${WORKS_SORT}`
 			);
 			data = await resp.json();
 		} catch (e) {

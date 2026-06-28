@@ -173,24 +173,37 @@ fn build_relations(
     nstates: &NameStateMap,
     gets: &Getters,
 ) -> (RelationGroups, Box<[u8]>) {
+    // TODO: these parameters reappear a bunch and also there are a lot of WET
+    // relation defs here, a refactor will soon be in order
     let Some(tr) = gets.top_rels_for(etype) else {
         return (RelationGroups::default(), Box::new([]));
+    };
+    // For an author hero, attach the shared-paper count to each co-author from the resident per-author
+    // co-authorship map (complete, u8-capped). Other entity types list "top scholars" here, where a
+    // pairwise shared count is meaningless, so the map stays empty and the count is omitted.
+    let coauthor_counts: HashMap<usize, u32> = if etype == Authors::NAME {
+        gets.coathors(dm_id)
+            .iter()
+            .map(|(a, n)| (a.to_usize(), *n as u32))
+            .collect()
+    } else {
+        HashMap::new()
     };
     // Hit papers don't surface affiliation-country or topic relations (empty placeholders, no mmap).
     let collab_nation = tr
         .aff_countries
         .as_ref()
-        .map(|m| resolve_group(m.row(dm_id), Countries::NAME, satts, nstates, gets))
+        .map(|m| resolve_group(m.row(dm_id), Countries::NAME, satts, nstates, gets, None))
         .unwrap_or_default();
     let paper_topics = tr
         .paper_topic
         .as_ref()
-        .map(|m| resolve_group(m.row(dm_id), Topics::NAME, satts, nstates, gets))
+        .map(|m| resolve_group(m.row(dm_id), Topics::NAME, satts, nstates, gets, None))
         .unwrap_or_default();
     let citing_topics = tr
         .citing_topic
         .as_ref()
-        .map(|m| resolve_group(m.row(dm_id), Topics::NAME, satts, nstates, gets))
+        .map(|m| resolve_group(m.row(dm_id), Topics::NAME, satts, nstates, gets, None))
         .unwrap_or_default();
     let relations = RelationGroups {
         paper_fields: resolve_group(
@@ -199,6 +212,7 @@ fn build_relations(
             satts,
             nstates,
             gets,
+            None,
         ),
         citing_fields: resolve_group(
             tr.citing_sfc.row(dm_id),
@@ -206,9 +220,24 @@ fn build_relations(
             satts,
             nstates,
             gets,
+            None,
         ),
-        paper_journals: resolve_group(tr.journals.row(dm_id), Sources::NAME, satts, nstates, gets),
-        paper_authors: resolve_group(tr.authors.row(dm_id), Authors::NAME, satts, nstates, gets),
+        paper_journals: resolve_group(
+            tr.journals.row(dm_id),
+            Sources::NAME,
+            satts,
+            nstates,
+            gets,
+            None,
+        ),
+        paper_authors: resolve_group(
+            tr.authors.row(dm_id),
+            Authors::NAME,
+            satts,
+            nstates,
+            gets,
+            Some(&coauthor_counts),
+        ),
         collab_nation,
         paper_topics,
         citing_topics,
@@ -225,6 +254,7 @@ fn resolve_group<ID, const N: usize>(
     satts: &AttributeLabelUnion,
     nstates: &NameStateMap,
     gets: &Getters,
+    counts: Option<&HashMap<usize, u32>>,
 ) -> Vec<PostAttRelatedEntity>
 where
     ID: UnsignedNumber,
@@ -262,6 +292,7 @@ where
                 semantic_id,
                 etype: target_etype.to_string(),
                 score,
+                count: counts.map(|c| c.get(&dm).copied().unwrap_or(0)),
                 parent_name,
                 parent_semantic_id,
             })

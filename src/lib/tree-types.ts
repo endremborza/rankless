@@ -40,6 +40,8 @@ export type RelatedEntity = {
 	semanticId: string;
 	etype: EntityType;
 	score: number;
+	// Shared-paper count, only present on an author hero's co-authors (papers co-authored with them).
+	count?: number;
 	// Topic relations carry their parent subfield ("field" in the UI) so the hero can nest them.
 	parentName?: string;
 	parentSemanticId?: string;

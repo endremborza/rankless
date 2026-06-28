@@ -63,20 +63,24 @@ pub(crate) async fn works_get(
     if let Some(state) = states.0 .0.get(etype.as_str()) {
         let psid = parse_semantic_id(sem_id);
         if let Some(&dm_id) = state.semantic_id_map.get(psid.as_str()) {
-            if let Some(work_arr) = states
-                .0
-                 .2
-                .state
-                .gets
-                .works_of_entity(dm_id as usize, etype)
-            {
+            let gets = &states.0 .2.state.gets;
+            if let Some(work_arr) = gets.works_of_entity(dm_id as usize, etype) {
                 if !work_arr.is_empty() {
-                    let start = min(pstart, work_arr.len() - 1);
-                    let wids = work_arr[start..].iter().take(page_size).map(WT::to_usize);
-                    let resp = get_paper_set_resp(wids, states.2.clone());
+                    let total = work_arr.len();
+                    let start = min(pstart, total - 1);
+                    let rmaker = |a: &[WT]| {
+                        get_paper_set_resp(a[start..].iter().take(page_size), states.2.clone())
+                    };
+                    let resp = if wq.sort.as_deref() == Some("citations") {
+                        let mut sorted = work_arr.to_vec();
+                        sorted.sort_by_key(|&w| Reverse(gets.wccount(w.to_usize())));
+                        rmaker(&sorted)
+                    } else {
+                        rmaker(work_arr)
+                    };
                     let out = PaginatedPaperSetResp {
                         resp,
-                        total_papers: work_arr.len(),
+                        total_papers: total,
                         slice_start: start,
                     };
                     return (cache_header(60), Json(out).into_response());
@@ -140,7 +144,7 @@ pub(crate) async fn intersect_get(
         Ok(mut wids) => {
             let total = wids.len();
             wids.sort_by_key(|&w| Reverse(gets.wccount(w.to_usize())));
-            let top = wids.into_iter().take(n).map(|w| w.to_usize());
+            let top = wids.iter().take(n);
             let out = PaginatedPaperSetResp {
                 resp: get_paper_set_resp(top, states.2.clone()),
                 total_papers: total,
@@ -190,8 +194,7 @@ pub(crate) async fn paper_profile(
 
     let wids = hw_set
         .iter()
-        .chain(conn.wids.iter().filter(|wid| !hw_set.contains(*wid)))
-        .map(|e| e.to_usize());
+        .chain(conn.wids.iter().filter(|wid| !hw_set.contains(*wid)));
 
     let papers = get_paper_set_resp(wids, states.2.clone());
     let out = PaperProfileResp {
@@ -201,9 +204,9 @@ pub(crate) async fn paper_profile(
     (cache_header(60), Json(out).into_response())
 }
 
-fn get_paper_set_resp<I>(wids: I, trm: Arc<InstTrm>) -> PaperSetResp
+fn get_paper_set_resp<'a, I>(wids: I, trm: Arc<InstTrm>) -> PaperSetResp
 where
-    I: Iterator<Item = usize>,
+    I: Iterator<Item = &'a WT>,
 {
     let mut disc_author_names = HashMap::new();
     let mut authors_meta = HashMap::new();

@@ -22,6 +22,9 @@ export type LeaderSpec = {
 	label: string;
 	relType: tt.RelTypes;
 	withCount?: boolean;
+	// Append the shared-paper count (papers co-authored with the hero) — only meaningful for an
+	// author's co-authors, where the backend fills `count`.
+	withSharedCount?: boolean;
 	n: number;
 };
 
@@ -88,7 +91,7 @@ export const HERO_CONFIG: Record<tt.RootType, HeroSpec> = {
 		showHIndex: true,
 		showStandingBadge: true,
 		leaders: [
-			{ label: 'Co-authors', relType: 'paper-authors', n: PEOPLE_LEADER_N },
+			{ label: 'Co-authors', relType: 'paper-authors', withSharedCount: true, n: PEOPLE_LEADER_N },
 			{ label: 'Journals', relType: 'paper-journals', withCount: true, n: 5 },
 			{ label: 'Partner nations', relType: 'collab-nation', n: 3 }
 		]
@@ -155,7 +158,10 @@ export function buildLeaderRows(
 		const seen = new Set<string>();
 		const items: LeaderItem[] = [];
 		for (const r of grouped[spec.relType] ?? []) {
-			const text = spec.withCount ? `${r.name} (${pluralize('paper', r.score)})` : r.name;
+			let text = r.name;
+			if (spec.withCount) text = `${r.name} (${pluralize('paper', r.score)})`;
+			else if (spec.withSharedCount)
+				text = `${r.name} (${pluralize('shared paper', r.count ?? 0)})`;
 			if (seen.has(text)) continue;
 			seen.add(text);
 			items.push({ text, href: rootHref(r.etype, r.semanticId) });

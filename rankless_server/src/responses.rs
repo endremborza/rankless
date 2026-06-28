@@ -81,6 +81,10 @@ pub(crate) struct PostAttRelatedEntity {
     pub semantic_id: String,
     pub etype: String,
     pub score: u32,
+    // Shared-paper count between the hero author and this co-author. Only set for the author hero's
+    // co-author relation (read from the resident per-author co-authorship lists); omitted otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub count: Option<u32>,
     // Parent subfield label for topic relations, so the hero can nest topics under their field.
     #[serde(rename = "parentName", skip_serializing_if = "Option::is_none")]
     pub parent_name: Option<String>,
@@ -321,6 +325,9 @@ pub(crate) struct BasicQ {
 #[derive(Deserialize)]
 pub(crate) struct WorksQ {
     pub n: Option<usize>,
+    // `citations` ranks the full work-set by citation count before paginating, so the first page is
+    // the entity's globally most-cited works rather than an arbitrary document-order slice.
+    pub sort: Option<String>,
 }
 
 #[derive(Deserialize)]
