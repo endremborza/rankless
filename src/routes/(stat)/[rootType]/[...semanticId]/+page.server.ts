@@ -93,7 +93,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 				fetch(`${BE_URL}/paper-profile/${urlFriendlySemId}`)
 					.then((r) => r.json())
 					.catch(() => null),
-				fetch(`${BE_URL}/works/authors/${urlFriendlySemId}/0?n=${INITIAL_WORKS_N}`)
+				fetch(`${BE_URL}/works/authors/${urlFriendlySemId}/0?n=${INITIAL_WORKS_N}&sort=citations`)
 					.then((r) => r.json())
 					.catch(() => null)
 			]);
