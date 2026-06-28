@@ -60,6 +60,24 @@ LARGE_STORAGE_GB = 300
 LARGE_FE_PROCS = 12
 DEFAULT_RS_PORT = 3038
 
+# Per-FE-process memory backstop (cgroup v2). A healthy SvelteKit SSR bun worker sits ~150-300 MB,
+# so these only bite a runaway/leak. MemoryHigh throttles + reclaims (soft pressure); MemoryMax is
+# the hard wall: the kernel OOM-kills a process inside that one cgroup, OOMPolicy=kill then tears
+# the unit down and Restart=always brings it back. A runaway is thus contained to its own cgroup
+# instead of exhausting the box and thrashing sshd/nginx to death.
+FE_MEMORY_HIGH = "1G"
+FE_MEMORY_MAX = "1280M"
+
+# Proactively recycle each FE worker on a jittered, per-instance schedule so a slow *uniform* leak
+# (requests are load-balanced evenly, so every worker grows at the same rate) never lets the whole
+# pool reach MemoryMax together — which would be a full-pool outage + thundering-herd restart.
+# RuntimeRandomizedExtraSec is systemd's built-in stagger: each instance's lifetime gets an
+# independent random extra in [0, jitter], redrawn every cycle, so restarts scatter in time and keep
+# drifting apart. This also bounds growth *below* the cap; MemoryMax stays the hard backstop for a
+# fast leak. SSR is stateless and nginx retries other upstreams, so a recycled worker is invisible.
+FE_RUNTIME_MAX = "6h"
+FE_RUNTIME_JITTER = "3h"
+
 SERVICE_SUFFIX = """
 Restart=always
 RestartSec=15
@@ -424,7 +442,13 @@ class Transper:
     [Service]
     WorkingDirectory={self.deploy_dir}
     Environment=ORIGIN=https://{inst_domain} PORT=%i
-    ExecStart={comm}"""
+    ExecStart={comm}
+    MemoryAccounting=yes
+    MemoryHigh={FE_MEMORY_HIGH}
+    MemoryMax={FE_MEMORY_MAX}
+    OOMPolicy=kill
+    RuntimeMaxSec={FE_RUNTIME_MAX}
+    RuntimeRandomizedExtraSec={FE_RUNTIME_JITTER}"""
                 + SERVICE_SUFFIX
             )
             self.sync_service(fe_service_txt, conf.template_fname())
@@ -719,6 +743,32 @@ upstream {BE_UPSTREAM} {{
             r"Mem: +(\d+) +(\d+) +(\d+) +(\d+) +(\d+) +(\d+)", self.ssh.run("free")
         )[0]
         return dict(zip(ks, map(int, vs)))
+
+    def get_unit_props(self, unit: str, props: list[str]) -> dict[str, str]:
+        out = self.ssh.run(f"systemctl --user show {unit} -p {','.join(props)}")
+        parsed = dict(re.findall(r"^([A-Za-z]+)=(.*)$", out, re.M))
+        return {p: parsed.get(p, "") for p in props}
+
+    def get_fe_memory_df(self):
+        # Per-FE-proc cgroup memory + restart state — the runtime view that pins which worker grows
+        # (MemoryPeak is the high-water mark since start, MemoryCurrent the live footprint).
+        props = [
+            "ActiveState",
+            "SubState",
+            "MemoryCurrent",
+            "MemoryPeak",
+            "MemoryHigh",
+            "MemoryMax",
+            "OOMPolicy",
+            "NRestarts",
+        ]
+        rows = []
+        for conf in self.get_fe_systems():
+            for service in self._iter_conf_services(conf):
+                rows.append(
+                    {"unit": service.name, **self.get_unit_props(service.name, props)}
+                )
+        return pd.DataFrame(rows)
 
     def get_storage_stats(self):
         cmatch = re.findall(r"/dev/root.*?(\d+)\s+(\d+)% /\n", self.ssh.run("df"))[0]
