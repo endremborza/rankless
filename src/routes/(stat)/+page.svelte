@@ -304,7 +304,7 @@
 
 <section id="features">
 	<div class="container">
-		<h2>Meet the new features</h2>
+		<h2>Latest features</h2>
 		<p class="lede spotlead">
 			Real profiles, citation trails, and collaboration networks — built from open data and
 			explorable in a click.
