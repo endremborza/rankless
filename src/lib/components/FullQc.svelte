@@ -201,8 +201,15 @@
 		if (newTreeSpec.defaultIsSpec != currentTreeSpec.defaultIsSpec) {
 			newGlobalSpec = newTreeSpec.defaultIsSpec;
 		}
+		const reqTreeId = conf.treeId;
+		const reqYear = conf.year;
 		try {
 			const jsv = await tf.fetchTree(BE_REMOTE_URL, conf);
+			// Drop a response the user has already superseded (rapid tree-spec or year-filter changes
+			// within this entity), so a slow earlier fetch can't clobber the current tree and its spec.
+			if (conf.treeId !== reqTreeId || conf.year !== reqYear) {
+				return;
+			}
 			[
 				completeTree,
 				attributeLabels,
