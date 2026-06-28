@@ -201,18 +201,25 @@
 <Toc sections={tocSections} />
 
 <section id="impact" class="shadowy padded marged main-block">
-	<FullQc
-		rootName={data.view.name}
-		prefixText={data.prefixText}
-		selectedQcRootId={data.view.dmId}
-		conf={data.conf}
-		selectionState={data.selectionState}
-		treeSpecs={data.treeSpecs}
-		attributeLabels={data.atts}
-		completeTree={data.tree}
-		shallowed={data.shallowed}
-		shoPathLevelInfo={!isHitPaper}
-	/>
+	<!-- Key on entity identity so navigating between entities tears the tree down and rebuilds it
+	     from the fresh props. Reusing the instance left FullQc's local `currentTreeSpec` seeded from
+	     a one-time prop default, so a new entity's tree rendered against the old spec → first-level
+	     names resolved against the wrong entity type → "Unknown". The year filter mutates conf in
+	     place (same identity), so it stays within one instance and still hot-reloads via loadNewQc. -->
+	{#key `${data.conf.rootType}/${data.conf.semanticId}`}
+		<FullQc
+			rootName={data.view.name}
+			prefixText={data.prefixText}
+			selectedQcRootId={data.view.dmId}
+			conf={data.conf}
+			selectionState={data.selectionState}
+			treeSpecs={data.treeSpecs}
+			attributeLabels={data.atts}
+			completeTree={data.tree}
+			shallowed={data.shallowed}
+			shoPathLevelInfo={!isHitPaper}
+		/>
+	{/key}
 </section>
 
 {#if isAuthor && authoredHitPapers.length > 0}
