@@ -284,6 +284,7 @@
 
 	.tl-row {
 		min-height: 26px;
+		border-bottom: 1px solid var(--hair);
 	}
 
 	.tl-name {
