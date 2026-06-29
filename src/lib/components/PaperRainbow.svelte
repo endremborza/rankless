@@ -8,7 +8,7 @@
 	import AuthorList from './AuthorList.svelte';
 	import HitPaperBreakdown from './HitPaperBreakdown.svelte';
 	import HitPaperExplainer from './HitPaperExplainer.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 
 	export let papers: tt.Paper[];
 	export let entityAtts: tt.EntityAttsForLinks = {};
@@ -241,13 +241,21 @@
 		return `background-color: rgba(${getColorArr(rate)}, ${ext}`;
 	}
 
+	// The chart window follows the list: it starts at the topmost item still touching the viewport's top
+	// edge. Crucially this never returns null — requiring a *fully* visible item meant that once an item
+	// (e.g. an expanded one) grew taller than the scroll box, no item qualified and the window snapped
+	// back to the top, yanking the highlight up and making the lowest papers unreachable.
 	function updateFirstVisible(): void {
-		const containerRect = listContainer.getBoundingClientRect();
-		const fullyVisible = listItemElements
-			.map((el, index) => ({ el, index, rect: el.getBoundingClientRect() }))
-			.filter(({ rect }) => rect.top >= containerRect.top && rect.bottom <= containerRect.bottom)
-			.sort((a, b) => a.rect.top - b.rect.top);
-		firstVisible = fullyVisible.length > 0 ? fullyVisible[0].index : null;
+		if (!listContainer || listItemElements.length === 0) return;
+		const top = listContainer.getBoundingClientRect().top;
+		let idx = listItemElements.length - 1;
+		for (let k = 0; k < listItemElements.length; k++) {
+			if (listItemElements[k].getBoundingClientRect().bottom > top + 4) {
+				idx = k;
+				break;
+			}
+		}
+		firstVisible = idx;
 	}
 
 	function onScrollDebounced() {
@@ -255,11 +263,14 @@
 		scrollTimeout = setTimeout(updateFirstVisible, 50);
 	}
 
-	function toggleExpand(i: number) {
+	async function toggleExpand(i: number) {
 		const next = new Set(expandedSet);
 		if (next.has(i)) next.delete(i);
 		else next.add(i);
 		expandedSet = next;
+		// Expanding/collapsing changes item heights, so realign the chart window with what's now on screen.
+		await tick();
+		updateFirstVisible();
 	}
 
 	onMount(() => {
@@ -390,10 +401,11 @@
 							{/each}
 						</g>
 
-						<!-- Paper citation lines (cumulative) -->
+						<!-- Paper citation lines (cumulative). Drawn decoratively; the wide transparent hit
+						     paths below carry the pointer events so the thin lines stay tappable on touch. -->
 						{#each fb.figPapers as paper, __i (__i)}
 							<path
-								role="region"
+								class="cite-line"
 								fill="none"
 								stroke={getColor(paper.rate)}
 								stroke-width={paper.i === highlighted ? 0.18 : 0.1}
@@ -402,6 +414,17 @@
 								d={paper.path}
 								opacity={paper.i === highlighted ? 1.0 : 0.4}
 								id="hit-paper-path-{paper.i}"
+							/>
+						{/each}
+						{#each fb.figPapers as paper, __i (__i)}
+							<path
+								class="hit-line"
+								role="region"
+								fill="none"
+								stroke="transparent"
+								stroke-width="0.8"
+								stroke-linecap="round"
+								d={paper.path}
 								on:mouseover={() => fixHighlight(paper.i)}
 								on:focus={() => fixHighlight(paper.i)}
 							/>
@@ -738,16 +761,27 @@
 		width: 100%;
 		min-height: 280px;
 		flex: 0;
+		/* Kill the black tap-highlight box Chrome paints over an SVG element's bounding box on touch. */
+		-webkit-tap-highlight-color: transparent;
 	}
 
 	text {
 		pointer-events: none;
 	}
 
-	path {
+	svg path {
+		outline: none;
+	}
+
+	.cite-line {
+		pointer-events: none;
 		transition:
 			opacity 400ms,
 			stroke-width 400ms;
+	}
+
+	.hit-line {
+		cursor: pointer;
 	}
 
 	li {
