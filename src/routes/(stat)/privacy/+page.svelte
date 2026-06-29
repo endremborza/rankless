@@ -140,6 +140,79 @@
 				>birosag.hu/torvenyszekek</a
 			>).
 		</p>
+
+		<hr class="divider" />
+
+		<h2>How Rankless handles your data in practice</h2>
+		<p class="supp-intro">
+			The points below supplement the formal notice above with the specifics of how the Rankless
+			service processes your data.
+		</p>
+
+		<h3>Signing in with ORCID</h3>
+		<p>
+			Logging in is optional, and only needed if you want to take ownership of a profile. We use
+			ORCID's <code>/authenticate</code> scope — the minimum that confirms who you are. From ORCID
+			we receive and store only your <strong>ORCID iD</strong> and <strong>name</strong>. We do not
+			request or store your email, your ORCID password, or any other part of your ORCID record, and
+			we keep no ORCID access or refresh tokens.
+		</p>
+		<p>When you sign in, this information is used to:</p>
+		<ul>
+			<li>
+				keep you logged in, via a session cookie that holds your ORCID iD and name and expires after
+				one day;
+			</li>
+			<li>record that your ORCID iD has signed in, so we can link you to the profile you own;</li>
+			<li>attribute the corrections you make to your name on the public ledger described below.</li>
+		</ul>
+		<p>
+			The legal basis for this processing is performance of the service you ask for when you choose
+			to sign in (GDPR Art. 6(1)(b)).
+		</p>
+
+		<h3>The public ledger</h3>
+		<p>
+			Edits you make to a profile — adding a missing paper, removing one that isn't yours, merging
+			duplicates — are written to a <strong>public, revocable ledger</strong> alongside your ORCID iD.
+			This is deliberate: corrections are transparent and attributable. You can revoke any edit at any
+			time from your profile, which removes it from the active record.
+		</p>
+
+		<h3>The optional survey</h3>
+		<p>
+			We sometimes show a short, optional survey. If you choose to answer it, we store your
+			responses; if you are signed in, your ORCID iD is stored with them so we can understand who
+			our users are. We do not log your IP address. Answering or dismissing the survey sets a cookie
+			so we don't ask again. The legal basis is our legitimate interest in improving Rankless (GDPR
+			Art. 6(1)(f)).
+		</p>
+
+		<h3>Cookies</h3>
+		<ul>
+			<li>
+				<strong>session</strong> — strictly necessary; keeps you logged in for one day. Set only after
+				you sign in.
+			</li>
+			<li>
+				<strong>survey preference cookies</strong> — remember that you answered or dismissed the survey,
+				so it isn't shown repeatedly.
+			</li>
+		</ul>
+		<p>
+			We use no advertising, tracking, or analytics cookies, so there is nothing to consent to
+			beyond these functional cookies.
+		</p>
+
+		<h3>Retention</h3>
+		<ul>
+			<li>The session cookie expires after one day.</li>
+			<li>Ledger edits are kept until you revoke them.</li>
+			<li>
+				The record that your ORCID iD signed in, and any survey responses, are kept until you ask us
+				to delete them, which you can request using the contact details above.
+			</li>
+		</ul>
 	</div>
 </section>
 
@@ -165,6 +238,12 @@
 		font-size: 24px;
 		letter-spacing: -0.01em;
 		margin: 32px 0 8px 0;
+	}
+
+	.prose h3 {
+		font-size: 19px;
+		letter-spacing: -0.01em;
+		margin: 22px 0 6px 0;
 	}
 
 	.prose p,
@@ -199,5 +278,22 @@
 
 	.contact li {
 		margin: 2px 0;
+	}
+
+	.divider {
+		border: none;
+		border-top: 1px solid rgba(var(--color-range-30), 0.25);
+		margin: 48px 0 4px 0;
+	}
+
+	.supp-intro {
+		opacity: 0.75;
+	}
+
+	.prose code {
+		font-size: 0.9em;
+		padding: 1px 5px;
+		background: rgba(var(--color-range-30), 0.12);
+		border-radius: 3px;
 	}
 </style>
