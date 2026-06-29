@@ -17,6 +17,7 @@ import urllib.request
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
+from .server_ops import wait_for_url
 
 BASE = os.environ.get("SHOWCASE_BE", "http://127.0.0.1:3038/v1").rstrip("/")
 OUT = Path("src/lib/assets/data/homepage-showcase.json")
@@ -36,6 +37,10 @@ TIMELINE_MIN = 2  # a co-author needs this many shared papers to earn a row
 def get(path: str):
     with urllib.request.urlopen(BASE + path, timeout=60) as r:
         return json.load(r)
+
+
+def wait_ready() -> None:
+    wait_for_url(BASE + "/tops", max_attempts=200, desc="showcase wait")
 
 
 def tri_index(i: int, j: int, n: int) -> int:
@@ -195,6 +200,7 @@ def build_coauthor_timeline(
 
 
 def main():
+    wait_ready()
     sids = author_sids()
     sid = pick_scholar(sids)
     view = get(f"/views/authors/{sid}")
