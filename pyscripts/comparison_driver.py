@@ -67,7 +67,7 @@ def prepare_backend(
             subprocess.run(["make", "-B", FINAL_STEP], check=True)
             build_server()
         case RebuildLevel.full:
-            subprocess.run(["make", "complete"], check=True)
+            subprocess.run(["make", "build-data"], check=True)
             build_server()
     if stow is not None and stash_label is not None and level != RebuildLevel.binary:
         stow.stash(stash_label)

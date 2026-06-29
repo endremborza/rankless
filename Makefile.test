@@ -1,0 +1,120 @@
+# Testing, coverage & profiling targets — split out of the main Makefile to keep
+# it readable. Included from ./Makefile, so it shares that file's variables
+# (.env, OA_ROOT, CURDIR, …) and `check` stays the main file's default goal.
+#
+#   Suites      test (= test-rs + test-js), test-rs, test-js, big-test,
+#               sanity-check, test-dev-env
+#   Coverage    coverage
+#   Profiling   profile, heaptrack — built with the `profiling` Cargo profile
+#               (release opt + debug symbols, LTO off; [profile.profiling] in
+#               Cargo.toml), so their binaries land under target/profiling/
+#   Cleanup     clean-profile
+
+.PHONY: test test-rs test-js big-test sanity-check test-dev-env mega_test coverage profile heaptrack clean-profile
+
+# --- Suites -------------------------------------------------------------------
+
+# Full local suite: instrumented Rust tests + the JS suites.
+test: test-rs test-js
+	echo OK
+
+# Rust unit/doc tests with source-based coverage → HTML grcov report.
+#   - The instrumentation flags are TARGET-SPECIFIC exports so make puts them in
+#     every recipe line's environment. A plain `export` recipe line would not:
+#     each line runs in its own shell, so it would never reach `cargo test`.
+#   - CARGO_INCREMENTAL=0 + `cargo clean` force a fully instrumented rebuild.
+#   - The test binaries then emit per-binary default_*.profraw raw profiles,
+#     which grcov aggregates and we delete afterwards (-f: a run may leave none).
+test-rs: export CARGO_INCREMENTAL := 0
+test-rs: export RUSTFLAGS := -Cinstrument-coverage
+test-rs: export RUSTDOCFLAGS := -Cinstrument-coverage
+test-rs:
+	cargo clean
+	cargo test
+	grcov . \
+	  --binary-path ./target/debug/ \
+	  -s . \
+	  -t html \
+	  --branch \
+	  --ignore-not-existing \
+	  --ignore "/*" \
+	  -o ./target/coverage/html
+	rm -f default_*.profraw ./*/default_*.profraw
+
+# Playwright e2e + the link-crawl that copies collected paragraph text to the
+# clipboard (xxclip).
+test-js:
+	bun run test
+	cat logs/paragraph_texts.txt | xxclip
+
+# The one heavy tree test, run in release for realistic timing.
+big-test:
+	cargo test --release -p rankless-trees --tests instances::tests::big_tree -- --nocapture
+
+# Fast post-build smoke check: a focused e2e data spec + the Python sanity pass.
+sanity-check:
+	bun run test -- tests/sanity-data.spec.ts
+	uv run -m pyscripts.sanity_check
+
+# End-to-end test of the bootstrap flow inside a clean Ubuntu container.
+# Requires `nano-snapshot.tar.zst` reachable from the container — by default
+# the entrypoint hits http://127.0.0.1:8000/nano-snapshot.tar.zst via
+# --network=host, so run `python -m http.server 8000` in the dir holding the
+# artifact first.
+test-dev-env:
+	docker build -t rankless-dev-test -f docker/Dockerfile.dev-test docker/
+	docker run --rm --network=host \
+		-v "$(CURDIR)":/host:ro \
+		-e NANO_ARTIFACT_URL="$(or $(NANO_ARTIFACT_URL),http://127.0.0.1:8000/nano-snapshot.tar.zst)" \
+		-e NANO_ARTIFACT_SHA256="$(NANO_ARTIFACT_SHA256)" \
+		rankless-dev-test
+
+# Comprehensive end-to-end ledger integration test (pyscripts/mega_test.py): an
+# optional full rebuild, then a dev server + two-phase Playwright run that drives
+# user-ledger events through the pipeline (tests/ledger.spec.ts via
+# playwright.ledger.config.ts) and verifies they apply. Heavyweight — it shells
+# out to make complete/filter/restart-service, so it's kept out of `make test`.
+mega_test:
+	uv run -m pyscripts.$@
+
+# --- Coverage -----------------------------------------------------------------
+
+# Run the JS unit + e2e suites with coverage, then open both reports in Firefox.
+# Tests are allowed to fail (the e2e suite needs a populated backend) — the
+# coverage reports still generate from whatever ran, which is the point here.
+coverage:
+	bun run test:unit:cov || true
+	bun run test:e2e:cov || true
+	nohup firefox "$(CURDIR)/coverage/index.html" "$(CURDIR)/coverage-e2e/index.html" >/dev/null 2>&1 &
+
+# --- Profiling ----------------------------------------------------------------
+
+# CPU flamegraph. Relaxes perf_event_paranoid/kptr_restrict so `perf` can sample,
+# then restores the defaults. The `-` on the flamegraph line tells make to ignore
+# a failure there and still run the restore, so a crash can't leave the kernel
+# relaxed — keep it if you swap in one of the commented targets. Needs
+# cargo-flamegraph + linux-tools-generic.
+profile:
+	cargo build --profile profiling
+	echo "-1"  | sudo tee /proc/sys/kernel/perf_event_paranoid
+	echo "0" | sudo tee /proc/sys/kernel/kptr_restrict
+	# flamegraph -o make_fg.svg -- target/profiling/dmove fix-atts $(OA_ROOT)
+	# flamegraph -o make_fg.svg -- target/profiling/rankless-server $(OA_ROOT)
+	# flamegraph -o make_fg.svg -- cargo test --profile profiling -p rankless-trees --tests instances::tests::big_tree -- --nocapture
+	-flamegraph -o make_fg.svg -- target/profiling/rankless-trees
+	echo "4"  | sudo tee /proc/sys/kernel/perf_event_paranoid
+	echo "1" | sudo tee /proc/sys/kernel/kptr_restrict
+
+# Heap profile of the running server: relax ptrace_scope, then attach heaptrack to
+# the live rankless-server pid. Uncomment the build/launch lines for a cold start.
+heaptrack:
+	# cargo build --profile profiling
+	# heaptrack target/profiling/rankless-server $(OA_ROOT)
+	sudo sysctl kernel.yama.ptrace_scope=0 # 1 is default
+	heaptrack -p $$(pidof rankless-server)
+
+# --- Cleanup ------------------------------------------------------------------
+
+# Profiling + coverage scratch (perf data, flamegraph, coverage .profraw).
+clean-profile:
+	rm -f perf.data* make_fg.svg default_*.profraw ./*/default_*.profraw

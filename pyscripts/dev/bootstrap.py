@@ -233,7 +233,7 @@ def _ensure_pipeline(oa_root: Path, snapshot: Path) -> None:
             f"OA_ROOT={oa_root}",
             f"OA_SNAPSHOT={snapshot}",
             "build-prep",
-            "complete",
+            "build-data",
         ],
         cwd=REPO_ROOT,
         env=pipeline_env,
