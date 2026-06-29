@@ -336,11 +336,13 @@ where
         let mut rel_vec: Vec<InstRelation> = map_base.into_values().collect();
         rel_vec.sort_by(|l, r| (r.papers, (r.end - r.start)).cmp(&(l.papers, l.end - l.start)));
         push_cut::<N_RELS, InstRelation>(rel_vec, &mut self.rels);
-        self.top_paper_sfs.push_from_arr(
-            &self.paper_subfields.rec.0,
-            parent_id,
-            TopSorter::Specialization(cd.sf_spec_denoms.clone()),
-        );
+        let paper_sf_sorter = if E::NAME == Authors::NAME {
+            TopSorter::Default
+        } else {
+            TopSorter::Specialization(cd.sf_spec_denoms.clone())
+        };
+        self.top_paper_sfs
+            .push_from_arr(&self.paper_subfields.rec.0, parent_id, paper_sf_sorter);
         self.top_citing_sfs.push_from_arr(
             &self.citing_subfields.rec.0,
             parent_id,
