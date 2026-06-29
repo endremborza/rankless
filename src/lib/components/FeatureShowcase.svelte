@@ -1,13 +1,14 @@
 <script lang="ts">
 	import showcaseRaw from '$lib/assets/data/homepage-showcase.json';
 	import type { ShowcaseData } from '$lib/types/showcase';
+	import ShowcaseRainbow from './ShowcaseRainbow.svelte';
+	import ShowcaseTimeline from './ShowcaseTimeline.svelte';
 	import ShowcasePeers from './ShowcasePeers.svelte';
 	import ShowcaseCoauthors from './ShowcaseCoauthors.svelte';
-	import ShowcaseExport from './ShowcaseExport.svelte';
 
 	// Baked snapshot, shaped + validated by pyscripts/homepage_showcase.py (no backend call on load).
 	const showcase = showcaseRaw as unknown as ShowcaseData;
-	const { scholar, peers, coauthors, samplePaper } = showcase;
+	const { scholar, peers, coauthors, hitPapers, coauthorTimeline } = showcase;
 	const profile = `/authors/${scholar.semanticId}`;
 </script>
 
@@ -29,6 +30,10 @@
 			<a class="card-cta" href="/login?returnTo=/" data-sveltekit-preload-data="off"
 				>Sign in with ORCID →</a
 			>
+			<p class="login-note">
+				We store only your ORCID iD, name, and the edits you make — see our
+				<a href="/privacy">Privacy notice</a>.
+			</p>
 		</div>
 	</div>
 </div>
@@ -38,33 +43,27 @@
 		<span class="feature-name">Hit-papers</span>
 		<h4>Some papers don't just get cited — they reshape a field.</h4>
 		<p>Rankless flags a scholar's highest-impact works and shows where that influence landed.</p>
+		{#if hitPapers.length}
+			<ShowcaseRainbow papers={hitPapers} />
+		{/if}
 		<p class="thin">
 			Follow a paper's citations year by year, or split them across the fields and topics that
-			picked it up - and align trajectories
+			picked it up — and align trajectories.
 		</p>
-		<div class="mock" aria-hidden="true">
-			<div class="seg">
-				<span class="on">citation timeline</span><span>citation breakdown</span>
-			</div>
-			<div class="checks">
-				<span class="chk"><i></i>align trajectories</span><span class="chk"><i></i>log scale</span>
-			</div>
-			<div class="dd">sort: publication year <span class="caret">▾</span></div>
-		</div>
 		<a class="card-cta" href="{profile}#works">See an author's hit papers →</a>
 	</div>
 
 	<div class="card">
-		<span class="feature-name">All Works</span>
-		<h4>Every paper, ready to cite and export.</h4>
+		<span class="feature-name">Co-author timeline</span>
+		<h4>See a collaboration unfold over a career.</h4>
 		<p>
-			Browse a scholar's full body of work, sort by year or citations, and pull clean references in
-			the style you need.
+			Every co-author placed by the years they published together, each mark a shared paper — the
+			accented ones are hit papers.
 		</p>
-		{#if samplePaper}
-			<ShowcaseExport data={samplePaper} />
+		{#if coauthorTimeline.rows.length}
+			<ShowcaseTimeline data={coauthorTimeline} />
 		{/if}
-		<a class="card-cta" href="{profile}#works">Browse &amp; export →</a>
+		<a class="card-cta" href="{profile}#network">Explore the timeline →</a>
 	</div>
 </div>
 
@@ -73,8 +72,8 @@
 		<span class="feature-name">Peers</span>
 		<h4>How does a scholar stack up against their field?</h4>
 		<p>
-			See how a scholar's citations break down by field and grow over time — measured against
-			comparable peers, never flattened into a single rank.
+			See how a scholar's citations break down by field and grow over time — measured side by side
+			against comparable peers, never flattened into a single rank.
 		</p>
 		<ShowcasePeers data={peers} />
 		<a class="card-cta" href="{profile}#peers">Compare peers →</a>
@@ -102,9 +101,10 @@
 			</p>
 		</div>
 		<div class="more-item">
-			<h4>Co-author timeline</h4>
+			<h4>All works &amp; export</h4>
 			<p>
-				Every collaborator placed by the years they published together — not just the closest few.
+				Every paper, sortable and filterable, with clean references to export — BibTeX, APA, MLA,
+				Chicago.
 			</p>
 		</div>
 		<div class="more-item">
@@ -221,63 +221,14 @@
 		text-decoration: underline;
 	}
 
-	/* Hit-papers control mock-up: a non-interactive snapshot of the real control bar. */
-	.mock {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-		margin: 4px 0 2px;
+	.login-note {
+		margin: 8px 0 0;
 		font-size: var(--text-xs);
-		opacity: 0.9;
-	}
-
-	.seg {
-		display: inline-flex;
-		width: fit-content;
-		border: 1px solid rgba(var(--color-range-15), 0.2);
-		border-radius: var(--control-bar-pill-radius);
-		overflow: hidden;
-	}
-
-	.seg span {
-		padding: var(--control-bar-pill-pad);
-		opacity: 0.5;
-	}
-
-	.seg span.on {
-		background: rgba(var(--color-range-15), 0.1);
-		opacity: 1;
-	}
-
-	.checks {
-		display: flex;
-		gap: 18px;
-	}
-
-	.chk {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		opacity: 0.75;
-	}
-
-	.chk i {
-		width: 12px;
-		height: 12px;
-		border: 1px solid rgba(var(--color-range-15), 0.35);
-		border-radius: 2px;
-	}
-
-	.dd {
-		width: fit-content;
-		padding: 3px 10px;
-		border: 1px solid rgba(var(--color-range-15), 0.2);
-		border-radius: 4px;
-		opacity: 0.75;
-	}
-
-	.caret {
 		opacity: 0.6;
+	}
+
+	.login-note a {
+		text-decoration: underline;
 	}
 
 	@media (max-width: 1000px) {
