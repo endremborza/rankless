@@ -14,6 +14,7 @@
 	import endrePortrait from '$lib/assets/images/portraits/endre.jpg';
 	import veraPortrait from '$lib/assets/images/portraits/vera.jpg';
 	import matePortrait from '$lib/assets/images/portraits/mate.jpg';
+	import juliaPortrait from '$lib/assets/images/portraits/julia.jpg';
 
 	import AccordionElement from '$lib/components/AccordionElement.svelte';
 	import SpecCalcMath from '$lib/components/SpecCalcMath.svelte';
@@ -56,13 +57,13 @@
 
 	const uLogos = [cclLogo, corvLogo, tseLogo];
 
-	const protraits = [
+	const portraits = [
 		{
 			src: endrePortrait,
 			name: 'Endre Borza',
 			kicker: 'Engineering',
 			role: 'Research Data Engineer & Lead Developer',
-			links: [{ href: 'https://www.linkedin.com/in/endremborza/', text: 'LinkedIn' }]
+			links: [{ href: 'https://github.com/endremborza', text: 'GitHub' }]
 		},
 		{
 			src: matePortrait,
@@ -70,6 +71,13 @@
 			kicker: 'Design',
 			role: 'Graphic & Interaction Design',
 			links: [{ href: 'https://matebarkoczi.com/', text: 'Portfolio' }]
+		},
+		{
+			src: juliaPortrait,
+			name: 'Júlia Vanda Dénes',
+			kicker: 'Design',
+			role: 'Visual Design',
+			links: []
 		},
 		{
 			src: veraPortrait,
@@ -439,7 +447,7 @@
 			Budapest, with a small, multidisciplinary team.
 		</p>
 		<div class="grid cards">
-			{#each protraits as port, __i (__i)}
+			{#each portraits as port, __i (__i)}
 				<div class="card">
 					<img class="portrait" src={port.src} alt={port.name} />
 					<div class="content">
@@ -461,10 +469,10 @@
 				target="_blank">Center for Collective Learning (CCL)</a
 			>
 			at <a href="https://www.uni-corvinus.hu/?lang=en" target="_blank">Corvinus University</a> of Budapest
-			by a team of four people. The main person behind the project is Endre Borza, an economist working
+			by a team of five people. The main person behind the project is Endre Borza, an economist working
 			as a data engineer who constructed Rankless from the ground up. The graphic and interaction design
-			of Rankless is the work of Máté Barkóczi, a designer working on his Master’s at MOME and as an intern
-			at CCL. Vera Hamar, Executive Director of CCL, supported Rankless as a project manager and coordinator.
+			of Rankless is the work of Máté Barkóczi and Júlia Vanda Dénes, contracted for design work at CCL.
+			Vera Hamar, Executive Director of CCL, supported Rankless as a project manager and coordinator.
 			César A. Hidalgo, Director of CCL, supervised the project.
 		</p>
 
