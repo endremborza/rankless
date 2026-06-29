@@ -144,7 +144,7 @@ compare-sql compare-branch:
 cache-prep cache-read cache-rest cache-validate-all cache-validate-bigs:
 	uv run -m pyscripts cache $(@:cache-%=%)
 
-pull_live_certs sync_fe_to_alpha sync_fe_to_live sync_fe_to_local setup_local_test bump_v bump_v_minor rolling_restart_live_fe new_small_alpha new_large_alpha kill_dangling kill_alpha:
+pull_live_certs sync_fe_to_alpha sync_fe_to_live sync_fe_to_local sync_data_to_alpha sync_data_to_live setup_local_test bump_v bump_v_minor rolling_restart_live_fe new_small_alpha new_large_alpha kill_dangling kill_alpha:
 	echo "from pyscripts.deploy import $@;$@()" | uv run -
 
 post-csvs: filter extend_csvs rankless_rs/src/gen/derive_links5.rs lib_data_generation
