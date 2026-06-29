@@ -120,9 +120,6 @@ data_subdirs = [
     "cache",
 ]
 ignores = [
-    "work-references",
-    "authors-ref-subfields",
-    "authors-cit-subfields",
     "source-pairs-by-path",
 ]
 
@@ -710,6 +707,12 @@ upstream {BE_UPSTREAM} {{
         for service in self._iter_conf_services(live_conf):
             service.stop()
 
+    def update_data(self):
+        self.sync_code()
+        self.build_rs()
+        self.sync_data_to()
+        self.be_service.restart()
+
     def rolling_restart_live_fe(self):
         _stage_conf, live_conf = self.get_fe_systems()
         for service in self._iter_conf_services(live_conf):
@@ -853,6 +856,14 @@ def sync_fe_to_local():
 
 def sync_fe_to_live():
     get_running_tpr(True).update_fe()
+
+
+def sync_data_to_alpha():
+    get_running_tpr(False).update_data()
+
+
+def sync_data_to_live():
+    get_running_tpr(True).update_data()
 
 
 def full_setup_from_nothing(
