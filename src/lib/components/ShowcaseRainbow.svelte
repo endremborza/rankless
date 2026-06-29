@@ -2,6 +2,7 @@
 	import { LATEST_YEAR } from '$lib/constants';
 	import type { ShowcaseHitPaper } from '$lib/types/showcase';
 	import { formatNumber } from '$lib/text-format-util';
+	import { getColor } from '$lib/style-util';
 	import { htmlToText } from '$lib/utils/paper-helpers';
 
 	export let papers: ShowcaseHitPaper[];
@@ -19,12 +20,25 @@
 	$: minYear = Math.min(LATEST_YEAR - 1, ...papers.map((p) => p.year));
 	$: span = Math.max(1, LATEST_YEAR - minYear);
 	$: rootMax = Math.sqrt(Math.max(1, ...papers.map((p) => p.citations)));
-	// Tallest in back, so smaller arcs stay readable in front; hue spreads the spectrum across them.
+	// Color by publication-year rank (oldest→0, newest→1) through the site's getColor scale, exactly
+	// like the real PaperRainbow — so the miniature shares the site palette instead of a raw spectrum.
+	$: rates = yearRates(papers);
+	// Tallest in back, so smaller arcs stay readable in front.
 	$: ordered = papers.map((p, i) => ({ ...p, i })).sort((a, b) => b.citations - a.citations);
 
 	const xOf = (yr: number) => padL + ((yr - minYear) / span) * (W - padL - padR);
 	const topOf = (cit: number) => padT + (1 - Math.sqrt(cit) / rootMax) * (baseY - padT);
-	const hue = (i: number, n: number) => Math.round((i / Math.max(1, n - 1)) * 300);
+
+	function yearRates(ps: ShowcaseHitPaper[]): number[] {
+		const n = ps.length;
+		if (n <= 1) return ps.map(() => 0.5);
+		const byYear = [...ps.keys()].sort((a, b) => ps[a].year - ps[b].year);
+		const out = new Array<number>(n);
+		byYear.forEach((idx, rank) => {
+			out[idx] = rank / (n - 1);
+		});
+		return out;
+	}
 
 	function arc(p: ShowcaseHitPaper): string {
 		const x0 = xOf(p.year);
@@ -41,7 +55,7 @@
 	<svg viewBox="0 0 {W} {H}" role="img" aria-label="Hit-paper citation rainbow">
 		<line class="base" x1={padL} y1={baseY} x2={W - padR} y2={baseY} />
 		{#each ordered as p, k (k)}
-			{@const c = `hsl(${hue(p.i, ordered.length)} 68% 55%)`}
+			{@const c = getColor(rates[p.i])}
 			<g>
 				<title>{htmlToText(p.name)} ({p.year}) · {formatNumber(p.citations)} citations</title>
 				<path class="fill" d={area(p)} fill={c} />
