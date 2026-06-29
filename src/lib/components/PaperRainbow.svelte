@@ -41,7 +41,7 @@
 
 	let maxN = 15;
 	let highlighted = 0;
-	let alignTrajectories = false;
+	let alignTrajectories = true;
 	let logScale = false;
 	let sortBy: 'citations' | 'overperf' | 'year' = 'year';
 	let viewMode: 'lines' | 'breakdown' = 'lines';
@@ -188,7 +188,7 @@
 		const yearTicks: { name?: string | number; x: number }[] = [];
 		const toT = (i: number, k: number) => i === Math.floor((k * yearSpan) / 3);
 		if (align) {
-			yearTicks.push({ name: 'publication', x: 0 });
+			yearTicks.push({ name: 0, x: 0 });
 			for (let i = 1; i < yearSpan; i++) {
 				yearTicks.push({
 					name: toT(i, 1) || toT(i, 2) ? `+${i}` : undefined,
@@ -211,6 +211,16 @@
 		}
 
 		return { width, height, xMin, yMin, figPapers, yearTicks, yTicks, pubMarks, aspect, align };
+	}
+
+	function tipLabelPos(hp: FigPaper): { x: number; y: number; anchor: 'start' | 'end' } {
+		const estWidth = formatNumber(hp.citations).length * 0.36 + 0.3;
+		if (hp.endX + estWidth <= xBase) {
+			return { x: hp.endX + 0.2, y: hp.endY + 0.15, anchor: 'start' };
+		}
+		// Near the right edge the value would run into the y-axis labels; anchor it at the tip and
+		// lift it just above the line so it stays inside the plot.
+		return { x: hp.endX, y: hp.endY - 0.3, anchor: 'end' };
 	}
 
 	function fixHighlight(i: number) {
@@ -283,12 +293,11 @@
 	$: paperCap = Math.min(40, chartPapers.length);
 	$: if (maxN > paperCap) maxN = paperCap;
 
-	$: globalMinYear =
-		chartPapers.length > 0 ? Math.min(...chartPapers.map((p) => p.year)) : LATEST_YEAR - 1;
-
 	$: rates = computeYearRates(chartPapers);
 	$: visInds = getVisInds(chartPapers, firstVisible ?? 0, maxN);
-	$: fb = getFigureBasis(chartPapers, visInds, globalMinYear, alignTrajectories, rates, logScale);
+	$: visMinYear =
+		visInds.length > 0 ? Math.min(...visInds.map((i) => chartPapers[i].year)) : LATEST_YEAR - 1;
+	$: fb = getFigureBasis(chartPapers, visInds, visMinYear, alignTrajectories, rates, logScale);
 	$: highlightedVis = visInds.includes(highlighted) ? highlighted - visInds[0] : undefined;
 </script>
 
@@ -401,12 +410,13 @@
 						<!-- Total cites for the highlighted paper sit at its line tip (name moved to top-left) -->
 						{#if highlightedVis !== undefined}
 							{@const hp = fb.figPapers[highlightedVis]}
+							{@const pos = tipLabelPos(hp)}
 							<text
-								x={hp.endX + 0.2}
-								y={hp.endY + 0.15}
+								x={pos.x}
+								y={pos.y}
 								font-size="0.5"
 								font-weight="600"
-								text-anchor="start"
+								text-anchor={pos.anchor}
 								fill={getColor(hp.rate)}>{formatNumber(hp.citations)}</text
 							>
 						{/if}
@@ -426,6 +436,18 @@
 								{/if}
 							{/each}
 						</g>
+
+						<!-- X axis title (offset axis is only meaningful when trajectories are aligned) -->
+						{#if fb.align}
+							<text
+								x={xBase / 2}
+								y="2"
+								text-anchor="middle"
+								font-size="0.7"
+								fill="var(--color-text)"
+								opacity="0.6">Years since publication</text
+							>
+						{/if}
 
 						<!-- Paper publication markers (only when x is calendar-aligned) -->
 						{#if !fb.align}

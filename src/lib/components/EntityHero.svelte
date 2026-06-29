@@ -30,6 +30,7 @@
 
 	let abstractExpanded = false;
 	let ticksHeight: number;
+	let ticksWidth: number;
 
 	$: cfg = HERO_CONFIG[rootType];
 	$: isHitPaper = rootType === 'hit-papers';
@@ -126,11 +127,12 @@
 
 		<div class="era">
 			<h2>In The Last Decade</h2>
-			<div class="era-chart" bind:clientHeight={ticksHeight}>
+			<div class="era-chart" bind:clientHeight={ticksHeight} bind:clientWidth={ticksWidth}>
 				<YearTicks
 					bottomStacks={view.yearlyPapers}
 					topStacks={view.yearlyCites}
 					fullHeight={ticksHeight}
+					fullWidth={ticksWidth}
 					showBottom={!isHitPaper}
 					end={LATEST_YEAR}
 				/>
@@ -273,8 +275,10 @@
 	}
 
 	.era-chart {
+		position: relative;
 		width: 100%;
 		aspect-ratio: 2.5;
+		min-height: 180px;
 	}
 
 	.dag-link {

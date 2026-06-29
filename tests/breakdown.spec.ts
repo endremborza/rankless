@@ -1,7 +1,7 @@
 import { type Page } from '@playwright/test';
 import { test } from './coverage/fixtures';
 import * as fs from 'fs';
-import { XMLParser } from 'fast-xml-parser';
+import { sitemapEntityUrls } from './helpers';
 
 // Increased timeout for this test suite as it's doing a lot of exploration.
 test.describe.configure({ timeout: 120000 });
@@ -10,15 +10,6 @@ const ENTITY_TYPES = ['authors', 'institutions', 'subfields'];
 
 const optionTrees: Record<string, string[]> = {};
 const semanticDescriptions: Record<string, string[]> = {};
-
-async function getEntityUrlsFromSitemap(entityType: string): Promise<string[]> {
-	const response = await fetch(`http://localhost:4173/sitemap-entity-${entityType}-1.xml`);
-	const sitemapContent = await response.text();
-	const parser = new XMLParser();
-	const sitemap = parser.parse(sitemapContent);
-	const urls = sitemap.urlset.url.map((u: { loc: string }) => new URL(u.loc).pathname);
-	return urls.slice(0, 2); // Take a small sample to keep the test fast
-}
 
 async function explore(page: Page, url: string, level: number) {
 	const selects = page.locator('.sentenceline select');
@@ -68,7 +59,7 @@ async function explore(page: Page, url: string, level: number) {
 test.describe('Breakdown selection', () => {
 	test('should explore all breakdown combinations', async ({ page }) => {
 		for (const entityType of ENTITY_TYPES) {
-			const urls = await getEntityUrlsFromSitemap(entityType);
+			const urls = await sitemapEntityUrls(entityType, 2); // small sample to keep the test fast
 
 			for (const url of urls) {
 				await page.goto(url);
