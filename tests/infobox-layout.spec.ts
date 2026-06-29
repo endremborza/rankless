@@ -1,19 +1,11 @@
 import { test, expect } from './coverage/fixtures';
-import { XMLParser } from 'fast-xml-parser';
-
-async function getEntityUrl(): Promise<string> {
-	const response = await fetch('http://localhost:4173/sitemap-entity-authors-1.xml');
-	const content = await response.text();
-	const parser = new XMLParser();
-	const sitemap = parser.parse(content);
-	return new URL(sitemap.urlset.url[0].loc).pathname;
-}
+import { sitemapEntityUrls } from './helpers';
 
 test.describe('Infobox layout', () => {
 	let entityUrl: string;
 
 	test.beforeAll(async () => {
-		entityUrl = await getEntityUrl();
+		[entityUrl] = await sitemapEntityUrls('authors', 1);
 	});
 
 	test('narrow viewport: infobox is visible with reasonable height', async ({ browser }) => {

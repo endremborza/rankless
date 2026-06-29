@@ -1,6 +1,6 @@
 import { type Page } from '@playwright/test';
 import { expect, test } from './coverage/fixtures';
-import { XMLParser } from 'fast-xml-parser';
+import { sitemapEntityUrls } from './helpers';
 
 // Exercises every root type through real in-app navigation, asserting that no page raises a Svelte
 // runtime error (e.g. each_key_duplicate from repeated leader names) and that hit-paper abstracts
@@ -24,15 +24,6 @@ const FORCED: Partial<Record<(typeof ROOT_TYPES)[number], string[]>> = {
 
 // Svelte runtime errors always link to svelte.dev/e/<code>; that plus a raw pageerror covers crashes.
 const SVELTE_ERROR = /svelte\.dev\/e\/|each_key_duplicate/i;
-
-async function sitemapUrls(type: string, n: number): Promise<string[]> {
-	const res = await fetch(`http://localhost:4173/sitemap-entity-${type}-1.xml`);
-	expect(res.ok, `sitemap-entity-${type}-1.xml returned ${res.status}`).toBeTruthy();
-	const parsed = new XMLParser().parse(await res.text());
-	const entries = parsed?.urlset?.url;
-	const arr = Array.isArray(entries) ? entries : entries ? [entries] : [];
-	return arr.slice(0, n).map((u: { loc: string }) => new URL(u.loc).pathname);
-}
 
 function errorSink(page: Page): string[] {
 	const errors: string[] = [];
@@ -79,7 +70,7 @@ test('navigates across all entity types without runtime errors', async ({ page }
 	const byType = new Map<string, string[]>();
 	for (const t of ROOT_TYPES) {
 		const forced = FORCED[t] ?? [];
-		const fromMap = (await sitemapUrls(t, PER_TYPE)).filter((u) => !forced.includes(u));
+		const fromMap = (await sitemapEntityUrls(t, PER_TYPE)).filter((u) => !forced.includes(u));
 		const merged = [...forced, ...fromMap];
 		expect(merged.length, `not enough sitemap entries for ${t}`).toBeGreaterThanOrEqual(PER_TYPE);
 		byType.set(t, merged);

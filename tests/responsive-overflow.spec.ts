@@ -1,6 +1,6 @@
 import { type Page } from '@playwright/test';
 import { test, expect } from './coverage/fixtures';
-import { XMLParser } from 'fast-xml-parser';
+import { sitemapEntityUrls } from './helpers';
 
 // Guards against the recurring "layout breaks on a small screen" bug: at each phone/tablet width it
 // loads the home page and one live instance of every root type, then asserts the document never grows
@@ -20,13 +20,9 @@ const ROOT_TYPES = [
 ] as const;
 
 async function firstSitemapUrl(type: string): Promise<string> {
-	const res = await fetch(`http://localhost:4173/sitemap-entity-${type}-1.xml`);
-	expect(res.ok, `sitemap-entity-${type}-1.xml returned ${res.status}`).toBeTruthy();
-	const parsed = new XMLParser().parse(await res.text());
-	const entries = parsed?.urlset?.url;
-	const arr = Array.isArray(entries) ? entries : entries ? [entries] : [];
-	expect(arr.length, `no sitemap entries for ${type}`).toBeGreaterThan(0);
-	return new URL(arr[0].loc).pathname;
+	const [url] = await sitemapEntityUrls(type, 1);
+	expect(url, `no sitemap entries for ${type}`).toBeTruthy();
+	return url;
 }
 
 // Elements whose right edge spills past the viewport, ignoring any clipped by an overflow-x ancestor
