@@ -823,6 +823,11 @@
 		.hero-inner {
 			grid-template-columns: 1fr;
 		}
+		/* Stacked, the Qc tree gets the full column width and grows taller than the desktop 40svh box;
+		   a fixed height would let it overflow onto the "Latest features" section below it. */
+		.hero-art {
+			height: auto;
+		}
 		.grid.cards {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}

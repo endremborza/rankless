@@ -16,6 +16,19 @@
 	export let works: WorksLoader;
 
 	type Selection = { kind: 'node'; i: number } | { kind: 'edge'; i: number; j: number } | null;
+	type LayoutOpts = {
+		height: number;
+		width: number;
+		idealEdgeLength: number;
+		nodeRepulsion: number;
+		edgeElasticity: number;
+		nestingFactor: number;
+		gravity: number;
+		numIter: number;
+		initialTemp: number;
+		coolingFactor: number;
+		minTemp: number;
+	};
 
 	$: n = authors.length;
 	$: nodeIds = authors.map((a) => a.semanticId);
@@ -204,25 +217,22 @@
 	const marge = 0.09;
 	const height = 400;
 	const margify = (x: number) => x * (1 + 2 * marge);
-	// While the graph is hidden (timeline tab) the clientHeight bind reports 0, so guard the ratio:
-	// an unguarded `x/0` yields NaN and paints `MNaN` paths until the ResizeObserver re-fires.
-	$: width = svgWidth && svgHeight ? (height * svgWidth) / svgHeight : height;
-	$: r = Math.min(14, width / 20);
-	$: viewBox = `-${width * marge} -${height * marge} ${margify(width)} ${margify(height)}`;
 
-	$: options = {
-		height,
-		width,
-		idealEdgeLength,
-		nodeRepulsion,
-		edgeElasticity,
-		nestingFactor,
-		gravity,
-		numIter,
-		initialTemp,
-		coolingFactor,
-		minTemp
-	};
+	// fcose is randomized, so re-solving produces a different arrangement every time. It must run ONCE
+	// per dataset/params — never on a mere resize or a network⇄timeline toggle, both of which re-fire
+	// the size binds and previously re-rolled the whole graph (the "stuck between layouts / sometimes
+	// terrible" symptom). We freeze the coordinate box the positions were solved in (`layoutW`) and let
+	// the SVG viewBox rescale it responsively; only a change of data, algorithm, or a tuning knob
+	// re-solves. The bind reports 0 while hidden (timeline tab), so solving waits for a real measurement.
+	let layoutW = height;
+	let lastLayoutKey = '';
+	$: layoutKey = `${layoutFun === circleLayout ? 'c' : 'f'}|${nodeIds.join(',')}|${edgeWeights.join(
+		','
+	)}|${gravity},${numIter},${initialTemp},${coolingFactor},${minTemp}`;
+	$: relayout(layoutKey, layoutFun, nodeIds, edgeWeights, svgWidth, svgHeight);
+
+	$: r = Math.min(14, layoutW / 20);
+	$: viewBox = `-${layoutW * marge} -${height * marge} ${margify(layoutW)} ${margify(height)}`;
 
 	// cytoscape + fcose are heavy; load them lazily and fall back to the circle
 	// layout until they arrive (also keeps the force layout off the SSR path)
@@ -233,18 +243,43 @@
 	const possFuns = ['force', 'circle'] as const;
 	let actFun: (typeof possFuns)[number] = 'force';
 	$: layoutFun = actFun === 'force' && forceLayout ? forceLayout : circleLayout;
-	$: positions = safePositions(layoutFun, nodeIds, edgeWeights, options);
 	// Bow the edges in free layouts; keep them straight chords on the circle.
 	$: edgeCurve = layoutFun === circleLayout ? 0 : 0.15;
 	let showControls = false;
 
+	function relayout(
+		key: string,
+		fn: typeof layoutFun,
+		ids: string[],
+		weights: number[],
+		sw: number,
+		sh: number
+	) {
+		if (!sw || !sh || ids.length === 0 || key === lastLayoutKey) return;
+		lastLayoutKey = key;
+		layoutW = (height * sw) / sh;
+		positions = safePositions(fn, ids, weights, {
+			height,
+			width: layoutW,
+			idealEdgeLength,
+			nodeRepulsion,
+			edgeElasticity,
+			nestingFactor,
+			gravity,
+			numIter,
+			initialTemp,
+			coolingFactor,
+			minTemp
+		});
+	}
+
 	// The force layout can throw (cytoscape on bad data) or return non-finite coords; never let that
 	// break the graph — fall back to the always-valid circle layout so a render is guaranteed.
 	function safePositions(
-		fn: (ids: string[], weights: number[], opts: typeof options) => { x: number; y: number }[],
+		fn: (ids: string[], weights: number[], opts: LayoutOpts) => { x: number; y: number }[],
 		ids: string[],
 		weights: number[],
-		opts: typeof options
+		opts: LayoutOpts
 	) {
 		let p: { x: number; y: number }[] = [];
 		try {
@@ -297,7 +332,7 @@
 
 		{#if view === 'network'}
 			<div class="graph-wrap" bind:clientWidth={svgWidth} bind:clientHeight={svgHeight}>
-				{#if svgWidth && svgHeight}
+				{#if svgWidth && svgHeight && positions.length === n}
 					<svg {viewBox} role="img" aria-label="Co-authorship network" transition:fade>
 						{#each Array(n) as _, i (i)}
 							{#each Array(n) as _, j (j)}
