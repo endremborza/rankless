@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 import { LedgerDb } from '$lib/server/db';
-import { resolveWorkSubject, ResolveError } from '$lib/server/id_resolver';
+import { resolveWorkSubject, assertAuthoredAny, ResolveError } from '$lib/server/id_resolver';
 
 export async function POST({ locals, request }: RequestEvent) {
 	if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
@@ -14,6 +14,7 @@ export async function POST({ locals, request }: RequestEvent) {
 			resolveWorkSubject({ wid: wid_keep }),
 			resolveWorkSubject({ wid: wid_drop })
 		]);
+		await assertAuthoredAny(locals.user.orcid, [keep.dm_id_at_creation, drop.dm_id_at_creation]);
 		LedgerDb.createEvent(locals.user.orcid, { kind: 'merge_papers', keep, drop });
 		return json({ ok: true });
 	} catch (e) {

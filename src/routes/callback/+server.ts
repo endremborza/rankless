@@ -1,14 +1,16 @@
 import { ORCID_CLIENT_ID, ORCID_CLIENT_SECRET } from '$env/static/private';
 import { ORCID_TOKEN_URL, ORCID_REDIRECT_URI, BE_URL } from '$lib/constants';
 import type { RequestHandler } from '@sveltejs/kit';
-import { setSession } from '$lib/server/session';
+import { setSession, consumeOauthState } from '$lib/server/session';
 import { LedgerDb } from '$lib/server/db';
 
 export const GET: RequestHandler = async (event) => {
 	const code = event.url.searchParams.get('code');
 	if (!code) return new Response('Missing code', { status: 400 });
 
-	const redirectTo = event.url.searchParams.get('state') ?? '/';
+	// CSRF: the callback `state` must match the nonce we set at login time.
+	const redirectTo = consumeOauthState(event, event.url.searchParams.get('state'));
+	if (redirectTo === null) return new Response('Invalid OAuth state', { status: 400 });
 
 	const res = await fetch(ORCID_TOKEN_URL, {
 		method: 'POST',

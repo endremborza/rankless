@@ -5,6 +5,7 @@ import type { LedgerKind, LedgerPayload } from '$lib/types/ledger';
 import {
 	resolveWorkSubject,
 	resolveAuthorSubject,
+	assertAuthoredAny,
 	canonicalDoi,
 	ResolveError
 } from '$lib/server/id_resolver';
@@ -72,15 +73,15 @@ async function buildPayload(
 					doi: requireString(dropInput.doi, 'drop.doi')
 				})
 			]);
+			await assertAuthoredAny(orcid, [keep.dm_id_at_creation, drop.dm_id_at_creation]);
 			return { kind, keep, drop };
 		}
 		case 'merge_authors': {
 			const dropInput = requireObject(input.drop, 'drop');
 			const [keep, drop] = await Promise.all([
-				resolveAuthorSubject({
-					orcid,
-					semantic_id: requireString(input.my_semantic_id, 'my_semantic_id')
-				}),
+				// keep is forced to the caller's own ORCID; a client-supplied semantic_id must not be
+				// able to make a victim's profile the surviving side of the merge.
+				resolveAuthorSubject({ orcid }),
 				resolveAuthorSubject({
 					semantic_id: requireString(dropInput.semantic_id, 'drop.semantic_id'),
 					orcid: requireString(dropInput.orcid, 'drop.orcid'),
