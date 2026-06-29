@@ -5,16 +5,20 @@ and writes `src/lib/assets/data/homepage-showcase.json`. The home page imports t
 directly, so the showcase needs no backend call on load.
 
 Data is pulled from the running backend (the source of truth for peers / co-authors /
-works), not recomputed here. Fails loudly if the backend is unreachable.
+works), not recomputed here. Fails loudly if the backend is unreachable. Point it at a
+remote backend with `SHOWCASE_BE=https://host/v1 uv run -m pyscripts.homepage_showcase`
+when the local instance holds a reduced test dataset.
 """
 
 import json
+import os
 import urllib.error
 import urllib.request
+from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
-BASE = "http://127.0.0.1:3038/v1"
+BASE = os.environ.get("SHOWCASE_BE", "http://127.0.0.1:3038/v1").rstrip("/")
 OUT = Path("src/lib/assets/data/homepage-showcase.json")
 
 # Tried in order; first one that resolves becomes the featured scholar. Falls back to the
@@ -22,12 +26,15 @@ OUT = Path("src/lib/assets/data/homepage-showcase.json")
 # a data refresh.
 PREFERRED = ["richard-h-thaler"]
 
-COAUTHOR_N = 6
-SUBFIELD_N = 6
+COAUTHOR_N = 6  # nodes in the network preview
+SUBFIELD_N = 6  # fields in the comparative peers preview
+HIT_N = 9  # arcs in the hit-paper rainbow
+TIMELINE_N = 6  # rows in the co-author timeline
+TIMELINE_MIN = 2  # a co-author needs this many shared papers to earn a row
 
 
 def get(path: str):
-    with urllib.request.urlopen(BASE + path, timeout=30) as r:
+    with urllib.request.urlopen(BASE + path, timeout=60) as r:
         return json.load(r)
 
 
@@ -72,111 +79,119 @@ def build_coauthors(view: dict) -> dict:
 
 
 def build_peers(peers: dict) -> dict:
+    """Hero vs its single most comparable peer — the comparison is the whole point of the
+    feature, so the preview bakes both sides for the top fields and the citation timeline."""
     hero = peers["hero"]
-    pairs = sorted(
+    peer = peers["peers"][0]
+    cols = sorted(
         (
-            {"name": sf["name"], "cites": c}
-            for sf, c in zip(peers["topSubfields"], hero["subfieldCitations"])
+            {"name": sf["name"], "hero": h, "peer": p}
+            for sf, h, p in zip(
+                peers["topSubfields"],
+                hero["subfieldCitations"],
+                peer["subfieldCitations"],
+            )
         ),
-        key=lambda p: -p["cites"],
+        key=lambda c: -c["hero"],
     )
+    hero_y = list(hero["yearlyCites"])
+    peer_y = list(peer["yearlyCites"])
     # EraRec ends at the current calendar year (== backend FINAL_YEAR / frontend LATEST_YEAR);
-    # year_from anchors the (trailing-zero-trimmed) series so the chart can label real years.
-    yearly = hero["yearlyCites"]
-    year_from = date.today().year - (len(yearly) - 1)
-    while len(yearly) > 1 and yearly[-1] == 0:
-        yearly = yearly[:-1]
+    # year_from anchors the series so the chart can label real years.
+    year_from = date.today().year - (len(hero_y) - 1)
+    while len(hero_y) > 1 and hero_y[-1] == 0 and peer_y[-1] == 0:
+        hero_y.pop()
+        peer_y.pop()
     return {
-        "subfields": pairs[:SUBFIELD_N],
+        "heroName": hero["name"],
+        "peerName": peer["name"],
+        "peerCountry": peer.get("country"),
+        "subfields": cols[:SUBFIELD_N],
         "yearFrom": year_from,
-        "yearly": yearly,
+        "heroYearly": hero_y,
+        "peerYearly": peer_y,
     }
 
 
-def resolvable_authors(paper: dict, authors_map: dict, disc: dict) -> int:
-    n = 0
-    for s in paper["authorships"]:
-        a = s["author"]
-        if a[0] == "F" and a[1:] in authors_map:
-            n += 1
-        elif disc.get(a) and disc[a] != "Unknown":
-            n += 1
-    return n
-
-
-def extract_paper(resp: dict, exclude_name: str) -> tuple | None:
-    """Best (score, payload) from one author's works, or None.
-
-    Ranks by: well-formed biblio, then a real indexed journal (non-empty source semantic id,
-    which excludes preprint repos), then the fraction of authors that resolve to real names
-    (a clean byline reads better than one peppered with "et al."), then citations. Papers that
-    name the featured scholar are skipped so their name never surfaces in the citation preview.
-    """
-    atts = resp["entityAtts"]
-    disc = resp["discAuthorNames"]
-    authors_map = atts.get("authors", {})
-    sources = atts.get("sources", {})
-
-    def resolved_names(p: dict) -> set[str]:
-        return {
-            authors_map[s["author"][1:]]["name"]
-            for s in p["authorships"]
-            if s["author"][0] == "F" and s["author"][1:] in authors_map
-        }
-
-    def score(p: dict) -> tuple:
-        b = p.get("biblio") or {}
-        src = sources.get(str(p["source"]), {})
-        n_res = resolvable_authors(p, authors_map, disc)
-        return (
-            bool(p.get("doi") and b.get("volume") and b.get("first_page")),
-            bool(src.get("semantic_id")),
-            n_res / max(1, len(p["authorships"])),
-            p["citations"],
-        )
-
-    candidates = [
-        p
-        for p in resp["papers"]
-        if resolvable_authors(p, authors_map, disc)
-        and exclude_name not in resolved_names(p)
+def build_hit_papers(papers: list[dict]) -> list[dict]:
+    """The scholar's hit papers as the rainbow draws them: each an arc from its publication
+    year to now, height by citations. Only year/citations/title are needed for that."""
+    hits = sorted(
+        (p for p in papers if p.get("isHit") and (p.get("year") or 0) > 0),
+        key=lambda p: -p["citations"],
+    )
+    return [
+        {"year": p["year"], "citations": p["citations"], "name": p["name"]}
+        for p in hits[:HIT_N]
     ]
-    if not candidates:
+
+
+def build_coauthor_timeline(
+    papers: list[dict], atts: dict, disc: dict, hero_sid: str
+) -> dict:
+    """Per-co-author collaboration spans + per-year shared-paper marks, mirroring
+    utils/author-timeline.ts buildCoauthors (hero dropped, hit papers flagged)."""
+    authors_map = atts.get("authors", {})
+
+    def resolve(ship: dict) -> tuple[str, None] | None:
+        a = ship["author"]
+        if a[0] == "F" and a[1:] in authors_map:
+            att = authors_map[a[1:]]
+            if att.get("semantic_id") == hero_sid:
+                return None  # the hero links everyone — leave out
+            return att["name"], None
+        if disc.get(a) and disc[a] != "Unknown":
+            return disc[a], None
         return None
-    paper = max(candidates, key=score)
 
-    # Bake only the entity atts this one paper references.
-    needed_authors = {
-        s["author"][1:]
-        for s in paper["authorships"]
-        if s["author"][0] == "F" and s["author"][1:] in authors_map
-    }
-    needed_disc = {
-        s["author"]: disc[s["author"]]
-        for s in paper["authorships"]
-        if s["author"] in disc
-    }
-    payload = {
-        "paper": paper,
-        "entityAtts": {
-            "sources": {k: v for k, v in sources.items() if k == str(paper["source"])},
-            "authors": {k: authors_map[k] for k in needed_authors},
-        },
-        "discAuthorNames": needed_disc,
-    }
-    return score(paper), payload
+    by_author: dict[str, dict] = defaultdict(
+        lambda: {"name": "", "by_year": defaultdict(lambda: {"n": 0, "hit": False})}
+    )
+    for p in papers:
+        y = p.get("year") or 0
+        if y <= 0:
+            continue
+        for ship in p["authorships"]:
+            r = resolve(ship)
+            if r is None:
+                continue
+            e = by_author[ship["author"]]
+            e["name"] = r[0]
+            bucket = e["by_year"][y]
+            bucket["n"] += 1
+            if p.get("isHit"):
+                bucket["hit"] = True
 
-
-def build_sample_paper(candidate_sids: list[str], exclude_name: str) -> dict | None:
-    """Pick the cleanest demo paper across the candidate scholars. The featured scholar is
-    excluded so the citation/BibTeX preview reads as a generic feature demo, not their profile.
-    """
-    best = None
-    for sid in candidate_sids:
-        got = extract_paper(get(f"/works/authors/{sid}/0?n=80")["resp"], exclude_name)
-        if got and (best is None or got[0] > best[0]):
-            best = got
-    return best[1] if best else None
+    rows = []
+    for e in by_author.values():
+        years = sorted(e["by_year"])
+        count = sum(e["by_year"][y]["n"] for y in years)
+        if count < TIMELINE_MIN:
+            continue
+        rows.append(
+            {
+                "name": e["name"],
+                "count": count,
+                "firstYear": years[0],
+                "lastYear": years[-1],
+                "marks": [
+                    {
+                        "year": y,
+                        "n": e["by_year"][y]["n"],
+                        "hit": e["by_year"][y]["hit"],
+                    }
+                    for y in years
+                ],
+            }
+        )
+    rows.sort(key=lambda r: (-r["count"], r["firstYear"]))
+    rows = rows[:TIMELINE_N]
+    for r in rows:
+        del r["count"]
+    # Anchor the axis to the shown rows (not the whole career) so the preview fills its width.
+    lo = min((r["firstYear"] for r in rows), default=0)
+    hi = max((r["lastYear"] for r in rows), default=0)
+    return {"yearLo": lo, "yearHi": hi, "rows": rows}
 
 
 def main():
@@ -184,7 +199,7 @@ def main():
     sid = pick_scholar(sids)
     view = get(f"/views/authors/{sid}")
     peers = get(f"/peers/authors/{sid}")
-    others = [s for s in sids if s != sid]
+    works = get(f"/works/authors/{sid}/0?n=200")["resp"]
     snapshot = {
         "scholar": {
             "name": view["name"],
@@ -192,11 +207,12 @@ def main():
             "papers": view["papers"],
             "citations": view["citations"],
         },
+        "hitPapers": build_hit_papers(works["papers"]),
+        "coauthorTimeline": build_coauthor_timeline(
+            works["papers"], works["entityAtts"], works["discAuthorNames"], sid
+        ),
         "coauthors": build_coauthors(view),
         "peers": build_peers(peers),
-        "samplePaper": build_sample_paper(
-            others or [sid], view["name"] if others else ""
-        ),
     }
     OUT.write_text(json.dumps(snapshot, indent=2, ensure_ascii=False))
     print(f"wrote {OUT} (featured: {view['name']})")
