@@ -19,9 +19,9 @@ use rankless_rs::Stowage;
 
 use crate::consts::{DEFAULT_N_THREADS, PORT};
 use crate::handlers::{
-    intersect_get, ladder_get, name_get, orcid_get, paper_profile, peers_get, resolve_author_get,
-    resolve_work_get, sem_id_get, shallows_get, slice_get, stats_get, tops_get, tree_get, view_get,
-    works_get,
+    authored_get, intersect_get, ladder_get, name_get, orcid_get, paper_profile, peers_get,
+    resolve_author_get, resolve_work_get, sem_id_get, shallows_get, slice_get, stats_get, tops_get,
+    tree_get, view_get, works_get,
 };
 use crate::startup::get_rest;
 use crate::state::NameStateMap;
@@ -66,6 +66,7 @@ async fn async_main(n_threads: usize) {
         .route("/orcid/:orcid_id", get(orcid_get))
         .route("/resolve/work", get(resolve_work_get))
         .route("/resolve/author", get(resolve_author_get))
+        .route("/authored", get(authored_get))
         .route("/paper-profile/:asem", get(paper_profile))
         .route("/peers/:etype/:semantic_id", get(peers_get))
         .route("/ladder/:etype", get(ladder_get))

@@ -8,7 +8,7 @@ use axum::{
     Json,
 };
 
-use dmove::{Entity, EntityMutableMapperBackend, VattReadingArcMap, ET};
+use dmove::{Entity, EntityMutableMapperBackend, UnsignedNumber, VattReadingArcMap, ET};
 use rankless_rs::{
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields},
@@ -21,8 +21,8 @@ use rankless_trees::io::ManFileHandle;
 
 use crate::consts::MAX_SLICE;
 use crate::responses::{
-    BasicQ, ResolveAuthorQ, ResolveAuthorResp, ResolveWorkQ, ResolveWorkResp, SearchResult,
-    UnionSearchResult,
+    AuthoredQ, AuthoredResp, BasicQ, ResolveAuthorQ, ResolveAuthorResp, ResolveWorkQ,
+    ResolveWorkResp, SearchResult, UnionSearchResult,
 };
 use crate::state::StatesT;
 use crate::util::{cache_header, get_empty, parse_semantic_id};
@@ -225,4 +225,23 @@ pub(crate) async fn resolve_author_get(
         name: sr.name.to_string(),
     };
     (StatusCode::OK, Json(Some(resp)))
+}
+
+// Does the author behind `orcid` author work `wid`? Backs the ledger's merge_papers
+// authorization: a user may only merge papers they authored (checked against their
+// MainWorkMarker production set). Unknown orcid / malformed input -> false (deny).
+pub(crate) async fn authored_get(q: Query<AuthoredQ>, states: StatesT) -> Json<AuthoredResp> {
+    let gets = &states.0 .2.state.gets;
+    let obytes: OrcidType = match q.orcid.as_bytes().try_into() {
+        Ok(b) => b,
+        Err(_) => return Json(AuthoredResp { authored: false }),
+    };
+    let authored = match gets.orcid_map.get(&obytes) {
+        Some(&aid) => gets
+            .aworks(ET::<Authors>::from_usize(aid))
+            .iter()
+            .any(|&w| w.to_usize() == q.wid),
+        None => false,
+    };
+    Json(AuthoredResp { authored })
 }

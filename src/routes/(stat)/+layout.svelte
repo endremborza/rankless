@@ -17,6 +17,7 @@
 	export let data: {
 		surveyShouldPrompt: boolean;
 		user: { orcid: string; name: string; semanticId?: string } | null;
+		isAdmin: boolean;
 	};
 	const SEARCH_LISTBOX_ID = 'search-listbox';
 
@@ -191,6 +192,11 @@
 									class="dropdown-item"
 									href="/authors/{data.user.semanticId}"
 									on:click={() => (userMenuOpen = false)}>My Profile</a
+								>
+							{/if}
+							{#if data.isAdmin}
+								<a class="dropdown-item" href="/admin" on:click={() => (userMenuOpen = false)}
+									>Admin</a
 								>
 							{/if}
 							<a

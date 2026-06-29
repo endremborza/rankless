@@ -6,13 +6,16 @@ import { resolveAuthorSubject, ResolveError } from '$lib/server/id_resolver';
 export async function POST({ locals, request }: RequestEvent) {
 	if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
 	const body = await request.json();
-	const { other_semantic_id, my_semantic_id, note } = body;
-	if (typeof other_semantic_id !== 'string' || typeof my_semantic_id !== 'string') {
+	const { other_semantic_id, note } = body;
+	if (typeof other_semantic_id !== 'string') {
 		return json({ error: 'Invalid input' }, { status: 400 });
 	}
 	try {
+		// keep is always the caller's own record (resolved from the session ORCID), never a
+		// client-supplied semantic_id — otherwise a spoofed slug could make a victim's profile the
+		// surviving side of the merge.
 		const [keep, drop] = await Promise.all([
-			resolveAuthorSubject({ orcid: locals.user.orcid, semantic_id: my_semantic_id }),
+			resolveAuthorSubject({ orcid: locals.user.orcid }),
 			resolveAuthorSubject({ semantic_id: other_semantic_id })
 		]);
 		const payload = {

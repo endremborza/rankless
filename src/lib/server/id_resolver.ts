@@ -119,3 +119,25 @@ export function canonicalDoi(doi: string): string {
 		.toLowerCase()
 		.replace(/^https?:\/\/(dx\.)?doi\.org\//, '');
 }
+
+// Authorization gate for merge_papers: the actor may only merge papers they authored.
+// Throws ResolveError(403) unless `orcid` authored at least one of the given work ids
+// (checked against the backend's per-author production set). A work id that can't be
+// resolved to a dm_id is unverifiable, so an all-null input fails closed.
+export async function assertAuthoredAny(orcid: string, wids: (number | null)[]): Promise<void> {
+	const toCheck = wids.filter((w): w is number => typeof w === 'number');
+	if (toCheck.length === 0) {
+		throw new ResolveError('cannot verify paper authorship (UI may be stale — refresh and retry)');
+	}
+	const verdicts = await Promise.all(
+		toCheck.map((wid) =>
+			fetch(`${BE_URL}/authored?orcid=${encodeURIComponent(orcid)}&wid=${wid}`)
+				.then((r) => (r.ok ? r.json() : null))
+				.then((j: { authored?: boolean } | null) => j?.authored === true)
+				.catch(() => false)
+		)
+	);
+	if (!verdicts.some(Boolean)) {
+		throw new ResolveError('you can only merge papers you authored', 403);
+	}
+}

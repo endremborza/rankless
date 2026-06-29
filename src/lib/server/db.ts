@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { env } from '$env/dynamic/private';
 import { DEFAULT_MODERATION, subjectHash } from './ledger-hash';
 import type { LedgerKind, LedgerPayload, ModerationState } from '$lib/types/ledger';
+import type { SessionUserData } from './session';
 
 let _db: Database | null = null;
 
@@ -10,6 +11,9 @@ export function getDb(): Database {
 	const dbPath = env.RANKLESS_DB_PATH ?? 'data/rankless.sqlite';
 	_db = new Database(dbPath);
 	_db.run('PRAGMA journal_mode = WAL');
+	// Multiple Bun worker processes (blue/green × procs) share this file; without a
+	// busy timeout a concurrent writer throws SQLITE_BUSY immediately instead of waiting.
+	_db.run('PRAGMA busy_timeout = 5000');
 	_db.run(`
 		CREATE TABLE IF NOT EXISTS ledger_events (
 			event_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,6 +42,14 @@ export function getDb(): Database {
 		CREATE TABLE IF NOT EXISTS owner_pins (
 			orcid TEXT PRIMARY KEY,
 			first_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
+		);
+		CREATE TABLE IF NOT EXISTS sessions (
+			token TEXT PRIMARY KEY,
+			orcid TEXT NOT NULL,
+			name TEXT NOT NULL,
+			semantic_id TEXT,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			expires_at TEXT NOT NULL
 		);
 	`);
 	return _db;
@@ -111,6 +123,16 @@ export const LedgerDb = {
 		return rows.map(rowToEvent);
 	},
 
+	// Admin moderation view: every actor's events, pending-review first, newest within group.
+	listAllEvents(limit = 1000): LedgerEvent[] {
+		const rows = getDb()
+			.prepare(
+				"SELECT * FROM ledger_events ORDER BY (moderation = 'pending_review') DESC, event_id DESC LIMIT ?"
+			)
+			.all(limit) as LedgerEventRow[];
+		return rows.map(rowToEvent);
+	},
+
 	getEvent(event_id: number): LedgerEvent | null {
 		const row = getDb()
 			.prepare('SELECT * FROM ledger_events WHERE event_id = ?')
@@ -124,19 +146,6 @@ export const LedgerDb = {
 				"UPDATE ledger_events SET revoked_at = datetime('now') WHERE event_id = ? AND orcid = ? AND revoked_at IS NULL"
 			)
 			.run(event_id, orcid);
-		return info.changes > 0;
-	},
-
-	editPending(orcid: string, event_id: number, payload: LedgerPayload): boolean {
-		const existing = LedgerDb.getEvent(event_id);
-		if (!existing || existing.orcid !== orcid || existing.revoked_at !== null) return false;
-		if (existing.kind !== payload.kind) return false;
-		const hash = subjectHash(payload);
-		const info = getDb()
-			.prepare(
-				'UPDATE ledger_events SET payload = ?, subject_hash = ? WHERE event_id = ? AND orcid = ? AND revoked_at IS NULL'
-			)
-			.run(JSON.stringify(payload), hash, event_id, orcid);
 		return info.changes > 0;
 	},
 
@@ -193,5 +202,33 @@ export const LedgerDb = {
 				"INSERT OR IGNORE INTO ledger_runs (run_id, snapshot_at, manifest_at, manifest_json) VALUES (?, ?, datetime('now'), ?)"
 			)
 			.run(runId, snapshotAt, manifestJson);
+	}
+};
+
+type SessionRow = { orcid: string; name: string; semantic_id: string | null };
+
+// Server-side session store. The cookie carries only an opaque random token; the
+// authenticated identity (orcid/name) lives here and is never client-controllable.
+export const SessionDb = {
+	create(token: string, data: SessionUserData, ttlSeconds: number): void {
+		const db = getDb();
+		db.prepare("DELETE FROM sessions WHERE expires_at <= datetime('now')").run();
+		db.prepare(
+			"INSERT INTO sessions (token, orcid, name, semantic_id, expires_at) VALUES (?, ?, ?, ?, datetime('now', ?))"
+		).run(token, data.orcid, data.name, data.semanticId ?? null, `+${ttlSeconds} seconds`);
+	},
+
+	get(token: string): SessionUserData | null {
+		const row = getDb()
+			.prepare(
+				"SELECT orcid, name, semantic_id FROM sessions WHERE token = ? AND expires_at > datetime('now')"
+			)
+			.get(token) as SessionRow | null;
+		if (!row) return null;
+		return { orcid: row.orcid, name: row.name, semanticId: row.semantic_id ?? undefined };
+	},
+
+	destroy(token: string): void {
+		getDb().prepare('DELETE FROM sessions WHERE token = ?').run(token);
 	}
 };

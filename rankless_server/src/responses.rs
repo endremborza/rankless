@@ -242,6 +242,11 @@ pub(crate) struct ResolveWorkResp {
 }
 
 #[derive(Serialize)]
+pub(crate) struct AuthoredResp {
+    pub authored: bool,
+}
+
+#[derive(Serialize)]
 pub(crate) struct ResolveAuthorResp {
     #[serde(rename = "oaId")]
     pub oa_id: u64,
@@ -350,6 +355,12 @@ pub(crate) struct ResolveAuthorQ {
     pub orcid: Option<String>,
     pub oa_id: Option<u64>,
     pub dm_id: Option<usize>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct AuthoredQ {
+    pub orcid: String,
+    pub wid: usize,
 }
 
 impl SearchResult {

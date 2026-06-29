@@ -18,6 +18,13 @@ opt-level = 3
 codegen-units = 1
 lto = true
 
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = false
+lto = false
+codegen-units = 16
+
 [profile.gen-debug]
 inherits = "dev"
 
