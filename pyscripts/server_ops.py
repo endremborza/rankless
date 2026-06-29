@@ -342,3 +342,76 @@ def checkout(branch: str) -> None:
         for line in uncommitted:
             print(f"  {line}")
     subprocess.run(["git", "checkout", branch], check=True)
+
+
+# ── git worktrees + per-ref builds (perf comparison) ──────────────────────────
+
+PERF_ROOT = Path("/tmp/rankless-perf")
+
+
+def resolve_ref(ref: str) -> str:
+    """Full commit sha for any git ref (tag / branch / commit-ish)."""
+    return subprocess.check_output(["git", "rev-parse", ref]).decode().strip()
+
+
+def ensure_worktree(ref: str) -> tuple[str, Path]:
+    """Check ``ref`` out detached into a per-sha worktree; reuse if present.
+
+    The main working tree is never touched, so uncommitted changes are safe and
+    ``ref`` may be any commit-ish, not just a local branch.
+    """
+    sha = resolve_ref(ref)
+    path = PERF_ROOT / "worktrees" / sha
+    if path.exists():
+        return sha, path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "worktree", "add", "--detach", str(path), sha], check=True)
+    return sha, path
+
+
+def remove_worktree(path: Path) -> None:
+    subprocess.run(["git", "worktree", "remove", "--force", str(path)], check=False)
+
+
+def build_server_at(worktree: Path) -> None:
+    """Release-build the server binary inside a worktree (isolated ``target/``)."""
+    subprocess.run(
+        ["cargo", "build", "--release", "-p", "rankless-server"],
+        cwd=worktree,
+        check=True,
+    )
+
+
+def image_exists(image: str) -> bool:
+    return (
+        subprocess.run(
+            ["docker", "image", "inspect", image], capture_output=True
+        ).returncode
+        == 0
+    )
+
+
+def build_perf_image(sha: str, worktree: Path) -> str:
+    """Build (or reuse) the ``rankless-perf-<sha>`` image from a worktree's binary."""
+    image = f"rankless-perf-{sha[:12]}"
+    if image_exists(image):
+        print(f"[perf] reusing image {image}")
+        return image
+    build_server_at(worktree)
+    _docker_build(str(worktree / RUST_DOCKERFILE), image, context=str(worktree))
+    return image
+
+
+def cgroup_mem_bytes(container: str, kind: str) -> Optional[int]:
+    """Container's cgroup v2 ``memory.<kind>`` (kind: current | peak) in bytes."""
+    r = subprocess.run(
+        ["docker", "exec", container, "cat", f"/sys/fs/cgroup/memory.{kind}"],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode != 0:
+        return None
+    try:
+        return int(r.stdout.strip())
+    except ValueError:
+        return None
