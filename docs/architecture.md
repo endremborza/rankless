@@ -200,7 +200,7 @@ the only viz dependency).
 | `(stat)/`                                                                                      | Home; top entity lists                                              |
 | `(stat)/[rootType]/[...semanticId]/`                                                           | Entity hero page (tree + network + map; ledger panel for owners)    |
 | `(stat)/[rootType]/table/`                                                                     | Sortable/searchable entity stats table                              |
-| `(stat)/about/`, `(stat)/survey/`                                                              | About / survey                                                      |
+| `(stat)/about/`, `(stat)/survey/`, `(stat)/privacy/`                                           | About / survey / privacy notice                                     |
 | `(stat)/login/`, `(stat)/logout/`, `callback/`, `dev-login/`                                   | ORCID OAuth + dev bypass                                            |
 | `api/ledger/`, `api/ledger/[event_id]/`, `api/ledger/[event_id]/revoke/`, `api/ledger-status/` | Ledger CRUD + status                                                |
 | `api/papers/{disown,claim,merge}/`, `api/authors/merge-request/`                               | Legacy paper/author actions (forward to ledger; slated for removal) |
