@@ -305,6 +305,10 @@ impl TreeSpecs {
 
     pub fn to_ck(&self, tid: u8, root_type: &String, eid: usize) -> Option<CacheKey> {
         let etype = self.to_eid(root_type)?;
+        // Reject out-of-range tids: the generated `run_params` dispatch has no fallback arm
+        if (tid as usize) >= self.specs.get(root_type)?.len() {
+            return None;
+        }
         Some(CacheKey { etype, tid, eid })
     }
 }
