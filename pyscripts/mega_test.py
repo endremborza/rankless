@@ -2,13 +2,16 @@
 
 Flow
 ────
-1. [--full-rebuild] make nuke && make -B complete && make restart-service
-2. Start SvelteKit dev server (bun run dev) and wait for it to be ready.
+1. make nuke && make -B complete  (complete builds the data, restarts the backend
+   on it, then bakes the homepage showcase — one command, in that order).
+2. Wait for the backend, start the SvelteKit dev server (bun run dev).
 3. Playwright pre-pipeline: login, disown a paper, merge two papers, verify pending.
-4. make -B filter   (re-exports ledger → clean-filters → filter binary)
-5. make -B rankless_rs/src/gen/derive_links5.rs  (full pipeline rebuild)
-6. make restart-service && wait for backend.
-7. Playwright post-pipeline: verify applied events + author page reflects changes.
+4. make -B post-csvs  (re-exports ledger → clean-filters → rebuilds the pipeline).
+5. make restart-service && wait for backend.
+6. Playwright post-pipeline: verify applied events + author page reflects changes.
+
+Records the outcome (timestamp, result, duration) to docs/mega-test-last-run.md
+on every run, pass or fail.
 
 Usage
 ─────
@@ -23,6 +26,7 @@ import sys
 import time
 import urllib.request
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 
 from .deploy import be_service_name
@@ -34,6 +38,7 @@ BE_URL = f"{DEFAULT_BE_ADDR}/v1"
 REPO_ROOT = Path(__file__).parent.parent
 LOG_DIR = REPO_ROOT / "logs"
 DEV_SERVER_LOG = LOG_DIR / "dev-server.log"
+RUN_RECORD = REPO_ROOT / "docs" / "mega-test-last-run.md"
 
 
 def _run(
@@ -126,24 +131,23 @@ def _start_dev_server() -> subprocess.Popen:
     return proc
 
 
-def _wait_backend(timeout: int = 120) -> None:
-    url = f"{BE_URL}/health"
+def _wait_backend(timeout: int = 180) -> None:
+    # The backend has no /health route; /tops is a cheap always-present endpoint
+    # that only answers once the server has finished loading its data.
+    url = f"{BE_URL}/tops"
     print(f"Waiting for backend at {url} …", flush=True)
     if not _wait_http(url, timeout=timeout):
-        alt = f"{BE_URL}/paper-profile/robert-langer"
-        print(f"  /health timed out, trying {alt} …", flush=True)
-        if not _wait_http(alt, timeout=30):
-            try:
-                log = subprocess.check_output(
-                    ["journalctl", "--user", "-n", "50", "-u", be_service_name],
-                    text=True,
-                )
-            except Exception:
-                log = "(could not read journalctl)"
-            sys.exit(
-                f"Backend did not come up in time after restart.\n"
-                f"--- journalctl (last 50 lines) ---\n{log}"
+        try:
+            log = subprocess.check_output(
+                ["journalctl", "--user", "-n", "50", "-u", be_service_name],
+                text=True,
             )
+        except Exception:
+            log = "(could not read journalctl)"
+        sys.exit(
+            f"Backend did not come up in time after restart.\n"
+            f"--- journalctl (last 50 lines) ---\n{log}"
+        )
     print("Backend ready.", flush=True)
 
 
@@ -173,39 +177,63 @@ def _run_pipeline() -> None:
     _wait_backend()
 
 
+def _fmt_duration(elapsed: float) -> str:
+    minutes, seconds = divmod(int(elapsed), 60)
+    return f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
+
+
+def _write_run_record(outcome: str, detail: str, elapsed: float) -> None:
+    stamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+    RUN_RECORD.write_text(
+        "# Mega-test — last run\n\n"
+        f"- **When:** {stamp}\n"
+        f"- **Result:** {outcome}\n"
+        f"- **Duration:** {_fmt_duration(elapsed)}\n"
+        f"- **Detail:** {detail}\n"
+    )
+    print(f"Run record written to {RUN_RECORD}", flush=True)
+
+
 def main() -> None:
     start_time = time.monotonic()
-    _run(["make", "nuke"])
-    _run(["make", "-B", "complete"])
-    _run(["make", "restart-service"])
-    _wait_backend()
-
-    dev_server = _start_dev_server()
+    outcome, detail = "FAILED", "did not complete"
+    dev_server: "subprocess.Popen | None" = None
     try:
+        _run(["make", "nuke"])
+        _run(["make", "-B", "complete"])  # build data → restart backend → bake showcase
+        _wait_backend()
+
+        dev_server = _start_dev_server()
+
         rc = _run_playwright("pre-pipeline")
-        assert rc == 0, f"\n[FAIL] pre-pipeline tests exited {rc}"
+        if rc != 0:
+            detail = f"pre-pipeline playwright exited {rc}"
+            raise SystemExit(f"\n[FAIL] {detail}")
 
         _run_pipeline()
 
         rc = _run_playwright("post-pipeline")
-        assert rc == 0, f"\n[FAIL] post-pipeline tests exited {rc}"
+        if rc != 0:
+            detail = f"post-pipeline playwright exited {rc}"
+            raise SystemExit(f"\n[FAIL] {detail}")
 
+        outcome = "PASSED"
+        detail = "pre-pipeline, pipeline rebuild, and post-pipeline all green"
         print("\n[OK] mega-test passed.", flush=True)
-
+    except BaseException as e:
+        if detail == "did not complete":
+            detail = f"{type(e).__name__}: {e}".strip()
+        raise
     finally:
         elapsed = time.monotonic() - start_time
-        minutes = int(elapsed // 60)
-        seconds = int(elapsed % 60)
-        time_str = f"{seconds}s"
-        if minutes > 0:
-            time_str = f"{minutes}m {time_str}"
-        print(f"\nTotal time: {time_str}", flush=True)
-
-        dev_server.send_signal(signal.SIGTERM)
-        try:
-            dev_server.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            dev_server.kill()
+        if dev_server is not None:
+            dev_server.send_signal(signal.SIGTERM)
+            try:
+                dev_server.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                dev_server.kill()
+        _write_run_record(outcome, detail, elapsed)
+        print(f"\nTotal time: {_fmt_duration(elapsed)}", flush=True)
 
 
 if __name__ == "__main__":
