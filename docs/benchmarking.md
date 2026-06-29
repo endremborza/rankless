@@ -139,7 +139,8 @@ default; `FlaskPgServer.is_running()` skips start if up). OA→DM id translation
 slower); memory via `docker stats`.
 
 Rebuild levels (`--rebuild-rust`): `none` / `binary` (default) / `pipeline` (`make filter`) /
-`full` (`make complete`).
+`full` (`make build-data` — the backend-independent data build; `make complete` additionally
+restarts the service and bakes the homepage showcase).
 
 ### Benchmarking
 
