@@ -10,7 +10,5 @@ export type SurveyRecord = {
 	type: 'submit' | 'reject';
 	payload: SurveySubmit | { reason?: string } | null;
 	userId: string | null;
-	ip: string | null;
-	fwIp: string | null;
 	timestamp: string;
 };

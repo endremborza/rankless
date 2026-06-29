@@ -261,7 +261,7 @@
 	<div id="main-foot">
 		<TextedLogo pad={0} size={30} />
 		<span>{LATEST_YEAR}</span>
-		<div id="foot-r"><a href="/#contact">Contact</a></div>
+		<div id="foot-r"><a href="/privacy">Privacy</a><a href="/#contact">Contact</a></div>
 	</div>
 </div>
 
@@ -522,6 +522,11 @@
 		flex: 0 0 50px;
 		z-index: 1;
 		height: min(50px, 3svh);
+	}
+
+	#foot-r {
+		display: flex;
+		gap: 16px;
 	}
 
 	#foot-r > a {

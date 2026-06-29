@@ -3,14 +3,12 @@ import { appendFile } from 'fs/promises';
 import { type SurveyRecord } from '$lib/types';
 import { SURVEY_LOG_PATH } from '$lib/constants';
 
-export const POST: RequestHandler = async ({ request, locals, getClientAddress, cookies }) => {
+export const POST: RequestHandler = async ({ locals, cookies }) => {
 	try {
 		const record: SurveyRecord = {
 			type: 'reject',
 			payload: { reason: 'user_closed' },
 			userId: locals.user?.orcid ?? null,
-			ip: getClientAddress?.() ?? null,
-			fwIp: request.headers.get('x-forwarded-for'),
 			timestamp: new Date().toISOString()
 		};
 		await appendFile(SURVEY_LOG_PATH, JSON.stringify(record) + '\n', { encoding: 'utf8' });

@@ -3,7 +3,7 @@ import { appendFile } from 'fs/promises';
 import { type SurveyRecord } from '$lib/types';
 import { SURVEY_LOG_PATH } from '$lib/constants';
 
-export const POST: RequestHandler = async ({ request, locals, getClientAddress, cookies }) => {
+export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 	try {
 		const data = await request.json();
 
@@ -11,8 +11,6 @@ export const POST: RequestHandler = async ({ request, locals, getClientAddress, 
 			type: 'submit',
 			payload: { ...data, timestamp: new Date().toISOString() },
 			userId: locals.user?.orcid ?? null,
-			ip: getClientAddress?.() ?? null,
-			fwIp: request.headers.get('x-forwarded-for'),
 			timestamp: new Date().toISOString()
 		};
 
