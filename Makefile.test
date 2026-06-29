@@ -51,10 +51,16 @@ test-js:
 big-test:
 	cargo test --release -p rankless-trees --tests instances::tests::big_tree -- --nocapture
 
-# Fast post-build smoke check: a focused e2e data spec + the Python sanity pass.
-sanity-check:
+# Agent reasoning paths over the collected entity snapshots.
+#   make explore                       # all paths, sonnet
+#   make explore PATHS=bugs MODEL=opus # one path, opus
+explore:
 	bun run test -- tests/sanity-data.spec.ts
-	uv run -m pyscripts.sanity_check
+	uv run -m pyscripts.explore $(if $(PATHS),--paths $(PATHS)) $(if $(MODEL),--model $(MODEL))
+
+# Backwards-compatible alias: the bugs path is the original sanity check.
+sanity-check:
+	$(MAKE) explore PATHS=bugs
 
 # End-to-end test of the bootstrap flow inside a clean Ubuntu container.
 # Requires `nano-snapshot.tar.zst` reachable from the container — by default
