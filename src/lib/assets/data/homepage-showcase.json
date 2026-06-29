@@ -5,6 +5,341 @@
     "papers": 171,
     "citations": 59501
   },
+  "hitPapers": [
+    {
+      "year": 1985,
+      "citations": 4507,
+      "name": "Does the Stock Market Overreact?"
+    },
+    {
+      "year": 1980,
+      "citations": 3509,
+      "name": "Toward a positive theory of consumer choice"
+    },
+    {
+      "year": 1985,
+      "citations": 3236,
+      "name": "Mental Accounting and Consumer Choice"
+    },
+    {
+      "year": 1991,
+      "citations": 3046,
+      "name": "Anomalies: The Endowment Effect, Loss Aversion, and Status Quo Bias"
+    },
+    {
+      "year": 1990,
+      "citations": 2040,
+      "name": "Experimental Tests of the Endowment Effect and the Coase Theorem"
+    },
+    {
+      "year": 1999,
+      "citations": 1995,
+      "name": "Mental accounting matters"
+    },
+    {
+      "year": 2008,
+      "citations": 1758,
+      "name": "Mental Accounting and Consumer Choice"
+    },
+    {
+      "year": 1986,
+      "citations": 1657,
+      "name": "Fairness and the Assumptions of Economics"
+    },
+    {
+      "year": 1995,
+      "citations": 1636,
+      "name": "Myopic Loss Aversion and the Equity Premium Puzzle"
+    }
+  ],
+  "coauthorTimeline": {
+    "yearLo": 1986,
+    "yearHi": 2017,
+    "rows": [
+      {
+        "name": "Shlomo Benartzi",
+        "firstYear": 1995,
+        "lastYear": 2017,
+        "marks": [
+          {
+            "year": 1995,
+            "n": 1,
+            "hit": true
+          },
+          {
+            "year": 1997,
+            "n": 2,
+            "hit": true
+          },
+          {
+            "year": 1999,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2001,
+            "n": 2,
+            "hit": true
+          },
+          {
+            "year": 2002,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2003,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2004,
+            "n": 3,
+            "hit": true
+          },
+          {
+            "year": 2005,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2007,
+            "n": 5,
+            "hit": false
+          },
+          {
+            "year": 2009,
+            "n": 2,
+            "hit": false
+          },
+          {
+            "year": 2011,
+            "n": 2,
+            "hit": true
+          },
+          {
+            "year": 2013,
+            "n": 1,
+            "hit": true
+          },
+          {
+            "year": 2017,
+            "n": 2,
+            "hit": true
+          }
+        ]
+      },
+      {
+        "name": "Cass R. Sunstein",
+        "firstYear": 1998,
+        "lastYear": 2017,
+        "marks": [
+          {
+            "year": 1998,
+            "n": 2,
+            "hit": true
+          },
+          {
+            "year": 2003,
+            "n": 4,
+            "hit": true
+          },
+          {
+            "year": 2004,
+            "n": 3,
+            "hit": false
+          },
+          {
+            "year": 2006,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2007,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2008,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2010,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2012,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2014,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2015,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2017,
+            "n": 2,
+            "hit": true
+          }
+        ]
+      },
+      {
+        "name": "Roni Michaely",
+        "firstYear": 1995,
+        "lastYear": 2009,
+        "marks": [
+          {
+            "year": 1995,
+            "n": 2,
+            "hit": true
+          },
+          {
+            "year": 1997,
+            "n": 2,
+            "hit": true
+          },
+          {
+            "year": 1998,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2003,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2005,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2007,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2009,
+            "n": 2,
+            "hit": false
+          }
+        ]
+      },
+      {
+        "name": "Daniel Kahneman",
+        "firstYear": 1986,
+        "lastYear": 2016,
+        "marks": [
+          {
+            "year": 1986,
+            "n": 1,
+            "hit": true
+          },
+          {
+            "year": 1990,
+            "n": 1,
+            "hit": true
+          },
+          {
+            "year": 1991,
+            "n": 2,
+            "hit": true
+          },
+          {
+            "year": 1997,
+            "n": 1,
+            "hit": true
+          },
+          {
+            "year": 2005,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2006,
+            "n": 1,
+            "hit": true
+          },
+          {
+            "year": 2008,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2016,
+            "n": 1,
+            "hit": false
+          }
+        ]
+      },
+      {
+        "name": "Charles M.C. Lee",
+        "firstYear": 1990,
+        "lastYear": 1993,
+        "marks": [
+          {
+            "year": 1990,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 1991,
+            "n": 3,
+            "hit": true
+          },
+          {
+            "year": 1993,
+            "n": 4,
+            "hit": false
+          }
+        ]
+      },
+      {
+        "name": "Jack L. Knetsch",
+        "firstYear": 1986,
+        "lastYear": 2016,
+        "marks": [
+          {
+            "year": 1986,
+            "n": 1,
+            "hit": true
+          },
+          {
+            "year": 1990,
+            "n": 1,
+            "hit": true
+          },
+          {
+            "year": 1991,
+            "n": 1,
+            "hit": true
+          },
+          {
+            "year": 2001,
+            "n": 2,
+            "hit": false
+          },
+          {
+            "year": 2008,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 2016,
+            "n": 1,
+            "hit": false
+          }
+        ]
+      }
+    ]
+  },
   "coauthors": {
     "rootName": "Richard H. Thaler",
     "nodes": [
@@ -63,34 +398,43 @@
     ]
   },
   "peers": {
+    "heroName": "Richard H. Thaler",
+    "peerName": "George Loewenstein",
+    "peerCountry": "United States",
     "subfields": [
       {
         "name": "Economics and Econometrics",
-        "cites": 28163
+        "hero": 28163,
+        "peer": 18053
       },
       {
         "name": "Finance",
-        "cites": 18427
+        "hero": 18427,
+        "peer": 3140
       },
       {
         "name": "Accounting",
-        "cites": 16168
+        "hero": 16168,
+        "peer": 4681
       },
       {
         "name": "General Decision Sciences",
-        "cites": 14975
+        "hero": 14975,
+        "peer": 18762
       },
       {
         "name": "Safety Research",
-        "cites": 8269
+        "hero": 8269,
+        "peer": 10218
       },
       {
         "name": "Sociology and Political Science",
-        "cites": 7119
+        "hero": 7119,
+        "peer": 14900
       }
     ],
     "yearFrom": 2016,
-    "yearly": [
+    "heroYearly": [
       2616,
       2773,
       3123,
@@ -102,75 +446,19 @@
       1756,
       916,
       13
+    ],
+    "peerYearly": [
+      3516,
+      3628,
+      3717,
+      3915,
+      4077,
+      4369,
+      3782,
+      3328,
+      2683,
+      1566,
+      37
     ]
-  },
-  "samplePaper": {
-    "paper": {
-      "wid": 55629298,
-      "oaId": 1974758328,
-      "year": 1989,
-      "name": "Interhemispheric asymmetry in climate response to a gradual increase of atmospheric CO2",
-      "doi": "10.1038/342660a0",
-      "citations": 239,
-      "source": 31078,
-      "authorships": [
-        {
-          "author": "F3294938",
-          "insts": [
-            31280,
-            22807
-          ]
-        },
-        {
-          "author": "F4038857",
-          "insts": [
-            27097,
-            31280,
-            22807
-          ]
-        },
-        {
-          "author": "F1047948",
-          "insts": [
-            22807,
-            31280
-          ]
-        }
-      ],
-      "biblio": {
-        "volume": "342",
-        "issue": "6250",
-        "first_page": "660",
-        "last_page": "662"
-      },
-      "isHit": false
-    },
-    "entityAtts": {
-      "sources": {
-        "31078": {
-          "name": "Nature",
-          "semantic_id": "nature",
-          "spec_baseline": 0.005058136389759843
-        }
-      },
-      "authors": {
-        "4038857": {
-          "name": "Syukuro Manabe",
-          "semantic_id": "syukuro-manabe",
-          "spec_baseline": 5.950790278456059e-06
-        },
-        "1047948": {
-          "name": "K. Bryan",
-          "semantic_id": "k-bryan",
-          "spec_baseline": 9.510326874224985e-07
-        },
-        "3294938": {
-          "name": "Ronald J. Stouffer",
-          "semantic_id": "ronald-j-stouffer",
-          "spec_baseline": 1.3897855997762094e-05
-        }
-      }
-    },
-    "discAuthorNames": {}
   }
 }
