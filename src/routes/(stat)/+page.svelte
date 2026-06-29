@@ -686,9 +686,13 @@
 		gap: 20px;
 	}
 	.grid.cards {
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
 	}
 	.card {
+		flex: 1 1 200px;
+		max-width: 280px;
 		background: var(--card);
 		border: 1px solid rgba(148, 163, 184, 0.18);
 		overflow: hidden;
@@ -836,16 +840,10 @@
 		.hero-art {
 			height: auto;
 		}
-		.grid.cards {
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
 	}
 	@media (max-width: 540px) {
 		.hero h1 {
 			font-size: 36px;
-		}
-		.grid.cards {
-			grid-template-columns: 1fr;
 		}
 	}
 </style>
