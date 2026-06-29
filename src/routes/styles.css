@@ -173,18 +173,6 @@ g {
 	transition: transform 0.8s;
 }
 
-.hoverover {
-	position: absolute;
-	transition: all 500ms;
-	background-color: var(--text-bg);
-	border: solid 1px var(--color-theme-darkblue);
-	z-index: 13;
-}
-
-.transparent {
-	pointer-events: none;
-}
-
 .shadowy {
 	box-shadow: 3px 3px 10px var(--color-theme-shadow);
 }

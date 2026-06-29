@@ -1,14 +1,14 @@
 <script lang="ts">
-	import HoverI from './HoverI.svelte';
+	import InfoTip from './InfoTip.svelte';
 
 	export let text: string;
-	export let hoverToggle: boolean;
+	export let tip: string;
 	export let checked: boolean;
 	export let interactText = true;
 </script>
 
 <div id="spec-container">
-	<HoverI bind:hoverToggle />
+	<InfoTip text={tip} label={text} />
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<span

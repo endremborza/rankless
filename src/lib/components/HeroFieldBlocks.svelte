@@ -3,6 +3,7 @@
 	import { quintOut } from 'svelte/easing';
 	import type { HeroTile } from '$lib/hero-config';
 	import { pluralize, formatNumber } from '$lib/text-format-util';
+	import InfoTip from '$lib/components/InfoTip.svelte';
 
 	// Impact side = specialization subfields with "top X%" badges + citing-topics (X-citations hover).
 	// Production side = paper-fields + paper-topics with papers-authored counts. Two color families.
@@ -35,12 +36,12 @@
 					<h3 class="block-label">
 						{b.label}
 						{#if b.key === 'production' && b.tiles.some((t) => t.count != null)}
-							<span
-								class="block-note"
-								title="A paper can belong to several fields and topics, so these counts can add up to more than the total number of papers."
-								aria-label="A paper can belong to several fields and topics, so these counts can add up to more than the total number of papers."
-								>ⓘ</span
-							>
+							<span class="block-note">
+								<InfoTip
+									label="Why these counts can exceed the paper total"
+									text="A paper can belong to several fields and topics, so these counts can add up to more than the total number of papers."
+								/>
+							</span>
 						{/if}
 					</h3>
 					<ul class="tiles">

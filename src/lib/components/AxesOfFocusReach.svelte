@@ -1,7 +1,6 @@
 <script lang="ts">
 	import BrokenFittedText from './BrokenFittedText.svelte';
-	import HoverI from '$lib/components/HoverI.svelte';
-	import HoverBlock from '$lib/components/HoverBlock.svelte';
+	import InfoTip from '$lib/components/InfoTip.svelte';
 	import { getColor } from '$lib/style-util';
 
 	export let data: {
@@ -25,7 +24,6 @@
 		SE: 'Broad Impact Specialists',
 		SW: 'Knowledge Integrators'
 	};
-	let showAxesHelp = false;
 	let showComparisons = false;
 	let hoveredName = '';
 </script>
@@ -33,15 +31,11 @@
 <div id="sf-map">
 	<h3 class="mid-head">
 		Axes of Focus &amp Reach
-		<HoverI bind:hoverToggle={showAxesHelp} />
+		<InfoTip
+			label="How these axes are computed"
+			text="The position on this graph is based on the entropy of the categorization of the papers. For the horizontal axis, the entropy for the subfields of the published papers is calculated; for the vertical axis the entropy for the papers citing these papers is calculated. To make the graph more reliable and easier to read, PCA-based dimension reduction and some normalizing monotonic transformations are applied."
+		/>
 	</h3>
-	<HoverBlock show={showAxesHelp} style="x: 0; y:0;"
-		>The position on this graph is based in the entropy of the categorization of the papers. For the
-		horizontal axis, the entropy for the subfields of the published papers are calculated, for the
-		vertical axis the entropy for the papers citing these papers are calculated. To make the graph
-		more reliable and easier to read, PCA based dimension reduction and some normalizing monotonic
-		transformations are applied</HoverBlock
-	>
 	<svg viewBox="-4 -4 8 8" class="map-svg">
 		<defs>
 			<marker

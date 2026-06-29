@@ -13,7 +13,6 @@
 	import { onMount } from 'svelte';
 	import { replaceState } from '$app/navigation';
 	import { debounce } from '$lib/util';
-	import HoverBlock from './HoverBlock.svelte';
 	import { htmlToText } from '$lib/utils/paper-helpers';
 
 	export let conf: tt.FullTreeConfig;
@@ -63,8 +62,13 @@
 	let overHangRate = 0.05;
 
 	let minimumChildWidth = 2.5;
-	let showSpecInfoHover = false;
-	let showFilterHover = false;
+
+	const SPEC_TIP =
+		'Specialization is calculated using the expected prevalence of a country, source, or concept, and comparing it to the one present in the current breakdown flow. If it is switched off, the sheer volume of citations is considered.';
+	$: sinceTip = `Filter the underlying dataset to papers published in or after ${conf.year}. This includes ${pluralize(
+		'paper',
+		completeTree.sourceCount
+	)} making up this tree, where all necessary information is available to create this breakdown.`;
 
 	let levelOutSpecs: tt.LevelOutSpec[] = tf.getDefaultLevelSpecs();
 	let controlSpecs = tf.getDefaultControlSpecs(isGlobalSpecialization);
@@ -384,18 +388,9 @@
 						{}
 					)}
 				>
-					<HeadControl
-						bind:hoverToggle={showSpecInfoHover}
-						bind:checked={isGlobalSpecialization}
-						text="Specialization"
-					/>
+					<HeadControl bind:checked={isGlobalSpecialization} text="Specialization" tip={SPEC_TIP} />
 					{#if tf.hasYearFilter(conf.rootType)}
-						<HeadControl
-							bind:hoverToggle={showFilterHover}
-							interactText={false}
-							checked={false}
-							text="since"
-						>
+						<HeadControl interactText={false} checked={false} text="since" tip={sinceTip}>
 							<select bind:value={conf.year} aria-label="Since year"
 								>{#each treeSpecs.yearBreaks as y, __i (__i)}
 									<option>{y}</option>
@@ -417,32 +412,6 @@
 					{allowControls}
 				/>
 			{/each}
-			<HoverBlock
-				show={showSpecInfoHover}
-				style={dBasedStyle(
-					{ top: d1PadSize + headerShape.height },
-					{ left: d2Offset + headerShape.width * 0.2, width: headerShape.width * 1.6 },
-					{}
-				)}
-			>
-				Specialization is calculated using the expected prevelance of a country, source, or concept,
-				and comparing it to the one present in the current breakdown flow. If it is switched off,
-				the sheer volume of citations is considered.
-			</HoverBlock>
-
-			<HoverBlock
-				show={showFilterHover}
-				style={dBasedStyle(
-					{ top: d1PadSize + headerShape.height * 1.1 },
-					{ left: d2Offset + headerShape.width * 0.2, width: headerShape.width * 1.6 },
-					{}
-				)}
-			>
-				Filter the underlying dataset to papers published in or after {conf.year}. This includes {pluralize(
-					'paper',
-					completeTree.sourceCount
-				)} making up this tree, where all necessary information is available to create this breakdown.
-			</HoverBlock>
 		{/if}
 	</div>
 	{#if shoPathLevelInfo}
