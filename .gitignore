@@ -34,3 +34,4 @@ paper-gen/
 .claude
 /libs/
 nano-snapshot.tar.zst*
+docs/mega-test-last-run.md
