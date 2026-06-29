@@ -49,7 +49,12 @@ BE_UPSTREAM = "rankless_backend"
 BE_URL_VAR = "PUBLIC_BACKEND_URL"
 PUB_URL_VAR = "PUBLIC_ORIGIN"
 OA_ROOT_VAR = "OA_ROOT"
-ORCID_VARS = {k: os.environ.get(k) for k in ["ORCID_CLIENT_ID", "ORCID_CLIENT_SECRET"]}
+# ORCID login creds + the admin allowlist — read from the deploy host's env and written into
+# the deployed frontend's .env so `$env/dynamic/private` can see them at runtime.
+ORCID_VARS = {
+    k: os.environ.get(k)
+    for k in ["ORCID_CLIENT_ID", "ORCID_CLIENT_SECRET", "ADMIN_ORCIDS"]
+}
 
 BIG16 = "c6a.4xlarge"
 BIG16 = "c6a.8xlarge"
@@ -501,7 +506,12 @@ class Transper:
         if cert:
             self.get_cert(inst_domain)
         self._add_upstreams_from_conf(self.get_fe_systems()[1])
-        server_prefix = """
+        security_headers = """
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;"""
+        server_prefix = f"""
     listen 443 ssl;
 
     gzip on;
@@ -511,7 +521,8 @@ class Transper:
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
-    access_log /var/log/nginx/access.log upstream_time;"""
+    access_log /var/log/nginx/access.log upstream_time;
+{security_headers}"""
         loc_suffix = """
         proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
         proxy_http_version 1.1;
@@ -556,6 +567,7 @@ server {{
         proxy_cache be-cache;
         {loc_suffix}
         add_header Access-Control-Allow-Origin *;
+        {security_headers}
     }}
 }}
 
@@ -688,7 +700,7 @@ upstream {BE_UPSTREAM} {{
         domain = self.get_domain()
         be_url = "https://" + self.get_backend_domain()
         txt = f"{PUB_URL_VAR}=https://{domain}\n{BE_URL_VAR}={be_url}\n{OA_ROOT_VAR}={self.data_dir}\n"
-        txt += "\n".join(f"{k}={v}" for k, v in ORCID_VARS.items())
+        txt += "\n".join(f"{k}={v}" for k, v in ORCID_VARS.items() if v is not None)
         self.sync_txt(txt, ".env", self.deploy_dir)
 
     def update_fe(self):
