@@ -10,7 +10,7 @@
 		ratioBarHeight,
 		SUBFIELD_COLOR_VARS
 	} from '$lib/peers-utils';
-	import { formatNumber } from '$lib/text-format-util';
+	import { formatNumber, shortYear } from '$lib/text-format-util';
 	import { urlFriendlify } from '$lib/tree-functions';
 	import { BE_REMOTE_URL, LATEST_YEAR } from '$lib/constants';
 	import { dev, version } from '$app/environment';
@@ -159,6 +159,9 @@
 		{ length: nYears },
 		(_, i) => LATEST_YEAR - (data.hero.yearlyCites.length - 1) + i
 	);
+	// Compact '24-style year labels, thinned so they never crowd: aim for ~16 across the wide side-by-side
+	// chart, ~8 once it stacks to full width on a phone. Anchored to the latest year so it always shows.
+	$: yearStride = Math.max(1, Math.ceil(nYears / (wide ? 16 : 8)));
 	$: heroYearly = data.hero.yearlyCites.map((v) => Math.max(1, v));
 	$: heroYearRatios = displayPeers.map((p) =>
 		p.yearlyCites.map((v, y) => (v > 0 ? (heroYearly[y] ?? 1) / v : Infinity))
@@ -226,7 +229,7 @@
 		return {
 			height: ratioBarHeight(ratio, yearScale, BASELINE_PCT),
 			colorVar: '--hero-c',
-			axisLabel: String(yr),
+			axisLabel: (nYears - 1 - yi) % yearStride === 0 ? shortYear(yr) : '',
 			tip: relTip(String(yr), heroVal, peerVal)
 		};
 	});
@@ -497,8 +500,10 @@
 		margin-top: 6px;
 		max-height: 320px;
 		overflow-y: auto;
-		min-width: min(280px, calc(100vw - 24px));
-		max-width: calc(100vw - 24px);
+		/* The panel is left-anchored ~36px in (section + hero-strip padding), so its width budget is the
+		   viewport minus that inset and a right gutter — else its right edge spills past a phone screen. */
+		min-width: min(280px, calc(100vw - 48px));
+		max-width: calc(100vw - 48px);
 		padding: 6px;
 		background: var(--text-bg, #fff);
 		border: 1px solid rgba(var(--color-range-30), 0.35);

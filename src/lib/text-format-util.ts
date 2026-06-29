@@ -77,6 +77,11 @@ export function formatNumber(n: number, maxFix: number = 2) {
 	}
 }
 
+// Two-digit year with a leading apostrophe, e.g. 2024 → '24. Keeps dense year axes legible.
+export function shortYear(y: number): string {
+	return "'" + String(((y % 100) + 100) % 100).padStart(2, '0');
+}
+
 export function getStylesForWords(
 	words: string[],
 	width: number,

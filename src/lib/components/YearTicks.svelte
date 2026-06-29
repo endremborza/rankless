@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { LATEST_YEAR, FONT_SIZE_PX } from '$lib/constants';
 	import { getColor } from '$lib/style-util';
-	import { formatNumber } from '$lib/text-format-util';
+	import { formatNumber, shortYear } from '$lib/text-format-util';
 	import TickBars from './TickBars.svelte';
 
 	export let bottomStacks: number[];
@@ -14,13 +14,10 @@
 	const BAR_H = 2.4; // max bar height per side, in user units
 	const CAP_EM = 1.5; // band above/below bars for series tag + hover value, in font-sizes
 	const LANE_EM = 1.7; // central year-label lane, in font-sizes
-	const GUT_EM = 3; // left gutter for gridline value labels, in font-sizes
 	const RPAD_EM = 0.6; // right margin, in font-sizes
 	const BAR_FRAC = 0.58; // bar width as a fraction of column pitch
 	const TEXT_PX = FONT_SIZE_PX * 0.82; // target rendered text size
 	const LABEL_EVERY = 2;
-
-	const fmtYear = (y: number) => "'" + String(((y % 100) + 100) % 100).padStart(2, '0');
 
 	// Round gridline values strictly inside (0, max) so bars can be gauged against them.
 	function niceTicks(max: number, target = 3): number[] {
@@ -63,8 +60,15 @@
 
 	$: aspect = fullHeight > 0 ? fullWidth / fullHeight : 2.5;
 	$: fullW = aspect * fullH;
-	$: gutter = GUT_EM * fontSize;
 	$: rpad = RPAD_EM * fontSize;
+	// Size the left gutter to the widest gridline label so a big value (e.g. "1.5M") can't spill past
+	// the viewBox's left edge and get clipped. Estimated from glyph count — SVG text isn't measurable.
+	$: gridLabelChars = Math.max(
+		0,
+		...topGrid.map((g) => g.label.length),
+		...(showBottom ? botGrid.map((g) => g.label.length) : [])
+	);
+	$: gutter = gPad + gridLabelChars * tickFont * 0.62 + tickFont * 0.3;
 	$: plotW = fullW - gutter - rpad;
 	// Inset bars so the first/last bar's edge (not centre) hits the plot edge — keeps fat bars from
 	// overhanging into the left gutter where the axis numbers live.
@@ -178,7 +182,7 @@
 			{/if}
 			{#if i % LABEL_EVERY === 0 && hover !== i}
 				<text class="year" x={x0 + i * iMul} y={yearY} font-size={yearFont} text-anchor="middle"
-					>{fmtYear(yr)}</text
+					>{shortYear(yr)}</text
 				>
 			{/if}
 		{/each}
@@ -212,7 +216,7 @@
 				>
 			{/if}
 			<text class="hover-year" x={hoverX} y={yearY} font-size={yearFont} text-anchor="middle"
-				>{fmtYear(years[hover])}</text
+				>{shortYear(years[hover])}</text
 			>
 		{/if}
 

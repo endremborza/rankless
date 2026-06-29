@@ -212,7 +212,9 @@
 	.leaders {
 		flex: 0 1 auto;
 		max-width: 620px;
-		min-width: 280px;
+		/* Cap at the readable 280px on desktop but never exceed the row on a phone (else it forces a
+		   page-level horizontal scrollbar). */
+		min-width: min(280px, 100%);
 		margin: 0;
 		display: flex;
 		flex-direction: column;
@@ -254,6 +256,9 @@
 		flex-direction: column;
 		gap: 2px;
 		font-size: var(--text-base);
+		/* Long journal / co-author names must break instead of forcing the 1fr column past its track —
+		   `anywhere` (unlike break-word) collapses min-content so the grid can shrink on a phone. */
+		overflow-wrap: anywhere;
 	}
 
 	.leader dd a:hover {
@@ -263,7 +268,7 @@
 	.era {
 		flex: 1 1 320px;
 		max-width: 760px;
-		min-width: 280px;
+		min-width: min(280px, 100%);
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
