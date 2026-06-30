@@ -30,8 +30,10 @@ APTS = [
     "nginx",
     "btop",
     "systemd-oomd",
-    # rsvg-convert: rasterizes the OG share card (/pic/.../breakdown.png) at runtime.
+    # rsvg-convert rasterizes the OG share cards at runtime; fontconfig (fc-cache) registers the
+    # vendored brand fonts so the rasterizer uses them.
     "librsvg2-bin",
+    "fontconfig",
 ]
 
 
@@ -404,6 +406,16 @@ class Transper:
             f"sudo DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt install {' '.join(APTS)} -y"
         )
 
+    def install_fonts(self):
+        # Register the vendored brand fonts (static/fonts/) into the deploy user's fontconfig so the
+        # share-card rasterizer (rsvg-convert) renders them. No-op on a checkout without the fonts.
+        font_dir = f"{self.inst_home}/.local/share/fonts/rankless"
+        self.ssh.run(
+            f"if ls {self.deploy_dir}/static/fonts/*.ttf >/dev/null 2>&1; then "
+            f"mkdir -p {font_dir} && cp {self.deploy_dir}/static/fonts/*.ttf {font_dir}/ && "
+            f"fc-cache -f {font_dir}; fi"
+        )
+
     def setup(self, backend=True):
         self.install_apts()
         if backend:
@@ -710,6 +722,7 @@ upstream {BE_UPSTREAM} {{
 
     def update_fe(self):
         self.sync_code()
+        self.install_fonts()
         self.build_js()
         stage_conf, live_conf = self.get_fe_systems()
         self._depcomm(f"rm -rf {stage_conf.build_dir()}")
