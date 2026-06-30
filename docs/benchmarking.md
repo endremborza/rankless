@@ -14,12 +14,12 @@ All benchmark/comparison tooling runs through one entry point — `uv run -m pys
 <command>` (see `uv run -m pyscripts -h`). Each command's module is imported lazily, so a
 missing/broken dependency in one (e.g. `bench` needs `psutil`) never breaks the others.
 
-| Command          | Module                           | Purpose                                                                                                                                                                     |
-| ---------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `compare-branch` | `pyscripts/branch_comparison.py` | Perf comparison of two git refs (worktree-isolated) — `tlog` phase timing + cgroup peak memory, with a structural-diff correctness guard. See `perf-benchmark-framework.md` |
-| `compare-sql`    | `pyscripts/sql_comparison.py`    | Flask/PostgreSQL vs Rust — structural diff, Pearson, relative error                                                                                                         |
-| `bench`          | `pyscripts/bm.py`                | Local throughput + memory benchmark; auto-compares current branch vs `rankless-main`                                                                                        |
-| `cache <action>` | `pyscripts/cache_prompting.py`   | Warm/validate the server response cache (`prep`/`read`/`rest`/`validate-*`)                                                                                                 |
+| Command          | Module                           | Purpose                                                                                                                                                                                    |
+| ---------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `compare-branch` | `pyscripts/branch_comparison.py` | Perf comparison of two git refs (worktree-isolated) — `tlog` phase timing + cgroup peak memory, with a structural-diff correctness guard. See the "Branch comparison (perf)" section below |
+| `compare-sql`    | `pyscripts/sql_comparison.py`    | Flask/PostgreSQL vs Rust — structural diff, Pearson, relative error                                                                                                                        |
+| `bench`          | `pyscripts/bm.py`                | Local throughput + memory benchmark; auto-compares current branch vs `rankless-main`                                                                                                       |
+| `cache <action>` | `pyscripts/cache_prompting.py`   | Warm/validate the server response cache (`prep`/`read`/`rest`/`validate-*`)                                                                                                                |
 
 `compare-sql` is thin: it defines only its backend pair and a `fetch_pair` callback over the
 shared three-stage skeleton — rebuild dispatch, the sample → query → diff loop, and the
@@ -96,7 +96,7 @@ Benchmarks two git refs of the server on the **same** dataset, isolating cold tr
 cost and peak memory. Each ref is checked out _detached_ into a git worktree under
 `/tmp/rankless-perf/` and built there (the working tree is never touched), then run
 **sequentially** — one container at a time, so timing is contention-free — against the same
-sampled query set. Full design + rationale: `docs/perf-benchmark-framework.md`.
+sampled query set.
 
 ```bash
 make compare-branch                                       # all comparisons in the default config
@@ -120,7 +120,29 @@ must not alter output, so `max rel-error` must stay ≈0. Images are cached as
 
 Output (`logs/comparison-artifacts/<ts>-perf-<name>/`): console + `report.md` + `report.html`
 (per-phase speedup `t_B/t_A`, memory, correctness), `timing_plot.png` (phase time vs
-citations, A vs B), and `per_query.csv`.
+citations, A vs B), and `per_query.csv` (raw per-`(entity, tid)` phase timings + memory).
+
+Config example (`pyscripts/perf_comparisons.toml`, parsed with stdlib `tomllib`):
+
+```toml
+[defaults]
+repeats = 3                # timed cold recomputes per query (min + median reported)
+warmups = 1                # untimed runs to warm the OS page cache for the mmaps
+samples = 3                # entities per citation bin
+min_citations = 100_000
+bins = [100_000, 1_000_000, 5_000_000, 20_000_000]
+cpus = "4"
+keep_worktrees = true      # reuse worktree + image on the next run
+
+[[comparison]]
+name = "heap-to-sort"
+a = "1c01d0178"            # Vec + sort_unstable
+b = "1c01d0178~1"          # BinaryHeap<Reverse<T>> baseline
+```
+
+Caveats / ideas: per-query `memory.peak` reset is unavailable (cgroupfs is read-only in the
+container) — the small→large query ordering is the workaround; an optional `--profile profiling`
+(fast non-LTO build) is worth adding when only relative phase ratios are needed.
 
 ### SQL / reference comparison
 
@@ -240,7 +262,7 @@ By root × breakdown:
 | institutions | sources-T;countries-T;subfields-T                     | 28  | 72.82×     | 0.653 | 0.793 | 12.29%  | 11.02%  | 62%    | 7.24%     |
 | institutions | authors-S;countries-T;institutions-T                  | 28  | 41.37×     | 0.820 | 0.806 | 86.30%  | 76.53%  | 28%    | 104.01%   |
 
-Plots: ![timing](bm-mini-timing.png) ![accuracy](bm-mini-accuracy.png) ![memory](bm-mini-memory.png)
+Plots: ![timing](benchmarking/mini/timing_plot.png) ![accuracy](benchmarking/mini/accuracy_plot.png) ![memory](benchmarking/mini/memory_plot.png)
 
 ### Micro-subset (200k works)
 
@@ -260,7 +282,7 @@ Plots: ![timing](bm-mini-timing.png) ![accuracy](bm-mini-accuracy.png) ![memory]
 The `institutions / authors-S` configuration shows inflated errors due to the high fraction
 of missing author records in small subsets.
 
-Plots: ![timing](bm-micro-timing.png) ![accuracy](bm-micro-accuracy.png) ![memory](bm-micro-memory.png)
+Plots: ![timing](benchmarking/micro/timing_plot.png) ![accuracy](benchmarking/micro/accuracy_plot.png) ![memory](benchmarking/micro/memory_plot.png)
 
 ### Robustness re-runs
 
