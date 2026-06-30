@@ -542,7 +542,7 @@ limit_req_zone $binary_remote_addr zone=baselimit:10m rate=2r/s;
 log_format upstream_time '$remote_addr - $remote_user [$time_local] '
                          '"$request" $status $body_bytes_sent '
                          '"$http_referer" "$http_user_agent"'
-                         'rt=$request_time uct="$upstream_connect_time" uht="$upstream_header_time" urt="$upstream_response_time" cs=$upstream_cache_status';
+                         'rt=$request_time uct="$upstream_connect_time" uht="$upstream_header_time" urt="$upstream_response_time" cs=$upstream_cache_status host=$host';
 
 server {{
 
