@@ -294,5 +294,10 @@
 	.hit {
 		fill: transparent;
 		pointer-events: all;
+		/* Chrome draws the native focus outline on a focused SVG shape as an opaque rectangle the size
+		   of its geometry box. Each `.hit` spans the full chart height, so a focused one paints a giant
+		   black blob over the chart. The columns aren't keyboard-reachable (no tabindex), so no cue is
+		   lost by suppressing it — same treatment as AuthorNetwork's `.hit`. */
+		outline: none;
 	}
 </style>
