@@ -7,6 +7,11 @@ papers, authors, institutions, journals, countries, and research disciplines.
 Pipeline shape: **OpenAlex CSVs → binary pipeline (`rankless_rs`) → Axum server
 (`rankless_server`) → SvelteKit frontend (`src/`)**.
 
+Companion references: `benchmarking.md` (comparison/bench tooling + results), `reporting.md`
+(traffic/perf site), `tree-internals.md` (tree-construction internals), `topic-tags.md` (topic
+creator/dominator tags), `sharecard-render-test.md` (OG share-card test), `v2-to-v3-changes.md`
+(v2→v3 changelog), `unfinished-features.md` (built-but-hidden features).
+
 Contents:
 
 1. [Overview](#overview) — data, visualizations, layers
@@ -71,8 +76,7 @@ rebuilt into the response on demand per entity view, rather than held resident.
 **Frontend (`src/`):** SvelteKit/Svelte with SSR. All visualizations hand-written SVG;
 Cytoscape.js the only external viz dependency. ORCID authentication on author profile
 pages. SQLite (better-sqlite3, WAL mode) backs an append-only **user ledger** of
-profile modifications (disown/claim/merge); see [the ledger to-do](todo-backend.md) for
-remaining moderator + cleanup work.
+profile modifications (disown/claim/merge).
 
 **Deployment (`pyscripts/deploy.py`):** Linux, systemd (Rust backend + Bun frontend),
 Nginx reverse proxy, Let's Encrypt SSL. Live monitoring via distributed alert swarm
