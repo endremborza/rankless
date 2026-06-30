@@ -42,6 +42,17 @@ def main(argv: list[str] | None = None) -> int:
         help="Re-run classification on all hot archive days, rebuild aggregates, then render.",
     )
     parser.add_argument(
+        "--purge-alpha-before",
+        metavar="ISO8601",
+        help=(
+            "One-off history surgery: re-pull the full live access.log and delete "
+            "archived rows timestamped before this cutover instant that the box "
+            "logged during its prior alpha life, then reclassify + render. Cleans "
+            "alpha traffic backfilled into the live archive at an alpha->live "
+            "promotion (pre-dating the $host log field). E.g. 2026-06-29T19:30+00:00"
+        ),
+    )
+    parser.add_argument(
         "--mode",
         choices=("local", "public", "both"),
         default="public",
@@ -60,6 +71,10 @@ def main(argv: list[str] | None = None) -> int:
             _do_render(args.mode, args.no_publish, run_record)
         elif args.reclassify_all:
             _do_reclassify_all(run_record)
+            _do_render(args.mode, args.no_publish, run_record)
+        elif args.purge_alpha_before:
+            affected = _do_purge_alpha_history(args.purge_alpha_before, run_record)
+            _do_rebuild_derived(affected, run_record)
             _do_render(args.mode, args.no_publish, run_record)
         else:
             if not args.no_pull:
@@ -121,13 +136,75 @@ def _do_reclassify_all(rec: dict) -> None:
         rec["aggregates"] = aggregate.rebuild()
 
 
+def _do_purge_alpha_history(cutoff_iso: str, rec: dict) -> list[dt.date]:
+    cutoff = dt.datetime.fromisoformat(cutoff_iso)
+    if cutoff.tzinfo is None:
+        cutoff = cutoff.replace(tzinfo=dt.timezone.utc)
+    keys = archive._HOT_DEDUP_COLS
+
+    lines = pull.fetch_full_log()
+    rec["log_lines"] = len(lines)
+
+    # Everything the box logged before the cutover instant was served to the alpha
+    # vhost; the live rows for that window came from the previous box and are a
+    # disjoint request set, so an anti-join on the dedup key removes only alpha.
+    parts = []
+    for batch in batched(lines, 200_000):
+        bdf, _ = parse.parse_lines(batch)
+        if bdf.is_empty():
+            continue
+        parts.append(bdf.filter(pl.col("t") < cutoff).select(keys).unique())
+    if not parts:
+        rec["alpha_keys"] = 0
+        return []
+    alpha = pl.concat(parts).unique()
+    rec["alpha_keys"] = len(alpha)
+
+    # Affected days are those containing alpha rows, even if a prior run already
+    # removed them — derived data for those days still needs rebuilding (idempotent).
+    affected = (
+        alpha.select(pl.col("t").dt.date().alias("d"))["d"].unique().sort().to_list()
+    )
+    removed: dict[str, int] = {}
+    for d in affected:
+        day = archive.read_hot(date_from=d, date_to=d)
+        if day.is_empty():
+            continue
+        kept = day.join(alpha, on=keys, how="anti")
+        n = len(day) - len(kept)
+        if n:
+            archive.rewrite_hot(d, kept)
+            removed[d.isoformat()] = n
+    rec["removed_per_day"] = removed
+    return affected
+
+
+def _do_rebuild_derived(dates: list[dt.date], rec: dict) -> None:
+    """Rebuild sessions + aggregates for just the given days from the cleaned hot
+    archive. Bounded to those days so it stays within memory (unlike a full
+    reclassify, which reads the whole archive)."""
+    if not dates:
+        rec["derived"] = {"skipped": True}
+        return
+    df = archive.read_hot(date_from=min(dates), date_to=max(dates))
+    if not df.is_empty():
+        df = sessions.assign_sessions(df)
+        sess_df = classify_sessions(df)
+        aggregate.purge_session_dates(dates)
+        aggregate.update_sessions(sess_df)
+        rec["sessions_rebuilt"] = len(sess_df)
+    rec["aggregates"] = aggregate.update(dates)
+
+
 def _do_dry_run(rec: dict) -> None:
     s = state.load()
     fetched = pull.fetch_new_lines(s)
     df, fail = parse.parse_lines(fetched.lines)
+    df, alpha = parse.drop_alpha_hosts(df)
     rec["lines_fetched"] = len(fetched.lines)
     rec["events_parsed"] = len(df)
     rec["parse_failures"] = fail
+    rec["alpha_dropped"] = alpha
     rec["rotated"] = fetched.rotated
     if not df.is_empty():
         rec["t_min"] = str(df["t"].min())
@@ -145,10 +222,12 @@ def _do_pull_and_archive(rec: dict) -> list[dt.date]:
         fetched = pull.fetch_new_lines(s)
     with timing.timed("pull.parse"):
         df, fail = parse.parse_lines(fetched.lines)
+        df, alpha = parse.drop_alpha_hosts(df)
 
     rec["lines_fetched"] = len(fetched.lines)
     rec["events_parsed"] = len(df)
     rec["parse_failures"] = fail
+    rec["alpha_dropped"] = alpha
     rec["rotated"] = fetched.rotated
 
     if df.is_empty():
