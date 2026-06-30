@@ -50,6 +50,23 @@ LINE_EMPTY_UA = (
     'rt=0.005 uct="-" uht="-" urt="-" cs=HIT'
 )
 
+# Post-host-field lines (host=... trailing the cs= field).
+LINE_HOST_LIVE = (
+    "203.0.113.42 - - [29/Jun/2026:20:14:15 +0000] "
+    '"GET /authors/darwin HTTP/2.0" 200 4321 '
+    '"https://www.rankless.org/" '
+    '"Mozilla/5.0 (X11; Linux x86_64) Chrome/124.0"'
+    'rt=0.045 uct="0.001" uht="0.040" urt="0.040" cs=MISS host=www.rankless.org'
+)
+
+LINE_HOST_ALPHA = (
+    "203.0.113.43 - - [29/Jun/2026:10:14:15 +0000] "
+    '"GET /authors/darwin HTTP/2.0" 502 166 '
+    '"-" '
+    '"Mozilla/5.0 (X11; Linux x86_64) Chrome/124.0"'
+    'rt=0.000 uct="-" uht="-" urt="-" cs=MISS host=alpha.rankless.org'
+)
+
 # Garbage line for failure counting.
 LINE_GARBAGE = "this is not an nginx log line at all"
 

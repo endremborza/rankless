@@ -31,8 +31,9 @@ SESSION_ID_LEN = 12
 
 LOG_TIME_FMT = "%d/%b/%Y:%H:%M:%S %z"
 
-# Regex for the upstream_time format defined in pyscripts/deploy.py:488-491.
-# `cs=...` field is optional so pre-Phase-0 lines still parse (cs=None).
+# Regex for the upstream_time format defined in pyscripts/deploy.py log_format.
+# `cs=...` and `host=...` are optional trailing fields so older lines (predating
+# each field's addition to the nginx log_format) still parse (cs/host = None).
 LINE_RE = re.compile(
     r"^(?P<addr>\S+) - \S+ "
     r"\[(?P<time>[^\]]+)\] "
@@ -44,8 +45,15 @@ LINE_RE = re.compile(
     r'uct="(?P<uct>[^"]*)" '
     r'uht="(?P<uht>[^"]*)" '
     r'urt="(?P<urt>[^"]*)"'
-    r"(?: cs=(?P<cs>\S+))?$"
+    r"(?: cs=(?P<cs>\S+))?"
+    r"(?: host=(?P<host>\S+))?$"
 )
+
+# Vhost separation. A promoted instance keeps serving its prior alpha traffic in
+# the same access.log it later serves live traffic from; `$host` lets the report
+# drop the alpha-domain rows. Anything under the alpha.* subdomain is non-live.
+LIVE_HOSTS = frozenset({"www.rankless.org", "rankless.org", "api.rankless.org"})
+ALPHA_HOST_PREFIX = "alpha"
 
 CACHE_STATUSES = {
     "HIT",

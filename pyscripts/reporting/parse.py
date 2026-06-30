@@ -2,7 +2,7 @@ from typing import Iterable
 
 import polars as pl
 
-from .config import LINE_RE, LOG_TIME_FMT
+from .config import ALPHA_HOST_PREFIX, LINE_RE, LOG_TIME_FMT
 
 
 def _f(s: str | None) -> float | None:
@@ -54,6 +54,10 @@ def parse_lines(lines: Iterable[str]) -> tuple[pl.DataFrame, int]:
                 pl.col("cs")
                 .fill_null("")
                 .map_elements(lambda s: "" if s == "-" else s, return_dtype=pl.String),
+                pl.when(pl.col("host").fill_null("") == "-")
+                .then(pl.lit(""))
+                .otherwise(pl.col("host").fill_null(""))
+                .alias("host"),
             ]
         )
         .drop("time")
@@ -72,10 +76,27 @@ def parse_lines(lines: Iterable[str]) -> tuple[pl.DataFrame, int]:
                 "uht",
                 "urt",
                 "cs",
+                "host",
             ]
         )
     )
     return df, failures
+
+
+def drop_alpha_hosts(df: pl.DataFrame) -> tuple[pl.DataFrame, int]:
+    """Drop rows served to the alpha vhost and remove the (transient) `host` column.
+
+    `host` is only used to separate vhosts at ingest; it is not persisted, keeping
+    the archive schema stable. Rows whose `host` is empty (lines predating the
+    log_format change) are kept — they cannot be attributed and are overwhelmingly
+    live (alpha contamination there is cleaned via the one-off history purge)."""
+    if "host" not in df.columns:
+        return df, 0
+    is_alpha = (pl.col("host") != "") & pl.col(
+        "host"
+    ).str.to_lowercase().str.starts_with(ALPHA_HOST_PREFIX)
+    n_alpha = int(df.select(is_alpha.sum()).item())
+    return df.filter(~is_alpha).drop("host"), n_alpha
 
 
 def _empty_df() -> pl.DataFrame:
@@ -94,5 +115,6 @@ def _empty_df() -> pl.DataFrame:
             "uht": pl.Series([], dtype=pl.Float32),
             "urt": pl.Series([], dtype=pl.Float32),
             "cs": pl.Series([], dtype=pl.String),
+            "host": pl.Series([], dtype=pl.String),
         }
     )

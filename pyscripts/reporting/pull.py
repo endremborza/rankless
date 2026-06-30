@@ -1,3 +1,4 @@
+import gzip
 import subprocess
 from dataclasses import dataclass
 
@@ -54,6 +55,20 @@ def fetch_new_lines(state: State, ssh_host: str = LIVE_SSH_ID) -> FetchResult:
 
     tail = _ssh_lines(ssh_host, f"tail -c +{state.last_size + 1} {NGINX_LOG}")
     return FetchResult(lines=tail, new_inode=inode, new_size=size, rotated=False)
+
+
+def fetch_full_log(ssh_host: str = LIVE_SSH_ID) -> list[str]:
+    """Pull the entire active access.log (gzip-compressed on the wire). One-off use
+    for history surgery; the routine path is the incremental `fetch_new_lines`.
+
+    Snapshots the log first so gzip sees a static file (the live log grows mid-read,
+    which would otherwise make gzip exit non-zero and raise)."""
+    snap = "/tmp/rl_access_snapshot.log"
+    cmd = f"cp {NGINX_LOG} {snap} && gzip -cn {snap}; rm -f {snap}"
+    raw = subprocess.check_output(
+        ["ssh", "-o", "StrictHostKeyChecking=no", ssh_host, cmd],
+    )
+    return gzip.decompress(raw).decode("utf-8", "replace").split("\n")
 
 
 def _ssh(host: str, cmd: str) -> str:

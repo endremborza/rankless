@@ -2,13 +2,15 @@ import math
 
 import polars as pl
 
-from pyscripts.reporting.parse import parse_lines
+from pyscripts.reporting.parse import drop_alpha_hosts, parse_lines
 
 from .fixtures import (
     ALL,
     LINE_429,
     LINE_EMPTY_UA,
     LINE_GARBAGE,
+    LINE_HOST_ALPHA,
+    LINE_HOST_LIVE,
     LINE_NO_UPSTREAM,
     LINE_POST_CS_BOT,
     LINE_POST_CS_HUMAN,
@@ -79,3 +81,23 @@ def test_parse_batch():
     assert fail == 1
     assert len(df) == len(ALL)
     assert df.schema["t"] == pl.Datetime("us", "UTC")
+
+
+def test_parse_host_field():
+    df, fail = parse_lines([LINE_HOST_LIVE, LINE_HOST_ALPHA])
+    assert fail == 0
+    assert df["host"].to_list() == ["www.rankless.org", "alpha.rankless.org"]
+
+
+def test_parse_host_absent_is_empty():
+    # Lines predating the host field still parse, with host == "".
+    df, _ = parse_lines([LINE_POST_CS_HUMAN, LINE_PRE_CS])
+    assert df["host"].to_list() == ["", ""]
+
+
+def test_drop_alpha_hosts():
+    df, _ = parse_lines([LINE_HOST_LIVE, LINE_HOST_ALPHA, LINE_POST_CS_HUMAN])
+    kept, n = drop_alpha_hosts(df)
+    assert n == 1
+    assert "host" not in kept.columns  # not persisted into the archive
+    assert kept["path"].to_list() == ["/authors/darwin", "/v1/names/authors?q=darwin"]
