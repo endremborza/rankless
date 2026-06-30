@@ -93,8 +93,16 @@ Implemented as a sibling **`/pic/{rootType}/{…}/breakdown.png`** route:
   hitting `/pic/<garbage>/…` would otherwise index `undefined` in `parseLinkWithParams`), a non-OK
   backend response, or a malformed/missing entity. Both endpoints inherit this via the shared helper.
 
+The homepage card (`HomeCard.svelte` → `pic/home.png`) is typeset in the revamp brand faces —
+**Hedvig Letters Serif** (wordmark), **Hedvig Letters Sans** (tagline), **Space Mono** (live `/counts`
+figures + URL). Because `rsvg-convert` resolves fonts via **fontconfig, not browser web-fonts**, the
+faces are vendored in `static/fonts/` (OFL) and `deploy.py` `install_fonts()` copies them into the
+runner's user font dir + `fc-cache` on every FE deploy; each `font-family` lists a generic fallback so a
+missing face degrades gracefully. (The entity breakdown card via `TreeSvg` is not yet aligned — that
+follows the broader app typography revamp.)
+
 `rasterizeSvg` + cache are unit-tested in `card-raster.test.ts` (PNG magic + 1200×630 dims, no
-backend). **Deploy dependency:** `rsvg-convert` (`librsvg2-bin`) is in `pyscripts/deploy.py` `APTS`
+backend). **Deploy dependency:** `rsvg-convert` (`librsvg2-bin`) + `fontconfig` are in `pyscripts/deploy.py` `APTS`
 (baked into fresh images); for the already-running box run `deploy.install_apts_live()` once. **Gate
 after deploy:** `sharecard_test.py` exits 0 + manual residual.
 

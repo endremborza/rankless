@@ -63,6 +63,8 @@ export function singularize(word: string) {
 export function formatNumber(n: number, maxFix: number = 2) {
 	if (n === 0) {
 		return '0';
+	} else if (n > 1e9) {
+		return `${(n / 1e9).toFixed(Math.min(1, maxFix))}B`;
 	} else if (n > 1e6) {
 		return `${(n / 1e6).toFixed(Math.min(1, maxFix))}M`;
 	} else if (n > 1e3) {

@@ -3,6 +3,11 @@ import { PUBLIC_ORIGIN, PUBLIC_BACKEND_URL } from '$env/static/public';
 
 export const APP_NAME = 'Rankless';
 
+// Brand proof-points. The home card pulls live figures from the backend /counts endpoint; this is
+// the fallback shown only if that fetch fails, so it stays roughly current but approximate.
+export const BRAND_TAGLINE = 'Explore academic impact beyond rankings';
+export const BRAND_STATS = ['~90M papers', '1.9B citations', 'every field'];
+
 export const FULL_HOST = PUBLIC_ORIGIN;
 export const SITEMAP_STEP_SIZE = 8192;
 export const ENTITY_SITEMAP_STEP_SIZE = 40000;

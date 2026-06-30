@@ -57,6 +57,11 @@ describe('formatNumber', () => {
 	});
 	it('formats millions', () => {
 		expect(formatNumber(2_500_000)).toBe('2.5M');
+		expect(formatNumber(91_433_299)).toBe('91.4M');
+	});
+	it('formats billions', () => {
+		expect(formatNumber(1_892_421_750)).toBe('1.9B');
+		expect(formatNumber(1_000_000_001)).toBe('1.0B');
 	});
 	it('formats thousands', () => {
 		expect(formatNumber(1500)).toBe('1.5k');

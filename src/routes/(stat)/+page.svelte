@@ -23,7 +23,8 @@
 	import SpecConcrete2 from '$lib/components/SpecConcrete2.svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
-	import { APP_NAME, COMPLETE_YEAR, ROOT_TYPES } from '$lib/constants';
+	import { APP_NAME, BRAND_TAGLINE, COMPLETE_YEAR, ROOT_TYPES } from '$lib/constants';
+	import { getExternalUrl } from '$lib/route-functions';
 	import TreeSvg from '$lib/components/TreeSvg.svelte';
 	import { resultsHidden } from '$lib/stores';
 	import { prettifyRoot } from '$lib/text-format-util.js';
@@ -198,6 +199,12 @@
 
 	const fullLd = '<script type="application/ld+json">' + JSON.stringify(jsonLd) + '</' + 'script>';
 
+	const metaDescription =
+		'Explore academic impact beyond rankings. Rankless offers a fresh perspective on how universities influence each geography and topic, emphasizing diverse forms of impact and providing a richer understanding of academic influence.';
+	const ogTitle = `${APP_NAME} — ${BRAND_TAGLINE}`;
+	const ogImage = getExternalUrl('/pic/home.png');
+	const ogUrl = getExternalUrl('');
+
 	export let data;
 
 	let selectedQcRootId = 0;
@@ -259,11 +266,22 @@
 </script>
 
 <svelte:head>
-	<meta
-		name="description"
-		content="Explore academic impact beyond rankings. Rankless offers a fresh perspective on how universities influence each geography and topic, emphasizing diverse forms of impact and providing a richer understanding of academic influence."
-	/>
 	<title>{APP_NAME}</title>
+	<meta name="description" content={metaDescription} />
+	<meta property="og:type" content="website" />
+	<meta property="og:site_name" content={APP_NAME} />
+	<meta property="og:title" content={ogTitle} />
+	<meta property="og:description" content={metaDescription} />
+	<meta property="og:url" content={ogUrl} />
+	<meta property="og:image" content={ogImage} />
+	<meta property="og:image:type" content="image/png" />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:creator" content="@LearningCCL" />
+	<meta name="twitter:title" content={ogTitle} />
+	<meta name="twitter:description" content={metaDescription} />
+	<meta name="twitter:image" content={ogImage} />
 	{@html fullLd}
 </svelte:head>
 <svelte:window bind:scrollY />

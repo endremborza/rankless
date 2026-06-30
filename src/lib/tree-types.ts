@@ -142,6 +142,11 @@ export type AboutPara = {
 
 export type TreeResponse = { tree: ResponseNode; atts: AttributeLabels; shallowed: boolean };
 export type TopsResponse = { name: RootType; entities: SearchResult[] }[];
+export type CountsResponse = {
+	entities: { name: RootType; count: number }[];
+	total_citations: number;
+	total_works: number;
+};
 export type TreeSpec = {
 	rootType: RootType;
 	breakdowns: BreakdownSpec[];

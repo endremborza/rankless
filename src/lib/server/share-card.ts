@@ -1,7 +1,8 @@
 import { error } from '@sveltejs/kit';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
-import { BE_URL, ROOT_TYPES } from '$lib/constants';
+import { BE_URL, BRAND_STATS, ROOT_TYPES } from '$lib/constants';
+import { formatNumber } from '$lib/text-format-util';
 import { loadSpecs } from '$lib/loading-functions';
 import { renderSvgComponent } from '$lib/server/render';
 import {
@@ -12,6 +13,7 @@ import {
 	writeCardCache
 } from '$lib/server/card-raster';
 import TreeSvg from '$lib/components/TreeSvg.svelte';
+import HomeCard from '$lib/components/HomeCard.svelte';
 
 // Shared by the breakdown.svg and breakdown.png endpoints so the SVG build path stays single-sourced.
 // Every failure mode is turned into a clean 404 (not a 500): an unknown root type would make
@@ -70,6 +72,32 @@ export async function getBreakdownPng(
 	const png = await rasterizeSvg(svg, CARD_W, CARD_H);
 	void writeCardCache(key, png);
 	return png;
+}
+
+// The homepage card carries live figures from /counts, so it renders fresh per request (a render is
+// cheap and crawler hits are rare, which also keeps the numbers current with no cache to invalidate).
+export async function getHomeCardPng(fetchFn: typeof fetch): Promise<Buffer> {
+	const stats = await fetchHomeStats(fetchFn);
+	const svg = renderSvgComponent(HomeCard, { stats });
+	return rasterizeSvg(svg, CARD_W, CARD_H);
+}
+
+// Live proof-points from the backend; any failure falls back to the brand constants so the card,
+// being an OG endpoint, never breaks. "every field" stays qualitative (252 subfields = all of science).
+async function fetchHomeStats(fetchFn: typeof fetch): Promise<string[]> {
+	try {
+		const res = await fetchFn(`${BE_URL}/counts`);
+		if (!res.ok) return BRAND_STATS;
+		const counts: tt.CountsResponse = await res.json();
+		if (!counts?.total_works || !counts?.total_citations) return BRAND_STATS;
+		return [
+			`${formatNumber(counts.total_works)} papers`,
+			`${formatNumber(counts.total_citations)} citations`,
+			'every field'
+		];
+	} catch {
+		return BRAND_STATS;
+	}
 }
 
 function cacheKey(rootType: string, semanticId: string, searchParams: URLSearchParams): string {
