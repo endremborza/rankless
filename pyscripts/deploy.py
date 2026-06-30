@@ -30,6 +30,8 @@ APTS = [
     "nginx",
     "btop",
     "systemd-oomd",
+    # rsvg-convert: rasterizes the OG share card (/pic/.../breakdown.png) at runtime.
+    "librsvg2-bin",
 ]
 
 
@@ -396,11 +398,14 @@ class Transper:
         self.ssh.run(f"sudo rm -rf {self.be_cache_dir}/*")
         self.ssh.run(f"sudo rm -rf {self.fe_cache_dir}/*")
 
-    def setup(self, backend=True):
+    def install_apts(self):
         self.ssh.run("sudo apt update")
         self.ssh.run(
             f"sudo DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt install {' '.join(APTS)} -y"
         )
+
+    def setup(self, backend=True):
+        self.install_apts()
         if backend:
             self.ssh.run(
                 "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"

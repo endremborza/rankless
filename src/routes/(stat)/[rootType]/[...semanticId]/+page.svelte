@@ -35,6 +35,7 @@
 		tree: tt.ResponseNode;
 		atts: tt.AttributeLabels;
 		svgLink: string;
+		pngLink: string;
 		shallowed: boolean;
 		aboutParagraph: tt.AboutPara;
 		metaDescriptions: string;
@@ -174,11 +175,24 @@
 
 <svelte:head>
 	<title>{APP_NAME} | {htmlToText(data.view.name)}</title>
-	<meta name="twitter:card" content="summary" />
-	<meta name="twitter:creator" content="@LearningCCL" />
 	<meta name="description" content={data.metaDescriptions} />
-	<meta property="og:image" content={data.svgLink} />
-	<meta property="og:title" content="{data.view.name} | {APP_NAME}" />
+	<meta property="og:type" content="website" />
+	<meta property="og:site_name" content={APP_NAME} />
+	<meta property="og:title" content="{htmlToText(data.view.name)} | {APP_NAME}" />
+	<meta property="og:description" content={data.metaDescriptions} />
+	<meta
+		property="og:url"
+		content={tf.externalEntityUrl(data.conf.rootType, data.conf.semanticId)}
+	/>
+	<meta property="og:image" content={data.pngLink} />
+	<meta property="og:image:type" content="image/png" />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:creator" content="@LearningCCL" />
+	<meta name="twitter:title" content="{htmlToText(data.view.name)} | {APP_NAME}" />
+	<meta name="twitter:description" content={data.metaDescriptions} />
+	<meta name="twitter:image" content={data.pngLink} />
 	<link rel="canonical" href={tf.externalEntityUrl(data.conf.rootType, data.conf.semanticId)} />
 </svelte:head>
 

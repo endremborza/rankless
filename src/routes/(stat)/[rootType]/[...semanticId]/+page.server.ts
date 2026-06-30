@@ -39,10 +39,12 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 	}
 	const { tree, atts, shallowed } = treeResp;
 
-	let svgLinkBase = `/pic/${rootType}/${semanticId}/breakdown.svg`;
-	const sp = url.searchParams.toString();
-	if (sp.length > 0) svgLinkBase += `?${sp}`;
-	const svgLink = getExternalUrl(svgLinkBase);
+	const cardQuery = url.searchParams.toString();
+	const cardSuffix = cardQuery.length > 0 ? `?${cardQuery}` : '';
+	const cardBase = `/pic/${rootType}/${semanticId}/breakdown`;
+	const svgLink = getExternalUrl(`${cardBase}.svg${cardSuffix}`);
+	// Social crawlers don't render SVG OG images, so the share card points at the rasterized PNG.
+	const pngLink = getExternalUrl(`${cardBase}.png${cardSuffix}`);
 
 	const paperText = pluralize('paper', view.papers);
 	const citeText = pluralize('indexed citation', view.citations);
@@ -188,6 +190,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 			tree,
 			atts,
 			svgLink,
+			pngLink,
 			shallowed,
 			aboutParagraph,
 			metaDescriptions,

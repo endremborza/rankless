@@ -1,16 +1,17 @@
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
 import type { RequestHandler } from './$types';
-import { buildBreakdownSvg } from '$lib/server/share-card';
+import { getBreakdownPng } from '$lib/server/share-card';
 
 export const GET: RequestHandler = async ({ params, url, fetch }) => {
 	const rootType = params.rootType as tt.RootType;
-	const svg = await buildBreakdownSvg(rootType, params.semanticId, url.searchParams, fetch);
+	const png = await getBreakdownPng(rootType, params.semanticId, url.searchParams, fetch);
 	const urlFriendlySemId = tf.urlFriendlify(params.semanticId);
-	return new Response(svg, {
+	return new Response(png, {
 		headers: {
-			'Content-Type': 'image/svg+xml',
-			'Content-Disposition': `inline;filename=${urlFriendlySemId}-breakdown.svg`
+			'Content-Type': 'image/png',
+			'Content-Disposition': `inline;filename=${urlFriendlySemId}-breakdown.png`,
+			'Cache-Control': 'public, max-age=86400'
 		}
 	});
 };

@@ -46,7 +46,7 @@ FAIL**, so it doubles as a pre-launch gate / CI check.
 - `--fb-token <token>` — runs the **live Facebook scrape** (`graph.facebook.com/?id=…&scrape=true`)
   and prints what their crawler resolves.
 
-Current output against production (confirms the hypothesis):
+Pre-fix output against production (the hypothesis the fix addresses):
 
 ```
 ✓ PASS  og:image present: …/pic/institutions/<slug>/breakdown.svg
@@ -58,6 +58,9 @@ Current output against production (confirms the hypothesis):
 ✓ PASS  loads < 2s: 0.16s
 ! WARN  recommended tags: missing: og:image:width, …, twitter:image
 ```
+
+The fix below ships in the code; this run should exit 0 against a deploy that has it (the deploy host
+needs `librsvg2-bin`). Re-run after deploying and do the manual residual once.
 
 ## Manual residual (can't be automated)
 
@@ -73,14 +76,27 @@ Current output against production (confirms the hypothesis):
    **name**, one **headline number**, the **Rankless** wordmark, and `rankless.org` are all readable
    — not a dense breakdown tree shrunk to mush.
 
-## The fix (not part of the test)
+## The fix (as built)
 
-`pyscripts/svg_export.py` already renders this exact card to a 1200×630 PNG via `rsvg-convert`, so
-the smallest fix is: a sibling `breakdown.png` endpoint (or a cached/pre-rendered PNG), point
-`og:image`/`twitter:image` at it, flip `twitter:card` to `summary_large_image`, and add the missing
-`og:image:width/height/type` + `og:url`/`og:description` tags. Decide caching — per-request render is
-heavy; cache like the search engine, or pre-render featured entities with the cache-prompting set.
-Then re-run `sharecard_test.py` until it exits 0, and do the manual residual once.
+Implemented as a sibling **`/pic/{rootType}/{…}/breakdown.png`** route:
 
-If the full breakdown tree is too busy at card size (it renders at ~190×100 today), the alternative
-is a purpose-built card layout rendered through the same SVG→PNG path.
+- `lib/server/share-card.ts` — `buildBreakdownSvg` (the SVG build, factored out of `breakdown.svg`
+  so both endpoints share one path) + `getBreakdownPng` (cache → build → rasterize).
+- `lib/server/card-raster.ts` — `rasterizeSvg` shells `rsvg-convert` to a 1200×630 PNG (same tool as
+  `pyscripts/svg_export.py`, no new npm dep) + a best-effort disk cache (`CARD_CACHE_DIR`, default
+  `$TMPDIR/rankless-cards`) so a widely-shared card isn't re-rendered per crawler hit. A cache
+  read/write failure never breaks serving; an arbitrary entity's card renders on first hit.
+- The entity-page `<svelte:head>` points `og:image`/`twitter:image` at the `.png`, sets
+  `twitter:card=summary_large_image`, and adds `og:url`/`og:description`/`og:type`/`og:site_name` +
+  `og:image:width/height/type` + `twitter:title/description`.
+- `buildBreakdownSvg` turns every failure into a clean **404, never a 500**: unknown root type (a bot
+  hitting `/pic/<garbage>/…` would otherwise index `undefined` in `parseLinkWithParams`), a non-OK
+  backend response, or a malformed/missing entity. Both endpoints inherit this via the shared helper.
+
+`rasterizeSvg` + cache are unit-tested in `card-raster.test.ts` (PNG magic + 1200×630 dims, no
+backend). **Deploy dependency:** `rsvg-convert` (`librsvg2-bin`) is in `pyscripts/deploy.py` `APTS`
+(baked into fresh images); for the already-running box run `deploy.install_apts_live()` once. **Gate
+after deploy:** `sharecard_test.py` exits 0 + manual residual.
+
+If the full breakdown tree is too busy at card size (it renders at ~190×100 today), the follow-up is a
+purpose-built card layout rendered through the same SVG→PNG path.
