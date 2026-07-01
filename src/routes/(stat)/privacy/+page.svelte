@@ -10,7 +10,7 @@
 	<div class="prose">
 		<h1>Data Processing Notice</h1>
 		<p class="subtitle">in connection with the use of the Rankless data visualization project</p>
-		<p class="updated">Last updated 29 June 2026</p>
+		<p class="updated">Last updated 1 July 2026</p>
 
 		<h2>Name of the data controller</h2>
 		<ul class="contact">
@@ -64,8 +64,9 @@
 			<a href="https://info.orcid.org/privacy-policy/" target="_blank" rel="noopener">here</a>.
 		</p>
 		<p>
-			This Privacy Policy sets out the relevant circumstances of the processing of data in the
-			context of the above, in accordance with Article 13 of the GDPR.
+			This notice sets out the relevant circumstances of the processing of data in accordance with
+			Articles 13 and 14 of the GDPR — Article 13 for data you provide directly (such as through
+			ORCID sign-in or the survey) and Article 14 for publication data obtained from OpenAlex.
 		</p>
 
 		<h2>Access to and data transfer</h2>
@@ -73,20 +74,25 @@
 			The data may be accessed by CORVINUS staff involved in the organisation and management of the
 			project for the purposes and to the extent necessary for the performance of their tasks. The
 			University will only disclose data to third parties on the basis of a legal authorisation or
-			with the consent of the data subject.
+			with the consent of the data subject. Rankless is hosted on AWS infrastructure located in the
+			European Union. To the extent that providing this hosting service involves any processing of
+			personal data outside the European Economic Area, that processing is governed by the AWS Data
+			Processing Addendum and the EU Standard Contractual Clauses it incorporates.
 		</p>
 
 		<h2>Engaging a data processor</h2>
 		<p>
-			CORVINUS does not use a data processor for the processing of data in accordance with this
-			Privacy Notice.
+			CORVINUS uses Amazon Web Services (AWS) as a data processor to host the Rankless platform and
+			store its data. This processing is governed by the AWS Data Processing Addendum, which
+			incorporates the EU Standard Contractual Clauses. No other data processor is used.
 		</p>
 
 		<h2>Data security measures</h2>
 		<p>
-			The University stores personal data on its servers. It does not use the services of other
-			companies to store the data. The University will take appropriate measures to ensure that
-			personal data is protected against, inter alia, unauthorised access, and to ensure the
+			The University stores personal data on servers it operates on Amazon Web Services (AWS), its
+			hosting provider, located in the Frankfurt (eu-central-1) region. The University does not use
+			any other company to store the data. The University will take appropriate measures to ensure
+			that personal data is protected against, inter alia, unauthorised access, and to ensure the
 			continued confidentiality, integrity, availability and resilience of the systems and services
 			used to process personal data, and the ability to restore access to and availability of
 			personal data in the event of a physical or technical incident and in a timely manner.
@@ -98,7 +104,7 @@
 			obtain rectification of data, the right to obtain blocking (restriction of processing) and the
 			right to obtain the controller's access to his or her personal data and information relating
 			to the processing of those data. The data subject shall have the right to request the deletion
-			of his or her data where the conditions set out in Article 20 of the GDPR are met. The data
+			of his or her data where the conditions set out in Article 17 of the GDPR are met. The data
 			subject may withdraw his or her consent at any time. Withdrawal of consent shall not affect
 			the lawfulness of the processing prior to its withdrawal. The data subject may object to the
 			processing of his or her data and may request the erasure of his or her data, provided that
@@ -149,6 +155,21 @@
 			service processes your data.
 		</p>
 
+		<h3>Where profile data comes from</h3>
+		<p>
+			The publications shown on Rankless are drawn from OpenAlex, an openly available bibliographic
+			dataset. Where these records identify a natural person — for example through an author's name,
+			affiliation, and works — they are personal data, and we process them on the basis of our
+			legitimate interest in providing an open tool for exploring scholarly output (GDPR Art.
+			6(1)(f)). Because we obtain this data from OpenAlex rather than from you directly, Article 14
+			of the GDPR applies. Given the number of researchers represented, contacting each individually
+			would involve a disproportionate effort, so — as permitted by Article 14(5)(b) — we provide
+			this information through this public notice instead. You may object to this processing at any
+			time (Art. 21), and you may correct or remove records associated with you, either through the
+			ORCID-authenticated tools on your profile or by emailing adatvedelem@&#8203;uni-corvinus.hu.
+			You do not need to sign in with ORCID to object or to request removal.
+		</p>
+
 		<h3>Signing in with ORCID</h3>
 		<p>
 			Logging in is optional, and only needed if you want to take ownership of a profile. We use
@@ -183,9 +204,22 @@
 		<p>
 			We sometimes show a short, optional survey. If you choose to answer it, we store your
 			responses; if you are signed in, your ORCID iD is stored with them so we can understand who
-			our users are. We do not log your IP address. Answering or dismissing the survey sets a cookie
-			so we don't ask again. The legal basis is our legitimate interest in improving Rankless (GDPR
-			Art. 6(1)(f)).
+			our users are. We do not log your IP address with your survey responses. Answering or
+			dismissing the survey sets a cookie so we don't ask again. The legal basis is our legitimate
+			interest in improving Rankless (GDPR Art. 6(1)(f)).
+		</p>
+
+		<h3>Server logs and audience measurement</h3>
+		<p>
+			Our web server keeps standard access logs, which we analyse ourselves with our own self-hosted
+			tooling to measure traffic and keep the service secure. These logs contain technical data
+			including IP addresses, which are personal data. We process them on the basis of our
+			legitimate interest in the security and audience measurement of the site (GDPR Art. 6(1)(f)).
+			No external analytics or tracking service is involved; the raw logs and their analysis stay on
+			our own AWS-hosted infrastructure (see “Engaging a data processor” above). The traffic
+			statistics we retain are pseudonymised — each IP address is reduced to a salted,
+			non-reversible hash — while the raw access logs containing full IP addresses are deleted after
+			30 days.
 		</p>
 
 		<h3>Cookies</h3>
@@ -208,6 +242,11 @@
 		<ul>
 			<li>The session cookie expires after one day.</li>
 			<li>Ledger edits are kept until you revoke them.</li>
+			<li>
+				Raw server access logs, which contain full IP addresses, are retained for 30 days and then
+				deleted; the pseudonymised traffic statistics derived from them are kept longer for audience
+				measurement.
+			</li>
 			<li>
 				The record that your ORCID iD signed in, and any survey responses, are kept until you ask us
 				to delete them, which you can request using the contact details above.
