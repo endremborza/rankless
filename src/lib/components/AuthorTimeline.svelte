@@ -1,7 +1,12 @@
 <script lang="ts">
 	import type { WorksLoader } from '$lib/utils/works-loader';
 	import type { YearGroup, SortMode } from '$lib/utils/author-timeline';
-	import { buildCoauthors, sortCoauthors, yearDomain, makeTicks } from '$lib/utils/author-timeline';
+	import {
+		buildCoauthors,
+		sortCoauthors,
+		coauthorYearDomain,
+		makeTicks
+	} from '$lib/utils/author-timeline';
 
 	export let works: WorksLoader;
 	export let heroSemanticId: string = '';
@@ -29,7 +34,7 @@
 		sortMode
 	);
 
-	$: domain = yearDomain($works.papers);
+	$: domain = coauthorYearDomain(rows);
 	// Closes over reactive `domain`, so it must stay a `$:`-reassigned function (legacy mode).
 	$: pctOf = (year: number) => ((year - domain.lo) / domain.span) * 100;
 	$: ticks = makeTicks(domain, Math.max(2, Math.min(10, Math.floor((trackWidth || 600) / 64))));

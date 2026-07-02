@@ -91,13 +91,14 @@ export function sortCoauthors(list: CoAuthor[], mode: SortMode): CoAuthor[] {
 	return arr;
 }
 
-export function yearDomain(papers: Paper[]): YearDomain {
+// Axis extent from the co-authors actually shown, not the hero's whole publication span — the ends
+// align to the visible rows so an early/late solo-era with no shown collaborators isn't dead space.
+export function coauthorYearDomain(coauthors: CoAuthor[]): YearDomain {
 	let lo = Infinity;
 	let hi = -Infinity;
-	for (const p of papers) {
-		if (!p.year || p.year <= 0) continue;
-		if (p.year < lo) lo = p.year;
-		if (p.year > hi) hi = p.year;
+	for (const c of coauthors) {
+		if (c.firstYear < lo) lo = c.firstYear;
+		if (c.lastYear > hi) hi = c.lastYear;
 	}
 	if (!Number.isFinite(lo)) return { lo: 0, hi: 0, span: 1 };
 	return { lo, hi, span: Math.max(1, hi - lo) };

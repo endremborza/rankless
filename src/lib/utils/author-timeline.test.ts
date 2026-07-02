@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCoauthors, sortCoauthors, yearDomain, makeTicks } from './author-timeline';
+import { buildCoauthors, sortCoauthors, coauthorYearDomain, makeTicks } from './author-timeline';
 import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
 
 const atts: EntityAttsForLinks = {
@@ -109,18 +109,38 @@ describe('sortCoauthors', () => {
 	});
 });
 
-describe('yearDomain', () => {
-	it('spans min to max of valid years', () => {
-		const d = yearDomain([
-			makePaper({ year: 2005 }),
-			makePaper({ year: 2018 }),
-			makePaper({ year: 0 })
-		]);
-		expect(d).toEqual({ lo: 2005, hi: 2018, span: 13 });
+describe('coauthorYearDomain', () => {
+	it('spans the shown co-authors first/last years', () => {
+		const cs = buildCoauthors(
+			[
+				makePaper({ wid: 1, year: 2005, authorships: [{ author: 'F2', insts: [] }] }),
+				makePaper({ wid: 2, year: 2018, authorships: [{ author: 'F2', insts: [] }] })
+			],
+			atts,
+			disc,
+			'hero'
+		);
+		expect(coauthorYearDomain(cs)).toEqual({ lo: 2005, hi: 2018, span: 13 });
 	});
 
-	it('falls back to a unit span when no years are present', () => {
-		expect(yearDomain([makePaper({ year: 0 })])).toEqual({ lo: 0, hi: 0, span: 1 });
+	it('ignores hero-only years outside the shown co-authors range', () => {
+		// Hero publishes 1990–2024, but the only shown co-author collaborated 2010–2012.
+		const cs = buildCoauthors(
+			[
+				makePaper({ wid: 1, year: 1990, authorships: [{ author: 'F1', insts: [] }] }),
+				makePaper({ wid: 2, year: 2010, authorships: [{ author: 'F2', insts: [] }] }),
+				makePaper({ wid: 3, year: 2012, authorships: [{ author: 'F2', insts: [] }] }),
+				makePaper({ wid: 4, year: 2024, authorships: [{ author: 'F1', insts: [] }] })
+			],
+			atts,
+			disc,
+			'hero'
+		);
+		expect(coauthorYearDomain(cs)).toEqual({ lo: 2010, hi: 2012, span: 2 });
+	});
+
+	it('falls back to a unit span when no co-authors are shown', () => {
+		expect(coauthorYearDomain([])).toEqual({ lo: 0, hi: 0, span: 1 });
 	});
 });
 
