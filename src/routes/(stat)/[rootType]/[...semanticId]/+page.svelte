@@ -118,7 +118,7 @@
 	$: tocSections = [
 		{ id: 'overview', label: 'Overview' },
 		{ id: 'impact', label: 'Impact' },
-		...(isAuthor && authoredHitPapers.length > 0 ? [{ id: 'papers', label: 'Hit Papers' }] : []),
+		...(isAuthor && authoredHitPapers.length > 0 ? [{ id: 'hits', label: 'Hit Papers' }] : []),
 		...(hasPeers ? [{ id: 'peers', label: 'Peers' }] : []),
 		...(showsCountry ? [{ id: 'geography', label: 'Geography' }] : []),
 		...(showsSubfields ? [{ id: 'research-space', label: 'Research Space' }] : []),
