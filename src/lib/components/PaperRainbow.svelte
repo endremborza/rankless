@@ -301,7 +301,7 @@
 			return b.citations - a.citations;
 		});
 
-	$: paperCap = Math.min(40, chartPapers.length);
+	$: paperCap = Math.min(100, chartPapers.length);
 	$: if (maxN > paperCap) maxN = paperCap;
 
 	$: rates = computeYearRates(chartPapers);
