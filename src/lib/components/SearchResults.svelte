@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { pluralize, rootEmoji, formatNumber } from '$lib/text-format-util';
+	import { fixName } from '$lib/name-overrides';
 	import { BE_REMOTE_URL } from '$lib/constants';
 	import type { RootType, SearchResult } from '$lib/tree-types';
 	import { entToLink } from '$lib/tree-functions';
@@ -53,7 +54,7 @@
 			const l: SearchResult[] = await res.json();
 			if (delayedTerm == searchTerm) {
 				results = l.map((e) => {
-					return { ...e, rootType: e.rootType ?? (cat as RootType) };
+					return { ...e, name: fixName(e.name), rootType: e.rootType ?? (cat as RootType) };
 				});
 				activeIndex = -1;
 			}

@@ -1,4 +1,5 @@
 import type { Paper, PaperAuthorship, EntityAttsForLinks } from '$lib/tree-types';
+import { fixName } from '$lib/name-overrides';
 
 export const PRESTIGIOUS_SOURCE_SEM_IDS = new Set(['science', 'nature']);
 
@@ -80,11 +81,14 @@ export function resolveAuthorNameOrNull(
 ): string | null {
 	// entityAtts.authors is keyed by the bare dm_id, but discAuthorNames is keyed by the
 	// full prefixed id ("D{id}") — each branch must use its own key form.
+	let name: string | null;
 	if (ship.author[0] === 'F') {
-		return entityAtts.authors?.[ship.author.slice(1)]?.name ?? null;
+		name = entityAtts.authors?.[ship.author.slice(1)]?.name ?? null;
+	} else {
+		const disc = discAuthorNames[ship.author];
+		name = disc && disc !== DISC_NAME_SENTINEL ? disc : null;
 	}
-	const name = discAuthorNames[ship.author];
-	return name && name !== DISC_NAME_SENTINEL ? name : null;
+	return name == null ? null : fixName(name);
 }
 
 // Combine entity-att maps without clobbering nested per-type records. A shallow spread would

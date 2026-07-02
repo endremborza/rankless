@@ -2,6 +2,7 @@
 	import type { AttributeLabels, AttributeLabel, OaPaperResp } from '$lib/tree-types';
 	import { onMount } from 'svelte';
 	import { getCachedPaper, prefetchPaper } from '$lib/stores';
+	import { fixName } from '$lib/name-overrides';
 
 	export let workId: number;
 	export let citeText: string;
@@ -62,7 +63,7 @@
 					break;
 				}
 			}
-			outAuthors.push({ name: aship.name, link: aship.link, isOfInst });
+			outAuthors.push({ name: fixName(aship.name), link: aship.link, isOfInst });
 		}
 		authors = outAuthors.sort((l, r) => Number(r.isOfInst) - Number(l.isOfInst));
 	}
