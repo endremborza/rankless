@@ -235,8 +235,8 @@
 </section>
 
 {#if isAuthor && authoredHitPapers.length > 0}
-	<section id="papers" class="shadowy padded marged main-block">
-		<h2>{data.view.name}'s Hit Papers</h2>
+	<section id="hits" class="shadowy padded marged main-block">
+		<h2 id="papers">{data.view.name}'s Hit Papers</h2>
 		<PaperRainbow
 			papers={authoredHitPapers}
 			{entityAtts}
