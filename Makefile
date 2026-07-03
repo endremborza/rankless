@@ -1,10 +1,10 @@
 -include .env
 export
 
-.PHONY: bootstrap dev build-nano-artifact py-build
+.PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore
 .PHONY: check format check-rs check-py check-js format-rs format-py format-js
 
-PY_LINT_PATHS := pyscripts sql-yardstick
+PY_LINT_PATHS := pyscripts sql-yardstick mcp_server
 
 # Read-only verification gate. Run before every change; must be clean.
 check: check-rs check-py check-js
@@ -40,6 +40,15 @@ bootstrap:
 
 dev:
 	uv run -m pyscripts.dev.run
+
+# MCP proxy over the backend (stdio); see docs/mcp-server.md.
+mcp-server:
+	uv run -m mcp_server
+
+# Agentic deep exploration via the MCP tools; writes to .cril/writeups/.
+# e.g. make deep-explore ARGS="--backend live --foci all"
+deep-explore:
+	uv run -m pyscripts.explore.deep $(ARGS)
 
 build-nano-artifact:
 	uv run -m pyscripts.dev.build_nano_artifact

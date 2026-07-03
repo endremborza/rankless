@@ -20,6 +20,8 @@ dependencies = [
     "sqlalchemy>=2.0.46",
     "sqlmermaid>=0.1.4",
     "anthropic>=0.52.0",
+    "mcp>=1.28.1",
+    "httpx>=0.28.1",
 ]
 
 [tool.uv.sources]
