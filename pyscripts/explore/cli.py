@@ -5,6 +5,7 @@ import subprocess
 
 MODELS = {
     "sonnet": "claude-sonnet-4-6",
+    "sonnet-5": "claude-sonnet-5",
     "opus": "claude-opus-4-8",
 }
 DEFAULT_MODEL = "sonnet"

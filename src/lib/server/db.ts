@@ -51,6 +51,23 @@ export function getDb(): Database {
 			created_at TEXT NOT NULL DEFAULT (datetime('now')),
 			expires_at TEXT NOT NULL
 		);
+		-- MCP exploration sessions: index/metadata; the artifacts (report.md,
+		-- findings.json, reproduce.md) live in $MCP_SESSIONS_ROOT/<name>/. The
+		-- Python worker writes rows here too (via its own sqlite3 on this file).
+		CREATE TABLE IF NOT EXISTS mcp_sessions (
+			name TEXT PRIMARY KEY,
+			orcid TEXT,
+			status TEXT NOT NULL DEFAULT 'queued',
+			visibility TEXT NOT NULL DEFAULT 'private',
+			title TEXT,
+			params TEXT NOT NULL,
+			meta TEXT,
+			error TEXT,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+		);
+		CREATE INDEX IF NOT EXISTS idx_mcp_vis ON mcp_sessions(visibility, status);
+		CREATE INDEX IF NOT EXISTS idx_mcp_status ON mcp_sessions(status);
 	`);
 	return _db;
 }

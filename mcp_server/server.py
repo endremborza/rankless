@@ -1,4 +1,11 @@
-"""FastMCP wiring: registers tools, resources and prompts; stdio transport."""
+"""FastMCP wiring: registers tools, resources and prompts.
+
+Default transport is stdio (local proxy for Claude Code / Desktop). For the
+hosted public endpoint, run with `--transport streamable-http` behind nginx.
+"""
+
+import argparse
+import os
 
 from mcp.server.fastmcp import FastMCP
 
@@ -26,4 +33,16 @@ for _uri, _text in RESOURCES.items():
 
 
 def main() -> None:
-    mcp.run()
+    p = argparse.ArgumentParser(description="Rankless MCP server.")
+    p.add_argument(
+        "--transport",
+        default=os.environ.get("MCP_TRANSPORT", "stdio"),
+        choices=["stdio", "sse", "streamable-http"],
+    )
+    p.add_argument("--host", default=os.environ.get("MCP_HOST", "127.0.0.1"))
+    p.add_argument("--port", type=int, default=int(os.environ.get("MCP_PORT", "8000")))
+    args = p.parse_args()
+    if args.transport != "stdio":
+        mcp.settings.host = args.host
+        mcp.settings.port = args.port
+    mcp.run(transport=args.transport)

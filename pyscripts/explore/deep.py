@@ -1,31 +1,37 @@
 """Agentic deep exploration over a live rankless backend via the MCP tools.
 
     uv run -m pyscripts.explore.deep --backend live --foci all \
-        [--question "..."] [--model opus] [--sample 8] [--out my-run]
+        [--subject "César Hidalgo"] [--question "..."] \
+        [--investigate <run>[:<id>]] [--model opus] [--sample 8] [--out my-run]
 
 One run drives a headless Claude session with the rankless MCP tools
 (mcp_server/) pointed at a chosen backend. The agent produces findings; this
 module then RE-ISSUES every cited number deterministically through the same
 tool functions, so the published numbers come from reproduction, not from the
-model. Output (a report + machine-readable findings) lands in
-`.cril/writeups/explorations/<run>/`.
+model.
 
-Findings are separated by `--foci`:
-- share      -> interesting, shareable findings (share_kind: entity-value /
-                comparison / strengths-weaknesses / analysis / other).
-- query      -> the result of a specific investigation (drive one with
-                --question, or let the agent pick meaningful ones).
-- data-issue -> a possible data problem: an investigation setup, or one
-                correctable with a single ledger entry (LedgerPayload shape).
+Output lands in `.cril/writeups/explorations/<run>/`:
+- report.md   -> the stories only (prose + entity links), linking out
+- reproduce.md -> per-finding numbers table + the exact calls (+ curl)
+- findings.json -> machine-readable findings incl. reproduced values + ids
+- ledger-suggestions.jsonl -> data-issue fixes in LedgerPayload shape
+plus a one-line-per-run record appended to explorations/runs.jsonl.
 
-A session can also surface `endpoint_suggestions`: backend endpoints that don't
-exist yet but would unlock better stories / easier insight (--suggest-endpoints,
-on by default).
+Scoping options:
+- --foci        share / query / data-issue (or all); default query when
+                --investigate/--question is set, else share.
+- --subject     center the whole round on one entity/scope ("Hungary", a
+                person, or a typed ref like `authors:balazs-lengyel`).
+- --question    a specific investigation for the query focus.
+- --investigate deepen a past finding: `<run>` or `<run>:<id>` (finding ids
+                are `f1`, `f2`, ... in that run's findings.json).
+- --suggest-endpoints  propose missing backend endpoints (on by default).
 """
 
 import argparse
 import asyncio
 import json
+import os
 import re
 import sys
 import time
@@ -46,7 +52,11 @@ BACKENDS = {
     "live": "https://alpha-api.rankless.org/v1",
 }
 FOCI = ("share", "query", "data-issue")
-WRITEUPS_DIR = Path(".cril/writeups/explorations")
+# Output root: personal PKM by default, overridable (env or --out-root) so the
+# host worker can write runs into the served sessions store instead.
+WRITEUPS_DIR = Path(
+    os.environ.get("RANKLESS_WRITEUPS_DIR", ".cril/writeups/explorations")
+)
 ALLOWED_TOOLS = "mcp__rankless"
 MAX_TURNS = 120
 TIMEOUT_S = 3600
@@ -102,22 +112,28 @@ class DeepConfig:
     foci: list[str]
     suggest_endpoints: bool
     question: str | None
+    subject: str | None
+    investigate: dict | None
     seeds: list[dict]
     sample: int
     out_dir: Path
 
 
 def main() -> int:
-    args = _parse_args()
+    args = build_parser().parse_args()
     backend_url, backend_label = _resolve_backend(args.backend)
-    foci = list(FOCI) if args.foci == "all" else _split(args.foci)
+    investigate = _load_investigation(args.investigate) if args.investigate else None
+    foci_arg = args.foci or ("query" if (investigate or args.question) else "share")
+    foci = list(FOCI) if foci_arg == "all" else _split(foci_arg)
     if bad := [f for f in foci if f not in FOCI]:
         print(f"ERROR: unknown foci {bad}; choose from {list(FOCI)} or 'all'.")
         return 2
 
-    seeds = evidence.sample_snapshots(_load_seeds(), args.sample)
+    # A subject- or investigation-scoped round centers on that target, so random
+    # snapshot seeds would only dilute it.
+    focused = bool(args.subject or investigate)
+    seeds = [] if focused else evidence.sample_snapshots(_load_seeds(), args.sample)
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
-    out_name = args.out or f"{backend_label}-{stamp}"
     config = DeepConfig(
         model=cli.resolve_model(args.model),
         backend_url=backend_url,
@@ -125,14 +141,19 @@ def main() -> int:
         foci=foci,
         suggest_endpoints=args.suggest_endpoints,
         question=args.question,
+        subject=args.subject,
+        investigate=investigate,
         seeds=seeds,
         sample=args.sample,
-        out_dir=WRITEUPS_DIR / out_name,
+        out_dir=Path(args.out_root) / (args.out or f"{backend_label}-{stamp}"),
     )
 
     print(
         f"[deep] mining {config.backend_label} ({config.backend_url}) with "
-        f"{config.model}; foci={','.join(foci)}; {len(seeds)} seed(s)."
+        f"{config.model}; foci={','.join(foci)}"
+        + (f"; subject={config.subject!r}" if config.subject else "")
+        + (f"; investigate={investigate['ref']!r}" if investigate else "")
+        + f"; {len(seeds)} seed(s)."
     )
     t0 = time.monotonic()
     raw = _mine(config)
@@ -141,6 +162,8 @@ def main() -> int:
     if parsed is None:
         return 1
     findings, suggestions = parsed
+    for i, finding in enumerate(findings, 1):
+        finding["id"] = f"f{i}"
     t1 = time.monotonic()
     asyncio.run(_reproduce(findings, config))
     timing = {
@@ -160,7 +183,7 @@ def main() -> int:
     return 0
 
 
-def _parse_args() -> argparse.Namespace:
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Agentic deep exploration via MCP.")
     p.add_argument(
         "--backend",
@@ -169,11 +192,24 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument(
         "--foci",
-        default="share",
-        help=f"comma list of {list(FOCI)} or 'all' (default: share).",
+        default=None,
+        help=(
+            f"comma list of {list(FOCI)} or 'all' "
+            "(default: query when --investigate/--question, else share)."
+        ),
+    )
+    p.add_argument(
+        "--subject",
+        default=None,
+        help="center the round on one entity/scope, e.g. 'Hungary' or 'authors:balazs-lengyel'.",
     )
     p.add_argument(
         "--question", default=None, help="a specific investigation for the query focus."
+    )
+    p.add_argument(
+        "--investigate",
+        default=None,
+        help="deepen a past finding: '<run>' or '<run>:<id>' under the writeups dir.",
     )
     p.add_argument(
         "--suggest-endpoints",
@@ -189,10 +225,13 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--sample", type=int, default=DEFAULT_SAMPLE, help="seed entity count."
     )
+    p.add_argument("--out", default=None, help="run dir name under the output root.")
     p.add_argument(
-        "--out", default=None, help="run dir name under .cril/writeups/explorations."
+        "--out-root",
+        default=str(WRITEUPS_DIR),
+        help=f"output root dir (default: {WRITEUPS_DIR}).",
     )
-    return p.parse_args()
+    return p
 
 
 def _resolve_backend(arg: str) -> tuple[str, str]:
@@ -201,6 +240,19 @@ def _resolve_backend(arg: str) -> tuple[str, str]:
     if arg.startswith("http"):
         return arg.rstrip("/"), "custom"
     raise SystemExit(f"--backend must be one of {list(BACKENDS)} or an http(s) URL.")
+
+
+def _load_investigation(ref: str) -> dict:
+    run, _, fid = ref.partition(":")
+    path = WRITEUPS_DIR / run / "findings.json"
+    if not path.exists():
+        raise SystemExit(f"--investigate: no findings.json at {path}")
+    findings = json.loads(path.read_text()).get("findings", [])
+    if fid:
+        findings = [f for f in findings if f.get("id") == fid]
+        if not findings:
+            raise SystemExit(f"--investigate: finding {fid!r} not found in {run!r}")
+    return {"ref": ref, "run": run, "findings": findings}
 
 
 def _load_seeds() -> list[dict]:
@@ -245,9 +297,8 @@ def _system_prompt(config: DeepConfig) -> str:
         "get_citation_tree, get_papers, get_peers, lookup_orcid).",
         "",
         "Resolve every name to a semantic_id with the tools before using it; "
-        "disambiguate homonyms by paper/citation counts. Follow the data beyond "
-        "the seed entities - compare peers, pull hit papers, check which fields "
-        "an entity's work feeds into.",
+        "disambiguate homonyms by paper/citation counts. Follow the data - compare "
+        "peers, pull hit papers, check which fields an entity's work feeds into.",
         "",
         "Every number you report MUST come from a tool call you made this "
         "session. For each number, record the exact `tool`, `args`, and a dotted "
@@ -286,7 +337,8 @@ Respond with ONLY a JSON object (no markdown fences):
 {{"findings": [
   {{"focus": "{"|".join(config.foci)}",
     "title": "punchy title",
-    "description": "2-5 plain sentences: the story / answer / issue",
+    "description": "2-5 plain sentences: the story / answer / issue, with the key "
+                   "numbers woven in (this is the only prose a reader sees)",
     "share_kind": "entity-value|comparison|strengths-weaknesses|analysis|other|null",
     "issue_kind": "investigation|ledger-fix|null",
     "question": "the exact question answered, or null",
@@ -302,10 +354,49 @@ Use only the requested foci. Return [] for any section you have nothing for."""
 
 
 def _user_prompt(config: DeepConfig) -> str:
+    if config.investigate:
+        return _investigate_prompt(config)
+    if config.subject:
+        return (
+            f"Center this entire round on: {config.subject}\n\n"
+            "Resolve it first (it may be an entity name, a country, a field, or an "
+            "`etype:semantic_id` ref). Build every finding around it and its immediate "
+            "neighborhood - its production and standout works, its peers, its co-authors "
+            "or related entities, and the fields it feeds into or draws from. Prefer the "
+            "specific and less-obvious over generic famous entities."
+        )
     if not config.seeds:
         return "No seed entities provided - start from get_top_entities()."
     lines = ["Seed entities (starting points only - explore beyond them):", ""]
     lines += [f"- {s['name']} ({s['rootType']}) {s['url']}" for s in config.seeds]
+    return "\n".join(lines)
+
+
+def _investigate_prompt(config: DeepConfig) -> str:
+    inv = config.investigate
+    lines = [
+        f'You are deepening prior finding(s) from exploration "{inv["run"]}". Go '
+        "beyond restating them: verify they still hold, explain the mechanism, surface "
+        "related entities and adjacent findings, note caveats, and test whether they "
+        "generalize.",
+    ]
+    if config.subject:
+        lines.append(f"\nStay centered on: {config.subject}")
+    lines.append("\nPrior finding(s):")
+    for f in inv["findings"]:
+        nums = "; ".join(
+            f"{m.get('label', m.get('key'))}={m.get('reproduced')}"
+            for m in f.get("metrics", [])
+            if not m.get("error")
+        )
+        lines += [
+            f"\n--- {f.get('id')}: {f.get('title')} ---",
+            f.get("description", ""),
+        ]
+        if nums:
+            lines.append(f"Numbers: {nums}")
+        if ents := f.get("entities"):
+            lines.append("Entities: " + ", ".join(ents))
     return "\n".join(lines)
 
 
@@ -392,14 +483,17 @@ def _write(
         "backendUrl": config.backend_url,
         "model": config.model,
         "foci": config.foci,
+        "subject": config.subject,
         "question": config.question,
+        "investigate": config.investigate["ref"] if config.investigate else None,
         "generated": stamp,
         "seedCount": len(config.seeds),
         "runtimeSeconds": timing,
         "counts": _counts(findings, suggestions),
     }
     report = config.out_dir / "report.md"
-    report.write_text(_render(findings, suggestions, config, meta))
+    report.write_text(_render_report(findings, suggestions, config, meta))
+    (config.out_dir / "reproduce.md").write_text(_render_reproduce(findings, config))
     (config.out_dir / "findings.json").write_text(
         json.dumps(
             {"meta": meta, "findings": findings, "endpointSuggestions": suggestions},
@@ -438,60 +532,56 @@ def _counts(findings: list[dict], suggestions: list[dict]) -> dict:
 
 
 def _append_runs_log(config: DeepConfig, meta: dict) -> None:
-    """One compact line per run in a shared log, for cross-run history."""
-    WRITEUPS_DIR.mkdir(parents=True, exist_ok=True)
+    """One compact line per run in a shared log (in the output root)."""
+    root = config.out_dir.parent
+    root.mkdir(parents=True, exist_ok=True)
     record = {"out": config.out_dir.name, **meta}
-    with (WRITEUPS_DIR / "runs.jsonl").open("a") as fh:
+    with (root / "runs.jsonl").open("a") as fh:
         fh.write(json.dumps(record) + "\n")
 
 
-def _render(
+def _render_report(
     findings: list[dict], suggestions: list[dict], config: DeepConfig, meta: dict
 ) -> str:
+    """The stories only: prose + entity links + a link out to the numbers."""
     n_ok = sum(f["_verified"] for f in findings)
     rt, c = meta["runtimeSeconds"], meta["counts"]
     out = [
         f"# Deep exploration — {config.backend_label}",
         "",
         f"_Backend `{config.backend_url}` · model `{config.model}` · foci "
-        f"`{', '.join(config.foci)}` · {meta['seedCount']} seeds · {meta['generated']}._  ",
+        f"`{', '.join(config.foci)}` · {meta['generated']}._  ",
         f"_{len(findings)} finding(s), {n_ok} fully reproduced; "
         f"{c['metricsReproduced']}/{c['metrics']} numbers reproduced"
         + (f", {c['metricsMismatch']} mismatch" if c["metricsMismatch"] else "")
         + (f", {c['metricsError']} error" if c["metricsError"] else "")
-        + f". Mined in {rt['mine']}s, reproduced in {rt['reproduce']}s. Numbers below "
-        "are re-issued from the backend, not model-generated._",
+        + f". Mined in {rt['mine']}s. Numbers and reproduction calls: "
+        "[reproduce.md](reproduce.md) · [findings.json](findings.json)._",
         "",
     ]
-    if config.question:
-        out += [f"**Investigation:** {config.question}", ""]
+    for label, value in (
+        ("Subject", config.subject),
+        ("Investigation", config.question),
+        ("Deepening", meta["investigate"]),
+    ):
+        if value:
+            out += [f"**{label}:** {value}", ""]
     for focus in config.foci:
         group = [f for f in findings if f.get("focus") == focus]
         if not group:
             continue
         out += [f"## {focus} ({len(group)})", ""]
-        out += [line for f in group for line in _render_finding(f, config)]
-    if suggestions:
-        out += ["## Suggested new endpoints", ""]
-        for s in suggestions:
-            out += [
-                f"### `{s.get('name', '?')}`",
-                f"- **Rationale:** {s.get('rationale', '')}",
-                f"- **Unlocks:** {s.get('unlocks', '')}",
-                "",
-            ]
+        out += [line for f in group for line in _render_story(f)]
+    out += _render_suggestions(suggestions)
     return "\n".join(out).rstrip() + "\n"
 
 
-def _render_finding(finding: dict, config: DeepConfig) -> list[str]:
+def _render_story(finding: dict) -> list[str]:
     metrics = finding.get("metrics", [])
     n_bad = sum(1 for m in metrics if not m["ok"])
-    if not metrics:
-        badge = "— no numbers"
-    elif n_bad:
-        badge = f"✗ {n_bad} unverified"
-    else:
-        badge = "✓ reproduced"
+    badge = (
+        "— no numbers" if not metrics else (f"✗ {n_bad} unverified" if n_bad else "✓")
+    )
     tags = [t for t in (finding.get("share_kind"), finding.get("issue_kind")) if t]
     heading = f"### {finding.get('title', 'Untitled')}  `{badge}`"
     if tags:
@@ -500,13 +590,58 @@ def _render_finding(finding: dict, config: DeepConfig) -> list[str]:
     if q := finding.get("question"):
         out += [f"**Q:** {q}", ""]
     out += [finding.get("description", ""), ""]
-
+    if sug := finding.get("ledger_suggestion"):
+        out += [f"**Ledger fix:** `{sug.get('kind')}` — {sug.get('note', '')}", ""]
+    footer = (
+        [f"_Entities: {', '.join(f'<{e}>' for e in finding['entities'])}_"]
+        if (finding.get("entities"))
+        else []
+    )
     if metrics:
-        out += ["**Numbers** (reproduced from the backend):", ""]
-        out += ["| Metric | Value |", "| --- | --- |"]
-        for m in metrics:
-            out.append(f"| {m.get('label', m.get('key', ''))} | {_cell(m)} |")
-        out += ["", "**Reproduce:**"]
+        footer.append(f"[numbers & reproduction →](reproduce.md#{finding.get('id')})")
+    if footer:
+        out += [" · ".join(footer), ""]
+    return out
+
+
+def _render_suggestions(suggestions: list[dict]) -> list[str]:
+    if not suggestions:
+        return []
+    out = ["## Suggested new endpoints", ""]
+    for s in suggestions:
+        out += [
+            f"### `{s.get('name', '?')}`",
+            f"- **Rationale:** {s.get('rationale', '')}",
+            f"- **Unlocks:** {s.get('unlocks', '')}",
+            "",
+        ]
+    return out
+
+
+def _render_reproduce(findings: list[dict], config: DeepConfig) -> str:
+    """The numbers and the exact calls that produce them, anchored per finding."""
+    out = [
+        f"# Reproduction — {config.out_dir.name}",
+        "",
+        f"_Numbers re-issued from `{config.backend_url}`. Each is an MCP tool call plus "
+        "a dotted path into its JSON result; the `curl` is the equivalent raw backend "
+        "call. Stories: [report.md](report.md)._",
+        "",
+    ]
+    for finding in findings:
+        metrics = finding.get("metrics", [])
+        if not metrics:
+            continue
+        fid = finding.get("id")
+        out += [
+            f'<a id="{fid}"></a>',
+            f"## {fid} — {finding.get('title', 'Untitled')}",
+            "",
+            "| Metric | Value |",
+            "| --- | --- |",
+        ]
+        out += [f"| {m.get('label', m.get('key', ''))} | {_cell(m)} |" for m in metrics]
+        out += ["", "**Calls:**"]
         for m in metrics:
             out.append(
                 f"- `{m.get('tool')}({json.dumps(m.get('args', {}))})` → `{m.get('path')}`"
@@ -514,11 +649,7 @@ def _render_finding(finding: dict, config: DeepConfig) -> list[str]:
             if curl := _curl(m, config.backend_url):
                 out.append(f"  - `{curl}`")
         out.append("")
-    if sug := finding.get("ledger_suggestion"):
-        out += [f"**Ledger fix:** `{sug.get('kind')}` — {sug.get('note', '')}", ""]
-    entities = ", ".join(f"<{e}>" for e in finding.get("entities", []))
-    out += [f"_Entities: {entities or '—'}_", ""]
-    return out
+    return "\n".join(out).rstrip() + "\n"
 
 
 def _cell(metric: dict) -> str:

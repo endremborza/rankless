@@ -1,7 +1,7 @@
 -include .env
 export
 
-.PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore
+.PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest mcp-worker mcp-seed
 .PHONY: check format check-rs check-py check-js format-rs format-py format-js
 
 PY_LINT_PATHS := pyscripts sql-yardstick mcp_server
@@ -49,6 +49,23 @@ mcp-server:
 # e.g. make deep-explore ARGS="--backend live --foci all"
 deep-explore:
 	uv run -m pyscripts.explore.deep $(ARGS)
+
+# Cross-language type/API-shape coherence audit; see docs/type-audit.md.
+# ARGS="--strict" also fails on warnings.
+type-audit:
+	uv run -m pyscripts.typeaudit $(ARGS)
+
+# Bake the /mcp demo page manifest from the live tool/prompt sources.
+mcp-manifest:
+	uv run -m pyscripts.build_mcp_manifest $(ARGS)
+
+# Host worker for admin-created exploration sessions (systemd in prod).
+mcp-worker:
+	uv run -m pyscripts.mcp_worker $(ARGS)
+
+# Seed the public sessions store from existing writeups.
+mcp-seed:
+	uv run -m pyscripts.mcp_seed $(ARGS)
 
 build-nano-artifact:
 	uv run -m pyscripts.dev.build_nano_artifact

@@ -1,0 +1,281 @@
+{
+  "generated": "2026-07-03",
+  "connect": {
+    "url": "https://alpha-api.rankless.org/mcp",
+    "transport": "streamable-http",
+    "snippets": [
+      {
+        "label": "Claude Code",
+        "cmd": "claude mcp add --transport http rankless https://alpha-api.rankless.org/mcp"
+      },
+      {
+        "label": "MCP config (.mcp.json / Cursor / Desktop)",
+        "cmd": "{\n  \"mcpServers\": {\n    \"rankless\": {\n      \"type\": \"http\",\n      \"url\": \"https://alpha-api.rankless.org/mcp\"\n    }\n  }\n}"
+      },
+      {
+        "label": "Or run the stdio proxy against the public REST API",
+        "cmd": "RANKLESS_BE_URL=https://alpha-api.rankless.org/v1 uv run -m mcp_server"
+      }
+    ]
+  },
+  "tools": [
+    {
+      "name": "search_entities",
+      "endpoint": "/v1/names/{entity_type}",
+      "summary": "Search entities by name; the ONLY legitimate way to turn a name into ids.",
+      "description": "Search entities by name; the ONLY legitimate way to turn a name into ids.\n\nAlways resolve names through this (or lookup_orcid) before using a\nsemantic_id — never guess ids. entity_type: one of authors, institutions,\nsources, countries, subfields, or \"all\". Returns matches with semanticId,\npapers, citations and a rankless_url backlink."
+    },
+    {
+      "name": "get_top_entities",
+      "endpoint": "/v1/tops",
+      "summary": "Top entities per type (institutions, authors, sources, countries, subfields).",
+      "description": "Top entities per type (institutions, authors, sources, countries, subfields).\n\nGood starting seeds when exploring without a specific target."
+    },
+    {
+      "name": "get_entity_profile",
+      "endpoint": "/v1/views/{entity_type}/{semantic_id}",
+      "summary": "Full profile of one entity: totals, yearly series, top relations, similars.",
+      "description": "Full profile of one entity: totals, yearly series, top relations, similars.\n\n`yearlyPapers`/`yearlyCites` cover the recent era (2016..now). `relations`\nholds ranked related entities per relation type (paper-fields,\nciting-fields, paper-journals, paper-authors, ...)."
+    },
+    {
+      "name": "get_entity_stats",
+      "endpoint": "/v1/stats/{entity_type}/{semantic_id}",
+      "summary": "Lifetime + year-windowed paper/citation counts, top citing subfields.",
+      "description": "Lifetime + year-windowed paper/citation counts, top citing subfields.\n\nThe per-year window only covers the recent era (2016..now); `windowFrom`/\n`windowTo` in the response show the clamped range actually used. Pass\n`subfield` (a subfields semantic_id) for that subfield's citation slice."
+    },
+    {
+      "name": "get_citation_tree",
+      "endpoint": "/v1/trees/{entity_type}/{semantic_id}",
+      "summary": "Hierarchical citation-impact breakdown of an entity, flattened to top-N.",
+      "description": "Hierarchical citation-impact breakdown of an entity, flattened to top-N.\n\n`tree_index` picks a breakdown config (see `levels` in the response for\nwhat each level means); `since_year` is a single lower cutoff.\n`citationLinks` counts citation links into a node, `sourceWorks` counts\nthe entity's own works under it."
+    },
+    {
+      "name": "get_papers",
+      "endpoint": "/v1/works/{entity_type}/{semantic_id}/{offset}",
+      "summary": "Papers of an entity. sort=\"citations\" ranks by citation count first.",
+      "description": "Papers of an entity. sort=\"citations\" ranks by citation count first.\n\nReturns paper title, year, doi and citation count."
+    },
+    {
+      "name": "get_peers",
+      "endpoint": "/v1/peers/{entity_type}/{semantic_id}",
+      "summary": "Peer entities (comparable size + field profile) and top subfields.",
+      "description": "Peer entities (comparable size + field profile) and top subfields."
+    },
+    {
+      "name": "lookup_orcid",
+      "endpoint": "/v1/orcid/{orcid}",
+      "summary": "Resolve an ORCID iD (e.g. 0000-0001-7896-6217) to a rankless author.",
+      "description": "Resolve an ORCID iD (e.g. 0000-0001-7896-6217) to a rankless author."
+    }
+  ],
+  "foci": [
+    {
+      "name": "share",
+      "description": "genuinely interesting, TRUE, shareable findings: surprising rankings, striking trends, unexpected cross-field impact, David-vs-Goliath comparisons, human-interest angles. Classify each with `share_kind`: entity-value (spotlight one entity's standing), comparison (two+ entities), strengths-weaknesses (where an entity dominates vs lags), analysis (a deeper multi-number read), or other."
+    },
+    {
+      "name": "query",
+      "description": "the result of a specific investigation. Report the answer plainly in `description`, set `question` to the exact question answered, and back it with metrics."
+    },
+    {
+      "name": "data-issue",
+      "description": "possible data problems: implausible counts, duplicates, zeros, extreme outliers, wrong attributions, garbled/mojibake names, mismatched field/journal mappings. Set `issue_kind`: \"ledger-fix\" if a single logged-in user edit would correct it - then fill `ledger_suggestion` (kind one of merge_authors / merge_papers / claim_paper / disown_paper / add_paper_request, a human `note`, and any ids/names you can infer in `details`; omit ids you cannot see) - or \"investigation\" if it needs more digging first."
+    }
+  ],
+  "options": [
+    {
+      "flag": "--backend",
+      "help": "one of ['local', 'live'] or a full /v1 base URL (default: local)."
+    },
+    {
+      "flag": "--foci",
+      "help": "comma list of ['share', 'query', 'data-issue'] or 'all' (default: query when --investigate/--question, else share)."
+    },
+    {
+      "flag": "--subject",
+      "help": "center the round on one entity/scope, e.g. 'Hungary' or 'authors:balazs-lengyel'."
+    },
+    {
+      "flag": "--question",
+      "help": "a specific investigation for the query focus."
+    },
+    {
+      "flag": "--investigate",
+      "help": "deepen a past finding: '<run>' or '<run>:<id>' under the writeups dir."
+    }
+  ],
+  "resources": [
+    {
+      "uri": "rankless://schema/entity-types",
+      "text": "# Rankless entity types\n\nRoot types (valid `entity_type` values): authors, institutions, sources,\ncountries, subfields.\n\n- sources = journals/venues.\n- subfields = the discipline level used everywhere (the UI calls them\n  \"Fields\"); topics nest under subfields.\n- semantic_id is the stable slug identifying an entity (e.g. authors/\n  david-baker, institutions/nyu). Ids must come from search_entities /\n  lookup_orcid — never guessed.\n- citations are counted over the recent era (2016..now) unless stated\n  otherwise; `papers` counts the full lifetime."
+    },
+    {
+      "uri": "rankless://guide/agent",
+      "text": "# Using the rankless tools\n\n1. Resolve first: turn every name into a semantic_id via search_entities (or\n   lookup_orcid). Disambiguate homonyms by papers/citations/distinctText.\n2. Aggregate second: get_entity_profile / get_entity_stats / get_citation_tree\n   / get_peers / get_papers over resolved ids.\n3. Every response carries rankless_url backlinks - cite them so humans can\n   verify.\n4. All numbers are deterministic backend aggregates; the same call always\n   returns the same value. Never invent or extrapolate numbers."
+    }
+  ],
+  "prompts": [
+    {
+      "name": "author_impact_report",
+      "description": "Structured research-impact report for one author."
+    }
+  ],
+  "commands": [
+    {
+      "label": "Story mining (live)",
+      "cmd": "make deep-explore ARGS='--backend live --foci share'"
+    },
+    {
+      "label": "A specific subject",
+      "cmd": "make deep-explore ARGS='--backend live --subject \"Hungary\"'"
+    },
+    {
+      "label": "Deepen a past finding",
+      "cmd": "make deep-explore ARGS='--investigate live-demo:f5'"
+    },
+    {
+      "label": "Run the MCP server",
+      "cmd": "make mcp-server"
+    }
+  ],
+  "showcase": {
+    "subject": "Balázs Lengyel",
+    "backend": "live",
+    "model": "claude-sonnet-4-6",
+    "counts": {
+      "findings": 5,
+      "byFocus": {
+        "share": 5
+      },
+      "reproducedFindings": 5,
+      "metrics": 18,
+      "metricsReproduced": 18,
+      "metricsMismatch": 0,
+      "metricsError": 0,
+      "endpointSuggestions": 2
+    },
+    "runtimeSeconds": {
+      "mine": 235.2,
+      "reproduce": 0.8,
+      "total": 236.1
+    },
+    "findings": [
+      {
+        "id": "f1",
+        "title": "Lengyel's Citations Quintupled in 8 Years — and Kept Climbing",
+        "focus": "share",
+        "shareKind": "analysis",
+        "description": "Balázs Lengyel earned just 30 citations in 2016; by 2023 that figure had climbed to 155 per year — a 5× surge sustained across six of those seven years with no single-paper spike to explain it. The structural shift is striking: 859 of his 995 lifetime citations (86%) have accumulated since 2016, meaning his entire pre-2016 body of work had generated only 136 cumulative citations. This is the citation curve of an accelerating scholar, not a plateau.",
+        "entities": [
+          "https://rankless.org/authors/balazs-lengyel"
+        ],
+        "numbers": [
+          {
+            "label": "Citations in 2016",
+            "value": 30,
+            "tool": "get_entity_stats",
+            "path": "yearlyCites[0]"
+          },
+          {
+            "label": "Citations in 2023 (peak)",
+            "value": 155,
+            "tool": "get_entity_stats",
+            "path": "yearlyCites[7]"
+          },
+          {
+            "label": "Citations 2016–2026",
+            "value": 859,
+            "tool": "get_entity_stats",
+            "path": "windowCitations"
+          },
+          {
+            "label": "Lifetime citations",
+            "value": 995,
+            "tool": "get_entity_stats",
+            "path": "citations"
+          }
+        ]
+      },
+      {
+        "id": "f2",
+        "title": "A Regional Economist Earning 77 Physics Citations He Never Sought",
+        "focus": "share",
+        "shareKind": "entity-value",
+        "description": "Statistical and Nonlinear Physics — a field Lengyel has no papers in — is his 7th largest citing subfield, with 77 citations. The conduit is his co-author János Kertész, a 12,051-citation complex-network physicist whose primary field is Statistical Physics. Their 4 joint papers on social network geographies and urban inequality dragged Lengyel's work into the citation graphs of complex-systems researchers who would never normally read a regional economics journal. It is a rare case of disciplinary arbitrage: economics questions answered with physics tools, cited back enthusiastically by both communities.",
+        "entities": [
+          "https://rankless.org/authors/balazs-lengyel",
+          "https://rankless.org/authors/janos-kertesz"
+        ],
+        "numbers": [
+          {
+            "label": "Citations from Statistical & Nonlinear Physics (Lengyel)",
+            "value": 77,
+            "tool": "get_entity_stats",
+            "path": "topSubfields[6].citations"
+          },
+          {
+            "label": "Lifetime citations (Kertész)",
+            "value": 12051,
+            "tool": "get_entity_profile",
+            "path": "citations"
+          },
+          {
+            "label": "Joint papers with Kertész",
+            "value": 4,
+            "tool": "get_entity_profile",
+            "path": "relations.paper-authors[4].count"
+          }
+        ]
+      },
+      {
+        "id": "f3",
+        "title": "Same h-Index as the Peer Group Leader — With 23% Fewer Citations",
+        "focus": "share",
+        "shareKind": "comparison",
+        "description": "Among the 10 comparable scholars Rankless pairs Lengyel with, he ties for the highest h-index at 17, matching UK-based Panos Panagiotopoulos who has 1,229 citations to Lengyel's 995. Achieving equal depth of impact with 234 fewer raw citations signals that Lengyel's output is unusually evenly cited — a larger fraction of his 72 papers individually clear the threshold — rather than a small cluster of blockbusters lifting a weak average.",
+        "entities": [
+          "https://rankless.org/authors/balazs-lengyel",
+          "https://rankless.org/authors/panos-panagiotopoulos"
+        ],
+        "numbers": [
+          {
+            "label": "h-index (Lengyel)",
+            "value": 17,
+            "tool": "get_peers",
+            "path": "hero.hIndex"
+          },
+          {
+            "label": "Citations (Lengyel)",
+            "value": 995,
+            "tool": "get_peers",
+            "path": "hero.citations"
+          },
+          {
+            "label": "h-index (Panagiotopoulos)",
+            "value": 17,
+            "tool": "get_peers",
+            "path": "peers[5].hIndex"
+          },
+          {
+            "label": "Citations (Panagiotopoulos)",
+            "value": 1229,
+            "tool": "get_peers",
+            "path": "peers[5].citations"
+          }
+        ]
+      }
+    ],
+    "endpointSuggestions": [
+      {
+        "name": "/v1/authors/{id}/citation-trajectory-full",
+        "rationale": "The yearly citation series is clamped to the recent era (2016–now). Pre-2016 per-year data is unavailable, making it impossible to pinpoint a breakout year or measure growth against a true career baseline.",
+        "unlocks": "Full career citation velocity curves; breakout-year detection; before/after analysis for specific papers or career events"
+      },
+      {
+        "name": "/v1/authors/{id}/cross-field-impact",
+        "rationale": "There is no single call that returns fields strongly citing an author but absent from their publication record. Deriving this requires joining paper-fields and citing-fields across two separate calls and diffing manually.",
+        "unlocks": "Automated disciplinary-reach score; surprise-audience detection; serendipitous cross-domain influence stories at scale"
+      }
+    ]
+  }
+}
