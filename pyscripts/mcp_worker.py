@@ -23,8 +23,10 @@ import sys
 import time
 from pathlib import Path
 
-DB_PATH = os.environ.get("RANKLESS_DB_PATH", "data/rankless.sqlite")
-SESSIONS_ROOT = os.environ.get("MCP_SESSIONS_ROOT", "data/mcp-sessions")
+from pyscripts import paths
+
+DB_PATH = os.environ.get("RANKLESS_DB_PATH", paths.DB_REL)
+SESSIONS_ROOT = os.environ.get("MCP_SESSIONS_ROOT", paths.MCP_SESSIONS_REL)
 DEFAULT_MODEL = os.environ.get("MCP_WORKER_MODEL", "claude-sonnet-5")
 RUNNER = os.environ.get("MCP_WORKER_RUNNER", "claude-cli")
 POLL_S = int(os.environ.get("MCP_WORKER_POLL_S", "5"))

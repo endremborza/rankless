@@ -25,6 +25,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from pyscripts import paths
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = REPO_ROOT / "deploy"
 
@@ -133,8 +135,8 @@ def render_mcp_worker(
         MCP_WORKER_UNIT,
         repo_root=repo_root,
         python=python,
-        db_path=f"{repo_root}/data/rankless.sqlite",
-        sessions_root=f"{repo_root}/data/mcp-sessions",
+        db_path=f"{repo_root}/{paths.DB_REL}",
+        sessions_root=f"{repo_root}/{paths.MCP_SESSIONS_REL}",
         worker_model=model,
         worker_runner=runner,
     )

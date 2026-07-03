@@ -135,6 +135,17 @@ one atomically, runs `deep.py --out-root $MCP_SESSIONS_ROOT --out <name>` (defau
 deep.py's output root is overridable via `--out-root` or `RANKLESS_WRITEUPS_DIR` (so personal
 PKM runs still land in `.cril/`).
 
+### Moving sessions between boxes
+
+`make {merge,sync}_db_{to,from}_{live,alpha}` moves the curated tables (`mcp_sessions`,
+`ledger_events`, `ledger_runs`, `owner_pins` — never the auth `sessions`) plus the
+`data/mcp-sessions/` artifact dirs between the local checkout and a running instance
+(`pyscripts/deploy.py` → `pyscripts/mcp_db.py`). `merge` unions rows (source never clobbers
+target; auto-id `ledger_events` dedup on their logical unique index) and copies dirs additively;
+`sync` mirrors — the target's copy of each table becomes an exact copy of the source's and dir
+deletes propagate. `_to_live` writes the live box, so `sync_db_to_live` **replaces** its
+ledger/sessions with your local copy — use `merge_db_to_live` to publish without clobbering.
+
 ## Deployment
 
 Systemd `--user` units are rendered from the `deploy/` templates (`{{ var }}` placeholders —

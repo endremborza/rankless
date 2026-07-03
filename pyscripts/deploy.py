@@ -1,6 +1,7 @@
 import datetime as dt
 import os
 import re
+import shutil
 import subprocess
 import time
 from functools import cache
@@ -12,7 +13,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-from pyscripts import services
+from pyscripts import mcp_db, paths, services
 
 load_dotenv()
 
@@ -101,6 +102,11 @@ data_subdirs = [
 ignores = [
     "source-pairs-by-path",
 ]
+
+# MCP + ledger transfer (sync/merge_db_*): curated tables move via pyscripts.mcp_db,
+# the artifact dirs via rsync. Same relative layout (paths.py) on both ends.
+LOCAL_REPO = services.REPO_ROOT
+DB_XFER_TMP = f"{paths.DATA_DIR}/_dbxfer"
 
 
 @cache
@@ -291,10 +297,18 @@ class SSHrer:
     def run(self, comm, verbose=False):
         return run_logged([*self.basis, comm], comm, verbose)
 
-    def rsync(self, src, target, excludes=[], verbose=False):
-        comm = self.rsync_basis + [f"--exclude={e}" for e in excludes] + [src]
-        comm.append(f"{self.full_host}:{target}/")
+    def rsync(self, src, target, excludes=[], verbose=False, delete=False):
+        comm = self.rsync_basis + self._rsync_opts(excludes, delete)
+        comm += [src, f"{self.full_host}:{target}/"]
         return run_logged(comm, verbose=verbose)
+
+    def rsync_from(self, src, target, excludes=[], verbose=False, delete=False):
+        comm = self.rsync_basis + self._rsync_opts(excludes, delete)
+        comm += [f"{self.full_host}:{src}", target]
+        return run_logged(comm, verbose=verbose)
+
+    def _rsync_opts(self, excludes, delete):
+        return (["--delete"] if delete else []) + [f"--exclude={e}" for e in excludes]
 
     def download(self, fpath):
         return run_logged(["scp", *self.basis[1:-1], f"{self.full_host}:{fpath}", "./"])
@@ -675,13 +689,63 @@ upstream {BE_UPSTREAM} {{
         for subdir in tqdm(data_subdirs):
             self.ssh.rsync(f"{local_data_root}/{subdir}", self.data_dir, ignores)
 
+    # MCP + ledger movement. `merge` unions rows (source never clobbers target);
+    # `sync` mirrors — the target's copy of these tables becomes an exact copy of
+    # the source's. Both carry the data/mcp-sessions/ artifact dirs along; auth
+    # `sessions` are never touched (see pyscripts.mcp_db).
+    def merge_db_to(self):
+        self._push_db(mirror=False)
+
+    def sync_db_to(self):
+        # Destructive on a live box: REPLACES its ledger_events/mcp_sessions with
+        # the local copy. Use merge_db_to to publish without clobbering.
+        self._push_db(mirror=True)
+
+    def merge_db_from(self):
+        self._pull_db(mirror=False)
+
+    def sync_db_from(self):
+        self._pull_db(mirror=True)
+
+    def _push_db(self, mirror):
+        mode = "mirror" if mirror else "merge"
+        (LOCAL_REPO / paths.MCP_SESSIONS_REL).mkdir(parents=True, exist_ok=True)
+        tmp = f"{self.deploy_dir}/{DB_XFER_TMP}"
+        incoming = f"{tmp}/{Path(paths.DB_REL).name}"
+        self.ssh.run(f"rm -rf {tmp} && mkdir -p {tmp}")
+        self.ssh.rsync(str(LOCAL_REPO / paths.DB_REL), tmp)
+        self._depcomm(
+            f".venv/bin/python -m pyscripts.mcp_db {self.deploy_dir}/{paths.DB_REL} {incoming} {mode}"
+        )
+        self.ssh.run(f"rm -rf {tmp}")
+        self.ssh.rsync(
+            str(LOCAL_REPO / paths.MCP_SESSIONS_REL),
+            f"{self.deploy_dir}/{paths.DATA_DIR}",
+            delete=mirror,
+        )
+
+    def _pull_db(self, mirror):
+        mode = "mirror" if mirror else "merge"
+        tmp = LOCAL_REPO / DB_XFER_TMP
+        tmp.mkdir(parents=True, exist_ok=True)
+        self.ssh.rsync_from(f"{self.deploy_dir}/{paths.DB_REL}", str(tmp))
+        incoming = str(tmp / Path(paths.DB_REL).name)
+        mcp_db.transfer(str(LOCAL_REPO / paths.DB_REL), incoming, mode)
+        shutil.rmtree(tmp)
+        self.ssh.rsync_from(
+            f"{self.deploy_dir}/{paths.MCP_SESSIONS_REL}",
+            str(LOCAL_REPO / paths.DATA_DIR),
+            delete=mirror,
+        )
+
     def setup_code(self, branch=None):
         self.ssh.run(f"rm -rf {self.deploy_dir}")
         self.ssh.run(
             f"git clone https://github.com/endremborza/rankless {self.deploy_dir}"
         )
-        if branch:
-            self._depcomm(f"git checkout {branch}")
+        # Deploy whatever the caller is on, not the remote's default branch — the
+        # branch must be pushed to origin first.
+        self._depcomm(f"git checkout {branch or _current_branch()}")
         self.update_env()
 
     def sync_code(self):
@@ -695,7 +759,11 @@ upstream {BE_UPSTREAM} {{
         self._depcomm("cargo build --release")
 
     def sync_py(self):
-        self._depcomm("~/.local/bin/uv sync")
+        # Serving box: MCP runtime only. `--no-default-groups` drops the
+        # `pipeline` group (which pins the `libs/ccl-science-data` path source,
+        # absent here) + `dev`; `--frozen` uses the committed lock without a
+        # re-resolve that would still try to read that missing path.
+        self._depcomm("~/.local/bin/uv sync --frozen --no-default-groups")
 
     def update_env(self):
         domain = self.get_domain()
@@ -881,6 +949,38 @@ def sync_data_to_live():
     get_running_tpr(True).update_data()
 
 
+def merge_db_from_live():
+    get_running_tpr(True).merge_db_from()
+
+
+def sync_db_from_live():
+    get_running_tpr(True).sync_db_from()
+
+
+def merge_db_to_live():
+    get_running_tpr(True).merge_db_to()
+
+
+def sync_db_to_live():
+    get_running_tpr(True).sync_db_to()
+
+
+def merge_db_from_alpha():
+    get_running_tpr(False).merge_db_from()
+
+
+def sync_db_from_alpha():
+    get_running_tpr(False).sync_db_from()
+
+
+def merge_db_to_alpha():
+    get_running_tpr(False).merge_db_to()
+
+
+def sync_db_to_alpha():
+    get_running_tpr(False).sync_db_to()
+
+
 def full_setup_from_nothing(
     tpr: Transper, domain, procn: int, backend=True, branch=None
 ):
@@ -976,11 +1076,7 @@ def horizontal_instances(n):
 
 
 def setup_local_test():
-    tpr = _local_tpr()
-    branch = (
-        subprocess.check_output(["git", "branch", "--show-current"]).decode().strip()
-    )
-    full_setup_from_nothing(tpr, ALPHA_DOMAIN, 3, True, branch=branch)
+    full_setup_from_nothing(_local_tpr(), ALPHA_DOMAIN, 3, True)
 
 
 def bump_v(i=2):
@@ -1058,6 +1154,10 @@ def _last_img():
         .sort_index()
         .iloc[-1, 0]
     )
+
+
+def _current_branch() -> str:
+    return subprocess.check_output(["git", "branch", "--show-current"]).decode().strip()
 
 
 def _last_vns():
