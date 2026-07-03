@@ -10,7 +10,9 @@ blue/green frontend workers because claiming is a single atomic UPDATE.
 
 Env: RANKLESS_DB_PATH (default data/rankless.sqlite), MCP_SESSIONS_ROOT
 (default data/mcp-sessions), MCP_WORKER_MODEL (default claude-sonnet-5),
-MCP_WORKER_POLL_S (default 5). The host must have an authenticated `claude` CLI.
+MCP_WORKER_RUNNER (default claude-cli; see pyscripts/explore/runner.py),
+MCP_WORKER_POLL_S (default 5). The claude-cli runner needs an authenticated
+`claude` CLI on the host.
 """
 
 import json
@@ -24,6 +26,7 @@ from pathlib import Path
 DB_PATH = os.environ.get("RANKLESS_DB_PATH", "data/rankless.sqlite")
 SESSIONS_ROOT = os.environ.get("MCP_SESSIONS_ROOT", "data/mcp-sessions")
 DEFAULT_MODEL = os.environ.get("MCP_WORKER_MODEL", "claude-sonnet-5")
+RUNNER = os.environ.get("MCP_WORKER_RUNNER", "claude-cli")
 POLL_S = int(os.environ.get("MCP_WORKER_POLL_S", "5"))
 
 _SCHEMA = """
@@ -39,6 +42,7 @@ CREATE TABLE IF NOT EXISTS mcp_sessions (
 def main() -> int:
     once = "--once" in sys.argv
     print(f"[mcp-worker] db={DB_PATH} root={SESSIONS_ROOT} model={DEFAULT_MODEL}")
+    _recover_orphans()
     while True:
         conn = _connect()
         try:
@@ -52,6 +56,21 @@ def main() -> int:
         if not claimed:
             time.sleep(POLL_S)
     return 0
+
+
+def _recover_orphans() -> None:
+    """Re-queue rows left 'running' by a killed worker (deep.py dies with it)."""
+    conn = _connect()
+    try:
+        n = conn.execute(
+            "UPDATE mcp_sessions SET status='queued', updated_at=datetime('now') "
+            "WHERE status='running'"
+        ).rowcount
+        conn.commit()
+        if n:
+            print(f"[mcp-worker] re-queued {n} orphaned run(s)")
+    finally:
+        conn.close()
 
 
 def _connect() -> sqlite3.Connection:
@@ -111,6 +130,8 @@ def _build_argv(name: str, params: dict) -> list[str]:
         params.get("backend", "live"),
         "--model",
         params.get("model") or DEFAULT_MODEL,
+        "--runner",
+        RUNNER,
     ]
     if foci := params.get("foci"):
         argv += ["--foci", ",".join(foci)]

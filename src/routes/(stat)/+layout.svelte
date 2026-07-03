@@ -267,7 +267,9 @@
 	<div id="main-foot">
 		<TextedLogo pad={0} size={30} />
 		<span>{LATEST_YEAR}</span>
-		<div id="foot-r"><a href="/privacy">Privacy</a><a href="/#contact">Contact</a></div>
+		<div id="foot-r">
+			<a href="/mcp">Developers</a><a href="/privacy">Privacy</a><a href="/#contact">Contact</a>
+		</div>
 	</div>
 </div>
 

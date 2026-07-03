@@ -12,9 +12,12 @@ import pandas as pd
 from dotenv import load_dotenv
 from tqdm import tqdm
 
+from pyscripts import services
+
 load_dotenv()
 
 SERIVCE_DIR = ".config/systemd/user"
+BUN_PATH = "/.bun/bin/bun"
 SSL_ETC_DIR = "/etc/letsencrypt/live"
 LOCAL_SSL_TAR = "ssl_dir.tar.gz"
 AMI_IMG_CSV = "ami-imgs.csv"
@@ -69,49 +72,16 @@ LARGE_STORAGE_GB = 300
 LARGE_FE_PROCS = 12
 DEFAULT_RS_PORT = 3038
 
-# Per-FE-process memory backstop (cgroup v2). A healthy SvelteKit SSR bun worker sits ~150-300 MB,
-# so these only bite a runaway/leak. MemoryHigh throttles + reclaims (soft pressure); MemoryMax is
-# the hard wall: the kernel OOM-kills a process inside that one cgroup, OOMPolicy=kill then tears
-# the unit down and Restart=always brings it back. A runaway is thus contained to its own cgroup
-# instead of exhausting the box and thrashing sshd/nginx to death.
-FE_MEMORY_HIGH = "1G"
-FE_MEMORY_MAX = "1280M"
-
-# Proactively recycle each FE worker on a jittered, per-instance schedule so a slow *uniform* leak
-# (requests are load-balanced evenly, so every worker grows at the same rate) never lets the whole
-# pool reach MemoryMax together — which would be a full-pool outage + thundering-herd restart.
-# RuntimeRandomizedExtraSec is systemd's built-in stagger: each instance's lifetime gets an
-# independent random extra in [0, jitter], redrawn every cycle, so restarts scatter in time and keep
-# drifting apart. This also bounds growth *below* the cap; MemoryMax stays the hard backstop for a
-# fast leak. SSR is stateless and nginx retries other upstreams, so a recycled worker is invisible.
-FE_RUNTIME_MAX = "6h"
-FE_RUNTIME_JITTER = "3h"
-
-SERVICE_SUFFIX = """
-Restart=always
-RestartSec=15
-
-[Install]
-WantedBy=default.target"""
-
-FE_BUILD_NAMES = ["blue", "green"]
+# Systemd unit shapes live in deploy/ (rendered by pyscripts/services.py); this
+# module only feeds them remote-instance values and ships them over SSH.
+FE_BUILD_NAMES = services.FE_BUILD_NAMES
 FE_BUILD_PORTS_STARTS = [4000, 4200]
 NGINX_AVDIR, NGINX_ENDIR = [f"/etc/nginx/sites-{s}" for s in ["available", "enabled"]]
 UPSTREAM_ETC_FNAME = "app_upstreams"
 
-be_service_name = "rankless-backend.service"
+be_service_name = services.BACKEND_UNIT
 tunnel_service_name = "rankless-tunnel.service"
-fe_service_template_frame = "rankless-frontend-{}@.service"
-
-be_service_frame = (
-    """[Unit]
-Description=Rankless Backend
-
-[Service]
-LimitNOFILE=65534
-ExecStart={}/target/release/rankless-server {}"""
-    + SERVICE_SUFFIX
-)
+fe_service_template_frame = services.FE_UNIT_FRAME
 
 local_tmp_home = Path("/tmp/rls-services")
 local_service_path = local_tmp_home / SERIVCE_DIR
@@ -385,7 +355,7 @@ class Transper:
             self.ssh.run(f"sudo chown -R www-data:www-data {cd}")
         self.be_service = ServiceMan(be_service_name, sshc)
         self.sync_txt("test", "___test", self.inst_home)
-        self.bun_exc = f"{self.inst_home}/.bun/bin/bun"
+        self.bun_exc = f"{self.inst_home}{BUN_PATH}"
 
     def bun_run(self, comm):
         self.ssh.run(f"{self.bun_exc} {comm}")
@@ -424,6 +394,8 @@ class Transper:
             )
         self.ssh.run("sudo systemctl enable --now systemd-oomd")
         self.ssh.run("curl -fsSL https://bun.sh/install | bash")
+        # uv drives the python side (mcp server + worker) on the instance.
+        self.ssh.run("curl -LsSf https://astral.sh/uv/install.sh | sh")
 
     def sync_txt(self, txt, name, dir):
         p = Path(name)
@@ -441,10 +413,28 @@ class Transper:
         self.sync_txt(txt, name, self.systemd_dir)
 
     def setup_be_service(self):
-        be_service_txt = be_service_frame.format(self.deploy_dir, self.data_dir)
+        be_service_txt = services.render_backend(self.deploy_dir, self.data_dir)
         self.sync_service(be_service_txt, be_service_name)
         self.be_service.enable()
         self.be_service.start()
+
+    def setup_mcp_services(self, mcp_backend: str = "local"):
+        """MCP server + worker units on the instance (venv must be synced)."""
+        python = f"{self.deploy_dir}/.venv/bin/python"
+        be_url = services.resolve_mcp_backend(mcp_backend)
+        self.sync_service(
+            services.render_mcp_server(self.deploy_dir, python, be_url),
+            services.MCP_SERVER_UNIT,
+        )
+        self.sync_service(
+            services.render_mcp_worker(self.deploy_dir, python),
+            services.MCP_WORKER_UNIT,
+        )
+        self.reload_systemctl()
+        for name in (services.MCP_SERVER_UNIT, services.MCP_WORKER_UNIT):
+            man = ServiceMan(name, self.ssh)
+            man.enable()
+            man.restart()
 
     def setup_fe_services(self, inst_domain: str, procs: int = 2):
         confs = [
@@ -452,23 +442,12 @@ class Transper:
             for sport, suff in zip(FE_BUILD_PORTS_STARTS, FE_BUILD_NAMES)
         ]
         for conf in confs:
-            comm = f"%h/.bun/bin/bun run {conf.build_dir()}/"
-            fe_service_txt = (
-                f"""[Unit]
-    Description=Rankless Frontend {conf.suffix} %i
-    After=network.target
-
-    [Service]
-    WorkingDirectory={self.deploy_dir}
-    Environment=ORIGIN=https://{inst_domain} PORT=%i
-    ExecStart={comm}
-    MemoryAccounting=yes
-    MemoryHigh={FE_MEMORY_HIGH}
-    MemoryMax={FE_MEMORY_MAX}
-    OOMPolicy=kill
-    RuntimeMaxSec={FE_RUNTIME_MAX}
-    RuntimeRandomizedExtraSec={FE_RUNTIME_JITTER}"""
-                + SERVICE_SUFFIX
+            fe_service_txt = services.render_frontend(
+                self.deploy_dir,
+                inst_domain,
+                conf.suffix,
+                conf.build_dir(),
+                f"%h{BUN_PATH}",
             )
             self.sync_service(fe_service_txt, conf.template_fname())
             for service in self._iter_conf_services(conf):
@@ -586,6 +565,8 @@ server {{
         add_header Access-Control-Allow-Origin *;
         {security_headers}
     }}
+
+    {services.render_nginx_mcp()}
 }}
 
 server {{
@@ -713,6 +694,9 @@ upstream {BE_UPSTREAM} {{
     def build_rs(self):
         self._depcomm("cargo build --release")
 
+    def sync_py(self):
+        self._depcomm("~/.local/bin/uv sync")
+
     def update_env(self):
         domain = self.get_domain()
         be_url = "https://" + self.get_backend_domain()
@@ -734,6 +718,7 @@ upstream {BE_UPSTREAM} {{
         self._add_upstreams_from_conf(stage_conf)
         self.reload_nginx()
         self.ssh.run(f"sudo rm -rf {self.fe_cache_dir}/*")
+        time.sleep(10)
         for service in self._iter_conf_services(live_conf):
             service.stop()
 
@@ -904,6 +889,8 @@ def full_setup_from_nothing(
     tpr.setup_fe_services(domain, procs=procn)
     tpr.setup_code(branch)
     tpr.update_fe()
+    tpr.sync_py()
+    tpr.setup_mcp_services("local" if backend else "live")
     if backend:
         tpr.build_rs()
         tpr.sync_data_to()

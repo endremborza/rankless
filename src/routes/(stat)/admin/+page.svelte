@@ -54,6 +54,7 @@
 <svelte:head><title>Admin · ledger moderation</title></svelte:head>
 
 <div class="admin">
+	<p class="nav"><a href="/mcp">→ MCP exploration sessions</a></p>
 	<h1>Ledger moderation</h1>
 	<p class="sub">
 		{events.length} most recent events · {pendingCount} pending review. Approving a change marks it accepted;

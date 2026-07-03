@@ -17,33 +17,6 @@ export type McpCommand = { label: string; cmd: string };
 export type McpEndpointIdea = { name: string; rationale: string; unlocks: string };
 export type McpConnect = { url: string; transport: string; snippets: McpCommand[] };
 
-export type ShowcaseNumber = {
-	label: string;
-	value: number | string;
-	tool: string;
-	path: string;
-};
-
-export type ShowcaseFinding = {
-	id: string;
-	title: string;
-	focus: string;
-	shareKind: string | null;
-	description: string;
-	entities: string[];
-	numbers: ShowcaseNumber[];
-};
-
-export type McpShowcase = {
-	subject: string | null;
-	backend: string;
-	model: string;
-	counts: { findings: number; metricsReproduced: number; metrics: number };
-	runtimeSeconds: { mine: number; reproduce: number; total: number };
-	findings: ShowcaseFinding[];
-	endpointSuggestions: McpEndpointIdea[];
-} | null;
-
 export type McpManifest = {
 	generated: string;
 	connect: McpConnect;
@@ -52,8 +25,6 @@ export type McpManifest = {
 	options: McpOption[];
 	resources: McpResource[];
 	prompts: McpPrompt[];
-	commands: McpCommand[];
-	showcase: McpShowcase;
 };
 
 // --- Browsable exploration sessions (index row + on-disk findings.json) --- //

@@ -1,7 +1,7 @@
 -include .env
 export
 
-.PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest mcp-worker mcp-seed
+.PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest mcp-worker setup-services
 .PHONY: check format check-rs check-py check-js format-rs format-py format-js
 
 PY_LINT_PATHS := pyscripts sql-yardstick mcp_server
@@ -63,9 +63,11 @@ mcp-manifest:
 mcp-worker:
 	uv run -m pyscripts.mcp_worker $(ARGS)
 
-# Seed the public sessions store from existing writeups.
-mcp-seed:
-	uv run -m pyscripts.mcp_seed $(ARGS)
+# Render deploy/ unit templates + install systemd --user services for a machine
+# profile (dev / small-alpha / live); see docs/mcp-server.md.
+# e.g. make setup-services ARGS="--profile dev --mcp-backend alpha"
+setup-services:
+	uv run -m pyscripts.services $(ARGS)
 
 build-nano-artifact:
 	uv run -m pyscripts.dev.build_nano_artifact

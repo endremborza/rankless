@@ -45,7 +45,7 @@ import httpx
 import mcp_server
 from mcp_server import client as be_client
 from mcp_server.tools import TOOL_FNS
-from pyscripts.explore import cli, evidence
+from pyscripts.explore import cli, evidence, runner
 
 BACKENDS = {
     "local": "http://127.0.0.1:3038/v1",
@@ -57,7 +57,6 @@ FOCI = ("share", "query", "data-issue")
 WRITEUPS_DIR = Path(
     os.environ.get("RANKLESS_WRITEUPS_DIR", ".cril/writeups/explorations")
 )
-ALLOWED_TOOLS = "mcp__rankless"
 MAX_TURNS = 120
 TIMEOUT_S = 3600
 DEFAULT_SAMPLE = 8
@@ -107,6 +106,7 @@ cannot see) - or "investigation" if it needs more digging first.""",
 @dataclass
 class DeepConfig:
     model: str
+    runner: str
     backend_url: str
     backend_label: str
     foci: list[str]
@@ -136,6 +136,7 @@ def main() -> int:
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
     config = DeepConfig(
         model=cli.resolve_model(args.model),
+        runner=args.runner,
         backend_url=backend_url,
         backend_label=backend_label,
         foci=foci,
@@ -223,6 +224,12 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"'{'|'.join(cli.MODELS)}' shortcut (default: {cli.DEFAULT_MODEL}) or id.",
     )
     p.add_argument(
+        "--runner",
+        default=runner.DEFAULT_RUNNER,
+        choices=list(runner.RUNNERS),
+        help=f"mining engine (default: {runner.DEFAULT_RUNNER}).",
+    )
+    p.add_argument(
         "--sample", type=int, default=DEFAULT_SAMPLE, help="seed entity count."
     )
     p.add_argument("--out", default=None, help="run dir name under the output root.")
@@ -264,29 +271,15 @@ def _load_seeds() -> list[dict]:
 
 
 def _mine(config: DeepConfig) -> str:
-    return cli.query_claude_cli(
-        _system_prompt(config),
-        _user_prompt(config),
-        config.model,
-        allowed_tools=ALLOWED_TOOLS,
-        mcp_config=_mcp_config(config),
+    job = runner.MineJob(
+        system=_system_prompt(config),
+        user=_user_prompt(config),
+        model=config.model,
+        backend_url=config.backend_url,
         max_turns=MAX_TURNS,
         timeout_s=TIMEOUT_S,
     )
-
-
-def _mcp_config(config: DeepConfig) -> str:
-    return json.dumps(
-        {
-            "mcpServers": {
-                "rankless": {
-                    "command": sys.executable,
-                    "args": ["-m", "mcp_server"],
-                    "env": {"RANKLESS_BE_URL": config.backend_url},
-                }
-            }
-        }
-    )
+    return runner.get_runner(config.runner)(job)
 
 
 def _system_prompt(config: DeepConfig) -> str:

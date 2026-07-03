@@ -1,0 +1,19 @@
+[Unit]
+Description=Rankless Frontend {{ suffix }} %i
+After=network.target
+
+[Service]
+WorkingDirectory={{ repo_root }}
+Environment=ORIGIN=https://{{ domain }} PORT=%i
+ExecStart={{ bun }} run {{ build_dir }}/
+MemoryAccounting=yes
+MemoryHigh={{ memory_high }}
+MemoryMax={{ memory_max }}
+OOMPolicy=kill
+RuntimeMaxSec={{ runtime_max }}
+RuntimeRandomizedExtraSec={{ runtime_jitter }}
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

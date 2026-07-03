@@ -1,0 +1,12 @@
+[Unit]
+Description=Rankless Backend
+
+[Service]
+LimitNOFILE=65534
+EnvironmentFile=-{{ repo_root }}/.env
+ExecStart={{ repo_root }}/target/release/rankless-server {{ data_root }}
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target
