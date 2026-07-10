@@ -6,11 +6,14 @@ receiving side against a shipped copy of the source DB; `pyscripts.deploy` moves
 the `data/mcp-sessions/` artifact dirs alongside it.
 
     python -m pyscripts.mcp_db <target_db> <incoming_db> merge|mirror
+    python -m pyscripts.mcp_db snapshot <src_db> <dst>
 
-- merge:  union rows; the source never clobbers the target (INSERT OR IGNORE).
-          Auto-id rows (`ledger_events`) drop their id so the target assigns a
-          fresh one and dedup falls to the logical unique index, not the id.
-- mirror: replace the target's copy of each table with the source's, verbatim.
+- merge:    union rows; the source never clobbers the target (INSERT OR IGNORE).
+            Auto-id rows (`ledger_events`) drop their id so the target assigns a
+            fresh one and dedup falls to the logical unique index, not the id.
+- mirror:   replace the target's copy of each table with the source's, verbatim.
+- snapshot: consistent hot copy of a live DB (see `snapshot` below) — the shape
+            in which a DB is moved between boxes, never the file rsync'd raw.
 
 Stdlib only — it also runs on the serving box's runtime-only venv.
 """
@@ -19,6 +22,24 @@ import sqlite3
 import sys
 
 TABLES = ("mcp_sessions", "ledger_events", "ledger_runs", "owner_pins")
+
+
+def snapshot(src_db: str, dst: str) -> None:
+    """Consistent copy of `src_db` at `dst` via SQLite's online backup API.
+
+    Safe while a writer holds `src_db` open: reads a single consistent point and
+    folds any WAL into `dst`, so `dst` is a standalone, fully-checkpointed file.
+    Copying the live `.sqlite` with rsync would instead miss un-checkpointed
+    commits in the `-wal` sidecar and risk a torn, malformed image.
+    """
+    src = sqlite3.connect(src_db)
+    dst_con = sqlite3.connect(dst)
+    try:
+        with dst_con:
+            src.backup(dst_con)
+    finally:
+        dst_con.close()
+        src.close()
 
 
 def transfer(target_db: str, incoming_db: str, mode: str) -> None:
@@ -86,11 +107,16 @@ def _autoinc_pks(con: sqlite3.Connection, table: str) -> set[str]:
 
 
 def main() -> None:
-    if len(sys.argv) != 4:
+    args = sys.argv[1:]
+    if len(args) == 3 and args[0] == "snapshot":
+        snapshot(args[1], args[2])
+    elif len(args) == 3:
+        transfer(args[0], args[1], args[2])
+    else:
         raise SystemExit(
-            "usage: python -m pyscripts.mcp_db <target> <incoming> merge|mirror"
+            "usage: python -m pyscripts.mcp_db <target> <incoming> merge|mirror\n"
+            "       python -m pyscripts.mcp_db snapshot <src> <dst>"
         )
-    transfer(sys.argv[1], sys.argv[2], sys.argv[3])
 
 
 if __name__ == "__main__":

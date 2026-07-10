@@ -146,6 +146,11 @@ target; auto-id `ledger_events` dedup on their logical unique index) and copies 
 deletes propagate. `_to_live` writes the live box, so `sync_db_to_live` **replaces** its
 ledger/sessions with your local copy — use `merge_db_to_live` to publish without clobbering.
 
+The DB itself is never rsync'd raw: the source is first hot-copied with SQLite's online backup
+API (`mcp_db.snapshot`, run on whichever box holds the source) so a WAL-mode writer can't leave
+un-checkpointed commits behind or hand over a torn image; the standalone snapshot is what moves.
+If the source has no DB yet (e.g. MCP not deployed on that box), the transfer is a no-op.
+
 ## Deployment
 
 Systemd `--user` units are rendered from the `deploy/` templates (`{{ var }}` placeholders —

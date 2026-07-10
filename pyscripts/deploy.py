@@ -297,6 +297,9 @@ class SSHrer:
     def run(self, comm, verbose=False):
         return run_logged([*self.basis, comm], comm, verbose)
 
+    def remote_exists(self, path):
+        return subprocess.run([*self.basis, f"test -e {path}"]).returncode == 0
+
     def rsync(self, src, target, excludes=[], verbose=False, delete=False):
         comm = self.rsync_basis + self._rsync_opts(excludes, delete)
         comm += [src, f"{self.full_host}:{target}/"]
@@ -708,16 +711,27 @@ upstream {BE_UPSTREAM} {{
         self._pull_db(mirror=True)
 
     def _push_db(self, mirror):
+        local_db = LOCAL_REPO / paths.DB_REL
+        if not local_db.exists():
+            print(f"local DB {local_db} not found; nothing to push")
+            return
         mode = "mirror" if mirror else "merge"
+        db_name = Path(paths.DB_REL).name
         (LOCAL_REPO / paths.MCP_SESSIONS_REL).mkdir(parents=True, exist_ok=True)
+        # Ship a hot snapshot, never the live local file: a WAL-mode writer would
+        # leave un-checkpointed commits in the -wal sidecar and risk a torn image.
+        local_tmp = LOCAL_REPO / DB_XFER_TMP
+        local_tmp.mkdir(parents=True, exist_ok=True)
+        mcp_db.snapshot(str(local_db), str(local_tmp / db_name))
         tmp = f"{self.deploy_dir}/{DB_XFER_TMP}"
-        incoming = f"{tmp}/{Path(paths.DB_REL).name}"
+        incoming = f"{tmp}/{db_name}"
         self.ssh.run(f"rm -rf {tmp} && mkdir -p {tmp}")
-        self.ssh.rsync(str(LOCAL_REPO / paths.DB_REL), tmp)
+        self.ssh.rsync(str(local_tmp / db_name), tmp)
         self._depcomm(
             f".venv/bin/python -m pyscripts.mcp_db {self.deploy_dir}/{paths.DB_REL} {incoming} {mode}"
         )
         self.ssh.run(f"rm -rf {tmp}")
+        shutil.rmtree(local_tmp)
         self.ssh.rsync(
             str(LOCAL_REPO / paths.MCP_SESSIONS_REL),
             f"{self.deploy_dir}/{paths.DATA_DIR}",
@@ -725,18 +739,34 @@ upstream {BE_UPSTREAM} {{
         )
 
     def _pull_db(self, mirror):
+        remote_db = f"{self.deploy_dir}/{paths.DB_REL}"
+        if not self.ssh.remote_exists(remote_db):
+            print(
+                f"remote DB {remote_db} not found (MCP not deployed?); nothing to pull"
+            )
+            return
         mode = "mirror" if mirror else "merge"
+        db_name = Path(paths.DB_REL).name
+        # Hot-snapshot the live (WAL-mode) DB on the remote, then pull the snapshot:
+        # rsync'ing the raw file could miss un-checkpointed commits or tear the image.
+        remote_tmp = f"{self.deploy_dir}/{DB_XFER_TMP}"
+        self.ssh.run(f"rm -rf {remote_tmp} && mkdir -p {remote_tmp}")
+        self._depcomm(
+            f".venv/bin/python -m pyscripts.mcp_db snapshot {paths.DB_REL} {DB_XFER_TMP}/{db_name}"
+        )
         tmp = LOCAL_REPO / DB_XFER_TMP
         tmp.mkdir(parents=True, exist_ok=True)
-        self.ssh.rsync_from(f"{self.deploy_dir}/{paths.DB_REL}", str(tmp))
-        incoming = str(tmp / Path(paths.DB_REL).name)
-        mcp_db.transfer(str(LOCAL_REPO / paths.DB_REL), incoming, mode)
+        self.ssh.rsync_from(f"{remote_tmp}/{db_name}", str(tmp))
+        self.ssh.run(f"rm -rf {remote_tmp}")
+        mcp_db.transfer(str(LOCAL_REPO / paths.DB_REL), str(tmp / db_name), mode)
         shutil.rmtree(tmp)
-        self.ssh.rsync_from(
-            f"{self.deploy_dir}/{paths.MCP_SESSIONS_REL}",
-            str(LOCAL_REPO / paths.DATA_DIR),
-            delete=mirror,
-        )
+        remote_sessions = f"{self.deploy_dir}/{paths.MCP_SESSIONS_REL}"
+        if self.ssh.remote_exists(remote_sessions):
+            self.ssh.rsync_from(
+                remote_sessions,
+                str(LOCAL_REPO / paths.DATA_DIR),
+                delete=mirror,
+            )
 
     def setup_code(self, branch=None):
         self.ssh.run(f"rm -rf {self.deploy_dir}")
