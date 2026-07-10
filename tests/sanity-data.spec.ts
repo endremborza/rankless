@@ -6,7 +6,7 @@ import { XMLParser } from 'fast-xml-parser';
 // Collects structured data from curated + sampled entity pages into logs/sanity_check_data.json.
 // The test itself always passes — the Python analyzer (pyscripts/sanity_check.py) does validation.
 
-test.describe.configure({ timeout: 180_000 });
+test.describe.configure({ timeout: 360_000 });
 
 const ROOT_TYPES = [
 	'authors',
@@ -37,7 +37,18 @@ const CURATED: { url: string; expectedDomain: string }[] = [
 	{ url: '/subfields/organic-chemistry', expectedDomain: 'chemistry' }
 ];
 
-const SAMPLE_PER_TYPE = 3;
+// Widen + randomize: per root type we sample this many entities, picked at random
+// from the sitemap so every run reviews a different slice. Override with
+// EXPLORE_SAMPLE_PER_TYPE. Curated entities (above) are always included on top.
+const SAMPLE_PER_TYPE = Number(process.env.EXPLORE_SAMPLE_PER_TYPE ?? 8);
+
+function shuffle<T>(arr: T[]): T[] {
+	for (let i = arr.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[arr[i], arr[j]] = [arr[j], arr[i]];
+	}
+	return arr;
+}
 
 type EntitySnapshot = {
 	url: string;
@@ -50,13 +61,24 @@ type EntitySnapshot = {
 	expectedDomain?: string;
 };
 
-async function sitemapUrls(type: string, n: number): Promise<string[]> {
+async function sitemapUrls(type: string): Promise<string[]> {
 	const res = await fetch(`http://localhost:4173/sitemap-entity-${type}-1.xml`);
 	expect(res.ok, `sitemap-entity-${type}-1.xml returned ${res.status}`).toBeTruthy();
-	const parsed = new XMLParser().parse(await res.text());
+	// parseTagValue:false keeps <loc> as strings (no numeric coercion); we now scan
+	// the whole sitemap to randomize, so skip any malformed/empty entry defensively.
+	const parsed = new XMLParser({ parseTagValue: false }).parse(await res.text());
 	const entries = parsed?.urlset?.url;
 	const arr = Array.isArray(entries) ? entries : entries ? [entries] : [];
-	return arr.slice(0, n).map((u: { loc: string }) => new URL(u.loc).pathname);
+	const paths: string[] = [];
+	for (const u of arr) {
+		if (typeof u?.loc !== 'string') continue;
+		try {
+			paths.push(new URL(u.loc).pathname);
+		} catch {
+			// skip malformed sitemap entries
+		}
+	}
+	return paths;
 }
 
 async function extractSnapshot(
@@ -110,44 +132,36 @@ async function extractSnapshot(
 test('collect entity page data for sanity checking', async ({ page }) => {
 	const snapshots: EntitySnapshot[] = [];
 
-	// Curated entities
-	const curatedByType = new Map<string, string[]>();
+	// Per type, how many curated anchors we already have (counted toward the quota).
+	const curatedByType = new Map<string, number>();
 	for (const c of CURATED) {
 		const rootType = c.url.split('/')[1];
-		curatedByType.set(rootType, [...(curatedByType.get(rootType) ?? []), c.url]);
+		curatedByType.set(rootType, (curatedByType.get(rootType) ?? 0) + 1);
 	}
 
-	// Sample additional entities from sitemaps, excluding curated ones
+	// Build a randomized sample list once: for each type, shuffle the sitemap and
+	// take enough fresh (non-curated) urls to reach SAMPLE_PER_TYPE.
 	const curatedUrls = new Set(CURATED.map((c) => c.url));
+	const sampled: string[] = [];
 	for (const type of ROOT_TYPES) {
-		const alreadyHave = (curatedByType.get(type) ?? []).length;
-		const need = Math.max(0, SAMPLE_PER_TYPE - alreadyHave);
-		if (need > 0) {
-			const urls = await sitemapUrls(type, need + 10);
-			const fresh = urls.filter((u) => !curatedUrls.has(u)).slice(0, need);
-			for (const u of fresh) curatedUrls.add(u);
+		const need = Math.max(0, SAMPLE_PER_TYPE - (curatedByType.get(type) ?? 0));
+		if (need === 0) continue;
+		const pool = (await sitemapUrls(type)).filter((u) => !curatedUrls.has(u));
+		for (const u of shuffle(pool).slice(0, need)) {
+			curatedUrls.add(u);
+			sampled.push(u);
 		}
 	}
 
-	// Navigate and extract: curated first
+	// Navigate and extract: curated anchors first, then the randomized sample.
 	await page.goto('/');
 	for (const curated of CURATED) {
 		await page.goto(curated.url, { waitUntil: 'networkidle' });
 		snapshots.push(await extractSnapshot(page, curated.url, curated.expectedDomain));
 	}
-
-	// Then sampled
-	for (const type of ROOT_TYPES) {
-		const alreadyHave = (curatedByType.get(type) ?? []).length;
-		const need = Math.max(0, SAMPLE_PER_TYPE - alreadyHave);
-		if (need > 0) {
-			const urls = await sitemapUrls(type, need + 10);
-			const fresh = urls.filter((u) => !CURATED.some((c) => c.url === u)).slice(0, need);
-			for (const url of fresh) {
-				await page.goto(url, { waitUntil: 'networkidle' });
-				snapshots.push(await extractSnapshot(page, url));
-			}
-		}
+	for (const url of sampled) {
+		await page.goto(url, { waitUntil: 'networkidle' });
+		snapshots.push(await extractSnapshot(page, url));
 	}
 
 	const logsDir = path.resolve('logs');
