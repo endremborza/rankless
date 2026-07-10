@@ -33,7 +33,6 @@ APTS = [
     "python3-certbot-nginx",
     "nginx",
     "btop",
-    "systemd-oomd",
     # rsvg-convert rasterizes the OG share cards at runtime; fontconfig (fc-cache) registers the
     # vendored brand fonts so the rasterizer uses them.
     "librsvg2-bin",
@@ -406,7 +405,7 @@ class Transper:
             self.ssh.run(
                 "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
             )
-        self.ssh.run("sudo systemctl enable --now systemd-oomd")
+        self.harden_host()
         self.ssh.run("curl -fsSL https://bun.sh/install | bash")
         # uv drives the python side (mcp server + worker) on the instance.
         self.ssh.run("curl -LsSf https://astral.sh/uv/install.sh | sh")
@@ -797,11 +796,42 @@ upstream {BE_UPSTREAM} {{
         self.be_service.restart()
 
     def rolling_restart_live_fe(self):
+        # Sickest first: an at-cap worker is the pressure source and must
+        # recycle before the restart concentrates load on it (07-10 outage).
         _stage_conf, live_conf = self.get_fe_systems()
-        for service in self._iter_conf_services(live_conf):
-            service.restart()
+        by_name = {s.name: s for s in self._iter_conf_services(live_conf)}
+        order = (
+            self.get_fe_memory_df()
+            .loc[lambda df: df["unit"].isin(by_name)]
+            .assign(mem=lambda df: pd.to_numeric(df["MemoryCurrent"], errors="coerce"))
+            .sort_values("mem", ascending=False)["unit"]
+        )
+        for name in order:
+            by_name[name].restart()
             time.sleep(20)
-            service.status()
+            by_name[name].status()
+
+    def harden_host(self):
+        # systemd-oomd's PSI-kill on user@.service killed init.scope — the
+        # session manager itself — in all three 2026-07 live outages, with
+        # Linger=no leaving everything down until a manual login. Linger the
+        # session, exempt the user manager from oomd (set-property applies it
+        # to the running user@ without a session restart); containment lives
+        # on the per-unit MemoryMax walls in the deploy/ templates.
+        dropin = "/etc/systemd/system/user@.service.d/10-rankless-no-oomd-kill.conf"
+        for comm in [
+            "sudo loginctl enable-linger $(whoami)",
+            f"sudo mkdir -p {os.path.dirname(dropin)}",
+            f"printf '[Service]\\nManagedOOMMemoryPressure=no\\n' | sudo tee {dropin}",
+            "sudo systemctl daemon-reload",
+            "sudo systemctl set-property --runtime user@$(id -u).service"
+            " ManagedOOMMemoryPressure=no",
+        ]:
+            self.ssh.run(comm)
+        state = self.ssh.run(
+            "systemctl show user@$(id -u).service -p ManagedOOMMemoryPressure"
+        ).strip()
+        assert state == "ManagedOOMMemoryPressure=no", state
 
     def reload_systemctl(self):
         self.ssh.run("sudo systemctl daemon-reload")

@@ -7,11 +7,11 @@ WorkingDirectory={{ repo_root }}
 Environment=ORIGIN=https://{{ domain }} PORT=%i
 ExecStart={{ bun }} run {{ build_dir }}/
 MemoryAccounting=yes
-MemoryHigh={{ memory_high }}
 MemoryMax={{ memory_max }}
 OOMPolicy=kill
 RuntimeMaxSec={{ runtime_max }}
 RuntimeRandomizedExtraSec={{ runtime_jitter }}
+TimeoutStopSec=5
 Restart=always
 RestartSec=15
 

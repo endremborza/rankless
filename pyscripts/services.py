@@ -56,11 +56,13 @@ PROFILES = {
 DEFAULT_MCP_BACKEND = {"dev": "alpha", "small-alpha": "live", "live": "local"}
 
 # Per-FE-process memory backstop (cgroup v2). A healthy SvelteKit SSR bun worker
-# sits ~150-300 MB, so these only bite a runaway/leak. MemoryHigh throttles +
-# reclaims (soft pressure); MemoryMax is the hard wall: the kernel OOM-kills the
-# process inside that one cgroup, OOMPolicy=kill tears the unit down and
-# Restart=always brings it back — a runaway is contained to its own cgroup.
-FE_MEMORY_HIGH = "1G"
+# sits ~150-300 MB, so this only bites a runaway/leak. Hard wall ONLY — no
+# MemoryHigh: on a swapless box a leaky (anon-heavy) worker pinned at a soft cap
+# cannot be reclaimed, so the kernel throttles it into a permanent stall that
+# radiates PSI into user@ (the 2026-07-10 outage trigger). MemoryMax +
+# OOMPolicy=kill + Restart=always turn the same state into a seconds-long
+# self-healing blip contained to one cgroup. TimeoutStopSec=5 for the same
+# reason: a wedged worker can't run a graceful shutdown, and SSR is stateless.
 FE_MEMORY_MAX = "1280M"
 # Proactively recycle each FE worker on a jittered, per-instance schedule so a
 # slow uniform leak never lets the whole pool reach MemoryMax together.
@@ -68,6 +70,10 @@ FE_MEMORY_MAX = "1280M"
 # restarts scatter in time. SSR is stateless and nginx retries other upstreams.
 FE_RUNTIME_MAX = "6h"
 FE_RUNTIME_JITTER = "3h"
+# Same hard-wall logic for the backend (~41 GB fresh working set on full data):
+# die and reload in minutes instead of dragging the box into reclaim thrash.
+# Percentage of physical RAM so the same template fits every box size.
+BE_MEMORY_MAX = "85%"
 
 _VAR_RE = re.compile(r"\{\{\s*(\w+)\s*\}\}")
 
@@ -93,7 +99,12 @@ def resolve_mcp_backend(arg: str) -> str:
 
 
 def render_backend(repo_root: str, data_root: str) -> str:
-    return render(BACKEND_UNIT, repo_root=repo_root, data_root=data_root)
+    return render(
+        BACKEND_UNIT,
+        repo_root=repo_root,
+        data_root=data_root,
+        memory_max=BE_MEMORY_MAX,
+    )
 
 
 def render_frontend(
@@ -106,7 +117,6 @@ def render_frontend(
         suffix=suffix,
         build_dir=build_dir,
         bun=bun,
-        memory_high=FE_MEMORY_HIGH,
         memory_max=FE_MEMORY_MAX,
         runtime_max=FE_RUNTIME_MAX,
         runtime_jitter=FE_RUNTIME_JITTER,
