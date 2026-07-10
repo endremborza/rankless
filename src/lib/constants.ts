@@ -1,7 +1,12 @@
 import type { EntityType, RelTypes, RootType } from './tree-types';
 import { PUBLIC_ORIGIN, PUBLIC_BACKEND_URL } from '$env/static/public';
+import { dev } from '$app/environment';
 
 export const APP_NAME = 'Rankless';
+
+// Master switch for email collection (header banner, /email-preferences, consent API).
+// Dev-only for now; change to `true` to release it.
+export const EMAIL_FEATURE_ON = dev;
 
 // Brand proof-points. The home card pulls live figures from the backend /counts endpoint; this is
 // the fallback shown only if that fetch fails, so it stays roughly current but approximate.

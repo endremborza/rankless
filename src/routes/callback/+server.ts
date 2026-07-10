@@ -2,7 +2,7 @@ import { ORCID_CLIENT_ID, ORCID_CLIENT_SECRET } from '$env/static/private';
 import { ORCID_TOKEN_URL, ORCID_REDIRECT_URI, BE_URL } from '$lib/constants';
 import type { RequestHandler } from '@sveltejs/kit';
 import { setSession, consumeOauthState } from '$lib/server/session';
-import { LedgerDb } from '$lib/server/db';
+import { LedgerDb, UserDb } from '$lib/server/db';
 
 export const GET: RequestHandler = async (event) => {
 	const code = event.url.searchParams.get('code');
@@ -24,8 +24,25 @@ export const GET: RequestHandler = async (event) => {
 		})
 	});
 
-	const data = await res.json();
-	if (!data.orcid) return new Response('Invalid token response', { status: 400 });
+	let data: {
+		orcid?: string;
+		name?: string;
+		error?: string;
+		error_description?: string;
+	};
+	try {
+		data = await res.json();
+	} catch {
+		data = {};
+	}
+	if (!data.orcid) {
+		// Log the real reason (invalid_client / redirect_uri_mismatch / expired code, …) so a
+		// recurring "Invalid token response" is diagnosable in the FE journal instead of opaque.
+		console.error(
+			`ORCID token exchange failed: status=${res.status} error=${data.error} desc=${data.error_description}`
+		);
+		return new Response('Invalid token response', { status: 400 });
+	}
 
 	// Cache semanticId at login time so every page load doesn't need a BE lookup
 	let semanticId: string | undefined;
@@ -38,10 +55,8 @@ export const GET: RequestHandler = async (event) => {
 		// Non-critical — "My Profile" link will be absent until next login
 	}
 
+	const sessionData = { orcid: data.orcid, name: data.name || 'ORCID User', semanticId };
 	LedgerDb.pinOwner(data.orcid);
-	return setSession(
-		event,
-		{ orcid: data.orcid, name: data.name || 'ORCID User', semanticId },
-		redirectTo
-	);
+	UserDb.recordLogin(sessionData);
+	return setSession(event, sessionData, redirectTo);
 };

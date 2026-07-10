@@ -10,7 +10,7 @@
 
 	import { page } from '$app/state';
 	import type { RootType } from '$lib/tree-types';
-	import { LATEST_YEAR, ROOT_TYPES } from '$lib/constants';
+	import { EMAIL_FEATURE_ON, LATEST_YEAR, ROOT_TYPES } from '$lib/constants';
 	import { prettifyRoot } from '$lib/text-format-util';
 	import { resultsHidden } from '$lib/stores';
 
@@ -18,6 +18,7 @@
 		surveyShouldPrompt: boolean;
 		user: { orcid: string; name: string; semanticId?: string } | null;
 		isAdmin: boolean;
+		askEmail: boolean;
 	};
 	const SEARCH_LISTBOX_ID = 'search-listbox';
 
@@ -194,6 +195,13 @@
 									on:click={() => (userMenuOpen = false)}>My Profile</a
 								>
 							{/if}
+							{#if EMAIL_FEATURE_ON}
+								<a
+									class="dropdown-item"
+									href="/email-preferences"
+									on:click={() => (userMenuOpen = false)}>Email preferences</a
+								>
+							{/if}
 							{#if data.isAdmin}
 								<a class="dropdown-item" href="/admin" on:click={() => (userMenuOpen = false)}
 									>Admin</a
@@ -227,6 +235,21 @@
 			{/if}
 		</button>
 	</header>
+
+	{#if data.askEmail}
+		<!-- plain GET form: the typed address arrives at /email-preferences as ?email= -->
+		<form class="email-banner" action="/email-preferences">
+			<span>Get an email when your requested changes go live, or when Rankless has news.</span>
+			<input
+				name="email"
+				type="email"
+				placeholder="you@example.org"
+				autocomplete="email"
+				aria-label="Email address"
+			/>
+			<button type="submit">Set email preferences</button>
+		</form>
+	{/if}
 
 	{#if !$resultsHidden}
 		<div id="search-bar" transition:slide={{ duration: 200, axis: 'y' }}>
@@ -447,6 +470,35 @@
 
 	.logout-item {
 		opacity: 0.6;
+	}
+
+	.email-banner {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px 12px;
+		padding: 10px 3vw;
+		background-color: var(--color-theme-lightblue);
+		color: var(--color-theme-darkblue);
+		font-size: var(--text-sm);
+	}
+
+	.email-banner input {
+		font: inherit;
+		padding: 5px 8px;
+		border: 1px solid var(--color-theme-darkblue);
+		border-radius: 3px;
+		min-width: 220px;
+	}
+
+	.email-banner button {
+		font: inherit;
+		cursor: pointer;
+		padding: 5px 12px;
+		border: none;
+		border-radius: 3px;
+		background-color: var(--color-theme-darkblue);
+		color: var(--color-theme-white);
 	}
 
 	.header-search {

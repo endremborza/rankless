@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto';
 import { SessionDb } from '$lib/server/db';
 
 const COOKIE_NAME = 'session';
-const SESSION_TTL_S = 60 * 60 * 24; // 1 day
+const SESSION_TTL_S = 60 * 60 * 24 * 365; // 1 year
 
 const COOKIE_OPTS = {
 	path: '/',
@@ -37,7 +37,16 @@ export function safeReturnTo(raw: string | null | undefined): string {
 export function getSession(event: RequestEvent): SessionUserData | null {
 	const token = event.cookies.get(COOKIE_NAME);
 	if (!token) return null;
-	const data = SessionDb.get(token);
+	let data: SessionUserData | null;
+	try {
+		data = SessionDb.get(token);
+	} catch (e) {
+		// This runs on every request (hooks). A transient/locked/corrupt DB must never turn an
+		// ordinary page load into a 500 — degrade to anonymous and keep the cookie (the session may
+		// still be valid once the DB recovers).
+		console.error('session lookup failed, treating request as anonymous:', e);
+		return null;
+	}
 	if (!data) {
 		// stale/expired/forged token — drop it so the browser stops resending
 		event.cookies.delete(COOKIE_NAME, { path: '/' });

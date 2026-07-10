@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { env } from '$env/dynamic/private';
 import { DEFAULT_MODERATION, subjectHash } from './ledger-hash';
 import type { LedgerKind, LedgerPayload, ModerationState } from '$lib/types/ledger';
+import type { EmailConsent, EmailPurposeKey } from '$lib/types/email-consent';
 import type { SessionUserData } from './session';
 
 let _db: Database | null = null;
@@ -10,10 +11,12 @@ export function getDb(): Database {
 	if (_db) return _db;
 	const dbPath = env.RANKLESS_DB_PATH ?? 'data/rankless.sqlite';
 	_db = new Database(dbPath);
-	_db.run('PRAGMA journal_mode = WAL');
-	// Multiple Bun worker processes (blue/green × procs) share this file; without a
-	// busy timeout a concurrent writer throws SQLITE_BUSY immediately instead of waiting.
+	// Multiple Bun worker processes (blue/green × procs) share this file; without a busy timeout a
+	// concurrent writer throws SQLITE_BUSY immediately instead of waiting. Set it *before* the WAL
+	// switch so even the first-init race (every worker flipping journal_mode on a fresh file at once)
+	// waits on the lock instead of erroring.
 	_db.run('PRAGMA busy_timeout = 5000');
+	_db.run('PRAGMA journal_mode = WAL');
 	_db.run(`
 		CREATE TABLE IF NOT EXISTS ledger_events (
 			event_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,6 +54,27 @@ export function getDb(): Database {
 			created_at TEXT NOT NULL DEFAULT (datetime('now')),
 			expires_at TEXT NOT NULL
 		);
+		CREATE TABLE IF NOT EXISTS users (
+			orcid TEXT PRIMARY KEY,
+			name TEXT,
+			semantic_id TEXT,
+			first_login_at TEXT NOT NULL DEFAULT (datetime('now')),
+			last_login_at TEXT NOT NULL DEFAULT (datetime('now')),
+			login_count INTEGER NOT NULL DEFAULT 0
+		);
+		CREATE TABLE IF NOT EXISTS email_consents (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			orcid TEXT NOT NULL,
+			email TEXT NOT NULL,
+			-- legacy, always 'manual' now (kept: deployed DBs already have the NOT NULL column)
+			email_source TEXT NOT NULL DEFAULT 'manual',
+			purposes TEXT NOT NULL,
+			consent_version TEXT NOT NULL,
+			granted_at TEXT NOT NULL DEFAULT (datetime('now')),
+			withdrawn_at TEXT
+		);
+		CREATE INDEX IF NOT EXISTS idx_ec_orcid ON email_consents(orcid);
+		CREATE INDEX IF NOT EXISTS idx_ec_active ON email_consents(orcid) WHERE withdrawn_at IS NULL;
 	`);
 	return _db;
 }
@@ -202,6 +226,24 @@ export const LedgerDb = {
 				"INSERT OR IGNORE INTO ledger_runs (run_id, snapshot_at, manifest_at, manifest_json) VALUES (?, ?, datetime('now'), ?)"
 			)
 			.run(runId, snapshotAt, manifestJson);
+	},
+
+	// Union of every event id that has ever been applied to the data, across all stored
+	// pipeline runs — i.e. the requested changes that are now live in the pipeline.
+	getAllAppliedEventIds(): number[] {
+		const rows = getDb()
+			.prepare('SELECT manifest_json FROM ledger_runs WHERE manifest_json IS NOT NULL')
+			.all() as { manifest_json: string }[];
+		const ids = new Set<number>();
+		for (const r of rows) {
+			try {
+				const m = JSON.parse(r.manifest_json) as { applied_event_ids?: number[] };
+				for (const id of m.applied_event_ids ?? []) ids.add(id);
+			} catch {
+				// ignore a malformed stored manifest
+			}
+		}
+		return [...ids];
 	}
 };
 
@@ -230,5 +272,105 @@ export const SessionDb = {
 
 	destroy(token: string): void {
 		getDb().prepare('DELETE FROM sessions WHERE token = ?').run(token);
+	}
+};
+
+export type UserRow = {
+	orcid: string;
+	name: string | null;
+	semantic_id: string | null;
+	first_login_at: string;
+	last_login_at: string;
+	login_count: number;
+};
+
+// Persistent record of who has signed in (session rows expire and are pruned), so the
+// admin view can show logins independently of live sessions.
+export const UserDb = {
+	recordLogin(data: SessionUserData): void {
+		getDb()
+			.prepare(
+				`INSERT INTO users (orcid, name, semantic_id, login_count)
+				 VALUES (?, ?, ?, 1)
+				 ON CONFLICT(orcid) DO UPDATE SET
+				   name = excluded.name,
+				   semantic_id = COALESCE(excluded.semantic_id, users.semantic_id),
+				   last_login_at = datetime('now'),
+				   login_count = users.login_count + 1`
+			)
+			.run(data.orcid, data.name, data.semanticId ?? null);
+	},
+
+	listUsers(): UserRow[] {
+		return getDb().prepare('SELECT * FROM users ORDER BY last_login_at DESC').all() as UserRow[];
+	}
+};
+
+type ConsentRow = {
+	id: number;
+	orcid: string;
+	email: string;
+	email_source: string;
+	purposes: string;
+	consent_version: string;
+	granted_at: string;
+	withdrawn_at: string | null;
+};
+
+function rowToConsent(r: ConsentRow): EmailConsent {
+	return {
+		email: r.email,
+		purposes: JSON.parse(r.purposes) as EmailPurposeKey[],
+		consent_version: r.consent_version,
+		granted_at: r.granted_at
+	};
+}
+
+// Append-only, auditable consent log. The active consent for an ORCID is the latest row
+// with withdrawn_at IS NULL; granting again withdraws the prior row and inserts a new one,
+// so the full history (what was agreed, when, under which notice version) is preserved.
+export const ConsentDb = {
+	setConsent(orcid: string, email: string, purposes: EmailPurposeKey[], version: string): void {
+		const db = getDb();
+		// Withdraw-then-insert must be atomic so a user never ends up with two active rows
+		// (or none); a plain BEGIN/COMMIT keeps to the `.run` API used throughout this file.
+		db.run('BEGIN');
+		try {
+			db.prepare(
+				"UPDATE email_consents SET withdrawn_at = datetime('now') WHERE orcid = ? AND withdrawn_at IS NULL"
+			).run(orcid);
+			db.prepare(
+				"INSERT INTO email_consents (orcid, email, email_source, purposes, consent_version) VALUES (?, ?, 'manual', ?, ?)"
+			).run(orcid, email, JSON.stringify(purposes), version);
+			db.run('COMMIT');
+		} catch (e) {
+			db.run('ROLLBACK');
+			throw e;
+		}
+	},
+
+	withdrawConsent(orcid: string): boolean {
+		const info = getDb()
+			.prepare(
+				"UPDATE email_consents SET withdrawn_at = datetime('now') WHERE orcid = ? AND withdrawn_at IS NULL"
+			)
+			.run(orcid);
+		return info.changes > 0;
+	},
+
+	getActiveConsent(orcid: string): EmailConsent | null {
+		const row = getDb()
+			.prepare(
+				'SELECT * FROM email_consents WHERE orcid = ? AND withdrawn_at IS NULL ORDER BY id DESC LIMIT 1'
+			)
+			.get(orcid) as ConsentRow | null;
+		return row ? rowToConsent(row) : null;
+	},
+
+	listActiveConsents(): (EmailConsent & { orcid: string })[] {
+		const rows = getDb()
+			.prepare('SELECT * FROM email_consents WHERE withdrawn_at IS NULL ORDER BY id DESC')
+			.all() as ConsentRow[];
+		return rows.map((r) => ({ orcid: r.orcid, ...rowToConsent(r) }));
 	}
 };
