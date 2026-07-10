@@ -1,13 +1,13 @@
 use core::panic;
 use std::{
     collections::VecDeque,
-    fmt::{Debug, Display},
+    fmt::Display,
     marker::PhantomData,
+    panic::{catch_unwind, AssertUnwindSafe},
     path::PathBuf,
-    str::FromStr,
     sync::{Arc, Mutex},
     thread::JoinHandle,
-    u32, u8, vec,
+    vec,
 };
 
 use dmove_macro::impl_subs;
@@ -18,7 +18,7 @@ use rankless_rs::{
     env_consts::START_YEAR,
     gen::{a1_entity_mapping::Works, a2_init_atts::WorksNames},
     steps::{
-        a1_entity_mapping::{N_PERS, POSSIBLE_YEAR_FILTERS, YBT},
+        a1_entity_mapping::{POSSIBLE_YEAR_FILTERS, YBT},
         derive_links1::WorkPeriods,
     },
 };
@@ -34,6 +34,8 @@ use crate::{
     AttributeLabelUnion,
 };
 
+const MAX_QUEUE_LEN: usize = 2048;
+
 pub type WT = ET<Works>;
 pub type WorkCiteT = u32;
 
@@ -42,7 +44,7 @@ pub type AttributeLabels = HashMap<String, HashMap<usize, AttributeLabelOut>>;
 pub type EntityAttsForLinks = HashMap<String, HashMap<usize, AttributeLabel>>;
 pub type CollapsedNode = CollapsedNodeGen<WT>;
 pub type CollapsedNodeJson = CollapsedNodeGen<Option<BigId>>;
-pub type CacheMap = HashMap<CacheKey, CacheValue>;
+pub type InProgressMap = HashMap<CacheKey, BoolCvp>;
 pub type ManFileHandle = VattReadingArcMap<WorksNames>;
 
 pub type ResCvp = AcTuple<Option<AnyResponse>>;
@@ -53,7 +55,7 @@ type BasisCvp = AcTuple<VecDeque<BasisQuElem>>;
 pub struct TreeBasisState {
     pub gets: Getters,
     pub att_union: Arc<AttributeLabelUnion>,
-    pub im_cache: Mutex<CacheMap>,
+    pub in_progress: Mutex<InProgressMap>,
 }
 
 pub struct TreeRunManager<T> {
@@ -212,11 +214,7 @@ pub enum AnyQuery {
 pub enum AnyResponse {
     Single(TreeResponse),
     Shallows(ShallowTreesResponse),
-}
-
-pub enum CacheValue {
-    InProgress(BoolCvp),
-    Done(Vec<u8>),
+    Failed,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -305,7 +303,8 @@ impl TreeSpecs {
 
     pub fn to_ck(&self, tid: u8, root_type: &String, eid: usize) -> Option<CacheKey> {
         let etype = self.to_eid(root_type)?;
-        // Reject out-of-range tids: the generated `run_params` dispatch has no fallback arm
+        // Reject out-of-range tids: the generated `run_params` dispatch has no fallback arm.
+        // eids are the handlers' responsibility: raw input is validated at the HTTP boundary
         if (tid as usize) >= self.specs.get(root_type)?.len() {
             return None;
         }
@@ -439,15 +438,13 @@ where
     T: RunManagerSub,
 {
     pub fn new(gets: Arc<Getters>, atts: Arc<AttributeLabelUnion>, n: usize) -> Arc<Self> {
-        let specs = T::get_specs();
-        let mut state = TreeBasisState::new(Arc::into_inner(gets).expect("gets for state"), atts);
-        state.fill_cache(&specs);
+        let state = TreeBasisState::new(Arc::into_inner(gets).expect("gets for state"), atts);
 
         Arc::new(
             Self {
                 state: Arc::new(state),
                 thread_pool: Vec::new(),
-                specs,
+                specs: T::get_specs(),
                 cv_pair: BasisCvp::default(),
                 p: PhantomData,
             }
@@ -496,14 +493,18 @@ where
 
     fn get_resp(&self, aq: AnyQuery) -> Option<AnyResponse> {
         let res_cvp = ResCvp::default();
-        self.add_to_queue(Some(aq), res_cvp.clone());
-        {
-            let (lock, cvar) = &*res_cvp;
-            let mut out = lock.lock().unwrap();
-            while out.is_none() {
-                out = cvar.wait(out).unwrap();
-            }
-            return std::mem::replace(&mut out, None);
+        if !self.add_to_queue(Some(aq), res_cvp.clone()) {
+            println!("queue full, rejecting query");
+            return None;
+        }
+        let (lock, cvar) = &*res_cvp;
+        let mut out = lock.lock().unwrap();
+        while out.is_none() {
+            out = cvar.wait(out).unwrap();
+        }
+        match out.take() {
+            Some(AnyResponse::Failed) | None => None,
+            resp => resp,
         }
     }
 
@@ -539,11 +540,16 @@ where
         )
     }
 
-    fn add_to_queue(&self, aq: Option<AnyQuery>, res_cvp: ResCvp) {
+    fn add_to_queue(&self, aq: Option<AnyQuery>, res_cvp: ResCvp) -> bool {
         let (lock, cvar) = &*self.cv_pair;
         let mut data = lock.lock().unwrap();
+        // the kill sentinel (None) must always get through
+        if aq.is_some() && data.len() >= MAX_QUEUE_LEN {
+            return false;
+        }
         data.push_back((aq, res_cvp));
         cvar.notify_all();
+        true
     }
 
     fn fill_thread_pool(mut self, n: usize) -> Self {
@@ -555,9 +561,21 @@ where
                 let (fqo, res_cvp) = Self::get_q_cvp(shared_cvp.clone());
                 match fqo {
                     Some(aq) => {
-                        let params =
-                            TreeMakingParams::new(&shared_state, &mut thread_fh, aq, res_cvp);
-                        T::run_params(params);
+                        let panic_cvp = res_cvp.clone();
+                        let run = catch_unwind(AssertUnwindSafe(|| {
+                            let params =
+                                TreeMakingParams::new(&shared_state, &mut thread_fh, aq, res_cvp);
+                            T::run_params(params);
+                        }));
+                        if run.is_err() {
+                            println!("tree compute panicked on worker {i}");
+                            let (lock, cvar) = &*panic_cvp;
+                            let mut out = lock.lock().unwrap();
+                            if out.is_none() {
+                                *out = Some(AnyResponse::Failed);
+                                cvar.notify_all();
+                            }
+                        }
                     }
                     None => {
                         println!("killing worker thread {i}");
@@ -582,11 +600,10 @@ where
 
 impl TreeBasisState {
     pub fn new(gets: Getters, att_union: Arc<AttributeLabelUnion>) -> Self {
-        let im_map = HashMap::new();
         Self {
             gets,
             att_union,
-            im_cache: Mutex::new(im_map),
+            in_progress: Mutex::new(HashMap::new()),
         }
     }
 
@@ -620,43 +637,20 @@ impl TreeBasisState {
 
     pub fn fake() -> Self {
         Self {
-            im_cache: Mutex::new(HashMap::new()),
+            in_progress: Mutex::new(HashMap::new()),
             gets: Getters::fake(),
             att_union: Arc::new(HashMap::new()),
         }
     }
 
     fn cache_dir(&self, fq: &FullTreeQuery) -> PathBuf {
-        self.rt_cache_dir(&fq.name)
+        self.gets
+            .stowage
+            .paths
+            .cache
+            .join(&fq.name)
             .join(fq.ck.eid.to_string())
             .join(fq.ck.tid.to_string())
-    }
-
-    fn rt_cache_dir(&self, rt: &str) -> PathBuf {
-        self.gets.stowage.paths.cache.join(rt)
-    }
-
-    fn fill_cache(&mut self, specs: &TreeSpecs) {
-        let mut cmap = self.im_cache.lock().unwrap();
-        for (k, specv) in &specs.specs {
-            let ntids = specv.len() as u8;
-            let rt_cdir = self.rt_cache_dir(&k);
-            if let (Some(etype), Ok(dir_contents)) = (specs.to_eid(k), std::fs::read_dir(rt_cdir)) {
-                println!("filling cache for {k}");
-                for eid_entry in dir_contents {
-                    let eid_path = eid_entry.unwrap().path();
-                    let eid: usize = match fpparse(&eid_path) {
-                        Ok(id) => id,
-                        _ => continue,
-                    };
-                    for tid in get_tids_of_dir(&eid_path, true, ntids).into_iter() {
-                        let ck = CacheKey { eid, tid, etype };
-                        let v = (0..N_PERS as u8).collect();
-                        cmap.insert(ck, CacheValue::Done(v));
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -668,30 +662,6 @@ fn make_fq(q: TreeQ, eid: usize, root_type: &String, specs: &TreeSpecs) -> Optio
         name: root_type.to_string(),
     };
     Some(fq)
-}
-
-fn get_tids_of_dir(entity_dir_path: &PathBuf, defalt_to_all: bool, n: u8) -> Vec<u8> {
-    if defalt_to_all {
-        return (0..n).collect();
-    }
-    let mut out = Vec::new();
-    if let Ok(tid_entries) = std::fs::read_dir(&entity_dir_path) {
-        for tid_eo in tid_entries {
-            if let Ok(tid_e) = tid_eo {
-                if let Ok(tid) = fpparse(&tid_e.path()) {
-                    out.push(tid);
-                }
-            }
-        }
-    }
-    out
-}
-
-fn fpparse<T: FromStr>(p: &PathBuf) -> Result<T, T::Err>
-where
-    <T as FromStr>::Err: Debug,
-{
-    p.file_stem().unwrap().to_str().unwrap().parse()
 }
 
 fn oaify(node: CollapsedNode, gets: &Getters) -> CollapsedNodeJson {
