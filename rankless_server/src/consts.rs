@@ -5,6 +5,7 @@ pub const MAX_HITS: usize = 80;
 pub const PORT: u16 = 3038;
 pub const SEARCH_SIZE: usize = 20;
 pub const MAX_SLICE: usize = 40_000;
+pub const MAX_SHALLOW_IDS: usize = 64;
 pub const CACHEABLE_FROM: u32 = 10_000;
 pub const DEFAULT_N_THREADS: usize = 16;
 pub const N_SUBFIELDS: usize = Subfields::N;

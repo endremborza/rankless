@@ -16,9 +16,9 @@ use crate::{
     instances::{CollT, Collapsing, FoldStackBase},
     interfacing::Getters,
     io::{
-        AnyQuery, AnyResponse, BoolCvp, BufSerTree, CacheKey, CacheMap, CacheValue,
-        FullMultiTreeQuery, FullTreeQuery, JsSerTree, ManFileHandle, ResCvp, ShallowTreesResponse,
-        TreeBasisState, TreeResponse, TreeSpec, WT,
+        AnyQuery, AnyResponse, BoolCvp, BufSerTree, CacheKey, FullMultiTreeQuery, FullTreeQuery,
+        InProgressMap, JsSerTree, ManFileHandle, ResCvp, ShallowTreesResponse, TreeBasisState,
+        TreeResponse, TreeSpec, WT,
     },
     prune::{cut_tree, prune, prune_wide},
 };
@@ -31,7 +31,7 @@ use rankless_rs::{
     agg_tree::{HeapIterator, MinHeap, SortedRecord, Updater},
     common::{read_buf_path, write_buf_path, NET},
     steps::{
-        a1_entity_mapping::{YearInterface, N_PERS, POSSIBLE_YEAR_FILTERS},
+        a1_entity_mapping::{YearInterface, POSSIBLE_YEAR_FILTERS},
         derive_links1::WorkPeriods,
     },
 };
@@ -57,13 +57,17 @@ type SrHeap<'a, S> = MinHeap<StackFr<<S as PartitioningIterator<'a>>::StackBasis
 enum Progress {
     Wait(BoolCvp),
     Calculate,
-    // Prune,
-    Load,
 }
 
 pub struct TreeMakingRun<'a, TM> {
     params: TreeMakingParams<'a>,
     p: PhantomData<TM>,
+}
+
+// Removes the in-progress entry and wakes waiters on all exits, including panics
+struct InProgressGuard<'a> {
+    map: &'a Mutex<InProgressMap>,
+    ck: CacheKey,
 }
 
 pub struct TreeMakingParams<'a> {
@@ -119,25 +123,21 @@ pub trait GetRefWork {
 }
 
 impl Progress {
-    fn from_e(value: &Mutex<CacheMap>, fq: &FullTreeQuery) -> Self {
-        //if any of the periods in progress, somehow queue this period too?
-        //in full progress, vs in pruning progress
+    fn from_e(value: &Mutex<InProgressMap>, fq: &FullTreeQuery) -> Self {
         match value.lock().unwrap().entry(fq.ck.clone()) {
             Entry::Vacant(e) => {
-                e.insert(CacheValue::InProgress(BoolCvp::default()));
+                e.insert(BoolCvp::default());
                 Progress::Calculate
             }
-            Entry::Occupied(cv) => match cv.get() {
-                CacheValue::InProgress(cvp) => Progress::Wait(cvp.clone()),
-                CacheValue::Done(done_periods) => {
-                    if done_periods.contains(&fq.period) {
-                        Progress::Load
-                    } else {
-                        println!("not implemented partial waiting");
-                        Progress::Calculate
-                    }
-                }
-            },
+            Entry::Occupied(cv) => Progress::Wait(cv.get().clone()),
+        }
+    }
+}
+
+impl Drop for InProgressGuard<'_> {
+    fn drop(&mut self) {
+        if let Some(cvp) = self.map.lock().unwrap().remove(&self.ck) {
+            set_and_notify(cvp, Some(()));
         }
     }
 }
@@ -218,24 +218,38 @@ where
 
     fn run_single_tree(&mut self) {
         println!("requested entity: {}", self.params.fq);
-        let prog = Progress::from_e(&self.params.state.im_cache, &self.params.fq);
-        //getting one of e(tid) might trigger all others
-        match prog {
-            Progress::Calculate => {
-                return self.fill_calculate();
+        let q = &self.params.fq.q;
+        // big_prep/big_read are explicit compute commands (cache prompting), never cache-served
+        let bypass_cache = q.big_prep.unwrap_or(false) | q.big_read.unwrap_or(false);
+        loop {
+            if !bypass_cache {
+                if self.try_load_cached() {
+                    return;
+                }
+                if !self.is_cacheable() {
+                    // no file will ever appear, so waiting on an in-progress compute is pointless
+                    return self.fill_calculate();
+                }
             }
-            Progress::Wait(cvp) => wait_for_data_with_taker(cvp, |_| ()), //TODO make sure this
-            //is tested
-            Progress::Load => {}
+            match Progress::from_e(&self.params.state.in_progress, &self.params.fq) {
+                Progress::Calculate => {
+                    let _guard = InProgressGuard {
+                        map: &self.params.state.in_progress,
+                        ck: self.params.fq.ck.clone(),
+                    };
+                    return self.fill_calculate();
+                }
+                Progress::Wait(cvp) => wait_for_data_with_taker(cvp, |_| ()),
+            }
         }
+    }
+
+    fn try_load_cached(&mut self) -> bool {
         let now = std::time::Instant::now();
         let resp_tree_path = self.params.state.resp_cache_file(&self.params.fq);
         let mut resp_tree: BufSerTree = match read_buf_path(&resp_tree_path) {
             Ok(pt) => pt,
-            Err(_) => {
-                self.log("failed load");
-                return self.fill_calculate();
-            }
+            Err(_) => return false,
         };
         let mut shallowed = false;
         if let Some(sh_depth) = self.params.fq.q.shallow {
@@ -252,6 +266,7 @@ where
         let resp = self.to_tree_resp(resp_tree, shallowed);
         self.tlog("loaded and sent cache", now);
         set_single_resp(self.params.res_cvp.clone(), resp);
+        true
     }
 
     fn fill_calculate(&mut self) {
@@ -260,16 +275,13 @@ where
             create_dir_all(full_path.parent().unwrap())
                 .unwrap_or_else(|_| self.log("can't create directory for cache"));
         }
-        let mut pids = Vec::new();
         let et_id = NET::<IteratorRootEtype<TMK>>::from_usize(self.params.fq.ck.eid);
         if self.params.fq.q.big_read.unwrap_or(false) {
-            self.read_big_calculate(&mut pids);
+            self.read_big_calculate();
             // clone could possibly be done better, but should not be big deal
             set_single_resp(self.params.res_cvp.clone(), TreeResponse::empty())
         } else if self.params.fq.q.big_prep.unwrap_or(false) {
             self.write_tmp_parts();
-            pids.extend(0..N_PERS as u8);
-            set_single_resp(self.params.res_cvp.clone(), TreeResponse::empty())
         } else {
             let heaps = self.fill_heaps(&et_id);
             let now = std::time::Instant::now();
@@ -295,22 +307,13 @@ where
             for (pid, part_root) in roots.into_iter().enumerate().rev() {
                 TMK::fold_tree(&mut ser_tree_o, part_root);
                 let stref = ser_tree_o.as_ref().unwrap();
-                self.check_w(pid, stref, Some(self.params.res_cvp.clone()), &mut pids);
+                self.write_resp(stref, Some(self.params.res_cvp.clone()), pid as u8);
                 if !self.is_cacheable() & (pid as u8 == self.params.fq.period) {
                     break;
                 }
             }
             self.tlog("converted, ingested and wrote trees", now);
         }
-        let cv = CacheValue::Done(pids);
-        let mut cache_map = self.params.state.im_cache.lock().unwrap();
-        let bcvp = match cache_map.insert(self.params.fq.ck.clone(), cv).unwrap() {
-            CacheValue::InProgress(cvp) => cvp,
-            _ => {
-                return self.log("non inprogress cache");
-            }
-        };
-        set_and_notify(bcvp, Some(()))
     }
 
     fn fill_heaps(&self, et_id: &NetRoot<'a, TMK>) -> [SrHeap<'a, TMK>; MAX_PARTITIONS] {
@@ -322,12 +325,6 @@ where
         }
         self.tlog("got heaps", now);
         heaps
-    }
-
-    fn check_w(&mut self, pid: usize, tree: &BufSerTree, cvp: Option<ResCvp>, pids: &mut Vec<u8>) {
-        let pid8 = pid as u8;
-        self.write_resp(&tree, cvp, pid8);
-        pids.push(pid8);
     }
 
     fn write_tmp_parts(&self) {
@@ -357,7 +354,7 @@ where
         set_single_resp(self.params.res_cvp.clone(), TreeResponse::empty());
     }
 
-    fn read_big_calculate(&mut self, pids: &mut Vec<u8>) {
+    fn read_big_calculate(&mut self) {
         let et_id = NetRoot::<'a, TMK>::from_usize(self.params.fq.ck.eid);
         let cache_root = tmp_part_cache_root(&self.params.fq.ck);
         let mut buf: [u8; MAX_BUFSIZE] = [0; MAX_BUFSIZE];
@@ -384,7 +381,7 @@ where
             if let Some(next_bp) = next_bp_o {
                 if y16 == *next_bp {
                     let pid = WorkPeriods::from_year(y16);
-                    self.check_w(pid.to_usize(), &ser_tree_o.as_ref().unwrap(), None, pids);
+                    self.write_resp(ser_tree_o.as_ref().unwrap(), None, pid);
                     next_bp_o = year_bp_iter.next();
                 }
             } else {

@@ -113,6 +113,7 @@
 	</table>
 
 	<h1 class="section">Ledger moderation</h1>
+	<p class="nav"><a href="/mcp">→ MCP exploration sessions</a></p>
 	<p class="sub">
 		{events.length} most recent events · {pendingCount} pending review. Approving a change marks it accepted;
 		it is applied on the next data rebuild, not immediately. “implemented” means the change is live in

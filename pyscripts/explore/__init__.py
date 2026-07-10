@@ -9,6 +9,9 @@ path's section into a single report. Paths:
               ledger suggestions (the same format ORCID users submit).
 - features -> feature proposals grounded in the data and .cril/ideas.md.
 - stories  -> shareable, data-grounded narratives.
+
+Agentic exploration over a live backend (deeper, evidence-reproduced, writes to
+.cril/writeups/) is a separate command: `pyscripts.explore.deep`.
 """
 
 from dataclasses import dataclass, field

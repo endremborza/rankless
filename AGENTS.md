@@ -6,7 +6,11 @@ Large-scale scholarly citation explorer. OpenAlex CSVs → binary pipeline → A
 
 - `docs/architecture.md` — app purpose, data model, layers, codebase file index, schema, breakdown-selection, metaprogramming, parallelization, local dev
 - `docs/benchmarking.md` — comparison/benchmark tooling + SQL-vs-Rust results
-- `docs/todo-backend.md`, `docs/todo-frontend.md`, `docs/todo-infra.md` — remaining work by theme
+- `docs/reporting.md`, `docs/tree-internals.md`, `docs/topic-tags.md`, `docs/sharecard-render-test.md` — focused references (reporting site, tree-build internals, topic tags, share-card test)
+- `docs/mcp-server.md` — MCP proxy (`mcp_server/`) over the backend + the deep-stories miner
+- `docs/type-audit.md` — cross-language type/API-shape coherence audit (`make type-audit`)
+- `docs/v2-to-v3-changes.md` — v2→v3 changelog; `docs/unfinished-features.md` — built-but-hidden features
+
 
 **When you change code:** update the codebase file index in `docs/architecture.md` if files are added/removed/renamed, or if architecture/features change.
 
@@ -93,11 +97,11 @@ This distinction is used consistently throughout the codebase.
 
 Run **`make check`** before every change — it must stay clean. It is the read-only gate; **`make format`** applies every mechanical fix. Per-language sub-targets exist (`check-rs`/`check-py`/`check-js`, `format-rs`/`format-py`/`format-js`).
 
-| Layer                                    | `make check`                                                      | `make format`                       |
-| ---------------------------------------- | ----------------------------------------------------------------- | ----------------------------------- |
-| Rust                                     | `cargo fmt --check` + `cargo check --workspace --all-targets`     | `cargo fmt`                         |
-| Python (`pyscripts/` + `sql-yardstick/`) | `ruff format --check` + `ruff check`                              | `ruff check --fix` + `ruff format`  |
-| Frontend                                 | `prettier --check` + `eslint` + `svelte-check --fail-on-warnings` | `prettier --write` + `eslint --fix` |
+| Layer                                                    | `make check`                                                      | `make format`                       |
+| -------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------- |
+| Rust                                                     | `cargo fmt --check` + `cargo check --workspace --all-targets`     | `cargo fmt`                         |
+| Python (`pyscripts/` + `sql-yardstick/` + `mcp_server/`) | `ruff format --check` + `ruff check`                              | `ruff check --fix` + `ruff format`  |
+| Frontend                                                 | `prettier --check` + `eslint` + `svelte-check --fail-on-warnings` | `prettier --write` + `eslint --fix` |
 
 The JS commands live as `package.json` scripts (`lint`, `lint:fix`, `format`, `check`); the Makefile just calls them.
 

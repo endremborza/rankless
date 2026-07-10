@@ -4,7 +4,24 @@ version = "0.1.0"
 description = "a Large-scale Scholarly Data Exploration Platform"
 readme = "README.md"
 requires-python = ">=3.12"
+# Core = the live MCP server + worker runtime, and the only deps the serving box
+# installs. Everything else (data pipeline, benchmarking, plotting, AWS deploy)
+# lives in the `pipeline` group and is skipped there via `uv sync
+# --no-default-groups` — see pyscripts/deploy.py::sync_py.
 dependencies = [
+    "anthropic>=0.52.0",
+    "httpx>=0.28.1",
+    "mcp>=1.28.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
+# Dev/build-box only. `ccl-science-data` is a local editable path source (below),
+# so this whole group is unresolvable without `libs/` present — which is exactly
+# why the serving box must not sync it.
+pipeline = [
     "boto3>=1.42.61",
     "ccl-science-data",
     "jinja2>=3.1.6",
@@ -19,16 +36,15 @@ dependencies = [
     "shackleton>=1.2.0",
     "sqlalchemy>=2.0.46",
     "sqlmermaid>=0.1.4",
-    "anthropic>=0.52.0",
 ]
+
+[tool.uv]
+# Both groups sync by default, so `make bootstrap` / `uv sync` on a dev box gets
+# the full toolchain; the serving box opts out with `--no-default-groups`.
+default-groups = ["dev", "pipeline"]
 
 [tool.uv.sources]
 # `libs/ccl-science-data` is populated by `make bootstrap` (cloned from
 # https://github.com/CenterForCollectiveLearning/science-data). Symlink an
 # existing checkout there if you already have one.
 ccl-science-data = { path = "libs/ccl-science-data", editable = true }
-
-[dependency-groups]
-dev = [
-    "pytest>=9.0.3",
-]

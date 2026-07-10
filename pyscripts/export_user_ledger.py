@@ -23,6 +23,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from pyscripts import paths
+
 from .deploy import OA_ROOT_VAR
 
 
@@ -36,7 +38,7 @@ if DEFAULT_DATA_ROOT is None:
     except ImportError:
         pass
 
-DEFAULT_DB = "data/rankless.sqlite"
+DEFAULT_DB = paths.DB_REL
 OK_MODERATION = ("auto_ok", "accepted")
 
 

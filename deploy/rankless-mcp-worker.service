@@ -1,0 +1,22 @@
+[Unit]
+# Runs admin-created exploration sessions on the host. The claude-cli runner
+# needs an authenticated `claude` CLI in the service user's home.
+Description=Rankless MCP exploration worker
+After=network.target
+
+[Service]
+WorkingDirectory={{ repo_root }}
+EnvironmentFile=-{{ repo_root }}/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=RANKLESS_DB_PATH={{ db_path }}
+Environment=MCP_SESSIONS_ROOT={{ sessions_root }}
+Environment=MCP_WORKER_MODEL={{ worker_model }}
+Environment=MCP_WORKER_RUNNER={{ worker_runner }}
+# systemd user units get a bare PATH; the runner shells out to `claude`.
+Environment=PATH=%h/.local/bin:%h/.claude/local:/usr/local/bin:/usr/bin:/bin
+ExecStart={{ python }} -m pyscripts.mcp_worker
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

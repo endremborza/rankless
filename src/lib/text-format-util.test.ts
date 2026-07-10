@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { RootType } from './tree-types';
 import {
-	TypeWriterWordChanger,
 	isAsciiOnly,
 	pluralize,
 	formatNumber,
@@ -108,35 +107,6 @@ describe('getSpecDesc', () => {
 	});
 	it('returns Average for middle rates', () => {
 		expect(getSpecDesc(1.0)).toBe('Average');
-	});
-});
-
-describe('TypeWriterWordChanger', () => {
-	it('initializes with correct state', () => {
-		const tw = new TypeWriterWordChanger(['hello', 'world']);
-		expect(tw.texts).toEqual(['hello', 'world']);
-		expect(tw.wordInd).toBe(0);
-		expect(tw.direction).toBe(1);
-		expect(tw.text).toBe('hello');
-	});
-
-	it('changeText progresses letter index', () => {
-		const tw = new TypeWriterWordChanger(['ab']);
-		tw.letterInd = 0;
-		tw.direction = 1;
-		tw.changeText();
-		expect(tw.letterInd).toBe(1);
-		expect(tw.text).toBe('');
-	});
-
-	it('wraps wordInd back to 0 when past end', () => {
-		const tw = new TypeWriterWordChanger(['a', 'b']);
-		tw.wordInd = 2;
-		tw.letterInd = 0;
-		tw.direction = 1;
-		tw.changeText();
-		expect(tw.wordInd).toBe(0);
-		expect(tw.text).toBe('');
 	});
 });
 

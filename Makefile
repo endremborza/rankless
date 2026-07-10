@@ -1,10 +1,10 @@
 -include .env
 export
 
-.PHONY: bootstrap dev build-nano-artifact py-build
+.PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest mcp-worker setup-services
 .PHONY: check format check-rs check-py check-js format-rs format-py format-js
 
-PY_LINT_PATHS := pyscripts sql-yardstick
+PY_LINT_PATHS := pyscripts sql-yardstick mcp_server
 
 # Read-only verification gate. Run before every change; must be clean.
 check: check-rs check-py check-js
@@ -40,6 +40,34 @@ bootstrap:
 
 dev:
 	uv run -m pyscripts.dev.run
+
+# MCP proxy over the backend (stdio); see docs/mcp-server.md.
+mcp-server:
+	uv run -m mcp_server
+
+# Agentic deep exploration via the MCP tools; writes to .cril/writeups/.
+# e.g. make deep-explore ARGS="--backend live --foci all"
+deep-explore:
+	uv run -m pyscripts.explore.deep $(ARGS)
+
+# Cross-language type/API-shape coherence audit; see docs/type-audit.md.
+# ARGS="--strict" also fails on warnings.
+type-audit:
+	uv run -m pyscripts.typeaudit $(ARGS)
+
+# Bake the /mcp demo page manifest from the live tool/prompt sources.
+mcp-manifest:
+	uv run -m pyscripts.build_mcp_manifest $(ARGS)
+
+# Host worker for admin-created exploration sessions (systemd in prod).
+mcp-worker:
+	uv run -m pyscripts.mcp_worker $(ARGS)
+
+# Render deploy/ unit templates + install systemd --user services for a machine
+# profile (dev / small-alpha / live); see docs/mcp-server.md.
+# e.g. make setup-services ARGS="--profile dev --mcp-backend alpha"
+setup-services:
+	uv run -m pyscripts.services $(ARGS)
 
 build-nano-artifact:
 	uv run -m pyscripts.dev.build_nano_artifact
@@ -94,6 +122,10 @@ cache-prep cache-read cache-rest cache-validate-all cache-validate-bigs:
 	uv run -m pyscripts cache $(@:cache-%=%)
 
 pull_live_certs sync_fe_to_alpha sync_fe_to_live sync_fe_to_local sync_data_to_alpha sync_data_to_live setup_local_test bump_v bump_v_minor rolling_restart_live_fe new_small_alpha new_large_alpha kill_dangling kill_alpha:
+	echo "from pyscripts.deploy import $@;$@()" | uv run -
+
+# MCP + ledger DB movement: {merge,sync}_db_{to,from}_{live,alpha} (see pyscripts/deploy.py).
+merge_db_from_live sync_db_from_live merge_db_to_live sync_db_to_live merge_db_from_alpha sync_db_from_alpha merge_db_to_alpha sync_db_to_alpha:
 	echo "from pyscripts.deploy import $@;$@()" | uv run -
 
 post-csvs: filter extend_csvs rankless_rs/src/gen/derive_links5.rs lib_data_generation

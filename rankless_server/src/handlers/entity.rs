@@ -28,7 +28,7 @@ use rankless_trees::{
     AttributeLabelUnion,
 };
 
-use crate::consts::{CACHEABLE_FROM, N_SUBFIELDS};
+use crate::consts::{CACHEABLE_FROM, MAX_SHALLOW_IDS, N_SUBFIELDS};
 use crate::responses::{LadderResp, StatsQ, StatsResp, StatsSubfield, TopResult, ViewResult};
 use crate::state::{EntityExt, StatesT};
 use crate::util::{cache_header, get_empty, parse_semantic_id};
@@ -55,8 +55,8 @@ pub(crate) async fn tree_get(
                 .map(|rid| nstate.responses[rid].citations)
                 .unwrap_or(0);
             tq.cacheable = Some(ncite >= CACHEABLE_FROM);
-            let resp = Json(tm.get_single_resp(tq, &root_type, dm_id_u));
-            return (cache_header(60), resp);
+            let resp = tm.get_single_resp(tq, &root_type, dm_id_u);
+            return oresp_cached_if_some(resp);
         }
     }
     (cache_header(0), None.into())
@@ -67,8 +67,21 @@ pub(crate) async fn shallows_get(
     q: Query<ShallowQ>,
     states: StatesT,
 ) -> (HeaderMap, Json<Option<ShallowTreesResponse>>) {
-    let resp = Json(states.0 .2.get_shallows(q.0, &root_type));
-    (cache_header(60), resp)
+    let (ns_map, _, tm, _) = states.0;
+    let Some(nstate) = ns_map.get(root_type.as_str()) else {
+        return (cache_header(0), None.into());
+    };
+    // ids arrive raw in the query string; the tree layer trusts handler-validated eids
+    let mut sq = q.0;
+    sq.ids
+        .retain(|&eid| nstate.response_id_from_dm(eid).is_some());
+    sq.ids.truncate(MAX_SHALLOW_IDS);
+    oresp_cached_if_some(tm.get_shallows(sq, &root_type))
+}
+
+fn oresp_cached_if_some<T>(resp: Option<T>) -> (HeaderMap, Json<Option<T>>) {
+    let mins = if resp.is_some() { 60 } else { 0 };
+    (cache_header(mins), Json(resp))
 }
 
 pub(crate) async fn tops_get(tops_state: State<Arc<Vec<TopResult>>>) -> Json<Vec<TopResult>> {

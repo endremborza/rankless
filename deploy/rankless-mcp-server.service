@@ -1,0 +1,20 @@
+[Unit]
+Description=Rankless MCP server (streamable-http, public endpoint)
+After=network.target
+
+[Service]
+WorkingDirectory={{ repo_root }}
+# .env (if present) overrides the rendered defaults below (systemd applies
+# EnvironmentFile on top of Environment=), so a backend toggle needs no re-render.
+EnvironmentFile=-{{ repo_root }}/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=MCP_TRANSPORT=streamable-http
+Environment=MCP_HOST=127.0.0.1
+Environment=MCP_PORT={{ mcp_port }}
+Environment=RANKLESS_BE_URL={{ mcp_be_url }}
+ExecStart={{ python }} -m mcp_server
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

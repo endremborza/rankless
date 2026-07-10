@@ -893,12 +893,14 @@ mod tests {
         pub type Tree3 = Tither<SimpleStackBasis3>;
         pub type Tree4 = Tither<PartedStack>;
         pub type Tree5 = Tither<RandomStackBasis>;
+        pub type Tree6 = Tither<PanickingStackBasis>;
     }
 
     struct SimpleStackBasis;
     struct SimpleStackBasisL2;
     struct SimpleStackBasis3;
     struct RandomStackBasis;
+    struct PanickingStackBasis;
 
     impl TestSB for SimpleStackBasis {
         //tid: 1
@@ -979,6 +981,14 @@ mod tests {
                     (e1 % 6, e2 % 6, e3 % 6)
                 })
                 .collect()
+        }
+    }
+
+    impl TestSB for PanickingStackBasis {
+        //tid: 5
+        type SB = SimpleStack;
+        fn get_vec(_id: usize) -> Vec<StackFr<Self::SB>> {
+            panic!("test compute panic");
         }
     }
 
@@ -1082,6 +1092,17 @@ mod tests {
             assert_eq!(tree.node.source_count, 6);
         }
 
+        Arc::into_inner(tstate).unwrap().join();
+    }
+
+    #[test]
+    fn panic_recovery() {
+        let tstate = TreeRunManager::<(TestEntity, TestEntity)>::fake();
+        let name = TestEntity::NAME.to_string();
+        assert!(tstate.get_single_resp(test_q(5), &name, 0).is_none());
+        assert!(tstate.state.in_progress.lock().unwrap().is_empty());
+        // the worker pool survives the panic and keeps serving
+        assert!(tstate.get_single_resp(test_q(1), &name, 0).is_some());
         Arc::into_inner(tstate).unwrap().join();
     }
 
