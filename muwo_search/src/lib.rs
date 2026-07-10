@@ -315,7 +315,6 @@ impl<const S: usize> PrepTrieRoot<S> {
         };
         let l2_idx = get_i(l2, suff_by_idx);
         let oind = idxed_word.outer_idx as IndType;
-        //maybe just check last one?
         if !l2[l2_idx].ids.contains(&oind) {
             l2[l2_idx].ids.push(idxed_word.outer_idx as IndType);
         }
@@ -563,6 +562,13 @@ fn get_overlap<T: PartialEq>(suffix: &[T], word: &[T]) -> usize {
 }
 
 fn get_i(v: &mut Vec<PrepLeaf>, e: WordViaCharr) -> usize {
+    // suffix-sorted insertion makes equal suffixes consecutive, so the match is almost
+    // always the last leaf; the scan below only runs for unsorted inner-tree calls
+    if let Some(pl) = v.last() {
+        if e == pl.suffix {
+            return v.len() - 1;
+        }
+    }
     for (i, pl) in v.iter().enumerate() {
         if e == pl.suffix {
             return i;
