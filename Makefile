@@ -107,6 +107,11 @@ run-server:
 extend_csvs lib_data_generation homepage_showcase live_monitoring reporting sitemap_validation survey_result_export log_parsing nobel export_user_ledger:
 	uv run -m pyscripts.$@
 
+# Scrub all report history (local + gh-pages) before promoting a new live instance.
+# Pass ARGS="--local-only" to keep the published site, or ARGS="--yes" to skip the prompt.
+report-reset:
+	uv run -m pyscripts.reporting.reset $(ARGS)
+
 hit-paper-analysis field-citation-ratio author-missed-works:
 	uv run notebooks/$@.py
 
@@ -121,7 +126,13 @@ compare-sql compare-branch:
 cache-prep cache-read cache-rest cache-validate-all cache-validate-bigs:
 	uv run -m pyscripts cache $(@:cache-%=%)
 
-pull_live_certs sync_fe_to_alpha sync_fe_to_live sync_fe_to_local sync_data_to_alpha sync_data_to_live setup_local_test bump_v bump_v_minor rolling_restart_live_fe new_small_alpha new_large_alpha kill_dangling kill_alpha:
+# Tear the current alpha FE down: abort-flood all workers to OOM (the client-
+# disconnect-mid-render leak), monitor to death. Corpus auto-built from the alpha
+# backend. Override with ARGS, e.g. `make stress ARGS="--ssh-host rankless-live"`.
+stress:
+	uv run -m pyscripts stress --ssh-host rankless-alpha $(ARGS)
+
+pull_live_certs sync_fe_to_alpha sync_fe_to_alpha_nopull sync_fe_to_live sync_fe_to_local sync_data_to_alpha sync_data_to_live setup_local_test bump_v bump_v_minor rolling_restart_live_fe new_small_alpha new_large_alpha kill_dangling kill_alpha:
 	echo "from pyscripts.deploy import $@;$@()" | uv run -
 
 # MCP + ledger DB movement: {merge,sync}_db_{to,from}_{live,alpha} (see pyscripts/deploy.py).
