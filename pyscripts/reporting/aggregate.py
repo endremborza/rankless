@@ -161,12 +161,6 @@ def purge_sessions() -> None:
     _sessions_repo().purge()
 
 
-def purge_session_dates(dates: list[dt.date]) -> None:
-    repo = _sessions_repo()
-    for d in dates:
-        repo.purge_partition({"start_date": d.isoformat()})
-
-
 def update_sessions(new_sessions: pl.DataFrame) -> None:
     if new_sessions.is_empty():
         return

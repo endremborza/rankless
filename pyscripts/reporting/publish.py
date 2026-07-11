@@ -1,4 +1,5 @@
 import subprocess
+import tempfile
 from pathlib import Path
 
 from . import timing
@@ -38,6 +39,98 @@ def publish_to_ghpages(
         _git(
             repo_dir, "-C", worktree.as_posix(), "push", GHPAGES_REMOTE, GHPAGES_BRANCH
         )
+
+
+def reset_ghpages_history(repo_dir: Path = Path(".")) -> None:
+    """Replace the entire gh-pages branch with a single empty commit (force-push),
+    erasing every previously published report. A ``CNAME`` (custom domain) is carried
+    over. The next publish repopulates the site fresh on top of this root commit."""
+    repo_dir = repo_dir.resolve()
+    subprocess.run(["git", "-C", repo_dir.as_posix(), "worktree", "prune"], check=True)
+    if GHPAGES_WORKTREE.exists():
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                repo_dir.as_posix(),
+                "worktree",
+                "remove",
+                "--force",
+                GHPAGES_WORKTREE.as_posix(),
+            ],
+            check=False,
+        )
+    # Drop the stale local branch so the next publish re-fetches the reset remote.
+    subprocess.run(
+        ["git", "-C", repo_dir.as_posix(), "branch", "-D", GHPAGES_BRANCH], check=False
+    )
+
+    cname = _current_cname(repo_dir)
+    tmp = Path(tempfile.mkdtemp(prefix="ghpages-reset-"))
+    tmp_branch = "gh-pages-reset"
+    subprocess.run(
+        ["git", "-C", repo_dir.as_posix(), "branch", "-D", tmp_branch], check=False
+    )
+    try:
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                repo_dir.as_posix(),
+                "worktree",
+                "add",
+                "--orphan",
+                "-b",
+                tmp_branch,
+                tmp.as_posix(),
+            ],
+            check=True,
+        )
+        (tmp / ".nojekyll").touch()
+        if cname:
+            (tmp / "CNAME").write_text(cname)
+        _git(repo_dir, "-C", tmp.as_posix(), "add", "-A")
+        _git(repo_dir, "-C", tmp.as_posix(), "commit", "-m", "reset published history")
+        _git(
+            repo_dir,
+            "-C",
+            tmp.as_posix(),
+            "push",
+            "-f",
+            GHPAGES_REMOTE,
+            f"{tmp_branch}:{GHPAGES_BRANCH}",
+        )
+    finally:
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                repo_dir.as_posix(),
+                "worktree",
+                "remove",
+                "--force",
+                tmp.as_posix(),
+            ],
+            check=False,
+        )
+        subprocess.run(
+            ["git", "-C", repo_dir.as_posix(), "branch", "-D", tmp_branch], check=False
+        )
+
+
+def _current_cname(repo: Path) -> str | None:
+    fetched = subprocess.run(
+        ["git", "-C", repo.as_posix(), "fetch", GHPAGES_REMOTE, GHPAGES_BRANCH],
+        capture_output=True,
+    )
+    if fetched.returncode != 0:
+        return None
+    shown = subprocess.run(
+        ["git", "-C", repo.as_posix(), "show", "FETCH_HEAD:CNAME"],
+        capture_output=True,
+        text=True,
+    )
+    return shown.stdout if shown.returncode == 0 and shown.stdout.strip() else None
 
 
 def _ensure_worktree(repo: Path, worktree: Path) -> None:

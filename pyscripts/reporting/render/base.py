@@ -106,7 +106,7 @@ def build_context(mode: Mode) -> RenderContext:
         daily = aggregate.load_daily()
 
     state = load()
-    runs_idx = _read_runs_index()
+    runs_idx = _read_runs_index(mode)
 
     return RenderContext(
         mode=mode,
@@ -229,7 +229,13 @@ def _anonymize_sessions(df: pl.DataFrame) -> pl.DataFrame:
     return df.drop([c for c in ("ua",) if c in df.columns])
 
 
-def _read_runs_index() -> list[dict]:
+# Free-text run fields carrying exception messages / tracebacks. They can echo raw
+# log content (client IPs, local filesystem paths) and are stripped from the public
+# site; the local site keeps them for debugging.
+_PUBLIC_RUN_DROP_FIELDS = frozenset({"error", "trace", "traceback"})
+
+
+def _read_runs_index(mode: Mode) -> list[dict]:
     out = []
     if not RUN_LOGS_DIR.exists():
         return out
@@ -240,7 +246,13 @@ def _read_runs_index() -> list[dict]:
             except json.JSONDecodeError:
                 continue
     out.sort(key=lambda r: r.get("ts", ""), reverse=True)
-    return out[:200]
+    out = out[:200]
+    if mode == "public":
+        out = [
+            {k: v for k, v in r.items() if k not in _PUBLIC_RUN_DROP_FIELDS}
+            for r in out
+        ]
+    return out
 
 
 def _isnan(v) -> bool:

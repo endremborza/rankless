@@ -17,16 +17,23 @@ estimation) and **performance** (per-endpoint latency, cache hit rate, error cat
   - `aggregates/{hourly,daily}.parquet`, `state.json`, `salts.json` (daily IP-hash salts, never
     published), `site/` (raw IPs, local only), `site-public/` (anonymized, pushed to gh-pages).
 - **Anonymization:** IP → `sha256(daily_salt || ip)[:10]` (stable within a day, unlinkable
-  across days); UA → bucketed family + bot class; referrer → registered domain.
+  across days); UA → bucketed family + bot class; referrer → registered domain. Run-log error
+  text (`error`/`trace`) can echo raw log content, so it is dropped from the public site and
+  kept only locally.
 - **Classification:** paths templated to a small set of route shapes before aggregation;
   sessions = `(ip, ua)` by 30-min idle window; bot/human = rule-based scorer (hard signals + soft
   aggregation), bucket per session.
 - **nginx log line** carries `cs=$upstream_cache_status host=$host` (emitted by
-  `pyscripts/deploy.py`), so cache hit-rate and per-host (live vs alpha) splits are available.
+  `pyscripts/deploy.py`), always present. `cs` gives the cache hit rate; `host` lets the report
+  drop the box's prior alpha-vhost rows — live instances are **promoted alphas**, so their
+  access.log mixes alpha and live traffic (`parse.drop_alpha_hosts`). `host` is never persisted.
 - **Publish:** `pyscripts/reporting/publish.py` does a gh-pages worktree push of `site-public/`
   (public repo, anonymized site only). One-time GitHub setup: repo Settings → Pages → source =
   `gh-pages` branch, root; optional custom domain via a `CNAME` file. First run creates the orphan
   `gh-pages` branch if absent remotely.
+- **Reset:** `make report-reset` wipes the local `reports-v2/` history and force-pushes an empty
+  `gh-pages` (preserving `CNAME`); the next run rebuilds from scratch. Run it when promoting a new
+  live instance. `ARGS="--local-only"` keeps the published site.
 
 ## Column schemas
 

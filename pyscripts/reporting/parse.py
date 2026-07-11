@@ -34,11 +34,15 @@ def parse_lines(lines: Iterable[str]) -> tuple[pl.DataFrame, int]:
     df = (
         raw.with_columns(
             [
+                # non-strict: a torn/interleaved line can carry junk in the time
+                # bracket (e.g. a client IP spliced in). Parse it to null and drop
+                # the row below rather than raising — a raise would abort the whole
+                # batch and echo the offending raw values (IPs) into the run log.
                 pl.col("time")
-                .str.strptime(pl.Datetime("us", "UTC"), LOG_TIME_FMT)
+                .str.strptime(pl.Datetime("us", "UTC"), LOG_TIME_FMT, strict=False)
                 .alias("t"),
                 pl.col("status").cast(pl.UInt16),
-                pl.col("size").cast(pl.UInt32),
+                pl.col("size").cast(pl.UInt32, strict=False),
                 pl.col("rt").map_elements(_f, return_dtype=pl.Float32),
                 pl.col("uct").map_elements(_f, return_dtype=pl.Float32),
                 pl.col("uht").map_elements(_f, return_dtype=pl.Float32),
@@ -51,13 +55,9 @@ def parse_lines(lines: Iterable[str]) -> tuple[pl.DataFrame, int]:
                 .then(pl.lit(""))
                 .otherwise(pl.col("ua"))
                 .alias("ua"),
-                pl.col("cs")
-                .fill_null("")
-                .map_elements(lambda s: "" if s == "-" else s, return_dtype=pl.String),
-                pl.when(pl.col("host").fill_null("") == "-")
-                .then(pl.lit(""))
-                .otherwise(pl.col("host").fill_null(""))
-                .alias("host"),
+                pl.col("cs").map_elements(
+                    lambda s: "" if s in ("-", None) else s, return_dtype=pl.String
+                ),
             ]
         )
         .drop("time")
@@ -80,21 +80,23 @@ def parse_lines(lines: Iterable[str]) -> tuple[pl.DataFrame, int]:
             ]
         )
     )
+
+    n_bad_time = int(df["t"].null_count())
+    if n_bad_time:
+        df = df.filter(pl.col("t").is_not_null())
+        failures += n_bad_time
     return df, failures
 
 
 def drop_alpha_hosts(df: pl.DataFrame) -> tuple[pl.DataFrame, int]:
-    """Drop rows served to the alpha vhost and remove the (transient) `host` column.
+    """Drop rows served to the alpha vhost and remove the transient `host` column.
 
-    `host` is only used to separate vhosts at ingest; it is not persisted, keeping
-    the archive schema stable. Rows whose `host` is empty (lines predating the
-    log_format change) are kept — they cannot be attributed and are overwhelmingly
-    live (alpha contamination there is cleaned via the one-off history purge)."""
+    Live instances are promoted alphas, so the access.log mixes the box's prior
+    alpha-domain traffic with live; `$host` separates them. `host` is used only at
+    ingest and never persisted, keeping the archive schema stable."""
     if "host" not in df.columns:
         return df, 0
-    is_alpha = (pl.col("host") != "") & pl.col(
-        "host"
-    ).str.to_lowercase().str.starts_with(ALPHA_HOST_PREFIX)
+    is_alpha = pl.col("host").str.to_lowercase().str.starts_with(ALPHA_HOST_PREFIX)
     n_alpha = int(df.select(is_alpha.sum()).item())
     return df.filter(~is_alpha).drop("host"), n_alpha
 

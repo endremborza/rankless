@@ -7,19 +7,20 @@ from pyscripts.reporting.parse import drop_alpha_hosts, parse_lines
 from .fixtures import (
     ALL,
     LINE_429,
+    LINE_BOT,
+    LINE_EMPTY_CS,
     LINE_EMPTY_UA,
     LINE_GARBAGE,
     LINE_HOST_ALPHA,
     LINE_HOST_LIVE,
+    LINE_HUMAN,
     LINE_NO_UPSTREAM,
-    LINE_POST_CS_BOT,
-    LINE_POST_CS_HUMAN,
-    LINE_PRE_CS,
+    LINE_TORN,
 )
 
 
-def test_parse_post_cs_human():
-    df, fail = parse_lines([LINE_POST_CS_HUMAN])
+def test_parse_human():
+    df, fail = parse_lines([LINE_HUMAN])
     assert fail == 0
     r = df.row(0, named=True)
     assert r["addr"] == "203.0.113.42"
@@ -28,24 +29,25 @@ def test_parse_post_cs_human():
     assert r["status"] == 200
     assert r["size"] == 4321
     assert r["cs"] == "MISS"
+    assert r["host"] == "www.rankless.org"
     assert "Chrome" in r["ua"]
     assert r["referrer"] == "https://www.rankless.org/"
     assert math.isclose(r["urt"], 0.040, rel_tol=1e-3)
 
 
-def test_parse_post_cs_bot():
-    df, fail = parse_lines([LINE_POST_CS_BOT])
+def test_parse_bot():
+    df, fail = parse_lines([LINE_BOT])
     assert fail == 0
     assert df.row(0, named=True)["path"] == "/sitemap.xml"
     assert "GPTBot" in df.row(0, named=True)["ua"]
     assert df.row(0, named=True)["cs"] == "HIT"
 
 
-def test_parse_pre_cs_compat():
-    df, fail = parse_lines([LINE_PRE_CS])
+def test_parse_empty_cs():
+    df, fail = parse_lines([LINE_EMPTY_CS])
     assert fail == 0
     assert df.row(0, named=True)["cs"] == ""
-    assert df.row(0, named=True)["path"] == "/institutions/harvard"
+    assert df.row(0, named=True)["path"] == "/favicon.ico"
 
 
 def test_parse_no_upstream():
@@ -83,21 +85,25 @@ def test_parse_batch():
     assert df.schema["t"] == pl.Datetime("us", "UTC")
 
 
+def test_parse_torn_line_dropped_without_leak():
+    # A torn line with a client IP spliced into its time bracket must be counted as
+    # a failure and dropped — not crash the batch, not leak the raw IP downstream.
+    df, fail = parse_lines([LINE_HUMAN, LINE_TORN])
+    assert fail == 1
+    assert len(df) == 1
+    assert "162.158.162.77" not in "".join(df["addr"].to_list())
+    assert df.row(0, named=True)["path"] == "/v1/names/authors?q=darwin"
+
+
 def test_parse_host_field():
     df, fail = parse_lines([LINE_HOST_LIVE, LINE_HOST_ALPHA])
     assert fail == 0
     assert df["host"].to_list() == ["www.rankless.org", "alpha.rankless.org"]
 
 
-def test_parse_host_absent_is_empty():
-    # Lines predating the host field still parse, with host == "".
-    df, _ = parse_lines([LINE_POST_CS_HUMAN, LINE_PRE_CS])
-    assert df["host"].to_list() == ["", ""]
-
-
 def test_drop_alpha_hosts():
-    df, _ = parse_lines([LINE_HOST_LIVE, LINE_HOST_ALPHA, LINE_POST_CS_HUMAN])
+    df, _ = parse_lines([LINE_HOST_LIVE, LINE_HOST_ALPHA, LINE_BOT])
     kept, n = drop_alpha_hosts(df)
     assert n == 1
     assert "host" not in kept.columns  # not persisted into the archive
-    assert kept["path"].to_list() == ["/authors/darwin", "/v1/names/authors?q=darwin"]
+    assert kept["path"].to_list() == ["/v1/names/authors?q=darwin", "/sitemap.xml"]

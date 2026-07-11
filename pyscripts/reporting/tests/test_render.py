@@ -1,3 +1,4 @@
+import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -72,12 +73,26 @@ def test_render_local_mode():
         shutil.rmtree(tmp)
 
 
+def _write_failed_run(ts: str, ip: str) -> None:
+    rec = {
+        "ts": ts,
+        "status": "error",
+        "error": f"InvalidOperationError('... {ip} - - [05/Jul/2026:01:51:14 ...')",
+        "trace": f'File ".../parse.py", line 35\n... {ip} ...',
+    }
+    log = config.RUN_LOGS_DIR / "run-2026-07-05.log"
+    log.write_text(json.dumps(rec, default=str) + "\n")
+
+
 def test_render_public_mode_anonymizes():
     import re
 
     tmp = _setup_tmp_root()
     try:
         _populate(tmp)
+        # A prior run that failed on a torn line, echoing a raw IP into its error
+        # text — the exact leak that surfaced on the public site.
+        _write_failed_run("2026-07-05T02-10-01", "162.158.162.77")
         ctx = render_all("public")
         ip_re = re.compile(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b")
         for f in ctx.out_dir.rglob("*.html"):
@@ -85,5 +100,17 @@ def test_render_public_mode_anonymizes():
             assert not ip_re.search(text), (
                 f"raw IP leaked in {f}: {ip_re.search(text).group(0)}"
             )
+    finally:
+        shutil.rmtree(tmp)
+
+
+def test_render_local_keeps_run_errors():
+    tmp = _setup_tmp_root()
+    try:
+        _populate(tmp)
+        _write_failed_run("2026-07-05T02-10-01", "162.158.162.77")
+        ctx = render_all("local")
+        detail = (ctx.out_dir / "runs" / "2026-07-05T02-10-01.html").read_text()
+        assert "162.158.162.77" in detail  # full detail retained locally
     finally:
         shutil.rmtree(tmp)
