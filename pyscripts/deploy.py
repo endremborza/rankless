@@ -33,6 +33,7 @@ APTS = [
     "python3-certbot-nginx",
     "nginx",
     "btop",
+    "tmux",
     # rsvg-convert rasterizes the OG share cards at runtime; fontconfig (fc-cache) registers the
     # vendored brand fonts so the rasterizer uses them.
     "librsvg2-bin",
@@ -691,16 +692,11 @@ upstream {BE_UPSTREAM} {{
         for subdir in tqdm(data_subdirs):
             self.ssh.rsync(f"{local_data_root}/{subdir}", self.data_dir, ignores)
 
-    # MCP + ledger movement. `merge` unions rows (source never clobbers target);
-    # `sync` mirrors — the target's copy of these tables becomes an exact copy of
-    # the source's. Both carry the data/mcp-sessions/ artifact dirs along; auth
-    # `sessions` are never touched (see pyscripts.mcp_db).
     def merge_db_to(self):
         self._push_db(mirror=False)
 
     def sync_db_to(self):
-        # Destructive on a live box: REPLACES its ledger_events/mcp_sessions with
-        # the local copy. Use merge_db_to to publish without clobbering.
+        # Destructive on a live box: REPLACES its ledger_events/mcp_sessions
         self._push_db(mirror=True)
 
     def merge_db_from(self):
@@ -843,6 +839,11 @@ upstream {BE_UPSTREAM} {{
             by_name[name].restart()
             time.sleep(20)
             by_name[name].status()
+
+    def setup_observability(self):
+        self.ssh.run("tmux kill-session -t ops 2>/dev/null || true")
+        self.ssh.run("tmux new-session -d -s ops btop")
+        self.ssh.run("tmux split-window -h -t ops 'journalctl --user -f'")
 
     def harden_host(self):
         # systemd-oomd's PSI-kill on user@.service killed init.scope — the
@@ -1071,6 +1072,7 @@ def full_setup_from_nothing(
     tpr.push_certs()
     tpr.setup_nginx(cert=False)
     tpr.restart_nginx()
+    tpr.setup_observability()
 
 
 def new_small_alpha():
@@ -1090,10 +1092,20 @@ def kill_alpha():
     get_running_inst(False).terminate()
 
 
+def _handoff_db_to(target_tpr: Transper):
+    live_inst = get_running_inst(True)
+    if live_inst is None:
+        print("no live box to pull DB from; pushing local DB as-is")
+    else:
+        get_tpr(live_inst).merge_db_from()
+    target_tpr.merge_db_to()
+
+
 def _new_alpha(storage, itype, fe_procn, backend):
     inst = get_new_inst(storage, itype)
     tpr = get_tpr(inst)
     full_setup_from_nothing(tpr, ALPHA_DOMAIN, fe_procn, backend=backend)
+    _handoff_db_to(tpr)
     associate_id(inst, False)
     time.sleep(15)
     new_tpr = get_tpr(inst)
@@ -1182,7 +1194,9 @@ def bump_v_minor():
 def promote_alpha_to_live():
     alpha_inst = get_running_inst(False)
     assert alpha_inst is not None
+    old_live_inst = get_running_inst(True)
     tpr = get_tpr(alpha_inst)
+    _handoff_db_to(tpr)
     tpr.setup_fe_services(LIVE_DOMAIN, procs=LARGE_FE_PROCS)
     tpr.update_env()
     tpr.update_fe()
@@ -1194,6 +1208,23 @@ def promote_alpha_to_live():
     associate_id(alpha_inst, True)
     time.sleep(5)
     get_running_tpr(True).refresh_certs(FW_DOMAIN)
+    _post_flip_db_catchup(old_live_inst)
+
+
+def _post_flip_db_catchup(old_live_inst):
+    # Events written to the old live box between the pre-flip catch-up and the
+    # EIP flip. The old box stays up on a fresh ephemeral IP until kill_dangling.
+    if old_live_inst is None:
+        return
+    try:
+        old_live_inst.reload()
+        get_tpr(old_live_inst).merge_db_from()
+        get_running_tpr(True).merge_db_to()
+    except Exception as e:
+        print(
+            f"post-flip DB catch-up failed ({e}); before kill_dangling, "
+            "merge_db_from the old box manually via its new public IP"
+        )
 
 
 def associate_id(inst, live: bool):
