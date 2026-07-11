@@ -28,20 +28,6 @@ pub struct AuthorshipsDiscardedAuthor {}
 
 pub struct Institutions {}
 
-impl Entity for Domains {
-    type T = u8;
-    const N: usize = 5;
-    const NAME: &str = "domains";
-}
-
-impl MappableEntity for Domains {
-    type KeyType = u64;
-}
-
-impl NamespacedEntity for Domains {
-    const NS: &str = "a1_entity_mapping";
-}
-
 impl Entity for Fields {
     type T = u8;
     const N: usize = 27;
@@ -53,6 +39,20 @@ impl MappableEntity for Fields {
 }
 
 impl NamespacedEntity for Fields {
+    const NS: &str = "a1_entity_mapping";
+}
+
+impl Entity for Domains {
+    type T = u8;
+    const N: usize = 5;
+    const NAME: &str = "domains";
+}
+
+impl MappableEntity for Domains {
+    type KeyType = u64;
+}
+
+impl NamespacedEntity for Domains {
     const NS: &str = "a1_entity_mapping";
 }
 
@@ -86,7 +86,7 @@ impl NamespacedEntity for Topics {
 
 impl Entity for Institutions {
     type T = u16;
-    const N: usize = 35213;
+    const N: usize = 36300;
     const NAME: &str = "institutions";
 }
 
@@ -100,7 +100,7 @@ impl NamespacedEntity for Institutions {
 
 impl Entity for Sources {
     type T = u16;
-    const N: usize = 41600;
+    const N: usize = 42241;
     const NAME: &str = "sources";
 }
 
@@ -114,7 +114,7 @@ impl NamespacedEntity for Sources {
 
 impl Entity for Cities {
     type T = u16;
-    const N: usize = 15223;
+    const N: usize = 15803;
     const NAME: &str = "cities";
 }
 
@@ -128,7 +128,7 @@ impl NamespacedEntity for Cities {
 
 impl Entity for Countries {
     type T = u8;
-    const N: usize = 232;
+    const N: usize = 233;
     const NAME: &str = "countries";
 }
 
@@ -156,7 +156,7 @@ impl NamespacedEntity for AreaFields {
 
 impl Entity for DiscardedAuthors {
     type T = u32;
-    const N: usize = 109437047;
+    const N: usize = 114873669;
     const NAME: &str = "discarded-authors";
 }
 
@@ -170,7 +170,7 @@ impl NamespacedEntity for DiscardedAuthors {
 
 impl Entity for Authors {
     type T = u32;
-    const N: usize = 4204241;
+    const N: usize = 4255993;
     const NAME: &str = "authors";
 }
 
@@ -184,7 +184,7 @@ impl NamespacedEntity for Authors {
 
 impl Entity for Works {
     type T = u32;
-    const N: usize = 91433299;
+    const N: usize = 92331586;
     const NAME: &str = "works";
 }
 
@@ -198,7 +198,7 @@ impl NamespacedEntity for Works {
 
 impl Entity for AuthorshipsFilteredAuthor {
     type T = u32;
-    const N: usize = 213213014;
+    const N: usize = 215205089;
     const NAME: &str = "authorships-filtered-author";
 }
 
@@ -208,7 +208,7 @@ impl MappableEntity for AuthorshipsFilteredAuthor {
 
 impl Entity for AuthorshipsDiscardedAuthor {
     type T = u32;
-    const N: usize = 119613298;
+    const N: usize = 119762233;
     const NAME: &str = "authorships-discarded-author";
 }
 
