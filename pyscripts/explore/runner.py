@@ -14,6 +14,10 @@ from pyscripts.explore import cli
 
 DEFAULT_RUNNER = "claude-cli"
 ALLOWED_TOOLS = "mcp__rankless"
+BACKENDS = {
+    "local": "http://127.0.0.1:3038/v1",
+    "live": "https://alpha-api.rankless.org/v1",
+}
 
 
 @dataclass
@@ -45,6 +49,14 @@ def get_runner(name: str) -> Callable[[MineJob], str]:
     if name not in RUNNERS:
         raise SystemExit(f"unknown runner {name!r}; choose from {list(RUNNERS)}")
     return RUNNERS[name]
+
+
+def resolve_backend(arg: str) -> tuple[str, str]:
+    if arg in BACKENDS:
+        return BACKENDS[arg], arg
+    if arg.startswith("http"):
+        return arg.rstrip("/"), "custom"
+    raise SystemExit(f"--backend must be one of {list(BACKENDS)} or an http(s) URL.")
 
 
 def _mcp_config(backend_url: str) -> str:

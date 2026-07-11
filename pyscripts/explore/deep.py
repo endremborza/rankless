@@ -47,10 +47,6 @@ from mcp_server import client as be_client
 from mcp_server.tools import TOOL_FNS
 from pyscripts.explore import cli, evidence, runner
 
-BACKENDS = {
-    "local": "http://127.0.0.1:3038/v1",
-    "live": "https://alpha-api.rankless.org/v1",
-}
 FOCI = ("share", "query", "data-issue")
 # Output root: personal PKM by default, overridable (env or --out-root) so the
 # host worker can write runs into the served sessions store instead.
@@ -121,7 +117,7 @@ class DeepConfig:
 
 def main() -> int:
     args = build_parser().parse_args()
-    backend_url, backend_label = _resolve_backend(args.backend)
+    backend_url, backend_label = runner.resolve_backend(args.backend)
     investigate = _load_investigation(args.investigate) if args.investigate else None
     foci_arg = args.foci or ("query" if (investigate or args.question) else "share")
     foci = list(FOCI) if foci_arg == "all" else _split(foci_arg)
@@ -189,7 +185,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--backend",
         default="local",
-        help=f"one of {list(BACKENDS)} or a full /v1 base URL (default: local).",
+        help=f"one of {list(runner.BACKENDS)} or a full /v1 base URL (default: local).",
     )
     p.add_argument(
         "--foci",
@@ -239,14 +235,6 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"output root dir (default: {WRITEUPS_DIR}).",
     )
     return p
-
-
-def _resolve_backend(arg: str) -> tuple[str, str]:
-    if arg in BACKENDS:
-        return BACKENDS[arg], arg
-    if arg.startswith("http"):
-        return arg.rstrip("/"), "custom"
-    raise SystemExit(f"--backend must be one of {list(BACKENDS)} or an http(s) URL.")
 
 
 def _load_investigation(ref: str) -> dict:
