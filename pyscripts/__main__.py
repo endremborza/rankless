@@ -7,6 +7,8 @@ Commands:
     compare-branch     perf comparison of two git refs (tlog phase timing + peak memory)
     bench              local throughput + memory benchmark (current branch vs main)
     cache <action>     warm/validate the server response cache
+    stress <phase>     stress-suite load driver + remote memory sampler
+    review-ledger      AI verdicts for pending user-ledger claims (see /admin/ledger)
 
 Run any command with -h for its options, e.g. `uv run -m pyscripts compare-sql -h`.
 
@@ -26,6 +28,8 @@ COMMANDS = {
     "compare-branch": "branch_comparison",
     "bench": "bm",
     "cache": "cache_prompting",
+    "stress": "stress",
+    "review-ledger": "review_ledger",
 }
 
 
