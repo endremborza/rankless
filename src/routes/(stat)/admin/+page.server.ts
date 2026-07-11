@@ -2,16 +2,11 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { isAdmin } from '$lib/server/admin';
 import { ConsentDb, LedgerDb, UserDb } from '$lib/server/db';
-import { readManifest } from '$lib/server/manifest';
 import type { EmailConsent } from '$lib/types/email-consent';
 
 export const load: PageServerLoad = ({ locals }) => {
 	// 404 (not 403) so the page's existence stays hidden from non-admins.
 	if (!isAdmin(locals.user?.orcid)) error(404, 'Not found');
-
-	const manifest = readManifest();
-	const applied = new Set(LedgerDb.getAllAppliedEventIds());
-	for (const id of manifest.applied_event_ids) applied.add(id);
 
 	const consents = ConsentDb.listActiveConsents();
 	const consentByOrcid = new Map<string, EmailConsent>(consents.map((c) => [c.orcid, c]));
@@ -35,10 +30,7 @@ export const load: PageServerLoad = ({ locals }) => {
 	}
 
 	return {
-		events: LedgerDb.listAllEvents(),
-		applied: [...applied],
-		skipped: manifest.skipped,
-		currentRunId: manifest.run_id,
-		users: userRows
+		users: userRows,
+		pendingCount: LedgerDb.countEventsFiltered({ moderation: 'pending_review' })
 	};
 };

@@ -1,7 +1,9 @@
 """Move curated MCP + ledger data between a local checkout and a deployed box.
 
-Transfers `mcp_sessions`, `ledger_events`, `ledger_runs`, `owner_pins` between two
-copies of `data/rankless.sqlite` — never the auth `sessions` table. Runs on the
+Transfers `mcp_sessions`, `ledger_events`, `ledger_runs`, `owner_pins`, plus the
+review tables `subject_enrichment` and `review_verdicts` (keyed by external ids /
+subject hashes, so rows stay valid across boxes) between two copies of
+`data/rankless.sqlite` — never the auth `sessions` table. Runs on the
 receiving side against a shipped copy of the source DB; `pyscripts.deploy` moves
 the `data/mcp-sessions/` artifact dirs alongside it.
 
@@ -21,7 +23,14 @@ Stdlib only — it also runs on the serving box's runtime-only venv.
 import sqlite3
 import sys
 
-TABLES = ("mcp_sessions", "ledger_events", "ledger_runs", "owner_pins")
+TABLES = (
+    "mcp_sessions",
+    "ledger_events",
+    "ledger_runs",
+    "owner_pins",
+    "subject_enrichment",
+    "review_verdicts",
+)
 
 
 def snapshot(src_db: str, dst: str) -> None:

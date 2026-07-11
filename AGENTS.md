@@ -8,9 +8,9 @@ Large-scale scholarly citation explorer. OpenAlex CSVs → binary pipeline → A
 - `docs/benchmarking.md` — comparison/benchmark tooling + SQL-vs-Rust results
 - `docs/reporting.md`, `docs/tree-internals.md`, `docs/topic-tags.md`, `docs/sharecard-render-test.md` — focused references (reporting site, tree-build internals, topic tags, share-card test)
 - `docs/mcp-server.md` — MCP proxy (`mcp_server/`) over the backend + the deep-stories miner
+- `docs/ledger-review.md` — ledger moderation: `/admin/ledger` queue, enrichment cache, hard-evidence auto-accept, AI review lane
 - `docs/type-audit.md` — cross-language type/API-shape coherence audit (`make type-audit`)
 - `docs/v2-to-v3-changes.md` — v2→v3 changelog; `docs/unfinished-features.md` — built-but-hidden features
-
 
 **When you change code:** update the codebase file index in `docs/architecture.md` if files are added/removed/renamed, or if architecture/features change.
 

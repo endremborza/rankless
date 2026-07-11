@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { env } from '$env/dynamic/private';
 import { DEFAULT_MODERATION, subjectHash } from './ledger-hash';
 import type { LedgerKind, LedgerPayload, ModerationState } from '$lib/types/ledger';
+import type { EnrichmentEntry, EnrichmentSource, ReviewVerdict } from '$lib/types/review';
 import type { EmailConsent, EmailPurposeKey } from '$lib/types/email-consent';
 import type { SessionUserData } from './session';
 
@@ -92,6 +93,36 @@ export function getDb(): Database {
 		);
 		CREATE INDEX IF NOT EXISTS idx_mcp_vis ON mcp_sessions(visibility, status);
 		CREATE INDEX IF NOT EXISTS idx_mcp_status ON mcp_sessions(status);
+		-- External-metadata cache for ledger review (Crossref/OpenAlex/ORCID). Only this
+		-- server writes it (single fetch implementation in enrich.ts); the AI review lane
+		-- (pyscripts/review_ledger.py) reads it via its own sqlite3 on this file.
+		CREATE TABLE IF NOT EXISTS subject_enrichment (
+			source TEXT NOT NULL,
+			key TEXT NOT NULL,
+			status TEXT NOT NULL,
+			data TEXT,
+			fetched_at TEXT NOT NULL DEFAULT (datetime('now')),
+			PRIMARY KEY (source, key)
+		);
+		-- AI review verdicts, append-only; written by pyscripts/review_ledger.py (mirrored
+		-- DDL there), read here. Keyed by (orcid, kind, subject_hash) — event_id is NOT
+		-- stable across boxes (mcp_db.py merge renumbers it). created_at is writer-supplied
+		-- UTC ISO so the dedup index stays deterministic across cross-box merges.
+		CREATE TABLE IF NOT EXISTS review_verdicts (
+			verdict_id INTEGER PRIMARY KEY AUTOINCREMENT,
+			orcid TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			subject_hash TEXT NOT NULL,
+			model TEXT NOT NULL,
+			verdict TEXT NOT NULL,
+			confidence REAL NOT NULL,
+			reasoning TEXT NOT NULL,
+			checks TEXT,
+			created_at TEXT NOT NULL
+		);
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_rv_dedup
+			ON review_verdicts(orcid, kind, subject_hash, model, created_at);
+		CREATE INDEX IF NOT EXISTS idx_rv_subject ON review_verdicts(orcid, kind, subject_hash);
 	`);
 	return _db;
 }
@@ -139,6 +170,30 @@ function rowToEvent(r: LedgerEventRow): LedgerEvent {
 
 export type CreateEventResult = { event_id: number; existing: boolean };
 
+export type EventFilter = {
+	moderation?: ModerationState;
+	kind?: LedgerKind;
+	orcid?: string;
+};
+
+function eventFilterSql(filter: EventFilter): { where: string; params: (string | number)[] } {
+	const clauses: string[] = [];
+	const params: (string | number)[] = [];
+	if (filter.moderation) {
+		clauses.push('moderation = ?');
+		params.push(filter.moderation);
+	}
+	if (filter.kind) {
+		clauses.push('kind = ?');
+		params.push(filter.kind);
+	}
+	if (filter.orcid) {
+		clauses.push('orcid = ?');
+		params.push(filter.orcid);
+	}
+	return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
+}
+
 export const LedgerDb = {
 	createEvent(orcid: string, payload: LedgerPayload): CreateEventResult {
 		const hash = subjectHash(payload);
@@ -164,14 +219,31 @@ export const LedgerDb = {
 		return rows.map(rowToEvent);
 	},
 
-	// Admin moderation view: every actor's events, pending-review first, newest within group.
-	listAllEvents(limit = 1000): LedgerEvent[] {
+	// Admin review queue: actor-ordered so claimant groups are contiguous on a page.
+	listEventsFiltered(filter: EventFilter, limit: number, offset: number): LedgerEvent[] {
+		const { where, params } = eventFilterSql(filter);
 		const rows = getDb()
 			.prepare(
-				"SELECT * FROM ledger_events ORDER BY (moderation = 'pending_review') DESC, event_id DESC LIMIT ?"
+				`SELECT * FROM ledger_events ${where} ORDER BY orcid ASC, event_id DESC LIMIT ? OFFSET ?`
 			)
-			.all(limit) as LedgerEventRow[];
+			.all(...params, limit, offset) as LedgerEventRow[];
 		return rows.map(rowToEvent);
+	},
+
+	countEventsFiltered(filter: EventFilter): number {
+		const { where, params } = eventFilterSql(filter);
+		const row = getDb()
+			.prepare(`SELECT count(*) AS n FROM ledger_events ${where}`)
+			.get(...params) as { n: number };
+		return row.n;
+	},
+
+	listPendingActors(): { orcid: string; pending: number }[] {
+		return getDb()
+			.prepare(
+				"SELECT orcid, count(*) AS pending FROM ledger_events WHERE moderation = 'pending_review' AND revoked_at IS NULL GROUP BY orcid ORDER BY pending DESC"
+			)
+			.all() as { orcid: string; pending: number }[];
 	},
 
 	getEvent(event_id: number): LedgerEvent | null {
@@ -201,6 +273,30 @@ export const LedgerDb = {
 			)
 			.run(decision, moderator_orcid, event_id);
 		return info.changes > 0;
+	},
+
+	// One transaction for a bulk decision; returns the ids actually flipped (still pending).
+	setModerationBulk(
+		event_ids: number[],
+		decision: 'accepted' | 'rejected',
+		moderator_orcid: string
+	): number[] {
+		const db = getDb();
+		const stmt = db.prepare(
+			"UPDATE ledger_events SET moderation = ?, moderated_by = ?, moderated_at = datetime('now') WHERE event_id = ? AND moderation = 'pending_review'"
+		);
+		const updated: number[] = [];
+		db.run('BEGIN');
+		try {
+			for (const id of event_ids) {
+				if (stmt.run(decision, moderator_orcid, id).changes > 0) updated.push(id);
+			}
+			db.run('COMMIT');
+		} catch (e) {
+			db.run('ROLLBACK');
+			throw e;
+		}
+		return updated;
 	},
 
 	pinOwner(orcid: string): void {
@@ -263,6 +359,87 @@ export const LedgerDb = {
 		return [...ids];
 	}
 };
+
+type EnrichmentRow = {
+	source: string;
+	key: string;
+	status: string;
+	data: string | null;
+	fetched_at: string;
+};
+
+// Cache of plucked external metadata (Crossref/OpenAlex/ORCID) for ledger review.
+// Rows are keyed by external id, so they stay valid across cross-box DB merges.
+export const EnrichmentDb = {
+	get(source: EnrichmentSource, key: string): EnrichmentEntry | null {
+		const row = getDb()
+			.prepare('SELECT * FROM subject_enrichment WHERE source = ? AND key = ?')
+			.get(source, key) as EnrichmentRow | null;
+		return row ? rowToEnrichment(row) : null;
+	},
+
+	getMany(pairs: { source: EnrichmentSource; key: string }[]): EnrichmentEntry[] {
+		const stmt = getDb().prepare('SELECT * FROM subject_enrichment WHERE source = ? AND key = ?');
+		const entries: EnrichmentEntry[] = [];
+		for (const p of pairs) {
+			const row = stmt.get(p.source, p.key) as EnrichmentRow | null;
+			if (row) entries.push(rowToEnrichment(row));
+		}
+		return entries;
+	},
+
+	upsert(entry: Omit<EnrichmentEntry, 'fetched_at'>): void {
+		getDb()
+			.prepare(
+				"INSERT OR REPLACE INTO subject_enrichment (source, key, status, data, fetched_at) VALUES (?, ?, ?, ?, datetime('now'))"
+			)
+			.run(entry.source, entry.key, entry.status, entry.data ? JSON.stringify(entry.data) : null);
+	}
+};
+
+type VerdictRow = {
+	orcid: string;
+	kind: string;
+	subject_hash: string;
+	model: string;
+	verdict: string;
+	confidence: number;
+	reasoning: string;
+	checks: string | null;
+	created_at: string;
+};
+
+// AI review verdicts written by pyscripts/review_ledger.py; read-only here.
+export const VerdictDb = {
+	listForOrcids(orcids: string[]): ReviewVerdict[] {
+		if (orcids.length === 0) return [];
+		const placeholders = orcids.map(() => '?').join(', ');
+		const rows = getDb()
+			.prepare(`SELECT * FROM review_verdicts WHERE orcid IN (${placeholders})`)
+			.all(...orcids) as VerdictRow[];
+		return rows.map((r) => ({
+			orcid: r.orcid,
+			kind: r.kind,
+			subject_hash: r.subject_hash,
+			model: r.model,
+			verdict: r.verdict as ReviewVerdict['verdict'],
+			confidence: r.confidence,
+			reasoning: r.reasoning,
+			checks: r.checks ? (JSON.parse(r.checks) as Record<string, unknown>) : null,
+			created_at: r.created_at
+		}));
+	}
+};
+
+function rowToEnrichment(r: EnrichmentRow): EnrichmentEntry {
+	return {
+		source: r.source as EnrichmentSource,
+		key: r.key,
+		status: r.status as EnrichmentEntry['status'],
+		data: r.data ? (JSON.parse(r.data) as EnrichmentEntry['data']) : null,
+		fetched_at: r.fetched_at
+	};
+}
 
 type SessionRow = { orcid: string; name: string; semantic_id: string | null };
 
