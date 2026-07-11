@@ -801,8 +801,11 @@ upstream {BE_UPSTREAM} {{
         txt += "\n".join(f"{k}={v}" for k, v in ORCID_VARS.items() if v is not None)
         self.sync_txt(txt, ".env", self.deploy_dir)
 
-    def update_fe(self):
-        self.sync_code()
+    def update_fe(self, pull=True):
+        if pull:
+            self.sync_code()
+        else:
+            self.update_env()
         self.install_fonts()
         self.build_js()
         stage_conf, live_conf = self.get_fe_systems()
@@ -991,6 +994,10 @@ def get_running_tpr(live: bool):
 
 def sync_fe_to_alpha():
     get_running_tpr(False).update_fe()
+
+
+def sync_fe_to_alpha_nopull():
+    get_running_tpr(False).update_fe(pull=False)
 
 
 def sync_fe_to_local():

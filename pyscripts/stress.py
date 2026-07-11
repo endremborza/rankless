@@ -11,8 +11,8 @@
 (requests that disconnect MID-RENDER — the real leak trigger) round-robin across
 ALL workers on the box until it OOMs. bun retains the request context when the
 client aborts before the response finishes; live hits this via nginx->bun
-upstream timeouts/resets. Add `--abort` to `feleak`/`cardflood` for the isolated
-single-worker version (the fix's regression test: RSS climbs = leak, flat = ok).
+upstream timeouts/resets. Add `--abort` to `feleak` for the isolated single-worker
+version (the fix's regression test: RSS climbs = leak, flat = ok).
 `churn` (T3) hammers tree computes over a slug corpus (lines like
 `authors/some-slug`, `.gz` ok) with fixed concurrency, cycling shuffled slugs
 across random tids; emits periodic JSONL stats. `replay` (T6) re-fires a real
@@ -433,65 +433,10 @@ def restart_fe_worker(host: str, port: int) -> None:
     time.sleep(8)
 
 
-async def cardflood(args: argparse.Namespace) -> None:
-    # Reproduces the share-card SSR leak: floods distinct OG card PNGs
-    # (/pic/<kind>/<slug>/breakdown.png) — each a cache-miss TreeSvg render — at
-    # ONE tunneled bun worker and reports how much RSS it RETAINS. Page loads
-    # never hit this path (browsers don't fetch og:image); only crawlers do.
-    kind, port = args.page_kind, args.worker_port
-    slugs = [s for k, s in load_corpus(Path(args.corpus)) if k == kind][: args.n]
-    assert slugs, f"no '{kind}' slugs in corpus"
-    if args.restart:
-        restart_fe_worker(args.ssh_host, port)
-    base_mib, _, _ = fe_worker_stat(args.ssh_host, port)
-    print(
-        f"cardflood: {len(slugs)} {kind} cards -> worker {port}; baseline {base_mib} MiB"
-    )
-    tmpl = f"http://127.0.0.1:{args.local_port}/pic/{kind}/{{}}/breakdown.png"
-    stats, stop, sem = (
-        WindowStats(),
-        asyncio.Event(),
-        asyncio.Semaphore(args.concurrency),
-    )
-    peak = base_mib
-
-    async def one(client: httpx.AsyncClient, slug: str) -> None:
-        async with sem:
-            await get_once(client, tmpl.format(quote_plus(slug)), stats)
-
-    async def sampler() -> None:
-        nonlocal peak
-        while not stop.is_set():
-            with contextlib.suppress(TimeoutError):
-                await asyncio.wait_for(stop.wait(), timeout=args.interval)
-            with contextlib.suppress(subprocess.SubprocessError, OSError):
-                mib, _, _ = await asyncio.to_thread(fe_worker_stat, args.ssh_host, port)
-                peak = max(peak, mib)
-                w = stats.flush()
-                print(
-                    f"  worker={mib}MiB (+{mib - base_mib}) peak={peak} done={w['n']} "
-                    f"rps={w['rps']} p50={w['p50_ms']}ms max={w['max_kb']}KB",
-                    flush=True,
-                )
-
-    async with make_client(args.concurrency, args.timeout) as client:
-        sampler_task = asyncio.create_task(sampler())
-        await asyncio.gather(*(one(client, s) for s in slugs))
-        stop.set()
-        await sampler_task
-    time.sleep(5)  # let rasterization + any GC settle
-    retained, _, _ = fe_worker_stat(args.ssh_host, port)
-    delta = retained - base_mib
-    per_card = delta * 1024 / len(slugs)
-    verdict = "LEAK" if delta > 150 else "ok"
-    print(
-        f"\nVERDICT [{verdict}]: baseline={base_mib} peak={peak} retained={retained} MiB "
-        f"(+{delta} MiB over {len(slugs)} cards = ~{per_card:.0f} KiB/card retained)"
-    )
-
-
 async def feleak(args: argparse.Namespace) -> None:
     kind = args.page_kind
+    if args.restart:
+        restart_fe_worker(args.ssh_host, args.worker_port)
     slugs = [s for k, s in load_corpus(Path(args.corpus)) if k == kind]
     assert slugs, f"no '{kind}' slugs in corpus"
     base, prefix = f"http://127.0.0.1:{args.local_port}", f"/{kind}/"
@@ -611,7 +556,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         "phase",
         nargs="?",
         default="meltdown",
-        choices=("meltdown", "churn", "replay", "feleak", "cardflood", "sample"),
+        choices=("meltdown", "churn", "replay", "feleak", "sample"),
         help="default 'meltdown' = tear the FE deployment down (abort-flood to OOM)",
     )
     parser.add_argument("--base", default="https://alpha-api.rankless.org")
@@ -640,20 +585,19 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--page-kind", default="authors", help="corpus slug kind to flood"
     )
-    # cardflood
     parser.add_argument(
-        "--n", type=int, default=180000, help="distinct requests to flood"
+        "--n", type=int, default=180000, help="meltdown: total abort requests to flood"
     )
     parser.add_argument(
         "--restart",
         action="store_true",
-        help="restart the worker first for a clean baseline",
+        help="feleak: restart the worker first for a clean baseline",
     )
     # abort (the real leak trigger): client disconnects mid-render
     parser.add_argument(
         "--abort",
         action="store_true",
-        help="feleak/cardflood: abort requests mid-render (the leak trigger)",
+        help="feleak: abort requests mid-render (the leak trigger)",
     )
     parser.add_argument(
         "--abort-timeout",
@@ -677,7 +621,7 @@ def run(args: argparse.Namespace) -> None:
     # per-request timeout makes httpx close the connection before bun finishes.
     if args.abort:
         args.timeout = args.abort_timeout
-    tunneled = {"feleak": feleak, "cardflood": cardflood}
+    tunneled = {"feleak": feleak}
     if args.phase in tunneled:
         with ssh_tunnel(args.ssh_host, args.local_port, args.worker_port):
             asyncio.run(tunneled[args.phase](args))
