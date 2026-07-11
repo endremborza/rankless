@@ -3,52 +3,52 @@
     "name": "Richard H. Thaler",
     "semanticId": "richard-h-thaler",
     "papers": 171,
-    "citations": 59501
+    "citations": 59887
   },
   "hitPapers": [
     {
       "year": 1985,
-      "citations": 4507,
+      "citations": 4523,
       "name": "Does the Stock Market Overreact?"
     },
     {
       "year": 1980,
-      "citations": 3509,
+      "citations": 3534,
       "name": "Toward a positive theory of consumer choice"
     },
     {
       "year": 1985,
-      "citations": 3236,
+      "citations": 3275,
       "name": "Mental Accounting and Consumer Choice"
     },
     {
       "year": 1991,
-      "citations": 3046,
+      "citations": 3069,
       "name": "Anomalies: The Endowment Effect, Loss Aversion, and Status Quo Bias"
     },
     {
       "year": 1990,
-      "citations": 2040,
+      "citations": 2055,
       "name": "Experimental Tests of the Endowment Effect and the Coase Theorem"
     },
     {
       "year": 1999,
-      "citations": 1995,
+      "citations": 2021,
       "name": "Mental accounting matters"
     },
     {
       "year": 2008,
-      "citations": 1758,
+      "citations": 1768,
       "name": "Mental Accounting and Consumer Choice"
     },
     {
       "year": 1986,
-      "citations": 1657,
+      "citations": 1670,
       "name": "Fairness and the Assumptions of Economics"
     },
     {
       "year": 1995,
-      "citations": 1636,
+      "citations": 1647,
       "name": "Myopic Loss Aversion and the Equity Premium Puzzle"
     }
   ],
@@ -346,32 +346,32 @@
       {
         "name": "Werner F. M. De Bondt",
         "semanticId": "werner-f-m-de-bondt",
-        "score": 3843
+        "score": 3854
       },
       {
         "name": "Shlomo Benartzi",
         "semanticId": "shlomo-benartzi",
-        "score": 3111
+        "score": 3140
       },
       {
         "name": "Daniel Kahneman",
         "semanticId": "daniel-kahneman",
-        "score": 2729
+        "score": 2748
       },
       {
         "name": "Jack L. Knetsch",
         "semanticId": "jack-l-knetsch",
-        "score": 2329
+        "score": 2346
       },
       {
         "name": "Cass R. Sunstein",
         "semanticId": "cass-r-sunstein",
-        "score": 1399
+        "score": 1406
       },
       {
         "name": "Hersh Shefrin",
         "semanticId": "hersh-shefrin",
-        "score": 1194
+        "score": 1204
       }
     ],
     "edges": [
@@ -388,7 +388,7 @@
       [
         2,
         4,
-        14
+        15
       ],
       [
         3,
@@ -404,61 +404,61 @@
     "subfields": [
       {
         "name": "Economics and Econometrics",
-        "hero": 28163,
-        "peer": 18053
+        "hero": 28090,
+        "peer": 17304
       },
       {
         "name": "Finance",
-        "hero": 18427,
-        "peer": 3140
+        "hero": 18457,
+        "peer": 3154
       },
       {
         "name": "Accounting",
-        "hero": 16168,
-        "peer": 4681
+        "hero": 16212,
+        "peer": 4673
       },
       {
         "name": "General Decision Sciences",
-        "hero": 14975,
-        "peer": 18762
+        "hero": 14931,
+        "peer": 18507
       },
       {
         "name": "Safety Research",
-        "hero": 8269,
-        "peer": 10218
+        "hero": 8282,
+        "peer": 10202
       },
       {
         "name": "Sociology and Political Science",
-        "hero": 7119,
-        "peer": 14900
+        "hero": 7124,
+        "peer": 14702
       }
     ],
     "yearFrom": 2016,
     "heroYearly": [
-      2616,
-      2773,
-      3123,
+      2610,
+      2775,
+      3118,
       3236,
-      3068,
-      3315,
-      2584,
-      2242,
-      1756,
-      916,
-      13
+      3082,
+      3337,
+      2610,
+      2289,
+      1828,
+      1142,
+      75
     ],
     "peerYearly": [
       3516,
-      3628,
-      3717,
-      3915,
-      4077,
-      4369,
-      3782,
-      3328,
-      2683,
-      1566,
-      37
+      3618,
+      3719,
+      3919,
+      4088,
+      4388,
+      3802,
+      3384,
+      2758,
+      1970,
+      173
     ]
   }
 }
