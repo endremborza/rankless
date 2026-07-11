@@ -1,16 +1,19 @@
-"""Move curated MCP + ledger data between a local checkout and a deployed box.
+"""Move the user DB (MCP + ledger + auth) between a local checkout and a deployed box.
 
-Transfers `mcp_sessions`, `ledger_events`, `ledger_runs`, `owner_pins` between two
-copies of `data/rankless.sqlite` — never the auth `sessions` table. Runs on the
-receiving side against a shipped copy of the source DB; `pyscripts.deploy` moves
-the `data/mcp-sessions/` artifact dirs alongside it.
+Transfers every user-data table of `data/rankless.sqlite` between two copies of
+it — including auth `sessions` (year-long TTL: dropping them logs everyone out
+on each deploy), of which only unexpired rows move. Runs on the receiving side
+against a shipped copy of the source DB; `pyscripts.deploy` moves the
+`data/mcp-sessions/` artifact dirs alongside it.
 
     python -m pyscripts.mcp_db <target_db> <incoming_db> merge|mirror
     python -m pyscripts.mcp_db snapshot <src_db> <dst>
 
-- merge:    union rows; the source never clobbers the target (INSERT OR IGNORE).
-            Auto-id rows (`ledger_events`) drop their id so the target assigns a
-            fresh one and dedup falls to the logical unique index, not the id.
+- merge:    union rows; the source never clobbers the target (INSERT OR IGNORE,
+            plus a NULL-safe exact-row guard so tables without a unique index,
+            e.g. `email_consents`, stay duplicate-free on re-merge). Auto-id
+            rows (`ledger_events`) drop their id so the target assigns a fresh
+            one and dedup falls to the logical unique index, not the id.
 - mirror:   replace the target's copy of each table with the source's, verbatim.
 - snapshot: consistent hot copy of a live DB (see `snapshot` below) — the shape
             in which a DB is moved between boxes, never the file rsync'd raw.
@@ -21,7 +24,16 @@ Stdlib only — it also runs on the serving box's runtime-only venv.
 import sqlite3
 import sys
 
-TABLES = ("mcp_sessions", "ledger_events", "ledger_runs", "owner_pins")
+TABLES = (
+    "mcp_sessions",
+    "ledger_events",
+    "ledger_runs",
+    "owner_pins",
+    "users",
+    "email_consents",
+    "sessions",
+)
+ROW_FILTERS = {"sessions": "expires_at > datetime('now')"}
 
 
 def snapshot(src_db: str, dst: str) -> None:
@@ -61,6 +73,7 @@ def _transfer_table(con: sqlite3.Connection, table: str, mode: str) -> None:
     if not _has_table(con, "src", table):
         return
     _ensure_target_table(con, table)
+    conds = [ROW_FILTERS[table]] if table in ROW_FILTERS else []
     if mode == "mirror":
         con.execute(f"DELETE FROM main.{table}")
         cols = _columns(con, table)  # verbatim copy, ids included
@@ -69,9 +82,14 @@ def _transfer_table(con: sqlite3.Connection, table: str, mode: str) -> None:
         skip = _autoinc_pks(con, table)
         cols = [c for c in _columns(con, table) if c not in skip]
         verb = "INSERT OR IGNORE"
+        # NULL-safe exact-row guard: keeps re-merges idempotent even for tables
+        # with no logical unique index (OR IGNORE alone would duplicate them).
+        match = " AND ".join(f"main.{table}.{c} IS src.{table}.{c}" for c in cols)
+        conds.append(f"NOT EXISTS (SELECT 1 FROM main.{table} WHERE {match})")
     collist = ", ".join(cols)
+    where = f" WHERE {' AND '.join(conds)}" if conds else ""
     con.execute(
-        f"{verb} INTO main.{table} ({collist}) SELECT {collist} FROM src.{table}"
+        f"{verb} INTO main.{table} ({collist}) SELECT {collist} FROM src.{table}{where}"
     )
 
 
