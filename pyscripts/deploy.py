@@ -856,16 +856,16 @@ upstream {BE_UPSTREAM} {{
         for comm in [
             "sudo loginctl enable-linger $(whoami)",
             f"sudo mkdir -p {os.path.dirname(dropin)}",
-            f"printf '[Service]\\nManagedOOMMemoryPressure=no\\n' | sudo tee {dropin}",
+            f"printf '[Service]\\nManagedOOMMemoryPressure=auto\\n' | sudo tee {dropin}",
             "sudo systemctl daemon-reload",
             "sudo systemctl set-property --runtime user@$(id -u).service"
-            " ManagedOOMMemoryPressure=no",
+            " ManagedOOMMemoryPressure=auto",
         ]:
             self.ssh.run(comm)
         state = self.ssh.run(
             "systemctl show user@$(id -u).service -p ManagedOOMMemoryPressure"
         ).strip()
-        assert state == "ManagedOOMMemoryPressure=no", state
+        assert state == "ManagedOOMMemoryPressure=auto", state
 
     def reload_systemctl(self):
         self.ssh.run("sudo systemctl daemon-reload")
