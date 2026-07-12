@@ -1083,8 +1083,12 @@ def new_large_alpha():
 
 
 def kill_dangling():
+    n = 0
     for inst in get_dangling_instances():
+        print("terminating", inst)
+        n += 1
         inst.terminate()
+    print(n, "terminated")
 
 
 def kill_alpha():
