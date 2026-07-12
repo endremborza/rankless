@@ -373,6 +373,7 @@ class Transper:
         self.be_service = ServiceMan(be_service_name, sshc)
         self.sync_txt("test", "___test", self.inst_home)
         self.bun_exc = f"{self.inst_home}{BUN_PATH}"
+        self.venv_python = f"{self.deploy_dir}/.venv/bin/python"
 
     def bun_run(self, comm):
         self.ssh.run(f"{self.bun_exc} {comm}")
@@ -437,14 +438,13 @@ class Transper:
 
     def setup_mcp_services(self, mcp_backend: str = "local"):
         """MCP server + worker units on the instance (venv must be synced)."""
-        python = f"{self.deploy_dir}/.venv/bin/python"
         be_url = services.resolve_mcp_backend(mcp_backend)
         self.sync_service(
-            services.render_mcp_server(self.deploy_dir, python, be_url),
+            services.render_mcp_server(self.deploy_dir, self.venv_python, be_url),
             services.MCP_SERVER_UNIT,
         )
         self.sync_service(
-            services.render_mcp_worker(self.deploy_dir, python),
+            services.render_mcp_worker(self.deploy_dir, self.venv_python),
             services.MCP_WORKER_UNIT,
         )
         self.reload_systemctl()
@@ -722,9 +722,7 @@ upstream {BE_UPSTREAM} {{
         incoming = f"{tmp}/{db_name}"
         self.ssh.run(f"rm -rf {tmp} && mkdir -p {tmp}")
         self.ssh.rsync(str(local_tmp / db_name), tmp)
-        self._depcomm(
-            f".venv/bin/python -m pyscripts.mcp_db {self.deploy_dir}/{paths.DB_REL} {incoming} {mode}"
-        )
+        self._run_mcp_db(f"{self.deploy_dir}/{paths.DB_REL} {incoming} {mode}")
         self.ssh.run(f"rm -rf {tmp}")
         shutil.rmtree(local_tmp)
         self.ssh.rsync(
@@ -746,9 +744,7 @@ upstream {BE_UPSTREAM} {{
         # rsync'ing the raw file could miss un-checkpointed commits or tear the image.
         remote_tmp = f"{self.deploy_dir}/{DB_XFER_TMP}"
         self.ssh.run(f"rm -rf {remote_tmp} && mkdir -p {remote_tmp}")
-        self._depcomm(
-            f".venv/bin/python -m pyscripts.mcp_db snapshot {paths.DB_REL} {DB_XFER_TMP}/{db_name}"
-        )
+        self._run_mcp_db(f"snapshot {paths.DB_REL} {DB_XFER_TMP}/{db_name}")
         tmp = LOCAL_REPO / DB_XFER_TMP
         tmp.mkdir(parents=True, exist_ok=True)
         self.ssh.rsync_from(f"{remote_tmp}/{db_name}", str(tmp))
@@ -948,6 +944,9 @@ upstream {BE_UPSTREAM} {{
     def _depcomm(self, comm: str):
         self.ssh.run(f"cd {self.deploy_dir};source ~/.profile;{comm}")
 
+    def _run_mcp_db(self, args: str):
+        self._depcomm(f"{self.venv_python} -m pyscripts.mcp_db {args}")
+
     def _get_fe_service(self, conf: FrontendServiceConf, port):
         return ServiceMan(conf.template_fname().replace("@", f"@{port}"), self.ssh)
 
@@ -1092,12 +1091,26 @@ def kill_alpha():
     get_running_inst(False).terminate()
 
 
-def _handoff_db_to(target_tpr: Transper):
+def _handoff_db_to(target_tpr: Transper, pull_warn_only: bool = False):
+    # Pull the live DB onto this deploy host, then push the merged local DB to the
+    # target. pull_warn_only keeps a spinning-up alpha unblocked when the live box
+    # can't be snapshotted (e.g. an old deploy without the MCP tooling); a promote
+    # leaves it False so a failed pre-flip catch-up aborts rather than flipping
+    # stale data live.
     live_inst = get_running_inst(True)
     if live_inst is None:
         print("no live box to pull DB from; pushing local DB as-is")
     else:
-        get_tpr(live_inst).merge_db_from()
+        try:
+            get_tpr(live_inst).merge_db_from()
+        except Exception as e:
+            if not pull_warn_only:
+                raise
+            print(
+                f"WARNING: live DB sync failed ({e}); continuing with the local DB. "
+                "Sync it manually with local-moks/sync-live-db.sh, "
+                "then merge_db_to_alpha()."
+            )
     target_tpr.merge_db_to()
 
 
@@ -1105,7 +1118,7 @@ def _new_alpha(storage, itype, fe_procn, backend):
     inst = get_new_inst(storage, itype)
     tpr = get_tpr(inst)
     full_setup_from_nothing(tpr, ALPHA_DOMAIN, fe_procn, backend=backend)
-    _handoff_db_to(tpr)
+    _handoff_db_to(tpr, pull_warn_only=True)
     associate_id(inst, False)
     time.sleep(15)
     new_tpr = get_tpr(inst)
