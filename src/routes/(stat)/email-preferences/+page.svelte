@@ -205,16 +205,16 @@
 	.link {
 		background: none;
 		border: none;
-		color: #b00020;
+		color: var(--color-err);
 		text-decoration: underline;
 		padding: 0;
 	}
 
 	.err {
-		color: #b00020;
+		color: var(--color-err);
 	}
 
 	.ok {
-		color: #0a7d28;
+		color: var(--color-ok);
 	}
 </style>

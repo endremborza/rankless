@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { entToLink } from '$lib/tree-functions';
 	import type { LedgerPayload } from '$lib/types/ledger';
 	import type { PageData } from './$types';
 
@@ -9,10 +10,12 @@
 
 	$: events = data.events;
 	$: users = data.users;
+	$: names = data.names;
 	$: pendingCount = events.filter((e) => e.moderation === 'pending_review').length;
 	$: appliedSet = new Set(data.applied);
 	$: skippedMap = new Map(data.skipped.map((s) => [s.event_id, s.reason]));
 	$: emailCount = users.filter((u) => u.consent).length;
+	$: onlineCount = users.filter((u) => u.online).length;
 
 	let onlyImplemented = false;
 	$: shownEvents = onlyImplemented ? events.filter((e) => appliedSet.has(e.event_id)) : events;
@@ -73,47 +76,68 @@
 
 <svelte:head><title>Admin · Rankless</title></svelte:head>
 
+{#snippet actorName(name: string | null, semanticId: string | null)}
+	{#if name && semanticId}
+		<a href={entToLink({ rootType: 'authors', semanticId })}>{name}</a>
+	{:else if name}
+		{name}
+	{:else}
+		—
+	{/if}
+{/snippet}
+
 <div class="admin">
+	<nav class="topnav"><a href="/mcp">→ MCP exploration sessions</a></nav>
+
 	<h1>Users &amp; email consent</h1>
 	<p class="sub">
-		{users.length} signed-in {users.length === 1 ? 'user' : 'users'} · {emailCount} with an active email
-		consent. Emails are collected only with explicit, per-purpose consent and can be withdrawn by the
-		user at any time.
+		{users.length}
+		{users.length === 1 ? 'person has' : 'people have'} taken an action · {onlineCount} currently signed
+		in · {emailCount} with an active email consent. Everyone who has ever signed in, made a change, or
+		granted consent is listed. Emails are collected only with explicit, per-purpose consent and can be
+		withdrawn by the user at any time.
 	</p>
 
-	<table>
-		<thead>
-			<tr>
-				<th>actor</th>
-				<th>name</th>
-				<th>logins</th>
-				<th>last login</th>
-				<th>email</th>
-				<th>consented to</th>
-				<th>granted</th>
-			</tr>
-		</thead>
-		<tbody>
-			{#each users as u, i (i)}
+	<div class="table-wrap">
+		<table>
+			<thead>
 				<tr>
-					<td class="mono">{u.orcid}</td>
-					<td>{u.name ?? '—'}</td>
-					<td>{u.login_count || '—'}</td>
-					<td class="mono">{u.last_login_at}</td>
-					{#if u.consent}
-						<td>{u.consent.email}</td>
-						<td>{u.consent.purposes.join(', ')}</td>
-						<td class="mono">{u.consent.granted_at}</td>
-					{:else}
-						<td colspan="3" class="muted">no email consent</td>
-					{/if}
+					<th>actor</th>
+					<th>name</th>
+					<th>status</th>
+					<th>logins</th>
+					<th>last login</th>
+					<th>ledger</th>
+					<th>email</th>
+					<th>consented to</th>
+					<th>granted</th>
 				</tr>
-			{/each}
-		</tbody>
-	</table>
+			</thead>
+			<tbody>
+				{#each users as u, i (i)}
+					<tr>
+						<td class="mono">{u.orcid}</td>
+						<td>{@render actorName(u.name, u.semantic_id)}</td>
+						<td class="status-cell">
+							<span class="dot" class:online={u.online}></span>{u.online ? 'online' : 'offline'}
+						</td>
+						<td>{u.login_count || '—'}</td>
+						<td class="mono">{u.last_login_at ?? '—'}</td>
+						<td>{u.event_count || '—'}</td>
+						{#if u.consent}
+							<td>{u.consent.email}</td>
+							<td>{u.consent.purposes.join(', ')}</td>
+							<td class="mono">{u.consent.granted_at}</td>
+						{:else}
+							<td colspan="3" class="muted">no email consent</td>
+						{/if}
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
 
 	<h1 class="section">Ledger moderation</h1>
-	<p class="nav"><a href="/mcp">→ MCP exploration sessions</a></p>
 	<p class="sub">
 		{events.length} most recent events · {pendingCount} pending review. Approving a change marks it accepted;
 		it is applied on the next data rebuild, not immediately. “implemented” means the change is live in
@@ -124,51 +148,62 @@
 	</label>
 	{#if lastError}<p class="err">{lastError}</p>{/if}
 
-	<table>
-		<thead>
-			<tr>
-				<th>#</th>
-				<th>actor</th>
-				<th>kind</th>
-				<th>summary</th>
-				<th>created</th>
-				<th>status</th>
-				<th>pipeline</th>
-				<th></th>
-			</tr>
-		</thead>
-		<tbody>
-			{#each shownEvents as e, i (i)}
-				<tr class:pending={e.moderation === 'pending_review'} class:revoked={e.revoked_at !== null}>
-					<td>{e.event_id}</td>
-					<td class="mono">{e.orcid}</td>
-					<td>{e.kind}</td>
-					<td>{summarize(e.payload)}</td>
-					<td class="mono">{e.created_at}</td>
-					<td>
-						{e.moderation}{e.moderated_by ? ` · by ${e.moderated_by}` : ''}{e.revoked_at
-							? ' · revoked'
-							: ''}
-					</td>
-					<td class={pipelineStatus(e).cls}>{pipelineStatus(e).label}</td>
-					<td class="actions">
-						{#if e.moderation === 'pending_review' && e.revoked_at === null}
-							<button
-								class="ok"
-								disabled={busy.has(e.event_id)}
-								on:click={() => moderate(e.event_id, 'accepted')}>Approve</button
-							>
-							<button
-								class="no"
-								disabled={busy.has(e.event_id)}
-								on:click={() => moderate(e.event_id, 'rejected')}>Reject</button
-							>
-						{/if}
-					</td>
+	<div class="table-wrap">
+		<table>
+			<thead>
+				<tr>
+					<th>#</th>
+					<th>actor</th>
+					<th>kind</th>
+					<th>summary</th>
+					<th>created</th>
+					<th>status</th>
+					<th>pipeline</th>
+					<th></th>
 				</tr>
-			{/each}
-		</tbody>
-	</table>
+			</thead>
+			<tbody>
+				{#each shownEvents as e, i (i)}
+					<tr
+						class:pending={e.moderation === 'pending_review'}
+						class:revoked={e.revoked_at !== null}
+					>
+						<td>{e.event_id}</td>
+						<td class="actor">
+							{#if names[e.orcid]?.name}
+								{@const a = names[e.orcid]}
+								<span class="actor-name">{@render actorName(a.name, a.semanticId)}</span>
+							{/if}
+							<span class="mono">{e.orcid}</span>
+						</td>
+						<td>{e.kind}</td>
+						<td>{summarize(e.payload)}</td>
+						<td class="mono">{e.created_at}</td>
+						<td>
+							{e.moderation}{e.moderated_by ? ` · by ${e.moderated_by}` : ''}{e.revoked_at
+								? ' · revoked'
+								: ''}
+						</td>
+						<td class={pipelineStatus(e).cls}>{pipelineStatus(e).label}</td>
+						<td class="actions">
+							{#if e.moderation === 'pending_review' && e.revoked_at === null}
+								<button
+									class="ok"
+									disabled={busy.has(e.event_id)}
+									on:click={() => moderate(e.event_id, 'accepted')}>Approve</button
+								>
+								<button
+									class="no"
+									disabled={busy.has(e.event_id)}
+									on:click={() => moderate(e.event_id, 'rejected')}>Reject</button
+								>
+							{/if}
+						</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
 </div>
 
 <style>
@@ -180,55 +215,92 @@
 	h1.section {
 		margin-top: 2.5rem;
 	}
+	.topnav {
+		margin-bottom: 1rem;
+		font-size: var(--text-sm);
+	}
+	.actor {
+		white-space: nowrap;
+	}
+	.actor-name {
+		display: block;
+	}
+	.actor .mono {
+		color: var(--color-text-light);
+	}
 	.sub {
-		color: #666;
-		font-size: 0.9rem;
+		color: var(--color-text-light);
+		font-size: var(--text-sm);
 	}
 	.filter {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.4rem;
-		font-size: 0.85rem;
-		color: #444;
+		font-size: var(--text-sm);
+		color: var(--color-text-light);
 		margin-bottom: 0.6rem;
 		cursor: pointer;
 	}
 	.err {
-		color: #b00020;
-		font-size: 0.9rem;
+		color: var(--color-err);
+		font-size: var(--text-sm);
+	}
+	.table-wrap {
+		overflow-x: auto;
 	}
 	table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: 0.85rem;
+		font-size: var(--text-base);
 	}
 	th,
 	td {
 		text-align: left;
 		padding: 0.4rem 0.5rem;
-		border-bottom: 1px solid #eee;
+		border-bottom: 1px solid rgba(var(--color-range-30), 0.15);
 		vertical-align: top;
 	}
+	th {
+		color: var(--color-text-light);
+		font-weight: 600;
+	}
 	.mono {
-		font-family: monospace;
-		font-size: 0.8rem;
+		font-family: var(--font-mono);
+		font-size: var(--text-sm);
 		white-space: nowrap;
 	}
 	.muted {
-		color: #999;
+		color: var(--color-text-light);
+	}
+	.status-cell {
+		white-space: nowrap;
+	}
+	.dot {
+		display: inline-block;
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 50%;
+		margin-right: 0.35rem;
+		vertical-align: middle;
+		background: var(--color-text-light);
+		opacity: 0.5;
+	}
+	.dot.online {
+		background: var(--color-ok);
+		opacity: 1;
 	}
 	.applied {
-		color: #0a7d28;
+		color: var(--color-ok);
 		font-weight: bold;
 	}
 	.skipped {
-		color: #b06a00;
+		color: var(--color-warn);
 	}
 	.awaiting {
-		color: #555;
+		color: var(--color-text-light);
 	}
 	tr.pending {
-		background: #fff7e6;
+		background: rgba(var(--color-range-90), 0.12);
 	}
 	tr.revoked {
 		opacity: 0.55;
@@ -240,15 +312,24 @@
 	button {
 		margin-right: 0.3rem;
 		cursor: pointer;
+		font-family: inherit;
+		font-size: var(--text-xs);
+		padding: 2px 8px;
+		border: 1px solid rgba(var(--color-range-15), 0.25);
+		background: none;
+		color: var(--color-text);
+	}
+	button:hover:not(:disabled) {
+		background: rgba(var(--color-range-15), 0.08);
 	}
 	button:disabled {
 		cursor: default;
 		opacity: 0.5;
 	}
 	button.ok {
-		color: #0a7d28;
+		color: var(--color-ok);
 	}
 	button.no {
-		color: #b00020;
+		color: var(--color-err);
 	}
 </style>

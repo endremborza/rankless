@@ -293,7 +293,7 @@
 	}
 
 	.error {
-		color: #b00020;
+		color: var(--color-err);
 		margin-top: 1rem;
 		text-align: center;
 	}
