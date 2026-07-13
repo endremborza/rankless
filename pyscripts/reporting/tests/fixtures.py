@@ -48,7 +48,9 @@ LINE_EMPTY_CS = (
     'rt=0.002 uct="-" uht="-" urt="-" cs= host=www.rankless.org'
 )
 
-# Alpha-vhost line (dropped by drop_alpha_hosts).
+# Non-live lines (dropped by keep_live_hosts): the alpha vhost, and a raw-IP Host
+# (the old alpha box's public IP or a scanner) that the old alpha* prefix denylist
+# wrongly kept as live.
 LINE_HOST_LIVE = LINE_HUMAN
 LINE_HOST_ALPHA = (
     "203.0.113.43 - - [29/Jun/2026:10:14:15 +0000] "
@@ -56,6 +58,13 @@ LINE_HOST_ALPHA = (
     '"-" '
     '"Mozilla/5.0 (X11; Linux x86_64) Chrome/124.0"'
     'rt=0.000 uct="-" uht="-" urt="-" cs=MISS host=alpha.rankless.org'
+)
+LINE_HOST_RAWIP = (
+    "203.0.113.44 - - [29/Jun/2026:10:14:16 +0000] "
+    '"GET /authors/darwin HTTP/2.0" 502 166 '
+    '"-" '
+    '"Mozilla/5.0 (X11; Linux x86_64) Chrome/124.0"'
+    'rt=0.000 uct="-" uht="-" urt="-" cs=MISS host=3.69.38.142'
 )
 
 # Garbage line for failure counting.

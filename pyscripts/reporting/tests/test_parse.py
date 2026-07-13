@@ -2,7 +2,7 @@ import math
 
 import polars as pl
 
-from pyscripts.reporting.parse import drop_alpha_hosts, parse_lines
+from pyscripts.reporting.parse import keep_live_hosts, parse_lines
 
 from .fixtures import (
     ALL,
@@ -13,6 +13,7 @@ from .fixtures import (
     LINE_GARBAGE,
     LINE_HOST_ALPHA,
     LINE_HOST_LIVE,
+    LINE_HOST_RAWIP,
     LINE_HUMAN,
     LINE_NO_UPSTREAM,
     LINE_TORN,
@@ -101,9 +102,9 @@ def test_parse_host_field():
     assert df["host"].to_list() == ["www.rankless.org", "alpha.rankless.org"]
 
 
-def test_drop_alpha_hosts():
-    df, _ = parse_lines([LINE_HOST_LIVE, LINE_HOST_ALPHA, LINE_BOT])
-    kept, n = drop_alpha_hosts(df)
-    assert n == 1
+def test_keep_live_hosts():
+    df, _ = parse_lines([LINE_HOST_LIVE, LINE_HOST_ALPHA, LINE_HOST_RAWIP, LINE_BOT])
+    kept, n = keep_live_hosts(df)
+    assert n == 2  # alpha vhost + raw-IP scanner both dropped
     assert "host" not in kept.columns  # not persisted into the archive
     assert kept["path"].to_list() == ["/v1/names/authors?q=darwin", "/sitemap.xml"]

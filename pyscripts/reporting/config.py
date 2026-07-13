@@ -50,10 +50,12 @@ LINE_RE = re.compile(
     r"host=(?P<host>\S+)$"
 )
 
-# Vhost separation. Live instances are promoted alphas, so the box's access.log
-# carries its prior alpha-domain traffic alongside live; `$host` lets the report
-# drop the non-live rows. Anything under the alpha.* subdomain is non-live.
-ALPHA_HOST_PREFIX = "alpha"
+# Vhost separation. A live box is a promoted alpha, so its access.log mixes live
+# traffic with the box's prior alpha vhosts AND junk hitting it directly (raw IP,
+# EC2 hostname, spoofed Host scanners). `$host` lets the report keep only the live
+# domains. An allowlist is robust where an `alpha*` prefix denylist let the
+# non-alpha junk through — most notably the old alpha box's raw IP counted as live.
+LIVE_HOSTS = {"www.rankless.org", "rankless.org", "api.rankless.org"}
 
 CACHE_STATUSES = {
     "HIT",
