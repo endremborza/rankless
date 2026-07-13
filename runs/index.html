@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Runs</title>
+<link rel="stylesheet" href="../assets/style.css" />
+<link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css" />
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+</head>
+<body>
+<header>
+  <nav>
+    <a href="../index.html" class="brand">Rankless reports</a>
+    <ul>
+      <li><a href="../index.html" >Landing</a></li>
+      <li><a href="../traffic.html" >Traffic</a></li>
+      <li><a href="../performance.html" >Performance</a></li>
+      <li><a href="../errors.html" >Errors</a></li>
+      <li><a href="../sessions/index.html" >Sessions</a></li>
+      <li><a href="../classification.html" >Classification</a></li>
+      <li><a href="../runs/index.html" class="active">Runs</a></li>
+    </ul>
+    <span class="mode-badge mode-public">public</span>
+  </nav>
+</header>
+<main>
+<h1>Run history</h1>
+<p class='hint'>No run history yet.</p>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("table.dt").forEach(t => new DataTable(t, {pageLength: 50, order: []}));
+});
+</script>
+</main>
+<footer>
+  <span>Rendered 2026-07-13T14:10:19+00:00</span>
+  <span>Last pull: 2026-07-13T14:10:19+00:00</span>
+  <span>Last event: 2026-07-13 14:10:03+00:00</span>
+</footer>
+</body>
+</html>

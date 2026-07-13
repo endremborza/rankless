@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Traffic</title>
+<link rel="stylesheet" href="assets/style.css" />
+<link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css" />
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+</head>
+<body>
+<header>
+  <nav>
+    <a href="index.html" class="brand">Rankless reports</a>
+    <ul>
+      <li><a href="index.html" >Landing</a></li>
+      <li><a href="traffic.html" class="active">Traffic</a></li>
+      <li><a href="performance.html" >Performance</a></li>
+      <li><a href="errors.html" >Errors</a></li>
+      <li><a href="sessions/index.html" >Sessions</a></li>
+      <li><a href="classification.html" >Classification</a></li>
+      <li><a href="runs/index.html" >Runs</a></li>
+    </ul>
+    <span class="mode-badge mode-public">public</span>
+  </nav>
+</header>
+<main>
+<h1>Traffic</h1>
+
+<section>
+<h2>Bot vs human over time</h2>
+<div id="bot-area" style="height:320px"></div><script>Plotly.newPlot("bot-area", {"data": [{"x": ["2026-07-13 00:00:00.000000"], "y": [3507], "name": "human_likely", "type": "scatter", "stackgroup": "one", "fillcolor": "#94e2d5", "line": {"width": 0.5, "color": "#94e2d5"}}, {"x": ["2026-07-13 00:00:00.000000"], "y": [94895], "name": "bot_likely", "type": "scatter", "stackgroup": "one", "fillcolor": "#eba0ac", "line": {"width": 0.5, "color": "#eba0ac"}}, {"x": ["2026-07-13 00:00:00.000000"], "y": [35750], "name": "bot_known", "type": "scatter", "stackgroup": "one", "fillcolor": "#f38ba8", "line": {"width": 0.5, "color": "#f38ba8"}}, {"x": ["2026-07-13 00:00:00.000000"], "y": [62834], "name": "unknown", "type": "scatter", "stackgroup": "one", "fillcolor": "#9399b2", "line": {"width": 0.5, "color": "#9399b2"}}], "layout": {"yaxis": {"title": "requests"}, "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
+</section>
+
+<section>
+<h2>Top user agents (sessions)</h2>
+<table class="dataframe dt" id="top-uas">
+  <thead>
+    <tr style="text-align: right;">
+      <th>ua_family</th>
+      <th>sessions</th>
+      <th>dominant_class</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>chrome</td>
+      <td>40035</td>
+      <td>unknown</td>
+    </tr>
+    <tr>
+      <td>gptbot</td>
+      <td>3058</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>safari-webkit</td>
+      <td>1807</td>
+      <td>bot_likely</td>
+    </tr>
+    <tr>
+      <td>other-bot</td>
+      <td>1448</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>ahrefsbot</td>
+      <td>1337</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>firefox</td>
+      <td>1124</td>
+      <td>bot_likely</td>
+    </tr>
+    <tr>
+      <td>edge</td>
+      <td>1087</td>
+      <td>bot_likely</td>
+    </tr>
+    <tr>
+      <td>googlebot</td>
+      <td>505</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>chrome-mobile</td>
+      <td>240</td>
+      <td>bot_likely</td>
+    </tr>
+    <tr>
+      <td>bytespider</td>
+      <td>218</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>unknown</td>
+      <td>97</td>
+      <td>bot_likely</td>
+    </tr>
+    <tr>
+      <td>bingbot</td>
+      <td>90</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>perplexitybot</td>
+      <td>83</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>yandexbot</td>
+      <td>59</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>semrushbot</td>
+      <td>41</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>python-script</td>
+      <td>20</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>claudebot</td>
+      <td>11</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>go-script</td>
+      <td>8</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>facebookbot</td>
+      <td>4</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>empty</td>
+      <td>3</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>wget</td>
+      <td>3</td>
+      <td>bot_known</td>
+    </tr>
+  </tbody>
+</table>
+</section>
+
+<section>
+<h2>Top referrer domains</h2>
+<table class="dataframe dt" id="top-refs">
+  <thead>
+    <tr style="text-align: right;">
+      <th>referrer_domain</th>
+      <th>requests</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>rankless.org</td>
+      <td>92493</td>
+    </tr>
+    <tr>
+      <td>google.com</td>
+      <td>15</td>
+    </tr>
+    <tr>
+      <td>18.157.187.64:80</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <td>18.157.187.64:443</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <td>baidu.org</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <td>google.com.hk</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <td>alpha.rankless.org</td>
+      <td>1</td>
+    </tr>
+    <tr>
+      <td>63.177.45.140</td>
+      <td>1</td>
+    </tr>
+  </tbody>
+</table>
+</section>
+
+<section>
+<h2>Top entry routes (human-likely sessions)</h2>
+<table class="dataframe dt" id="top-paths">
+  <thead>
+    <tr style="text-align: right;">
+      <th>route_template</th>
+      <th>requests</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>/v1/trees/{root_type}/{semantic_id}</td>
+      <td>3387</td>
+    </tr>
+    <tr>
+      <td>/v1/names/{etype}</td>
+      <td>87</td>
+    </tr>
+    <tr>
+      <td>_unknown</td>
+      <td>33</td>
+    </tr>
+  </tbody>
+</table>
+</section>
+
+<section>
+<h2>Status code distribution</h2>
+<div id="status-donut" style="height:320px"></div><script>Plotly.newPlot("status-donut", {"data": [{"labels": ["2xx", "3xx", "4xx"], "values": [187353, 9062, 571], "type": "pie", "hole": 0.5}], "layout": {"margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
+</section>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("table.dt").forEach(t => new DataTable(t, {pageLength: 20}));
+});
+</script>
+</main>
+<footer>
+  <span>Rendered 2026-07-13T14:10:19+00:00</span>
+  <span>Last pull: 2026-07-13T14:10:19+00:00</span>
+  <span>Last event: 2026-07-13 14:10:03+00:00</span>
+</footer>
+</body>
+</html>

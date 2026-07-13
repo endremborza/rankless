@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Errors</title>
+<link rel="stylesheet" href="assets/style.css" />
+<link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css" />
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+</head>
+<body>
+<header>
+  <nav>
+    <a href="index.html" class="brand">Rankless reports</a>
+    <ul>
+      <li><a href="index.html" >Landing</a></li>
+      <li><a href="traffic.html" >Traffic</a></li>
+      <li><a href="performance.html" >Performance</a></li>
+      <li><a href="errors.html" class="active">Errors</a></li>
+      <li><a href="sessions/index.html" >Sessions</a></li>
+      <li><a href="classification.html" >Classification</a></li>
+      <li><a href="runs/index.html" >Runs</a></li>
+    </ul>
+    <span class="mode-badge mode-public">public</span>
+  </nav>
+</header>
+<main>
+<h1>Errors (last 7 days)</h1>
+
+<section>
+<h2>5xx</h2>
+<p class='hint'>None.</p>
+</section>
+
+<section>
+<h2>4xx (excluding 404 from bots)</h2>
+<table class="dataframe dt" id="err-4xx">
+  <thead>
+    <tr style="text-align: right;">
+      <th>route_template</th>
+      <th>status</th>
+      <th>n</th>
+      <th>last_seen</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>429</td>
+      <td>172</td>
+      <td>2026-07-13 12:19 UTC</td>
+    </tr>
+  </tbody>
+</table>
+</section>
+
+<section>
+<h2>429 rate-limit hits</h2>
+<table class="dataframe dt" id="err-429">
+  <thead>
+    <tr style="text-align: right;">
+      <th>route_template</th>
+      <th>status</th>
+      <th>n</th>
+      <th>last_seen</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>429</td>
+      <td>172</td>
+      <td>2026-07-13 12:19 UTC</td>
+    </tr>
+  </tbody>
+</table>
+</section>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("table.dt").forEach(t => new DataTable(t, {pageLength: 30, order: []}));
+});
+</script>
+</main>
+<footer>
+  <span>Rendered 2026-07-13T14:10:19+00:00</span>
+  <span>Last pull: 2026-07-13T14:10:19+00:00</span>
+  <span>Last event: 2026-07-13 14:10:03+00:00</span>
+</footer>
+</body>
+</html>

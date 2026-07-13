@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Rankless — landing</title>
+<link rel="stylesheet" href="assets/style.css" />
+<link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css" />
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+</head>
+<body>
+<header>
+  <nav>
+    <a href="index.html" class="brand">Rankless reports</a>
+    <ul>
+      <li><a href="index.html" class="active">Landing</a></li>
+      <li><a href="traffic.html" >Traffic</a></li>
+      <li><a href="performance.html" >Performance</a></li>
+      <li><a href="errors.html" >Errors</a></li>
+      <li><a href="sessions/index.html" >Sessions</a></li>
+      <li><a href="classification.html" >Classification</a></li>
+      <li><a href="runs/index.html" >Runs</a></li>
+    </ul>
+    <span class="mode-badge mode-public">public</span>
+  </nav>
+</header>
+<main>
+<h1>Overview</h1>
+
+<section class="kpi-section">
+<h2>Last 1h</h2>
+<div class="kpi-grid">
+<div class="kpi-card"><div class="kpi-label">Requests</div><div class="kpi-value">77,061</div></div>
+<div class="kpi-card"><div class="kpi-label">Sessions</div><div class="kpi-value">20,415</div></div>
+<div class="kpi-card"><div class="kpi-label">5xx rate</div><div class="kpi-value">0.00%</div></div>
+<div class="kpi-card"><div class="kpi-label">p99 urt</div><div class="kpi-value">250 ms</div></div>
+<div class="kpi-card"><div class="kpi-label">Cache hit</div><div class="kpi-value">9.95%</div></div>
+<div class="kpi-card kpi-breakdown"><div class="kpi-label">Sessions by class</div><div class="bot-bar"><span class="seg" style="background:#f38ba8;width:20.26%" title="bot_known: 4136 (20.3%)"></span><span class="seg" style="background:#eba0ac;width:50.69%" title="bot_likely: 10348 (50.7%)"></span><span class="seg" style="background:#9399b2;width:29.00%" title="unknown: 5920 (29.0%)"></span><span class="seg" style="background:#94e2d5;width:0.05%" title="human_likely: 11 (0.1%)"></span></div><div class="bot-legend"><span class="legend-item"><span class="dot" style="background:#f38ba8"></span>bot_known 4136</span> <span class="legend-item"><span class="dot" style="background:#eba0ac"></span>bot_likely 10348</span> <span class="legend-item"><span class="dot" style="background:#9399b2"></span>unknown 5920</span> <span class="legend-item"><span class="dot" style="background:#94e2d5"></span>human_likely 11</span></div></div>
+</div>
+</section>
+<section class="kpi-section">
+<h2>Last 24h</h2>
+<div class="kpi-grid">
+<div class="kpi-card"><div class="kpi-label">Requests</div><div class="kpi-value">196,986</div></div>
+<div class="kpi-card"><div class="kpi-label">Sessions</div><div class="kpi-value">51,278</div></div>
+<div class="kpi-card"><div class="kpi-label">5xx rate</div><div class="kpi-value">0.00%</div></div>
+<div class="kpi-card"><div class="kpi-label">p99 urt</div><div class="kpi-value">254 ms</div></div>
+<div class="kpi-card"><div class="kpi-label">Cache hit</div><div class="kpi-value">17.86%</div></div>
+<div class="kpi-card kpi-breakdown"><div class="kpi-label">Sessions by class</div><div class="bot-bar"><span class="seg" style="background:#f38ba8;width:13.45%" title="bot_known: 6898 (13.5%)"></span><span class="seg" style="background:#eba0ac;width:37.16%" title="bot_likely: 19053 (37.2%)"></span><span class="seg" style="background:#9399b2;width:49.36%" title="unknown: 25313 (49.4%)"></span><span class="seg" style="background:#94e2d5;width:0.03%" title="human_likely: 14 (0.0%)"></span></div><div class="bot-legend"><span class="legend-item"><span class="dot" style="background:#f38ba8"></span>bot_known 6898</span> <span class="legend-item"><span class="dot" style="background:#eba0ac"></span>bot_likely 19053</span> <span class="legend-item"><span class="dot" style="background:#9399b2"></span>unknown 25313</span> <span class="legend-item"><span class="dot" style="background:#94e2d5"></span>human_likely 14</span></div></div>
+</div>
+</section>
+<section class="kpi-section">
+<h2>Last 7d</h2>
+<div class="kpi-grid">
+<div class="kpi-card"><div class="kpi-label">Requests</div><div class="kpi-value">196,986</div></div>
+<div class="kpi-card"><div class="kpi-label">Sessions</div><div class="kpi-value">51,278</div></div>
+<div class="kpi-card"><div class="kpi-label">5xx rate</div><div class="kpi-value">0.00%</div></div>
+<div class="kpi-card"><div class="kpi-label">p99 urt</div><div class="kpi-value">254 ms</div></div>
+<div class="kpi-card"><div class="kpi-label">Cache hit</div><div class="kpi-value">17.86%</div></div>
+<div class="kpi-card kpi-breakdown"><div class="kpi-label">Sessions by class</div><div class="bot-bar"><span class="seg" style="background:#f38ba8;width:13.45%" title="bot_known: 6898 (13.5%)"></span><span class="seg" style="background:#eba0ac;width:37.16%" title="bot_likely: 19053 (37.2%)"></span><span class="seg" style="background:#9399b2;width:49.36%" title="unknown: 25313 (49.4%)"></span><span class="seg" style="background:#94e2d5;width:0.03%" title="human_likely: 14 (0.0%)"></span></div><div class="bot-legend"><span class="legend-item"><span class="dot" style="background:#f38ba8"></span>bot_known 6898</span> <span class="legend-item"><span class="dot" style="background:#eba0ac"></span>bot_likely 19053</span> <span class="legend-item"><span class="dot" style="background:#9399b2"></span>unknown 25313</span> <span class="legend-item"><span class="dot" style="background:#94e2d5"></span>human_likely 14</span></div></div>
+</div>
+</section>
+<section class="kpi-section">
+<h2>Last 30d</h2>
+<div class="kpi-grid">
+<div class="kpi-card"><div class="kpi-label">Requests</div><div class="kpi-value">196,986</div></div>
+<div class="kpi-card"><div class="kpi-label">Sessions</div><div class="kpi-value">51,278</div></div>
+<div class="kpi-card"><div class="kpi-label">5xx rate</div><div class="kpi-value">0.00%</div></div>
+<div class="kpi-card"><div class="kpi-label">p99 urt</div><div class="kpi-value">254 ms</div></div>
+<div class="kpi-card"><div class="kpi-label">Cache hit</div><div class="kpi-value">17.86%</div></div>
+<div class="kpi-card kpi-breakdown"><div class="kpi-label">Sessions by class</div><div class="bot-bar"><span class="seg" style="background:#f38ba8;width:13.45%" title="bot_known: 6898 (13.5%)"></span><span class="seg" style="background:#eba0ac;width:37.16%" title="bot_likely: 19053 (37.2%)"></span><span class="seg" style="background:#9399b2;width:49.36%" title="unknown: 25313 (49.4%)"></span><span class="seg" style="background:#94e2d5;width:0.03%" title="human_likely: 14 (0.0%)"></span></div><div class="bot-legend"><span class="legend-item"><span class="dot" style="background:#f38ba8"></span>bot_known 6898</span> <span class="legend-item"><span class="dot" style="background:#eba0ac"></span>bot_likely 19053</span> <span class="legend-item"><span class="dot" style="background:#9399b2"></span>unknown 25313</span> <span class="legend-item"><span class="dot" style="background:#94e2d5"></span>human_likely 14</span></div></div>
+</div>
+</section>
+
+<section>
+<h2>Requests over the last 30 days</h2>
+<div id="traffic-30d" style="height:320px"></div><script>Plotly.newPlot("traffic-30d", {"data": [{"x": ["2026-07-13 00:00:00.000000"], "y": [196986], "type": "bar", "marker": {"color": "#89b4fa"}, "name": "Requests"}], "layout": {"yaxis": {"title": "requests"}, "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
+</section>
+
+<section>
+<h2>Bot vs human (sessions)</h2>
+<div id="bot-stack" style="height:320px"></div><script>Plotly.newPlot("bot-stack", {"data": [{"x": ["2026-07-13 00:00:00.000000"], "y": [14], "name": "human_likely", "type": "bar", "marker": {"color": "#94e2d5"}}, {"x": ["2026-07-13 00:00:00.000000"], "y": [6898], "name": "bot_known", "type": "bar", "marker": {"color": "#f38ba8"}}, {"x": ["2026-07-13 00:00:00.000000"], "y": [25313], "name": "unknown", "type": "bar", "marker": {"color": "#9399b2"}}, {"x": ["2026-07-13 00:00:00.000000"], "y": [19053], "name": "bot_likely", "type": "bar", "marker": {"color": "#eba0ac"}}], "layout": {"barmode": "stack", "yaxis": {"title": "sessions"}, "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
+</section>
+</main>
+<footer>
+  <span>Rendered 2026-07-13T14:10:19+00:00</span>
+  <span>Last pull: 2026-07-13T14:10:19+00:00</span>
+  <span>Last event: 2026-07-13 14:10:03+00:00</span>
+</footer>
+</body>
+</html>

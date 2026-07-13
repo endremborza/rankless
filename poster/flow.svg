@@ -1,0 +1,188 @@
+<svg viewBox="0 0 1010 600" xmlns="http://www.w3.org/2000/svg" role="img"
+	aria-label="Data-specific compilation pipeline">
+
+
+	<defs>
+		<linearGradient id="tg" x1="0" y1="0" x2="1" y2="0">
+			<stop offset="0" stop-color="rgb(13,198,243)"></stop>
+			<stop offset="0.5" stop-color="rgb(125,0,130)"></stop>
+			<stop offset="1" stop-color="rgb(225,176,30)"></stop>
+		</linearGradient>
+		<marker id="ta" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+			<path d="M0,0 L6,3 L0,6 Z" fill="#79828f"></path>
+		</marker>
+		<marker id="tab" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+			<path d="M0,0 L6,3 L0,6 Z" fill="rgb(38,154,218)"></path>
+		</marker>
+		<marker id="tam" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+			<path d="M0,0 L6,3 L0,6 Z" fill="rgb(125,0,130)"></path>
+		</marker>
+		<marker id="tagr" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+			<path d="M0,0 L6,3 L0,6 Z" fill="#2f8f5f"></path>
+		</marker>
+	</defs>
+
+	<!-- RAW DATA -->
+	<rect x="22" y="168" width="150" height="120" rx="12" fill="#eef1f5" stroke="#cdd3dc"></rect>
+	<text x="97" y="198" text-anchor="middle" fill="#21272a" font-family="monospace"
+		font-size="13">
+		raw dataset
+</text>
+	<text x="97" y="222" text-anchor="middle" fill="#79828f" font-family="monospace"
+		font-size="10.5">
+		OpenAlex dump
+</text>
+	<text x="97" y="240" text-anchor="middle" fill="#79828f" font-family="monospace"
+		font-size="10.5">
+		80M papers ·
+</text>
+	<text x="97" y="254" text-anchor="middle" fill="#79828f" font-family="monospace"
+		font-size="10.5">
+		1.7B citations ·
+</text>
+	<text x="97" y="268" text-anchor="middle" fill="#79828f" font-family="monospace"
+		font-size="10.5">
+		authors · journals
+</text>
+	<path d="M172,228 L204,228" stroke="#79828f" stroke-width="1.8" fill="none"
+		marker-end="url(#ta)"></path>
+
+	<!-- PIPELINE CONTAINER -->
+	<rect x="206" y="58" width="590" height="372" rx="14" fill="#ffffff" stroke="#e3e8ef"></rect>
+	<text x="224" y="86" fill="#525a63" font-family="monospace" font-size="13">
+		BUILD-TIME PIPELINE — runs once, before launch
+</text>
+	<text x="224" y="105" fill="#8b939d" font-family="monospace" font-size="11">
+		each step reads the data, then writes the code the next step compiles against
+</text>
+
+	<!-- top rail: generated code -->
+	<line x1="222" y1="152" x2="776" y2="152" stroke="url(#tg)" stroke-width="3"></line>
+	<text x="224" y="143" fill="#7a3a86" font-family="monospace" font-size="10.5">
+		generated Rust source
+</text>
+
+	<!-- bottom rail: packed data -->
+	<line x1="222" y1="366" x2="640" y2="366" stroke="#aeb4bd" stroke-width="2"
+		marker-end="url(#ta)"></line>
+	<text x="224" y="356" fill="#79828f" font-family="monospace" font-size="10.5">
+		packed binary data · entity-sized arrays
+</text>
+
+	<!-- step cells -->
+	<g font-family="monospace" font-size="12" fill="#21272a" text-anchor="middle">
+		<rect x="222" y="208" width="116" height="92" rx="9" fill="#f6f8fb" stroke="#cdd3dc"></rect>
+		<text x="280" y="250">1 · map</text>
+		<text x="280" y="267">entities</text>
+		<rect x="356" y="208" width="116" height="92" rx="9" fill="#f6f8fb" stroke="#cdd3dc"></rect>
+		<text x="414" y="250">2 · init</text>
+		<text x="414" y="267">attributes</text>
+		<rect x="490" y="208" width="116" height="92" rx="9" fill="#f6f8fb" stroke="#cdd3dc"></rect>
+		<text x="548" y="250">3 · derive</text>
+		<text x="548" y="267">links</text>
+		<rect x="624" y="208" width="116" height="92" rx="9" fill="#f6f8fb" stroke="#cdd3dc"></rect>
+		<text x="682" y="250">4–7</text>
+		<text x="682" y="267">more links</text>
+	</g>
+	<text x="481" y="320" text-anchor="middle" fill="#8b939d" font-family="monospace"
+		font-size="10">
+		7 build steps in all — each generates the next
+</text>
+
+	<!-- emit code: cell -> top rail -->
+	<g stroke="rgb(38,154,218)" stroke-width="1.5" fill="none" marker-end="url(#tab)">
+		<path d="M280,208 L280,158"></path>
+		<path d="M414,208 L414,158"></path>
+		<path d="M548,208 L548,158"></path>
+	</g>
+	<!-- consume code: top rail -> next cell (the ratchet) -->
+	<g stroke="rgb(125,0,130)" stroke-width="1.5" fill="none" marker-end="url(#tam)">
+		<path d="M360,152 C360,180 376,188 392,206"></path>
+		<path d="M494,152 C494,180 510,188 526,206"></path>
+		<path d="M628,152 C628,180 644,188 660,206"></path>
+	</g>
+	<text x="612" y="138" text-anchor="middle" fill="#7a3a86" font-family="monospace"
+		font-size="9.5">
+		each step compiles against all prior steps' code
+</text>
+
+	<!-- emit data: cell -> bottom rail -->
+	<g stroke="#aeb4bd" stroke-width="1.5" fill="none" marker-end="url(#ta)">
+		<path d="M280,300 L280,360"></path>
+		<path d="M414,300 L414,360"></path>
+		<path d="M548,300 L548,360"></path>
+		<path d="M682,300 C682,330 660,350 646,360"></path>
+	</g>
+
+	<!-- packed data node -->
+	<rect x="628" y="350" width="150" height="34" rx="8" fill="#eef1f5" stroke="#cdd3dc"></rect>
+	<text x="703" y="371" text-anchor="middle" fill="#525a63" font-family="monospace"
+		font-size="11">
+		packed data files
+</text>
+
+	<!-- BINARY -->
+	<rect x="834" y="146" width="150" height="132" rx="14" fill="#ffffff" stroke="url(#tg)"
+		stroke-width="2.4"></rect>
+	<text x="909" y="186" text-anchor="middle" fill="#21272a" font-family="monospace"
+		font-size="14">
+		ONE BINARY
+</text>
+	<text x="909" y="206" text-anchor="middle" fill="#525a63" font-family="monospace"
+		font-size="11">
+		rankless-server
+</text>
+	<text x="909" y="230" text-anchor="middle" fill="#79828f" font-family="monospace"
+		font-size="10">
+		types sized to
+</text>
+	<text x="909" y="244" text-anchor="middle" fill="#79828f" font-family="monospace"
+		font-size="10">
+		this exact data
+</text>
+	<text x="909" y="262" text-anchor="middle" fill="#7a3a86" font-family="monospace"
+		font-size="9.5">
+		16-bit id for 33k insts
+</text>
+
+	<!-- code rail -> binary (compiled in) -->
+	<path d="M776,152 C800,152 812,168 832,182" stroke="rgb(125,0,130)" stroke-width="1.8"
+		fill="none"
+		marker-end="url(#tam)"></path>
+	<text x="806" y="146" text-anchor="middle" fill="#7a3a86" font-family="monospace"
+		font-size="9.5">
+		compiled in
+</text>
+
+	<!-- RUNTIME -->
+	<rect x="206" y="470" width="778" height="104" rx="14" fill="#e7f6ee" stroke="#8fccaa"></rect>
+	<text x="595" y="502" text-anchor="middle" fill="#2f8f5f" font-family="monospace"
+		font-size="13.5">
+		ONE MULTI-THREADED PROCESS — serves the entire backend
+</text>
+	<text x="595" y="525" text-anchor="middle" fill="#3f7a5a" font-family="monospace"
+		font-size="11">
+		loads compact tables into RAM · memory-maps the big arrays
+</text>
+	<text x="595" y="543" text-anchor="middle" fill="#3f7a5a" font-family="monospace"
+		font-size="11">
+		16 threads answer HTTP · no database · no query planner
+</text>
+
+	<!-- binary -> runtime -->
+	<path d="M909,278 L909,468" stroke="#2f8f5f" stroke-width="1.8" fill="none"
+		marker-end="url(#tagr)"></path>
+	<text x="958" y="380" text-anchor="middle" fill="#3f7a5a" font-family="monospace"
+		font-size="10"
+		transform="rotate(90 958 380)">
+		starts as one process
+</text>
+	<!-- data -> runtime -->
+	<path d="M703,384 L703,468" stroke="#aeb4bd" stroke-width="1.8" fill="none"
+		marker-end="url(#ta)"></path>
+	<text x="690" y="428" text-anchor="end" fill="#79828f" font-family="monospace"
+		font-size="10">
+		load · mmap
+</text>
+
+</svg>

@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Performance</title>
+<link rel="stylesheet" href="assets/style.css" />
+<link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.dataTables.min.css" />
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+</head>
+<body>
+<header>
+  <nav>
+    <a href="index.html" class="brand">Rankless reports</a>
+    <ul>
+      <li><a href="index.html" >Landing</a></li>
+      <li><a href="traffic.html" >Traffic</a></li>
+      <li><a href="performance.html" class="active">Performance</a></li>
+      <li><a href="errors.html" >Errors</a></li>
+      <li><a href="sessions/index.html" >Sessions</a></li>
+      <li><a href="classification.html" >Classification</a></li>
+      <li><a href="runs/index.html" >Runs</a></li>
+    </ul>
+    <span class="mode-badge mode-public">public</span>
+  </nav>
+</header>
+<main>
+<h1>Performance</h1>
+
+<section>
+<h2>Per-route latency (last 24h)</h2>
+<table class="dataframe dt" id="route-perf">
+  <thead>
+    <tr style="text-align: right;">
+      <th>route_template</th>
+      <th>n</th>
+      <th>err_5xx</th>
+      <th>err_4xx</th>
+      <th>cache_hit</th>
+      <th>urt_p50_ms</th>
+      <th>urt_p95_ms</th>
+      <th>urt_p99_ms</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>101871</td>
+      <td>0.0</td>
+      <td>0.21</td>
+      <td>0.00</td>
+      <td>59.0</td>
+      <td>174.0</td>
+      <td>275.0</td>
+    </tr>
+    <tr>
+      <td>/v1/trees/{root_type}/{semantic_id}</td>
+      <td>40351</td>
+      <td>0.0</td>
+      <td>0.00</td>
+      <td>4.07</td>
+      <td>2.0</td>
+      <td>29.0</td>
+      <td>115.0</td>
+    </tr>
+    <tr>
+      <td>_unknown</td>
+      <td>16970</td>
+      <td>0.0</td>
+      <td>1.79</td>
+      <td>98.08</td>
+      <td>2.0</td>
+      <td>8.0</td>
+      <td>65.0</td>
+    </tr>
+    <tr>
+      <td>/v1/names/{etype}</td>
+      <td>16577</td>
+      <td>0.0</td>
+      <td>0.00</td>
+      <td>99.59</td>
+      <td>1.0</td>
+      <td>708.0</td>
+      <td>842.0</td>
+    </tr>
+    <tr>
+      <td>/pic/{...}</td>
+      <td>10502</td>
+      <td>0.0</td>
+      <td>0.24</td>
+      <td>0.03</td>
+      <td>75.0</td>
+      <td>127.0</td>
+      <td>210.0</td>
+    </tr>
+    <tr>
+      <td>/login</td>
+      <td>6021</td>
+      <td>0.0</td>
+      <td>0.00</td>
+      <td>0.00</td>
+      <td>2.0</td>
+      <td>3.0</td>
+      <td>32.0</td>
+    </tr>
+    <tr>
+      <td>/oa-id/{...}</td>
+      <td>1561</td>
+      <td>0.0</td>
+      <td>0.00</td>
+      <td>0.00</td>
+      <td>2.0</td>
+      <td>37.0</td>
+      <td>108.0</td>
+    </tr>
+    <tr>
+      <td>/</td>
+      <td>1356</td>
+      <td>0.0</td>
+      <td>1.03</td>
+      <td>0.00</td>
+      <td>30.0</td>
+      <td>201.0</td>
+      <td>443.0</td>
+    </tr>
+    <tr>
+      <td>/{rootType}</td>
+      <td>1108</td>
+      <td>0.0</td>
+      <td>0.63</td>
+      <td>0.00</td>
+      <td>2.0</td>
+      <td>8.0</td>
+      <td>41.0</td>
+    </tr>
+    <tr>
+      <td>/_app/{...}</td>
+      <td>530</td>
+      <td>0.0</td>
+      <td>0.00</td>
+      <td>72.26</td>
+      <td>2.0</td>
+      <td>5.0</td>
+      <td>16.0</td>
+    </tr>
+    <tr>
+      <td>/{rootType}/{semanticId}/__data.json</td>
+      <td>74</td>
+      <td>0.0</td>
+      <td>0.00</td>
+      <td>0.00</td>
+      <td>35.0</td>
+      <td>200.0</td>
+      <td>230.0</td>
+    </tr>
+    <tr>
+      <td>/sitemap*.xml</td>
+      <td>47</td>
+      <td>0.0</td>
+      <td>0.00</td>
+      <td>0.00</td>
+      <td>3.0</td>
+      <td>113.0</td>
+      <td>159.0</td>
+    </tr>
+    <tr>
+      <td>/{rootType}/__data.json</td>
+      <td>6</td>
+      <td>0.0</td>
+      <td>0.00</td>
+      <td>0.00</td>
+      <td>2.0</td>
+      <td>25.0</td>
+      <td>25.0</td>
+    </tr>
+    <tr>
+      <td>/robots.txt</td>
+      <td>6</td>
+      <td>0.0</td>
+      <td>0.00</td>
+      <td>0.00</td>
+      <td>2.0</td>
+      <td>3.0</td>
+      <td>3.0</td>
+    </tr>
+    <tr>
+      <td>/favicon.ico</td>
+      <td>5</td>
+      <td>0.0</td>
+      <td>100.00</td>
+      <td>0.00</td>
+      <td>3.0</td>
+      <td>40.0</td>
+      <td>40.0</td>
+    </tr>
+    <tr>
+      <td>/__data.json</td>
+      <td>1</td>
+      <td>0.0</td>
+      <td>0.00</td>
+      <td>0.00</td>
+      <td>14.0</td>
+      <td>14.0</td>
+      <td>14.0</td>
+    </tr>
+  </tbody>
+</table>
+</section>
+
+<section>
+<h2>p99 latency over time (top 8 routes)</h2>
+<div id="p99-routes" style="height:320px"></div><script>Plotly.newPlot("p99-routes", {"data": [{"x": ["2026-07-13 12:00:00.000000", "2026-07-13 13:00:00.000000", "2026-07-13 14:00:00.000000"], "y": [6843.999862670898, 842.0000076293945, 219.9999988079071], "name": "/v1/names/{etype}", "type": "scatter", "mode": "lines"}, {"x": ["2026-07-13 12:00:00.000000", "2026-07-13 13:00:00.000000", "2026-07-13 14:00:00.000000"], "y": [79.00000363588333, 64.99999761581421, 8.00000037997961], "name": "_unknown", "type": "scatter", "mode": "lines"}, {"x": ["2026-07-13 12:00:00.000000", "2026-07-13 13:00:00.000000", "2026-07-13 14:00:00.000000"], "y": [212.99999952316284, 216.99999272823334, 270.00001072883606], "name": "/pic/{...}", "type": "scatter", "mode": "lines"}, {"x": ["2026-07-13 12:00:00.000000", "2026-07-13 13:00:00.000000", "2026-07-13 14:00:00.000000"], "y": [109.99999940395355, 123.99999797344208, 90.00000357627869], "name": "/oa-id/{...}", "type": "scatter", "mode": "lines"}, {"x": ["2026-07-13 12:00:00.000000", "2026-07-13 13:00:00.000000", "2026-07-13 14:00:00.000000"], "y": [578.9999961853027, 418.0000126361847, 495.0000047683716], "name": "/", "type": "scatter", "mode": "lines"}, {"x": ["2026-07-13 12:00:00.000000", "2026-07-13 13:00:00.000000", "2026-07-13 14:00:00.000000"], "y": [50.00000074505806, 32.00000151991844, 20.999999716877937], "name": "/login", "type": "scatter", "mode": "lines"}, {"x": ["2026-07-13 12:00:00.000000", "2026-07-13 13:00:00.000000", "2026-07-13 14:00:00.000000"], "y": [192.00000166893005, 128.00000607967377, 96.00000083446503], "name": "/v1/trees/{root_type}/{semantic_id}", "type": "scatter", "mode": "lines"}, {"x": ["2026-07-13 12:00:00.000000", "2026-07-13 13:00:00.000000", "2026-07-13 14:00:00.000000"], "y": [291.9999957084656, 418.0000126361847, 307.0000112056732], "name": "/{rootType}/{...semanticId}", "type": "scatter", "mode": "lines"}], "layout": {"yaxis": {"title": "p99 ms"}, "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
+</section>
+
+<section>
+<h2>Cache hit rate over time</h2>
+<div id="cache-hit" style="height:320px"></div><script>Plotly.newPlot("cache-hit", {"data": [{"x": ["2026-07-13 12:00:00.000000", "2026-07-13 13:00:00.000000", "2026-07-13 14:00:00.000000"], "y": [24.195608130815096, 9.702292804983914, 16.42655269869718], "type": "scatter", "mode": "lines", "fill": "tozeroy", "line": {"color": "#89b4fa"}, "name": "cache hit %"}], "layout": {"yaxis": {"title": "cache hit %", "range": [0, 100]}, "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
+</section>
+
+<section>
+<h2>Slowest 100 requests (last 24h)</h2>
+<table class="dataframe dt" id="slow-reqs">
+  <thead>
+    <tr style="text-align: right;">
+      <th>t</th>
+      <th>route_template</th>
+      <th>status</th>
+      <th>cs</th>
+      <th>size</th>
+      <th>urt_ms</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>2026-07-13 12:33:55+00:00</td>
+      <td>/v1/names/{etype}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>2565</td>
+      <td>6844.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:49:58+00:00</td>
+      <td>/</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>26510</td>
+      <td>1277.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:26:42+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>146340</td>
+      <td>1242.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:32:22+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>123823</td>
+      <td>1225.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:49:58+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>135375</td>
+      <td>1194.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:26:42+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>130559</td>
+      <td>1180.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:57:08+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>123590</td>
+      <td>1171.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:26:42+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>126393</td>
+      <td>1160.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:42:46+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>122306</td>
+      <td>1147.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>188739</td>
+      <td>1140.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>210175</td>
+      <td>1133.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:32:17+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>0</td>
+      <td>1118.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:39+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>119802</td>
+      <td>1117.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:21:41+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>124195</td>
+      <td>1104.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:49:58+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>183085</td>
+      <td>1102.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:26:42+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>124091</td>
+      <td>1077.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>124925</td>
+      <td>1064.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:00:00+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>122624</td>
+      <td>1062.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:26:42+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>144881</td>
+      <td>1036.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:26:42+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>128559</td>
+      <td>1025.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:49:58+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>129023</td>
+      <td>1016.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:25+00:00</td>
+      <td>/v1/trees/{root_type}/{semantic_id}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>1792</td>
+      <td>1014.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:28:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>90321</td>
+      <td>1008.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:04:48+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>282124</td>
+      <td>1008.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>202023</td>
+      <td>1007.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:45:39+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>350285</td>
+      <td>1007.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:32:17+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>0</td>
+      <td>982.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:49:58+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>179568</td>
+      <td>970.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:26:42+00:00</td>
+      <td>/v1/trees/{root_type}/{semantic_id}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>9046</td>
+      <td>954.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:45:39+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>118765</td>
+      <td>941.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:26:42+00:00</td>
+      <td>/v1/trees/{root_type}/{semantic_id}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>271530</td>
+      <td>934.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:26:42+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>99875</td>
+      <td>928.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:57:43+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>123122</td>
+      <td>914.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:26:41+00:00</td>
+      <td>/v1/trees/{root_type}/{semantic_id}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>5968</td>
+      <td>913.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>88980</td>
+      <td>906.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:42:06+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>120953</td>
+      <td>900.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:10:35+00:00</td>
+      <td>/</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>28790</td>
+      <td>894.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:28:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>179264</td>
+      <td>893.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:28:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>427373</td>
+      <td>889.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:04:48+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>124283</td>
+      <td>889.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:38+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>125211</td>
+      <td>888.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>167914</td>
+      <td>884.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:38+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>130237</td>
+      <td>884.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:42:06+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>406077</td>
+      <td>883.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:42:06+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>268491</td>
+      <td>878.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:18:17+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>297988</td>
+      <td>878.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>134461</td>
+      <td>875.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:28:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>177496</td>
+      <td>875.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:38+00:00</td>
+      <td>/pic/{...}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>105346</td>
+      <td>874.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:28:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>135634</td>
+      <td>868.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 14:03:28+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>123114</td>
+      <td>866.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 14:02:08+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>316305</td>
+      <td>865.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:28:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>186723</td>
+      <td>860.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:49:58+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>115628</td>
+      <td>858.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:32:32+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>0</td>
+      <td>856.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:38+00:00</td>
+      <td>/v1/trees/{root_type}/{semantic_id}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>3431</td>
+      <td>851.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:38+00:00</td>
+      <td>/v1/trees/{root_type}/{semantic_id}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>1847</td>
+      <td>851.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:26:41+00:00</td>
+      <td>/v1/trees/{root_type}/{semantic_id}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>1482</td>
+      <td>848.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:26:41+00:00</td>
+      <td>/v1/trees/{root_type}/{semantic_id}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>2873</td>
+      <td>845.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:26:42+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>116877</td>
+      <td>843.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:39:42+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>128215</td>
+      <td>843.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:32:16+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>0</td>
+      <td>842.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:10:12+00:00</td>
+      <td>/v1/names/{etype}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>2</td>
+      <td>842.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:42:46+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>190219</td>
+      <td>841.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:42:46+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>290541</td>
+      <td>840.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:45:39+00:00</td>
+      <td>/</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>29102</td>
+      <td>837.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:45:39+00:00</td>
+      <td>/pic/{...}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>118647</td>
+      <td>836.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:04:48+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>156328</td>
+      <td>835.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>218103</td>
+      <td>834.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:28:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>125661</td>
+      <td>831.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 14:02:08+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>317682</td>
+      <td>829.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:49:58+00:00</td>
+      <td>/pic/{...}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>128952</td>
+      <td>825.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:32:16+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>139664</td>
+      <td>820.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 14:02:08+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>255991</td>
+      <td>820.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:28:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>167676</td>
+      <td>819.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>132656</td>
+      <td>816.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:42:06+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>184134</td>
+      <td>815.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:45:39+00:00</td>
+      <td>/</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>31790</td>
+      <td>810.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:23:29+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>124095</td>
+      <td>808.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:28:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>207713</td>
+      <td>808.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:52:06+00:00</td>
+      <td>/</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>27664</td>
+      <td>794.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:03:18+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>123182</td>
+      <td>791.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:18:16+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>122644</td>
+      <td>782.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 14:02:08+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>189405</td>
+      <td>779.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:42:46+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>295169</td>
+      <td>778.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:42:46+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>219885</td>
+      <td>775.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:42:46+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>180238</td>
+      <td>773.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:28:25+00:00</td>
+      <td>/pic/{...}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>129145</td>
+      <td>772.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:42:46+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>223301</td>
+      <td>771.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:42:46+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>156104</td>
+      <td>769.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:42:46+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>151934</td>
+      <td>767.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:43:50+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>124193</td>
+      <td>766.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:42:06+00:00</td>
+      <td>/pic/{...}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>129707</td>
+      <td>764.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:32:17+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>193944</td>
+      <td>763.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:28:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>186284</td>
+      <td>756.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:28:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>128394</td>
+      <td>751.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:45:39+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>130588</td>
+      <td>750.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 12:24:25+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>191048</td>
+      <td>749.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 13:55:32+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>123377</td>
+      <td>749.0</td>
+    </tr>
+    <tr>
+      <td>2026-07-13 14:02:08+00:00</td>
+      <td>/{rootType}/{...semanticId}</td>
+      <td>200</td>
+      <td>MISS</td>
+      <td>123781</td>
+      <td>748.0</td>
+    </tr>
+  </tbody>
+</table>
+</section>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("table.dt").forEach(t => new DataTable(t, {pageLength: 25, order: []}));
+});
+</script>
+</main>
+<footer>
+  <span>Rendered 2026-07-13T14:10:19+00:00</span>
+  <span>Last pull: 2026-07-13T14:10:19+00:00</span>
+  <span>Last event: 2026-07-13 14:10:03+00:00</span>
+</footer>
+</body>
+</html>
