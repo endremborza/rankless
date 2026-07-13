@@ -2,6 +2,8 @@
 .cril/plans/2026-07-10-alpha-stress-suite.md).
 
     uv run -m pyscripts stress --corpus slugs.gz --ssh-host rankless-alpha   # DEFAULT: meltdown
+    uv run -m pyscripts stress capacity                    # fleet ceiling (= `make capacity`)
+    uv run -m pyscripts stress capacity --worker-port 4000 --restart   # one worker, isolated
     uv run -m pyscripts stress feleak --abort --corpus slugs.gz --ssh-host rankless-alpha \
         --worker-port 4200 --local-port 14005 --restart   # single-worker leak regression test
     uv run -m pyscripts stress churn --corpus slugs.gz --base https://alpha-api.rankless.org
@@ -12,7 +14,22 @@
 ALL workers on the box until it OOMs. bun retains the request context when the
 client aborts before the response finishes; live hits this via nginx->bun
 upstream timeouts/resets. Add `--abort` to `feleak` for the isolated single-worker
-version (the fix's regression test: RSS climbs = leak, flat = ok).
+version (the fix's regression test: RSS climbs = leak, flat = ok). `capacity`
+(= `make capacity`) measures the serving ceiling of the WHOLE active fleet
+through the real path: it drives https://alpha from wherever it is invoked,
+carrying the secret X-Loadtest token (LOADTEST_TOKEN in .env, rendered into the
+alpha nginx conf by `make sync_nginx_to_alpha`) that exempts it from the per-IP
+rate limit and bypasses the proxy caches. nginx round-robins the fleet, gzip
+keeps the bandwidth off-box-friendly, and — the point — every test request is
+an access-log line, uniform with the concurrent external traffic (alpha is
+public). The report pulls the log and prints the two yardsticks: the total
+request frequency where render latency degrades (log `urt`, upstream response
+time — immune to client-link drain, unlike `rt`) and where 5xx start; 429s
+would reveal the rate limiter throttling SSR fetches, `hit` a broken cache
+bypass. Levels are per-worker concurrency (total = level x fleet size, size
+detected via deploy.py). `--worker-port` instead ramps ONE tunneled worker over
+loopback — the nginx-free pure-bun baseline for isolation work. Use capacity
+before/after a perf change (sync FE / restart backend, re-run).
 `churn` (T3) hammers tree computes over a slug corpus (lines like
 `authors/some-slug`, `.gz` ok) with fixed concurrency, cycling shuffled slugs
 across random tids; emits periodic JSONL stats. `replay` (T6) re-fires a real
@@ -37,6 +54,7 @@ import asyncio
 import contextlib
 import gzip
 import json
+import os
 import random
 import re
 import shlex
@@ -46,9 +64,13 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import quote_plus
 
 import httpx
+
+if TYPE_CHECKING:
+    from pyscripts.deploy import Transper
 
 YEAR = 1950
 LOG_DIR = Path(__file__).parent.parent / "logs" / "stress"
@@ -93,14 +115,16 @@ class WindowStats:
     by_status: dict[str, int] = field(default_factory=dict)
     times: list[float] = field(default_factory=list)
     bytes_: int = 0
+    wire_bytes: int = 0  # on-the-wire (compressed) — the link-saturation signal
     max_bytes: int = 0
     big: int = 0  # responses over PAGE_SIZE_WARN
     slow: int = 0  # responses over LATENCY_WARN
 
-    def add(self, status: str, elapsed: float, nbytes: int) -> None:
+    def add(self, status: str, elapsed: float, nbytes: int, wire: int = 0) -> None:
         self.by_status[status] = self.by_status.get(status, 0) + 1
         self.times.append(elapsed)
         self.bytes_ += nbytes
+        self.wire_bytes += wire
         self.max_bytes = max(self.max_bytes, nbytes)
         self.big += nbytes > PAGE_SIZE_WARN
         self.slow += elapsed > LATENCY_WARN
@@ -115,6 +139,7 @@ class WindowStats:
             "by_status": dict(sorted(self.by_status.items())),
             "rps": round(n / dt_s, 1),
             "mbps": round(self.bytes_ * 8 / dt_s / 1e6, 1),
+            "wire_mbps": round(self.wire_bytes * 8 / dt_s / 1e6, 1),
             "p50_ms": round(ts[n // 2] * 1e3) if n else None,
             "p99_ms": round(ts[int(n * 0.99)] * 1e3) if n else None,
             "max_kb": round(self.max_bytes / 1024),
@@ -143,7 +168,12 @@ async def get_once(client: httpx.AsyncClient, url: str, stats: WindowStats) -> N
     t0 = time.monotonic()
     try:
         resp = await client.get(url)
-        stats.add(str(resp.status_code), time.monotonic() - t0, len(resp.content))
+        stats.add(
+            str(resp.status_code),
+            time.monotonic() - t0,
+            len(resp.content),
+            resp.num_bytes_downloaded,
+        )
     except httpx.HTTPError as e:
         stats.add(type(e).__name__, time.monotonic() - t0, 0)
 
@@ -163,10 +193,13 @@ async def report_loop(
             print(line, flush=True)
 
 
-def make_client(concurrency: int, timeout: float) -> httpx.AsyncClient:
+def make_client(
+    concurrency: int, timeout: float, headers: dict[str, str] | None = None
+) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         limits=httpx.Limits(max_connections=concurrency + 4),
         timeout=httpx.Timeout(timeout, connect=15),
+        headers=headers,
     )
 
 
@@ -494,6 +527,187 @@ async def feleak(args: argparse.Namespace) -> None:
     print(f"done: {out_path}")
 
 
+CAPACITY_UA = "rankless-capacity"
+CAP_HEADER = (
+    f"{'conc/w':>6} {'total':>6} {'req/s':>7} {'p50ms':>6} {'p99ms':>6} "
+    f"{'MB/s':>6} {'wire':>6} {'err%':>5}"
+)
+
+
+def fmt_cap_row(r: dict) -> str:
+    # MB/s = decompressed page bytes; wire = compressed on-the-wire MB/s — the
+    # column to watch for driver-link saturation.
+    return (
+        f"{r['conc']:>6} {r['total']:>6} {r['rps']:>7} {str(r['p50_ms']):>6} "
+        f"{str(r['p99_ms']):>6} {r['mbps'] / 8:>6.1f} {r['wire_mbps'] / 8:>6.1f} "
+        f"{r['err_pct']:>5.1f}"
+    )
+
+
+async def capacity_ramp(
+    args: argparse.Namespace, base_root: str, headers: dict[str, str], n_workers: int
+) -> list[dict]:
+    """Ramp completing-request concurrency against `base_root` and print the
+    client-side curve. Levels are per-worker and may be fractional (0.5 = one
+    in-flight request per two workers): total = round(level x n_workers), so
+    the ramp traces the pre-saturation knee — a 12-worker fleet saturates near
+    1/worker. The slug cursor is global so later levels keep hitting fresh
+    slugs instead of re-warmed ones."""
+    kind = args.page_kind
+    slugs = [s for k, s in load_corpus(Path(args.corpus)) if k == kind]
+    assert slugs, f"no '{kind}' slugs in corpus"
+    base = f"{base_root}/{kind}/"
+    rows: list[dict] = []
+    cursor = [0]
+    print(f"capacity: {base_root}, x{n_workers} workers, {args.step_seconds}s/level")
+    print(CAP_HEADER)
+    for lvl in (float(x) for x in args.levels.split(",")):
+        conc = int(lvl) if lvl.is_integer() else lvl
+        total = max(1, round(lvl * n_workers))
+        stats = WindowStats()
+        deadline = time.monotonic() + args.step_seconds
+
+        async def one(client: httpx.AsyncClient) -> None:
+            while time.monotonic() < deadline:
+                slug = slugs[cursor[0] % len(slugs)]
+                cursor[0] += 1
+                await get_once(client, base + quote_plus(slug), stats)
+
+        t0 = time.time()
+        async with make_client(total, args.timeout, headers) as client:
+            await asyncio.gather(*(one(client) for _ in range(total)))
+        w = stats.flush()
+        errs = sum(v for k, v in w["by_status"].items() if not k.startswith("2"))
+        row = {
+            "conc": conc,
+            "total": total,
+            "t0": round(t0, 3),
+            "t1": round(time.time(), 3),
+            "err_pct": round(100 * errs / max(1, w["n"]), 2),
+            **w,
+        }
+        rows.append(row)
+        print(fmt_cap_row(row), flush=True)
+        if row["err_pct"] > args.err_threshold:
+            print(f"  >>> >{args.err_threshold}% errors at {conc}/worker — ceiling")
+            break
+    return rows
+
+
+def capacity_fleet(args: argparse.Namespace) -> None:
+    """Drive the whole fleet through nginx via the X-Loadtest lane (see module
+    docstring), then draw the yardsticks from the access log — where our
+    requests and concurrent external traffic are uniform lines."""
+    from pyscripts.deploy import ALPHA_DOMAIN, get_running_tpr
+
+    token = os.environ.get("LOADTEST_TOKEN")
+    assert token, "LOADTEST_TOKEN not in env (.env) — see setup_nginx in deploy.py"
+    tpr = get_running_tpr(False)
+    conf = tpr.get_fe_systems()[-1]  # active (nginx-routed) slot
+    print(f"fleet: {conf.n_procs} active workers from port {conf.start_port}")
+    if args.restart:
+        print("restarting the active fleet (brief public blip) ...")
+        for service in tpr._iter_conf_services(conf):
+            service.restart()
+        while tpr._validate_fe(conf):
+            pass
+    headers = {"X-Loadtest": token, "User-Agent": CAPACITY_UA}
+    rows = asyncio.run(
+        capacity_ramp(args, f"https://{ALPHA_DOMAIN}", headers, conf.n_procs)
+    )
+    capacity_report(tpr, rows)
+
+
+def merge_log_windows(
+    df, rows: list[dict], page_host: str, be_host: str, ua: str
+) -> None:
+    """Fold each level's nginx-log window into its row. Every request is a log
+    line: the frequency axis is total FE-host req/s (ours + external, assets
+    included); `urt` (upstream response time) is the render-side latency,
+    immune to client-link drain, from OUR lines only (split by user agent)."""
+    import pandas as pd
+
+    def p_ms(series, q: float) -> int | None:
+        v = series.quantile(q)
+        return None if pd.isna(v) else round(v * 1e3)
+
+    for r in rows:
+        t0, t1 = (pd.Timestamp(r[k], unit="s", tz="UTC") for k in ("t0", "t1"))
+        w = df[(df["t"] >= t0) & (df["t"] < t1)]
+        dur = max(r["t1"] - r["t0"], 1e-9)
+        fe = w[w["host"] == page_host]
+        ours = fe[fe["agent"] == ua]
+        be = w[w["host"] == be_host]
+        r["log_rps"] = round(len(fe) / dur, 1)
+        r["ext_rps"] = round((len(fe) - len(ours)) / dur, 1)
+        r["urt_p50_ms"] = p_ms(ours["urt"], 0.5)
+        r["urt_p99_ms"] = p_ms(ours["urt"], 0.99)
+        r["be_rps"] = round(len(be) / dur, 1)
+        r["be_p50_ms"] = p_ms(be["urt"], 0.5)
+        r["log_5xx"] = int((w["code"] >= 500).sum())
+        r["log_429"] = int((w["code"] == 429).sum())
+        r["our_hits"] = int((ours["cs"] == "HIT").sum())  # >0 = cache bypass broken
+
+
+def yardsticks(rows: list[dict]) -> tuple[dict | None, dict | None, str]:
+    """(latency-degradation onset row, error onset row, latency key used);
+    None = not reached. Degradation = render-side p50 (log urt; client p50 when
+    no log view) above 1.5x the first level's; errors = any client non-2xx or
+    any 5xx in the log window."""
+    key = "urt_p50_ms" if rows[0].get("urt_p50_ms") else "p50_ms"
+    base = rows[0][key]
+    degrade = next(
+        (r for r in rows if base and r.get(key) and r[key] > 1.5 * base), None
+    )
+    first_err = next(
+        (r for r in rows if r["err_pct"] > 0 or r.get("log_5xx", 0) > 0), None
+    )
+    return degrade, first_err, key
+
+
+def capacity_report(tpr: "Transper", rows: list[dict]) -> None:
+    from pyscripts.deploy import ALPHA_BACKEND, ALPHA_DOMAIN
+
+    span_min = (time.time() - rows[0]["t0"]) / 60 + 2
+    n_lines = min(600_000, max(60_000, int(span_min * 60 * 500)))
+    df = tpr.get_nginx_logs_df(minutes=span_min, n=n_lines)
+    merge_log_windows(df, rows, ALPHA_DOMAIN, ALPHA_BACKEND, CAPACITY_UA)
+    print("\n== nginx-log view (req/s = all FE-host lines, ours + external) ==")
+    print(
+        f"{'conc/w':>6} {'req/s':>7} {'ext':>5} {'be/s':>6} {'urt50':>6} "
+        f"{'urt99':>6} {'be50':>5} {'err%':>5} {'5xx':>5} {'429':>5} {'hit':>4}"
+    )
+    for r in rows:
+        print(
+            f"{r['conc']:>6} {r['log_rps']:>7} {r['ext_rps']:>5} {r['be_rps']:>6} "
+            f"{str(r['urt_p50_ms']):>6} {str(r['urt_p99_ms']):>6} "
+            f"{str(r['be_p50_ms']):>5} {r['err_pct']:>5.1f} {r['log_5xx']:>5} "
+            f"{r['log_429']:>5} {r['our_hits']:>4}"
+        )
+    degrade, first_err, key = yardsticks(rows)
+    base, top_rps = rows[0][key], max(r["log_rps"] for r in rows)
+    if degrade:
+        print(
+            f"latency degradation onset: ~{degrade['log_rps']} req/s "
+            f"({key} {base} -> {degrade[key]} ms at {degrade['conc']}/worker)"
+        )
+    else:
+        print(
+            f"no latency degradation up to ~{top_rps} req/s "
+            f"({key} {base} -> {rows[-1][key]} ms)"
+        )
+    if first_err:
+        print(
+            f"5xx onset: ~{first_err['log_rps']} req/s (client err "
+            f"{first_err['err_pct']}%, log 5xx {first_err['log_5xx']})"
+        )
+    else:
+        print(f"5xx onset: not reached (0 errors up to ~{top_rps} req/s)")
+    out_path = LOG_DIR / f"capacity-{datetime.now():%m%d-%H%M}.json"
+    out_path.write_text(json.dumps(rows, indent=1))
+    print(f"results: {out_path}")
+
+
 def sample(args: argparse.Namespace) -> None:
     out_path = LOG_DIR / f"sample-{datetime.now():%m%d-%H%M}.csv"
     with out_path.open("a") as fh:
@@ -556,7 +770,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
         "phase",
         nargs="?",
         default="meltdown",
-        choices=("meltdown", "churn", "replay", "feleak", "sample"),
+        choices=("meltdown", "capacity", "churn", "replay", "feleak", "sample"),
         help="default 'meltdown' = tear the FE deployment down (abort-flood to OOM)",
     )
     parser.add_argument("--base", default="https://alpha-api.rankless.org")
@@ -577,13 +791,29 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--report-every", type=int, default=60)
     parser.add_argument("--ssh-host", default="rankless-alpha")
     parser.add_argument("--interval", type=int, default=30)
-    # feleak
-    parser.add_argument("--worker-port", type=int, default=4000, help="bun FE port")
+    # feleak / single-worker capacity
+    parser.add_argument(
+        "--worker-port",
+        type=int,
+        help="bun FE port; capacity: set for the single-worker tunneled ramp "
+        "(default = whole-fleet mode), feleak default 4000",
+    )
     parser.add_argument(
         "--local-port", type=int, default=14001, help="tunnel local port"
     )
     parser.add_argument(
         "--page-kind", default="authors", help="corpus slug kind to flood"
+    )
+    # capacity
+    parser.add_argument(
+        "--levels",
+        default="0.25,0.5,1,2,4,8",
+        help="capacity: per-worker concurrency steps, fractions ok "
+        "(total = round(level x n_workers)); push higher to hunt the 5xx onset",
+    )
+    parser.add_argument("--step-seconds", type=float, default=20.0)
+    parser.add_argument(
+        "--err-threshold", type=float, default=2.0, help="stop ramp above this err%%"
     )
     parser.add_argument(
         "--n", type=int, default=180000, help="meltdown: total abort requests to flood"
@@ -609,22 +839,37 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
 
 def run(args: argparse.Namespace) -> None:
     """Stress driver / sampler. See module docstring."""
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    # Suppressed: a standalone copy (scp'd to a box, see docstring) may sit
+    # where the repo-relative LOG_DIR is unwritable — those runs only print.
+    with contextlib.suppress(OSError):
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
     if args.phase == "sample":
         sample(args)
         return
     if args.phase == "meltdown":
         meltdown(args)  # auto-builds a corpus from --base if --corpus omitted
         return
+    if args.phase == "capacity":
+        if not args.corpus:
+            args.corpus = str(build_meltdown_corpus(args.base))  # like meltdown
+        if args.worker_port:  # ONE tunneled worker, nginx-free bun baseline
+            if args.restart:
+                restart_fe_worker(args.ssh_host, args.worker_port)
+            with ssh_tunnel(args.ssh_host, args.local_port, args.worker_port):
+                base = f"http://127.0.0.1:{args.local_port}"
+                asyncio.run(capacity_ramp(args, base, {"User-Agent": CAPACITY_UA}, 1))
+        else:
+            capacity_fleet(args)
+        return
     assert args.corpus, f"{args.phase} needs --corpus"
     # --abort forces a mid-render client disconnect (the leak trigger); the short
     # per-request timeout makes httpx close the connection before bun finishes.
     if args.abort:
         args.timeout = args.abort_timeout
-    tunneled = {"feleak": feleak}
-    if args.phase in tunneled:
+    if args.phase == "feleak":
+        args.worker_port = args.worker_port or 4000
         with ssh_tunnel(args.ssh_host, args.local_port, args.worker_port):
-            asyncio.run(tunneled[args.phase](args))
+            asyncio.run(feleak(args))
         return
     asyncio.run({"churn": churn, "replay": replay}[args.phase](args))
 
