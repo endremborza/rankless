@@ -12,24 +12,37 @@
 	$: users = data.users;
 	$: names = data.names;
 	$: pendingCount = events.filter((e) => e.moderation === 'pending_review').length;
+	// Everything the pipeline reports is keyed by an event's logical key (merge-stable), not
+	// its event_id — see docs/ledger identity note. `appliedSet` unions every stored run.
 	$: appliedSet = new Set(data.applied);
-	$: skippedMap = new Map(data.skipped.map((s) => [s.event_id, s.reason]));
+	$: skippedMap = new Map(data.skipped.map((s) => [s.key, s.reason]));
+	// Targets an active revoke undoes; their change is dropped from the build.
+	$: revertedKeys = new Set(
+		events.flatMap((e) =>
+			e.kind === 'revoke' && e.revoked_at === null && e.payload.kind === 'revoke'
+				? [e.payload.target_key]
+				: []
+		)
+	);
 	$: emailCount = users.filter((u) => u.consent).length;
 	$: onlineCount = users.filter((u) => u.online).length;
 
 	let onlyImplemented = false;
-	$: shownEvents = onlyImplemented ? events.filter((e) => appliedSet.has(e.event_id)) : events;
+	$: shownEvents = onlyImplemented ? events.filter((e) => appliedSet.has(e.key)) : events;
 
 	let busy = new Set<number>();
 	let lastError = '';
 
-	// Whether (and how) a requested change has reached the live data. `appliedSet` unions
-	// every pipeline run's applied ids, so this answers "is this change implemented yet?".
+	// Whether (and how) a requested change has reached the live data. Revokes and the targets
+	// they neutralize are control/undo actions with no standing data footprint, so they're
+	// classified before the applied/skipped lookup rather than falling to "awaiting rebuild".
 	$: pipelineStatus = (e: EventRow): { label: string; cls: string } => {
-		if (appliedSet.has(e.event_id)) return { label: 'implemented', cls: 'applied' };
-		const reason = skippedMap.get(e.event_id);
-		if (reason) return { label: `skipped · ${reason}`, cls: 'skipped' };
 		if (e.revoked_at || e.moderation === 'rejected') return { label: '—', cls: 'muted' };
+		if (e.kind === 'revoke') return { label: 'revocation', cls: 'muted' };
+		if (revertedKeys.has(e.key)) return { label: 'reverted', cls: 'muted' };
+		if (appliedSet.has(e.key)) return { label: 'implemented', cls: 'applied' };
+		const reason = skippedMap.get(e.key);
+		if (reason) return { label: `skipped · ${reason}`, cls: 'skipped' };
 		if (e.moderation === 'pending_review') return { label: 'awaiting review', cls: 'muted' };
 		return { label: 'awaiting rebuild', cls: 'awaiting' };
 	};
@@ -46,8 +59,10 @@
 				return `keep “${p.keep.display_snapshot.title}” ⇐ drop “${p.drop.display_snapshot.title}”`;
 			case 'merge_authors':
 				return `keep “${p.keep.display_snapshot.display_name}” ⇐ drop “${p.drop.display_snapshot.display_name}”${p.note ? ` — note: ${p.note}` : ''}`;
-			case 'revoke':
-				return `revoke event #${p.target_event_id}${p.reason ? ` — ${p.reason}` : ''}`;
+			case 'revoke': {
+				const target = events.find((t) => t.key === p.target_key);
+				return `revoke${target ? `: ${summarize(target.payload)}` : ''}${p.reason ? ` — ${p.reason}` : ''}`;
+			}
 			case 'moderation_decision':
 				return `${p.decision} event #${p.target_event_id}`;
 			case 'add_paper_request':

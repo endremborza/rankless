@@ -5,10 +5,12 @@ Reads ledger_events and owner_pins from SQLite, writes:
   user-ledger/snapshot_manifest.json — run_id (ISO ts) + exported event_ids
   user-ledger/owner_pins.txt         — one ORCID per line
 
-Counter-event collapse:
-  revoke whose target is in the active non-revoke set → both dropped
-  revoke whose target is NOT in that set → kept with target_inlined
-    (Rust applies the inverse effect without touching SQLite)
+Every event carries its merge-stable logical `key` (`orcid|kind|subject_hash`); the
+pipeline and admin reference events by that, never by the renumberable event_id.
+
+Counter-event collapse (revokes are resolved here; the pipeline never sees them):
+  revoke whose target is in the active non-revoke set → both dropped (the undo takes effect)
+  revoke whose target is NOT in that set → dropped (target isn't applied, nothing to undo)
 
 Usage:
     uv run -m pyscripts.export_user_ledger [--db PATH]
@@ -46,7 +48,7 @@ def _fetch_active_events(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     try:
         placeholders = ",".join("?" * len(OK_MODERATION))
         rows = conn.execute(
-            f"SELECT event_id, orcid, kind, payload, moderation, created_at "
+            f"SELECT event_id, orcid, kind, payload, subject_hash, moderation, created_at "
             f"FROM ledger_events "
             f"WHERE revoked_at IS NULL AND moderation IN ({placeholders}) "
             f"ORDER BY event_id",
@@ -57,30 +59,16 @@ def _fetch_active_events(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return [
         {
             "event_id": r[0],
+            # Merge-stable logical id; mirror of logicalKey() in src/lib/server/ledger-hash.ts.
+            "key": f"{r[1]}|{r[2]}|{r[4]}",
             "orcid": r[1],
             "kind": r[2],
             "payload": json.loads(r[3]),
-            "moderation": r[4],
-            "created_at": r[5],
+            "moderation": r[5],
+            "created_at": r[6],
         }
         for r in rows
     ]
-
-
-def _fetch_event_by_id(
-    conn: sqlite3.Connection, event_id: int
-) -> dict[str, Any] | None:
-    pre_keys = ["event_id", "orcid", "kind"]
-    try:
-        row = conn.execute(
-            f"SELECT {', '.join(pre_keys)}, payload FROM ledger_events WHERE event_id = ?",
-            (event_id,),
-        ).fetchone()
-    except sqlite3.OperationalError:
-        return None
-    if row is None:
-        return None
-    return dict(zip(pre_keys, row[:3])) | {"payload": json.loads(row[3])}
 
 
 def _fetch_owner_pins(conn: sqlite3.Connection) -> list[str]:
@@ -90,32 +78,18 @@ def _fetch_owner_pins(conn: sqlite3.Connection) -> list[str]:
         return []
 
 
-def _collapse_revokes(
-    all_events: list[dict[str, Any]],
-    conn: sqlite3.Connection,
-) -> list[dict[str, Any]]:
-    non_revoke = {e["event_id"]: e for e in all_events if e["kind"] != "revoke"}
-    revoke_events = [e for e in all_events if e["kind"] == "revoke"]
-
-    dropped_ids: set[int] = set()
-    extra_revokes: list[dict[str, Any]] = []
-
-    for rev in revoke_events:
-        target_id: int = rev["payload"]["target_event_id"]
-        if target_id in non_revoke:
-            dropped_ids.add(target_id)
-        else:
-            target = _fetch_event_by_id(conn, target_id)
-            if target is None:
-                print(
-                    f"  warn: revoke event {rev['event_id']} targets unknown event_id {target_id}; skipped",
-                    file=sys.stderr,
-                )
-                continue
-            extra_revokes.append({**rev, "target_inlined": target})
-
-    result = [e for eid, e in non_revoke.items() if eid not in dropped_ids]
-    result.extend(extra_revokes)
+def _collapse_revokes(all_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    # Non-revoke events are unique by logical key (the DB's dedup identity). A revoke
+    # names its target by that key; if the target is active, both are removed (the undo
+    # takes effect). Revokes never flow to the pipeline — a target that isn't active
+    # isn't applied either, so there is nothing left to reverse.
+    non_revoke = {e["key"]: e for e in all_events if e["kind"] != "revoke"}
+    reverted_keys = {
+        e["payload"]["target_key"]
+        for e in all_events
+        if e["kind"] == "revoke" and e["payload"]["target_key"] in non_revoke
+    }
+    result = [e for k, e in non_revoke.items() if k not in reverted_keys]
     result.sort(key=lambda e: e["event_id"])
     return result
 
@@ -127,7 +101,7 @@ def export(data_root: Path, db_path: str) -> None:
     conn = sqlite3.connect(db_path)
     try:
         all_events = _fetch_active_events(conn)
-        active = _collapse_revokes(all_events, conn)
+        active = _collapse_revokes(all_events)
         pins = _fetch_owner_pins(conn)
     finally:
         conn.close()

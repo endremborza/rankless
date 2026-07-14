@@ -5,18 +5,18 @@
 	export let events: LedgerEvent[];
 	export let manifest: AppliedManifest;
 
-	$: appliedIds = new Set(manifest.applied_event_ids);
-	$: skippedReasons = new Map(manifest.skipped.map((s) => [s.event_id, s.reason]));
+	$: appliedKeys = new Set(manifest.applied_keys);
+	$: skippedReasons = new Map(manifest.skipped.map((s) => [s.key, s.reason]));
 
 	$: appliedEvents = events.filter(
 		(e) =>
-			appliedIds.has(e.event_id) &&
+			appliedKeys.has(e.key) &&
 			e.revoked_at === null &&
 			e.kind !== 'revoke' &&
 			e.kind !== 'moderation_decision'
 	);
 	$: pendingEvents = events.filter(
-		(e) => !appliedIds.has(e.event_id) && e.revoked_at === null && e.kind !== 'moderation_decision'
+		(e) => !appliedKeys.has(e.key) && e.revoked_at === null && e.kind !== 'moderation_decision'
 	);
 
 	function describeEvent(e: LedgerEvent): string {
@@ -32,8 +32,10 @@
 				}"`;
 			case 'merge_authors':
 				return `Author merge: drop ${p.drop.display_snapshot.display_name}`;
-			case 'revoke':
-				return `Revoke of event #${p.target_event_id}`;
+			case 'revoke': {
+				const target = events.find((t) => t.key === p.target_key);
+				return target ? `Undo: ${describeEvent(target)}` : 'Undo of a previous change';
+			}
 			default:
 				return e.kind;
 		}
@@ -66,13 +68,13 @@
 		await invalidateAll();
 	}
 
-	function revokeIdFor(target_id: number): number | undefined {
+	function revokeIdFor(targetKey: string): number | undefined {
 		return events.find(
 			(e) =>
 				e.kind === 'revoke' &&
 				e.revoked_at === null &&
 				e.payload.kind === 'revoke' &&
-				e.payload.target_event_id === target_id
+				e.payload.target_key === targetKey
 		)?.event_id;
 	}
 </script>
@@ -85,7 +87,7 @@
 			<div class="item-list">
 				<h4>Applied ({appliedEvents.length})</h4>
 				{#each appliedEvents as e (e.event_id)}
-					{@const revokeId = revokeIdFor(e.event_id)}
+					{@const revokeId = revokeIdFor(e.key)}
 					<div class="item-row">
 						<span>{describeEvent(e)}</span>
 						<div class="row-actions">
@@ -113,7 +115,7 @@
 			<div class="item-list">
 				<h4>Pending — next data refresh ({pendingEvents.length})</h4>
 				{#each pendingEvents as e (e.event_id)}
-					{@const skipped = skippedReasons.get(e.event_id)}
+					{@const skipped = skippedReasons.get(e.key)}
 					<div class="item-row">
 						<div>
 							<span>{describeEvent(e)}</span>

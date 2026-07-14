@@ -4,13 +4,13 @@ export function computeEffective(
 	events: LedgerEvent[],
 	manifest: AppliedManifest
 ): { disownedWids: Set<number>; mergedPairs: [number, number][] } {
-	const appliedIds = new Set(manifest.applied_event_ids);
+	const appliedKeys = new Set(manifest.applied_keys);
 
-	const pendingRevokeTargets = new Set<number>();
+	const pendingRevokeTargets = new Set<string>();
 	for (const e of events) {
 		if (e.kind === 'revoke' && e.revoked_at === null && e.payload.kind === 'revoke') {
-			if (appliedIds.has(e.payload.target_event_id)) {
-				pendingRevokeTargets.add(e.payload.target_event_id);
+			if (appliedKeys.has(e.payload.target_key)) {
+				pendingRevokeTargets.add(e.payload.target_key);
 			}
 		}
 	}
@@ -20,7 +20,7 @@ export function computeEffective(
 
 	for (const e of events) {
 		if (e.revoked_at !== null) continue;
-		if (pendingRevokeTargets.has(e.event_id)) continue;
+		if (pendingRevokeTargets.has(e.key)) continue;
 		if (e.payload.kind === 'disown_paper') {
 			const wid = e.payload.work.dm_id_at_creation;
 			if (wid != null) disownedWids.add(wid);

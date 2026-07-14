@@ -86,11 +86,11 @@ describe('subjectHash determinism and order-invariance', () => {
 		);
 	});
 
-	it('revoke hash depends only on target_event_id', () => {
-		const h1 = subjectHash({ kind: 'revoke', target_event_id: 99, reason: 'a' });
-		const h2 = subjectHash({ kind: 'revoke', target_event_id: 99, reason: 'b' });
+	it('revoke hash depends only on target_key', () => {
+		const h1 = subjectHash({ kind: 'revoke', target_key: 'o|disown_paper|aa', reason: 'a' });
+		const h2 = subjectHash({ kind: 'revoke', target_key: 'o|disown_paper|aa', reason: 'b' });
 		expect(h1).toBe(h2);
-		expect(h1).not.toBe(subjectHash({ kind: 'revoke', target_event_id: 100 }));
+		expect(h1).not.toBe(subjectHash({ kind: 'revoke', target_key: 'o|disown_paper|bb' }));
 	});
 
 	it('doi case is normalized in hash', () => {

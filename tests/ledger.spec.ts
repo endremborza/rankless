@@ -76,10 +76,12 @@ test.describe('pre-pipeline', () => {
 		expect(merge.status, 'merge should return 200').toBe(200);
 
 		// Verify events are recorded as pending.
-		const events: { event_id: number; kind: string; revoked_at: string | null }[] = await apiGet(
-			page,
-			'/api/ledger'
-		);
+		const events: {
+			event_id: number;
+			key: string;
+			kind: string;
+			revoked_at: string | null;
+		}[] = await apiGet(page, '/api/ledger');
 		const disownEvent = events.find((e) => e.kind === 'disown_paper' && !e.revoked_at);
 		const mergeEvent = events.find((e) => e.kind === 'merge_papers' && !e.revoked_at);
 		expect(disownEvent, 'disown_paper event must exist').toBeDefined();
@@ -87,12 +89,13 @@ test.describe('pre-pipeline', () => {
 
 		// Ledger-status should have no applied events yet (pipeline hasn't run).
 		const status = await apiGet(page, '/api/ledger-status');
-		expect(status.applied_event_ids?.length ?? 0, 'no events applied before pipeline').toBe(0);
+		expect(status.applied_keys?.length ?? 0, 'no events applied before pipeline').toBe(0);
 
-		// Persist state for the post-pipeline phase.
+		// Persist state for the post-pipeline phase. Events are matched by their merge-stable
+		// logical key, not event_id (which the deploy's DB merge renumbers).
 		const state = {
-			disownEventId: disownEvent!.event_id,
-			mergeEventId: mergeEvent!.event_id,
+			disownKey: disownEvent!.key,
+			mergeKey: mergeEvent!.key,
 			disownedWid: p0.wid,
 			disownedTitle: p0.name,
 			totalPapersBefore
@@ -110,13 +113,9 @@ test.describe('post-pipeline', () => {
 		const status = await apiGet(page, '/api/ledger-status');
 		expect(status.run_id, 'run_id must be set after pipeline').toBeTruthy();
 
-		const applied: number[] = status.applied_event_ids ?? [];
-		expect(applied, `disown event ${state.disownEventId} must be in applied`).toContain(
-			state.disownEventId
-		);
-		expect(applied, `merge event ${state.mergeEventId} must be in applied`).toContain(
-			state.mergeEventId
-		);
+		const applied: string[] = status.applied_keys ?? [];
+		expect(applied, `disown ${state.disownKey} must be in applied`).toContain(state.disownKey);
+		expect(applied, `merge ${state.mergeKey} must be in applied`).toContain(state.mergeKey);
 	});
 
 	test('disowned paper is absent from author works', async ({ page }) => {

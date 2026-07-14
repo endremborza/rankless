@@ -6,8 +6,7 @@ import type { AppliedManifest } from '$lib/types/ledger';
 export const EMPTY_MANIFEST: AppliedManifest = {
 	run_id: '',
 	snapshot_at: '',
-	applied_event_ids: [],
-	redirected: [],
+	applied_keys: [],
 	skipped: []
 };
 

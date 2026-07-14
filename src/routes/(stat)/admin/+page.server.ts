@@ -11,8 +11,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	if (!isAdmin(locals.user?.orcid)) error(404, 'Not found');
 
 	const manifest = readManifest();
-	const applied = new Set(LedgerDb.getAllAppliedEventIds());
-	for (const id of manifest.applied_event_ids) applied.add(id);
+	const applied = new Set(LedgerDb.getAllAppliedKeys());
+	for (const k of manifest.applied_keys) applied.add(k);
 
 	const online = SessionDb.activeOrcids();
 	const consents = ConsentDb.listActiveConsents();

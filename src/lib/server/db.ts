@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { env } from '$env/dynamic/private';
-import { DEFAULT_MODERATION, subjectHash } from './ledger-hash';
+import { DEFAULT_MODERATION, logicalKey, subjectHash } from './ledger-hash';
 import type { LedgerKind, LedgerPayload, ModerationState } from '$lib/types/ledger';
 import type { EmailConsent, EmailPurposeKey } from '$lib/types/email-consent';
 import type { SessionUserData } from './session';
@@ -108,6 +108,7 @@ export function getDb(): Database {
 
 export type LedgerEvent = {
 	event_id: number;
+	key: string;
 	orcid: string;
 	kind: LedgerKind;
 	payload: LedgerPayload;
@@ -133,10 +134,12 @@ type LedgerEventRow = {
 };
 
 function rowToEvent(r: LedgerEventRow): LedgerEvent {
+	const kind = r.kind as LedgerKind;
 	return {
 		event_id: r.event_id,
+		key: logicalKey(r.orcid, kind, r.subject_hash),
 		orcid: r.orcid,
-		kind: r.kind as LedgerKind,
+		kind,
 		payload: JSON.parse(r.payload),
 		subject_hash: r.subject_hash,
 		created_at: r.created_at,
@@ -265,22 +268,23 @@ export const LedgerDb = {
 			.all() as { orcid: string; event_count: number; last_event_at: string }[];
 	},
 
-	// Union of every event id that has ever been applied to the data, across all stored
-	// pipeline runs — i.e. the requested changes that are now live in the pipeline.
-	getAllAppliedEventIds(): number[] {
+	// Union of every event logical key ever applied to the data, across all stored pipeline
+	// runs — i.e. the requested changes that are now live in the pipeline. Keyed by logical
+	// key (not event_id) so it survives the id renumbering that DB merges cause.
+	getAllAppliedKeys(): string[] {
 		const rows = getDb()
 			.prepare('SELECT manifest_json FROM ledger_runs WHERE manifest_json IS NOT NULL')
 			.all() as { manifest_json: string }[];
-		const ids = new Set<number>();
+		const keys = new Set<string>();
 		for (const r of rows) {
 			try {
-				const m = JSON.parse(r.manifest_json) as { applied_event_ids?: number[] };
-				for (const id of m.applied_event_ids ?? []) ids.add(id);
+				const m = JSON.parse(r.manifest_json) as { applied_keys?: string[] };
+				for (const k of m.applied_keys ?? []) keys.add(k);
 			} catch {
 				// ignore a malformed stored manifest
 			}
 		}
-		return [...ids];
+		return [...keys];
 	}
 };
 
