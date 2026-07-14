@@ -91,6 +91,7 @@ describe('isAutoModerated', () => {
 describe('conclusiveClaimIds', () => {
 	const claim = (event_id: number, doi: string, orcid: string): LedgerEvent => ({
 		event_id,
+		key: `${orcid}|claim_paper|h${event_id}`,
 		orcid,
 		kind: 'claim_paper',
 		payload: {

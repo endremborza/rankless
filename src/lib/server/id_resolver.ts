@@ -113,6 +113,27 @@ export async function resolveAuthorSubject(input: {
 	};
 }
 
+export type OrcidProfile = { name: string; semanticId: string };
+
+export async function resolveOrcidProfiles(
+	orcids: Iterable<string>
+): Promise<Map<string, OrcidProfile>> {
+	const out = new Map<string, OrcidProfile>();
+	await Promise.all(
+		[...orcids].map(async (orcid) => {
+			try {
+				const resp = await fetch(`${BE_URL}/orcid/${encodeURIComponent(orcid)}`);
+				if (resp.status !== 200) return;
+				const r = (await resp.json()) as { name?: string; semanticId?: string } | null;
+				out.set(orcid, { name: r?.name ?? '', semanticId: r?.semanticId ?? '' });
+			} catch {
+				// backend unreachable — omit so the caller retries later.
+			}
+		})
+	);
+	return out;
+}
+
 export function canonicalDoi(doi: string): string {
 	return doi
 		.trim()

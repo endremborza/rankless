@@ -2,7 +2,7 @@ from typing import Iterable
 
 import polars as pl
 
-from .config import ALPHA_HOST_PREFIX, LINE_RE, LOG_TIME_FMT
+from .config import LINE_RE, LIVE_HOSTS, LOG_TIME_FMT
 
 
 def _f(s: str | None) -> float | None:
@@ -88,17 +88,20 @@ def parse_lines(lines: Iterable[str]) -> tuple[pl.DataFrame, int]:
     return df, failures
 
 
-def drop_alpha_hosts(df: pl.DataFrame) -> tuple[pl.DataFrame, int]:
-    """Drop rows served to the alpha vhost and remove the transient `host` column.
+def keep_live_hosts(df: pl.DataFrame) -> tuple[pl.DataFrame, int]:
+    """Keep only rows served to the live vhosts; drop the transient `host` column.
 
-    Live instances are promoted alphas, so the access.log mixes the box's prior
-    alpha-domain traffic with live; `$host` separates them. `host` is used only at
-    ingest and never persisted, keeping the archive schema stable."""
+    A live box is a promoted alpha, so its access.log mixes live traffic with the
+    box's prior alpha vhosts and junk hitting it by raw IP / EC2 hostname / spoofed
+    Host. An allowlist of the live domains is robust where an `alpha*` prefix
+    denylist let that non-alpha junk (e.g. the old alpha box's IP) score as live.
+    `host` is used only at ingest and never persisted, keeping the archive schema
+    stable."""
     if "host" not in df.columns:
         return df, 0
-    is_alpha = pl.col("host").str.to_lowercase().str.starts_with(ALPHA_HOST_PREFIX)
-    n_alpha = int(df.select(is_alpha.sum()).item())
-    return df.filter(~is_alpha).drop("host"), n_alpha
+    keep = pl.col("host").str.to_lowercase().is_in(LIVE_HOSTS)
+    n_dropped = int(df.select((~keep).sum()).item())
+    return df.filter(keep).drop("host"), n_dropped
 
 
 def _empty_df() -> pl.DataFrame:

@@ -96,8 +96,8 @@ export function composeReviewRows(
 	events: LedgerEvent[],
 	verdicts: Map<string, ReviewVerdict>,
 	users: Map<string, UserRow>,
-	applied: Set<number>,
-	skipped: Map<number, string>,
+	applied: Set<string>,
+	skipped: Map<string, string>,
 	enrichment: EnrichmentMap
 ): AdminReviewRow[] {
 	return events.map((e) => {
@@ -136,7 +136,7 @@ export function summarize(p: LedgerPayload): string {
 		case 'merge_authors':
 			return `keep “${p.keep.display_snapshot.display_name}” ⇐ drop “${p.drop.display_snapshot.display_name}”${p.note ? ` — note: ${p.note}` : ''}`;
 		case 'revoke':
-			return `revoke event #${p.target_event_id}${p.reason ? ` — ${p.reason}` : ''}`;
+			return `revoke ${p.target_key}${p.reason ? ` — ${p.reason}` : ''}`;
 		case 'moderation_decision':
 			return `${p.decision} event #${p.target_event_id}`;
 		case 'add_paper_request':
@@ -189,13 +189,17 @@ function workEvidence(
 // every pipeline run's applied ids, so this answers "is this change implemented yet?".
 function pipelineCell(
 	e: LedgerEvent,
-	applied: Set<number>,
-	skipped: Map<number, string>
+	applied: Set<string>,
+	skipped: Map<string, string>
 ): PipelineCell {
-	if (applied.has(e.event_id)) return { label: 'implemented', cls: 'applied' };
-	const reason = skipped.get(e.event_id);
-	if (reason) return { label: `skipped · ${reason}`, cls: 'skipped' };
+	// Keyed by the merge-stable logical key, not event_id (renumbers on DB merge). Revokes
+	// are control actions collapsed out of the manifest, so classify them before the
+	// applied/skipped lookup rather than letting them fall to "awaiting rebuild".
 	if (e.revoked_at || e.moderation === 'rejected') return { label: '—', cls: 'muted' };
+	if (e.kind === 'revoke') return { label: 'revocation', cls: 'muted' };
+	if (applied.has(e.key)) return { label: 'implemented', cls: 'applied' };
+	const reason = skipped.get(e.key);
+	if (reason) return { label: `skipped · ${reason}`, cls: 'skipped' };
 	if (e.moderation === 'pending_review') return { label: 'awaiting review', cls: 'muted' };
 	return { label: 'awaiting rebuild', cls: 'awaiting' };
 }

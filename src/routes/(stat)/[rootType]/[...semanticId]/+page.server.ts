@@ -16,13 +16,7 @@ export const ssr = true;
 const INITIAL_WORKS_N = 20;
 const PEER_ROOT_TYPES: tt.RootType[] = ['authors', 'institutions', 'countries', 'sources'];
 
-export const load: PageServerLoad = async ({ params, url, locals, fetch: rawFetch, request }) => {
-	// Bind the request's abort signal into every backend fetch so a client that
-	// disconnects mid-render (bots reading <head> then bailing, nginx->bun upstream
-	// timeouts) cancels its in-flight work instead of leaving bun holding the fetched
-	// tree + render context — the FE OOM leak. Shadows `fetch` for the whole load.
-	const fetch: typeof rawFetch = (input, init) =>
-		rawFetch(input, { ...init, signal: request.signal });
+export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 	const { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(
 		params,
 		url,

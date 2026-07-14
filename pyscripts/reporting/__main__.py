@@ -125,11 +125,11 @@ def _do_dry_run(rec: dict) -> None:
     s = state.load()
     fetched = pull.fetch_new_lines(s)
     df, fail = parse.parse_lines(fetched.lines)
-    df, alpha = parse.drop_alpha_hosts(df)
+    df, non_live = parse.keep_live_hosts(df)
     rec["lines_fetched"] = len(fetched.lines)
     rec["events_parsed"] = len(df)
     rec["parse_failures"] = fail
-    rec["alpha_dropped"] = alpha
+    rec["non_live_dropped"] = non_live
     rec["rotated"] = fetched.rotated
     if not df.is_empty():
         rec["t_min"] = str(df["t"].min())
@@ -147,12 +147,12 @@ def _do_pull_and_archive(rec: dict) -> list[dt.date]:
         fetched = pull.fetch_new_lines(s)
     with timing.timed("pull.parse"):
         df, fail = parse.parse_lines(fetched.lines)
-        df, alpha = parse.drop_alpha_hosts(df)
+        df, non_live = parse.keep_live_hosts(df)
 
     rec["lines_fetched"] = len(fetched.lines)
     rec["events_parsed"] = len(df)
     rec["parse_failures"] = fail
-    rec["alpha_dropped"] = alpha
+    rec["non_live_dropped"] = non_live
     rec["rotated"] = fetched.rotated
 
     if df.is_empty():

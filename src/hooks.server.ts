@@ -1,5 +1,13 @@
-import type { Handle } from '@sveltejs/kit';
+import type { Handle, HandleFetch } from '@sveltejs/kit';
 import { getSession } from '$lib/server/session';
+
+// Tie every server-side fetch to the client's abort signal so a request that
+// disconnects mid-render (bots bailing after <head>, nginx->bun upstream
+// timeouts) cancels its backend calls instead of leaving bun holding the fetched
+// data + render context. This was the FE OOM leak; centralising it here covers
+// every route (not just the entity page) in one place.
+export const handleFetch: HandleFetch = ({ event, request, fetch }) =>
+	fetch(new Request(request, { signal: event.request.signal }));
 
 export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.user = getSession(event);

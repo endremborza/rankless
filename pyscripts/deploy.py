@@ -33,6 +33,7 @@ APTS = [
     "python3-certbot-nginx",
     "nginx",
     "btop",
+    "tmux",
     # rsvg-convert rasterizes the OG share cards at runtime; fontconfig (fc-cache) registers the
     # vendored brand fonts so the rasterizer uses them.
     "librsvg2-bin",
@@ -121,7 +122,8 @@ def key_path() -> str:
 ubuntu24_image_id = "ami-0f67ca03a667867bb"
 
 line_rex = re.compile(
-    r'(.*?) \-.*\-.*\[(.*)\].*"([A-Z]+) (.*?)" (\d\d\d) (\d+) "(.*)" "(.*)"rt=(.*) uct="(.*)" uht="(.*)" urt="(.*)"'
+    r'(.*?) \-.*\-.*\[(.*)\].*"([A-Z]+) (.*?)" (\d\d\d) (\d+) "(.*)" "(.*)"'
+    r'rt=(.*?) uct="(.*?)" uht="(.*?)" urt="(.*?)" cs=(\S+) host=(\S+)'
 )
 
 line_cols = [
@@ -137,6 +139,8 @@ line_cols = [
     "uct",
     "uht",
     "urt",
+    "cs",
+    "host",
 ]
 
 
@@ -372,6 +376,7 @@ class Transper:
         self.be_service = ServiceMan(be_service_name, sshc)
         self.sync_txt("test", "___test", self.inst_home)
         self.bun_exc = f"{self.inst_home}{BUN_PATH}"
+        self.venv_python = f"{self.deploy_dir}/.venv/bin/python"
 
     def bun_run(self, comm):
         self.ssh.run(f"{self.bun_exc} {comm}")
@@ -436,14 +441,13 @@ class Transper:
 
     def setup_mcp_services(self, mcp_backend: str = "local"):
         """MCP server + worker units on the instance (venv must be synced)."""
-        python = f"{self.deploy_dir}/.venv/bin/python"
         be_url = services.resolve_mcp_backend(mcp_backend)
         self.sync_service(
-            services.render_mcp_server(self.deploy_dir, python, be_url),
+            services.render_mcp_server(self.deploy_dir, self.venv_python, be_url),
             services.MCP_SERVER_UNIT,
         )
         self.sync_service(
-            services.render_mcp_worker(self.deploy_dir, python),
+            services.render_mcp_worker(self.deploy_dir, self.venv_python),
             services.MCP_WORKER_UNIT,
         )
         self.reload_systemctl()
@@ -518,6 +522,33 @@ class Transper:
         if cert:
             self.get_cert(inst_domain)
         self._add_upstreams_from_conf(self.get_fe_systems()[1])
+        # Alpha-only load-test lane (`make capacity`): requests carrying the
+        # secret X-Loadtest token bypass the per-IP rate limit and the proxy
+        # caches, so the driver can push full-rate load through the real
+        # serving path and every test request lands in the access log. Cost is
+        # two O(1) map lookups per request — nothing measurable. To remove:
+        # unset LOADTEST_TOKEN (or run on live, where it never renders) and
+        # `make sync_nginx_to_alpha` — the conf reverts to exactly this block.
+        lt_token = (
+            os.environ.get("LOADTEST_TOKEN") if inst_domain == ALPHA_DOMAIN else None
+        )
+        lt_maps, limit_key = "", "$binary_remote_addr"
+        bypass_vars, no_cache_line = "$http_upgrade", ""
+        if lt_token:
+            lt_maps = f"""
+map $http_x_loadtest $lt_limit_key {{
+    default $binary_remote_addr;
+    "{lt_token}" "";
+}}
+
+map $http_x_loadtest $lt_skip_cache {{
+    default 0;
+    "{lt_token}" 1;
+}}
+"""
+            limit_key = "$lt_limit_key"
+            bypass_vars = "$http_upgrade $lt_skip_cache"
+            no_cache_line = "\n        proxy_no_cache $lt_skip_cache;"
         security_headers = """
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Content-Type-Options "nosniff" always;
@@ -535,13 +566,19 @@ class Transper:
 
     access_log /var/log/nginx/access.log upstream_time;
 {security_headers}"""
-        loc_suffix = """
+        loc_suffix = f"""
         proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
+        proxy_cache_bypass {bypass_vars};{no_cache_line}
+
+        # SvelteKit ships a ~3.5KB Link (modulepreload) header that overflows the
+        # default 4-8KB proxy header buffer on heavier pages -> "upstream sent too
+        # big header" 502s. 16KB clears it.
+        proxy_buffer_size 16k;
+        proxy_buffers 8 16k;
 
         limit_req zone=baselimit burst=55 nodelay;
         limit_req_status 429;"""
@@ -549,7 +586,8 @@ class Transper:
         nginx_conf = f"""
 proxy_cache_path {self.be_cache_dir} levels=1:2 keys_zone=be-cache:50m max_size=20g;
 proxy_cache_path {self.fe_cache_dir} levels=1:2 keys_zone=fe-cache:50m max_size=10g;
-limit_req_zone $binary_remote_addr zone=baselimit:10m rate=2r/s;
+{lt_maps}
+limit_req_zone {limit_key} zone=baselimit:10m rate=2r/s;
 
 log_format upstream_time '$remote_addr - $remote_user [$time_local] '
                          '"$request" $status $body_bytes_sent '
@@ -691,16 +729,11 @@ upstream {BE_UPSTREAM} {{
         for subdir in tqdm(data_subdirs):
             self.ssh.rsync(f"{local_data_root}/{subdir}", self.data_dir, ignores)
 
-    # MCP + ledger movement. `merge` unions rows (source never clobbers target);
-    # `sync` mirrors — the target's copy of these tables becomes an exact copy of
-    # the source's. Both carry the data/mcp-sessions/ artifact dirs along; auth
-    # `sessions` are never touched (see pyscripts.mcp_db).
     def merge_db_to(self):
         self._push_db(mirror=False)
 
     def sync_db_to(self):
-        # Destructive on a live box: REPLACES its ledger_events/mcp_sessions with
-        # the local copy. Use merge_db_to to publish without clobbering.
+        # Destructive on a live box: REPLACES its ledger_events/mcp_sessions
         self._push_db(mirror=True)
 
     def merge_db_from(self):
@@ -726,9 +759,7 @@ upstream {BE_UPSTREAM} {{
         incoming = f"{tmp}/{db_name}"
         self.ssh.run(f"rm -rf {tmp} && mkdir -p {tmp}")
         self.ssh.rsync(str(local_tmp / db_name), tmp)
-        self._depcomm(
-            f".venv/bin/python -m pyscripts.mcp_db {self.deploy_dir}/{paths.DB_REL} {incoming} {mode}"
-        )
+        self._run_mcp_db(f"{self.deploy_dir}/{paths.DB_REL} {incoming} {mode}")
         self.ssh.run(f"rm -rf {tmp}")
         shutil.rmtree(local_tmp)
         self.ssh.rsync(
@@ -750,9 +781,7 @@ upstream {BE_UPSTREAM} {{
         # rsync'ing the raw file could miss un-checkpointed commits or tear the image.
         remote_tmp = f"{self.deploy_dir}/{DB_XFER_TMP}"
         self.ssh.run(f"rm -rf {remote_tmp} && mkdir -p {remote_tmp}")
-        self._depcomm(
-            f".venv/bin/python -m pyscripts.mcp_db snapshot {paths.DB_REL} {DB_XFER_TMP}/{db_name}"
-        )
+        self._run_mcp_db(f"snapshot {paths.DB_REL} {DB_XFER_TMP}/{db_name}")
         tmp = LOCAL_REPO / DB_XFER_TMP
         tmp.mkdir(parents=True, exist_ok=True)
         self.ssh.rsync_from(f"{remote_tmp}/{db_name}", str(tmp))
@@ -844,6 +873,11 @@ upstream {BE_UPSTREAM} {{
             time.sleep(20)
             by_name[name].status()
 
+    def setup_observability(self):
+        self.ssh.run("tmux kill-session -t ops 2>/dev/null || true")
+        self.ssh.run("tmux new-session -d -s ops btop")
+        self.ssh.run("tmux split-window -h -t ops 'journalctl --user -f'")
+
     def harden_host(self):
         # systemd-oomd's PSI-kill on user@.service killed init.scope — the
         # session manager itself — in all three 2026-07 live outages, with
@@ -855,16 +889,16 @@ upstream {BE_UPSTREAM} {{
         for comm in [
             "sudo loginctl enable-linger $(whoami)",
             f"sudo mkdir -p {os.path.dirname(dropin)}",
-            f"printf '[Service]\\nManagedOOMMemoryPressure=no\\n' | sudo tee {dropin}",
+            f"printf '[Service]\\nManagedOOMMemoryPressure=auto\\n' | sudo tee {dropin}",
             "sudo systemctl daemon-reload",
             "sudo systemctl set-property --runtime user@$(id -u).service"
-            " ManagedOOMMemoryPressure=no",
+            " ManagedOOMMemoryPressure=auto",
         ]:
             self.ssh.run(comm)
         state = self.ssh.run(
             "systemctl show user@$(id -u).service -p ManagedOOMMemoryPressure"
         ).strip()
-        assert state == "ManagedOOMMemoryPressure=no", state
+        assert state == "ManagedOOMMemoryPressure=auto", state
 
     def reload_systemctl(self):
         self.ssh.run("sudo systemctl daemon-reload")
@@ -938,6 +972,7 @@ upstream {BE_UPSTREAM} {{
                 t=lambda df: df["time"].pipe(
                     pd.to_datetime, format="%d/%b/%Y:%H:%M:%S %z"
                 ),
+                rt=lambda df: df["rt"].apply(tryfloat),
                 urt=lambda df: df["urt"].apply(tryfloat),
                 code=lambda df: df["code"].astype(int),
             )
@@ -946,6 +981,9 @@ upstream {BE_UPSTREAM} {{
 
     def _depcomm(self, comm: str):
         self.ssh.run(f"cd {self.deploy_dir};source ~/.profile;{comm}")
+
+    def _run_mcp_db(self, args: str):
+        self._depcomm(f"{self.venv_python} -m pyscripts.mcp_db {args}")
 
     def _get_fe_service(self, conf: FrontendServiceConf, port):
         return ServiceMan(conf.template_fname().replace("@", f"@{port}"), self.ssh)
@@ -1016,6 +1054,20 @@ def sync_data_to_live():
     get_running_tpr(True).update_data()
 
 
+def _sync_nginx(live: bool):
+    tpr = get_running_tpr(live)
+    tpr.setup_nginx(cert=False)
+    tpr.restart_nginx()
+
+
+def sync_nginx_to_alpha():
+    _sync_nginx(False)
+
+
+def sync_nginx_to_live():
+    _sync_nginx(True)
+
+
 def merge_db_from_live():
     get_running_tpr(True).merge_db_from()
 
@@ -1071,6 +1123,7 @@ def full_setup_from_nothing(
     tpr.push_certs()
     tpr.setup_nginx(cert=False)
     tpr.restart_nginx()
+    tpr.setup_observability()
 
 
 def new_small_alpha():
@@ -1082,18 +1135,46 @@ def new_large_alpha():
 
 
 def kill_dangling():
+    n = 0
     for inst in get_dangling_instances():
+        print("terminating", inst)
+        n += 1
         inst.terminate()
+    print(n, "terminated")
 
 
 def kill_alpha():
     get_running_inst(False).terminate()
 
 
+def _handoff_db_to(target_tpr: Transper, pull_warn_only: bool = False):
+    # Pull the live DB onto this deploy host, then push the merged local DB to the
+    # target. pull_warn_only keeps a spinning-up alpha unblocked when the live box
+    # can't be snapshotted (e.g. an old deploy without the MCP tooling); a promote
+    # leaves it False so a failed pre-flip catch-up aborts rather than flipping
+    # stale data live.
+    live_inst = get_running_inst(True)
+    if live_inst is None:
+        print("no live box to pull DB from; pushing local DB as-is")
+    else:
+        try:
+            get_tpr(live_inst).merge_db_from()
+        except Exception as e:
+            if not pull_warn_only:
+                raise
+            print(
+                f"WARNING: live DB sync failed ({e}); continuing with the local DB. "
+                "Sync it manually with local-moks/sync-live-db.sh, "
+                "then merge_db_to_alpha()."
+            )
+    target_tpr.merge_db_to()
+
+
 def _new_alpha(storage, itype, fe_procn, backend):
     inst = get_new_inst(storage, itype)
     tpr = get_tpr(inst)
     full_setup_from_nothing(tpr, ALPHA_DOMAIN, fe_procn, backend=backend)
+    _handoff_db_to(tpr, pull_warn_only=True)
     associate_id(inst, False)
     time.sleep(15)
     new_tpr = get_tpr(inst)
@@ -1153,8 +1234,7 @@ def bump_v(i=2):
         vns[j] = 0
     next_v = f"v{vns[0]}.{vns[1]}.{vns[2]}"
     v_const_ts = "src/lib/v_constants.ts"
-    const_v_txt = f"""
-export const LAST_MOD = '{dt.date.today().isoformat()}';
+    const_v_txt = f"""export const LAST_MOD = '{dt.date.today().isoformat()}';
 export const VERSION = '{next_v}';
 """
     Path(v_const_ts).write_text(const_v_txt)
@@ -1182,7 +1262,9 @@ def bump_v_minor():
 def promote_alpha_to_live():
     alpha_inst = get_running_inst(False)
     assert alpha_inst is not None
+    old_live_inst = get_running_inst(True)
     tpr = get_tpr(alpha_inst)
+    _handoff_db_to(tpr)
     tpr.setup_fe_services(LIVE_DOMAIN, procs=LARGE_FE_PROCS)
     tpr.update_env()
     tpr.update_fe()
@@ -1194,6 +1276,23 @@ def promote_alpha_to_live():
     associate_id(alpha_inst, True)
     time.sleep(5)
     get_running_tpr(True).refresh_certs(FW_DOMAIN)
+    _post_flip_db_catchup(old_live_inst)
+
+
+def _post_flip_db_catchup(old_live_inst):
+    # Events written to the old live box between the pre-flip catch-up and the
+    # EIP flip. The old box stays up on a fresh ephemeral IP until kill_dangling.
+    if old_live_inst is None:
+        return
+    try:
+        old_live_inst.reload()
+        get_tpr(old_live_inst).merge_db_from()
+        get_running_tpr(True).merge_db_to()
+    except Exception as e:
+        print(
+            f"post-flip DB catch-up failed ({e}); before kill_dangling, "
+            "merge_db_from the old box manually via its new public IP"
+        )
 
 
 def associate_id(inst, live: bool):

@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { env } from '$env/dynamic/private';
-import { DEFAULT_MODERATION, subjectHash } from './ledger-hash';
+import { DEFAULT_MODERATION, logicalKey, subjectHash } from './ledger-hash';
 import type { LedgerKind, LedgerPayload, ModerationState } from '$lib/types/ledger';
 import type { EnrichmentEntry, EnrichmentSource, ReviewVerdict } from '$lib/types/review';
 import type { EmailConsent, EmailPurposeKey } from '$lib/types/email-consent';
@@ -63,6 +63,16 @@ export function getDb(): Database {
 			last_login_at TEXT NOT NULL DEFAULT (datetime('now')),
 			login_count INTEGER NOT NULL DEFAULT 0
 		);
+			-- Persistent cache of ORCID → author display name + semantic_id resolved from
+			-- the backend (see resolveOrcidProfiles). Scoped by dataset run_id so a rebuild
+			-- re-resolves; an empty name is a negative entry (ORCID isn't an author), kept
+			-- so repeat loads don't re-query the backend for the same non-author ORCIDs.
+			CREATE TABLE IF NOT EXISTS orcid_names (
+				orcid TEXT PRIMARY KEY,
+				name TEXT NOT NULL,
+				semantic_id TEXT,
+				run_id TEXT
+			);
 		CREATE TABLE IF NOT EXISTS email_consents (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			orcid TEXT NOT NULL,
@@ -129,6 +139,7 @@ export function getDb(): Database {
 
 export type LedgerEvent = {
 	event_id: number;
+	key: string;
 	orcid: string;
 	kind: LedgerKind;
 	payload: LedgerPayload;
@@ -154,10 +165,12 @@ type LedgerEventRow = {
 };
 
 function rowToEvent(r: LedgerEventRow): LedgerEvent {
+	const kind = r.kind as LedgerKind;
 	return {
 		event_id: r.event_id,
+		key: logicalKey(r.orcid, kind, r.subject_hash),
 		orcid: r.orcid,
-		kind: r.kind as LedgerKind,
+		kind,
 		payload: JSON.parse(r.payload),
 		subject_hash: r.subject_hash,
 		created_at: r.created_at,
@@ -341,22 +354,33 @@ export const LedgerDb = {
 			.run(runId, snapshotAt, manifestJson);
 	},
 
-	// Union of every event id that has ever been applied to the data, across all stored
-	// pipeline runs — i.e. the requested changes that are now live in the pipeline.
-	getAllAppliedEventIds(): number[] {
+	// Per-actor ledger activity, so the admin view can surface people who have made a
+	// change even if they predate (or never populated) the users table.
+	listActorActivity(): { orcid: string; event_count: number; last_event_at: string }[] {
+		return getDb()
+			.prepare(
+				'SELECT orcid, COUNT(*) AS event_count, MAX(created_at) AS last_event_at FROM ledger_events GROUP BY orcid'
+			)
+			.all() as { orcid: string; event_count: number; last_event_at: string }[];
+	},
+
+	// Union of every event logical key ever applied to the data, across all stored pipeline
+	// runs — i.e. the requested changes that are now live in the pipeline. Keyed by logical
+	// key (not event_id) so it survives the id renumbering that DB merges cause.
+	getAllAppliedKeys(): string[] {
 		const rows = getDb()
 			.prepare('SELECT manifest_json FROM ledger_runs WHERE manifest_json IS NOT NULL')
 			.all() as { manifest_json: string }[];
-		const ids = new Set<number>();
+		const keys = new Set<string>();
 		for (const r of rows) {
 			try {
-				const m = JSON.parse(r.manifest_json) as { applied_event_ids?: number[] };
-				for (const id of m.applied_event_ids ?? []) ids.add(id);
+				const m = JSON.parse(r.manifest_json) as { applied_keys?: string[] };
+				for (const k of m.applied_keys ?? []) keys.add(k);
 			} catch {
 				// ignore a malformed stored manifest
 			}
 		}
-		return [...ids];
+		return [...keys];
 	}
 };
 
@@ -466,6 +490,24 @@ export const SessionDb = {
 
 	destroy(token: string): void {
 		getDb().prepare('DELETE FROM sessions WHERE token = ?').run(token);
+	},
+
+	// ORCIDs with a live (non-expired) session — i.e. currently signed in.
+	activeOrcids(): Set<string> {
+		const rows = getDb()
+			.prepare("SELECT DISTINCT orcid FROM sessions WHERE expires_at > datetime('now')")
+			.all() as { orcid: string }[];
+		return new Set(rows.map((r) => r.orcid));
+	},
+
+	// Most recent session profile (name + semantic_id) per ORCID. Sessions carry these
+	// even when a user has no `users` row (e.g. dev-login), so this backfills what the
+	// users table lacks. (Bare columns with `MAX(created_at)` yield the newest row's
+	// values in SQLite.)
+	profilesByOrcid(): { orcid: string; name: string; semantic_id: string | null }[] {
+		return getDb()
+			.prepare('SELECT orcid, name, semantic_id, MAX(created_at) AS c FROM sessions GROUP BY orcid')
+			.all() as { orcid: string; name: string; semantic_id: string | null }[];
 	}
 };
 
@@ -497,6 +539,41 @@ export const UserDb = {
 
 	listUsers(): UserRow[] {
 		return getDb().prepare('SELECT * FROM users ORDER BY last_login_at DESC').all() as UserRow[];
+	}
+};
+
+export type OrcidNameRow = {
+	orcid: string;
+	name: string;
+	semantic_id: string | null;
+	run_id: string | null;
+};
+
+// Persistent, run-scoped read-through cache for backend ORCID → author profile lookups,
+// so the admin view doesn't re-hit the backend on every load (or for known non-authors).
+export const OrcidNameDb = {
+	getAll(): OrcidNameRow[] {
+		return getDb()
+			.prepare('SELECT orcid, name, semantic_id, run_id FROM orcid_names')
+			.all() as OrcidNameRow[];
+	},
+
+	// Upsert resolved profiles (empty name = confirmed non-author) under the given run.
+	upsertMany(entries: { orcid: string; name: string; semantic_id: string }[], runId: string): void {
+		if (entries.length === 0) return;
+		const db = getDb();
+		const stmt = db.prepare(
+			`INSERT INTO orcid_names (orcid, name, semantic_id, run_id) VALUES (?, ?, ?, ?)
+			 ON CONFLICT(orcid) DO UPDATE SET name = excluded.name, semantic_id = excluded.semantic_id, run_id = excluded.run_id`
+		);
+		db.run('BEGIN');
+		try {
+			for (const e of entries) stmt.run(e.orcid, e.name, e.semantic_id, runId);
+			db.run('COMMIT');
+		} catch (err) {
+			db.run('ROLLBACK');
+			throw err;
+		}
 	}
 };
 

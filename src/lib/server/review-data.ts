@@ -78,9 +78,9 @@ export function loadReviewQueuePage(
 	const users = new Map(UserDb.listUsers().map((u) => [u.orcid, u]));
 
 	const manifest = readManifest();
-	const applied = new Set(LedgerDb.getAllAppliedEventIds());
-	for (const id of manifest.applied_event_ids) applied.add(id);
-	const skipped = new Map(manifest.skipped.map((s) => [s.event_id, s.reason]));
+	const applied = new Set(LedgerDb.getAllAppliedKeys());
+	for (const k of manifest.applied_keys) applied.add(k);
+	const skipped = new Map(manifest.skipped.map((s) => [s.key, s.reason]));
 
 	const pending = listPending();
 	const missingEnrichment = neededPairs(pending).filter((p) => {
