@@ -122,7 +122,8 @@ def key_path() -> str:
 ubuntu24_image_id = "ami-0f67ca03a667867bb"
 
 line_rex = re.compile(
-    r'(.*?) \-.*\-.*\[(.*)\].*"([A-Z]+) (.*?)" (\d\d\d) (\d+) "(.*)" "(.*)"rt=(.*) uct="(.*)" uht="(.*)" urt="(.*)"'
+    r'(.*?) \-.*\-.*\[(.*)\].*"([A-Z]+) (.*?)" (\d\d\d) (\d+) "(.*)" "(.*)"'
+    r'rt=(.*?) uct="(.*?)" uht="(.*?)" urt="(.*?)" cs=(\S+) host=(\S+)'
 )
 
 line_cols = [
@@ -138,6 +139,8 @@ line_cols = [
     "uct",
     "uht",
     "urt",
+    "cs",
+    "host",
 ]
 
 
@@ -519,6 +522,33 @@ class Transper:
         if cert:
             self.get_cert(inst_domain)
         self._add_upstreams_from_conf(self.get_fe_systems()[1])
+        # Alpha-only load-test lane (`make capacity`): requests carrying the
+        # secret X-Loadtest token bypass the per-IP rate limit and the proxy
+        # caches, so the driver can push full-rate load through the real
+        # serving path and every test request lands in the access log. Cost is
+        # two O(1) map lookups per request — nothing measurable. To remove:
+        # unset LOADTEST_TOKEN (or run on live, where it never renders) and
+        # `make sync_nginx_to_alpha` — the conf reverts to exactly this block.
+        lt_token = (
+            os.environ.get("LOADTEST_TOKEN") if inst_domain == ALPHA_DOMAIN else None
+        )
+        lt_maps, limit_key = "", "$binary_remote_addr"
+        bypass_vars, no_cache_line = "$http_upgrade", ""
+        if lt_token:
+            lt_maps = f"""
+map $http_x_loadtest $lt_limit_key {{
+    default $binary_remote_addr;
+    "{lt_token}" "";
+}}
+
+map $http_x_loadtest $lt_skip_cache {{
+    default 0;
+    "{lt_token}" 1;
+}}
+"""
+            limit_key = "$lt_limit_key"
+            bypass_vars = "$http_upgrade $lt_skip_cache"
+            no_cache_line = "\n        proxy_no_cache $lt_skip_cache;"
         security_headers = """
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Content-Type-Options "nosniff" always;
@@ -536,13 +566,19 @@ class Transper:
 
     access_log /var/log/nginx/access.log upstream_time;
 {security_headers}"""
-        loc_suffix = """
+        loc_suffix = f"""
         proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
+        proxy_cache_bypass {bypass_vars};{no_cache_line}
+
+        # SvelteKit ships a ~3.5KB Link (modulepreload) header that overflows the
+        # default 4-8KB proxy header buffer on heavier pages -> "upstream sent too
+        # big header" 502s. 16KB clears it.
+        proxy_buffer_size 16k;
+        proxy_buffers 8 16k;
 
         limit_req zone=baselimit burst=55 nodelay;
         limit_req_status 429;"""
@@ -550,7 +586,8 @@ class Transper:
         nginx_conf = f"""
 proxy_cache_path {self.be_cache_dir} levels=1:2 keys_zone=be-cache:50m max_size=20g;
 proxy_cache_path {self.fe_cache_dir} levels=1:2 keys_zone=fe-cache:50m max_size=10g;
-limit_req_zone $binary_remote_addr zone=baselimit:10m rate=2r/s;
+{lt_maps}
+limit_req_zone {limit_key} zone=baselimit:10m rate=2r/s;
 
 log_format upstream_time '$remote_addr - $remote_user [$time_local] '
                          '"$request" $status $body_bytes_sent '
@@ -935,6 +972,7 @@ upstream {BE_UPSTREAM} {{
                 t=lambda df: df["time"].pipe(
                     pd.to_datetime, format="%d/%b/%Y:%H:%M:%S %z"
                 ),
+                rt=lambda df: df["rt"].apply(tryfloat),
                 urt=lambda df: df["urt"].apply(tryfloat),
                 code=lambda df: df["code"].astype(int),
             )
@@ -1014,6 +1052,20 @@ def sync_data_to_alpha():
 
 def sync_data_to_live():
     get_running_tpr(True).update_data()
+
+
+def _sync_nginx(live: bool):
+    tpr = get_running_tpr(live)
+    tpr.setup_nginx(cert=False)
+    tpr.restart_nginx()
+
+
+def sync_nginx_to_alpha():
+    _sync_nginx(False)
+
+
+def sync_nginx_to_live():
+    _sync_nginx(True)
 
 
 def merge_db_from_live():
@@ -1182,8 +1234,7 @@ def bump_v(i=2):
         vns[j] = 0
     next_v = f"v{vns[0]}.{vns[1]}.{vns[2]}"
     v_const_ts = "src/lib/v_constants.ts"
-    const_v_txt = f"""
-export const LAST_MOD = '{dt.date.today().isoformat()}';
+    const_v_txt = f"""export const LAST_MOD = '{dt.date.today().isoformat()}';
 export const VERSION = '{next_v}';
 """
     Path(v_const_ts).write_text(const_v_txt)
