@@ -31,7 +31,7 @@
 
 <section>
 <h2>Bot vs human over time</h2>
-<div id="bot-area" style="height:320px"></div><script>Plotly.newPlot("bot-area", {"data": [{"x": ["2026-07-13 00:00:00.000000", "2026-07-14 00:00:00.000000", "2026-07-15 00:00:00.000000"], "y": [245524, 500839, 420450], "name": "bot_known", "type": "scatter", "stackgroup": "one", "fillcolor": "#f38ba8", "line": {"width": 0.5, "color": "#f38ba8"}}, {"x": ["2026-07-13 00:00:00.000000", "2026-07-14 00:00:00.000000", "2026-07-15 00:00:00.000000"], "y": [167710, 157633, 136580], "name": "unknown", "type": "scatter", "stackgroup": "one", "fillcolor": "#9399b2", "line": {"width": 0.5, "color": "#9399b2"}}, {"x": ["2026-07-13 00:00:00.000000", "2026-07-14 00:00:00.000000", "2026-07-15 00:00:00.000000"], "y": [570441, 992682, 1260453], "name": "bot_likely", "type": "scatter", "stackgroup": "one", "fillcolor": "#eba0ac", "line": {"width": 0.5, "color": "#eba0ac"}}, {"x": ["2026-07-13 00:00:00.000000", "2026-07-14 00:00:00.000000", "2026-07-15 00:00:00.000000"], "y": [24296, 47173, 43789], "name": "human_likely", "type": "scatter", "stackgroup": "one", "fillcolor": "#94e2d5", "line": {"width": 0.5, "color": "#94e2d5"}}], "layout": {"yaxis": {"title": "requests"}, "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
+<div id="bot-area" style="height:320px"></div><script>Plotly.newPlot("bot-area", {"data": [{"x": ["2026-07-13 00:00:00.000000", "2026-07-14 00:00:00.000000", "2026-07-15 00:00:00.000000", "2026-07-16 00:00:00.000000"], "y": [245524, 500839, 458060, 51148], "name": "bot_known", "type": "scatter", "stackgroup": "one", "fillcolor": "#f38ba8", "line": {"width": 0.5, "color": "#f38ba8"}}, {"x": ["2026-07-13 00:00:00.000000", "2026-07-14 00:00:00.000000", "2026-07-15 00:00:00.000000", "2026-07-16 00:00:00.000000"], "y": [167710, 157633, 148100, 12976], "name": "unknown", "type": "scatter", "stackgroup": "one", "fillcolor": "#9399b2", "line": {"width": 0.5, "color": "#9399b2"}}, {"x": ["2026-07-13 00:00:00.000000", "2026-07-14 00:00:00.000000", "2026-07-15 00:00:00.000000", "2026-07-16 00:00:00.000000"], "y": [570441, 992682, 1359985, 118324], "name": "bot_likely", "type": "scatter", "stackgroup": "one", "fillcolor": "#eba0ac", "line": {"width": 0.5, "color": "#eba0ac"}}, {"x": ["2026-07-13 00:00:00.000000", "2026-07-14 00:00:00.000000", "2026-07-15 00:00:00.000000", "2026-07-16 00:00:00.000000"], "y": [24296, 47173, 47279, 4161], "name": "human_likely", "type": "scatter", "stackgroup": "one", "fillcolor": "#94e2d5", "line": {"width": 0.5, "color": "#94e2d5"}}], "layout": {"yaxis": {"title": "requests"}, "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
 </section>
 
 <section>
@@ -47,92 +47,97 @@
   <tbody>
     <tr>
       <td>chrome</td>
-      <td>525041</td>
+      <td>562786</td>
       <td>bot_likely</td>
     </tr>
     <tr>
       <td>gptbot</td>
-      <td>84055</td>
+      <td>89993</td>
       <td>bot_known</td>
     </tr>
     <tr>
       <td>safari-webkit</td>
-      <td>69293</td>
+      <td>74537</td>
       <td>bot_likely</td>
     </tr>
     <tr>
       <td>ahrefsbot</td>
-      <td>48824</td>
+      <td>52085</td>
       <td>bot_known</td>
     </tr>
     <tr>
       <td>firefox</td>
-      <td>38695</td>
+      <td>43441</td>
       <td>bot_likely</td>
     </tr>
     <tr>
       <td>other-bot</td>
-      <td>33129</td>
+      <td>34863</td>
       <td>bot_known</td>
     </tr>
     <tr>
       <td>edge</td>
-      <td>30213</td>
+      <td>31942</td>
       <td>bot_likely</td>
     </tr>
     <tr>
       <td>chrome-mobile</td>
-      <td>21130</td>
+      <td>22978</td>
       <td>bot_likely</td>
     </tr>
     <tr>
       <td>googlebot</td>
-      <td>11517</td>
+      <td>12218</td>
       <td>bot_known</td>
     </tr>
     <tr>
       <td>bytespider</td>
-      <td>7017</td>
+      <td>7436</td>
       <td>bot_known</td>
     </tr>
     <tr>
       <td>perplexitybot</td>
-      <td>4040</td>
+      <td>4124</td>
       <td>bot_known</td>
     </tr>
     <tr>
       <td>bingbot</td>
-      <td>3464</td>
+      <td>3672</td>
       <td>bot_known</td>
     </tr>
     <tr>
       <td>unknown</td>
-      <td>2675</td>
+      <td>2791</td>
       <td>bot_likely</td>
     </tr>
     <tr>
       <td>yandexbot</td>
-      <td>1495</td>
+      <td>1655</td>
       <td>bot_known</td>
     </tr>
     <tr>
       <td>semrushbot</td>
-      <td>1059</td>
+      <td>1127</td>
       <td>bot_known</td>
     </tr>
     <tr>
       <td>python-script</td>
-      <td>526</td>
+      <td>559</td>
       <td>bot_known</td>
     </tr>
     <tr>
       <td>claudebot</td>
-      <td>170</td>
+      <td>180</td>
       <td>bot_known</td>
     </tr>
     <tr>
       <td>facebookbot</td>
-      <td>168</td>
+      <td>172</td>
+      <td>bot_known</td>
+    </tr>
+    <tr>
+      <td>mj12bot</td>
+      <td>93</td>
       <td>bot_known</td>
     </tr>
     <tr>
@@ -141,13 +146,8 @@
       <td>bot_known</td>
     </tr>
     <tr>
-      <td>mj12bot</td>
-      <td>86</td>
-      <td>bot_known</td>
-    </tr>
-    <tr>
       <td>empty</td>
-      <td>68</td>
+      <td>72</td>
       <td>bot_known</td>
     </tr>
     <tr>
@@ -157,7 +157,7 @@
     </tr>
     <tr>
       <td>duckduckbot</td>
-      <td>33</td>
+      <td>35</td>
       <td>bot_known</td>
     </tr>
     <tr>
@@ -206,86 +206,86 @@
   <tbody>
     <tr>
       <td>rankless.org</td>
-      <td>461252</td>
+      <td>457603</td>
     </tr>
     <tr>
       <td>google.com</td>
-      <td>51222</td>
+      <td>75418</td>
     </tr>
     <tr>
       <td>alpha.rankless.org</td>
-      <td>38</td>
-    </tr>
-    <tr>
-      <td>orcid.org</td>
-      <td>18</td>
-    </tr>
-    <tr>
-      <td>bing.org</td>
-      <td>17</td>
+      <td>52</td>
     </tr>
     <tr>
       <td>yahoo.org</td>
-      <td>17</td>
+      <td>19</td>
     </tr>
     <tr>
-      <td>baidu.org</td>
-      <td>16</td>
-    </tr>
-    <tr>
-      <td>chatgpt.com</td>
-      <td>15</td>
-    </tr>
-    <tr>
-      <td>63.177.45.140</td>
-      <td>12</td>
-    </tr>
-    <tr>
-      <td>google.org</td>
-      <td>12</td>
+      <td>bing.org</td>
+      <td>19</td>
     </tr>
     <tr>
       <td>yandex.org</td>
-      <td>11</td>
+      <td>16</td>
+    </tr>
+    <tr>
+      <td>google.org</td>
+      <td>15</td>
+    </tr>
+    <tr>
+      <td>baidu.org</td>
+      <td>15</td>
+    </tr>
+    <tr>
+      <td>chatgpt.com</td>
+      <td>14</td>
+    </tr>
+    <tr>
+      <td>orcid.org</td>
+      <td>14</td>
     </tr>
     <tr>
       <td>lnkd.in</td>
-      <td>10</td>
-    </tr>
-    <tr>
-      <td>yandex.ru</td>
       <td>9</td>
     </tr>
     <tr>
-      <td>api.rankless.org</td>
-      <td>6</td>
+      <td>63.177.45.140</td>
+      <td>9</td>
     </tr>
     <tr>
       <td>bing.com</td>
-      <td>5</td>
+      <td>8</td>
     </tr>
     <tr>
       <td>63.177.45.140:80</td>
       <td>5</td>
     </tr>
     <tr>
-      <td>t.co</td>
-      <td>4</td>
-    </tr>
-    <tr>
-      <td>linkedin.com</td>
-      <td>4</td>
-    </tr>
-    <tr>
-      <td>comdig.cssociety.org</td>
-      <td>4</td>
+      <td>yandex.ru</td>
+      <td>5</td>
     </tr>
     <tr>
       <td>google.com.hk</td>
       <td>4</td>
     </tr>
     <tr>
+      <td>api.rankless.org</td>
+      <td>4</td>
+    </tr>
+    <tr>
+      <td>wap.yandex.com</td>
+      <td>3</td>
+    </tr>
+    <tr>
       <td>doubao.com</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <td>t.co</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <td>comdig.cssociety.org</td>
       <td>3</td>
     </tr>
     <tr>
@@ -293,35 +293,35 @@
       <td>3</td>
     </tr>
     <tr>
-      <td>wap.yandex.com</td>
+      <td>linkedin.com</td>
       <td>3</td>
-    </tr>
-    <tr>
-      <td>sergiouri.be</td>
-      <td>2</td>
     </tr>
     <tr>
       <td>rankless.org:443</td>
       <td>2</td>
     </tr>
     <tr>
+      <td>centerforcollectivelearning.org</td>
+      <td>1</td>
+    </tr>
+    <tr>
       <td>350685531728</td>
       <td>1</td>
     </tr>
     <tr>
-      <td>pic.sogou.com</td>
+      <td>sites.google.com</td>
       <td>1</td>
     </tr>
     <tr>
-      <td>63.177.45.140:443</td>
+      <td>scoop.it</td>
       <td>1</td>
     </tr>
     <tr>
-      <td>duckduckgo.com</td>
+      <td>n-dayyviout7uh22idbhkf5iy6yhaz6bioqjs2lpi-0lu-script.googleusercontent.com</td>
       <td>1</td>
     </tr>
     <tr>
-      <td>gemini.google.com</td>
+      <td>sergiouri.be</td>
       <td>1</td>
     </tr>
   </tbody>
@@ -340,19 +340,19 @@
   <tbody>
     <tr>
       <td>/v1/trees/{root_type}/{semantic_id}</td>
-      <td>44849</td>
+      <td>44476</td>
     </tr>
     <tr>
       <td>/v1/names/{etype}</td>
-      <td>2056</td>
+      <td>1880</td>
     </tr>
     <tr>
       <td>_unknown</td>
-      <td>631</td>
+      <td>574</td>
     </tr>
     <tr>
       <td>/v1/works/{etype}/{semantic_id}/{from}</td>
-      <td>19</td>
+      <td>13</td>
     </tr>
   </tbody>
 </table>
@@ -360,7 +360,7 @@
 
 <section>
 <h2>Status code distribution</h2>
-<div id="status-donut" style="height:320px"></div><script>Plotly.newPlot("status-donut", {"data": [{"labels": ["2xx", "3xx", "4xx"], "values": [4271935, 291332, 4303], "type": "pie", "hole": 0.5}], "layout": {"margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
+<div id="status-donut" style="height:320px"></div><script>Plotly.newPlot("status-donut", {"data": [{"labels": ["2xx", "3xx", "4xx"], "values": [4598578, 303064, 4689], "type": "pie", "hole": 0.5}], "layout": {"margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
 </section>
 
 <script>
@@ -370,9 +370,9 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 </main>
 <footer>
-  <span>Rendered 2026-07-15T22:10:18+00:00</span>
-  <span>Last pull: 2026-07-15T22:10:18+00:00</span>
-  <span>Last event: 2026-07-15 22:10:10+00:00</span>
+  <span>Rendered 2026-07-16T02:10:28+00:00</span>
+  <span>Last pull: 2026-07-16T02:10:28+00:00</span>
+  <span>Last event: 2026-07-16 02:10:19+00:00</span>
 </footer>
 </body>
 </html>
