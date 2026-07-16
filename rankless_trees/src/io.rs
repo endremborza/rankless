@@ -619,6 +619,10 @@ impl TreeBasisState {
         self.cache_file(fq, period, None)
     }
 
+    pub fn shallow_cache_file_period(&self, fq: &FullTreeQuery, depth: u8, period: u8) -> PathBuf {
+        self.cache_file(fq, period, Some(&format!("shallow{depth}")))
+    }
+
     fn cache_file(&self, fq: &FullTreeQuery, period: u8, prefix: Option<&str>) -> PathBuf {
         let name = match prefix {
             Some(p) => format!("{}-{}.zst", p, period),
