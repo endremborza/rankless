@@ -1,0 +1,19 @@
+{
+	"crawlDelaySeconds": 10,
+	"throttled": [
+		"ShapBot",
+		"GPTBot",
+		"Bytespider",
+		"Amazonbot",
+		"AhrefsBot",
+		"GoogleOther",
+		"ClaudeBot",
+		"CCBot",
+		"PerplexityBot",
+		"meta-externalagent",
+		"SemrushBot",
+		"DataForSeoBot",
+		"MJ12bot",
+		"DotBot"
+	]
+}
