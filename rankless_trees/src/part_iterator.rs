@@ -7,7 +7,7 @@ use std::{
     os::linux::fs::MetadataExt,
     path::PathBuf,
     str::FromStr,
-    sync::Mutex,
+    sync::{LazyLock, Mutex},
 };
 
 use crate::{
@@ -40,6 +40,12 @@ use serde::Serialize;
 const MAX_PARTITIONS: usize = 16;
 const MAX_BUFSIZE: usize = 512;
 const SHALLOW_LIMIT: u64 = 50_000; // size (bytes) of file
+
+// The FE's SSR fetch is always ?shallow=1 (entity +page.server.ts)
+const PRECALC_SHALLOW_DEPTH: u8 = 1;
+
+static DEBUG_LOG: LazyLock<bool> =
+    LazyLock::new(|| std::env::var("RANKLESS_DEBUG_LOG").is_ok_and(|v| v != "0"));
 
 pub type NetRoot<'a, Pit> = NET<IteratorRootEtype<'a, Pit>>;
 
@@ -246,6 +252,24 @@ where
 
     fn try_load_cached(&mut self) -> bool {
         let now = std::time::Instant::now();
+
+        let shallow_path = match (self.params.fq.q.shallow, self.params.fq.q.wide) {
+            (Some(depth), None | Some(false)) => {
+                let sh_path = self.params.state.shallow_cache_file_period(
+                    &self.params.fq,
+                    depth,
+                    self.params.fq.period,
+                );
+                if let Ok(sh_tree) = read_buf_path::<BufSerTree, _>(&sh_path) {
+                    let resp = self.to_tree_resp(sh_tree, true);
+                    self.tlog("loaded and sent shallow cache", now);
+                    set_single_resp(self.params.res_cvp.clone(), resp);
+                    return true;
+                }
+                Some(sh_path)
+            }
+            _ => None,
+        };
         let resp_tree_path = self.params.state.resp_cache_file(&self.params.fq);
         let mut resp_tree: BufSerTree = match read_buf_path(&resp_tree_path) {
             Ok(pt) => pt,
@@ -261,6 +285,11 @@ where
             };
             if shallowed {
                 resp_tree = cut_tree(&resp_tree, sh_depth);
+                if let Some(sh_path) = shallow_path {
+                    if write_buf_path(&resp_tree, &sh_path).is_err() {
+                        self.log(format!("failed to write to {sh_path:?}"));
+                    }
+                }
             }
         }
         let resp = self.to_tree_resp(resp_tree, shallowed);
@@ -293,14 +322,14 @@ where
                 let mut part_root: PartIteratorStackElement<'a, TMK> = et_id.into();
                 match hither_o {
                     Some(hither) => TMK::StackBasis::fold_into(&mut part_root, hither),
-                    None => self.log(format!(
+                    None => self.dlog(format!(
                         "parition-heap is none at roots len {}",
                         roots.len()
                     )),
                 }
                 roots.push(part_root.collapse());
             });
-            self.tlog("got roots", now);
+            self.dtlog("got roots", now);
 
             let now = std::time::Instant::now();
             let mut ser_tree_o = None;
@@ -323,7 +352,7 @@ where
         for (pid, rec) in maker {
             heaps[pid as usize].push(rec);
         }
-        self.tlog("got heaps", now);
+        self.dtlog("got heaps", now);
         heaps
     }
 
@@ -403,16 +432,36 @@ where
             }
         }
         if self.is_cacheable() {
-            self.cache_tree(
-                pruned_o.unwrap_or_else(|| self.prune_tree(full_tree)),
-                TreeBasisState::pruned_cache_file_period,
-                pid,
-            );
+            let pruned = pruned_o.unwrap_or_else(|| self.prune_tree(full_tree));
+            self.cache_tree(&pruned, TreeBasisState::pruned_cache_file_period, pid);
+            self.cache_shallow(&pruned, pid);
             self.cache_tree(
                 wide_o.unwrap_or_else(|| self.to_wide_tree(full_tree)),
                 TreeBasisState::wide_cache_file_period,
                 pid,
             );
+        }
+    }
+
+    // Preserves SHALLOW_LIMIT semantics: small entities get no shallow file
+    // and keep being served whole (unshallowed) from the pruned cache.
+    fn cache_shallow(&self, pruned: &BufSerTree, pid: u8) {
+        let pruned_path = self
+            .params
+            .state
+            .pruned_cache_file_period(&self.params.fq, pid);
+        match std::fs::metadata(&pruned_path) {
+            Ok(md) if md.st_size() >= SHALLOW_LIMIT => {
+                let sh_path = self.params.state.shallow_cache_file_period(
+                    &self.params.fq,
+                    PRECALC_SHALLOW_DEPTH,
+                    pid,
+                );
+                if write_buf_path(cut_tree(pruned, PRECALC_SHALLOW_DEPTH), &sh_path).is_err() {
+                    self.log(format!("failed to write to {sh_path:?}"));
+                }
+            }
+            _ => (),
         }
     }
 
@@ -453,7 +502,7 @@ where
         let now = std::time::Instant::now();
         let bds = TMK::get_spec().breakdowns;
         let pruned_tree = prune(full_tree, &self.params.state.att_union, &bds);
-        self.tlog("pruned", now);
+        self.dtlog("pruned", now);
         pruned_tree
     }
 
@@ -461,7 +510,7 @@ where
         let now = std::time::Instant::now();
         let bds = TMK::get_spec().breakdowns;
         let wide_tree = prune_wide(full_tree, &self.params.state.att_union, &bds);
-        self.tlog("wide cut", now);
+        self.dtlog("wide cut", now);
         wide_tree
     }
 
@@ -472,7 +521,7 @@ where
     {
         let pb = f(&self.params.state, &self.params.fq, pid);
         match write_buf_path(obj, &pb) {
-            Ok(_) => self.log(format!("wrote to {pb:?}")),
+            Ok(_) => self.dlog(format!("wrote to {pb:?}")),
             Err(_) => self.log(format!("failed to write to {pb:?}")),
         }
     }
@@ -485,6 +534,18 @@ where
         self.log(format!("{} in {}ms", s, now.elapsed().as_millis()));
     }
 
+    fn dlog<D: Display>(&self, s: D) {
+        if *DEBUG_LOG {
+            self.log(s)
+        }
+    }
+
+    fn dtlog<D: Display>(&self, s: D, now: std::time::Instant) {
+        if *DEBUG_LOG {
+            self.tlog(s, now)
+        }
+    }
+
     fn to_tree_resp(&mut self, pruned_tree: BufSerTree, shallowed: bool) -> TreeResponse {
         let now = std::time::Instant::now();
         let bds = TMK::get_spec().breakdowns;
@@ -495,11 +556,11 @@ where
             self.params.fh,
             &self.params.fq,
         );
-        self.tlog("got atts", now);
+        self.dtlog("got atts", now);
 
         let now = std::time::Instant::now();
         let tree = JsSerTree::from_buf(pruned_tree, &self.params.state.gets);
-        self.tlog("converted", now);
+        self.dtlog("converted", now);
         TreeResponse {
             tree,
             atts,
