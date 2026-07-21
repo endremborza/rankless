@@ -245,7 +245,7 @@
 
 <section>
 <h2>Hard rules &mdash; bot side</h2>
-<p class="hint">Any of these &rarr; <code class="cls-bot_known">bot_known</code>. Rates over 3,923,722 sessions.</p>
+<p class="hint">Any of these &rarr; <code class="cls-bot_known">bot_known</code>. Rates over 3,973,026 sessions.</p>
 <ul class="rules">
   <li>
     <code>empty_ua</code> &mdash; User-Agent header missing or empty.
@@ -253,7 +253,7 @@
   </li>
   <li>
     <code>bot_ua</code> &mdash; User-Agent matches a known bot/crawler/script family.
-      <span class="rate">10.50%</span>
+      <span class="rate">10.51%</span>
   </li>
   <li>
     <code>robots_or_sitemap</code> &mdash; Hit one of the bot-only routes: ['/robots.txt', '/sitemap*.xml'].
@@ -294,7 +294,7 @@
       </td>
       <td><code>search_used</code></td>
       <td>Used the search endpoint `/v1/names/{etype}` with a non-empty `q=` param.</td>
-      <td>0.25%</td>
+      <td>0.26%</td>
     </tr>
     <tr>
       <td class="pos">
@@ -302,7 +302,7 @@
       </td>
       <td><code>browser_ua</code></td>
       <td>User-Agent looks like a real browser (`Mozilla` + Chrome/Safari/Firefox/etc.).</td>
-      <td>92.19%</td>
+      <td>92.22%</td>
     </tr>
     <tr>
       <td class="pos">
@@ -310,7 +310,7 @@
       </td>
       <td><code>sveltekit_prefetch</code></td>
       <td>Session contains SvelteKit __data.json requests, indicating browser hover-prefetch activity.</td>
-      <td>0.13%</td>
+      <td>0.14%</td>
     </tr>
     <tr>
       <td class="pos">
@@ -318,7 +318,7 @@
       </td>
       <td><code>referrer_present</code></td>
       <td>At least one request carries a non-empty Referer.</td>
-      <td>63.70%</td>
+      <td>63.57%</td>
     </tr>
     <tr>
       <td class="neg">
@@ -326,7 +326,7 @@
       </td>
       <td><code>www_no_api</code></td>
       <td>At least one request to the frontend domain with zero api.rankless.org (/v1/) calls.</td>
-      <td>60.78%</td>
+      <td>60.88%</td>
     </tr>
   </tbody>
 </table>
@@ -338,14 +338,14 @@
   Sessions that reached soft scoring (no hard rule fired). Dotted lines mark the
   <code class="cls-human_likely">human_likely</code> / <code class="cls-bot_likely">bot_likely</code> thresholds.
 </p>
-<div id="score-dist" style="height:260px"></div><script>Plotly.newPlot("score-dist", {"data": [{"x": [-2, -1, 0, 1, 2, 3, 4], "y": [169140, 1390295, 820327, 1898, 1532110, 52, 9900], "type": "bar", "marker": {"color": "#89b4fa"}, "name": "sessions"}], "layout": {"xaxis": {"title": "soft score", "dtick": 1}, "yaxis": {"title": "sessions"}, "shapes": [{"type": "line", "x0": 2.5, "x1": 2.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#a6e3a1", "dash": "dot", "width": 1.5}}, {"type": "line", "x0": 0.5, "x1": 0.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#f38ba8", "dash": "dot", "width": 1.5}}], "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
+<div id="score-dist" style="height:260px"></div><script>Plotly.newPlot("score-dist", {"data": [{"x": [-2, -1, 0, 1, 2, 3, 4], "y": [171034, 1412431, 829842, 1908, 1547605, 52, 10154], "type": "bar", "marker": {"color": "#89b4fa"}, "name": "sessions"}], "layout": {"xaxis": {"title": "soft score", "dtick": 1}, "yaxis": {"title": "sessions"}, "shapes": [{"type": "line", "x0": 2.5, "x1": 2.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#a6e3a1", "dash": "dot", "width": 1.5}}, {"type": "line", "x0": 0.5, "x1": 0.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#f38ba8", "dash": "dot", "width": 1.5}}], "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
 </section>
 
 </main>
 <footer>
-  <span>Rendered 2026-07-21T18:10:17+00:00</span>
-  <span>Last pull: 2026-07-21T18:10:16+00:00</span>
-  <span>Last event: 2026-07-21 18:10:04+00:00</span>
+  <span>Rendered 2026-07-21T22:10:17+00:00</span>
+  <span>Last pull: 2026-07-21T22:10:16+00:00</span>
+  <span>Last event: 2026-07-21 22:10:04+00:00</span>
 </footer>
 </body>
 </html>
