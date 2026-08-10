@@ -870,7 +870,7 @@ upstream {BE_UPSTREAM} {{
         )
         for name in order:
             by_name[name].restart()
-            time.sleep(20)
+            time.sleep(30)
             by_name[name].status()
 
     def setup_observability(self):
