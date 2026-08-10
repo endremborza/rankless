@@ -25,8 +25,10 @@ estimation) and **performance** (per-endpoint latency, cache hit rate, error cat
   aggregation), bucket per session.
 - **nginx log line** carries `cs=$upstream_cache_status host=$host` (emitted by
   `pyscripts/deploy.py`), always present. `cs` gives the cache hit rate; `host` lets the report
-  drop the box's prior alpha-vhost rows — live instances are **promoted alphas**, so their
-  access.log mixes alpha and live traffic (`parse.drop_alpha_hosts`). `host` is never persisted.
+  keep only live-vhost rows — live instances are **promoted alphas**, so their access.log mixes
+  live traffic with the box's prior alpha vhosts and junk hitting it by raw IP / EC2 hostname /
+  spoofed Host. `parse.keep_live_hosts` keeps an allowlist (`config.LIVE_HOSTS`), robust where an
+  `alpha*` prefix denylist let the old alpha box's raw IP score as live. `host` is never persisted.
 - **Publish:** `pyscripts/reporting/publish.py` does a gh-pages worktree push of `site-public/`
   (public repo, anonymized site only). One-time GitHub setup: repo Settings → Pages → source =
   `gh-pages` branch, root; optional custom domain via a `CNAME` file. First run creates the orphan
