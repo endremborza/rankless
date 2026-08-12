@@ -1,5 +1,5 @@
 """Stress-suite driver + memory sampler (phases in
-.cril/plans/2026-07-10-alpha-stress-suite.md).
+.cril/writeups/2026-07-10-alpha-stress-suite.md).
 
     uv run -m pyscripts stress --corpus slugs.gz --ssh-host rankless-alpha   # DEFAULT: meltdown
     uv run -m pyscripts stress capacity                    # fleet ceiling (= `make capacity`)

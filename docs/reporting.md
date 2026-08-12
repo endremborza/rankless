@@ -37,6 +37,21 @@ estimation) and **performance** (per-endpoint latency, cache hit rate, error cat
   `gh-pages` (preserving `CNAME`); the next run rebuilds from scratch. Run it when promoting a new
   live instance. `ARGS="--local-only"` keeps the published site.
 
+## Runbook: promoting a new live instance (scrub history)
+
+A live instance is a promoted alpha, so its access.log mixes prior alpha traffic with live.
+`parse.keep_live_hosts` filters rows going forward; before the switch, wipe the old history so
+nothing from the prior box lingers:
+
+1. `make report-reset` — type `scrub` to confirm. Wipes local `reports-v2/` (archive,
+   aggregates, sites, run logs, `state.json`, `salts.json`) and force-pushes an empty
+   `gh-pages` (CNAME kept).
+2. Promote / deploy the new live box (`rankless-live` SSH id points at it).
+3. Next hourly `make reporting` run: `state.last_inode == 0` → tails the last ~200k lines,
+   drops non-live hosts, archives + renders + publishes fresh.
+
+The reset is idempotent.
+
 ## Column schemas
 
 Hot archive (`archive/YYYY/MM/DD.parquet`):
