@@ -1,77 +1,14 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { base } from '$app/paths';
 	import { entToLink } from '$lib/tree-functions';
-	import type { LedgerPayload } from '$lib/types/ledger';
 	import type { PageData } from './$types';
 
 	export let data: PageData;
 
-	type EventRow = PageData['events'][number];
-
-	$: events = data.events;
 	$: users = data.users;
 	$: names = data.names;
-	$: pendingCount = events.filter((e) => e.moderation === 'pending_review').length;
-	$: appliedSet = new Set(data.applied);
-	$: skippedMap = new Map(data.skipped.map((s) => [s.event_id, s.reason]));
 	$: emailCount = users.filter((u) => u.consent).length;
 	$: onlineCount = users.filter((u) => u.online).length;
-
-	let onlyImplemented = false;
-	$: shownEvents = onlyImplemented ? events.filter((e) => appliedSet.has(e.event_id)) : events;
-
-	let busy = new Set<number>();
-	let lastError = '';
-
-	// Whether (and how) a requested change has reached the live data. `appliedSet` unions
-	// every pipeline run's applied ids, so this answers "is this change implemented yet?".
-	$: pipelineStatus = (e: EventRow): { label: string; cls: string } => {
-		if (appliedSet.has(e.event_id)) return { label: 'implemented', cls: 'applied' };
-		const reason = skippedMap.get(e.event_id);
-		if (reason) return { label: `skipped · ${reason}`, cls: 'skipped' };
-		if (e.revoked_at || e.moderation === 'rejected') return { label: '—', cls: 'muted' };
-		if (e.moderation === 'pending_review') return { label: 'awaiting review', cls: 'muted' };
-		return { label: 'awaiting rebuild', cls: 'awaiting' };
-	};
-
-	// All values below come from OpenAlex display snapshots (untrusted) — they are rendered via
-	// plain `{}` interpolation only (Svelte auto-escapes). Do NOT switch any of this to {@html}.
-	function summarize(p: LedgerPayload): string {
-		switch (p.kind) {
-			case 'disown_paper':
-				return `disown “${p.work.display_snapshot.title || p.work.doi || p.work.oa_id || '?'}”`;
-			case 'claim_paper':
-				return `claim “${p.work.display_snapshot.title || p.work.doi || p.work.oa_id || '?'}”`;
-			case 'merge_papers':
-				return `keep “${p.keep.display_snapshot.title}” ⇐ drop “${p.drop.display_snapshot.title}”`;
-			case 'merge_authors':
-				return `keep “${p.keep.display_snapshot.display_name}” ⇐ drop “${p.drop.display_snapshot.display_name}”${p.note ? ` — note: ${p.note}` : ''}`;
-			case 'revoke':
-				return `revoke event #${p.target_event_id}${p.reason ? ` — ${p.reason}` : ''}`;
-			case 'moderation_decision':
-				return `${p.decision} event #${p.target_event_id}`;
-			case 'add_paper_request':
-				return 'add-paper request';
-		}
-	}
-
-	async function moderate(eventId: number, decision: 'accepted' | 'rejected') {
-		busy = new Set(busy).add(eventId);
-		lastError = '';
-		try {
-			const res = await fetch('/api/admin/moderate', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ event_id: eventId, decision })
-			});
-			if (res.ok) await invalidateAll();
-			else lastError = `Failed to ${decision} event #${eventId} (${res.status})`;
-		} finally {
-			const b = new Set(busy);
-			b.delete(eventId);
-			busy = b;
-		}
-	}
 </script>
 
 <svelte:head><title>Admin · Rankless</title></svelte:head>
@@ -87,7 +24,10 @@
 {/snippet}
 
 <div class="admin">
-	<nav class="topnav"><a href="/mcp">→ MCP exploration sessions</a></nav>
+	<nav class="topnav">
+		<a href="{base}/mcp">→ MCP exploration sessions</a> ·
+		<a href="{base}/admin/ledger">→ Ledger review queue ({data.pendingCount} pending)</a>
+	</nav>
 
 	<h1>Users &amp; email consent</h1>
 	<p class="sub">
@@ -136,74 +76,6 @@
 			</tbody>
 		</table>
 	</div>
-
-	<h1 class="section">Ledger moderation</h1>
-	<p class="sub">
-		{events.length} most recent events · {pendingCount} pending review. Approving a change marks it accepted;
-		it is applied on the next data rebuild, not immediately. “implemented” means the change is live in
-		the current data{data.currentRunId ? ` (run ${data.currentRunId})` : ''}.
-	</p>
-	<label class="filter">
-		<input type="checkbox" bind:checked={onlyImplemented} /> show only changes implemented in the pipeline
-	</label>
-	{#if lastError}<p class="err">{lastError}</p>{/if}
-
-	<div class="table-wrap">
-		<table>
-			<thead>
-				<tr>
-					<th>#</th>
-					<th>actor</th>
-					<th>kind</th>
-					<th>summary</th>
-					<th>created</th>
-					<th>status</th>
-					<th>pipeline</th>
-					<th></th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each shownEvents as e, i (i)}
-					<tr
-						class:pending={e.moderation === 'pending_review'}
-						class:revoked={e.revoked_at !== null}
-					>
-						<td>{e.event_id}</td>
-						<td class="actor">
-							{#if names[e.orcid]?.name}
-								{@const a = names[e.orcid]}
-								<span class="actor-name">{@render actorName(a.name, a.semanticId)}</span>
-							{/if}
-							<span class="mono">{e.orcid}</span>
-						</td>
-						<td>{e.kind}</td>
-						<td>{summarize(e.payload)}</td>
-						<td class="mono">{e.created_at}</td>
-						<td>
-							{e.moderation}{e.moderated_by ? ` · by ${e.moderated_by}` : ''}{e.revoked_at
-								? ' · revoked'
-								: ''}
-						</td>
-						<td class={pipelineStatus(e).cls}>{pipelineStatus(e).label}</td>
-						<td class="actions">
-							{#if e.moderation === 'pending_review' && e.revoked_at === null}
-								<button
-									class="ok"
-									disabled={busy.has(e.event_id)}
-									on:click={() => moderate(e.event_id, 'accepted')}>Approve</button
-								>
-								<button
-									class="no"
-									disabled={busy.has(e.event_id)}
-									on:click={() => moderate(e.event_id, 'rejected')}>Reject</button
-								>
-							{/if}
-						</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
-	</div>
 </div>
 
 <style>
@@ -212,37 +84,12 @@
 		margin: 1rem auto;
 		padding: 0 1rem;
 	}
-	h1.section {
-		margin-top: 2.5rem;
-	}
 	.topnav {
 		margin-bottom: 1rem;
 		font-size: var(--text-sm);
 	}
-	.actor {
-		white-space: nowrap;
-	}
-	.actor-name {
-		display: block;
-	}
-	.actor .mono {
-		color: var(--color-text-light);
-	}
 	.sub {
 		color: var(--color-text-light);
-		font-size: var(--text-sm);
-	}
-	.filter {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.4rem;
-		font-size: var(--text-sm);
-		color: var(--color-text-light);
-		margin-bottom: 0.6rem;
-		cursor: pointer;
-	}
-	.err {
-		color: var(--color-err);
 		font-size: var(--text-sm);
 	}
 	.table-wrap {
@@ -288,48 +135,5 @@
 	.dot.online {
 		background: var(--color-ok);
 		opacity: 1;
-	}
-	.applied {
-		color: var(--color-ok);
-		font-weight: bold;
-	}
-	.skipped {
-		color: var(--color-warn);
-	}
-	.awaiting {
-		color: var(--color-text-light);
-	}
-	tr.pending {
-		background: rgba(var(--color-range-90), 0.12);
-	}
-	tr.revoked {
-		opacity: 0.55;
-		text-decoration: line-through;
-	}
-	.actions {
-		white-space: nowrap;
-	}
-	button {
-		margin-right: 0.3rem;
-		cursor: pointer;
-		font-family: inherit;
-		font-size: var(--text-xs);
-		padding: 2px 8px;
-		border: 1px solid rgba(var(--color-range-15), 0.25);
-		background: none;
-		color: var(--color-text);
-	}
-	button:hover:not(:disabled) {
-		background: rgba(var(--color-range-15), 0.08);
-	}
-	button:disabled {
-		cursor: default;
-		opacity: 0.5;
-	}
-	button.ok {
-		color: var(--color-ok);
-	}
-	button.no {
-		color: var(--color-err);
 	}
 </style>

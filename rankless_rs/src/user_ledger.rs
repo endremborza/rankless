@@ -40,19 +40,19 @@ pub struct UserLedger {
     pub owner_pin_orcids: HashSet<String>,
     /// Author oa_ids corresponding to owner_pin_orcids; filled by resolve_orcids
     pub owner_pin_oa_ids: HashSet<BigId>,
-    /// (event_id, orcid, work_oa) pending ORCID→oa_id resolution
-    pending_disowns: Vec<(u64, String, BigId)>,
-    /// (event_id, drop_oa, keep_oa) before path-compression; for manifest
-    author_merge_events: Vec<(u64, BigId, BigId)>,
-    work_merge_events: Vec<(u64, BigId, BigId)>,
-    /// event_ids for disowns whose orcid resolved (filled by resolve_orcids)
-    resolved_disown_event_ids: Vec<u64>,
+    /// (key, orcid, work_oa) pending ORCID→oa_id resolution
+    pending_disowns: Vec<(String, String, BigId)>,
+    /// (key, drop_oa, keep_oa) before path-compression; for manifest
+    author_merge_events: Vec<(String, BigId, BigId)>,
+    work_merge_events: Vec<(String, BigId, BigId)>,
+    /// logical keys for disowns whose orcid resolved (filled by resolve_orcids)
+    resolved_disown_keys: Vec<String>,
     pub skipped: Vec<SkippedEvent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkippedEvent {
-    pub event_id: u64,
+    pub key: String,
     pub reason: SkipReason,
 }
 
@@ -68,13 +68,11 @@ struct AuthorSubject {
 
 #[derive(Deserialize)]
 struct LedgerEventLine {
-    event_id: u64,
-    /// Missing in legacy target_inlined entries; defaults to empty string.
-    #[serde(default)]
+    /// Merge-stable logical id (`orcid|kind|subject_hash`); the pipeline references events
+    /// by this, never by the renumberable event_id. Written by export_user_ledger.py.
+    key: String,
     orcid: String,
     payload: EventPayload,
-    /// Present only on `Revoke` events; inlined by export_user_ledger.py.
-    target_inlined: Option<Box<LedgerEventLine>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -105,6 +103,9 @@ enum EventPayload {
         work: WorkSubject,
     },
     ClaimPaper,
+    // Never reach the pipeline (revokes are resolved away in export_user_ledger.py; the
+    // other two are never written to the ledger), but kept as variants so EventPayload
+    // stays a faithful mirror of TS LedgerPayload (see make type-audit).
     Revoke,
     ModerationDecision,
     AddPaperRequest,
@@ -113,7 +114,7 @@ enum EventPayload {
 #[derive(Serialize, Deserialize)]
 struct StepManifest {
     run_id: String,
-    applied_event_ids: Vec<u64>,
+    applied_keys: Vec<String>,
     skipped: Vec<SkippedEvent>,
 }
 
@@ -130,7 +131,7 @@ impl UserLedger {
             pending_disowns: Vec::new(),
             author_merge_events: Vec::new(),
             work_merge_events: Vec::new(),
-            resolved_disown_event_ids: Vec::new(),
+            resolved_disown_keys: Vec::new(),
             skipped: Vec::new(),
         };
 
@@ -156,78 +157,47 @@ impl UserLedger {
 
     fn apply_event(&mut self, event: LedgerEventLine) {
         let LedgerEventLine {
-            event_id,
+            key,
             orcid,
             payload,
-            target_inlined,
         } = event;
         let orcid = normalize_orcid(&orcid);
         match payload {
             EventPayload::MergeAuthors { keep, drop } => match (keep.oa_id, drop.oa_id) {
                 (Some(k), Some(d)) if k != d => {
                     self.author_aliases.insert(d, k);
-                    self.author_merge_events.push((event_id, d, k));
+                    self.author_merge_events.push((key, d, k));
                 }
                 _ => self.skipped.push(SkippedEvent {
-                    event_id,
+                    key,
                     reason: SkipReason::MissingOaId,
                 }),
             },
             EventPayload::MergePapers { keep, drop } => match (keep.oa_id, drop.oa_id) {
                 (Some(k), Some(d)) if k != d => {
                     self.work_aliases.insert(d, k);
-                    self.work_merge_events.push((event_id, d, k));
+                    self.work_merge_events.push((key, d, k));
                 }
                 _ => self.skipped.push(SkippedEvent {
-                    event_id,
+                    key,
                     reason: SkipReason::MissingOaId,
                 }),
             },
             EventPayload::DisownPaper { work } => match work.oa_id {
-                Some(w) if !orcid.is_empty() => self.pending_disowns.push((event_id, orcid, w)),
+                Some(w) if !orcid.is_empty() => self.pending_disowns.push((key, orcid, w)),
                 _ => self.skipped.push(SkippedEvent {
-                    event_id,
+                    key,
                     reason: SkipReason::MissingOaIdOrOrcid,
                 }),
             },
             EventPayload::ClaimPaper => self.skipped.push(SkippedEvent {
-                event_id,
+                key,
                 reason: SkipReason::ClaimPipelineNotImplemented,
             }),
-            EventPayload::Revoke => {
-                if let Some(target) = target_inlined {
-                    self.apply_revoke(*target);
-                }
-            }
-            EventPayload::ModerationDecision | EventPayload::AddPaperRequest => {}
-        }
-    }
-
-    fn apply_revoke(&mut self, target: LedgerEventLine) {
-        let LedgerEventLine { orcid, payload, .. } = target;
-        match payload {
-            EventPayload::MergeAuthors { drop, .. } => {
-                if let Some(d) = drop.oa_id {
-                    self.author_aliases.remove(&d);
-                    self.author_merge_events
-                        .retain(|(_, drop_id, _)| *drop_id != d);
-                }
-            }
-            EventPayload::MergePapers { drop, .. } => {
-                if let Some(d) = drop.oa_id {
-                    self.work_aliases.remove(&d);
-                    self.work_merge_events
-                        .retain(|(_, drop_id, _)| *drop_id != d);
-                }
-            }
-            EventPayload::DisownPaper { work } => {
-                let torcid = normalize_orcid(&orcid);
-                if let Some(work_oa) = work.oa_id {
-                    self.pending_disowns
-                        .retain(|(_, o, wid)| !(o == &torcid && *wid == work_oa));
-                }
-            }
-            _ => {}
+            // Resolved in export or never emitted; never present in active.jsonl.
+            EventPayload::Revoke
+            | EventPayload::ModerationDecision
+            | EventPayload::AddPaperRequest => {}
         }
     }
 
@@ -239,13 +209,13 @@ impl UserLedger {
                 self.owner_pin_oa_ids.insert(oa_id);
             }
         }
-        for (event_id, orcid, work_oa) in &self.pending_disowns {
+        for (key, orcid, work_oa) in &self.pending_disowns {
             if let Some(&author_oa) = orcid_to_oa.get(orcid) {
                 self.removed_edges.insert((author_oa, *work_oa));
-                self.resolved_disown_event_ids.push(*event_id);
+                self.resolved_disown_keys.push(key.clone());
             } else {
                 self.skipped.push(SkippedEvent {
-                    event_id: *event_id,
+                    key: key.clone(),
                     reason: SkipReason::OrcidNotInDataset,
                 });
             }
@@ -263,34 +233,34 @@ impl UserLedger {
         let mut applied = Vec::new();
         let mut skipped = self.skipped.clone();
 
-        for (event_id, drop_oa, _) in &self.author_merge_events {
+        for (key, drop_oa, _) in &self.author_merge_events {
             let root = *self.author_aliases.get(drop_oa).unwrap_or(drop_oa);
             if author_filter.contains(&root) {
-                applied.push(*event_id);
+                applied.push(key.clone());
             } else {
                 eprintln!(
-                    "user_ledger: event {event_id} skipped — author oa_id {root} not in dataset. \
+                    "user_ledger: event {key} skipped — author oa_id {root} not in dataset. \
                      If this ID was recently deprecated by OpenAlex, re-implement merged_ids \
                      redirect support (see docs/todo-backend.md, ledger deferred follow-ups)."
                 );
                 skipped.push(SkippedEvent {
-                    event_id: *event_id,
+                    key: key.clone(),
                     reason: SkipReason::OaIdNotInDataset,
                 });
             }
         }
-        for (event_id, drop_oa, _) in &self.work_merge_events {
+        for (key, drop_oa, _) in &self.work_merge_events {
             let root = *self.work_aliases.get(drop_oa).unwrap_or(drop_oa);
             if work_filter.contains(&root) {
-                applied.push(*event_id);
+                applied.push(key.clone());
             } else {
                 eprintln!(
-                    "user_ledger: event {event_id} skipped — work oa_id {root} not in dataset. \
+                    "user_ledger: event {key} skipped — work oa_id {root} not in dataset. \
                      If this ID was recently deprecated by OpenAlex, re-implement merged_ids \
                      redirect support (see docs/todo-backend.md, ledger deferred follow-ups)."
                 );
                 skipped.push(SkippedEvent {
-                    event_id: *event_id,
+                    key: key.clone(),
                     reason: SkipReason::OaIdNotInDataset,
                 });
             }
@@ -299,13 +269,13 @@ impl UserLedger {
         applied.sort_unstable();
         let manifest = StepManifest {
             run_id: self.run_id.clone(),
-            applied_event_ids: applied,
+            applied_keys: applied,
             skipped,
         };
         write_json(&stowage.paths.user_ledger.join(A1_MANIFEST), &manifest)?;
         println!(
             "{A1_MANIFEST}: {} applied, {} skipped",
-            manifest.applied_event_ids.len(),
+            manifest.applied_keys.len(),
             manifest.skipped.len()
         );
         Ok(())
@@ -337,9 +307,9 @@ impl UserLedger {
             ));
         }
 
-        let mut all_applied = a1.applied_event_ids;
-        for &eid in &self.resolved_disown_event_ids {
-            all_applied.push(eid);
+        let mut all_applied = a1.applied_keys;
+        for key in &self.resolved_disown_keys {
+            all_applied.push(key.clone());
         }
         all_applied.sort_unstable();
         all_applied.dedup();
@@ -350,8 +320,7 @@ impl UserLedger {
         let manifest = serde_json::json!({
             "run_id": self.run_id,
             "snapshot_at": self.run_id,
-            "applied_event_ids": all_applied,
-            "redirected": [],
+            "applied_keys": all_applied,
             "skipped": all_skipped,
         });
         write_json(&ul_dir.join(APPLIED_MANIFEST), &manifest)?;
@@ -485,7 +454,7 @@ mod tests {
     #[test]
     fn apply_event_merge_authors() {
         let event: LedgerEventLine = serde_json::from_str(
-            r#"{"event_id":1,"orcid":"x","payload":{"kind":"merge_authors","keep":{"oa_id":10},"drop":{"oa_id":20}}}"#,
+            r#"{"key":"x|merge_authors|h","orcid":"x","payload":{"kind":"merge_authors","keep":{"oa_id":10},"drop":{"oa_id":20}}}"#,
         )
         .unwrap();
         assert!(matches!(
@@ -500,7 +469,7 @@ mod tests {
     #[test]
     fn apply_event_unknown_kind_errors() {
         let result = serde_json::from_str::<LedgerEventLine>(
-            r#"{"event_id":1,"orcid":"x","payload":{"kind":"unknown_future_kind"}}"#,
+            r#"{"key":"x|unknown|h","orcid":"x","payload":{"kind":"unknown_future_kind"}}"#,
         );
         assert!(result.is_err());
     }

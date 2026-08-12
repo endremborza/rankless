@@ -1,10 +1,13 @@
 """Move the user DB (MCP + ledger + auth) between a local checkout and a deployed box.
 
-Transfers every user-data table of `data/rankless.sqlite` between two copies of
-it — including auth `sessions` (year-long TTL: dropping them logs everyone out
-on each deploy), of which only unexpired rows move. Runs on the receiving side
-against a shipped copy of the source DB; `pyscripts.deploy` moves the
-`data/mcp-sessions/` artifact dirs alongside it.
+Transfers every curated table of `data/rankless.sqlite` between two copies of it:
+`mcp_sessions`, `ledger_events`, `ledger_runs`, `owner_pins`, `users`,
+`email_consents`, the review tables `subject_enrichment` / `review_verdicts`
+(keyed by external ids / subject hashes, so rows stay valid across boxes), and
+auth `sessions` (year-long TTL: dropping them logs everyone out on each deploy),
+of which only unexpired rows move. Runs on the receiving side against a shipped
+copy of the source DB; `pyscripts.deploy` moves the `data/mcp-sessions/` artifact
+dirs alongside it.
 
     python -m pyscripts.mcp_db <target_db> <incoming_db> merge|mirror
     python -m pyscripts.mcp_db snapshot <src_db> <dst>
@@ -31,6 +34,8 @@ TABLES = (
     "owner_pins",
     "users",
     "email_consents",
+    "subject_enrichment",
+    "review_verdicts",
     "sessions",
 )
 ROW_FILTERS = {"sessions": "expires_at > datetime('now')"}

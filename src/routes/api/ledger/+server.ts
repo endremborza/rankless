@@ -96,10 +96,16 @@ async function buildPayload(
 		case 'revoke': {
 			const target_event_id = requireNumber(input.target_event_id, 'target_event_id');
 			if (target_event_id === undefined) throw new ResolveError('target_event_id is required', 400);
+			// Resolve the client's local event_id to the target's merge-stable logical key now,
+			// so the stored payload never depends on a renumberable id. Also the ownership gate.
+			const target = LedgerDb.getEvent(target_event_id);
+			if (!target || target.orcid !== orcid) {
+				throw new ResolveError('Target event not found', 404);
+			}
 			const reason = requireString(input.reason, 'reason');
 			return reason?.trim()
-				? { kind, target_event_id, reason: reason.trim() }
-				: { kind, target_event_id };
+				? { kind, target_key: target.key, reason: reason.trim() }
+				: { kind, target_key: target.key };
 		}
 		default:
 			throw new ResolveError(`unsupported kind: ${kind}`, 400);
@@ -114,12 +120,6 @@ export async function POST({ locals, request }: RequestEvent) {
 
 	try {
 		const payload = await buildPayload(kind, payloadInput, locals.user.orcid);
-		if (payload.kind === 'revoke') {
-			const target = LedgerDb.getEvent(payload.target_event_id);
-			if (!target || target.orcid !== locals.user.orcid) {
-				return json({ error: 'Target event not found' }, { status: 404 });
-			}
-		}
 		const result = LedgerDb.createEvent(locals.user.orcid, payload);
 		return json({ event_id: result.event_id, existing: result.existing });
 	} catch (e) {

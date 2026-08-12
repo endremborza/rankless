@@ -10,10 +10,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 	// 404 (not 403) so the page's existence stays hidden from non-admins.
 	if (!isAdmin(locals.user?.orcid)) error(404, 'Not found');
 
-	const manifest = readManifest();
-	const applied = new Set(LedgerDb.getAllAppliedEventIds());
-	for (const id of manifest.applied_event_ids) applied.add(id);
-
 	const online = SessionDb.activeOrcids();
 	const consents = ConsentDb.listActiveConsents();
 	const consentByOrcid = new Map<string, EmailConsent>(consents.map((c) => [c.orcid, c]));
@@ -54,7 +50,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	// '' = confirmed non-author) are cached, so steady-state loads make no backend calls.
 	// A dataset rebuild bumps run_id, which re-resolves everyone once. We fetch whenever we
 	// still lack a *name* (a linkable semantic_id rides along when the backend has one).
-	const runId = manifest.run_id;
+	const runId = readManifest().run_id;
 	const cache = new Map(OrcidNameDb.getAll().map((r) => [r.orcid, r]));
 	const toFetch: string[] = [];
 	for (const orcid of allOrcids) {
@@ -100,17 +96,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 		a.online !== b.online ? (a.online ? -1 : 1) : b.last_seen.localeCompare(a.last_seen)
 	);
 
+	// Ledger moderation lives at /admin/ledger now; surface only the pending count here.
 	return {
-		events: LedgerDb.listAllEvents(),
-		applied: [...applied],
-		skipped: manifest.skipped,
-		currentRunId: manifest.run_id,
 		users: userRows,
 		names: Object.fromEntries(
 			[...nameByOrcid].map(([orcid, name]) => [
 				orcid,
 				{ name, semanticId: semByOrcid.get(orcid) ?? '' }
 			])
-		) as Record<string, { name: string; semanticId: string }>
+		) as Record<string, { name: string; semanticId: string }>,
+		pendingCount: LedgerDb.countEventsFiltered({ moderation: 'pending_review' })
 	};
 };

@@ -17,6 +17,14 @@ export const DEFAULT_MODERATION: Record<LedgerKind, ModerationState> = {
 	add_paper_request: 'pending_review'
 };
 
+// Merge-stable logical id of an event: `${orcid}|${kind}|${subject_hash}`. This is the
+// dedup identity the DB already enforces (idx_le_dedup), and — unlike the autoincrement
+// event_id — it survives DB merges. Mirrored verbatim in export_user_ledger.py and the
+// one-time revoke migration; keep the format in sync.
+export function logicalKey(orcid: string, kind: LedgerKind, subjectHash: string): string {
+	return `${orcid}|${kind}|${subjectHash}`;
+}
+
 export function workCanonicalKey(ws: WorkSubject): string {
 	if (ws.oa_id !== null && ws.oa_id !== undefined) return `oa:${ws.oa_id}`;
 	if (ws.doi) return `doi:${ws.doi.toLowerCase()}`;
@@ -47,6 +55,8 @@ export function subjectHash(payload: LedgerPayload): string {
 			return sha1Hex(keys.join('|'));
 		}
 		case 'revoke':
+			// Keyed on the target's merge-stable logical key, not a renumberable event_id.
+			return sha1Hex(`target:${payload.target_key}`);
 		case 'moderation_decision':
 			return sha1Hex(`target:${payload.target_event_id}`);
 		case 'add_paper_request':

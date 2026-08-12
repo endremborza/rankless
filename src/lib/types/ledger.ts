@@ -5,6 +5,10 @@
 //
 // applied_manifest.json (Rust → TS): AppliedManifest
 //   Mirror of: rankless_rs/src/user_ledger.rs — write_final_manifest output
+//
+// Events are referenced across boxes by their logical key `${orcid}|${kind}|${subject_hash}`
+// (see logicalKey in ledger-hash.ts), never by the autoincrement event_id — that id is a
+// per-box rowid and gets renumbered when DBs are merged (pyscripts/mcp_db.py).
 
 export type WorkSubject = {
 	oa_id: number | null;
@@ -40,7 +44,9 @@ export type LedgerPayload =
 	| { kind: 'claim_paper'; work: WorkSubject }
 	| { kind: 'merge_papers'; keep: WorkSubject; drop: WorkSubject }
 	| { kind: 'merge_authors'; keep: AuthorSubject; drop: AuthorSubject; note?: string }
-	| { kind: 'revoke'; target_event_id: number; reason?: string }
+	// target_key = the revoked event's logical key (merge-stable), set server-side from the
+	// client's target_event_id at creation. Not the raw event_id, which renumbers on merge.
+	| { kind: 'revoke'; target_key: string; reason?: string }
 	| {
 			kind: 'moderation_decision';
 			target_event_id: number;
@@ -49,9 +55,11 @@ export type LedgerPayload =
 	  }
 	| { kind: 'add_paper_request'; work_claim: Record<string, unknown> };
 
-// Client-visible event shape — subset of the full DB row in $lib/server/db.ts
+// Client-visible event shape — subset of the full DB row in $lib/server/db.ts. `key` is the
+// merge-stable logical id used for all cross-box matching (manifest, revoke targets).
 export type LedgerEvent = {
 	event_id: number;
+	key: string;
 	kind: LedgerKind;
 	payload: LedgerPayload;
 	revoked_at: string | null;
@@ -59,11 +67,11 @@ export type LedgerEvent = {
 	created_at: string;
 };
 
-// Mirror of rankless_rs/src/user_ledger.rs write_final_manifest output
+// Mirror of rankless_rs/src/user_ledger.rs write_final_manifest output. Events are keyed by
+// their logical key, not event_id (see the boundary note above).
 export type AppliedManifest = {
 	run_id: string;
 	snapshot_at: string;
-	applied_event_ids: number[];
-	redirected: { event_id: number; subject: string; from: number; to: number }[];
-	skipped: { event_id: number; reason: string }[];
+	applied_keys: string[];
+	skipped: { key: string; reason: string }[];
 };
