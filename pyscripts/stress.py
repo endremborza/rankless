@@ -798,10 +798,6 @@ def main(
 
 
 def _run_phases(args: argparse.Namespace) -> None:
-    # The phase implementations share this namespace (standalone copies of
-    # this file predate per-phase signatures); main() is the typed surface.
-    # Suppressed: a standalone copy (scp'd to a box, see docstring) may sit
-    # where the repo-relative LOG_DIR is unwritable — those runs only print.
     with contextlib.suppress(OSError):
         LOG_DIR.mkdir(parents=True, exist_ok=True)
     if args.phase == "sample":
