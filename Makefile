@@ -3,6 +3,7 @@ export
 
 .PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest mcp-worker setup-services
 .PHONY: check format check-rs check-py check-js format-rs format-py format-js
+.PHONY: refresh-data commit-artifacts warm-caches ship-alpha promote
 
 PY_LINT_PATHS := pyscripts sql-yardstick mcp_server
 
@@ -132,24 +133,45 @@ cache-prep cache-read cache-rest cache-validate-all cache-validate-bigs:
 stress:
 	uv run -m pyscripts stress --ssh-host rankless-alpha $(ARGS)
 
-pull_live_certs sync_fe_to_alpha sync_fe_to_alpha_nopull sync_fe_to_live sync_fe_to_local sync_data_to_alpha sync_data_to_live setup_local_test bump_v bump_v_minor rolling_restart_live_fe new_small_alpha new_large_alpha kill_dangling kill_alpha:
+# Fleet serving ceiling: drive https://alpha through nginx (X-Loadtest token
+# lane: rate-limit exempt + cache bypass; needs LOADTEST_TOKEN in .env, applied
+# via `make sync_nginx_to_alpha`), then read the two yardsticks — the request
+# frequency where render latency (urt) degrades and where 5xx start — straight
+# from the nginx access log, which holds ours + external traffic uniformly. The
+# before/after gate for FE + serving perf changes; e.g. `make capacity
+# ARGS="--restart"`.
+capacity:
+	uv run -m pyscripts stress capacity $(ARGS)
+
+pull_live_certs sync_fe_to_alpha sync_fe_to_alpha_nopull sync_fe_to_live sync_fe_to_local sync_data_to_alpha sync_data_to_live sync_nginx_to_alpha sync_nginx_to_live setup_local_test bump_v bump_v_minor rolling_restart_live_fe new_small_alpha new_large_alpha kill_dangling kill_alpha:
 	echo "from pyscripts.deploy import $@;$@()" | uv run -
 
-# MCP + ledger DB movement: {merge,sync}_db_{to,from}_{live,alpha} (see pyscripts/deploy.py).
+# User DB movement (ledger + MCP + auth sessions): {merge,sync}_db_{to,from}_{live,alpha} (see pyscripts/deploy.py).
 merge_db_from_live sync_db_from_live merge_db_to_live sync_db_to_live merge_db_from_alpha sync_db_from_alpha merge_db_to_alpha sync_db_to_alpha:
 	echo "from pyscripts.deploy import $@;$@()" | uv run -
+
+# Release flow (docs/deploy.md): one stage = one command, run them in order.
+# Sequencing/orchestration lives in pyscripts/release.py; pass flags via ARGS,
+# e.g. `make refresh-data ARGS="--from-snapshot"`.
+refresh-data commit-artifacts warm-caches ship-alpha promote:
+	uv run -m pyscripts deploy $@ $(ARGS)
+
+# Warm-fleet helpers (pyscripts/fleet): probe / suggest / preflight / stamp,
+# e.g. `make fleet ARGS="preflight"`.
+fleet:
+	uv run -m pyscripts fleet $(ARGS)
 
 post-csvs: filter extend_csvs rankless_rs/src/gen/derive_links5.rs lib_data_generation
 	@echo Complete
 
-# Backend-independent data build: everything the server reads, no running server
-# required. Used by from-scratch builders (bootstrap, branch comparison).
+# Internal (from-scratch builders: bootstrap, branch comparison, mega_test) —
+# routine deploys go through `make refresh-data` instead.
+# build-data: backend-independent data build, no running server required.
+# complete: build-data, then restart the backend on it and bake the homepage
+# showcase (homepage_showcase waits for the service to finish loading).
 build-data: to-csv post-csvs
 	@echo data built
 
-# One command, in order: build the data, restart the backend on it, then bake the
-# homepage showcase (which queries the freshly-restarted backend — homepage_showcase
-# waits for the service to finish loading before it queries).
 complete: build-data restart-service homepage_showcase
 	@echo Complete
 

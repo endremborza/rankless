@@ -6,7 +6,9 @@ Commands:
     compare-sql        Flask/PostgreSQL vs Rust server comparison (correctness + timing)
     compare-branch     perf comparison of two git refs (tlog phase timing + peak memory)
     bench              local throughput + memory benchmark (current branch vs main)
-    cache <action>     warm/validate the server response cache
+    cache <action>     warm/validate the server response cache (single box)
+    deploy <stage>     release flow stages (see docs/deploy.md)
+    fleet <action>     warm-fleet helpers: probe/suggest/preflight/stamp
     stress <phase>     stress-suite load driver + remote memory sampler
     review-ledger      AI verdicts for pending user-ledger claims (see /admin/ledger)
 
@@ -28,6 +30,8 @@ COMMANDS = {
     "compare-branch": "branch_comparison",
     "bench": "bm",
     "cache": "cache_prompting",
+    "deploy": "release",
+    "fleet": "fleet",
     "stress": "stress",
     "review-ledger": "review_ledger",
 }

@@ -1,14 +1,15 @@
-"""End-to-end ledger integration test.
+"""End-to-end ledger integration test, riding the real release path.
 
 Flow
 ────
-1. make nuke && make -B complete  (complete builds the data, restarts the backend
-   on it, then bakes the homepage showcase — one command, in that order).
+1. make nuke, then the refresh-data release stage with --from-snapshot
+   --no-db-pull (nuke removed $OA_ROOT and the sqlite DB): to-csv → filter →
+   scoped ladder force → stamp → lib data → restart backend → showcase.
 2. Wait for the backend, start the SvelteKit dev server (bun run dev).
 3. Playwright pre-pipeline: login, disown a paper, merge two papers, verify pending.
-4. make -B post-csvs  (re-exports ledger → clean-filters → rebuilds the pipeline).
-5. make restart-service && wait for backend.
-6. Playwright post-pipeline: verify applied events + author page reflects changes.
+4. refresh-data --no-db-pull (re-exports ledger → filter → forced ladder →
+   stamp → restart), wait for backend.
+5. Playwright post-pipeline: verify applied events + author page reflects changes.
 
 Records the outcome (timestamp, result, duration) to docs/mega-test-last-run.md
 on every run, pass or fail.
@@ -171,10 +172,8 @@ def _run_playwright(grep: str, *, env: dict[str, str] | None = None) -> int:
     return result.returncode
 
 
-def _run_pipeline() -> None:
-    _run(["make", "-B", "post-csvs"])
-    _run(["make", "restart-service"])
-    _wait_backend()
+def _refresh_data(*flags: str) -> None:
+    _run(["uv", "run", "-m", "pyscripts", "deploy", "refresh-data", *flags])
 
 
 def _fmt_duration(elapsed: float) -> str:
@@ -200,7 +199,7 @@ def main() -> None:
     dev_server: "subprocess.Popen | None" = None
     try:
         _run(["make", "nuke"])
-        _run(["make", "-B", "complete"])  # build data → restart backend → bake showcase
+        _refresh_data("--from-snapshot", "--no-db-pull")
         _wait_backend()
 
         dev_server = _start_dev_server()
@@ -210,7 +209,8 @@ def main() -> None:
             detail = f"pre-pipeline playwright exited {rc}"
             raise SystemExit(f"\n[FAIL] {detail}")
 
-        _run_pipeline()
+        _refresh_data("--no-db-pull")
+        _wait_backend()
 
         rc = _run_playwright("post-pipeline")
         if rc != 0:
