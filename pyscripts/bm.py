@@ -1,3 +1,5 @@
+"""Local throughput + memory benchmark; auto-compares against rankless-main."""
+
 import datetime as dt
 import re
 import subprocess
@@ -186,8 +188,7 @@ def p99(s):
     return np.quantile(s, 0.99)
 
 
-def run(args=None) -> None:
-    """Local throughput + memory benchmark; auto-compares against rankless-main."""
+def main() -> None:
     bmer = Benchmarker()
     bmer.setup()
     bmer.run_requests()
@@ -195,4 +196,4 @@ def run(args=None) -> None:
 
 
 if __name__ == "__main__":
-    run()
+    main()

@@ -59,7 +59,7 @@ def stamp_digest(stamp: str) -> str:
 
 def run_id(root: str | None) -> str:
     """The ledger snapshot run_id when present, else today — names data builds
-    (the stamp line here, the artifact commit message in release.py)."""
+    (the stamp line here, the artifact commit message in recalc.py)."""
     snap = Path(root or ".") / "user-ledger" / "snapshot_manifest.json"
     if root and snap.exists():
         return json.loads(snap.read_text())["run_id"]

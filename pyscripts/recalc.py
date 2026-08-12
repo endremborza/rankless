@@ -1,11 +1,7 @@
-"""Release flow stages (`uv run -m pyscripts release <stage>`, see docs/deploy.md).
+"""Data recalculation stages, run in order (see docs/deploy.md).
 
-    refresh-data      pull user DB from live, rebuild the data + backend + showcase
-                      (--from-snapshot to run to-csv first; --no-db-pull to skip AWS)
-    commit-artifacts  commit + push exactly the generated files (gen/, assets/data)
-    warm-caches       drive the data/warm.toml fleet (--config/--only/--no-push/--gate-only)
-    ship-alpha        fresh large alpha box + smoke checks (branch must be pushed)
-    promote           flip alpha to live + smoke checks
+Shipping the recalculated data (`ship_alpha`, `promote`) lives in
+pyscripts/deploy.py — those deploy the application; these rebuild its data.
 
 Stages are idempotent — rerunning resumes/verifies rather than redoing work.
 `refresh-data` and `warm-caches` take the pipeline lock: /tmp/dmove-parts is
@@ -16,17 +12,14 @@ import os
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
-from urllib.parse import quote_plus
 
-import requests
 from dotenv import load_dotenv
+from protocli import Dispatcher
 
 from pyscripts import fleet
 from pyscripts.fleet import manifest
 
 load_dotenv()
-
-STAGES = ("refresh-data", "commit-artifacts", "warm-caches", "ship-alpha", "promote")
 ARTIFACT_PATHS = ("rankless_rs/src/gen", "src/lib/assets/data")
 LADDER_TOP = "rankless_rs/src/gen/derive_links5.rs"
 LOCK_PATH = Path("/tmp/rankless-pipeline.lock")
@@ -52,11 +45,13 @@ def pipeline_lock():
         LOCK_PATH.unlink(missing_ok=True)
 
 
-def refresh_data(args) -> None:
+def refresh_data(*, from_snapshot: bool = False, no_db_pull: bool = False) -> None:
+    """Pull user DB from live, rebuild the data + backend + showcase
+    (--from-snapshot runs to-csv first; --no-db-pull skips AWS)."""
     with pipeline_lock():
-        if not args.no_db_pull:
+        if not no_db_pull:
             _pull_db()
-        if args.from_snapshot:
+        if from_snapshot:
             _make("to-csv")
         _make("filter", "extend_csvs")
         # The gen ladder's make deps only see steps/*.rs — it cannot know the
@@ -71,7 +66,8 @@ def refresh_data(args) -> None:
     print("refresh-data done — next: `make commit-artifacts`")
 
 
-def commit_artifacts(cwd: Path = Path(".")) -> None:
+def commit_artifacts(*, cwd: Path = Path(".")) -> None:
+    """Commit + push exactly the generated files (gen/, assets/data)."""
     branch = _git_out(cwd, "branch", "--show-current")
     staged = _git_lines(cwd, "diff", "--cached", "--name-only")
     if staged:
@@ -92,93 +88,30 @@ def commit_artifacts(cwd: Path = Path(".")) -> None:
     _git(cwd, "push", "origin", branch)
 
 
-def warm_caches(args) -> None:
-    if args.gate_only:
-        cfg = fleet.load_config(args.config, require_bands=False)
+def warm_caches(
+    *,
+    config: str = fleet.DEFAULT_CONFIG,
+    only: str | None = None,
+    no_push: bool = False,
+    gate_only: bool = False,
+) -> None:
+    """Drive the data/warm.toml fleet (machine-local, gitignored config)."""
+    if gate_only:
+        cfg = fleet.load_config(config, require_bands=False)
         fleet.coverage_gate(os.environ["OA_ROOT"], cfg.min_citations)
         return
     with pipeline_lock():
-        fleet.warm(args.config, only=args.only, push=not args.no_push)
+        fleet.warm(config, only=only, push=not no_push)
 
 
-def ship_alpha(args) -> None:
-    _assert_released()
-    from pyscripts import deploy
-
-    deploy.new_large_alpha()
-    smoke(live=False)
-    print("alpha up — validate by hand, then `make promote`")
-
-
-def promote(args) -> None:
-    from pyscripts import deploy
-
-    deploy.promote_alpha_to_live()
-    smoke(live=True)
-    print(
-        "promoted — the old live box keeps running (DB safety net); "
-        "once satisfied, run `make kill_dangling`"
-    )
-
-
-def smoke(live: bool) -> None:
-    """FE + BE reachable and serving real data; per-FE-worker memory sane."""
-    from pyscripts import deploy
-
-    fe = deploy.LIVE_DOMAIN if live else deploy.ALPHA_DOMAIN
-    be = deploy.LIVE_BACKEND if live else deploy.ALPHA_BACKEND
-    _check_ok(f"https://{fe}/", "frontend root")
-    specs = _check_json(f"https://{be}/v1/specs", "specs")["specs"]
-    rt = next(iter(specs))
-    rows = _check_json(f"https://{be}/v1/slice/{rt}/0/2", f"slice {rt}")
-    sid = quote_plus(rows[0]["semanticId"])
-    tree = _check_json(
-        f"https://{be}/v1/trees/{rt}/{sid}?tid=0&year=1950", f"tree {rt}/{sid}"
-    )
-    if not tree:
-        raise SystemExit("smoke: tree response empty")
-    print(deploy.get_running_tpr(live).get_fe_memory_df().to_string())
-    print(f"smoke checks passed for {fe}")
-
-
-def add_arguments(parser) -> None:
-    parser.add_argument("stage", choices=STAGES)
-    parser.add_argument(
-        "--from-snapshot",
-        action="store_true",
-        help="refresh-data: run to-csv first (a new OpenAlex snapshot landed)",
-    )
-    parser.add_argument(
-        "--no-db-pull",
-        action="store_true",
-        help="refresh-data: skip pulling the user DB from live (no AWS access)",
-    )
-    parser.add_argument(
-        "--config",
-        default=fleet.DEFAULT_CONFIG,
-        help="warm-caches fleet (machine-local, gitignored)",
-    )
-    parser.add_argument("--only", help="warm-caches: run a single worker by name")
-    parser.add_argument(
-        "--no-push", action="store_true", help="warm-caches: skip the data push"
-    )
-    parser.add_argument(
-        "--gate-only",
-        action="store_true",
-        help="warm-caches: only run the disk coverage gate",
-    )
-
-
-def run(args) -> None:
-    dispatch = {
+_dispatcher = Dispatcher(
+    "pyscripts recalc",
+    {
         "refresh-data": refresh_data,
-        "commit-artifacts": lambda _: commit_artifacts(),
+        "commit-artifacts": commit_artifacts,
         "warm-caches": warm_caches,
-        "ship-alpha": ship_alpha,
-        "promote": promote,
-    }
-    assert set(dispatch) == set(STAGES)
-    dispatch[args.stage](args)
+    },
+)
 
 
 def _pull_db() -> None:
@@ -193,7 +126,8 @@ def _pull_db() -> None:
         )
 
 
-def _assert_released() -> None:
+def assert_released() -> None:
+    """Everything commit-artifacts owns is committed + pushed (used by ship_alpha)."""
     cwd = Path(".")
     dirty = _git_lines(cwd, "status", "--porcelain", "--", *ARTIFACT_PATHS)
     if dirty:
@@ -224,18 +158,6 @@ def _git_out(cwd: Path, *args: str) -> str:
 
 def _git_lines(cwd: Path, *args: str) -> list[str]:
     return [line for line in _git_out(cwd, *args).splitlines() if line.strip()]
-
-
-def _check_ok(url: str, desc: str) -> requests.Response:
-    r = requests.get(url, timeout=300)
-    if not r.ok:
-        raise SystemExit(f"smoke: {desc} → {r.status_code} ({url})")
-    print(f"smoke: {desc} ok")
-    return r
-
-
-def _check_json(url: str, desc: str):
-    return _check_ok(url, desc).json()
 
 
 def _alive(pid: int) -> bool:

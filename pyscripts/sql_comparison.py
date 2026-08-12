@@ -20,7 +20,6 @@ PNG debug report (report.html), and poster-quality vector figures
 (timing/memory/accuracy as .svg + .pdf, via poster_figures).
 """
 
-import argparse
 import re
 import subprocess
 from datetime import datetime
@@ -253,41 +252,20 @@ def run_comparison(
     )
 
 
-def add_arguments(parser: argparse.ArgumentParser) -> None:
-    rvals = [r.value for r in RebuildLevel]
-    parser.add_argument(
-        "--rebuild-rust",
-        default="binary",
-        choices=rvals,
-        help="Rebuild level for Rust container (default: binary)",
-    )
-    parser.add_argument(
-        "--rebuild-sql",
-        action="store_true",
-        help="Rebuild and restart Flask/PG container (default: skip if running)",
-    )
-    parser.add_argument(
-        "--no-keep-sql",
-        action="store_true",
-        help="Stop Flask/PG container after run (default: keep running)",
-    )
-    parser.add_argument(
-        "--samples", type=int, default=4, help="Entities per citation-count bin"
-    )
-    parser.add_argument(
-        "--artifacts",
-        type=Path,
-        default=ARTIFACTS_ROOT,
-        help=f"Output directory (default: {ARTIFACTS_ROOT})",
-    )
-
-
-def run(args: argparse.Namespace) -> None:
+def main(
+    *,
+    rebuild_rust: str = "binary",
+    rebuild_sql: bool = False,
+    no_keep_sql: bool = False,
+    samples: int = 4,
+    artifacts: Path = ARTIFACTS_ROOT,
+) -> None:
+    """Flask/PostgreSQL vs Rust comparison; --rebuild-rust none|binary|image."""
     ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
     run_comparison(
-        rebuild_rust=RebuildLevel(args.rebuild_rust),
-        rebuild_sql=args.rebuild_sql,
-        keep_sql=not args.no_keep_sql,
-        e_per_bin=args.samples,
-        artifacts_dir=args.artifacts / f"{ts}-sql-vs-rust",
+        rebuild_rust=RebuildLevel(rebuild_rust),
+        rebuild_sql=rebuild_sql,
+        keep_sql=not no_keep_sql,
+        e_per_bin=samples,
+        artifacts_dir=artifacts / f"{ts}-sql-vs-rust",
     )

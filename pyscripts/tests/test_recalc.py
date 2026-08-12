@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from pyscripts import release
+from pyscripts import recalc
 
 
 def _git(cwd: Path, *args: str) -> str:
@@ -20,7 +20,7 @@ def repo(tmp_path: Path) -> Path:
     _git(repo, "config", "user.email", "t@t.t")
     _git(repo, "config", "user.name", "t")
     _git(repo, "remote", "add", "origin", str(origin))
-    for rel in [f"{p}/keep.txt" for p in release.ARTIFACT_PATHS] + ["hand_written.rs"]:
+    for rel in [f"{p}/keep.txt" for p in recalc.ARTIFACT_PATHS] + ["hand_written.rs"]:
         f = repo / rel
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text("v1")
@@ -31,17 +31,17 @@ def repo(tmp_path: Path) -> Path:
 
 
 def test_commit_artifacts_scopes_to_generated_paths(repo: Path) -> None:
-    (repo / release.ARTIFACT_PATHS[0] / "keep.txt").write_text("v2")
-    (repo / release.ARTIFACT_PATHS[1] / "new.json").write_text("{}")
+    (repo / recalc.ARTIFACT_PATHS[0] / "keep.txt").write_text("v2")
+    (repo / recalc.ARTIFACT_PATHS[1] / "new.json").write_text("{}")
     (repo / "hand_written.rs").write_text("v2")
 
-    release.commit_artifacts(cwd=repo)
+    recalc.commit_artifacts(cwd=repo)
 
     committed = _git(repo, "show", "--name-only", "--format=", "HEAD").splitlines()
     assert sorted(committed) == sorted(
         [
-            f"{release.ARTIFACT_PATHS[0]}/keep.txt",
-            f"{release.ARTIFACT_PATHS[1]}/new.json",
+            f"{recalc.ARTIFACT_PATHS[0]}/keep.txt",
+            f"{recalc.ARTIFACT_PATHS[1]}/new.json",
         ]
     )
     # hand-written change untouched, commit pushed
@@ -53,12 +53,12 @@ def test_commit_artifacts_aborts_on_staged_junk(repo: Path) -> None:
     (repo / "hand_written.rs").write_text("v2")
     _git(repo, "add", "hand_written.rs")
     with pytest.raises(SystemExit, match="staged"):
-        release.commit_artifacts(cwd=repo)
+        recalc.commit_artifacts(cwd=repo)
 
 
 def test_commit_artifacts_noop_when_clean(repo: Path) -> None:
     head = _git(repo, "rev-parse", "HEAD")
-    release.commit_artifacts(cwd=repo)
+    recalc.commit_artifacts(cwd=repo)
     assert _git(repo, "rev-parse", "HEAD") == head
 
 
@@ -73,31 +73,33 @@ def test_commit_artifacts_aborts_when_behind(repo: Path, tmp_path: Path) -> None
     _git(other, "commit", "-am", "upstream")
     _git(other, "push")
 
-    (repo / release.ARTIFACT_PATHS[0] / "keep.txt").write_text("v2")
+    (repo / recalc.ARTIFACT_PATHS[0] / "keep.txt").write_text("v2")
     with pytest.raises(SystemExit, match="behind"):
-        release.commit_artifacts(cwd=repo)
+        recalc.commit_artifacts(cwd=repo)
 
 
 def test_pipeline_lock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(release, "LOCK_PATH", tmp_path / "lock")
-    with release.pipeline_lock():
+    monkeypatch.setattr(recalc, "LOCK_PATH", tmp_path / "lock")
+    with recalc.pipeline_lock():
         with pytest.raises(SystemExit, match="lock held"):
-            with release.pipeline_lock():
+            with recalc.pipeline_lock():
                 pass
-    assert not release.LOCK_PATH.exists()
+    assert not recalc.LOCK_PATH.exists()
 
     # a dead holder's lock is stolen
     dead = subprocess.Popen(["true"])
     dead.wait()
-    release.LOCK_PATH.write_text(str(dead.pid))
-    with release.pipeline_lock():
-        assert release.LOCK_PATH.read_text() != str(dead.pid)
+    recalc.LOCK_PATH.write_text(str(dead.pid))
+    with recalc.pipeline_lock():
+        assert recalc.LOCK_PATH.read_text() != str(dead.pid)
 
 
 def test_deploy_primitives_derived() -> None:
     from pyscripts import deploy
 
     prims = deploy.primitives()
-    assert {"new_large_alpha", "merge_db_from_live", "bump_v"} <= set(prims)
+    assert {"new_large_alpha", "merge_db_from_live", "ship_alpha", "promote"} <= set(
+        prims
+    )
     # helpers with required args, privates, and the shim itself stay out
     assert not {"run_logged", "run", "add_arguments", "_current_branch"} & set(prims)

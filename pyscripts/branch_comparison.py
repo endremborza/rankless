@@ -15,7 +15,6 @@ is contention-free) against the same sampled query set. Queries use
 a full cold recompute. See docs/perf-benchmark-framework.md.
 """
 
-import argparse
 import dataclasses
 import datetime as dt
 import re
@@ -267,18 +266,12 @@ def run_comparison(comp: Comparison, artifacts_root: Path) -> None:
         remove_worktree(wt_b)
 
 
-def add_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--config", type=Path, default=DEFAULT_CONFIG, help="TOML comparison config"
-    )
-    parser.add_argument(
-        "--only", default=None, help="run only the comparison with this name"
-    )
-    parser.add_argument(
-        "--artifacts", type=Path, default=ARTIFACTS_ROOT, help="output directory root"
-    )
-
-
-def run(args: argparse.Namespace) -> None:
-    for comp in load_config(args.config, args.only):
-        run_comparison(comp, args.artifacts)
+def main(
+    *,
+    config: Path = DEFAULT_CONFIG,
+    only: str | None = None,
+    artifacts: Path = ARTIFACTS_ROOT,
+) -> None:
+    """Perf-compare two git refs per the TOML config (--only one comparison)."""
+    for comp in load_config(config, only):
+        run_comparison(comp, artifacts)

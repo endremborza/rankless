@@ -1,100 +1,62 @@
 """Cache-warm worker fleet: preflight-gated orchestration + calibration.
 
-    uv run -m pyscripts fleet <action>
-
-Actions:
-    probe      per-machine facts (RAM/disk/cores/checkout/unit/tools) — the
-               readiness checklist for a box; --host probes one not yet in the
-               config (pair with --repo-dir/--data-root once it has them)
-    suggest    draft complete warm.toml bands/procs/limits from probes + the
-               actual worklist (needs the local backend up)
-    preflight  run every invariant check against the current fleet, changing
-               nothing — the same gate `deploy warm-caches` enforces
-    stamp      (re)write the data-root stamp the backend echoes in /v1/specs
-               (refresh-data stamps automatically; restart-service after)
-
-The warm run itself is a release stage: `make warm-caches` → pyscripts/release.py
+The warm run itself is a recalc stage: `make warm-caches` → pyscripts/recalc.py
 → fleet.warm. Config is machine-local at data/warm.toml (docs/deploy.md).
 """
 
 import os
 
 from dotenv import load_dotenv
+from protocli import Dispatcher
 
 from pyscripts.fleet.config import DEFAULT_CONFIG, load_config
 from pyscripts.fleet.drive import coverage_gate, warm  # noqa: F401 — package API
 
 load_dotenv()
 
-ACTIONS = ("probe", "suggest", "preflight", "stamp")
 
-
-def add_arguments(parser) -> None:
-    parser.add_argument("action", choices=ACTIONS)
-    parser.add_argument(
-        "--config", default=DEFAULT_CONFIG, help="fleet toml (machine-local)"
-    )
-    parser.add_argument(
-        "--host", help="probe: an ssh alias not (yet) in the fleet config"
-    )
-    parser.add_argument("--repo-dir", default="", help="probe: checkout on --host")
-    parser.add_argument("--data-root", default="", help="probe: data root on --host")
-    parser.add_argument(
-        "--min-citations", type=int, help="suggest: override the fleet worklist floor"
-    )
-
-
-def run(args) -> None:
-    dispatch = {
-        "probe": _probe,
-        "suggest": _suggest,
-        "preflight": _preflight,
-        "stamp": _stamp,
-    }
-    assert set(dispatch) == set(ACTIONS)
-    dispatch[args.action](args)
-
-
-def _stamp(args) -> None:
-    from pyscripts.fleet import manifest
-
-    root = os.environ["OA_ROOT"]
-    print(f"stamped {root}: {manifest.write_stamp(root, manifest.run_id(root))}")
-    print("restart the backend so /v1/specs serves it: make restart-service")
-
-
-def _probe(args) -> None:
+def probe(
+    *,
+    host: str | None = None,
+    repo_dir: str = "",
+    data_root: str = "",
+    config: str = DEFAULT_CONFIG,
+) -> None:
+    """Per-machine facts (RAM/disk/cores/checkout/unit/tools) — the readiness
+    checklist for a box; --host probes one not yet in the config."""
     from pyscripts.fleet import calibrate
 
-    if args.host:
-        probes = {
-            args.host: calibrate.probe(
-                args.host, args.host, args.repo_dir, args.data_root
-            )
-        }
+    if host:
+        probes = {host: calibrate.probe(host, host, repo_dir, data_root)}
     else:
-        fleet = load_config(args.config, require_bands=False)
+        fleet = load_config(config, require_bands=False)
         probes = calibrate.probe_fleet(fleet)
     calibrate.print_probes(probes)
 
 
-def _suggest(args) -> None:
+def suggest(*, min_citations: int | None = None, config: str = DEFAULT_CONFIG) -> None:
+    """Draft complete warm.toml bands/procs/limits from probes + the actual
+    worklist (needs the local backend up)."""
     from pyscripts.fleet import calibrate
 
-    fleet = load_config(args.config, require_bands=False)
+    fleet = load_config(config, require_bands=False)
     probes = calibrate.probe_fleet(fleet)
     calibrate.print_probes(probes)
-    cuts = calibrate.worklist_mcuts(args.min_citations or fleet.min_citations)
+    cuts = calibrate.worklist_mcuts(min_citations or fleet.min_citations)
     workers = calibrate.suggest_workers(fleet, probes, cuts)
     print(calibrate.summarize(workers, cuts, fleet.model))
     print()
     print(calibrate.render_toml(fleet, workers))
 
 
-def _preflight(args) -> None:
+def run_preflight(*, config: str = DEFAULT_CONFIG) -> None:
+    """Run every invariant check against the current fleet, changing nothing —
+    the same gate `warm-caches` enforces."""
+    # Named to keep the pyscripts.fleet.preflight MODULE reachable as a package
+    # attribute — a same-named function would rebind it after import.
     from pyscripts.fleet import preflight
 
-    fleet = load_config(args.config)
+    fleet = load_config(config)
     primary = preflight.Primary.capture()
     checks = [
         c
@@ -102,3 +64,19 @@ def _preflight(args) -> None:
         for c in preflight.full_checks(w, w.conn(), fleet.model, primary)
     ]
     preflight.gate(checks)
+
+
+def stamp() -> None:
+    """(Re)write the data-root stamp the backend echoes in /v1/specs
+    (refresh-data stamps automatically; restart-service after)."""
+    from pyscripts.fleet import manifest
+
+    root = os.environ["OA_ROOT"]
+    print(f"stamped {root}: {manifest.write_stamp(root, manifest.run_id(root))}")
+    print("restart the backend so /v1/specs serves it: make restart-service")
+
+
+_dispatcher = Dispatcher(
+    "pyscripts fleet",
+    {"probe": probe, "suggest": suggest, "preflight": run_preflight, "stamp": stamp},
+)

@@ -150,11 +150,15 @@ pull_live_certs sync_fe_to_alpha sync_fe_to_alpha_nopull sync_fe_to_live sync_fe
 merge_db_from_live sync_db_from_live merge_db_to_live sync_db_to_live merge_db_from_alpha sync_db_from_alpha merge_db_to_alpha sync_db_to_alpha:
 	uv run -m pyscripts deploy $@
 
-# Release flow (docs/deploy.md): one stage = one command, run them in order.
-# Sequencing/orchestration lives in pyscripts/release.py; pass flags via ARGS,
-# e.g. `make refresh-data ARGS="--from-snapshot"`.
-refresh-data commit-artifacts warm-caches ship-alpha promote:
-	uv run -m pyscripts release $@ $(ARGS)
+# Recalc flow (docs/deploy.md): one stage = one command, run them in order.
+# Sequencing/orchestration lives in pyscripts/recalc.py; pass flags via ARGS,
+# e.g. `make refresh-data ARGS="--from-snapshot"`. Shipping the result
+# (ship-alpha, promote) is deploy territory — same commands as before.
+refresh-data commit-artifacts warm-caches:
+	uv run -m pyscripts recalc $@ $(ARGS)
+
+ship-alpha promote:
+	uv run -m pyscripts deploy $(subst -,_,$@)
 
 # Warm-fleet helpers (pyscripts/fleet): probe / suggest / preflight / stamp,
 # e.g. `make fleet ARGS="preflight"`.

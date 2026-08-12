@@ -63,12 +63,11 @@ def test_load_and_cache_flags(tmp_path: Path) -> None:
 
 def test_cache_flags_roundtrip(tmp_path: Path) -> None:
     # The flags a worker emits must parse back through the cache CLI unchanged.
-    import argparse
+    from protocli import _build_parser
 
     from pyscripts import cache_prompting
 
-    parser = argparse.ArgumentParser()
-    cache_prompting.add_arguments(parser)
+    parser = _build_parser("cache", cache_prompting.main)
     fleet = _load(tmp_path, CONF)
     local, _, big = fleet.workers
 

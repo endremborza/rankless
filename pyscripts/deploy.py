@@ -1,3 +1,5 @@
+"""Application/box deploy primitives: EC2 boxes, syncs, DB handoff, ship + promote."""
+
 import datetime as dt
 import inspect
 import os
@@ -8,10 +10,13 @@ import time
 from functools import cache
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote_plus
 
 import boto3
 import pandas as pd
+import requests
 from dotenv import load_dotenv
+from protocli import Dispatcher
 from tqdm import tqdm
 
 from pyscripts import mcp_db, paths, services
@@ -1338,6 +1343,56 @@ def _parse_v(tag_str):
     return list(map(int, re.findall(r"^v(\d+)\.(\d+)\.(\d+)$", tag_str)[0]))
 
 
+def ship_alpha() -> None:
+    """Fresh large alpha box + smoke checks (recalc artifacts must be pushed)."""
+    from pyscripts.recalc import assert_released
+
+    assert_released()
+    new_large_alpha()
+    smoke(live=False)
+    print("alpha up — validate by hand, then `make promote`")
+
+
+def promote() -> None:
+    """Flip alpha to live + smoke checks."""
+    promote_alpha_to_live()
+    smoke(live=True)
+    print(
+        "promoted — the old live box keeps running (DB safety net); "
+        "once satisfied, run `make kill_dangling`"
+    )
+
+
+def smoke(live: bool) -> None:
+    """FE + BE reachable and serving real data; per-FE-worker memory sane."""
+    fe = LIVE_DOMAIN if live else ALPHA_DOMAIN
+    be = LIVE_BACKEND if live else ALPHA_BACKEND
+    _check_ok(f"https://{fe}/", "frontend root")
+    specs = _check_json(f"https://{be}/v1/specs", "specs")["specs"]
+    rt = next(iter(specs))
+    rows = _check_json(f"https://{be}/v1/slice/{rt}/0/2", f"slice {rt}")
+    sid = quote_plus(rows[0]["semanticId"])
+    tree = _check_json(
+        f"https://{be}/v1/trees/{rt}/{sid}?tid=0&year=1950", f"tree {rt}/{sid}"
+    )
+    if not tree:
+        raise SystemExit("smoke: tree response empty")
+    print(get_running_tpr(live).get_fe_memory_df().to_string())
+    print(f"smoke checks passed for {fe}")
+
+
+def _check_ok(url: str, desc: str) -> requests.Response:
+    r = requests.get(url, timeout=300)
+    if not r.ok:
+        raise SystemExit(f"smoke: {desc} → {r.status_code} ({url})")
+    print(f"smoke: {desc} ok")
+    return r
+
+
+def _check_json(url: str, desc: str):
+    return _check_ok(url, desc).json()
+
+
 def primitives() -> list[str]:
     """Public zero-required-arg functions here — the CLI-dispatchable set."""
     return sorted(
@@ -1346,21 +1401,11 @@ def primitives() -> list[str]:
         if inspect.isfunction(f)
         and f.__module__ == __name__
         and not n.startswith("_")
-        and n not in ("primitives", "add_arguments", "run")
+        and n != "primitives"
         and all(
             p.default is not p.empty for p in inspect.signature(f).parameters.values()
         )
     )
 
 
-def add_arguments(parser) -> None:
-    parser.add_argument(
-        "action",
-        choices=primitives(),
-        metavar="<action>",
-        help="box/EC2 primitive, e.g. new_large_alpha (invalid input prints the full list)",
-    )
-
-
-def run(args) -> None:
-    globals()[args.action]()
+_dispatcher = Dispatcher("pyscripts deploy", {n: globals()[n] for n in primitives()})

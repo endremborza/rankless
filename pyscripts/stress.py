@@ -64,7 +64,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Literal, TYPE_CHECKING
 from urllib.parse import quote_plus
 
 import httpx
@@ -765,80 +765,41 @@ def _sample_row(host: str) -> list:
     ]
 
 
-def add_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "phase",
-        nargs="?",
-        default="meltdown",
-        choices=("meltdown", "capacity", "churn", "replay", "feleak", "sample"),
-        help="default 'meltdown' = tear the FE deployment down (abort-flood to OOM)",
-    )
-    parser.add_argument("--base", default="https://alpha-api.rankless.org")
-    parser.add_argument(
-        "--corpus", help="churn: rt/slug lines; replay: ts-host-path TSV (.gz ok)"
-    )
-    parser.add_argument(
-        "--concurrency", type=int, default=16, help="feleak wants ~2/worker (e.g. 4)"
-    )
-    parser.add_argument("--hours", type=float, default=8.0)
-    parser.add_argument("--speedup", type=float, default=1.0)
-    parser.add_argument(
-        "--host-map",
-        default="www.rankless.org=https://alpha.rankless.org,"
-        "api.rankless.org=https://alpha-api.rankless.org",
-    )
-    parser.add_argument("--timeout", type=float, default=120.0)
-    parser.add_argument("--report-every", type=int, default=60)
-    parser.add_argument("--ssh-host", default="rankless-alpha")
-    parser.add_argument("--interval", type=int, default=30)
-    # feleak / single-worker capacity
-    parser.add_argument(
-        "--worker-port",
-        type=int,
-        help="bun FE port; capacity: set for the single-worker tunneled ramp "
-        "(default = whole-fleet mode), feleak default 4000",
-    )
-    parser.add_argument(
-        "--local-port", type=int, default=14001, help="tunnel local port"
-    )
-    parser.add_argument(
-        "--page-kind", default="authors", help="corpus slug kind to flood"
-    )
-    # capacity
-    parser.add_argument(
-        "--levels",
-        default="0.25,0.5,1,2,4,8",
-        help="capacity: per-worker concurrency steps, fractions ok "
-        "(total = round(level x n_workers)); push higher to hunt the 5xx onset",
-    )
-    parser.add_argument("--step-seconds", type=float, default=20.0)
-    parser.add_argument(
-        "--err-threshold", type=float, default=2.0, help="stop ramp above this err%%"
-    )
-    parser.add_argument(
-        "--n", type=int, default=180000, help="meltdown: total abort requests to flood"
-    )
-    parser.add_argument(
-        "--restart",
-        action="store_true",
-        help="feleak: restart the worker first for a clean baseline",
-    )
-    # abort (the real leak trigger): client disconnects mid-render
-    parser.add_argument(
-        "--abort",
-        action="store_true",
-        help="feleak: abort requests mid-render (the leak trigger)",
-    )
-    parser.add_argument(
-        "--abort-timeout",
-        type=float,
-        default=0.3,
-        help="per-request timeout that forces a mid-render disconnect",
-    )
+def main(
+    phase: Literal[
+        "meltdown", "capacity", "churn", "replay", "feleak", "sample"
+    ] = "meltdown",
+    *,
+    base: str = "https://alpha-api.rankless.org",
+    corpus: str | None = None,
+    concurrency: int = 16,
+    hours: float = 8.0,
+    speedup: float = 1.0,
+    host_map: str = "www.rankless.org=https://alpha.rankless.org,"
+    "api.rankless.org=https://alpha-api.rankless.org",
+    timeout: float = 120.0,
+    report_every: int = 60,
+    ssh_host: str = "rankless-alpha",
+    interval: int = 30,
+    worker_port: int | None = None,
+    local_port: int = 14001,
+    page_kind: str = "authors",
+    levels: str = "0.25,0.5,1,2,4,8",
+    step_seconds: float = 20.0,
+    err_threshold: float = 2.0,
+    n: int = 180000,
+    restart: bool = False,
+    abort: bool = False,
+    abort_timeout: float = 0.3,
+) -> None:
+    """Stress driver / sampler; default phase 'meltdown' tears the FE deployment
+    down (abort-flood to OOM). See the module docstring for the phases."""
+    _run_phases(argparse.Namespace(**locals()))
 
 
-def run(args: argparse.Namespace) -> None:
-    """Stress driver / sampler. See module docstring."""
+def _run_phases(args: argparse.Namespace) -> None:
+    # The phase implementations share this namespace (standalone copies of
+    # this file predate per-phase signatures); main() is the typed surface.
     # Suppressed: a standalone copy (scp'd to a box, see docstring) may sit
     # where the repo-relative LOG_DIR is unwritable — those runs only print.
     with contextlib.suppress(OSError):
@@ -874,7 +835,7 @@ def run(args: argparse.Namespace) -> None:
     asyncio.run({"churn": churn, "replay": replay}[args.phase](args))
 
 
-if __name__ == "__main__":
-    _p = argparse.ArgumentParser(description=__doc__)
-    add_arguments(_p)
-    run(_p.parse_args())
+if __name__ == "__main__":  # standalone copy on a box: pip install protocli
+    from protocli import _build_parser
+
+    _run_phases(_build_parser("stress", main).parse_args())

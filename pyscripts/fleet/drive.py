@@ -1,4 +1,4 @@
-"""Phased fleet orchestration for the cache warm (`pyscripts release warm-caches`).
+"""Phased fleet orchestration for the cache warm (`pyscripts recalc warm-caches`).
 
 Phases, with a hard barrier before any compute:
 

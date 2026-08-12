@@ -1,3 +1,5 @@
+"""Warm/validate the server response cache (single box, banded)."""
+
 import hashlib
 import json
 import os
@@ -6,6 +8,7 @@ import time
 from datetime import datetime
 from multiprocessing import Pool
 from pathlib import Path
+from typing import Literal
 from urllib.parse import quote_plus
 
 import pandas as pd
@@ -210,56 +213,26 @@ def validate(urls):
 CACHE_ACTIONS = ("bigs", "rest", "validate-all", "validate-bigs")
 
 
-def _csv_floats(s: str) -> list[float]:
-    return [float(e) for e in s.split(",") if e]  # "" → [] (single-bin band)
-
-
-def _csv_ints(s: str) -> list[int]:
-    return [int(e) for e in s.split(",") if e]
-
-
-def add_arguments(parser) -> None:
-    parser.add_argument("action", choices=CACHE_ACTIONS)
-    parser.add_argument(
-        "--min", type=float, default=0.0, help="band floor, M cut_basis (rest)"
-    )
-    parser.add_argument(
-        "--limit",
-        type=float,
-        default=DEFAULT_BIG_LIMIT,
-        help="band ceiling, M cut_basis: rest stops here, bigs start here",
-    )
-    parser.add_argument(
-        "--bins",
-        type=_csv_floats,
-        default=DEFAULT_BINS,
-        help="interior break points within the band (one fewer than --procs)",
-    )
-    parser.add_argument(
-        "--procs",
-        type=_csv_ints,
-        default=DEFAULT_PROCS,
-        help="client parallelism per size bin",
-    )
-    parser.add_argument(
-        "--chunk",
-        type=int,
-        default=DEFAULT_BIG_CHUNK,
-        help="bigs: trees of /tmp/dmove-parts prepped per read cycle",
-    )
-    parser.add_argument("--min-citations", type=int, default=DEFAULT_MIN_CITATIONS)
-
-
-def run(args) -> None:
-    """Warm or validate the server response cache. See `uv run -m pyscripts cache -h`."""
-    if len(args.procs) != len(args.bins) + 1:
+def main(
+    action: Literal["bigs", "rest", "validate-all", "validate-bigs"],
+    *,
+    min: float = 0.0,
+    limit: float = DEFAULT_BIG_LIMIT,
+    bins: list[float] = DEFAULT_BINS,
+    procs: list[int] = DEFAULT_PROCS,
+    chunk: int = DEFAULT_BIG_CHUNK,
+    min_citations: int = DEFAULT_MIN_CITATIONS,
+) -> None:
+    """Warm or validate the server response cache: --min/--limit band the run
+    in M cut_basis, --bins/--procs set per-size-bin client parallelism."""
+    if len(procs) != len(bins) + 1:
         raise SystemExit("--procs needs exactly one more entry than --bins")
-    runner = BatchRequester(min_citations=args.min_citations, big_limit=args.limit)
+    runner = BatchRequester(min_citations=min_citations, big_limit=limit)
     dispatch = {
-        "bigs": lambda: runner.do_bigs(args.chunk),
-        "rest": lambda: runner.do_rest([args.min, *args.bins], args.procs),
+        "bigs": lambda: runner.do_bigs(chunk),
+        "rest": lambda: runner.do_rest([min, *bins], procs),
         "validate-all": lambda: validate(runner.urled_sample["url"].tolist()),
         "validate-bigs": lambda: validate(runner.big_urls),
     }
     assert set(dispatch) == set(CACHE_ACTIONS)  # choices and dispatch stay in lockstep
-    dispatch[args.action]()
+    dispatch[action]()
