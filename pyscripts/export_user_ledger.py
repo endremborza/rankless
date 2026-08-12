@@ -2,8 +2,13 @@
 
 Reads ledger_events and owner_pins from SQLite, writes:
   user-ledger/active.jsonl           — active events ready for the pipeline
-  user-ledger/snapshot_manifest.json — run_id (ISO ts) + exported event_ids
+  user-ledger/snapshot_manifest.json — run_id (ISO ts) + exported event_ids + per-source counts
   user-ledger/owner_pins.txt         — one ORCID per line
+
+Every event carries a `source` (this exporter always writes "site" — the site
+SQLite DB is the "site" source). Future feeds (institutions, OA-API deltas)
+arrive as parallel files with their own snapshot manifests and source tags;
+they never enter the site DB.
 
 Every event carries its merge-stable logical `key` (`orcid|kind|subject_hash`); the
 pipeline and admin reference events by that, never by the renumberable event_id.
@@ -42,6 +47,7 @@ if DEFAULT_DATA_ROOT is None:
 
 DEFAULT_DB = paths.DB_REL
 OK_MODERATION = ("auto_ok", "accepted")
+SOURCE = "site"
 
 
 def _fetch_active_events(conn: sqlite3.Connection) -> list[dict[str, Any]]:
@@ -63,6 +69,7 @@ def _fetch_active_events(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             "key": f"{r[1]}|{r[2]}|{r[4]}",
             "orcid": r[1],
             "kind": r[2],
+            "source": SOURCE,
             "payload": json.loads(r[3]),
             "moderation": r[5],
             "created_at": r[6],
@@ -114,7 +121,14 @@ def export(data_root: Path, db_path: str) -> None:
             f.write(json.dumps(event, separators=(",", ":")) + "\n")
 
     with open(out_dir / "snapshot_manifest.json", "w") as f:
-        json.dump({"run_id": run_id, "event_ids": exported_ids}, f)
+        json.dump(
+            {
+                "run_id": run_id,
+                "event_ids": exported_ids,
+                "sources": {SOURCE: len(active)},
+            },
+            f,
+        )
 
     with open(out_dir / "owner_pins.txt", "w") as f:
         f.write("\n".join(pins))
