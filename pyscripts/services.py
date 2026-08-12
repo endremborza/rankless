@@ -49,6 +49,7 @@ PROFILES = {
     "dev": ("backend", "mcp-server", "mcp-worker"),
     "small-alpha": ("frontend", "mcp-server", "mcp-worker"),
     "live": ("frontend", "backend", "mcp-server", "mcp-worker"),
+    "worker": ("backend",),  # cache-warm fleet box: backend unit only
 }
 # Where the MCP server points by default: a dev box mines real data from the
 # alpha API; a small alpha (no local backend) uses the live API; a full box
@@ -205,7 +206,6 @@ def _render_units(args: argparse.Namespace) -> dict[str, str]:
     repo = str(REPO_ROOT)
     python = f"{repo}/.venv/bin/python"
     wanted = PROFILES[args.profile]
-    be_url = resolve_mcp_backend(args.mcp_backend or DEFAULT_MCP_BACKEND[args.profile])
 
     units: dict[str, str] = {}
     if "backend" in wanted:
@@ -222,6 +222,9 @@ def _render_units(args: argparse.Namespace) -> dict[str, str]:
                 repo, args.domain, suffix, f"built-{suffix}", bun
             )
     if "mcp-server" in wanted:
+        be_url = resolve_mcp_backend(
+            args.mcp_backend or DEFAULT_MCP_BACKEND[args.profile]
+        )
         units[MCP_SERVER_UNIT] = render_mcp_server(repo, python, be_url, args.mcp_port)
     if "mcp-worker" in wanted:
         units[MCP_WORKER_UNIT] = render_mcp_worker(

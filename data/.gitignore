@@ -4,4 +4,4 @@
 /oa-root/
 /oa-snapshot/
 /oa-test/
-warm.toml
+warm*.toml

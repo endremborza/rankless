@@ -5,6 +5,7 @@ import re
 import time
 from datetime import datetime
 from multiprocessing import Pool
+from pathlib import Path
 from urllib.parse import quote_plus
 
 import pandas as pd
@@ -12,6 +13,7 @@ import requests
 from dotenv import load_dotenv
 from tqdm import tqdm
 
+from .fleet.config import DEFAULT_BIG_CHUNK, DEFAULT_MIN_CITATIONS
 from .server_ops import DEFAULT_BE_ADDR as DEFAULT_ADDR
 
 year = 1950
@@ -20,34 +22,32 @@ SIDC = "semanticId"
 RTC = "rt"
 TIDC = "tid"
 BDSC = "bds"
-
-
-def parse_env_list(k, default):
-    s = os.environ.get(k)
-    if s is None:
-        return default
-    return list(map(int, s.split(",")))
+DMIC = "dmId"
 
 
 load_dotenv(".env", override=True)
 
-default_bins = [1.5 * 4, 3.5 * 4, 12 * 4]
-
-BIG_LIMIT = float(os.environ.get("BIG_LIMIT", 80 * 4))
-BINS = parse_env_list("RL_BINS", default_bins)
-PROC_COUNTS = parse_env_list("RL_PROCS", [16, 8, 4, 1])
-
-assert len(BINS) == (len(PROC_COUNTS) - 1)
+# Size-band defaults, in millions of cut_basis (citations × breakdown count).
+# min..big_limit is a box's `rest` share, above big_limit is the `bigs` set
+# (prep/read via /tmp/dmove-parts). Banded runs get these as CLI flags — from
+# data/warm.toml when driven (pyscripts/fleet), by hand otherwise.
+DEFAULT_BINS = [1.5 * 4, 3.5 * 4, 12 * 4]
+DEFAULT_PROCS = [16, 8, 4, 1]
+DEFAULT_BIG_LIMIT = 80.0 * 4
 
 
 class BatchRequester:
     def __init__(
-        self, min_citations=100_000, big_limit=BIG_LIMIT, addr: str = DEFAULT_ADDR
+        self,
+        min_citations=DEFAULT_MIN_CITATIONS,
+        big_limit=DEFAULT_BIG_LIMIT,
+        addr: str = DEFAULT_ADDR,
     ) -> None:
         self.addr = addr
         self.big_limit = big_limit
         self.ext_dic = {}
-        self.specs, _ = get_specs_and_ys(addr)
+        self.specs, self.year_breaks = get_specs_and_ys(addr)
+        self.n_periods = len(self.year_breaks)
         tid_df = pd.DataFrame(
             [
                 {RTC: k, TIDC: i, BDSC: len(v["breakdowns"])}
@@ -61,29 +61,38 @@ class BatchRequester:
             .loc[lambda df: df["citations"] >= min_citations, :]
             .assign(cut_basis=lambda df: df["citations"] * df["bds"])
             .sort_values("cut_basis", ascending=False)
-            .rename(columns={"dm_id": "index"})
             .pipe(add_be_urls, year, addr)
         )
-        self.big_urls = self.urled_sample.loc[
-            lambda df: df["cut_basis"] > self.big_limit * 1e6, "url"
-        ].tolist()
+        self.bigs = self.urled_sample.loc[
+            lambda df: df["cut_basis"] > self.big_limit * 1e6
+        ]
+        self.big_urls = self.bigs["url"].tolist()
         print("BIGS:", len(self.big_urls))
         self.resps = []
 
-    def do_rest(
-        self, bins=[0, *BINS], proc_counts=PROC_COUNTS, sampling_kwargs={"frac": 1.0}
-    ):
+    def do_rest(self, bins=None, proc_counts=None, sampling_kwargs={"frac": 1.0}):
+        if bins is None:
+            bins = [0, *DEFAULT_BINS]
+        if proc_counts is None:
+            proc_counts = DEFAULT_PROCS
         print("procs", proc_counts)
         print(f"n: {round(self.urled_sample.shape[0] / 1e3, 1)}k")
         for gid, gdf in tqdm(self.iter_gdfs(bins, proc_counts)):
             suburls = gdf.sample(**sampling_kwargs)["url"].tolist()
             self._run(suburls, gid)
 
-    def do_big_prep(self):
-        self._run([url + "&big_prep=true" for url in self.big_urls], 12)
-
-    def do_big_read(self):
-        self._run([url + "&big_read=true" for url in self.big_urls], 1)
+    def do_bigs(self, chunk_size=DEFAULT_BIG_CHUNK):
+        # Chunked prep→read: the server deletes each tree's /tmp/dmove-parts
+        # after its read, so parts disk peaks at one chunk instead of every big
+        # at once. Already-cached trees are skipped (prep/read bypass the cache,
+        # so a plain rerun would recompute them) — rerunning resumes.
+        rows = [s for _, s in self.bigs.iterrows()]
+        todo = [s for s in rows if not tree_cached(s, self.n_periods)]
+        print(f"bigs: {len(rows) - len(todo)} cached, {len(todo)} to compute")
+        for i in range(0, len(todo), chunk_size):
+            chunk = [s["url"] for s in todo[i : i + chunk_size]]
+            self._run([url + "&big_prep=true" for url in chunk], len(chunk))
+            self._run([url + "&big_read=true" for url in chunk], 1)
 
     def set_ext_dic(self, d):
         self.ext_dic = d
@@ -152,6 +161,22 @@ def add_be_urls(df, year=1950, addr: str = DEFAULT_ADDR):
     return df.assign(url=df.apply(lambda s: _urlify(s, year, addr), axis=1))
 
 
+def cache_dir_of(data_root: str, rt: str, eid: int, tid: int) -> Path:
+    # Mirrors TreeBasisState::cache_dir: $OA_ROOT/cache/<root type>/<eid>/<tid>/
+    return Path(data_root) / "cache" / rt / str(eid) / str(tid)
+
+
+def tree_cached(s, n_periods: int, data_root: str | None = None) -> bool:
+    # The server writes one bare {pid}.zst per period as it walks the years
+    # (wide-/shallow- variants alongside), so a kill mid-read leaves a dir with
+    # only the newest periods — done means all n_periods bare files are there.
+    root = data_root or os.environ["OA_ROOT"]
+    d = cache_dir_of(root, s[RTC], s[DMIC], s[TIDC])
+    if not d.is_dir():
+        return False
+    return sum(1 for f in d.iterdir() if re.fullmatch(r"\d+\.zst", f.name)) >= n_periods
+
+
 def get_resdf(specs, addr: str = DEFAULT_ADDR, step_size=100, max_n=25_000):
     resdfs = []
     for r in specs.keys():
@@ -182,20 +207,57 @@ def validate(urls):
     list(map(resp_pipe, tqdm(urls)))
 
 
-CACHE_ACTIONS = ("prep", "read", "rest", "validate-all", "validate-bigs")
+CACHE_ACTIONS = ("bigs", "rest", "validate-all", "validate-bigs")
+
+
+def _csv_floats(s: str) -> list[float]:
+    return [float(e) for e in s.split(",") if e]  # "" → [] (single-bin band)
+
+
+def _csv_ints(s: str) -> list[int]:
+    return [int(e) for e in s.split(",") if e]
 
 
 def add_arguments(parser) -> None:
     parser.add_argument("action", choices=CACHE_ACTIONS)
+    parser.add_argument(
+        "--min", type=float, default=0.0, help="band floor, M cut_basis (rest)"
+    )
+    parser.add_argument(
+        "--limit",
+        type=float,
+        default=DEFAULT_BIG_LIMIT,
+        help="band ceiling, M cut_basis: rest stops here, bigs start here",
+    )
+    parser.add_argument(
+        "--bins",
+        type=_csv_floats,
+        default=DEFAULT_BINS,
+        help="interior break points within the band (one fewer than --procs)",
+    )
+    parser.add_argument(
+        "--procs",
+        type=_csv_ints,
+        default=DEFAULT_PROCS,
+        help="client parallelism per size bin",
+    )
+    parser.add_argument(
+        "--chunk",
+        type=int,
+        default=DEFAULT_BIG_CHUNK,
+        help="bigs: trees of /tmp/dmove-parts prepped per read cycle",
+    )
+    parser.add_argument("--min-citations", type=int, default=DEFAULT_MIN_CITATIONS)
 
 
 def run(args) -> None:
     """Warm or validate the server response cache. See `uv run -m pyscripts cache -h`."""
-    runner = BatchRequester()
+    if len(args.procs) != len(args.bins) + 1:
+        raise SystemExit("--procs needs exactly one more entry than --bins")
+    runner = BatchRequester(min_citations=args.min_citations, big_limit=args.limit)
     dispatch = {
-        "prep": runner.do_big_prep,
-        "read": runner.do_big_read,
-        "rest": runner.do_rest,
+        "bigs": lambda: runner.do_bigs(args.chunk),
+        "rest": lambda: runner.do_rest([args.min, *args.bins], args.procs),
         "validate-all": lambda: validate(runner.urled_sample["url"].tolist()),
         "validate-bigs": lambda: validate(runner.big_urls),
     }

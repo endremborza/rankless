@@ -124,8 +124,8 @@ bench:
 compare-sql compare-branch:
 	uv run -m pyscripts $@ $(ARGS)
 
-cache-prep cache-read cache-rest cache-validate-all cache-validate-bigs:
-	uv run -m pyscripts cache $(@:cache-%=%)
+cache-bigs cache-rest cache-validate-all cache-validate-bigs:
+	uv run -m pyscripts cache $(@:cache-%=%) $(ARGS)
 
 # Tear the current alpha FE down: abort-flood all workers to OOM (the client-
 # disconnect-mid-render leak), monitor to death. Corpus auto-built from the alpha
