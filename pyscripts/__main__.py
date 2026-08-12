@@ -7,7 +7,8 @@ Commands:
     compare-branch     perf comparison of two git refs (tlog phase timing + peak memory)
     bench              local throughput + memory benchmark (current branch vs main)
     cache <action>     warm/validate the server response cache (single box)
-    deploy <stage>     release flow stages (see docs/deploy.md)
+    release <stage>    release flow stages (see docs/deploy.md)
+    deploy <action>    box/EC2 deploy primitives (new_large_alpha, sync_db_*, …)
     fleet <action>     warm-fleet helpers: probe/suggest/preflight/stamp
     stress <phase>     stress-suite load driver + remote memory sampler
     review-ledger      AI verdicts for pending user-ledger claims (see /admin/ledger)
@@ -30,7 +31,8 @@ COMMANDS = {
     "compare-branch": "branch_comparison",
     "bench": "bm",
     "cache": "cache_prompting",
-    "deploy": "release",
+    "release": "release",
+    "deploy": "deploy",
     "fleet": "fleet",
     "stress": "stress",
     "review-ledger": "review_ledger",

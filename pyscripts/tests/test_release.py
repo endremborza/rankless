@@ -92,3 +92,12 @@ def test_pipeline_lock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     release.LOCK_PATH.write_text(str(dead.pid))
     with release.pipeline_lock():
         assert release.LOCK_PATH.read_text() != str(dead.pid)
+
+
+def test_deploy_primitives_derived() -> None:
+    from pyscripts import deploy
+
+    prims = deploy.primitives()
+    assert {"new_large_alpha", "merge_db_from_live", "bump_v"} <= set(prims)
+    # helpers with required args, privates, and the shim itself stay out
+    assert not {"run_logged", "run", "add_arguments", "_current_branch"} & set(prims)

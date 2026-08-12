@@ -173,7 +173,7 @@ def _run_playwright(grep: str, *, env: dict[str, str] | None = None) -> int:
 
 
 def _refresh_data(*flags: str) -> None:
-    _run(["uv", "run", "-m", "pyscripts", "deploy", "refresh-data", *flags])
+    _run(["uv", "run", "-m", "pyscripts", "release", "refresh-data", *flags])
 
 
 def _fmt_duration(elapsed: float) -> str:

@@ -1,4 +1,5 @@
 import datetime as dt
+import inspect
 import os
 import re
 import shutil
@@ -1335,3 +1336,31 @@ def _last_vns():
 
 def _parse_v(tag_str):
     return list(map(int, re.findall(r"^v(\d+)\.(\d+)\.(\d+)$", tag_str)[0]))
+
+
+def primitives() -> list[str]:
+    """Public zero-required-arg functions here — the CLI-dispatchable set."""
+    return sorted(
+        n
+        for n, f in globals().items()
+        if inspect.isfunction(f)
+        and f.__module__ == __name__
+        and not n.startswith("_")
+        and n not in ("primitives", "add_arguments", "run")
+        and all(
+            p.default is not p.empty for p in inspect.signature(f).parameters.values()
+        )
+    )
+
+
+def add_arguments(parser) -> None:
+    parser.add_argument(
+        "action",
+        choices=primitives(),
+        metavar="<action>",
+        help="box/EC2 primitive, e.g. new_large_alpha (invalid input prints the full list)",
+    )
+
+
+def run(args) -> None:
+    globals()[args.action]()

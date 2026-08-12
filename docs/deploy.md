@@ -2,7 +2,8 @@
 
 One release = five stages, each one command, run in order on the primary data box
 (the machine holding `$OA_ROOT` and AWS + worker-fleet ssh access). Stages are thin
-make aliases over `uv run -m pyscripts deploy <stage>` (`pyscripts/release.py`);
+make aliases over `uv run -m pyscripts release <stage>` (`pyscripts/release.py`);
+box/EC2 primitives are `uv run -m pyscripts deploy <action>` (`pyscripts/deploy.py`);
 pass flags via `ARGS`. Every stage is idempotent — rerunning resumes or verifies.
 
 ```

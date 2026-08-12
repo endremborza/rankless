@@ -7,7 +7,7 @@ Large-scale scholarly citation explorer. OpenAlex CSVs → binary pipeline → A
 - `docs/architecture.md` — app purpose, data model, layers, codebase file index, schema, breakdown-selection, metaprogramming, parallelization, local dev
 - `docs/benchmarking.md` — comparison/benchmark tooling + SQL-vs-Rust results
 - `docs/reporting.md`, `docs/tree-internals.md`, `docs/topic-tags.md`, `docs/sharecard-render-test.md` — focused references (reporting site, tree-build internals, topic tags, share-card test)
-- `docs/deploy.md` — release flow: `pyscripts deploy` stages, warm-cache fleet, DB handoff
+- `docs/deploy.md` — release flow: `pyscripts release` stages, `pyscripts deploy` box primitives, warm-cache fleet, DB handoff
 - `docs/mcp-server.md` — MCP proxy (`mcp_server/`) over the backend + the deep-stories miner
 - `docs/type-audit.md` — cross-language type/API-shape coherence audit (`make type-audit`)
 - `docs/v2-to-v3-changes.md` — v2→v3 changelog; `docs/unfinished-features.md` — built-but-hidden features

@@ -1,4 +1,4 @@
-"""Release flow stages (`uv run -m pyscripts deploy <stage>`, see docs/deploy.md).
+"""Release flow stages (`uv run -m pyscripts release <stage>`, see docs/deploy.md).
 
     refresh-data      pull user DB from live, rebuild the data + backend + showcase
                       (--from-snapshot to run to-csv first; --no-db-pull to skip AWS)

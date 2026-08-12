@@ -144,17 +144,17 @@ capacity:
 	uv run -m pyscripts stress capacity $(ARGS)
 
 pull_live_certs sync_fe_to_alpha sync_fe_to_alpha_nopull sync_fe_to_live sync_fe_to_local sync_data_to_alpha sync_data_to_live sync_nginx_to_alpha sync_nginx_to_live setup_local_test bump_v bump_v_minor rolling_restart_live_fe new_small_alpha new_large_alpha kill_dangling kill_alpha:
-	echo "from pyscripts.deploy import $@;$@()" | uv run -
+	uv run -m pyscripts deploy $@
 
 # User DB movement (ledger + MCP + auth sessions): {merge,sync}_db_{to,from}_{live,alpha} (see pyscripts/deploy.py).
 merge_db_from_live sync_db_from_live merge_db_to_live sync_db_to_live merge_db_from_alpha sync_db_from_alpha merge_db_to_alpha sync_db_to_alpha:
-	echo "from pyscripts.deploy import $@;$@()" | uv run -
+	uv run -m pyscripts deploy $@
 
 # Release flow (docs/deploy.md): one stage = one command, run them in order.
 # Sequencing/orchestration lives in pyscripts/release.py; pass flags via ARGS,
 # e.g. `make refresh-data ARGS="--from-snapshot"`.
 refresh-data commit-artifacts warm-caches ship-alpha promote:
-	uv run -m pyscripts deploy $@ $(ARGS)
+	uv run -m pyscripts release $@ $(ARGS)
 
 # Warm-fleet helpers (pyscripts/fleet): probe / suggest / preflight / stamp,
 # e.g. `make fleet ARGS="preflight"`.
