@@ -31,6 +31,18 @@ accepted claim), then: `make filter extend_csvs` → forced gen-ladder rebuild �
   before restarting the backend — the backend echoes it in `/v1/specs.version`,
   which is what the warm fleet's preflight handshake compares. After any manual
   data surgery: `uv run -m pyscripts fleet stamp` + `make restart-service`.
+- Right after the stamp it assembles the **release manifest**,
+  `$OA_ROOT/releases/<run_id>.json` (+ latest copy at `releases/release.json`) — one
+  release, one machine-readable record: `run_id`/`stamp`/`git_commit`/`rankless_env`,
+  the snapshot name+date, per-source ledger export counts (`export_user_ledger`
+  stamps `source: "site"` on every event), applied-by-kind and skipped-by-reason
+  aggregates (from `applied_manifest.json`; event keys stay there), and per-step
+  filter counts derived from the `filter-steps/` id files themselves (8-byte ids,
+  so kept = size/8 — no pipeline instrumentation). A pure function over those
+  sidecars: `uv run -m pyscripts recalc manifest` re-assembles it after manual
+  surgery. `releases/` is excluded from the push + digest — the manifest describes
+  the data rather than being part of it. `smoke` (ship-alpha/promote) checks the
+  served `/v1/specs.version` against it: an undocumented release is unshippable.
 - The ladder force is deliberate and scoped: the generated `rankless_rs/Makefile`
   only tracks `steps/*.rs`, so make cannot see that the data changed under the
   ladder — and after `filter` it always has. Only the ladder subgraph is forced
