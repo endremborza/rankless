@@ -77,7 +77,9 @@ async fn async_main(n_threads: usize) {
         .with_state((ns_map_arc, satts, tree_manager.clone(), peer_aux));
 
     let count_api = static_router(&counts_response);
-    let specs_api = static_router(&tree_manager.specs);
+    let mut specs_payload = serde_json::to_value(&tree_manager.specs).unwrap();
+    specs_payload["version"] = serde_json::Value::String(util::version_stamp(&path));
+    let specs_api = static_router(&specs_payload);
 
     let tops_api = Router::new()
         .route("/", get(tops_get))

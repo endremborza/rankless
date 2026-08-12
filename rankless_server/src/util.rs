@@ -10,6 +10,8 @@ use axum::{
 };
 use serde::Serialize;
 
+use crate::consts::STAMP_FNAME;
+
 pub(crate) fn cache_header(mins: usize) -> HeaderMap {
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -22,6 +24,21 @@ pub(crate) fn cache_header(mins: usize) -> HeaderMap {
 pub(crate) fn static_router<O: Serialize>(o: &O) -> Router {
     let arc: Arc<str> = Arc::from(serde_json::to_string(o).unwrap().as_str());
     Router::new().route("/", get(state_get)).with_state(arc)
+}
+
+/// Build + data identity: `<git commit>|<compile env>|<data-root stamp>`.
+/// The warm-fleet preflight compares this across boxes — it proves the
+/// *running* process is the expected build serving the expected data.
+pub(crate) fn version_stamp(data_root: &str) -> String {
+    let stamp = std::fs::read_to_string(std::path::Path::new(data_root).join(STAMP_FNAME))
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|_| "unstamped".to_string());
+    format!(
+        "{}|{}|{}",
+        env!("GIT_COMMIT"),
+        rankless_rs::env_consts::RANKLESS_ENV,
+        stamp
+    )
 }
 
 pub(crate) fn parse_semantic_id(id: String) -> String {

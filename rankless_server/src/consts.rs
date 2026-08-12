@@ -2,6 +2,7 @@ use dmove::Entity;
 use rankless_rs::gen::a1_entity_mapping::Subfields;
 
 pub const MAX_HITS: usize = 80;
+pub const STAMP_FNAME: &str = "stamp";
 pub const PORT: u16 = 3038;
 pub const SEARCH_SIZE: usize = 20;
 pub const MAX_SLICE: usize = 40_000;

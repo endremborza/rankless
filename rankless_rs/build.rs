@@ -36,6 +36,10 @@ fn main() {
     for e_var in env_dependent_vars.iter() {
         env_lines.push(format!("pub const {}: u16 = {};", e_var.0, e_var.1[e_ind]))
     }
+    env_lines.push(format!(
+        "pub const RANKLESS_ENV: &str = \"{}\";",
+        rankless_env.to_string_lossy()
+    ));
     let new_content = env_lines.join("\n") + "\n";
     if std::fs::read_to_string(&path).unwrap_or_default() != new_content {
         std::fs::write(&path, new_content).unwrap();
