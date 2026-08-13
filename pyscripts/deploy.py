@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 from protocli import Dispatcher
 from tqdm import tqdm
 
-from pyscripts import mcp_db, paths, services
+from pyscripts import gitutil, mcp_db, paths, services
 
 load_dotenv()
 
@@ -809,7 +809,7 @@ upstream {BE_UPSTREAM} {{
         )
         # Deploy whatever the caller is on, not the remote's default branch — the
         # branch must be pushed to origin first.
-        self._depcomm(f"git checkout {branch or _current_branch()}")
+        self._depcomm(f"git checkout {branch or gitutil.current_branch()}")
         self.update_env()
 
     def sync_code(self):
@@ -1328,10 +1328,6 @@ def _last_img():
     )
 
 
-def _current_branch() -> str:
-    return subprocess.check_output(["git", "branch", "--show-current"]).decode().strip()
-
-
 def _last_vns():
     tag_str = subprocess.check_output(
         ["git", "describe", "--tags", "--abbrev=0"]
@@ -1364,11 +1360,16 @@ def promote() -> None:
 
 
 def smoke(live: bool) -> None:
-    """FE + BE reachable and serving real data; per-FE-worker memory sane."""
+    """FE + BE reachable, serving the documented release's real data;
+    per-FE-worker memory sane."""
+    from pyscripts.recalc import documented_release
+
     fe = LIVE_DOMAIN if live else ALPHA_DOMAIN
     be = LIVE_BACKEND if live else ALPHA_BACKEND
     _check_ok(f"https://{fe}/", "frontend root")
-    specs = _check_json(f"https://{be}/v1/specs", "specs")["specs"]
+    specs_resp = _check_json(f"https://{be}/v1/specs", "specs")
+    documented_release(specs_resp.get("version", ""), warn_missing=True)
+    specs = specs_resp["specs"]
     rt = next(iter(specs))
     rows = _check_json(f"https://{be}/v1/slice/{rt}/0/2", f"slice {rt}")
     sid = quote_plus(rows[0]["semanticId"])

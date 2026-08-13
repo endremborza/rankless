@@ -1,9 +1,11 @@
+import json
 import subprocess
 from pathlib import Path
 
 import pytest
 
 from pyscripts import recalc
+from pyscripts.fleet.manifest import STAMP_NAME
 
 
 def _git(cwd: Path, *args: str) -> str:
@@ -102,4 +104,85 @@ def test_deploy_primitives_derived() -> None:
         prims
     )
     # helpers with required args, privates, and the shim itself stay out
-    assert not {"run_logged", "run", "add_arguments", "_current_branch"} & set(prims)
+    assert not {"run_logged", "primitives", "_last_vns"} & set(prims)
+
+
+def _seed_sidecars(root: Path, run_id: str = "2026-08-12T10:00:00Z") -> None:
+    ul = root / "user-ledger"
+    ul.mkdir(parents=True)
+    (ul / "snapshot_manifest.json").write_text(
+        json.dumps({"run_id": run_id, "event_ids": [1, 2, 3], "sources": {"site": 3}})
+    )
+    (ul / "applied_manifest.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "applied_keys": [
+                    "0000-1|disown_paper|aa",
+                    "0000-1|merge_papers|bb",
+                    "0000-2|disown_paper|cc",
+                ],
+                "skipped": [
+                    {
+                        "key": "0000-3|claim_paper|dd",
+                        "reason": "claim_pipeline_not_implemented",
+                    },
+                    {
+                        "key": "0000-4|merge_authors|ee",
+                        "reason": "oa_id_not_in_dataset",
+                    },
+                    {
+                        "key": "0000-5|merge_authors|ff",
+                        "reason": "oa_id_not_in_dataset",
+                    },
+                ],
+            }
+        )
+    )
+    (root / STAMP_NAME).write_text(f"{run_id}:abcdef123456\n")
+    for step, entities in (
+        ("10", {"works": 100}),
+        ("11", {"works": 80}),
+        ("20", {"authors": 7}),
+    ):
+        d = root / "filter-steps" / step
+        d.mkdir(parents=True)
+        for name, n in entities.items():
+            (d / name).write_bytes(b"\0" * 8 * n)
+
+
+def test_release_manifest_assembly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_sidecars(tmp_path)
+    monkeypatch.setenv("OA_SNAPSHOT", "/somewhere/openalex-snapshot-2026-06")
+    monkeypatch.setenv("RANKLESS_ENV", "mini")
+
+    out = recalc.write_release_manifest(tmp_path)
+    assert out == tmp_path / "releases" / "2026-08-12T10:00:00Z.json"
+    m = json.loads(out.read_text())
+    assert m == json.loads((tmp_path / "releases" / "release.json").read_text())
+
+    assert m["stamp"] == "2026-08-12T10:00:00Z:abcdef123456"
+    assert m["rankless_env"] == "mini"
+    assert len(m["git_commit"]) == 12
+    assert m["snapshot"] == {"name": "openalex-snapshot-2026-06", "date": "2026-06"}
+    assert m["ledger"] == {"site": 3}
+    assert m["applied"] == {"disown_paper": 2, "merge_papers": 1}
+    assert m["skipped"] == {
+        "claim_pipeline_not_implemented": 1,
+        "oa_id_not_in_dataset": 2,
+    }
+    assert m["filter_counts"]["10"]["works"] == {"in": None, "kept": 100}
+    assert m["filter_counts"]["11"]["works"] == {"in": 100, "kept": 80}
+    assert m["filter_counts"]["20"]["authors"] == {"in": None, "kept": 7}
+
+
+def test_release_manifest_torn_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_sidecars(tmp_path)
+    monkeypatch.setenv("OA_SNAPSHOT", "/somewhere/snap-2026-06")
+    (tmp_path / STAMP_NAME).write_text("2000-01-01T00:00:00Z:000000000000\n")
+    with pytest.raises(SystemExit, match="torn state"):
+        recalc.build_release_manifest(tmp_path)
