@@ -4,3 +4,4 @@ pub const MIN_PAPERS_FOR_INST: u16 = 250;
 pub const MIN_PAPERS_FOR_SOURCE: u16 = 200;
 pub const MIN_AUTHOR_WORK_COUNT: u16 = 8;
 pub const MIN_AUTHOR_CITE_COUNT: u16 = 400;
+pub const RANKLESS_ENV: &str = "full";
