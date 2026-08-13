@@ -47,6 +47,18 @@ def test_phase_default_keeps_exception_as_result() -> None:
     assert isinstance(results["dead"], RuntimeError)
 
 
+def test_prepare_converges_and_gates_without_compute(monkeypatch) -> None:
+    calls: list[object] = []
+    monkeypatch.setattr(drive, "load_config", lambda c: Fleet(_workers()))
+    monkeypatch.setattr(
+        drive, "_prepare_gate", lambda ws, f, push: calls.append(("gate", push))
+    )
+    monkeypatch.setattr(drive, "_compute", lambda *a: calls.append("compute"))
+    monkeypatch.setattr(drive, "coverage_gate", lambda *a: calls.append("coverage"))
+    drive.prepare("cfg", push=False)
+    assert calls == [("gate", False)]
+
+
 def test_select_unknown_worker() -> None:
     fleet = Fleet(_workers())
     assert drive._select(fleet, None) == fleet.workers

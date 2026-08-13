@@ -66,6 +66,17 @@ def run_preflight(*, config: str = DEFAULT_CONFIG) -> None:
     preflight.gate(checks)
 
 
+def prepare(
+    *, only: str | None = None, no_push: bool = False, config: str = DEFAULT_CONFIG
+) -> None:
+    """Converge the fleet to ready and gate, without computing: push data +
+    stamp, pull + rebuild + restart every backend (the local one too), re-check.
+    Run only once the primary data is final — see `warm-caches` for the full run."""
+    from pyscripts.fleet import drive
+
+    drive.prepare(config, only=only, push=not no_push)
+
+
 def stamp() -> None:
     """(Re)write the data-root stamp the backend echoes in /v1/specs
     (refresh-data stamps automatically; restart-service after)."""
@@ -78,5 +89,11 @@ def stamp() -> None:
 
 _dispatcher = Dispatcher(
     "pyscripts fleet",
-    {"probe": probe, "suggest": suggest, "preflight": run_preflight, "stamp": stamp},
+    {
+        "probe": probe,
+        "suggest": suggest,
+        "preflight": run_preflight,
+        "prepare": prepare,
+        "stamp": stamp,
+    },
 )

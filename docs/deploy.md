@@ -156,7 +156,7 @@ via the cache CLI's flags (the same ones the driver ships per worker):
 `.env` still sets one (exactly those three; other `RL_*` vars belong to the
 deploy tooling and stay).
 
-### Fleet helpers (`uv run -m pyscripts fleet <action>`, or `make fleet ARGS=…`)
+### Fleet helpers (`make fleet-<action>`, i.e. `uv run -m pyscripts fleet <action>`)
 
 - `probe` — per-machine facts: RAM, cores, data-root + `/tmp` free space,
   checkout HEAD, backend-unit state, cargo/uv presence. Adding a machine =
@@ -172,6 +172,15 @@ deploy tooling and stay).
   name/host/paths) are enough as input; paste + hand-tune the output.
 - `preflight` — the full check table against the current fleet, changing
   nothing. Run it any time; `warm-caches` enforces the same gate itself.
+- `prepare` — converge the fleet to ready and gate, without computing: push
+  data + stamp, pull + rebuild + restart every backend (the local one too),
+  then re-check. Fixes what `preflight` can only report (stale data/stamp,
+  down or stale backends) — but never dirty checkouts, env disagreements, or
+  disk/RAM shortfalls, which stay hard failures. Only worth running once the
+  primary data is final: before `refresh-data` it would push soon-to-be-stale
+  data. `warm-caches` runs the same convergence as its first phase, so
+  `prepare` is for bringing boxes up without starting compute (flags:
+  `--only <name>`, `--no-push`).
 - `stamp` — (re)write `$OA_ROOT/stamp`; needed once on first adoption and after
   manual data surgery (`refresh-data` stamps automatically). Restart the
   backend afterwards so `/v1/specs` serves it.

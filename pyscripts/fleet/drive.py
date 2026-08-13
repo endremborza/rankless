@@ -17,6 +17,7 @@ Phases, with a hard barrier before any compute:
 
 The cache directory is the state — workers skip already-cached trees — so the
 whole flow is resumable by rerunning it. Run from tmux on the primary data box.
+`pyscripts fleet prepare` runs phases 1–2 standalone (converge + gate, no compute).
 """
 
 import shlex
@@ -41,21 +42,23 @@ WORKER_SYNC = (
 )
 
 
+def prepare(config: str, only: str | None = None, push: bool = True) -> None:
+    """Phases 1–2 without compute: converge every worker to ready and gate.
+
+    Fixes what the read-only preflight can only report — pushes data + stamp,
+    pulls + rebuilds + restarts backends (the local one too) — then re-checks.
+    Only worth running once the primary data is final; before `refresh-data`
+    it would push soon-to-be-stale data.
+    """
+    fleet = load_config(config)
+    workers = _select(fleet, only)
+    _prepare_gate(workers, fleet, push)
+
+
 def warm(config: str, only: str | None = None, push: bool = True) -> None:
     fleet = load_config(config)
     workers = _select(fleet, only)
-    if any(w.host for w in workers):
-        # Workers pull from origin; anything not pushed cannot reach them and
-        # would only surface later as a version-handshake failure.
-        gitutil.assert_pushed()
-    primary = Primary.capture()
-
-    checks = _phase(
-        workers,
-        lambda w: _prepare(w, fleet, primary, push),
-        on_error=lambda w, e: [Check(w.name, "prepare", False, str(e))],
-    )
-    preflight.gate([c for cs in checks.values() for c in cs])
+    primary = _prepare_gate(workers, fleet, push)
 
     errors = _phase(workers, lambda w: _compute(w, fleet, primary.oa_root))
     failed = [name for name, e in errors.items() if e]
@@ -85,6 +88,21 @@ def coverage_gate(local_root: str, min_citations: int) -> None:
             "check worker bands cover [0, ∞) and rerun"
         )
     print(f"coverage gate: all {len(sample)} trees cached")
+
+
+def _prepare_gate(workers: list[Worker], fleet: Fleet, push: bool) -> Primary:
+    if any(w.host for w in workers):
+        # Workers pull from origin; anything not pushed cannot reach them and
+        # would only surface later as a version-handshake failure.
+        gitutil.assert_pushed()
+    primary = Primary.capture()
+    checks = _phase(
+        workers,
+        lambda w: _prepare(w, fleet, primary, push),
+        on_error=lambda w, e: [Check(w.name, "prepare", False, str(e))],
+    )
+    preflight.gate([c for cs in checks.values() for c in cs])
+    return primary
 
 
 def _select(fleet: Fleet, only: str | None) -> list[Worker]:

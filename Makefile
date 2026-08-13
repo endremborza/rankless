@@ -4,6 +4,7 @@ export
 .PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest mcp-worker setup-services
 .PHONY: check format check-rs check-py check-js format-rs format-py format-js
 .PHONY: refresh-data commit-artifacts warm-caches ship-alpha promote
+.PHONY: fleet-probe fleet-suggest fleet-preflight fleet-prepare fleet-stamp
 
 PY_LINT_PATHS := pyscripts sql-yardstick mcp_server
 
@@ -160,10 +161,10 @@ refresh-data commit-artifacts warm-caches:
 ship-alpha promote:
 	uv run -m pyscripts deploy $(subst -,_,$@)
 
-# Warm-fleet helpers (pyscripts/fleet): probe / suggest / preflight / stamp,
-# e.g. `make fleet ARGS="preflight"`.
-fleet:
-	uv run -m pyscripts fleet $(ARGS)
+# Warm-fleet helpers (pyscripts/fleet); preflight checks, prepare converges +
+# gates. Flags pass through ARGS, e.g. `make fleet-prepare ARGS="--only sscub"`.
+fleet-probe fleet-suggest fleet-preflight fleet-prepare fleet-stamp:
+	uv run -m pyscripts fleet $(subst fleet-,,$@) $(ARGS)
 
 post-csvs: filter extend_csvs rankless_rs/src/gen/derive_links5.rs lib_data_generation
 	@echo Complete
