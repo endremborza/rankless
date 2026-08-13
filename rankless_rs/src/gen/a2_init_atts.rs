@@ -98,7 +98,7 @@ pub struct AuthorNobels {}
 
 impl Entity for AuthorshipFilteredAuthor {
     type T = u32;
-    const N: usize = 214847781;
+    const N: usize = 214847866;
     const NAME: &str = "authorship-filtered-author";
 }
 
@@ -112,7 +112,7 @@ impl NamespacedEntity for AuthorshipFilteredAuthor {
 
 impl Entity for AuthorshipDiscardedAuthor {
     type T = u32;
-    const N: usize = 127941509;
+    const N: usize = 127941363;
     const NAME: &str = "authorship-discarded-author";
 }
 
@@ -126,7 +126,7 @@ impl NamespacedEntity for AuthorshipDiscardedAuthor {
 
 impl Entity for FilteredAuthorshipInstitutions {
     type T = Box<[u16]>;
-    const N: usize = 214847781;
+    const N: usize = 214847866;
     const NAME: &str = "filtered-authorship-institutions";
 }
 
@@ -145,7 +145,7 @@ impl NamespacedEntity for FilteredAuthorshipInstitutions {
 
 impl Entity for DiscardedAuthorshipInstitutions {
     type T = Box<[u16]>;
-    const N: usize = 127941509;
+    const N: usize = 127941363;
     const NAME: &str = "discarded-authorship-institutions";
 }
 
@@ -164,7 +164,7 @@ impl NamespacedEntity for DiscardedAuthorshipInstitutions {
 
 impl Entity for FilteredAuthorshipPosition {
     type T = u16;
-    const N: usize = 214847781;
+    const N: usize = 214847866;
     const NAME: &str = "filtered-authorship-position";
 }
 
@@ -178,7 +178,7 @@ impl NamespacedEntity for FilteredAuthorshipPosition {
 
 impl Entity for DiscardedAuthorshipPosition {
     type T = u16;
-    const N: usize = 127941509;
+    const N: usize = 127941363;
     const NAME: &str = "discarded-authorship-position";
 }
 
@@ -192,7 +192,7 @@ impl NamespacedEntity for DiscardedAuthorshipPosition {
 
 impl Entity for WorkAnyAuthorships {
     type T = Box<[u32]>;
-    const N: usize = 92331587;
+    const N: usize = 92331586;
     const NAME: &str = "work-any-authorships";
 }
 
@@ -211,7 +211,7 @@ impl NamespacedEntity for WorkAnyAuthorships {
 
 impl Entity for WorkBiblios {
     type T = crate::biblo_var_att::BiblioInfo;
-    const N: usize = 92331587;
+    const N: usize = 92331586;
     const NAME: &str = "work-biblios";
 }
 
@@ -230,7 +230,7 @@ impl NamespacedEntity for WorkBiblios {
 
 impl Entity for WorkYears {
     type T = u8;
-    const N: usize = 92331587;
+    const N: usize = 92331586;
     const NAME: &str = "work-years";
 }
 
@@ -249,7 +249,7 @@ impl Link for WorkYears {
 
 impl Entity for WorksNames {
     type T = String;
-    const N: usize = 92331587;
+    const N: usize = 92331586;
     const NAME: &str = "works-names";
 }
 
@@ -272,7 +272,7 @@ impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mappin
 
 impl Entity for WorkDois {
     type T = String;
-    const N: usize = 92331587;
+    const N: usize = 92331586;
     const NAME: &str = "work-dois";
 }
 
@@ -293,27 +293,27 @@ impl MarkedAttribute<crate::common::DoiMarker> for crate::gen::a1_entity_mapping
     type AttributeEntity = WorkDois;
 }
 
-impl Entity for DomainsNames {
+impl Entity for SubfieldsNames {
     type T = String;
-    const N: usize = 6;
-    const NAME: &str = "domains-names";
+    const N: usize = 254;
+    const NAME: &str = "subfields-names";
 }
 
-impl MappableEntity for DomainsNames {
+impl MappableEntity for SubfieldsNames {
     type KeyType = usize;
 }
 
-impl VariableSizeAttribute for DomainsNames {
+impl VariableSizeAttribute for SubfieldsNames {
     type SizeType = u8;
-    type LocType = u8;
+    type LocType = u16;
 }
 
-impl NamespacedEntity for DomainsNames {
+impl NamespacedEntity for SubfieldsNames {
     const NS: &str = "a2_init_atts";
 }
 
-impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mapping::Domains {
-    type AttributeEntity = DomainsNames;
+impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mapping::Subfields {
+    type AttributeEntity = SubfieldsNames;
 }
 
 impl Entity for FieldsNames {
@@ -339,27 +339,27 @@ impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mappin
     type AttributeEntity = FieldsNames;
 }
 
-impl Entity for SubfieldsNames {
+impl Entity for DomainsNames {
     type T = String;
-    const N: usize = 254;
-    const NAME: &str = "subfields-names";
+    const N: usize = 6;
+    const NAME: &str = "domains-names";
 }
 
-impl MappableEntity for SubfieldsNames {
+impl MappableEntity for DomainsNames {
     type KeyType = usize;
 }
 
-impl VariableSizeAttribute for SubfieldsNames {
+impl VariableSizeAttribute for DomainsNames {
     type SizeType = u8;
-    type LocType = u16;
+    type LocType = u8;
 }
 
-impl NamespacedEntity for SubfieldsNames {
+impl NamespacedEntity for DomainsNames {
     const NS: &str = "a2_init_atts";
 }
 
-impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mapping::Subfields {
-    type AttributeEntity = SubfieldsNames;
+impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mapping::Domains {
+    type AttributeEntity = DomainsNames;
 }
 
 impl Entity for TopicsNames {
@@ -526,7 +526,7 @@ impl NamespacedEntity for InstCities {
 
 impl Entity for AuthorNobels {
     type T = (u8, u8);
-    const N: usize = 4255994;
+    const N: usize = 4256013;
     const NAME: &str = "author-nobels";
 }
 
@@ -563,7 +563,7 @@ impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mappin
 
 impl Entity for DiscardedAuthorsNames {
     type T = String;
-    const N: usize = 114873669;
+    const N: usize = 114873650;
     const NAME: &str = "discarded-authors-names";
 }
 
@@ -588,7 +588,7 @@ impl MarkedAttribute<crate::common::NameMarker>
 
 impl Entity for AuthorsNames {
     type T = String;
-    const N: usize = 4255994;
+    const N: usize = 4256013;
     const NAME: &str = "authors-names";
 }
 
@@ -611,7 +611,7 @@ impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mappin
 
 impl Entity for AuthorWikiSlugs {
     type T = String;
-    const N: usize = 4255994;
+    const N: usize = 4256013;
     const NAME: &str = "author-wiki-slugs";
 }
 
@@ -630,7 +630,7 @@ impl NamespacedEntity for AuthorWikiSlugs {
 
 impl Entity for AuthorOrcids {
     type T = [u8; 19];
-    const N: usize = 4255994;
+    const N: usize = 4256013;
     const NAME: &str = "author-orcids";
 }
 
@@ -644,7 +644,7 @@ impl NamespacedEntity for AuthorOrcids {
 
 impl Entity for AuthorRawCites {
     type T = u32;
-    const N: usize = 4255994;
+    const N: usize = 4256013;
     const NAME: &str = "author-raw-cites";
 }
 
@@ -658,7 +658,7 @@ impl NamespacedEntity for AuthorRawCites {
 
 impl Entity for AuthorRawWorkCounts {
     type T = u32;
-    const N: usize = 4255994;
+    const N: usize = 4256013;
     const NAME: &str = "author-raw-work-counts";
 }
 
@@ -668,31 +668,6 @@ impl MappableEntity for AuthorRawWorkCounts {
 
 impl NamespacedEntity for AuthorRawWorkCounts {
     const NS: &str = "a2_init_atts";
-}
-
-impl Entity for CountriesNameExts {
-    type T = String;
-    const N: usize = 234;
-    const NAME: &str = "countries-name-exts";
-}
-
-impl MappableEntity for CountriesNameExts {
-    type KeyType = usize;
-}
-
-impl VariableSizeAttribute for CountriesNameExts {
-    type SizeType = u8;
-    type LocType = u8;
-}
-
-impl NamespacedEntity for CountriesNameExts {
-    const NS: &str = "a2_init_atts";
-}
-
-impl MarkedAttribute<crate::common::NameExtensionMarker>
-    for crate::gen::a1_entity_mapping::Countries
-{
-    type AttributeEntity = CountriesNameExts;
 }
 
 impl Entity for SubfieldsNameExts {
@@ -718,6 +693,31 @@ impl MarkedAttribute<crate::common::NameExtensionMarker>
     for crate::gen::a1_entity_mapping::Subfields
 {
     type AttributeEntity = SubfieldsNameExts;
+}
+
+impl Entity for CountriesNameExts {
+    type T = String;
+    const N: usize = 234;
+    const NAME: &str = "countries-name-exts";
+}
+
+impl MappableEntity for CountriesNameExts {
+    type KeyType = usize;
+}
+
+impl VariableSizeAttribute for CountriesNameExts {
+    type SizeType = u8;
+    type LocType = u8;
+}
+
+impl NamespacedEntity for CountriesNameExts {
+    const NS: &str = "a2_init_atts";
+}
+
+impl MarkedAttribute<crate::common::NameExtensionMarker>
+    for crate::gen::a1_entity_mapping::Countries
+{
+    type AttributeEntity = CountriesNameExts;
 }
 
 impl Entity for SubfieldsWikipedia {
@@ -810,7 +810,7 @@ impl MarkedAttribute<crate::common::NameExtensionMarker>
 
 impl Entity for AuthorsNameExts {
     type T = String;
-    const N: usize = 4255994;
+    const N: usize = 4256013;
     const NAME: &str = "authors-name-exts";
 }
 
@@ -949,7 +949,7 @@ impl Link for InstCountries {
 
 impl Entity for WorkSources {
     type T = Box<[u16]>;
-    const N: usize = 92331587;
+    const N: usize = 92331586;
     const NAME: &str = "work-sources";
 }
 
@@ -973,7 +973,7 @@ impl Link for WorkSources {
 
 impl Entity for WorkTopics {
     type T = Box<[u16]>;
-    const N: usize = 92331587;
+    const N: usize = 92331586;
     const NAME: &str = "work-topics";
 }
 
@@ -997,7 +997,7 @@ impl Link for WorkTopics {
 
 impl Entity for WorkReferences {
     type T = Box<[u32]>;
-    const N: usize = 92331587;
+    const N: usize = 92331586;
     const NAME: &str = "work-references";
 }
 
