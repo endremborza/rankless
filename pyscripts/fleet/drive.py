@@ -143,6 +143,7 @@ def _prepare(w: Worker, fleet: Fleet, primary: Primary, push: bool) -> list[Chec
         host.stream("make restart-service")
     else:
         if push:
+            _invalidate_stale_cache(w, host, primary)
             _push_data(w, primary.oa_root)
         log(w.name, "pull + sync + build + restart backend")
         host.stream(
@@ -178,6 +179,13 @@ def _run_actions(w: Worker, fleet: Fleet) -> None:
                 f"cd {w.repo_dir} && uv run --no-sync -m pyscripts cache "
                 f"{action} {flags}"
             )
+
+
+def _invalidate_stale_cache(w: Worker, host, primary: Primary) -> None:
+    stamp = manifest.read_stamp(host, w.data_root)
+    if stamp != primary.stamp:
+        log(w.name, f"data stamp changed ({stamp or 'none'}) — wiping tree cache")
+        host.out(f"rm -rf {shlex.quote(w.data_root)}/cache")
 
 
 def _push_data(w: Worker, local_root: str) -> None:

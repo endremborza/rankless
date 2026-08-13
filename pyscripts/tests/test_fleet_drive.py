@@ -5,7 +5,7 @@ import pytest
 from pyscripts.cache_prompting import tree_cached
 from pyscripts.fleet import drive, preflight
 from pyscripts.fleet.config import Fleet, Worker
-from pyscripts.fleet.preflight import Check
+from pyscripts.fleet.preflight import Check, Primary
 
 N_PERIODS = 12
 
@@ -45,6 +45,35 @@ def test_phase_default_keeps_exception_as_result() -> None:
     results = drive._phase(_workers(), fn)
     assert results["ok"] is None
     assert isinstance(results["dead"], RuntimeError)
+
+
+class _StampHost:
+    def __init__(self, stamp: str):
+        self.stamp = stamp
+        self.cmds: list[str] = []
+
+    def out(self, cmd: str, check: bool = True) -> str:
+        self.cmds.append(cmd)
+        return self.stamp if cmd.startswith("cat") else ""
+
+
+def test_stale_worker_cache_wiped_on_stamp_change() -> None:
+    w = Worker(name="w", host="box", repo_dir="/r", data_root="/d")
+    primary = Primary(
+        head="h",
+        rankless_env="full",
+        oa_root="/p",
+        stamp="2026-08-13T11:25:57Z:16310bb25271",
+        digest="16310bb25271",
+        data_size_gb=1.0,
+    )
+    stale = _StampHost("2026-07-10T21:56:32Z:5ce8249b5f50")
+    drive._invalidate_stale_cache(w, stale, primary)
+    assert any(c.startswith("rm -rf") and "/d/cache" in c for c in stale.cmds)
+
+    current = _StampHost(primary.stamp)
+    drive._invalidate_stale_cache(w, current, primary)
+    assert not any(c.startswith("rm") for c in current.cmds)
 
 
 def test_prepare_converges_and_gates_without_compute(monkeypatch) -> None:
