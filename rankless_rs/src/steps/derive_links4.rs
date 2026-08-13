@@ -184,7 +184,8 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
                                     .or_insert(direct_score);
                             }
                         }
-                        for &ref2_wid in wref.0[ru].iter() {
+                        // TODO: once this feature lands, take out this take 0
+                        for &ref2_wid in wref.0[ru].iter().take(0) {
                             let r2u = ref2_wid.to_usize();
                             let ref2_authors = &wa.0[r2u];
                             for &aid in ref2_authors.iter() {
