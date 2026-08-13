@@ -15,9 +15,9 @@ reports as a row in the gate table, and the run aborts before any compute.
 
 import json
 import os
-import subprocess
 from dataclasses import dataclass
 
+from pyscripts import gitutil
 from pyscripts.fleet import manifest
 from pyscripts.fleet.config import Model, Worker
 from pyscripts.fleet.remote import Host
@@ -68,13 +68,10 @@ class Primary:
                 f"data root changed since it was stamped ({stamp}) — restamp with "
                 "`uv run -m pyscripts fleet stamp` and `make restart-service`"
             )
-        head = subprocess.check_output(
-            ["git", "rev-parse", "--short=12", "HEAD"], text=True
-        ).strip()
         size_b = int(_du_cmd_out(local, root))
         return cls(
-            head=head,
-            rankless_env=os.environ.get("RANKLESS_ENV", "full"),
+            head=gitutil.head_commit(),
+            rankless_env=manifest.rankless_env(),
             oa_root=root,
             stamp=stamp,
             digest=dig,
@@ -153,7 +150,7 @@ def _repo_detail(host: Host, w: Worker) -> str:
     cd = f"cd {w.repo_dir} && " if w.repo_dir else ""
     dirty = host.out(f"{cd}git status --porcelain --untracked-files=no").strip()
     assert not dirty, f"dirty checkout: {dirty.splitlines()[0]} …"
-    head = host.out(f"{cd}git rev-parse --short=12 HEAD").strip()
+    head = host.out(f"{cd}{gitutil.HEAD_CMD}").strip()
     return f"clean at {head}"
 
 
@@ -165,7 +162,7 @@ def _env_detail(host: Host, w: Worker, primary: Primary) -> str:
     )
     root = remote.get("OA_ROOT", "").rstrip("/")
     assert root == w.data_root.rstrip("/"), f"OA_ROOT={root} != {w.data_root}"
-    renv = remote.get("RANKLESS_ENV", "full")
+    renv = manifest.rankless_env(remote)
     assert renv == primary.rankless_env, (
         f"RANKLESS_ENV {renv} != primary {primary.rankless_env}"
     )

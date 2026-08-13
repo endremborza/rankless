@@ -13,12 +13,12 @@ from ccl_science_data.common import oa_root, snap_dir
 from ccl_science_data.gen import EntC
 
 from pyscripts.cache_prompting import BatchRequester
+from pyscripts.gitutil import current_branch
 from pyscripts.server_ops import (
     ServerConfig,
     ServerProcess,
     build_server,
     checkout,
-    current_branch,
 )
 
 test_sites = {

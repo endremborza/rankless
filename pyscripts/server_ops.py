@@ -328,10 +328,6 @@ def _stream(cmd: list) -> tuple[int, str]:
     return proc.returncode, "".join(captured)
 
 
-def current_branch() -> str:
-    return subprocess.check_output(["git", "branch", "--show-current"]).decode().strip()
-
-
 def checkout(branch: str) -> None:
     result = subprocess.run(
         ["git", "status", "--porcelain"], capture_output=True, text=True

@@ -14,7 +14,7 @@ fails loudly there.
 
 from dataclasses import dataclass, replace
 
-from pyscripts import services
+from pyscripts import gitutil, services
 from pyscripts.fleet.config import DEFAULT_PORT, Fleet, Model, Worker
 from pyscripts.fleet.remote import Host
 
@@ -66,7 +66,7 @@ def probe(
             lambda s: int(s) / GB,
         )
     if repo_dir:
-        _try("head", f"cd {repo_dir} && git rev-parse --short=12 HEAD", str)
+        _try("head", f"cd {repo_dir} && {gitutil.HEAD_CMD}", str)
     return Probe(name=name, **fields)
 
 

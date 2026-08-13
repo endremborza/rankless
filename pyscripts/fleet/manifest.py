@@ -13,7 +13,9 @@ Two artifacts:
 
 import datetime as dt
 import json
+import os
 import shlex
+from collections.abc import Mapping
 from pathlib import Path
 
 from pyscripts.fleet.remote import Host
@@ -29,9 +31,14 @@ PUSH_EXCLUDES = (
     "search-cache",
     "filter-steps",
     "source-pairs-by-path",
+    "releases",
 )
 DATA_EXCLUDES = (*PUSH_EXCLUDES, STAMP_NAME)
 DIGEST_LEN = 12
+
+
+def rankless_env(env: Mapping[str, str] = os.environ) -> str:
+    return env.get("RANKLESS_ENV", "full")
 
 
 def digest(host: Host, root: str) -> str:

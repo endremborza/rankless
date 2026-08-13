@@ -20,11 +20,10 @@ whole flow is resumable by rerunning it. Run from tmux on the primary data box.
 """
 
 import shlex
-import subprocess
 import threading
 import time
 
-from pyscripts import services
+from pyscripts import gitutil, services
 from pyscripts.fleet import manifest, preflight
 from pyscripts.fleet.config import Fleet, Worker, load_config
 from pyscripts.fleet.preflight import Check, Primary
@@ -46,7 +45,9 @@ def warm(config: str, only: str | None = None, push: bool = True) -> None:
     fleet = load_config(config)
     workers = _select(fleet, only)
     if any(w.host for w in workers):
-        _assert_pushed()
+        # Workers pull from origin; anything not pushed cannot reach them and
+        # would only surface later as a version-handshake failure.
+        gitutil.assert_pushed()
     primary = Primary.capture()
 
     checks = _phase(
@@ -202,18 +203,3 @@ def _wait_ready(w: Worker, host) -> None:
             )
         time.sleep(15)
     raise TimeoutError(f"[{w.name}] backend not ready — journalctl on the box")
-
-
-def _assert_pushed() -> None:
-    # Workers pull from origin; anything not pushed cannot reach them and
-    # would only surface later as a version-handshake failure.
-    branch = subprocess.check_output(
-        ["git", "branch", "--show-current"], text=True
-    ).strip()
-    subprocess.run(["git", "fetch", "origin", branch], check=True)
-    head, origin = (
-        subprocess.check_output(["git", "rev-parse", r], text=True).strip()
-        for r in ("HEAD", f"origin/{branch}")
-    )
-    if head != origin:
-        raise SystemExit(f"HEAD != origin/{branch} — push (or pull) first")
