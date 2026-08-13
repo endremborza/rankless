@@ -19,6 +19,7 @@ Usage
     uv run -m pyscripts.mega_test
 """
 
+import json
 import os
 import signal
 import socket
@@ -176,6 +177,24 @@ def _refresh_data(*flags: str) -> None:
     _run(["uv", "run", "-m", "pyscripts", "recalc", "refresh-data", *flags])
 
 
+def _assert_release_record() -> None:
+    """Served version ↔ release manifest ↔ what the run actually did."""
+    from .recalc import documented_release
+
+    with urllib.request.urlopen(f"{BE_URL}/specs", timeout=10) as resp:
+        served = json.load(resp)["version"]
+    rel = documented_release(served)
+    assert rel is not None
+
+    works = rel["filter_counts"]["10"]["works"]["kept"]
+    assert works > 0, "filter_counts: no works survived step 10"
+    # the pre-pipeline Playwright run drove a disown and a paper merge
+    assert rel["applied"].get("disown_paper", 0) >= 1, rel["applied"]
+    assert rel["applied"].get("merge_papers", 0) >= 1, rel["applied"]
+    assert rel["ledger"].get("site"), rel["ledger"]
+    print(f"[OK] release record chain: {rel['run_id']} (works kept: {works})", flush=True)
+
+
 def _fmt_duration(elapsed: float) -> str:
     minutes, seconds = divmod(int(elapsed), 60)
     return f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
@@ -211,6 +230,7 @@ def main() -> None:
 
         _refresh_data("--no-db-pull")
         _wait_backend()
+        _assert_release_record()
 
         rc = _run_playwright("post-pipeline")
         if rc != 0:
