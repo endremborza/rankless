@@ -192,7 +192,9 @@ def _assert_release_record() -> None:
     assert rel["applied"].get("disown_paper", 0) >= 1, rel["applied"]
     assert rel["applied"].get("merge_papers", 0) >= 1, rel["applied"]
     assert rel["ledger"].get("site"), rel["ledger"]
-    print(f"[OK] release record chain: {rel['run_id']} (works kept: {works})", flush=True)
+    print(
+        f"[OK] release record chain: {rel['run_id']} (works kept: {works})", flush=True
+    )
 
 
 def _fmt_duration(elapsed: float) -> str:
