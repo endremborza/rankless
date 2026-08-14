@@ -1350,7 +1350,11 @@ def ship_alpha() -> None:
 
 
 def promote() -> None:
-    """Flip alpha to live + smoke checks."""
+    """Flip alpha to live + smoke checks (gated on the release report)."""
+    from pyscripts.release_report import assert_report_documents
+
+    specs = _check_json(f"https://{ALPHA_BACKEND}/v1/specs", "alpha specs")
+    assert_report_documents(specs.get("version", ""))
     promote_alpha_to_live()
     smoke(live=True)
     print(
