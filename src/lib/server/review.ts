@@ -1,6 +1,7 @@
 // Pure review-domain logic: no DB or env access, so it stays unit-testable under
 // vitest (bun:sqlite cannot be imported there). DB glue lives in review-data.ts.
 import { fixName } from '$lib/name-overrides';
+import { canonicalDoi, normalizeOrcid } from '$lib/utils/identifiers';
 import type { LedgerEvent, UserRow } from './db';
 import type { LedgerPayload, WorkSubject } from '$lib/types/ledger';
 import type {
@@ -22,20 +23,6 @@ export type EnrichmentMap = Map<string, EnrichmentEntry>;
 
 export function pairKey(source: EnrichmentSource, key: string): string {
 	return `${source}|${key}`;
-}
-
-export function normalizeOrcid(s: string): string {
-	return s
-		.trim()
-		.replace(/^https?:\/\/(www\.)?orcid\.org\//i, '')
-		.toUpperCase();
-}
-
-export function canonicalDoi(doi: string): string {
-	return doi
-		.trim()
-		.replace(/^https?:\/\/(dx\.)?doi\.org\//i, '')
-		.toLowerCase();
 }
 
 // Publisher/OpenAlex-asserted authorship: the claimant's ORCID appearing in either

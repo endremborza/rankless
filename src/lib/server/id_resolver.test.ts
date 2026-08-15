@@ -1,10 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import {
-	resolveWorkSubject,
-	resolveAuthorSubject,
-	canonicalDoi,
-	ResolveError
-} from './id_resolver';
+import { resolveWorkSubject, resolveAuthorSubject, ResolveError } from './id_resolver';
 
 type FetchResp = { status: number; body?: unknown };
 
@@ -17,14 +12,6 @@ function mockFetch(handler: (url: string) => FetchResp) {
 		});
 	});
 }
-
-describe('canonicalDoi', () => {
-	it('lowercases and strips https://doi.org prefix', () => {
-		expect(canonicalDoi('https://doi.org/10.1/Foo')).toBe('10.1/foo');
-		expect(canonicalDoi('http://dx.doi.org/10.1/Bar')).toBe('10.1/bar');
-		expect(canonicalDoi('  10.1/X  ')).toBe('10.1/x');
-	});
-});
 
 describe('resolveWorkSubject', () => {
 	beforeEach(() => {

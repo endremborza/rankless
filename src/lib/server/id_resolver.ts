@@ -1,4 +1,5 @@
 import { BE_URL } from '$lib/constants';
+import { canonicalDoi } from '$lib/utils/identifiers';
 import type { WorkSubject, AuthorSubject } from '$lib/types/ledger';
 
 type WorkResolveResp = {
@@ -62,7 +63,7 @@ export async function resolveWorkSubject(input: {
 		});
 	}
 	const oa_id = live?.oaId ?? input.oa_id ?? null;
-	const doi = (live?.doi || input.doi || '').toLowerCase().trim() || null;
+	const doi = canonicalDoi(live?.doi || input.doi || '') || null;
 	if (oa_id === null && doi === null) {
 		throw new ResolveError(
 			'work subject needs at least one of: wid, oa_id, doi (UI may be stale — refresh and retry)'
@@ -132,13 +133,6 @@ export async function resolveOrcidProfiles(
 		})
 	);
 	return out;
-}
-
-export function canonicalDoi(doi: string): string {
-	return doi
-		.trim()
-		.toLowerCase()
-		.replace(/^https?:\/\/(dx\.)?doi\.org\//, '');
 }
 
 // Authorization gate for merge_papers: the actor may only merge papers they authored.
