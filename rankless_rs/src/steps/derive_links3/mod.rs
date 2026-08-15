@@ -9,7 +9,6 @@ use hashbrown::HashMap;
 use crate::{
     common::{reverse_id, CitRankLadderMarker, MainWorkMarker, YearlyPapersMarker},
     env_consts::FINAL_YEAR,
-    filter::FIX_AUTHORS,
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{WorkDois, WorkTopics, WorkYears, WorksNames},
@@ -198,10 +197,9 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     let (author_filter, author_wcounts) = entity_sem_ids::page_filter::<Authors, _, _>(
         &starc,
         |i, _c, p| {
-            FIX_AUTHORS.contains(&author_oa_ids[i])
-                || (p < 10_000
-                    && *author_yearly_papers[i].iter().max().unwrap_or(&0) < 300
-                    && !AUTHOR_BLACKLIST.contains(&author_oa_ids[i]))
+            p < 10_000
+                && *author_yearly_papers[i].iter().max().unwrap_or(&0) < 300
+                && !AUTHOR_BLACKLIST.contains(&author_oa_ids[i])
         },
         entity_sem_ids::basic_sem_names,
     );
