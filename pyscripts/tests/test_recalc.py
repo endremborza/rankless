@@ -125,7 +125,7 @@ def _seed_sidecars(root: Path, run_id: str = "2026-08-12T10:00:00Z") -> None:
                 "skipped": [
                     {
                         "key": "0000-3|claim_paper|dd",
-                        "reason": "claim_pipeline_not_implemented",
+                        "reason": "claimant_not_attributed",
                     },
                     {
                         "key": "0000-4|merge_authors|ee",
@@ -136,6 +136,22 @@ def _seed_sidecars(root: Path, run_id: str = "2026-08-12T10:00:00Z") -> None:
                         "reason": "oa_id_not_in_dataset",
                     },
                 ],
+            }
+        )
+    )
+    (ul / "forced_works.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "cohort": 2,
+                "forced_total": 40,
+                "outside_standard": 12,
+                "outside_type": 9,
+                "outside_citations": 5,
+                "claim_auto": 1,
+                "claim_merged": 0,
+                "author_rescues": 1,
+                "outside_wids": [3, 5, 8],
             }
         )
     )
@@ -170,8 +186,19 @@ def test_release_manifest_assembly(
     assert m["ledger"] == {"site": 3}
     assert m["applied"] == {"disown_paper": 2, "merge_papers": 1}
     assert m["skipped"] == {
-        "claim_pipeline_not_implemented": 1,
+        "claimant_not_attributed": 1,
         "oa_id_not_in_dataset": 2,
+    }
+    # aggregates only — the private wid list never enters the release record
+    assert m["forced_works"] == {
+        "cohort": 2,
+        "forced_total": 40,
+        "outside_standard": 12,
+        "outside_type": 9,
+        "outside_citations": 5,
+        "claim_auto": 1,
+        "claim_merged": 0,
+        "author_rescues": 1,
     }
     assert m["filter_counts"]["10"]["works"] == {"in": None, "kept": 100}
     assert m["filter_counts"]["11"]["works"] == {"in": 100, "kept": 80}

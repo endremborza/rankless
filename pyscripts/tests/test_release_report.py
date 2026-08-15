@@ -32,11 +32,24 @@ CUR = _record(
     {"disown_paper": 5, "merge_papers": 1, "merge_authors": 1},
     7,
 )
+CUR["forced_works"] = {
+    "cohort": 3,
+    "forced_total": 40,
+    "outside_standard": 12,
+    "outside_type": 9,
+    "outside_citations": 5,
+    "claim_auto": 1,
+    "claim_merged": 0,
+    "author_rescues": 1,
+}
 
 
 def test_report_without_previous() -> None:
     report = rr.build_report(CUR)
     assert report["previous"] is None and report["deltas"] is None
+    assert report["restored"] == CUR["forced_works"]
+    # a record predating forced-works sidecars renders without the section
+    assert rr.build_report(PREV)["restored"] is None
 
     assert list(report["entities"]) == ["works", "authors"]
     works = report["entities"]["works"]
@@ -72,6 +85,7 @@ def test_render_md() -> None:
     md = rr.render_md(rr.build_report(CUR, PREV))
     assert "data release 2026-08-13" in md
     assert "90" in md and "7 correction(s) integrated" in md
+    assert "Papers restored by their authors: 12" in md
     assert "+3 newly integrated" in md
     assert "site" not in md
 

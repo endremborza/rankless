@@ -17,8 +17,12 @@ ENTITY_ORDER = ("works", "authors", "sources", "institutions")
 # (filter step id, entity) → public phrasing of what survives it; the ids and
 # semantics are rankless_rs/src/filter.rs `main`.
 STEP_LABELS = {
-    ("10", "works"): "articles, books or reviews; not retracted; in covered years",
-    ("11", "works"): "cited at least once by an indexed work",
+    (
+        "10",
+        "works",
+    ): "research publications — articles, conference papers, books, chapters and reviews "
+    "(or restored by their authors); not retracted; in covered years",
+    ("11", "works"): "cited at least once by an indexed work, or restored",
     ("12", "sources"): "venues with enough indexed works",
     ("13", "institutions"): "institutions with enough indexed works",
     ("14", "works"): "authorship resolved, user corrections applied",
@@ -36,6 +40,8 @@ def build_report(record: dict, previous: dict | None = None) -> dict:
         "snapshot": record["snapshot"],
         "entities": _entity_chains(record["filter_counts"]),
         "ledger": _ledger_aggregates(record),
+        "restored": record.get("forced_works"),
+        "claims": record.get("claims_review"),
         "previous": None,
         "deltas": None,
     }
@@ -122,6 +128,25 @@ def render_md(report: dict) -> str:
         + (f" ({kinds})" if kinds else "")
         + f", {ledger['skipped_total']} skipped.",
     ]
+    restored = report.get("restored")
+    if restored and restored["outside_standard"]:
+        lines += [
+            "",
+            f"Papers restored by their authors: {restored['outside_standard']} "
+            f"(from {restored['cohort']} signed-in researcher(s)) served beyond the "
+            "standard screens.",
+        ]
+    claims = report.get("claims")
+    if claims and claims["submitted"]:
+        lines += [
+            "",
+            f"Paper claims: {claims['applied']} of {claims['submitted']} resolved.",
+        ]
+        if claims["unresolved_by_cause"]:
+            causes = "; ".join(
+                f"{n} {c}" for c, n in claims["unresolved_by_cause"].items()
+            )
+            lines.append(f"The rest could not be: {causes}.")
     deltas = report["deltas"]
     if deltas:
         ent_bits = ", ".join(

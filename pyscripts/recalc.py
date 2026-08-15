@@ -110,16 +110,55 @@ def warm_caches(
         fleet.warm(config, only=only, push=not no_push)
 
 
+FORCED_AGGREGATES = (
+    "cohort",
+    "forced_total",
+    "outside_standard",
+    "outside_type",
+    "outside_citations",
+    "claim_auto",
+    "claim_merged",
+    "author_rescues",
+)
+
+
+CLAIMS_AGGREGATES = (
+    "submitted",
+    "applied",
+    "unresolved",
+    "unresolved_by_cause",
+    "merges_reviewed",
+    "merges_approved",
+)
+
+
+def _claims_review(ul: Path) -> dict | None:
+    """Optional sidecar from `pyscripts.claims_record`: every submitted paper
+    claim and what stopped the unresolved ones (a claim that was never accepted
+    is never exported, so applied_manifest cannot account for it). Public
+    aggregates only — the per-claim detail stays on the box."""
+    path = ul / "claims_review.json"
+    if not path.exists():
+        return None
+    data = json.loads(path.read_text())
+    return {k: data[k] for k in CLAIMS_AGGREGATES}
+
+
 def build_release_manifest(root: Path) -> dict:
     """Aggregate the sidecars a refresh-data run leaves behind (per-source
     detail and event keys stay in the internal manifests)."""
     ul = root / "user-ledger"
     snap = json.loads((ul / "snapshot_manifest.json").read_text())
     applied = json.loads((ul / "applied_manifest.json").read_text())
+    forced = json.loads((ul / "forced_works.json").read_text())
     stamp = (root / manifest.STAMP_NAME).read_text().strip()
 
     run_id = snap["run_id"]
-    for label, other in (("applied_manifest", applied["run_id"]), ("stamp", stamp)):
+    for label, other in (
+        ("applied_manifest", applied["run_id"]),
+        ("forced_works", forced["run_id"]),
+        ("stamp", stamp),
+    ):
         if not other.startswith(run_id):
             raise SystemExit(
                 f"release manifest: {label} run_id {other!r} != snapshot {run_id!r} "
@@ -139,6 +178,9 @@ def build_release_manifest(root: Path) -> dict:
         "filter_counts": _filter_counts(root / "filter-steps"),
         "applied": dict(Counter(k.split("|")[1] for k in applied["applied_keys"])),
         "skipped": dict(Counter(s["reason"] for s in applied["skipped"])),
+        # Public aggregates only — the private wid list stays in the sidecar.
+        "forced_works": {k: forced[k] for k in FORCED_AGGREGATES},
+        "claims_review": _claims_review(ul),
     }
 
 
