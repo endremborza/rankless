@@ -20,9 +20,10 @@ Humans make every remaining decision; the AI never moderates.
    which admin (multiple admins supported via `ADMIN_ORCIDS`).
 
 Accepted events flow to the pipeline via `export_user_ledger.py` as before.
-Note: the Rust pipeline currently records but does not apply `claim_paper`
-(`SkipReason::ClaimPipelineNotImplemented`) — accepted claims take effect once
-that lands.
+The filter step resolves each claim's DOI to a work and forces it through the
+type/citation screens; a claim is applied when the claimant is credited on the
+surviving work (skips: `doi_not_in_snapshot`, `orcid_not_in_dataset`,
+`oa_id_not_in_dataset`, `claimant_not_attributed`).
 
 ## Enrichment cache (`subject_enrichment`)
 
@@ -81,10 +82,13 @@ transport: `review_verdicts` is append-only with a deterministic dedup index
 (writer-supplied `created_at`, so a double merge inserts nothing);
 `subject_enrichment` has a natural PK (target's copy wins on merge).
 
-**Known gap:** merge (`INSERT OR IGNORE`) never reconciles the `moderation`
-column of a `ledger_events` row that already exists on both boxes — a decision
-made on box A does not propagate to box B's copy. Decide on the box whose DB
-is authoritative (or `sync`/mirror instead of merge).
+Merge also reconciles `moderation` for `ledger_events` rows both boxes already
+hold, matched by the same logical key: an incoming decision
+(`accepted`/`rejected`/`auto_ok`) flips a target row still `pending_review`
+(copying `moderated_by`/`moderated_at`); a decided target never reverts to
+pending, and two conflicting decisions keep the target's with a warning. So
+decisions made on the authoritative box (live) reach every box at its next
+pull.
 
 ## Verifying end-to-end (dev box)
 
