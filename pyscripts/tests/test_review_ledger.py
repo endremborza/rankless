@@ -2,13 +2,12 @@ import json
 
 import pytest
 
+from pyscripts.ledger_ids import canonical_doi, normalize_orcid
 from pyscripts.review_ledger import (
     Claim,
     build_bundle,
-    canonical_doi,
     connect,
     load_enrichment,
-    normalize_orcid,
     select_claims,
     validate_verdicts,
 )
