@@ -20,7 +20,9 @@ use crate::{
         Biblio, FieldLike, Geo, Named, NamedEntity, ReferencedWork, Work, WorkTopic,
     },
     steps::a1_entity_mapping::{iter_authorships, Qs, RawYear, SourceArea, YearInterface, Years},
-    user_ledger::{augment_with_aliases, build_author_orcid_map, UserLedger, ORCID_PREF},
+    user_ledger::{
+        augment_with_aliases, build_author_orcid_map, strip_doi_prefix, UserLedger, ORCID_PREF,
+    },
 };
 use dmove::{
     par_join, para::Worker, BigId, DiscoMapEntityBuilder, DowncastingBuilder,
@@ -40,7 +42,6 @@ use std::{
 };
 use tqdm::Iter;
 
-pub const DOI_PREFIX_LEN: usize = 16;
 const MIN_TOPIC_SCORE: f64 = 0.7;
 const MIN_RATE: f64 = 0.8;
 const MIN_LEN: usize = 10;
@@ -839,12 +840,11 @@ impl AttGetter<String, NameExtensionMarker> for Institution {
 
 impl AttGetter<String, DoiMarker> for Work {
     fn get_att(&self) -> Option<String> {
-        if let Some(doi) = &self.doi {
-            if doi.len() > DOI_PREFIX_LEN {
-                return Some(doi[DOI_PREFIX_LEN..].to_string());
-            }
-        }
-        None
+        self.doi
+            .as_deref()
+            .map(strip_doi_prefix)
+            .filter(|d| !d.is_empty())
+            .map(str::to_string)
     }
 }
 
