@@ -86,7 +86,7 @@ impl NamespacedEntity for Topics {
 
 impl Entity for Institutions {
     type T = u16;
-    const N: usize = 36300;
+    const N: usize = 37002;
     const NAME: &str = "institutions";
 }
 
@@ -100,7 +100,7 @@ impl NamespacedEntity for Institutions {
 
 impl Entity for Sources {
     type T = u16;
-    const N: usize = 42241;
+    const N: usize = 44398;
     const NAME: &str = "sources";
 }
 
@@ -156,7 +156,7 @@ impl NamespacedEntity for AreaFields {
 
 impl Entity for DiscardedAuthors {
     type T = u32;
-    const N: usize = 114873650;
+    const N: usize = 114872920;
     const NAME: &str = "discarded-authors";
 }
 
@@ -170,7 +170,7 @@ impl NamespacedEntity for DiscardedAuthors {
 
 impl Entity for Authors {
     type T = u32;
-    const N: usize = 4256012;
+    const N: usize = 4256738;
     const NAME: &str = "authors";
 }
 
@@ -184,7 +184,7 @@ impl NamespacedEntity for Authors {
 
 impl Entity for Works {
     type T = u32;
-    const N: usize = 92331585;
+    const N: usize = 99408581;
     const NAME: &str = "works";
 }
 
@@ -198,7 +198,7 @@ impl NamespacedEntity for Works {
 
 impl Entity for AuthorshipsFilteredAuthor {
     type T = u32;
-    const N: usize = 215205234;
+    const N: usize = 224345665;
     const NAME: &str = "authorships-filtered-author";
 }
 
@@ -208,7 +208,7 @@ impl MappableEntity for AuthorshipsFilteredAuthor {
 
 impl Entity for AuthorshipsDiscardedAuthor {
     type T = u32;
-    const N: usize = 119762087;
+    const N: usize = 126234256;
     const NAME: &str = "authorships-discarded-author";
 }
 
