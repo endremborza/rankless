@@ -109,6 +109,59 @@ def test_merge_keeps_target_rows(tmp_path: Path) -> None:
     assert _counts(dst)["ledger_events"] == 2
 
 
+def _insert_event(
+    con: sqlite3.Connection,
+    subject_hash: str,
+    moderation: str,
+    moderated_by: str | None = None,
+) -> None:
+    con.execute(
+        "INSERT INTO ledger_events "
+        "(orcid, kind, payload, subject_hash, moderation, moderated_by, moderated_at) "
+        "VALUES ('0000-1', 'claim_paper', '{}', ?, ?, ?, ?)",
+        (
+            subject_hash,
+            moderation,
+            moderated_by,
+            "2026-08-14T00:00:00Z" if moderated_by else None,
+        ),
+    )
+
+
+def test_merge_reconciles_moderation(tmp_path: Path) -> None:
+    src, dst = tmp_path / "src.sqlite", tmp_path / "dst.sqlite"
+    src_con = _make_db(src)
+    _insert_event(src_con, "h1", "accepted", "0000-admin")
+    _insert_event(src_con, "h2", "rejected", "0000-admin")
+    _insert_event(src_con, "h3", "pending_review")
+    src_con.commit()
+    src_con.close()
+
+    dst_con = _make_db(dst)
+    _insert_event(dst_con, "h1", "pending_review")
+    _insert_event(dst_con, "h2", "accepted", "0000-other")  # decided never reverts
+    _insert_event(dst_con, "h3", "auto_ok", "auto:doi-authorship")
+    dst_con.commit()
+    dst_con.close()
+
+    mcp_db.transfer(str(dst), str(src), "merge")
+
+    con = sqlite3.connect(dst)
+    rows = dict(
+        con.execute(
+            "SELECT subject_hash, moderation || '|' || coalesce(moderated_by, '') "
+            "FROM ledger_events"
+        ).fetchall()
+    )
+    con.close()
+    assert len(rows) == 3  # reconciled in place, no duplicate inserts
+    assert rows["h1"] == "accepted|0000-admin"  # pending target takes the decision
+    assert rows["h2"] == "accepted|0000-other"  # conflicting decision keeps target
+    assert (
+        rows["h3"] == "auto_ok|auto:doi-authorship"
+    )  # incoming pending changes nothing
+
+
 def test_mirror_replaces_and_drops_expired_sessions(tmp_path: Path) -> None:
     src, dst = tmp_path / "src.sqlite", tmp_path / "dst.sqlite"
     _seed_source(_make_db(src))
