@@ -19,8 +19,15 @@ pub const ORCID_PREF: &str = "https://orcid.org/";
 const A1_MANIFEST: &str = "a1_manifest.json";
 const ACTIVE_JSONL: &str = "active.jsonl";
 const APPLIED_MANIFEST: &str = "applied_manifest.json";
+const FILTER_MANIFEST: &str = "filter_manifest.json";
 const SNAPSHOT_MANIFEST: &str = "snapshot_manifest.json";
 const OWNER_PINS: &str = "owner_pins.txt";
+const DOI_PREFIXES: [&str; 4] = [
+    "https://doi.org/",
+    "http://doi.org/",
+    "https://dx.doi.org/",
+    "http://dx.doi.org/",
+];
 
 // ---------------------------------------------------------------------------
 // Cross-language boundary: user-ledger/active.jsonl
@@ -28,6 +35,7 @@ const OWNER_PINS: &str = "owner_pins.txt";
 // Mirror types below — keep in sync when TS types change.
 // ---------------------------------------------------------------------------
 
+#[derive(Default)]
 pub struct UserLedger {
     pub run_id: String,
     /// drop_oa_id -> root_oa_id (path-compressed)
@@ -40,6 +48,8 @@ pub struct UserLedger {
     pub owner_pin_orcids: HashSet<String>,
     /// Author oa_ids corresponding to owner_pin_orcids; filled by resolve_orcids
     pub owner_pin_oa_ids: HashSet<BigId>,
+    /// (key, orcid, canonical_doi) claims awaiting DOI→work resolution in the filter step
+    pub pending_claims: Vec<(String, String, String)>,
     /// (key, orcid, work_oa) pending ORCID→oa_id resolution
     pending_disowns: Vec<(String, String, BigId)>,
     /// (key, drop_oa, keep_oa) before path-compression; for manifest
@@ -59,6 +69,7 @@ pub struct SkippedEvent {
 #[derive(Deserialize)]
 struct WorkSubject {
     oa_id: Option<BigId>,
+    doi: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -77,14 +88,15 @@ struct LedgerEventLine {
 
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SkipReason {
     MissingOaId,
     MissingOaIdOrOrcid,
-    ClaimPipelineNotImplemented,
     OrcidNotInDataset,
     OaIdNotInDataset,
+    DoiNotInSnapshot,
+    ClaimantNotAttributed,
 }
 
 /// Mirrors TS `LedgerPayload`; `kind` is the discriminant tag.
@@ -102,7 +114,9 @@ enum EventPayload {
     DisownPaper {
         work: WorkSubject,
     },
-    ClaimPaper,
+    ClaimPaper {
+        work: WorkSubject,
+    },
     // Never reach the pipeline (revokes are resolved away in export_user_ledger.py; the
     // other two are never written to the ledger), but kept as variants so EventPayload
     // stays a faithful mirror of TS LedgerPayload (see make type-audit).
@@ -121,19 +135,9 @@ struct StepManifest {
 impl UserLedger {
     pub fn load(stowage: &Stowage) -> io::Result<Self> {
         let ul_dir = &stowage.paths.user_ledger;
-        let mut ul = Self {
-            run_id: read_run_id(ul_dir),
-            author_aliases: HashMap::new(),
-            work_aliases: HashMap::new(),
-            removed_edges: HashSet::new(),
-            owner_pin_orcids: load_owner_pins(ul_dir)?,
-            owner_pin_oa_ids: HashSet::new(),
-            pending_disowns: Vec::new(),
-            author_merge_events: Vec::new(),
-            work_merge_events: Vec::new(),
-            resolved_disown_keys: Vec::new(),
-            skipped: Vec::new(),
-        };
+        let mut ul = Self::default();
+        ul.run_id = read_run_id(ul_dir);
+        ul.owner_pin_orcids = load_owner_pins(ul_dir)?;
 
         let active_path = ul_dir.join(ACTIVE_JSONL);
         if active_path.exists() {
@@ -190,10 +194,15 @@ impl UserLedger {
                     reason: SkipReason::MissingOaIdOrOrcid,
                 }),
             },
-            EventPayload::ClaimPaper => self.skipped.push(SkippedEvent {
-                key,
-                reason: SkipReason::ClaimPipelineNotImplemented,
-            }),
+            EventPayload::ClaimPaper { work } => match work.doi {
+                Some(doi) if !orcid.is_empty() => {
+                    self.pending_claims.push((key, orcid, canonical_doi(&doi)))
+                }
+                _ => self.skipped.push(SkippedEvent {
+                    key,
+                    reason: SkipReason::MissingOaIdOrOrcid,
+                }),
+            },
             // Resolved in export or never emitted; never present in active.jsonl.
             EventPayload::Revoke
             | EventPayload::ModerationDecision
@@ -281,33 +290,53 @@ impl UserLedger {
         Ok(())
     }
 
-    /// Read `a1_manifest.json`, validate run_id, combine with a2's disown results,
-    /// and write the final `applied_manifest.json`.
-    ///
+    /// Write `user_ledger/filter_manifest.json` recording claim application:
+    /// applied claim keys + claim skips, resolved by the filter step.
+    pub fn write_filter_manifest(
+        &self,
+        stowage: &Stowage,
+        applied_keys: Vec<String>,
+        skipped: Vec<SkippedEvent>,
+    ) -> io::Result<()> {
+        let mut applied = applied_keys;
+        applied.sort_unstable();
+        let manifest = StepManifest {
+            run_id: self.run_id.clone(),
+            applied_keys: applied,
+            skipped,
+        };
+        write_json(&stowage.paths.user_ledger.join(FILTER_MANIFEST), &manifest)?;
+        println!(
+            "{FILTER_MANIFEST}: {} applied, {} skipped",
+            manifest.applied_keys.len(),
+            manifest.skipped.len()
+        );
+        Ok(())
+    }
+
     /// Cross-language boundary: applied_manifest.json (Rust → TS)
     /// Mirror: src/lib/types/ledger.ts — AppliedManifest
     pub fn write_final_manifest(&self, stowage: &Stowage) -> io::Result<()> {
         let ul_dir = &stowage.paths.user_ledger;
-        let raw = fs::read_to_string(ul_dir.join(A1_MANIFEST)).map_err(|_| {
-            io::Error::new(
-                io::ErrorKind::NotFound,
-                "a1_manifest.json missing — a1_entity_mapping must run before a2_init_atts",
-            )
-        })?;
-        let a1: StepManifest = serde_json::from_str(&raw)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-
-        if !self.run_id.is_empty() && !a1.run_id.is_empty() && a1.run_id != self.run_id {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "manifest run_id mismatch: a1={} a2={}",
-                    a1.run_id, self.run_id
-                ),
-            ));
+        let a1 = read_step_manifest(ul_dir, A1_MANIFEST, "a1_entity_mapping")?;
+        let filt = read_step_manifest(ul_dir, FILTER_MANIFEST, "the filter step")?;
+        for (label, manifest) in [("a1", &a1), ("filter", &filt)] {
+            if !self.run_id.is_empty()
+                && !manifest.run_id.is_empty()
+                && manifest.run_id != self.run_id
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "manifest run_id mismatch: {label}={} a2={}",
+                        manifest.run_id, self.run_id
+                    ),
+                ));
+            }
         }
 
         let mut all_applied = a1.applied_keys;
+        all_applied.extend(filt.applied_keys);
         for key in &self.resolved_disown_keys {
             all_applied.push(key.clone());
         }
@@ -315,7 +344,10 @@ impl UserLedger {
         all_applied.dedup();
 
         let mut all_skipped = a1.skipped;
+        all_skipped.extend(filt.skipped);
         all_skipped.extend(self.skipped.iter().cloned());
+        let mut seen = HashSet::new();
+        all_skipped.retain(|s| seen.insert((s.key.clone(), s.reason.clone())));
 
         let manifest = serde_json::json!({
             "run_id": self.run_id,
@@ -331,6 +363,27 @@ impl UserLedger {
         );
         Ok(())
     }
+}
+
+/// Bare DOI: the resolver URL OpenAlex prefixes onto the works-CSV `doi` column
+/// removed, case untouched (a2 serves this form).
+pub fn strip_doi_prefix(doi: &str) -> &str {
+    let trimmed = doi.trim();
+    for pref in DOI_PREFIXES {
+        if trimmed
+            .get(..pref.len())
+            .map_or(false, |head| head.eq_ignore_ascii_case(pref))
+        {
+            return &trimmed[pref.len()..];
+        }
+    }
+    trimmed
+}
+
+/// Mirror of canonicalDoi in src/lib/utils/identifiers.ts (claim subjects store this
+/// form); also applied to the works-CSV `doi` column so the two sides join.
+pub fn canonical_doi(doi: &str) -> String {
+    strip_doi_prefix(doi).to_lowercase()
 }
 
 /// Scan the authors CSV and return a map of normalised ORCID → author oa_id.
@@ -363,6 +416,16 @@ where
     for (drop, dm) in extra {
         map.0.insert(drop, dm);
     }
+}
+
+fn read_step_manifest(ul_dir: &Path, name: &str, producer: &str) -> io::Result<StepManifest> {
+    let raw = fs::read_to_string(ul_dir.join(name)).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("{name} missing — {producer} must run before a2_init_atts"),
+        )
+    })?;
+    serde_json::from_str(&raw).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
 fn read_run_id(ul_dir: &Path) -> String {
@@ -464,6 +527,57 @@ mod tests {
                 drop: AuthorSubject { oa_id: Some(20) }
             }
         ));
+    }
+
+    #[test]
+    fn claim_paper_collects_canonical_doi() {
+        let mut ul = UserLedger {
+            run_id: String::new(),
+            author_aliases: HashMap::new(),
+            work_aliases: HashMap::new(),
+            removed_edges: HashSet::new(),
+            owner_pin_orcids: HashSet::new(),
+            owner_pin_oa_ids: HashSet::new(),
+            pending_claims: Vec::new(),
+            pending_disowns: Vec::new(),
+            author_merge_events: Vec::new(),
+            work_merge_events: Vec::new(),
+            resolved_disown_keys: Vec::new(),
+            skipped: Vec::new(),
+        };
+        let event: LedgerEventLine = serde_json::from_str(
+            r#"{"key":"0-1|claim_paper|h","orcid":"0-1","payload":{"kind":"claim_paper","work":{"oa_id":null,"doi":"https://doi.org/10.1000/XYZ"}}}"#,
+        )
+        .unwrap();
+        ul.apply_event(event);
+        assert_eq!(
+            ul.pending_claims,
+            vec![(
+                "0-1|claim_paper|h".to_string(),
+                "0-1".to_string(),
+                "10.1000/xyz".to_string()
+            )]
+        );
+
+        let no_doi: LedgerEventLine = serde_json::from_str(
+            r#"{"key":"0-1|claim_paper|h2","orcid":"0-1","payload":{"kind":"claim_paper","work":{"oa_id":5,"doi":null}}}"#,
+        )
+        .unwrap();
+        ul.apply_event(no_doi);
+        assert_eq!(ul.skipped.len(), 1);
+        assert_eq!(ul.skipped[0].reason, SkipReason::MissingOaIdOrOrcid);
+    }
+
+    #[test]
+    fn canonical_doi_forms() {
+        assert_eq!(canonical_doi("10.1000/xyz"), "10.1000/xyz");
+        assert_eq!(
+            canonical_doi(" https://dx.doi.org/10.1000/XYZ "),
+            "10.1000/xyz"
+        );
+        // the CSV column keeps its case; a bare or short doi survives intact
+        assert_eq!(strip_doi_prefix("https://doi.org/10.1/XYZ"), "10.1/XYZ");
+        assert_eq!(strip_doi_prefix("10.1/x"), "10.1/x");
     }
 
     #[test]
