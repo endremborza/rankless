@@ -1,7 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 import { LedgerDb } from '$lib/server/db';
-import { resolveWorkSubject, canonicalDoi, ResolveError } from '$lib/server/id_resolver';
+import { resolveWorkSubject, ResolveError } from '$lib/server/id_resolver';
+import { canonicalDoi } from '$lib/utils/identifiers';
 
 export async function POST({ locals, request }: RequestEvent) {
 	if (!locals.user) return json({ error: 'Unauthorized' }, { status: 401 });
