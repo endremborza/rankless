@@ -17,6 +17,10 @@ dirs alongside it.
             e.g. `email_consents`, stay duplicate-free on re-merge). Auto-id
             rows (`ledger_events`) drop their id so the target assigns a fresh
             one and dedup falls to the logical unique index, not the id.
+            `ledger_events.moderation` is additionally reconciled by logical key
+            `(orcid, kind, subject_hash)`: an incoming decision flips a target
+            row still `pending_review`; a decided target never reverts, and two
+            conflicting decisions keep the target's (with a warning).
 - mirror:   replace the target's copy of each table with the source's, verbatim.
 - snapshot: consistent hot copy of a live DB (see `snapshot` below) — the shape
             in which a DB is moved between boxes, never the file rsync'd raw.
@@ -39,6 +43,7 @@ TABLES = (
     "sessions",
 )
 ROW_FILTERS = {"sessions": "expires_at > datetime('now')"}
+DECIDED_MODERATIONS = ("accepted", "rejected", "auto_ok")
 
 
 def snapshot(src_db: str, dst: str) -> None:
@@ -69,6 +74,8 @@ def transfer(target_db: str, incoming_db: str, mode: str) -> None:
         with con:
             for table in TABLES:
                 _transfer_table(con, table, mode)
+            if mode == "merge":
+                _reconcile_moderation(con)
     finally:
         con.execute("DETACH DATABASE src")
         con.close()
@@ -95,6 +102,47 @@ def _transfer_table(con: sqlite3.Connection, table: str, mode: str) -> None:
     where = f" WHERE {' AND '.join(conds)}" if conds else ""
     con.execute(
         f"{verb} INTO main.{table} ({collist}) SELECT {collist} FROM src.{table}{where}"
+    )
+
+
+def _reconcile_moderation(con: sqlite3.Connection) -> None:
+    # INSERT OR IGNORE never touches a ledger_events row both boxes already hold,
+    # so a decision made on the source box would leave the target's copy pending
+    # forever; copy the decision over by the merge-stable logical key.
+    if not (
+        _has_table(con, "src", "ledger_events")
+        and _has_table(con, "main", "ledger_events")
+    ):
+        return
+    decided = ", ".join(f"'{m}'" for m in DECIDED_MODERATIONS)
+    key_match = (
+        "s.orcid = main.ledger_events.orcid"
+        " AND s.kind = main.ledger_events.kind"
+        " AND s.subject_hash = main.ledger_events.subject_hash"
+        " AND s.revoked_at IS NULL"
+    )
+    conflicts = con.execute(
+        f"SELECT t.orcid, t.kind, t.subject_hash, t.moderation, s.moderation"
+        f" FROM main.ledger_events t JOIN src.ledger_events s"
+        f" ON s.orcid = t.orcid AND s.kind = t.kind AND s.subject_hash = t.subject_hash"
+        f" WHERE t.revoked_at IS NULL AND s.revoked_at IS NULL"
+        f" AND t.moderation IN ({decided}) AND s.moderation IN ({decided})"
+        f" AND t.moderation != s.moderation"
+    ).fetchall()
+    for orcid, kind, shash, kept, ignored in conflicts:
+        print(
+            f"warning: moderation conflict on {orcid}|{kind}|{shash}:"
+            f" keeping {kept!r}, ignoring incoming {ignored!r}",
+            file=sys.stderr,
+        )
+    con.execute(
+        f"UPDATE main.ledger_events"
+        f" SET (moderation, moderated_by, moderated_at) ="
+        f" (SELECT s.moderation, s.moderated_by, s.moderated_at"
+        f"  FROM src.ledger_events s WHERE {key_match} AND s.moderation IN ({decided}))"
+        f" WHERE moderation = 'pending_review' AND revoked_at IS NULL"
+        f" AND EXISTS (SELECT 1 FROM src.ledger_events s"
+        f"  WHERE {key_match} AND s.moderation IN ({decided}))"
     )
 
 
