@@ -1,7 +1,8 @@
 // Pure fetch + pluck layer for external metadata (Crossref, OpenAlex, ORCID).
 // No DB or env access (keeps this vitest-importable); orchestration and the
 // enrichment cache live in review-data.ts — the single writer of that cache.
-import { canonicalDoi, claimedWork, normalizeOrcid } from './review';
+import { claimedWork } from './review';
+import { canonicalDoi, normalizeOrcid } from '$lib/utils/identifiers';
 import type { LedgerEvent } from './db';
 import type {
 	EnrichedAuthor,
