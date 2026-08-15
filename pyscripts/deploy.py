@@ -76,6 +76,8 @@ SMALL = "c6a.large"
 
 LARGE_INSTANCE_TYPE = BIG16
 LARGE_STORAGE_GB = 600
+SMOKE_BOOT_S = 300
+SMOKE_POLL_S = 10
 LARGE_FE_PROCS = 12
 DEFAULT_RS_PORT = 3038
 
@@ -1370,8 +1372,8 @@ def smoke(live: bool) -> None:
 
     fe = LIVE_DOMAIN if live else ALPHA_DOMAIN
     be = LIVE_BACKEND if live else ALPHA_BACKEND
-    _check_ok(f"https://{fe}/", "frontend root")
-    specs_resp = _check_json(f"https://{be}/v1/specs", "specs")
+    _check_ok(f"https://{fe}/", "frontend root", SMOKE_BOOT_S)
+    specs_resp = _check_json(f"https://{be}/v1/specs", "specs", SMOKE_BOOT_S)
     documented_release(specs_resp.get("version", ""), warn_missing=True)
     specs = specs_resp["specs"]
     rt = next(iter(specs))
@@ -1386,16 +1388,25 @@ def smoke(live: bool) -> None:
     print(f"smoke checks passed for {fe}")
 
 
-def _check_ok(url: str, desc: str) -> requests.Response:
-    r = requests.get(url, timeout=300)
-    if not r.ok:
-        raise SystemExit(f"smoke: {desc} → {r.status_code} ({url})")
-    print(f"smoke: {desc} ok")
-    return r
+def _check_ok(url: str, desc: str, wait_s: int = 0) -> requests.Response:
+    deadline = time.monotonic() + wait_s
+    while True:
+        try:
+            r = requests.get(url, timeout=300)
+            if r.ok:
+                print(f"smoke: {desc} ok")
+                return r
+            status = r.status_code
+        except requests.RequestException as e:
+            status = type(e).__name__
+        if time.monotonic() >= deadline:
+            raise SystemExit(f"smoke: {desc} → {status} ({url})")
+        print(f"smoke: {desc} → {status}, still coming up")
+        time.sleep(SMOKE_POLL_S)
 
 
-def _check_json(url: str, desc: str):
-    return _check_ok(url, desc).json()
+def _check_json(url: str, desc: str, wait_s: int = 0):
+    return _check_ok(url, desc, wait_s).json()
 
 
 def primitives() -> list[str]:
