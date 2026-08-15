@@ -17,7 +17,6 @@ src/lib/types/review.ts; the DDL below mirrors src/lib/server/db.ts.
 
 import argparse
 import json
-import re
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -25,6 +24,7 @@ from pathlib import Path
 
 from pyscripts import paths
 from pyscripts.explore import cli, runner
+from pyscripts.ledger_ids import canonical_doi, normalize_orcid
 
 VERDICTS = ("approve", "reject", "unsure")
 WORK_SOURCES = ("crossref", "openalex")
@@ -108,14 +108,6 @@ class BatchResult:
     claims: list[Claim]
     verdicts: list[dict]
     error: str | None = None
-
-
-def normalize_orcid(s: str) -> str:
-    return re.sub(r"^https?://(www\.)?orcid\.org/", "", s.strip(), flags=re.I).upper()
-
-
-def canonical_doi(doi: str) -> str:
-    return re.sub(r"^https?://(dx\.)?doi\.org/", "", doi.strip(), flags=re.I).lower()
 
 
 def connect(db_path: str) -> sqlite3.Connection:
