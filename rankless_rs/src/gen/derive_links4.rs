@@ -139,7 +139,7 @@ impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_map
 
 impl Entity for AuthorsHits {
     type T = Box<[u32]>;
-    const N: usize = 4255994;
+    const N: usize = 4256013;
     const NAME: &str = "authors-hits";
 }
 
@@ -162,7 +162,7 @@ impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_map
 
 impl Entity for AuthorCitingHitsDirect {
     type T = Box<[u32]>;
-    const N: usize = 4255994;
+    const N: usize = 4256013;
     const NAME: &str = "author-citing-hits-direct";
 }
 
@@ -181,7 +181,7 @@ impl NamespacedEntity for AuthorCitingHitsDirect {
 
 impl Entity for AuthorCitingHitsOnce {
     type T = Box<[u32]>;
-    const N: usize = 4255994;
+    const N: usize = 4256013;
     const NAME: &str = "author-citing-hits-once";
 }
 

@@ -16,7 +16,7 @@ pub struct WorkFilteredAuthors {}
 
 impl Entity for WorksCiting {
     type T = Box<[u32]>;
-    const N: usize = 92331587;
+    const N: usize = 92331586;
     const NAME: &str = "works-citing";
 }
 
@@ -100,7 +100,7 @@ impl MarkedAttribute<crate::common::MainWorkMarker> for crate::gen::a1_entity_ma
 
 impl Entity for WorkSubfields {
     type T = Box<[u8]>;
-    const N: usize = 92331587;
+    const N: usize = 92331586;
     const NAME: &str = "work-subfields";
 }
 
@@ -124,7 +124,7 @@ impl Link for WorkSubfields {
 
 impl Entity for WorkFilteredAuthors {
     type T = Box<[u32]>;
-    const N: usize = 92331587;
+    const N: usize = 92331586;
     const NAME: &str = "work-filtered-authors";
 }
 
@@ -143,7 +143,7 @@ impl NamespacedEntity for WorkFilteredAuthors {
 
 impl Entity for WorkInstitutions {
     type T = Box<[u16]>;
-    const N: usize = 92331587;
+    const N: usize = 92331586;
     const NAME: &str = "work-institutions";
 }
 
