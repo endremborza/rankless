@@ -6,9 +6,9 @@ import {
 	resolveWorkSubject,
 	resolveAuthorSubject,
 	assertAuthoredAny,
-	canonicalDoi,
 	ResolveError
 } from '$lib/server/id_resolver';
+import { canonicalDoi } from '$lib/utils/identifiers';
 
 type PayloadInput = Record<string, unknown>;
 
