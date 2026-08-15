@@ -2,8 +2,8 @@
  * Ledger integration tests — run by pyscripts/mega_test.py.
  *
  * Two describe blocks, each selected by the Python orchestrator via --grep:
- *   "pre-pipeline"  — log in, perform user actions, verify pending state
- *   "post-pipeline" — verify the pipeline applied the actions
+ *   "pre-pipeline"  — log in, disown/merge/claim, accept the claim, verify pending state
+ *   "post-pipeline" — verify the pipeline applied the actions + restored the pinned œuvre
  *
  * State between the two phases is stored in /tmp/mega-test-ledger-state.json.
  */
@@ -57,7 +57,7 @@ test.describe('pre-pipeline', () => {
 		expect(worksResp.ok, `backend /works fetch failed: ${worksUrl}`).toBeTruthy();
 		const worksJson = await worksResp.json();
 		const papers: { wid: number; name: string; citations: number }[] = worksJson.resp?.papers ?? [];
-		expect(papers.length, 'author must have at least 3 papers').toBeGreaterThanOrEqual(3);
+		expect(papers.length, 'author must have at least 4 papers').toBeGreaterThanOrEqual(4);
 
 		const totalPapersBefore: number = worksJson.totalPapers;
 		const [p0, p1, p2] = papers;
@@ -75,6 +75,21 @@ test.describe('pre-pipeline', () => {
 		});
 		expect(merge.status, 'merge should return 200').toBe(200);
 
+		// Claim an untouched paper through its real DOI (fetched via resolve/work).
+		let claimDoi: string | null = null;
+		for (const p of papers.slice(3)) {
+			const resolveResp = await fetch(`${BE_URL}/resolve/work?wid=${p.wid}`);
+			if (!resolveResp.ok) continue;
+			const resolved: { doi?: string } = await resolveResp.json();
+			if (resolved.doi) {
+				claimDoi = resolved.doi;
+				break;
+			}
+		}
+		expect(claimDoi, 'a served paper with a DOI is needed for the claim flow').toBeTruthy();
+		const claim = await apiPost(page, '/api/papers/claim', { doi: claimDoi });
+		expect(claim.status, 'claim should return 200').toBe(200);
+
 		// Verify events are recorded as pending.
 		const events: {
 			event_id: number;
@@ -84,8 +99,18 @@ test.describe('pre-pipeline', () => {
 		}[] = await apiGet(page, '/api/ledger');
 		const disownEvent = events.find((e) => e.kind === 'disown_paper' && !e.revoked_at);
 		const mergeEvent = events.find((e) => e.kind === 'merge_papers' && !e.revoked_at);
+		const claimEvent = events.find((e) => e.kind === 'claim_paper' && !e.revoked_at);
 		expect(disownEvent, 'disown_paper event must exist').toBeDefined();
 		expect(mergeEvent, 'merge_papers event must exist').toBeDefined();
+		expect(claimEvent, 'claim_paper event must exist').toBeDefined();
+
+		// Claims default to pending_review and only accepted events reach the pipeline;
+		// the dev-login user is in ADMIN_ORCIDS (set by mega_test.py), so accept it here.
+		const moderate = await apiPost(page, '/api/admin/moderate', {
+			event_ids: [claimEvent!.event_id],
+			decision: 'accepted'
+		});
+		expect(moderate.status, 'claim moderation should return 200').toBe(200);
 
 		// Ledger-status should have no applied events yet (pipeline hasn't run).
 		const status = await apiGet(page, '/api/ledger-status');
@@ -96,6 +121,7 @@ test.describe('pre-pipeline', () => {
 		const state = {
 			disownKey: disownEvent!.key,
 			mergeKey: mergeEvent!.key,
+			claimKey: claimEvent!.key,
 			disownedWid: p0.wid,
 			disownedTitle: p0.name,
 			totalPapersBefore
@@ -116,6 +142,7 @@ test.describe('post-pipeline', () => {
 		const applied: string[] = status.applied_keys ?? [];
 		expect(applied, `disown ${state.disownKey} must be in applied`).toContain(state.disownKey);
 		expect(applied, `merge ${state.mergeKey} must be in applied`).toContain(state.mergeKey);
+		expect(applied, `claim ${state.claimKey} must be in applied`).toContain(state.claimKey);
 	});
 
 	test('disowned paper is absent from author works', async ({ page }) => {
@@ -134,7 +161,7 @@ test.describe('post-pipeline', () => {
 		).not.toContain(state.disownedTitle);
 	});
 
-	test('author page loads and paper count decreased', async ({ page }) => {
+	test('author page loads and the pinned œuvre is restored', async ({ page }) => {
 		const state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8'));
 		await login(page);
 
@@ -143,9 +170,12 @@ test.describe('post-pipeline', () => {
 		const worksJson = await worksResp.json();
 		const totalPapersAfter: number = worksJson.totalPapers;
 
-		// Disown removes one paper from the author. Merge removes the drop side.
-		expect(totalPapersAfter, 'paper count must be lower after disown + merge').toBeLessThan(
-			state.totalPapersBefore
-		);
+		// Logging in pinned the author as an owner, so the pipeline forces their full
+		// œuvre through the type/citation screens — that restoration dwarfs the two
+		// papers the disown + merge removed (whose absence test 2 checks by title).
+		expect(
+			totalPapersAfter,
+			'pinned œuvre restoration must raise the served paper count'
+		).toBeGreaterThan(state.totalPapersBefore);
 	});
 });

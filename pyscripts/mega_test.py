@@ -6,10 +6,12 @@ Flow
    --no-db-pull (nuke removed $OA_ROOT and the sqlite DB): to-csv → filter →
    scoped ladder force → stamp → lib data → restart backend → showcase.
 2. Wait for the backend, start the SvelteKit dev server (bun run dev).
-3. Playwright pre-pipeline: login, disown a paper, merge two papers, verify pending.
+3. Playwright pre-pipeline: login, disown a paper, merge two papers, claim a
+   paper by DOI and accept the claim, verify pending state.
 4. refresh-data --no-db-pull (re-exports ledger → filter → forced ladder →
    stamp → restart), wait for backend.
-5. Playwright post-pipeline: verify applied events + author page reflects changes.
+5. Playwright post-pipeline: verify applied events (incl. the claim) + the
+   pinned owner's restored oeuvre on the author page.
 
 Records the outcome (timestamp, result, duration) to docs/mega-test-last-run.md
 on every run, pass or fail.
@@ -37,6 +39,9 @@ from .server_ops import DEFAULT_BE_ADDR
 DEV_PORT = 5173
 BASE_URL = f"http://localhost:{DEV_PORT}"
 BE_URL = f"{DEFAULT_BE_ADDR}/v1"
+# Mirrors TEST_ORCID in tests/ledger.spec.ts; admin rights let the spec accept
+# its own claim (only accepted events reach the pipeline).
+TEST_ORCID = "0000-0003-4255-0492"
 REPO_ROOT = Path(__file__).parent.parent
 LOG_DIR = REPO_ROOT / "logs"
 DEV_SERVER_LOG = LOG_DIR / "dev-server.log"
@@ -93,7 +98,7 @@ def _start_dev_server() -> subprocess.Popen:
 
     LOG_DIR.mkdir(exist_ok=True)
     log_fh = DEV_SERVER_LOG.open("wb")
-    env = {**os.environ, "NODE_ENV": "development"}
+    env = {**os.environ, "NODE_ENV": "development", "ADMIN_ORCIDS": TEST_ORCID}
     proc = subprocess.Popen(
         ["bun", "run", "dev", "--port", str(DEV_PORT)],
         cwd=REPO_ROOT,
@@ -188,10 +193,25 @@ def _assert_release_record() -> None:
 
     works = rel["filter_counts"]["10"]["works"]["kept"]
     assert works > 0, "filter_counts: no works survived step 10"
-    # the pre-pipeline Playwright run drove a disown and a paper merge
+    # the pre-pipeline Playwright run drove a disown, a paper merge and a claim
     assert rel["applied"].get("disown_paper", 0) >= 1, rel["applied"]
     assert rel["applied"].get("merge_papers", 0) >= 1, rel["applied"]
+    assert rel["applied"].get("claim_paper", 0) >= 1, rel["applied"]
     assert rel["ledger"].get("site"), rel["ledger"]
+
+    sidecar_path = Path(os.environ["OA_ROOT"]) / "user-ledger" / "forced_works.json"
+    assert sidecar_path.exists(), f"forced-works sidecar missing: {sidecar_path}"
+    forced = json.loads(sidecar_path.read_text())
+    assert rel["forced_works"]["cohort"] == forced["cohort"], (
+        rel["forced_works"],
+        forced,
+    )
+
+    from .release_report import ASSET_PATH
+
+    report = json.loads(ASSET_PATH.read_text())
+    assert report["run_id"] == rel["run_id"], (report["run_id"], rel["run_id"])
+    assert report["restored"] is not None, "report must carry the restored aggregates"
     print(
         f"[OK] release record chain: {rel['run_id']} (works kept: {works})", flush=True
     )
