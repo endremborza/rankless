@@ -25,6 +25,37 @@ type/citation screens; a claim is applied when the claimant is credited on the
 surviving work (skips: `doi_not_in_snapshot`, `orcid_not_in_dataset`,
 `oa_id_not_in_dataset`, `claimant_not_attributed`).
 
+## Release claims lane (`pyscripts/claims.py`)
+
+`uv run -m pyscripts claims <step>` is the driver-side counterpart of the queue,
+for the batch of claims a release resolves. It exists because the queue's hard
+evidence is the **OpenAlex API**, while the pipeline reads the **snapshot** — the
+two disagree on recent papers, and accepting on API evidence would auto-apply a
+claim the snapshot cannot support.
+
+Everything case-specific is data: a per-release plan file (one entry per
+submitted claim — verdict, reason, the claimant's author record, the work's
+author records, the name-matched merge candidates) that measurement against the
+snapshot CSVs produces. It lives with the driver's release notes, never in the
+repo, and the steps only read and write it:
+
+- `review-merges` — a claim whose DOI the snapshot credits to a name-matching
+  _other_ record needs an author merge. y/n per candidate, with the cached work
+  metadata as evidence; the verdict — approved _or_ rejected, with its reason —
+  is written back into the plan, so the decision is recorded rather than
+  re-litigated.
+- `apply-merges` — writes the approved ones as accepted `merge_authors` events
+  (actor = claimant, `moderated_by = convert:<admin>`), idempotent.
+- `accept` — accepts the claims the snapshot proves (claimant already on the
+  work, or credited via an approved merge), `moderated_by =
+'auto:snapshot-authorship'` — an automated tier in the queue like
+  `auto:doi-authorship`. Everything else stays `pending_review`.
+- `record` — the release's claims sidecar, [deploy.md](deploy.md).
+
+Live's DB keeps its own copies as `pending_review`; the reconcile never reverts
+a decided row, so `merge_db_to_live` carries the decisions across whenever
+convenient.
+
 ## Enrichment cache (`subject_enrichment`)
 
 Claim payloads are often DOI-only (fresh papers missing from the OA snapshot),
