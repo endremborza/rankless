@@ -130,7 +130,8 @@
 			question: 'How often do you update your data?',
 			id: 'frequency',
 			answer: `
-			Our current workflow considers monthly updates.
+			Our current workflow considers monthly updates. The <a href="/release">data release report</a>
+			documents exactly what the currently served release contains and how it was built.
 		`
 		},
 		{
@@ -408,6 +409,7 @@
 					<div class="links">
 						<a href="https://openalex.org/" target="_blank" rel="noopener">OpenAlex</a>
 						<a href="https://www.scimagojr.com/" target="_blank" rel="noopener">SCImago</a>
+						<a href="/release">Release report</a>
 					</div>
 				</div>
 			</div>
