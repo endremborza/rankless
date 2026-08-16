@@ -5,6 +5,8 @@ import pandas as pd
 from ccl_science_data.common import GenReader, get_arr
 from ccl_science_data.gen import EntC
 
+from pyscripts.release_report import write_report_asset
+
 JS_FILE = "extern/NetTreePlus_02_Oct15_2025.csv.cyjs"
 # EDGE_WEIGHT_KEY = "pspace_proximity"
 EDGE_WEIGHT_KEY = "Column_3"
@@ -52,6 +54,7 @@ def get_edges(els, idmap):
 
 
 if __name__ == "__main__":
+    write_report_asset(warn_missing=True)
     gr = GenReader()
     d = json.loads(Path(JS_FILE).read_text())
     els = d["elements"]
