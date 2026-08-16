@@ -42,9 +42,21 @@ accepted claim), then: `make filter extend_csvs` → forced gen-ladder rebuild �
   filter counts derived from the `filter-steps/` id files themselves (8-byte ids,
   so kept = size/8 — no pipeline instrumentation). A pure function over those
   sidecars: `uv run -m pyscripts recalc manifest` re-assembles it after manual
-  surgery. `releases/` is excluded from the push + digest — the manifest describes
-  the data rather than being part of it. `smoke` (ship-alpha/promote) checks the
-  served `/v1/specs.version` against it: an undocumented release is unshippable.
+  surgery — re-assembly keeps the run's own `git_commit`, so a later checkout
+  cannot relabel finished data. `releases/` is excluded from the push + digest —
+  the manifest describes the data rather than being part of it. `smoke`
+  (ship-alpha/promote) checks the served `/v1/specs.version` against it: an
+  undocumented release is unshippable.
+- **Claims sidecar** (releases that run the paper-claim lane):
+  `uv run -m pyscripts claims record` writes `releases/<run_id>.claims.json` —
+  every submitted claim, whether it landed and what stopped it. A claim that was
+  never accepted is never exported, so `applied_manifest` cannot account for it;
+  without this the report would show the claims that landed and stay silent about
+  the rest. It is written after the stamp, which is why it lives in `releases/`
+  (push- and digest-excluded) rather than in `user-ledger/`. `recalc manifest`
+  folds its top-level aggregates into the record as `claims_review`; per-claim
+  detail stays on the box. Order: write the sidecar, then re-run
+  `recalc manifest` + `release-report`.
 - `lib_data_generation` then bakes the **release report**,
   `src/lib/assets/data/release-report.json` (`pyscripts/release_report.py`, a pure
   function over the current + previous release manifests): per-entity filter chains
