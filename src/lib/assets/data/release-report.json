@@ -1,0 +1,156 @@
+{
+ "run_id": "2026-08-15T01:43:15Z",
+ "stamp": "2026-08-15T01:43:15Z:7a14b7d8c49a",
+ "git_commit": "ed5e497d715c",
+ "snapshot": {
+  "name": "openalex-snapshot-2026-06-30",
+  "date": "2026-06-30"
+ },
+ "entities": {
+  "works": {
+   "steps": [
+    {
+     "label": "research publications \u2014 articles, conference papers, books, chapters and reviews (or restored by their authors); not retracted; in covered years",
+     "kept": 284076791
+    },
+    {
+     "label": "cited at least once by an indexed work, or restored",
+     "kept": 103249975
+    },
+    {
+     "label": "authorship resolved, user corrections applied",
+     "kept": 99408582
+    }
+   ],
+   "final": 99408582
+  },
+  "authors": {
+   "steps": [
+    {
+     "label": "credited on an indexed work",
+     "kept": 46269365
+    },
+    {
+     "label": "above the activity threshold, or a registered owner",
+     "kept": 4256737
+    }
+   ],
+   "final": 4256737
+  },
+  "sources": {
+   "steps": [
+    {
+     "label": "venues with enough indexed works",
+     "kept": 44397
+    }
+   ],
+   "final": 44397
+  },
+  "institutions": {
+   "steps": [
+    {
+     "label": "institutions with enough indexed works",
+     "kept": 37099
+    },
+    {
+     "label": "affiliated with indexed works after all screens",
+     "kept": 37001
+    }
+   ],
+   "final": 37001
+  }
+ },
+ "ledger": {
+  "sources": 1,
+  "events": 339,
+  "applied": {
+   "claim_paper": 60,
+   "disown_paper": 273,
+   "merge_authors": 4,
+   "merge_papers": 2
+  },
+  "applied_total": 339,
+  "skipped": {},
+  "skipped_total": 0
+ },
+ "restored": {
+  "cohort": 117,
+  "forced_total": 14456,
+  "outside_standard": 5692,
+  "outside_type": 2512,
+  "outside_citations": 4674,
+  "claim_auto": 29,
+  "claim_merged": 1,
+  "author_rescues": 42
+ },
+ "claims": {
+  "submitted": 73,
+  "applied": 60,
+  "unresolved": 13,
+  "unresolved_by_cause": {
+   "paper carries no author records to attribute": 8,
+   "DOI absent from this snapshot": 3,
+   "only candidate match was a different researcher": 2
+  },
+  "merges_reviewed": 6,
+  "merges_approved": 4
+ },
+ "previous": {
+  "run_id": "2026-08-13T11:25:57Z",
+  "snapshot": {
+   "name": "openalex-snapshot-2026-06-30",
+   "date": "2026-06-30"
+  }
+ },
+ "deltas": {
+  "entities": {
+   "works": {
+    "previous": 92331586,
+    "current": 99408582,
+    "change": 7076996
+   },
+   "authors": {
+    "previous": 4256011,
+    "current": 4256737,
+    "change": 726
+   },
+   "sources": {
+    "previous": 42240,
+    "current": 44397,
+    "change": 2157
+   },
+   "institutions": {
+    "previous": 36299,
+    "current": 37001,
+    "change": 702
+   }
+  },
+  "applied": {
+   "disown_paper": {
+    "previous": 273,
+    "current": 273,
+    "new": 0
+   },
+   "merge_papers": {
+    "previous": 2,
+    "current": 2,
+    "new": 0
+   },
+   "claim_paper": {
+    "previous": 0,
+    "current": 60,
+    "new": 60
+   },
+   "merge_authors": {
+    "previous": 0,
+    "current": 4,
+    "new": 4
+   }
+  },
+  "applied_total": {
+   "previous": 275,
+   "current": 339,
+   "new": 64
+  }
+ }
+}
