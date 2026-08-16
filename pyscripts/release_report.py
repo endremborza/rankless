@@ -9,9 +9,11 @@ reads live state. Aggregates only: ledger feed names never leave this module.
 
 import json
 import os
+import re
 from pathlib import Path
 
 ASSET_PATH = Path("src/lib/assets/data/release-report.json")
+RUN_ID_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
 
 ENTITY_ORDER = ("works", "authors", "sources", "institutions")
 # (filter step id, entity) → public phrasing of what survives it; the ids and
@@ -62,7 +64,9 @@ def load_records(root: Path | None = None) -> tuple[dict, dict | None]:
     older = sorted(
         p
         for p in rdir.glob("*.json")
-        if p.name != "release.json" and p.stem < current["run_id"]
+        # Only release records: `releases/` also holds per-run sidecars
+        # (`<run_id>.cohort.json`, `<run_id>.claims.json`).
+        if RUN_ID_RE.fullmatch(p.stem) and p.stem < current["run_id"]
     )
     previous = json.loads(older[-1].read_text()) if older else None
     return current, previous
