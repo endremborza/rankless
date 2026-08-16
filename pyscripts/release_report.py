@@ -109,7 +109,7 @@ def render_md(report: dict) -> str:
     lines = [
         f"## Rankless data release {report['run_id'][:10]}",
         "",
-        f"Built from OpenAlex snapshot {report['snapshot']['date']} "
+        f"Built from OpenAlex snapshot {_snapshot(report['snapshot'])} "
         f"(`{report['stamp']}`).",
         "",
     ]
@@ -176,7 +176,6 @@ def _entity_chains(filter_counts: dict) -> dict:
             steps.append(
                 {
                     "label": STEP_LABELS.get((step, ent), f"filter step {step}"),
-                    "in": counts["in"],
                     "kept": counts["kept"],
                 }
             )
@@ -222,6 +221,10 @@ def _deltas(cur: dict, prev: dict) -> dict:
             "new": cur["ledger"]["applied_total"] - prev["ledger"]["applied_total"],
         },
     }
+
+
+def _snapshot(snap: dict) -> str:
+    return snap["date"] or snap["name"]
 
 
 def _fmt(n: int) -> str:
