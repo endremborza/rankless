@@ -105,17 +105,22 @@ class BatchRequester:
             self.urled_sample.loc[:, [RTC, SIDC, TIDC, BDSC, "citations", "cut_basis"]]
         )
 
-    def iter_gdfs(self, bins: list[float], labels: list):
+    def iter_gdfs(self, bins: list[float], proc_counts: list):
         full_bins = [*bins, self.big_limit]
         print("running with bins ", [f"{e}M" for e in full_bins])
         mbins = [e * 1e6 for e in full_bins]
-        return (
+        # Bands are labelled by index, then mapped to their proc count: two
+        # bands may legitimately run the same number of procs, and pd.cut
+        # rejects duplicate labels.
+        bands = list(range(len(mbins) - 1))
+        grouped = (
             self.urled_sample.assign(
-                ccut=lambda df: pd.cut(df["cut_basis"], mbins, labels=labels)
+                ccut=lambda df: pd.cut(df["cut_basis"], mbins, labels=bands)
             )
             .loc[lambda df: df["ccut"].notna()]
             .groupby("ccut", observed=True)
         )
+        return ((proc_counts[band], gdf) for band, gdf in grouped)
 
     def _run(self, urls, nprocs):
         if nprocs == 1:
