@@ -12,6 +12,9 @@ import os
 import re
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
 ASSET_PATH = Path("src/lib/assets/data/release-report.json")
 RUN_ID_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
 

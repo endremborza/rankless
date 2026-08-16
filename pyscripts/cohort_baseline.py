@@ -16,6 +16,9 @@ import os
 import urllib.request
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
 BASE = os.environ.get("COHORT_BE", "http://127.0.0.1:3038/v1").rstrip("/")
 AUTHOR_KEYS = ("semanticId", "name", "oaId", "papers", "citations")
 
