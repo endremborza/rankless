@@ -132,16 +132,26 @@ CLAIMS_AGGREGATES = (
 )
 
 
-def _claims_review(ul: Path) -> dict | None:
-    """Optional sidecar from `pyscripts.claims_record`: every submitted paper
+def _claims_review(rdir: Path, run_id: str) -> dict | None:
+    """Optional sidecar from `pyscripts claims record`: every submitted paper
     claim and what stopped the unresolved ones (a claim that was never accepted
-    is never exported, so applied_manifest cannot account for it). Public
-    aggregates only — the per-claim detail stays on the box."""
-    path = ul / "claims_review.json"
+    is never exported, so applied_manifest cannot account for it). It lives in
+    `releases/` — written after the stamp, so it must stay out of the pushed,
+    digested data. Public aggregates only — the per-claim detail stays here."""
+    path = rdir / f"{run_id}.claims.json"
     if not path.exists():
         return None
     data = json.loads(path.read_text())
     return {k: data[k] for k in CLAIMS_AGGREGATES}
+
+
+def _build_commit(rdir: Path, run_id: str) -> str:
+    """The commit that built this run — kept from the run's own record when
+    re-assembling, so a later checkout can't relabel finished data."""
+    path = rdir / f"{run_id}.json"
+    if path.exists():
+        return json.loads(path.read_text())["git_commit"]
+    return gitutil.head_commit()
 
 
 def build_release_manifest(root: Path) -> dict:
@@ -168,10 +178,11 @@ def build_release_manifest(root: Path) -> dict:
     snapshot_name = Path(os.environ["OA_SNAPSHOT"]).name
     date_m = re.search(r"\d{4}-\d{2}(-\d{2})?", snapshot_name)
 
+    rdir = root / "releases"
     return {
         "run_id": run_id,
         "stamp": stamp,
-        "git_commit": gitutil.head_commit(),
+        "git_commit": _build_commit(rdir, run_id),
         "rankless_env": manifest.rankless_env(),
         "snapshot": {"name": snapshot_name, "date": date_m[0] if date_m else None},
         "ledger": snap.get("sources", {}),
@@ -180,7 +191,7 @@ def build_release_manifest(root: Path) -> dict:
         "skipped": dict(Counter(s["reason"] for s in applied["skipped"])),
         # Public aggregates only — the private wid list stays in the sidecar.
         "forced_works": {k: forced[k] for k in FORCED_AGGREGATES},
-        "claims_review": _claims_review(ul),
+        "claims_review": _claims_review(rdir, run_id),
     }
 
 

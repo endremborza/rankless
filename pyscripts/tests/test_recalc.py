@@ -205,6 +205,50 @@ def test_release_manifest_assembly(
     assert m["filter_counts"]["20"]["authors"] == {"in": None, "kept": 7}
 
 
+def test_release_manifest_folds_claims_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id = "2026-08-12T10:00:00Z"
+    _seed_sidecars(tmp_path, run_id)
+    monkeypatch.setenv("OA_SNAPSHOT", "/somewhere/snap-2026-06")
+    rdir = tmp_path / "releases"
+    rdir.mkdir()
+    (rdir / f"{run_id}.claims.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "submitted": 5,
+                "applied": 3,
+                "unresolved": 2,
+                "unresolved_by_cause": {"DOI absent from this snapshot": 2},
+                "merges_reviewed": 1,
+                "merges_approved": 1,
+                "detail": [{"orcid": "0000-1", "doi": "10.1/x", "applied": True}],
+            }
+        )
+    )
+
+    m = json.loads(recalc.write_release_manifest(tmp_path).read_text())
+    # aggregates only — per-claim detail never enters the release record
+    assert m["claims_review"] == {
+        "submitted": 5,
+        "applied": 3,
+        "unresolved": 2,
+        "unresolved_by_cause": {"DOI absent from this snapshot": 2},
+        "merges_reviewed": 1,
+        "merges_approved": 1,
+    }
+
+    # re-assembly keeps the commit that built the run, not the current HEAD
+    (rdir / f"{run_id}.json").write_text(
+        json.dumps({**m, "git_commit": "0123456789ab"})
+    )
+    assert (
+        json.loads(recalc.write_release_manifest(tmp_path).read_text())["git_commit"]
+        == "0123456789ab"
+    )
+
+
 def test_release_manifest_torn_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
