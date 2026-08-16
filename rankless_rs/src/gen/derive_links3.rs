@@ -78,7 +78,7 @@ impl MarkedAttribute<crate::common::WorkCountMarker> for crate::gen::a1_entity_m
 
 impl Entity for HitPapers {
     type T = u32;
-    const N: usize = 407215;
+    const N: usize = 443023;
     const NAME: &str = "hit-papers";
 }
 
@@ -92,7 +92,7 @@ impl NamespacedEntity for HitPapers {
 
 impl Entity for HitPapersNames {
     type T = String;
-    const N: usize = 407215;
+    const N: usize = 443023;
     const NAME: &str = "hit-papers-names";
 }
 
@@ -111,7 +111,7 @@ impl NamespacedEntity for HitPapersNames {
 
 impl Entity for HitPapersDois {
     type T = String;
-    const N: usize = 407215;
+    const N: usize = 443023;
     const NAME: &str = "hit-papers-dois";
 }
 
@@ -130,7 +130,7 @@ impl NamespacedEntity for HitPapersDois {
 
 impl Entity for HitPapersWids {
     type T = Box<[u32]>;
-    const N: usize = 407215;
+    const N: usize = 443023;
     const NAME: &str = "hit-papers-wids";
 }
 
@@ -149,7 +149,7 @@ impl NamespacedEntity for HitPapersWids {
 
 impl Entity for Coauthors {
     type T = Box<[(u32, u8)]>;
-    const N: usize = 4256013;
+    const N: usize = 4256739;
     const NAME: &str = "coauthors";
 }
 
@@ -168,7 +168,7 @@ impl NamespacedEntity for Coauthors {
 
 impl Entity for HitPapersCiteCounts {
     type T = u32;
-    const N: usize = 407215;
+    const N: usize = 443023;
     const NAME: &str = "hit-papers-cite-counts";
 }
 
@@ -182,7 +182,7 @@ impl NamespacedEntity for HitPapersCiteCounts {
 
 impl Entity for HitPapersBenchmarks {
     type T = u16;
-    const N: usize = 407215;
+    const N: usize = 443023;
     const NAME: &str = "hit-papers-benchmarks";
 }
 
@@ -196,7 +196,7 @@ impl NamespacedEntity for HitPapersBenchmarks {
 
 impl Entity for HitPapersCreatedTopic {
     type T = u16;
-    const N: usize = 407215;
+    const N: usize = 443023;
     const NAME: &str = "hit-papers-created-topic";
 }
 
@@ -210,7 +210,7 @@ impl NamespacedEntity for HitPapersCreatedTopic {
 
 impl Entity for InstitutionsWorkCount {
     type T = u32;
-    const N: usize = 36301;
+    const N: usize = 37003;
     const NAME: &str = "institutions-work-count";
 }
 
@@ -230,7 +230,7 @@ impl MarkedAttribute<crate::common::WorkCountMarker>
 
 impl Entity for InstitutionsSemanticIds {
     type T = String;
-    const N: usize = 36301;
+    const N: usize = 37003;
     const NAME: &str = "institutions-semantic-ids";
 }
 
@@ -296,7 +296,7 @@ impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_
 
 impl Entity for SourcesWorkCount {
     type T = u32;
-    const N: usize = 42242;
+    const N: usize = 44399;
     const NAME: &str = "sources-work-count";
 }
 
@@ -314,7 +314,7 @@ impl MarkedAttribute<crate::common::WorkCountMarker> for crate::gen::a1_entity_m
 
 impl Entity for SourcesSemanticIds {
     type T = String;
-    const N: usize = 42242;
+    const N: usize = 44399;
     const NAME: &str = "sources-semantic-ids";
 }
 
@@ -337,7 +337,7 @@ impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_
 
 impl Entity for AuthorsWorkCount {
     type T = u16;
-    const N: usize = 4256013;
+    const N: usize = 4256739;
     const NAME: &str = "authors-work-count";
 }
 
@@ -355,7 +355,7 @@ impl MarkedAttribute<crate::common::WorkCountMarker> for crate::gen::a1_entity_m
 
 impl Entity for AuthorsSemanticIds {
     type T = String;
-    const N: usize = 4256013;
+    const N: usize = 4256739;
     const NAME: &str = "authors-semantic-ids";
 }
 
@@ -439,7 +439,7 @@ impl MarkedAttribute<crate::common::CitRankLadderMarker>
 
 impl Entity for InstitutionsPeers {
     type T = [u16; 10];
-    const N: usize = 36301;
+    const N: usize = 37003;
     const NAME: &str = "institutions-peers";
 }
 
@@ -553,7 +553,7 @@ impl MarkedAttribute<crate::common::CitRankLadderMarker>
 
 impl Entity for SourcesPeers {
     type T = [u16; 10];
-    const N: usize = 42242;
+    const N: usize = 44399;
     const NAME: &str = "sources-peers";
 }
 
@@ -591,7 +591,7 @@ impl MarkedAttribute<crate::common::CitRankLadderMarker>
 
 impl Entity for AuthorsPeers {
     type T = [u32; 10];
-    const N: usize = 4256013;
+    const N: usize = 4256739;
     const NAME: &str = "authors-peers";
 }
 

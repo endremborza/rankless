@@ -14,7 +14,7 @@ pub struct HitPapersTopCitingSubfields {}
 
 impl Entity for HitPapersEra {
     type T = [u32; 11];
-    const N: usize = 407216;
+    const N: usize = 443024;
     const NAME: &str = "hit-papers-era";
 }
 
@@ -34,7 +34,7 @@ impl MarkedAttribute<crate::common::YearlyCitationsMarker>
 
 impl Entity for HitPaperYearlyCitations {
     type T = Box<[u32]>;
-    const N: usize = 407216;
+    const N: usize = 443024;
     const NAME: &str = "hit-paper-yearly-citations";
 }
 
@@ -53,7 +53,7 @@ impl NamespacedEntity for HitPaperYearlyCitations {
 
 impl Entity for HitPapersTopJournals {
     type T = [(u32, u16); 5];
-    const N: usize = 407216;
+    const N: usize = 443024;
     const NAME: &str = "hit-papers-top-journals";
 }
 
@@ -71,7 +71,7 @@ impl MarkedAttribute<crate::common::TopJournalMarker> for crate::gen::derive_lin
 
 impl Entity for HitPapersTopPaperAuthors {
     type T = [(u32, u32); 25];
-    const N: usize = 407216;
+    const N: usize = 443024;
     const NAME: &str = "hit-papers-top-paper-authors";
 }
 
@@ -89,7 +89,7 @@ impl MarkedAttribute<crate::common::Top15AuthorMarker> for crate::gen::derive_li
 
 impl Entity for HitPapersTopPaperSubfields {
     type T = [(u32, u8); 5];
-    const N: usize = 407216;
+    const N: usize = 443024;
     const NAME: &str = "hit-papers-top-paper-subfields";
 }
 
@@ -107,7 +107,7 @@ impl MarkedAttribute<crate::common::TopNPaperSfMarker> for crate::gen::derive_li
 
 impl Entity for HitPapersTopCitingSubfields {
     type T = [(u32, u8); 5];
-    const N: usize = 407216;
+    const N: usize = 443024;
     const NAME: &str = "hit-papers-top-citing-subfields";
 }
 
