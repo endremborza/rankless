@@ -1,4 +1,4 @@
-"""One-time setup for the designer flow.
+"""First-run setup for the designer flow (per machine, not per release).
 
 Steps:
     1. preflight: check tools
