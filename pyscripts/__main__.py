@@ -16,6 +16,7 @@ COMMANDS = {
     "bench": "pyscripts.bm",
     "cache": "pyscripts.cache_prompting",
     "recalc": "pyscripts.recalc",
+    "claims": "pyscripts.claims",
     "release-report": "pyscripts.release_report",
     "cohort-baseline": "pyscripts.cohort_baseline",
     "deploy": "pyscripts.deploy",
