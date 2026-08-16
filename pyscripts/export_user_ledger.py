@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from pyscripts import paths
+from pyscripts.ledger_ids import logical_key
 
 from .deploy import OA_ROOT_VAR
 
@@ -65,8 +66,7 @@ def _fetch_active_events(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return [
         {
             "event_id": r[0],
-            # Merge-stable logical id; mirror of logicalKey() in src/lib/server/ledger-hash.ts.
-            "key": f"{r[1]}|{r[2]}|{r[4]}",
+            "key": logical_key(r[1], r[2], r[4]),
             "orcid": r[1],
             "kind": r[2],
             "source": SOURCE,

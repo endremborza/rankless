@@ -19,8 +19,8 @@ export const DEFAULT_MODERATION: Record<LedgerKind, ModerationState> = {
 
 // Merge-stable logical id of an event: `${orcid}|${kind}|${subject_hash}`. This is the
 // dedup identity the DB already enforces (idx_le_dedup), and — unlike the autoincrement
-// event_id — it survives DB merges. Mirrored verbatim in export_user_ledger.py and the
-// one-time revoke migration; keep the format in sync.
+// event_id — it survives DB merges. One mirror per language: `logical_key` in
+// pyscripts/ledger_ids.py (rankless_rs only reads the key, never builds it).
 export function logicalKey(orcid: string, kind: LedgerKind, subjectHash: string): string {
 	return `${orcid}|${kind}|${subjectHash}`;
 }

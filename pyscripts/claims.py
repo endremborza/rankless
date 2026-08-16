@@ -55,6 +55,7 @@ from pyscripts import paths
 from pyscripts.ledger_ids import (
     author_subject,
     canonical_doi,
+    logical_key,
     merge_subject_hash,
     oa_numeric,
 )
@@ -196,7 +197,6 @@ def accept(
     """Accept the claims the snapshot proves; the rest stay pending_review."""
     doc = json.loads(Path(plan).read_text())
     con = _connect(db)
-    con.row_factory = sqlite3.Row
     rows, drops = _claim_rows(con), _merged_drops(con)
     tally: Counter = Counter()
     to_accept, held = [], []
@@ -283,14 +283,13 @@ def build_record(doc: dict, root: Path, db_path: str) -> dict:
     )
     run_id = json.loads((ul / "snapshot_manifest.json").read_text())["run_id"]
     con = _connect(db_path)
-    con.row_factory = sqlite3.Row
-    keys = _claim_keys(con)
+    rows = _claim_rows(con)
     con.close()
 
     detail, causes = [], Counter()
     for claim in doc["claims"]:
-        key = keys.get((claim["orcid"].upper(), canonical_doi(claim["doi"])))
-        landed = key is not None and key in applied_keys
+        row = rows.get((claim["orcid"].upper(), canonical_doi(claim["doi"])))
+        landed = row is not None and _key(row) in applied_keys
         decision = claim.get("merge") or {}
         if landed:
             cause = None
@@ -369,30 +368,23 @@ def _work_evidence(con: sqlite3.Connection, doi: str) -> str:
     return "  (no enrichment cached — run 'Fetch metadata' on /admin/ledger for the title/author list)"
 
 
+def _key(row: sqlite3.Row) -> str:
+    return logical_key(row["orcid"], "claim_paper", row["subject_hash"])
+
+
 def _claim_rows(con: sqlite3.Connection) -> dict[tuple[str, str], sqlite3.Row]:
-    """(orcid, canonical doi) -> row, for every live claim_paper event."""
+    """(orcid, canonical doi) -> row, for every live claim_paper event — the join
+    every step needs, since a claim's payload carries the DOI and the plan is keyed
+    by it."""
+    con.row_factory = sqlite3.Row
     out = {}
     for row in con.execute(
-        "SELECT event_id, orcid, payload, moderation FROM ledger_events "
+        "SELECT event_id, orcid, payload, subject_hash, moderation FROM ledger_events "
         "WHERE kind = 'claim_paper' AND revoked_at IS NULL"
     ):
         doi = (json.loads(row["payload"]).get("work") or {}).get("doi")
         if doi:
             out[(row["orcid"].upper(), canonical_doi(doi))] = row
-    return out
-
-
-def _claim_keys(con: sqlite3.Connection) -> dict[tuple[str, str], str]:
-    """(orcid, canonical doi) -> the ledger key applied_manifest refers to."""
-    out = {}
-    for row in con.execute(
-        "SELECT orcid, payload, subject_hash FROM ledger_events "
-        "WHERE kind = 'claim_paper' AND revoked_at IS NULL"
-    ):
-        doi = (json.loads(row["payload"]).get("work") or {}).get("doi")
-        if doi:
-            key = f"{row['orcid']}|claim_paper|{row['subject_hash']}"
-            out[(row["orcid"].upper(), canonical_doi(doi))] = key
     return out
 
 
