@@ -171,7 +171,7 @@ def render_toml(fleet: Fleet, workers: list[Worker]) -> str:
         "[fleet]",
         f"min_citations = {fleet.min_citations}",
         "",
-        "[model]  # UNCALIBRATED defaults unless you measured them",
+        "[model]  # preflight enforces these — recalibrate from each run's peaks",
         f"mem_base_gb = {model.mem_base_gb}",
         f"gb_per_mcut = {model.gb_per_mcut}",
         f"headroom_gb = {model.headroom_gb}",

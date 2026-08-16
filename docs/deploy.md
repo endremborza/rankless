@@ -69,7 +69,7 @@ memory-fit bands, so it lives with the other per-machine state under `data/`:
 min_citations = 100000 # warm worklist floor, uniform across workers
 
 [model]                # resource model for preflight + suggest (fleet-wide)
-mem_base_gb = 37.0     # backend startup baseline (full env)
+mem_base_gb = 41.0     # backend startup baseline (full env)
 gb_per_mcut = 0.25     # peak compute GB per M cut_basis per in-flight tree
 headroom_gb = 8.0      # OS + page cache + safety margin
 parts_gb_per_big = 20.0 # /tmp/dmove-parts footprint per prepped big
@@ -88,7 +88,7 @@ data_root = "/home/borza/rankless-data"
 band = [14.0, 160.0]
 bins = [48.0]
 procs = [4, 1]
-speed = 0.6            # relative throughput; weighs `fleet suggest` splits
+speed = 0.6            # relative per-proc throughput; suggest's wall-clock lever
 
 [[worker]]
 name = "sscub"
@@ -185,10 +185,13 @@ deploy tooling and stay).
   manual data surgery (`refresh-data` stamps automatically). Restart the
   backend afterwards so `/v1/specs` serves it.
 
-The `[model]` coefficients start uncalibrated (defaults implied by the
-historical hand-tuned bands). After a real run, read each box's
+Recalibrate `[model]` after each real run: read each box's
 `systemctl --user show rankless-backend -p MemoryPeak` and fit `gb_per_mcut` =
-(peak − base) / (procs × band hi); preflight and suggest sharpen together.
+(peak − base) / (procs × band hi); per-band wall-clocks (the drive's
+`done in N hours` lines) fit each worker's `speed` — `speed` is the deliberate
+manual lever, suggest does not fold per-bin parallelism into its cost split.
+`parts_gb_per_big` can only be sampled mid-run (`du /tmp/dmove-parts` during a
+bigs chunk) — parts are deleted after each read.
 
 ## ship-alpha
 

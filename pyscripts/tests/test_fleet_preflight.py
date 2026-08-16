@@ -162,3 +162,11 @@ def test_est_peak_uses_worst_bin() -> None:
     model = Model(mem_base_gb=37.0, gb_per_mcut=0.25)
     w = _worker()  # bins: (14,48]×4 procs, (48,160]×1 proc
     assert preflight.est_peak_gb(w, model) == 37.0 + max(4 * 48, 1 * 160) * 0.25
+
+
+def test_est_peak_ignores_bigs_chunk() -> None:
+    # Bigs prep is disk-bounded (checked in _disk_detail), not RAM-bound, so
+    # big_chunk must not move the RAM peak estimate.
+    model = Model(mem_base_gb=37.0, gb_per_mcut=0.25)
+    w = _worker(bigs=True, big_chunk=6)
+    assert preflight.est_peak_gb(w, model) == 37.0 + 48.0

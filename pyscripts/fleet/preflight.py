@@ -6,7 +6,8 @@ The failure classes this catches (each burned us or nearly did):
 - torn or stale data transfer serving subtly wrong trees (stamp, data)
 - build-succeeded-but-old-process-still-bound (version — the /v1/specs
   handshake reflects the *running* process, not the checkout)
-- band assignment the box cannot hold in RAM — the OOM class (memory)
+- band assignment the box cannot hold in RAM — compute-time OOM, not the
+  serving-leak class (memory)
 - bigs box filling /tmp/dmove-parts or the data push filling the disk (disk)
 
 Every check returns a named `Check` instead of raising, so one dead box
@@ -122,8 +123,9 @@ def gate(checks: list[Check]) -> None:
 def est_peak_gb(w: Worker, model: Model) -> float:
     """Crude linear peak: baseline + the worst (procs × bin hi) product.
 
-    The coefficients live in [model] (docs/deploy.md) and start uncalibrated —
-    conservative on purpose; calibrate from a real run's MemoryPeak.
+    Bigs prep is disk-bounded, not RAM-bound (`_disk_detail` covers it), so it
+    adds no term here. The coefficients live in [model] (docs/deploy.md);
+    calibrate from a real run's MemoryPeak.
     """
     per_bin = [procs * hi * model.gb_per_mcut for hi, procs in w.bin_edges()]
     return model.mem_base_gb + max(per_bin)

@@ -25,12 +25,11 @@ DEFAULT_PORT = 3038
 class Model:
     """Resource model shared by `fleet suggest` and the preflight gate.
 
-    UNCALIBRATED defaults — tune via [model] in warm.toml once a real run's
-    systemd MemoryPeak per band is in (see docs/deploy.md).
+    Tune via [model] in warm.toml from a real run's per-box memory peak and
+    wall-clocks (see docs/deploy.md).
     """
 
-    mem_base_gb: float = 37.0  # backend startup baseline (full env)
-    # implied by the historical hand-tuned bands (128G-class box ↔ ~320M top)
+    mem_base_gb: float = 41.0  # backend startup baseline (full env)
     gb_per_mcut: float = 0.25  # peak compute GB per M cut_basis per in-flight tree
     headroom_gb: float = 8.0  # OS + page cache + safety margin
     parts_gb_per_big: float = 20.0  # /tmp/dmove-parts footprint per prepped big
@@ -46,9 +45,9 @@ class Worker:
     bins: list[float] = field(default_factory=list)
     procs: list[int] = field(default_factory=list)
     bigs: bool = False
-    big_chunk: int = DEFAULT_BIG_CHUNK
+    big_chunk: int = DEFAULT_BIG_CHUNK  # bigs in flight on /tmp per prep→read cycle
     port: int = DEFAULT_PORT
-    speed: float = 1.0  # relative single-tree throughput, weighs `fleet suggest`
+    speed: float = 1.0  # relative per-proc throughput; hand-tuned from measured clocks
 
     def __post_init__(self):
         if self.host and not (self.repo_dir and self.data_root):
