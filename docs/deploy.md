@@ -36,13 +36,31 @@ accepted claim), then: `make filter extend_csvs` → forced gen-ladder rebuild �
   release, one machine-readable record: `run_id`/`stamp`/`git_commit`/`rankless_env`,
   the snapshot name+date, per-source ledger export counts (`export_user_ledger`
   stamps `source: "site"` on every event), applied-by-kind and skipped-by-reason
-  aggregates (from `applied_manifest.json`; event keys stay there), and per-step
+  aggregates (from `applied_manifest.json`; event keys stay there), forced-works
+  aggregates (from `user-ledger/forced_works.json` — counts only, the wid list of
+  works served beyond the standard screens stays private), and per-step
   filter counts derived from the `filter-steps/` id files themselves (8-byte ids,
   so kept = size/8 — no pipeline instrumentation). A pure function over those
   sidecars: `uv run -m pyscripts recalc manifest` re-assembles it after manual
   surgery. `releases/` is excluded from the push + digest — the manifest describes
   the data rather than being part of it. `smoke` (ship-alpha/promote) checks the
   served `/v1/specs.version` against it: an undocumented release is unshippable.
+- `lib_data_generation` then bakes the **release report**,
+  `src/lib/assets/data/release-report.json` (`pyscripts/release_report.py`, a pure
+  function over the current + previous release manifests): per-entity filter chains
+  with public step labels, ledger aggregates (feed names never appear), the
+  restored-papers and claims aggregates, deltas vs the previous release. The site
+  renders it at `/release` (linked from the home page + footer); it rides
+  `commit-artifacts`, so the served report always matches
+  the deployed data. Regenerate standalone with
+  `uv run -m pyscripts release-report` (`--md` also prints a copy-paste promo
+  digest); it warns-and-keeps when the root has no manifest yet.
+- **Cohort baseline** (after ship, while the release is served):
+  `uv run -m pyscripts cohort-baseline` snapshots each pinned owner's served
+  works/citations (one `/v1/orcid/{orcid}` call each) to
+  `releases/<run_id>.cohort.json` — the release-over-release baseline for the
+  attribution feature. Per-user data; `releases/` never leaves the box. Point
+  `COHORT_BE` at another backend serving the same release if the local one is down.
 - The ladder force is deliberate and scoped: the generated `rankless_rs/Makefile`
   only tracks `steps/*.rs`, so make cannot see that the data changed under the
   ladder — and after `filter` it always has. Only the ladder subgraph is forced
@@ -205,6 +223,9 @@ root, `/v1/specs`, a slice, one tree response, and the per-FE-worker memory tabl
 
 ## promote
 
+Gated on the release report: the committed report asset's `run_id` must match
+alpha's served `/v1/specs.version` before anything flips — the report the new
+live site shows is mechanically the release it serves. Then
 `promote_alpha_to_live`: pre-flip DB catch-up (everything users did on live while
 alpha baked, merged with claims made on alpha during validation), frontend re-built
 for the live domain, nginx + EIP flip, cert refresh, then a post-flip final DB merge
