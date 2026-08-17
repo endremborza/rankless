@@ -575,20 +575,23 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 0 12px;
 		padding-left: 3vw;
 		padding-right: 3vw;
 		padding-top: 3px;
 		padding-bottom: 3px;
 		background-color: var(--color-theme-yellow);
 		color: var(--color-theme-darkgrey);
-		flex: 0 0 50px;
+		flex: 0 0 auto;
+		min-height: 50px;
 		z-index: 1;
-		height: min(50px, 3svh);
 	}
 
 	#foot-r {
 		display: flex;
-		gap: 16px;
+		flex-wrap: wrap;
+		gap: 4px 16px;
 	}
 
 	#foot-r > a {
