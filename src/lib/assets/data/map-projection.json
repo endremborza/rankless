@@ -1,0 +1,14 @@
+{
+	"xOffset": 983.625,
+	"xPerLon": 5.552232,
+	"yOffset": 500.7707,
+	"yPerLat": -6.375863,
+	"fit": {
+		"anchors": 79,
+		"keptX": 68,
+		"keptY": 64,
+		"rmsPxX": 8.26,
+		"rmsPxY": 5.22,
+		"rmsKm": 309
+	}
+}
