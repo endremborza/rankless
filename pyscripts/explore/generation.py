@@ -178,7 +178,9 @@ async def _pick_targets(
             cc = _flag_cc(ent.get("distinctText", ""))
             if ent["semanticId"] in have:
                 continue
-            if not cfg.sem_ids and cc_counts.get(cc, 0) >= cfg.per_country:
+            # cap only real country buckets: etypes without flag markers
+            # (authors, countries) all fold to cc = ''
+            if not cfg.sem_ids and cc and cc_counts.get(cc, 0) >= cfg.per_country:
                 continue
             view = await be_client.get_json(f"/views/{cfg.etype}/{ent['semanticId']}")
             lat = float(view.get("meta", {}).get("lat", 0) or 0)
