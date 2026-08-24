@@ -209,7 +209,7 @@
 		<h2>Collected objects</h2>
 		<p class="note">
 			The unified store of reusable artifacts the miners produce — verified findings, impact
-			stories, and clue cards feeding <a href="/game">the game</a>. Every number inside was
+			stories, and clue cards feeding <a href="/game-clues">the game</a>. Every number inside was
 			re-issued from the backend before the object was stored.
 		</p>
 		{#if objects.length === 0}

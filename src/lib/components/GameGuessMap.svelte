@@ -1,6 +1,6 @@
 <script lang="ts">
 	import countryPaths from '$lib/assets/data/country-svg-paths.json';
-	import { haversineKm, latLonToMap, mapToLatLon, type LatLon } from '$lib/utils/game';
+	import { haversineKm, latLonToMap, mapToLatLon, type LatLon } from '$lib/utils/game-clues';
 
 	export let pin: LatLon | null = null;
 	export let target: LatLon | null = null;
