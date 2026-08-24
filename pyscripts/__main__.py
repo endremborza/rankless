@@ -23,6 +23,11 @@ COMMANDS = {
     "fleet": "pyscripts.fleet",
     "stress": "pyscripts.stress",
     "review-ledger": "pyscripts.review_ledger",
+    "calibrate-map": "pyscripts.calibrate_map",
+    "game-cards": "pyscripts.explore.game_cards",
+    "impact-stories": "pyscripts.explore.impact_stories",
+    "objects": "pyscripts.object_store",
+    "backup": "pyscripts.backup",
 }
 
 
