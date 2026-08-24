@@ -97,11 +97,73 @@ Parameters:
 - `--suggest-endpoints` / `--no-suggest-endpoints` — surface backend endpoints that don't
   exist yet but would unlock better insight (on by default).
 
-`mcp_server/tools.py`'s `TOOL_FNS` registry is reused verbatim as the verifier.
+`mcp_server/tools.py`'s `TOOL_FNS` registry is reused verbatim as the verifier
+(`pyscripts/explore/verify.py`).
 
 The mining engine is pluggable: `pyscripts/explore/runner.py` holds a `RUNNERS` registry
 (selected with `--runner`, default `claude-cli`), so the Claude Code CLI can be swapped for
 an SDK/API engine without touching the mining or reproduction logic.
+
+## Generator workflows
+
+`pyscripts/explore/generation.py` is the shared engine for workflows that mine
+per-entity objects into the store: it picks targets from the backend's citation-ordered
+slice (idempotent reruns skip already-stored keys, a per-country cap keeps packs
+diverse), mines each target with one agentic session, and lands the accepted objects as
+one immutable bundle. A workflow is a `GeneratorSpec` — prompts plus an accept policy —
+so adding one is a small module plus a `WORKFLOWS` registry entry (`explore/runs.py`),
+which also gives it the worker spawn path and the `/mcp` queue form. Each run registers
+itself as an `mcp_sessions` row (self-registered from the CLI with `params.origin:
+"cli"`; worker-claimed when queued from `/mcp`) named `<workflow>-<etype>-<UTC stamp>`
+— the naming every agent run shares (`runs.run_name`, mirrored in
+`src/lib/mcp-util.ts`).
+
+- **`uv run -m pyscripts game-cards`** (`game_cards.py`) — 6-clue guessing ladders,
+  hardest first; every cited number re-issued through `verify.verify_facts` and clue
+  text linted against name/acronym/city leaks; accepted cards become `game-card`
+  objects, which the `/game` route reads server-side (no LLM at play time).
+- **`uv run -m pyscripts impact-stories`** (`impact_stories.py`) — short verified
+  narratives of how an entity's research gets used (citation flows, landmark papers,
+  peers); stories with any unreproducible fact are dropped; approved `impact-story`
+  objects show publicly on `/mcp`.
+
+## Object store
+
+The unified home for the miners' reusable outputs — game clue cards, verified
+findings, whatever comes next — split into immutable payloads and a reviewable index:
+
+- **Bundles** — each generation run writes one `data/mcp-objects/<run>.jsonl.zst`
+  (zstd, one self-describing object per line: `kind`, `obj_key`, display fields,
+  `payload`). Bundles are never rewritten; batching a run into one archive compresses
+  to roughly a sixth of the raw JSON.
+- **Index** — `mcp_objects` (in `data/rankless.sqlite`) holds one payload-free row
+  per object _version_: logical key `(kind, obj_key)`, the `(bundle, line)` address,
+  `gen_at`, and a review `status` (`new` → `approved`/`rejected`). Regeneration adds
+  a superseding version row; consumers read the **latest non-rejected** version per
+  key, so rejecting a bad regeneration falls back to the previous good one.
+
+`gen_at` is a sortable UTC ISO datetime stamped by `write_bundle` (`ingest --gen-at`
+overrides it for historical backfills).
+
+Writers: `pyscripts/object_store.py` (shared write/read/CLI:
+`uv run -m pyscripts objects {list,ingest,export,set-status,fsck}` — `fsck` verifies
+every index row's `(bundle, line)` address resolves, `export` compresses to a `.zst`
+path), the generator workflows above (one bundle per run, named after its session),
+and `deep.py`, which bundles every fully verified finding by default (`--no-store` to
+skip). The frontend reads the same index + bundles via `src/lib/server/objects.ts`
+(decompressed bundles are cached per process — immutability makes that safe; rows
+whose bundle hasn't reached this box read as payload-less and are dropped from
+consumer reads): `/game` consumes current cards of its pack's etype
+(`GAME_PACK_ETYPE` in `src/lib/server/game.ts`); `/mcp` shows approved findings and
+impact stories publicly and gives admins the full review list (approve/reject —
+rejecting requires a reason, stored as `status_note` and shown in the list so
+rejections stay reviewable against later data improvements; decisions and notes
+propagate across boxes with the merge) — game cards never render publicly,
+they'd spoil the game.
+
+Between boxes, bundles ride the artifact-dir copy (next to `data/mcp-sessions/`)
+and index rows ride the user-DB handoff below: merges dedup on
+`(kind, obj_key, bundle)` and review decisions propagate like ledger moderation.
 
 ## Public site
 
