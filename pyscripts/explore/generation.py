@@ -15,7 +15,6 @@ spec's payloads must carry the target's `semId` and `cc` for that bookkeeping.
 
 import asyncio
 import json
-import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,7 +24,7 @@ import mcp_server
 from mcp_server import client as be_client
 from pyscripts import object_store
 from pyscripts.explore import cli, runner, runs
-from pyscripts.paths import MCP_SESSIONS_REL
+from pyscripts import paths
 
 
 @dataclass(frozen=True)
@@ -267,7 +266,7 @@ async def _build_all(
 def _write_report(
     name: str, spec: GeneratorSpec, objects: list[dict], log: list[str], meta: dict
 ) -> None:
-    root = Path(os.environ.get("MCP_SESSIONS_ROOT", MCP_SESSIONS_REL))
+    root = Path(paths.sessions_root())
     run_dir = root / name
     run_dir.mkdir(parents=True, exist_ok=True)
     c = meta["counts"]

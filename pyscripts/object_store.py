@@ -30,7 +30,7 @@ from pathlib import Path
 import zstandard
 from protocli import Dispatcher
 
-from pyscripts.paths import DB_REL, MCP_OBJECTS_REL
+from pyscripts import paths
 
 STATUSES = ("new", "approved", "rejected")
 ZSTD_LEVEL = 19
@@ -65,7 +65,7 @@ SELECT * FROM (
 
 
 def bundles_root() -> Path:
-    return Path(MCP_OBJECTS_REL)
+    return Path(paths.objects_root())
 
 
 def bundle_path(run: str) -> Path:
@@ -76,16 +76,11 @@ def utc_now_iso() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def connect(db_path: str = DB_REL) -> sqlite3.Connection:
-    con = sqlite3.connect(db_path)
+def connect(db_path: str = "") -> sqlite3.Connection:
+    con = sqlite3.connect(db_path or paths.db_path())
     con.execute("PRAGMA busy_timeout = 30000")
     con.execute("PRAGMA journal_mode = WAL")
     con.executescript(SCHEMA)
-    # CREATE IF NOT EXISTS never extends an existing table; added columns need
-    # an explicit migration for DBs created under the older schema.
-    cols = {r[1] for r in con.execute("PRAGMA table_info(mcp_objects)")}
-    if "status_note" not in cols:
-        con.execute("ALTER TABLE mcp_objects ADD COLUMN status_note TEXT")
     return con
 
 
@@ -158,7 +153,7 @@ def _dicts(cur: sqlite3.Cursor) -> list[dict]:
     return [dict(zip(cols, r)) for r in cur.fetchall()]
 
 
-def list_cmd(*, kind: str = "", status: str = "", db: str = DB_REL) -> None:
+def list_cmd(*, kind: str = "", status: str = "", db: str = "") -> None:
     """List indexed object versions (--kind / --status filters)."""
     con = connect(db)
     try:
@@ -172,7 +167,7 @@ def list_cmd(*, kind: str = "", status: str = "", db: str = DB_REL) -> None:
         con.close()
 
 
-def ingest(*, path: str, run: str = "", gen_at: str = "", db: str = DB_REL) -> None:
+def ingest(*, path: str, run: str = "", gen_at: str = "", db: str = "") -> None:
     """Ingest a bundle file (.jsonl or .jsonl.zst of {kind, obj_key, payload, ...}
     objects) into the store under --run (default: the file's stem)."""
     src = Path(path)
@@ -189,7 +184,7 @@ def ingest(*, path: str, run: str = "", gen_at: str = "", db: str = DB_REL) -> N
     print(f"{n} object(s) indexed from bundle {name!r}")
 
 
-def export(*, path: str, kind: str = "", status: str = "", db: str = DB_REL) -> None:
+def export(*, path: str, kind: str = "", status: str = "", db: str = "") -> None:
     """Export indexed objects with payloads as re-ingestable JSONL; a .zst
     --path compresses (preferred — raw JSONL is for ad-hoc inspection only)."""
     con = connect(db)
@@ -211,7 +206,7 @@ def export(*, path: str, kind: str = "", status: str = "", db: str = DB_REL) -> 
     print(f"{len(out)} object(s) -> {path}")
 
 
-def set_status(*, ids: str, status: str, note: str = "", db: str = DB_REL) -> None:
+def set_status(*, ids: str, status: str, note: str = "", db: str = "") -> None:
     """Set review status (--ids comma list, --status new|approved|rejected);
     a rejection requires --note — the reason is kept for later review."""
     if status not in STATUSES:
@@ -233,7 +228,7 @@ def set_status(*, ids: str, status: str, note: str = "", db: str = DB_REL) -> No
     print(f"{n} object(s) -> {status}")
 
 
-def fsck(*, db: str = DB_REL) -> None:
+def fsck(*, db: str = "") -> None:
     """Verify every index row's (bundle, line) resolves to a stored object and
     report unreferenced bundle files; exits 1 on dangling rows."""
     con = connect(db)
