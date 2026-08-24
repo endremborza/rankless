@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily rankless user-DB backup
+
+[Timer]
+OnCalendar=*-*-* 04:20:00
+# Catch up on a missed run (machine asleep/off at 04:20).
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target

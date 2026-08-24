@@ -1,0 +1,13 @@
+[Unit]
+# Off-box backup: snapshots the source's user DB + mirrors its artifact dirs
+# into {{ dest }} on THIS machine (the backed-up box keeps nothing durable).
+# Pulling from a cloud box needs the deploy credentials in this user's env.
+Description=Rankless user-DB backup ({{ source }})
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory={{ repo_root }}
+EnvironmentFile=-{{ repo_root }}/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart={{ python }} -m pyscripts backup --source {{ source }} --dest {{ dest }}

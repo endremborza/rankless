@@ -33,6 +33,8 @@ TEMPLATE_DIR = REPO_ROOT / "deploy"
 BACKEND_UNIT = "rankless-backend.service"
 MCP_SERVER_UNIT = "rankless-mcp-server.service"
 MCP_WORKER_UNIT = "rankless-mcp-worker.service"
+BACKUP_SERVICE_UNIT = "rankless-backup.service"
+BACKUP_TIMER_UNIT = "rankless-backup.timer"
 FE_UNIT_FRAME = "rankless-frontend-{}@.service"
 FE_BUILD_NAMES = ["blue", "green"]
 
@@ -194,6 +196,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "--domain", default=None, help="frontend ORIGIN domain (fe profiles)."
     )
     p.add_argument(
+        "--backup-source",
+        default=None,
+        help="also install the daily backup timer pulling from this source "
+        "(local|live|alpha) onto this machine — pick an always-on box that is "
+        "not the one being backed up (default: no backup timer).",
+    )
+    p.add_argument(
+        "--backup-dest",
+        default=str(Path.home() / "rankless-data" / "backups"),
+        help="where backups land on this machine (default: ~/rankless-data/backups).",
+    )
+    p.add_argument(
         "--print", action="store_true", help="print rendered units, install nothing."
     )
     p.add_argument(
@@ -230,6 +244,15 @@ def _render_units(args: argparse.Namespace) -> dict[str, str]:
         units[MCP_WORKER_UNIT] = render_mcp_worker(
             repo, python, args.worker_model, args.worker_runner
         )
+    if args.backup_source:
+        units[BACKUP_SERVICE_UNIT] = render(
+            BACKUP_SERVICE_UNIT,
+            repo_root=repo,
+            python=python,
+            source=args.backup_source,
+            dest=args.backup_dest,
+        )
+        units[BACKUP_TIMER_UNIT] = render(BACKUP_TIMER_UNIT)
     return units
 
 
@@ -242,13 +265,18 @@ def _install(units: dict[str, str], start: bool) -> None:
     _systemctl("daemon-reload")
     for name in units:
         # Template units (fe blue/green) are enabled per instance by the
-        # blue/green deploy flow (deploy.py), not here.
-        if "@" in name:
+        # blue/green deploy flow (deploy.py), not here; the backup service is
+        # oneshot and only ever triggered by its timer.
+        if "@" in name or name == BACKUP_SERVICE_UNIT:
             continue
         _systemctl("enable", name)
         if start:
-            _systemctl("restart", name)
-            print(f"[services] restarted {name}")
+            if name.endswith(".timer"):
+                _systemctl("start", name)
+                print(f"[services] armed {name}")
+            else:
+                _systemctl("restart", name)
+                print(f"[services] restarted {name}")
 
 
 def _systemctl(*args: str) -> None:
