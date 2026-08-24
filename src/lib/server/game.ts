@@ -11,7 +11,7 @@ import type { GameCard, GameResultLog, PlayCard } from '$lib/types/game';
 // second pack — e.g. countries — is ready to serve.
 export const GAME_PACK_ETYPE = 'institutions';
 
-const RESULTS_SCHEMA = `
+const GAME_SCHEMA = `
 CREATE TABLE IF NOT EXISTS game_results (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	mode TEXT NOT NULL,
@@ -27,11 +27,17 @@ CREATE TABLE IF NOT EXISTS game_results (
 	created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_gr_day ON game_results(day);
+CREATE TABLE IF NOT EXISTS game_daily (
+	day TEXT PRIMARY KEY,
+	sem_id TEXT NOT NULL,
+	created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 const SEM_ID_RE = /^[\w.-]{1,80}$/;
 
 let ensured = false;
+let dailyPin: { day: string; semId: string } | null = null;
 
 // Sorted for a stable daily pick across boxes.
 export function currentPack(): GameCard[] {
@@ -41,10 +47,34 @@ export function currentPack(): GameCard[] {
 		.sort((a, b) => a.semId.localeCompare(b.semId));
 }
 
+// The day's card is pinned in game_daily so the pick survives pack growth and
+// rides the cross-box merge; the current day's pin is also held in memory, so
+// steady-state serving never queries the table. A pin whose card left the pack
+// (rejected mid-day) is re-pinned; the replacement pick is deterministic, so
+// every worker converges on the same card.
 export function dailyCard(day: string): PlayCard | null {
 	const pack = currentPack();
 	if (!pack.length) return null;
-	return toPlayCard(pack[dailyIndex(day, pack.length)]);
+	let card = dailyPin?.day === day ? pack.find((c) => c.semId === dailyPin?.semId) : undefined;
+	if (!card) {
+		card = pinnedDaily(day, pack);
+		dailyPin = { day, semId: card.semId };
+	}
+	return toPlayCard(card);
+}
+
+function pinnedDaily(day: string, pack: GameCard[]): GameCard {
+	const db = gameDb();
+	const row = db.prepare('SELECT sem_id FROM game_daily WHERE day = ?').get(day) as {
+		sem_id: string;
+	} | null;
+	const pinned = row && pack.find((c) => c.semId === row.sem_id);
+	if (pinned) return pinned;
+	const pick = pack[dailyIndex(day, pack.length)];
+	db.prepare(
+		'INSERT INTO game_daily (day, sem_id) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET sem_id = excluded.sem_id'
+	).run(day, pick.semId);
+	return pick;
 }
 
 // Random card for a practice round, avoiding `exclude` when the pack allows it.
@@ -57,7 +87,7 @@ export function practiceCard(exclude: string | null): PlayCard | null {
 }
 
 export function recordResult(result: GameResultLog, orcid: string | null): void {
-	resultsDb()
+	gameDb()
 		.prepare(
 			`INSERT INTO game_results
 			 (mode, day, sem_id, clues_used, gave_up, guess_lat, guess_lon, distance_km, score, orcid)
@@ -118,10 +148,10 @@ function toPlayCard(card: GameCard): PlayCard {
 	return { ...card, clues: card.clues.map(({ stage, text }) => ({ stage, text })) };
 }
 
-function resultsDb() {
+function gameDb() {
 	const d = getDb();
 	if (!ensured) {
-		d.run(RESULTS_SCHEMA);
+		d.run(GAME_SCHEMA);
 		ensured = true;
 	}
 	return d;
