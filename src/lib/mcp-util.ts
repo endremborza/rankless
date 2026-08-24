@@ -12,6 +12,7 @@ import type {
 // Mirrors pyscripts/explore/runs.py WORKFLOWS (minus deep).
 export const GENERATIONS: Record<GenerationType, { label: string; etypes: string[] }> = {
 	'game-cards': { label: 'Game cards', etypes: ['institutions', 'countries'] },
+	'country-cards': { label: 'Country cards', etypes: ['institutions'] },
 	'impact-stories': { label: 'Impact stories', etypes: ['institutions', 'authors', 'countries'] }
 };
 

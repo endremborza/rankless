@@ -16,10 +16,18 @@
 
 	function objectLine(payload: unknown): string {
 		if (!payload) return '(bundle not on this box)';
-		const p = payload as { description?: string; story?: string; clues?: unknown[] };
+		const p = payload as {
+			description?: string;
+			story?: string;
+			clues?: unknown[];
+			cc?: string;
+			decoys?: string[];
+			note?: string;
+		};
 		if (p.description) return p.description;
 		if (p.story) return p.story;
 		if (p.clues) return `${p.clues.length} verified clues`;
+		if (p.decoys) return `${p.cc} vs ${p.decoys.join(', ')} — ${p.note}`;
 		return '';
 	}
 

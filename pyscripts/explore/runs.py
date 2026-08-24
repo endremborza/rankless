@@ -143,5 +143,6 @@ def _deep_argv(
 WORKFLOWS: dict[str, Workflow] = {
     "deep": Workflow(_deep_argv, self_closing=False),
     "game-cards": Workflow(_generation_argv("game-cards"), self_closing=True),
+    "country-cards": Workflow(_generation_argv("country-cards"), self_closing=True),
     "impact-stories": Workflow(_generation_argv("impact-stories"), self_closing=True),
 }

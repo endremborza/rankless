@@ -25,6 +25,7 @@ COMMANDS = {
     "review-ledger": "pyscripts.review_ledger",
     "calibrate-map": "pyscripts.calibrate_map",
     "game-cards": "pyscripts.explore.game_cards",
+    "country-cards": "pyscripts.explore.country_cards",
     "impact-stories": "pyscripts.explore.impact_stories",
     "objects": "pyscripts.object_store",
     "userdb": "pyscripts.userdb",

@@ -4,7 +4,7 @@
 
 export type ObjectStatus = 'new' | 'approved' | 'rejected';
 
-export type ObjectKind = 'game-card' | 'finding' | 'impact-story';
+export type ObjectKind = 'game-card' | 'country-card' | 'finding' | 'impact-story';
 
 export type McpObject = {
 	id: number;

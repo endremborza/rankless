@@ -121,7 +121,12 @@ itself as an `mcp_sessions` row (self-registered from the CLI with `params.origi
 - **`uv run -m pyscripts game-cards`** (`game_cards.py`) — 6-clue guessing ladders,
   hardest first; every cited number re-issued through `verify.verify_facts` and clue
   text linted against name/acronym/city leaks; accepted cards become `game-card`
-  objects, which the `/game` route reads server-side (no LLM at play time).
+  objects, which the `/game-clues` route reads server-side (no LLM at play time).
+- **`uv run -m pyscripts country-cards`** (`country_cards.py`) — country-quiz cards for
+  `/game-countries`: batch-prompted (no per-entity agentic session, the backend already
+  knows name + country) judgment over a deep slice of mid-tier institutions, keeping
+  the misleadingly named ones with three ISO-validated decoy countries and a
+  post-answer reveal note; accepted picks become `country-card` objects.
 - **`uv run -m pyscripts impact-stories`** (`impact_stories.py`) — short verified
   narratives of how an entity's research gets used (citation flows, landmark papers,
   peers); stories with any unreproducible fact are dropped; approved `impact-story`
@@ -153,8 +158,9 @@ and `deep.py`, which bundles every fully verified finding by default (`--no-stor
 skip). The frontend reads the same index + bundles via `src/lib/server/objects.ts`
 (decompressed bundles are cached per process — immutability makes that safe; rows
 whose bundle hasn't reached this box read as payload-less and are dropped from
-consumer reads): `/game` consumes current cards of its pack's etype
-(`GAME_PACK_ETYPE` in `src/lib/server/game.ts`); `/mcp` shows approved findings and
+consumer reads): `/game-clues` consumes current cards of its pack's etype
+(`GAME_PACK_ETYPE` in `src/lib/server/game-clues.ts`) and `/game-countries` its
+`country-card` pack; `/mcp` shows approved findings and
 impact stories publicly and gives admins the full review list (approve/reject —
 rejecting requires a reason, stored as `status_note` and shown in the list so
 rejections stay reviewable against later data improvements; decisions and notes
