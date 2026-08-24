@@ -81,13 +81,6 @@ function db() {
 	const d = getDb();
 	if (!ensured) {
 		d.run(OBJECTS_SCHEMA);
-		// CREATE IF NOT EXISTS never extends an existing table; added columns
-		// need an explicit migration for DBs created under the older schema.
-		const cols = d.prepare("SELECT name FROM pragma_table_info('mcp_objects')").all() as {
-			name: string;
-		}[];
-		if (!cols.some((c) => c.name === 'status_note'))
-			d.run('ALTER TABLE mcp_objects ADD COLUMN status_note TEXT');
 		ensured = true;
 	}
 	return d;
