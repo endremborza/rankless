@@ -42,6 +42,9 @@ class GeneratorSpec:
     build_object: Callable[[dict, dict, list[str]], Awaitable[dict | None]]
 
 
+BREAK_AFTER = 5
+
+
 @dataclass(frozen=True)
 class GenConfig:
     backend_url: str
@@ -224,10 +227,13 @@ def _mine_one(spec: GeneratorSpec, cfg: GenConfig, mine, target: dict) -> str | 
         timeout_s=spec.timeout_s,
     )
     try:
-        return mine(job)
+        raw = mine(job)
     except RuntimeError as exc:
         print(f"[{spec.workflow}] {target['semId']}: mining failed: {exc}")
+        breaker.record(failed=True)
         return None
+    breaker.record(failed=False)
+    return raw
 
 
 async def _build_all(

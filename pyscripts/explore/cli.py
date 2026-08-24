@@ -62,7 +62,10 @@ def query_claude_cli(
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(f"claude CLI timed out after {timeout_s}s") from exc
     if proc.returncode != 0:
-        raise RuntimeError(proc.stderr.strip() or f"claude exited {proc.returncode}")
+        # limit/quota refusals land on stdout with an empty stderr
+        detail = proc.stderr.strip() or proc.stdout.strip()
+        msg = f"claude exited {proc.returncode}"
+        raise RuntimeError(f"{msg}: {detail[-400:]}" if detail else msg)
     return proc.stdout.strip()
 
 
