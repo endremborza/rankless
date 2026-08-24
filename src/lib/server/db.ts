@@ -116,7 +116,7 @@ export function getDb(): Database {
 		);
 		-- AI review verdicts, append-only; written by pyscripts/review_ledger.py (mirrored
 		-- DDL there), read here. Keyed by (orcid, kind, subject_hash) — event_id is NOT
-		-- stable across boxes (mcp_db.py merge renumbers it). created_at is writer-supplied
+		-- stable across boxes (userdb.py merge renumbers it). created_at is writer-supplied
 		-- UTC ISO so the dedup index stays deterministic across cross-box merges.
 		CREATE TABLE IF NOT EXISTS review_verdicts (
 			verdict_id INTEGER PRIMARY KEY AUTOINCREMENT,

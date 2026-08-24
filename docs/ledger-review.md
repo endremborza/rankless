@@ -106,9 +106,9 @@ one transaction) and patch rows locally — no full reload per click.
 
 ## Cross-box movement
 
-`event_id` is renumbered by the `mcp_db.py` merge, so review data is keyed by
+`event_id` is renumbered by the `userdb.py` merge, so review data is keyed by
 the stable subject identity **`(orcid, kind, subject_hash)`**. Both new tables
-are in `mcp_db.TABLES` and ride the existing `merge_db_*` / `sync_db_*`
+are in `userdb.TABLES` and ride the existing `merge_db_*` / `sync_db_*`
 transport: `review_verdicts` is append-only with a deterministic dedup index
 (writer-supplied `created_at`, so a double merge inserts nothing);
 `subject_enrichment` has a natural PK (target's copy wins on merge).

@@ -8,7 +8,7 @@
 //
 // Events are referenced across boxes by their logical key `${orcid}|${kind}|${subject_hash}`
 // (see logicalKey in ledger-hash.ts), never by the autoincrement event_id — that id is a
-// per-box rowid and gets renumbered when DBs are merged (pyscripts/mcp_db.py).
+// per-box rowid and gets renumbered when DBs are merged (pyscripts/userdb.py).
 
 export type WorkSubject = {
 	oa_id: number | null;

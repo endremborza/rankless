@@ -204,11 +204,12 @@ PKM runs still land in `.cril/`).
 
 ### Moving sessions between boxes
 
-`make {merge,sync}_db_{to,from}_{live,alpha}` moves the user-data tables (`mcp_sessions`, `mcp_objects`, `game_results`,
+`make {merge,sync}_db_{to,from}_{live,alpha}` moves the user-data tables (`mcp_sessions`, `mcp_objects`, `game_results`, `game_daily`,
 `ledger_events`, `ledger_runs`, `owner_pins`, `users`, `email_consents`, and auth `sessions` —
-unexpired rows only, so deploys don't log everyone out) plus the `data/mcp-sessions/` artifact
-dirs between the local checkout and a running instance (`pyscripts/deploy.py` →
-`pyscripts/mcp_db.py`). `merge` unions rows (source never clobbers target; auto-id
+unexpired rows only, so deploys don't log everyone out) plus the `data/mcp-sessions/` +
+`data/mcp-objects/` artifact dirs between the local checkout and a running instance
+(`pyscripts/deploy.py` → `pyscripts/userdb.py`, the one home for moving and preserving the
+user-data unit — table transfer, decision reconciliation, snapshots, backups). `merge` unions rows (source never clobbers target; auto-id
 `ledger_events` dedup on their logical unique index, index-less tables on a NULL-safe
 exact-row guard) and copies dirs additively; `sync` mirrors — the target's copy of each table
 becomes an exact copy of the source's and dir deletes propagate. `_to_live` writes the live
@@ -221,7 +222,7 @@ catch-up merge (live → local → alpha) and, after the EIP flip, a final merge
 box (still reachable on its new ephemeral IP until `kill_dangling`).
 
 The DB itself is never rsync'd raw: the source is first hot-copied with SQLite's online backup
-API (`mcp_db.snapshot`, run on whichever box holds the source) so a WAL-mode writer can't leave
+API (`userdb.snapshot`, run on whichever box holds the source) so a WAL-mode writer can't leave
 un-checkpointed commits behind or hand over a torn image; the standalone snapshot is what moves.
 If the source has no DB yet (e.g. MCP not deployed on that box), the transfer is a no-op.
 

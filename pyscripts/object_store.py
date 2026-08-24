@@ -10,7 +10,7 @@ rewrites anything: a later run's bundle adds a superseding version row, and
 consumers read the latest non-rejected version per key. `gen_at` is a sortable
 UTC ISO datetime, stamped here at write time (`ingest --gen-at` overrides it for
 historical backfills). Bundles move between boxes with the `data/mcp-sessions/`
-artifact copy; index rows ride the user-DB handoff (`pyscripts/mcp_db.py`) where
+artifact copy; index rows ride the user-DB handoff (`pyscripts/userdb.py`) where
 merges dedup on `(kind, obj_key, bundle)` and review decisions propagate. The
 frontend reads the same table + bundles via `src/lib/server/objects.ts`
 (`/game` consumes cards, `/mcp` reviews/presents).
