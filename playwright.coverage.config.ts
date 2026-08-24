@@ -16,11 +16,15 @@ const config: PlaywrightTestConfig = {
 	globalSetup: './tests/coverage/global-setup.ts',
 	globalTeardown: './tests/coverage/global-teardown.ts',
 	webServer: {
-		command: 'bun run build && bun run preview',
+		command: 'bun tests/seed-game.ts && bun run build && bun run preview',
 		port: 4173,
 		reuseExistingServer: false,
 		timeout: 180_000,
-		env: { COVERAGE: '1' }
+		env: {
+			COVERAGE: '1',
+			RANKLESS_DB_PATH: '.e2e-data/rankless.sqlite',
+			MCP_OBJECTS_ROOT: '.e2e-data/mcp-objects'
+		}
 	}
 };
 
