@@ -154,6 +154,7 @@ def _stored_ccs(con, kind: str, etype: str) -> dict[str, str]:
     return {
         r["sem_id"]: entry["payload"].get("cc", "")
         for r, entry in zip(row_list, object_store.read_entries(row_list))
+        if entry is not None
     }
 
 

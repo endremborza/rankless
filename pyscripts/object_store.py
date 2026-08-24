@@ -127,10 +127,20 @@ def read_bundle(run: str) -> list[dict]:
     return [json.loads(line) for line in raw.decode().splitlines()]
 
 
-def read_entries(row_list: list[dict]) -> list[dict]:
-    """The stored objects for index rows, decompressing each bundle once."""
-    bundles = {b: read_bundle(b) for b in {r["bundle"] for r in row_list}}
-    return [bundles[r["bundle"]][r["line"]] for r in row_list]
+def read_entries(row_list: list[dict]) -> list[dict | None]:
+    """The stored objects for index rows, decompressing each bundle once; a row
+    whose bundle hasn't reached this box reads as None."""
+    bundles: dict[str, list[dict] | None] = {}
+    for name in {r["bundle"] for r in row_list}:
+        try:
+            bundles[name] = read_bundle(name)
+        except FileNotFoundError:
+            print(f"warning: bundle {name!r} in the index but missing on disk")
+            bundles[name] = None
+    return [
+        loaded[r["line"]] if (loaded := bundles[r["bundle"]]) else None
+        for r in row_list
+    ]
 
 
 def current(con: sqlite3.Connection, kind: str) -> list[dict]:
@@ -195,6 +205,7 @@ def export(*, path: str, kind: str = "", status: str = "", db: str = "") -> None
                 {**entry, "status": r["status"], "status_note": r["status_note"]}
             )
             for r, entry in zip(selected, read_entries(selected))
+            if entry is not None
         ]
     finally:
         con.close()
