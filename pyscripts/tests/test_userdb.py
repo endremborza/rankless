@@ -173,7 +173,104 @@ def test_mirror_replaces_and_drops_expired_sessions(tmp_path: Path) -> None:
     dst_con.commit()
     dst_con.close()
 
-    mcp_db.transfer(str(dst), str(src), "mirror")
+    userdb.transfer(str(dst), str(src), "mirror")
     con = sqlite3.connect(dst)
     assert con.execute("SELECT token FROM sessions").fetchall() == [("live-tok",)]
     con.close()
+
+
+OBJECTS_DDL = """
+CREATE TABLE mcp_objects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    obj_key TEXT NOT NULL,
+    bundle TEXT NOT NULL,
+    line INTEGER NOT NULL,
+    gen_at TEXT NOT NULL,
+    etype TEXT,
+    sem_id TEXT,
+    title TEXT,
+    status TEXT NOT NULL DEFAULT 'new',
+    status_note TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX idx_obj_version ON mcp_objects(kind, obj_key, bundle);
+"""
+
+
+def _insert_obj(
+    con: sqlite3.Connection,
+    obj_key: str,
+    status: str,
+    note: str | None,
+    updated_at: str,
+) -> None:
+    con.execute(
+        "INSERT INTO mcp_objects"
+        " (kind, obj_key, bundle, line, gen_at, status, status_note, updated_at)"
+        " VALUES ('game-card', ?, 'b1', 0, '2026-01-01', ?, ?, ?)",
+        (obj_key, status, note, updated_at),
+    )
+
+
+def test_merge_reconciles_object_status_lww(tmp_path: Path) -> None:
+    src, dst = tmp_path / "src.sqlite", tmp_path / "dst.sqlite"
+    src_con = sqlite3.connect(src)
+    src_con.executescript(OBJECTS_DDL)
+    _insert_obj(src_con, "k1", "approved", None, "2026-08-02T00:00:00Z")
+    _insert_obj(src_con, "k2", "rejected", "stale fact", "2026-08-03T00:00:00Z")
+    _insert_obj(src_con, "k3", "approved", None, "2026-08-02T00:00:00Z")
+    _insert_obj(src_con, "k4", "new", None, "2026-08-09T00:00:00Z")
+    src_con.commit()
+    src_con.close()
+
+    dst_con = sqlite3.connect(dst)
+    dst_con.executescript(OBJECTS_DDL)
+    _insert_obj(dst_con, "k1", "new", None, "2026-08-01T00:00:00Z")
+    _insert_obj(dst_con, "k2", "approved", None, "2026-08-02T00:00:00Z")
+    _insert_obj(dst_con, "k3", "rejected", "leaky clue", "2026-08-03T00:00:00Z")
+    _insert_obj(dst_con, "k4", "approved", None, "2026-08-02T00:00:00Z")
+    dst_con.commit()
+    dst_con.close()
+
+    userdb.transfer(str(dst), str(src), "merge")
+
+    con = sqlite3.connect(dst)
+    rows = dict(
+        con.execute(
+            "SELECT obj_key, status || '|' || coalesce(status_note, '')"
+            " FROM mcp_objects"
+        ).fetchall()
+    )
+    con.close()
+    assert len(rows) == 4  # reconciled in place, no duplicate inserts
+    assert rows["k1"] == "approved|"  # new target takes the decision
+    assert rows["k2"] == "rejected|stale fact"  # later incoming decision wins
+    assert rows["k3"] == "rejected|leaky clue"  # earlier incoming decision loses
+    assert rows["k4"] == "approved|"  # incoming new never reverts a decision
+
+
+def test_prune_keeps_recent_and_month_firsts(tmp_path: Path) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    today = datetime.now(UTC).date()
+    old = today - timedelta(days=20)
+    if old.day == 1:
+        old -= timedelta(days=1)
+    names = {
+        f"rankless-{today:%Y%m%d}.sqlite.zst": True,
+        f"rankless-{today - timedelta(days=3):%Y%m%d}.sqlite.zst": True,
+        f"rankless-{old:%Y%m%d}.sqlite.zst": False,
+        f"rankless-{old.replace(day=1):%Y%m%d}.sqlite.zst": True,
+        "not-a-snapshot.txt": True,
+    }
+    for name in names:
+        (tmp_path / name).touch()
+
+    removed = userdb.prune(tmp_path, keep_days=7)
+
+    assert set(removed) == {n for n, kept in names.items() if not kept}
+    assert {f.name for f in tmp_path.iterdir()} == {
+        n for n, kept in names.items() if kept
+    }

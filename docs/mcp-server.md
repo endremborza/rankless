@@ -163,7 +163,9 @@ they'd spoil the game.
 
 Between boxes, bundles ride the artifact-dir copy (next to `data/mcp-sessions/`)
 and index rows ride the user-DB handoff below: merges dedup on
-`(kind, obj_key, bundle)` and review decisions propagate like ledger moderation.
+`(kind, obj_key, bundle)`, and for version rows both boxes hold, review
+decisions propagate — a decision beats `new`, and between two decisions the
+later `updated_at` wins.
 
 ## Public site
 
