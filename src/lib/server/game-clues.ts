@@ -1,14 +1,13 @@
-// Server side of the guessing game: pack reads over the MCP object store and
+// Server side of the clue-ladder game: pack reads over the MCP object store and
 // the play-result log. Cards ship to the browser one at a time (daily via the
-// page load, practice via GET /api/game) with verification facts stripped.
+// page load, practice via GET /api/game-clues) with verification facts stripped.
 
-import { getDb } from './db';
+import { DAY_RE, SEM_ID_RE, gameDb, okInt, okNullNum } from './game-common';
 import { currentObjects } from './objects';
 import { dailyIndex } from '$lib/utils/game';
-import type { GameCard, GameResultLog, PlayCard } from '$lib/types/game';
+import type { GameCard, GameResultLog, PlayCard } from '$lib/types/game-clues';
 
-// Which pack the /game route plays. Flip (or branch on a route param) when a
-// second pack — e.g. countries — is ready to serve.
+// The etype whose game-card pack /game-clues serves.
 export const GAME_PACK_ETYPE = 'institutions';
 
 const GAME_SCHEMA = `
@@ -34,9 +33,6 @@ CREATE TABLE IF NOT EXISTS game_daily (
 );
 `;
 
-const SEM_ID_RE = /^[\w.-]{1,80}$/;
-
-let ensured = false;
 let dailyPin: { day: string; semId: string } | null = null;
 
 // Sorted for a stable daily pick across boxes.
@@ -52,8 +48,7 @@ export function currentPack(): GameCard[] {
 // steady-state serving never queries the table. A pin whose card left the pack
 // (rejected mid-day) is re-pinned; the replacement pick is deterministic, so
 // every worker converges on the same card.
-export function dailyCard(day: string): PlayCard | null {
-	const pack = currentPack();
+export function dailyCard(day: string, pack: GameCard[] = currentPack()): PlayCard | null {
 	if (!pack.length) return null;
 	let card = dailyPin?.day === day ? pack.find((c) => c.semId === dailyPin?.semId) : undefined;
 	if (!card) {
@@ -64,7 +59,7 @@ export function dailyCard(day: string): PlayCard | null {
 }
 
 function pinnedDaily(day: string, pack: GameCard[]): GameCard {
-	const db = gameDb();
+	const db = gameDb(GAME_SCHEMA);
 	const row = db.prepare('SELECT sem_id FROM game_daily WHERE day = ?').get(day) as {
 		sem_id: string;
 	} | null;
@@ -87,7 +82,7 @@ export function practiceCard(exclude: string | null): PlayCard | null {
 }
 
 export function recordResult(result: GameResultLog, orcid: string | null): void {
-	gameDb()
+	gameDb(GAME_SCHEMA)
 		.prepare(
 			`INSERT INTO game_results
 			 (mode, day, sem_id, clues_used, gave_up, guess_lat, guess_lon, distance_km, score, orcid)
@@ -112,23 +107,18 @@ export function recordResult(result: GameResultLog, orcid: string | null): void 
 export function parseResult(raw: unknown): GameResultLog | null {
 	if (typeof raw !== 'object' || raw === null) return null;
 	const r = raw as Record<string, unknown>;
-	const okNum = (v: unknown, lo: number, hi: number) =>
-		typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
-	const okNullNum = (v: unknown, lo: number, hi: number) => v === null || okNum(v, lo, hi);
 	if (
 		(r.mode !== 'daily' && r.mode !== 'practice') ||
 		typeof r.day !== 'string' ||
-		!/^\d{4}-\d{2}-\d{2}$/.test(r.day) ||
+		!DAY_RE.test(r.day) ||
 		typeof r.semId !== 'string' ||
 		!SEM_ID_RE.test(r.semId) ||
-		!Number.isInteger(r.cluesUsed) ||
-		!okNum(r.cluesUsed, 1, 12) ||
+		!okInt(r.cluesUsed, 1, 12) ||
 		typeof r.gaveUp !== 'boolean' ||
 		!okNullNum(r.guessLat, -90, 90) ||
 		!okNullNum(r.guessLon, -180, 180) ||
 		!okNullNum(r.distanceKm, 0, 21000) ||
-		!Number.isInteger(r.score) ||
-		!okNum(r.score, 0, 1000)
+		!okInt(r.score, 0, 1000)
 	)
 		return null;
 	return {
@@ -146,13 +136,4 @@ export function parseResult(raw: unknown): GameResultLog | null {
 
 function toPlayCard(card: GameCard): PlayCard {
 	return { ...card, clues: card.clues.map(({ stage, text }) => ({ stage, text })) };
-}
-
-function gameDb() {
-	const d = getDb();
-	if (!ensured) {
-		d.run(GAME_SCHEMA);
-		ensured = true;
-	}
-	return d;
 }

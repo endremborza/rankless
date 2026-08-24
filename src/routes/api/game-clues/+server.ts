@@ -1,9 +1,8 @@
 import { error, json } from '@sveltejs/kit';
 
 import type { RequestHandler } from './$types';
-import { parseResult, practiceCard, recordResult } from '$lib/server/game';
-
-const MAX_BODY_BYTES = 2048;
+import { readJsonBody } from '$lib/server/game-common';
+import { parseResult, practiceCard, recordResult } from '$lib/server/game-clues';
 
 // Practice card, avoiding the one the player just saw.
 export const GET: RequestHandler = ({ url }) => {
@@ -13,15 +12,7 @@ export const GET: RequestHandler = ({ url }) => {
 };
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	const body = await request.text();
-	if (body.length > MAX_BODY_BYTES) error(413, 'Result too large');
-	let raw: unknown;
-	try {
-		raw = JSON.parse(body);
-	} catch {
-		error(400, 'Bad JSON');
-	}
-	const result = parseResult(raw);
+	const result = parseResult(await readJsonBody(request));
 	if (!result) error(400, 'Bad result payload');
 	recordResult(result, locals.user?.orcid ?? null);
 	return new Response(null, { status: 204 });
