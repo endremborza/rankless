@@ -8,7 +8,7 @@ import {
 	listSessions,
 	setVisibility
 } from '$lib/server/mcp-sessions';
-import { listObjects, setObjectStatus } from '$lib/server/objects';
+import { currentObjects, listObjects, setObjectStatus } from '$lib/server/objects';
 import { GENERATIONS, isGenerationParams, isGenerationType, runName } from '$lib/mcp-util';
 import type { SessionParams, SessionVisibility } from '$lib/types/mcp';
 import type { ObjectStatus } from '$lib/types/objects';
@@ -31,7 +31,9 @@ export const load: PageServerLoad = ({ locals }) => {
 		sessions: listSessions({ publicOnly: !admin }),
 		objects: admin
 			? listObjects({})
-			: listObjects({ kinds: ['finding', 'impact-story'], statuses: ['approved'] })
+			: [...currentObjects('finding'), ...currentObjects('impact-story')].filter(
+					(o) => o.status === 'approved'
+				)
 	};
 };
 
