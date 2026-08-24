@@ -204,7 +204,7 @@ PKM runs still land in `.cril/`).
 
 ### Moving sessions between boxes
 
-`make {merge,sync}_db_{to,from}_{live,alpha}` moves the user-data tables (`mcp_sessions`, `mcp_objects`, `game_results`, `game_daily`,
+`make {merge,sync}_db_{to,from}_{live,alpha}` moves the user-data tables (`mcp_sessions`, `mcp_objects`, `game_results`, `game_daily`, `country_game_results`,
 `ledger_events`, `ledger_runs`, `owner_pins`, `users`, `email_consents`, and auth `sessions` —
 unexpired rows only, so deploys don't log everyone out) plus the `data/mcp-sessions/` +
 `data/mcp-objects/` artifact dirs between the local checkout and a running instance

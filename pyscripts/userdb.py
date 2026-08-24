@@ -7,7 +7,7 @@ ssh/rsync transport and calls in; flows in docs/mcp-server.md + docs/deploy.md.
 
 Transfers cover every curated table: `mcp_sessions`, `mcp_objects` (payload-free
 object index; review statuses reconcile by version key), `game_results` +
-`game_daily` (play logs, daily-card pins), `ledger_events` (+ moderation
+`game_daily` + `country_game_results` (play logs, daily-card pins), `ledger_events` (+ moderation
 reconciliation), `ledger_runs`, `owner_pins`, `users`, `email_consents`,
 `subject_enrichment`, `review_verdicts`, and unexpired auth `sessions`. A
 transfer runs on the receiving side against a shipped snapshot of the source
@@ -62,6 +62,7 @@ TABLES = (
     "mcp_objects",
     "game_results",
     "game_daily",
+    "country_game_results",
     "ledger_events",
     "ledger_runs",
     "owner_pins",
