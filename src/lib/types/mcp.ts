@@ -32,8 +32,15 @@ export type McpManifest = {
 export type SessionStatus = 'queued' | 'running' | 'done' | 'failed';
 export type SessionVisibility = 'public' | 'private';
 
-// What an admin submits to enqueue a run; mirrors deep.py's scoping flags.
-export type SessionParams = {
+// The object-store generator workflows (pyscripts/explore/runs.py WORKFLOWS,
+// minus deep, which has its own param shape).
+export type GenerationType = 'game-cards' | 'impact-stories';
+
+// What an admin submits to enqueue a run, discriminated on `type`: absent (or
+// 'deep') mirrors deep.py's scoping flags; generation workflows carry
+// etype/count instead of foci.
+export type DeepParams = {
+	type?: 'deep';
 	backend: string;
 	foci: string[];
 	subject?: string | null;
@@ -43,8 +50,20 @@ export type SessionParams = {
 	suggestEndpoints?: boolean;
 };
 
-// The `meta` block deep.py writes into findings.json.
-export type SessionMeta = {
+export type GenerationParams = {
+	type: GenerationType;
+	backend: string;
+	etype: string;
+	count: number;
+	model?: string | null;
+};
+
+export type SessionParams = DeepParams | GenerationParams;
+
+// The `meta` block a run writes, discriminated the same way: deep.py's
+// findings.json shape, or the leaner generation summary.
+export type DeepMeta = {
+	type?: 'deep';
 	backend: string;
 	backendUrl: string;
 	model: string;
@@ -66,6 +85,16 @@ export type SessionMeta = {
 		endpointSuggestions: number;
 	};
 };
+
+export type GenerationMeta = {
+	type: GenerationType;
+	backend: string;
+	model: string;
+	generated: string;
+	counts: { accepted: number; targets: number; stored: number };
+};
+
+export type SessionMeta = DeepMeta | GenerationMeta;
 
 export type McpSession = {
 	name: string;
@@ -107,9 +136,9 @@ export type SessionFinding = {
 	_verified: boolean;
 };
 
-// The parsed findings.json read from a session directory.
+// The parsed findings.json read from a session directory (deep runs only).
 export type SessionFindings = {
-	meta: SessionMeta;
+	meta: DeepMeta;
 	findings: SessionFinding[];
 	endpointSuggestions: McpEndpointIdea[];
 };

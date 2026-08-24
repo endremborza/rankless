@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import SessionFindings from '$lib/components/SessionFindings.svelte';
+	import { isGenerationMeta } from '$lib/mcp-util';
 	export let data: PageData;
 	$: ({ session, findings, command } = data);
 	$: meta = session.meta;
@@ -15,7 +16,12 @@
 	<p class="crumbs"><a href="/mcp">← all sessions &amp; MCP docs</a></p>
 	<h1>{session.title ?? session.name}</h1>
 
-	{#if meta}
+	{#if meta && isGenerationMeta(meta)}
+		<p class="meta">
+			{meta.backend} data · {meta.model} · {meta.counts.accepted}/{meta.counts.targets} accepted ·
+			{meta.counts.stored} in store · {meta.generated}
+		</p>
+	{:else if meta}
 		<p class="meta">
 			{meta.backend} data · {meta.model} · foci {meta.foci.join(', ')} ·
 			{meta.counts.metricsReproduced}/{meta.counts.metrics} numbers reproduced · mined in {Math.round(

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import manifestJson from '$lib/assets/data/mcp-manifest.json';
-	import type { McpManifest } from '$lib/types/mcp';
+	import { GENERATIONS, isGenerationMeta } from '$lib/mcp-util';
+	import type { GenerationType, McpManifest } from '$lib/types/mcp';
 	import type { ActionData, PageData } from './$types';
 
 	export let data: PageData;
@@ -8,6 +9,32 @@
 
 	const m = manifestJson as unknown as McpManifest;
 	$: sessions = data.sessions;
+	$: objects = data.objects;
+
+	let genType: GenerationType = 'game-cards';
+	$: genEtypes = GENERATIONS[genType].etypes;
+
+	function objectLine(payload: unknown): string {
+		if (!payload) return '(bundle not on this box)';
+		const p = payload as { description?: string; story?: string; clues?: unknown[] };
+		if (p.description) return p.description;
+		if (p.story) return p.story;
+		if (p.clues) return `${p.clues.length} verified clues`;
+		return '';
+	}
+
+	// A rejection must carry a reason (stored, reviewable later against data
+	// improvements); collected via prompt like the delete confirm above.
+	function confirmStatus(e: SubmitEvent, target: string) {
+		if (target !== 'rejected') return;
+		const note = prompt('Why reject? (kept for later review)');
+		if (!note?.trim()) {
+			e.preventDefault();
+			return;
+		}
+		const form = e.currentTarget as HTMLFormElement;
+		(form.elements.namedItem('note') as HTMLInputElement).value = note.trim();
+	}
 </script>
 
 <svelte:head>
@@ -86,6 +113,41 @@
 					<button type="submit">Queue run</button>
 				</form>
 			</details>
+			<details class="new">
+				<summary>New generation run</summary>
+				<form method="POST" action="?/create">
+					<div class="row">
+						<label
+							>Workflow
+							<select name="type" bind:value={genType}>
+								{#each Object.entries(GENERATIONS) as [t, g] (t)}
+									<option value={t}>{g.label}</option>
+								{/each}
+							</select>
+						</label>
+						<label
+							>Backend
+							<select name="backend">
+								<option value="local">local</option>
+								<option value="live">live</option>
+							</select>
+						</label>
+						<label
+							>Entity type
+							<select name="etype">
+								{#each genEtypes as e (e)}
+									<option value={e}>{e}</option>
+								{/each}
+							</select>
+						</label>
+						<label
+							>New objects <input name="count" type="number" value="24" min="1" max="100" /></label
+						>
+						<label class="grow">Model <input name="model" placeholder="claude-sonnet-5" /></label>
+					</div>
+					<button type="submit">Queue generation</button>
+				</form>
+			</details>
 		{/if}
 
 		{#if sessions.length === 0}
@@ -96,13 +158,21 @@
 					<li class="card">
 						<h3><a href="/mcp/runs/{s.name}">{s.title ?? s.name}</a></h3>
 						{#if s.meta}
-							<p class="meta">
-								{s.meta.backend} · {s.meta.model} · foci {s.meta.foci.join(', ')}
-							</p>
-							<p class="stats">
-								{s.meta.counts.findings} findings ·
-								{s.meta.counts.metricsReproduced}/{s.meta.counts.metrics} numbers reproduced
-							</p>
+							{#if isGenerationMeta(s.meta)}
+								<p class="meta">{s.meta.backend} · {s.meta.model}</p>
+								<p class="stats">
+									{s.meta.counts.accepted}/{s.meta.counts.targets} accepted ·
+									{s.meta.counts.stored} in store
+								</p>
+							{:else}
+								<p class="meta">
+									{s.meta.backend} · {s.meta.model} · foci {s.meta.foci.join(', ')}
+								</p>
+								<p class="stats">
+									{s.meta.counts.findings} findings ·
+									{s.meta.counts.metricsReproduced}/{s.meta.counts.metrics} numbers reproduced
+								</p>
+							{/if}
 						{/if}
 						<p class="date">{s.meta?.generated ?? s.createdAt.slice(0, 10)}</p>
 						{#if data.isAdmin}
@@ -128,6 +198,50 @@
 									<button type="submit" class="link danger">delete</button>
 								</form>
 							</div>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</section>
+
+	<section>
+		<h2>Collected objects</h2>
+		<p class="note">
+			The unified store of reusable artifacts the miners produce — verified findings, impact
+			stories, and clue cards feeding <a href="/game">the game</a>. Every number inside was
+			re-issued from the backend before the object was stored.
+		</p>
+		{#if objects.length === 0}
+			<p class="empty">Nothing collected yet.</p>
+		{:else}
+			<ul class="objects">
+				{#each objects as o (o.id)}
+					<li class="obj-row">
+						<span class="kind">{o.kind}</span>
+						<span class="obj-body">
+							<strong>{o.title ?? o.objKey}</strong>
+							{#if objectLine(o.payload)}<span class="obj-line">{objectLine(o.payload)}</span>{/if}
+							{#if o.statusNote}<span class="obj-note">{o.status}: {o.statusNote}</span>{/if}
+						</span>
+						{#if data.isAdmin}
+							<span class="status obj-{o.status}">{o.status}</span>
+							{#each ['approved', 'rejected'] as target (target)}
+								{#if o.status !== target}
+									<form
+										method="POST"
+										action="?/objectStatus"
+										on:submit={(e) => confirmStatus(e, target)}
+									>
+										<input type="hidden" name="id" value={o.id} />
+										<input type="hidden" name="status" value={target} />
+										<input type="hidden" name="note" value="" />
+										<button type="submit" class="link" class:danger={target === 'rejected'}>
+											{target === 'approved' ? 'approve' : 'reject'}
+										</button>
+									</form>
+								{/if}
+							{/each}
 						{/if}
 					</li>
 				{/each}
@@ -294,6 +408,49 @@
 		background: rgba(var(--color-range-15), 0.2);
 	}
 	.status.failed {
+		background: var(--color-theme-red);
+	}
+	.objects {
+		list-style: none;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+	.obj-row {
+		display: flex;
+		align-items: baseline;
+		gap: 0.7rem;
+		padding: 0.4rem 0.2rem;
+		border-bottom: 1px solid var(--color-theme-lightgrey);
+	}
+	.obj-row form {
+		margin: 0;
+	}
+	.kind {
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+		color: var(--color-text-light);
+		white-space: nowrap;
+	}
+	.obj-body {
+		flex: 1;
+	}
+	.obj-line {
+		display: block;
+		font-size: var(--text-sm);
+		color: var(--color-text-light);
+	}
+	.obj-note {
+		display: block;
+		font-size: var(--text-xs);
+		font-style: italic;
+		color: var(--color-text-light);
+	}
+	.status.obj-approved {
+		background: rgba(var(--color-range-15), 0.2);
+	}
+	.status.obj-rejected {
 		background: var(--color-theme-red);
 	}
 	.link {

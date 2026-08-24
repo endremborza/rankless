@@ -6,7 +6,14 @@ import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { env } from '$env/dynamic/private';
 import { getDb } from './db';
-import type { McpSession, SessionFindings, SessionParams, SessionVisibility } from '$lib/types/mcp';
+import { GENERATIONS, isGenerationParams } from '$lib/mcp-util';
+import type {
+	McpSession,
+	SessionFindings,
+	SessionMeta,
+	SessionParams,
+	SessionVisibility
+} from '$lib/types/mcp';
 
 type Row = {
 	name: string;
@@ -108,14 +115,29 @@ function rowToSession(r: Row): McpSession {
 		visibility: r.visibility as SessionVisibility,
 		title: r.title,
 		params: JSON.parse(r.params) as SessionParams,
-		meta: r.meta ? JSON.parse(r.meta) : null,
+		meta: r.meta ? normalizeMeta(JSON.parse(r.meta) as Record<string, unknown>) : null,
 		error: r.error,
 		createdAt: r.created_at,
 		updatedAt: r.updated_at
 	};
 }
 
+// Boundary normalization: rows written before meta carried `type` (and when
+// generation counts were named `cards`) map onto the current discriminated shape.
+function normalizeMeta(raw: Record<string, unknown>): SessionMeta {
+	const counts = raw.counts as Record<string, unknown> | undefined;
+	if (!raw.type && counts?.cards !== undefined) {
+		return {
+			...raw,
+			type: 'game-cards',
+			counts: { ...counts, accepted: counts.cards }
+		} as SessionMeta;
+	}
+	return raw as SessionMeta;
+}
+
 function sessionTitle(p: SessionParams): string {
+	if (isGenerationParams(p)) return `${GENERATIONS[p.type].label}: ${p.etype}`;
 	if (p.investigate) return `Deepening ${p.investigate}`;
 	if (p.subject) return p.subject;
 	if (p.question) return p.question;

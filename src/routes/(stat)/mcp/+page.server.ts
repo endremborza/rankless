@@ -8,7 +8,12 @@ import {
 	listSessions,
 	setVisibility
 } from '$lib/server/mcp-sessions';
+import { listObjects, setObjectStatus } from '$lib/server/objects';
+import { GENERATIONS, isGenerationParams, isGenerationType, runName } from '$lib/mcp-util';
 import type { SessionParams, SessionVisibility } from '$lib/types/mcp';
+import type { ObjectStatus } from '$lib/types/objects';
+
+const OBJECT_STATUSES: ObjectStatus[] = ['new', 'approved', 'rejected'];
 
 const FOCI = ['share', 'query', 'data-issue'];
 
@@ -16,34 +21,54 @@ function requireAdmin(locals: App.Locals): void {
 	if (!isAdmin(locals.user?.orcid)) error(403, 'Admins only');
 }
 
-// One page for everyone: the public sees public, finished sessions; admins see
-// all of them plus the queue/edit controls (gated per-action below).
-export const load: PageServerLoad = ({ locals }) => ({
-	sessions: listSessions({ publicOnly: !isAdmin(locals.user?.orcid) })
-});
+// One page for everyone: the public sees public, finished sessions and approved
+// findings/stories; admins see everything plus the queue/edit/review controls
+// (gated per-action below). Game cards never show publicly — they'd spoil the
+// game.
+export const load: PageServerLoad = ({ locals }) => {
+	const admin = isAdmin(locals.user?.orcid);
+	return {
+		sessions: listSessions({ publicOnly: !admin }),
+		objects: admin
+			? listObjects({})
+			: listObjects({ kinds: ['finding', 'impact-story'], statuses: ['approved'] })
+	};
+};
 
 export const actions: Actions = {
 	create: async ({ request, locals }) => {
 		requireAdmin(locals);
 		const form = await request.formData();
 		const backend = String(form.get('backend') ?? 'live');
-		const foci = form
-			.getAll('foci')
-			.map(String)
-			.filter((f) => FOCI.includes(f));
-		if (!foci.length) return fail(400, { message: 'Pick at least one focus.' });
 		if (backend !== 'local' && backend !== 'live' && !backend.startsWith('http'))
 			return fail(400, { message: 'Backend must be local, live, or an http(s) URL.' });
 
-		const params: SessionParams = {
-			backend,
-			foci,
-			subject: str(form.get('subject')),
-			question: str(form.get('question')),
-			investigate: str(form.get('investigate')),
-			model: str(form.get('model')),
-			suggestEndpoints: form.get('suggestEndpoints') !== 'off'
-		};
+		let params: SessionParams;
+		const type = String(form.get('type') ?? 'deep');
+		if (isGenerationType(type)) {
+			const etype = String(form.get('etype') ?? 'institutions');
+			const count = Number(form.get('count') ?? 24);
+			if (!GENERATIONS[type].etypes.includes(etype))
+				return fail(400, { message: `Bad entity type for ${type}.` });
+			if (!Number.isInteger(count) || count < 1 || count > 100)
+				return fail(400, { message: 'Count must be 1-100.' });
+			params = { type, backend, etype, count, model: str(form.get('model')) };
+		} else {
+			const foci = form
+				.getAll('foci')
+				.map(String)
+				.filter((f) => FOCI.includes(f));
+			if (!foci.length) return fail(400, { message: 'Pick at least one focus.' });
+			params = {
+				backend,
+				foci,
+				subject: str(form.get('subject')),
+				question: str(form.get('question')),
+				investigate: str(form.get('investigate')),
+				model: str(form.get('model')),
+				suggestEndpoints: form.get('suggestEndpoints') !== 'off'
+			};
+		}
 		const name = genName(params);
 		createSession({
 			name,
@@ -70,6 +95,20 @@ export const actions: Actions = {
 		if (!isValidName(name)) return fail(400, { message: 'Bad session name.' });
 		deleteSession(name);
 		return { deleted: name };
+	},
+
+	objectStatus: async ({ request, locals }) => {
+		requireAdmin(locals);
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		const status = String(form.get('status')) as ObjectStatus;
+		const note = str(form.get('note'));
+		if (!Number.isInteger(id) || !OBJECT_STATUSES.includes(status))
+			return fail(400, { message: 'Bad object review input.' });
+		if (status === 'rejected' && !note)
+			return fail(400, { message: 'Rejecting needs a reason (kept for later review).' });
+		if (!setObjectStatus(id, status, note)) return fail(404, { message: 'No such object.' });
+		return { reviewed: id };
 	}
 };
 
@@ -78,13 +117,14 @@ function str(v: FormDataEntryValue | null): string | null {
 	return s || null;
 }
 
-// Slug from the round's subject/question + a short unique suffix.
+// Standard run name (<workflow>-<scope>-<UTC stamp>); a deep run's scope is a
+// slug of its subject/question.
 function genName(p: SessionParams): string {
+	if (isGenerationParams(p)) return runName(p.type, p.etype);
 	const base = (p.subject || p.question || p.investigate || p.foci.join('-'))
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-+|-+$/g, '')
 		.slice(0, 40);
-	const suffix = Date.now().toString(36).slice(-5);
-	return `${base || 'run'}-${suffix}`;
+	return runName('deep', base || 'run');
 }
