@@ -291,7 +291,7 @@
 		<TextedLogo pad={0} size={30} />
 		<span>{LATEST_YEAR}</span>
 		<div id="foot-r">
-			{#if data.user}<a href="/mcp">Developers</a>{/if}<a href="/game">Game</a><a href="/release"
+			{#if data.user}<a href="/mcp">Developers</a>{/if}<a href="/game">Games</a><a href="/release"
 				>Data</a
 			><a href="/privacy">Privacy</a><a href="/#contact">Contact</a>
 		</div>
