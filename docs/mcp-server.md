@@ -191,15 +191,18 @@ worker uses Python's `sqlite3` on the same WAL file. Sessions are only created t
 flow (admin form → worker) — there is no side-channel seeding.
 
 `pyscripts/mcp_worker.py` (`make mcp-worker`, systemd in prod) polls for `queued` rows, claims
-one atomically, runs `deep.py --out-root $MCP_SESSIONS_ROOT --out <name>` (default
-`claude-sonnet-5`, model per-session, engine from `MCP_WORKER_RUNNER`), and ingests
-`findings.json` meta → `done`. On startup it re-queues rows a killed worker left `running`.
+one atomically, and spawns the row's workflow via the `explore/runs.py` `WORKFLOWS` registry
+(`params.type`; deep when absent; default `claude-sonnet-5`, model per-session, engine from
+`MCP_WORKER_RUNNER`). Deep runs write `findings.json` whose meta the worker ingests → `done`;
+self-closing workflows (the generators) set their own done/failed + meta and the worker only
+checks the exit code. On startup it re-queues rows a killed worker left `running` — but never
+self-registered CLI runs (`params.origin: "cli"`), which it does not own.
 deep.py's output root is overridable via `--out-root` or `RANKLESS_WRITEUPS_DIR` (so personal
 PKM runs still land in `.cril/`).
 
 ### Moving sessions between boxes
 
-`make {merge,sync}_db_{to,from}_{live,alpha}` moves the user-data tables (`mcp_sessions`,
+`make {merge,sync}_db_{to,from}_{live,alpha}` moves the user-data tables (`mcp_sessions`, `mcp_objects`, `game_results`,
 `ledger_events`, `ledger_runs`, `owner_pins`, `users`, `email_consents`, and auth `sessions` —
 unexpired rows only, so deploys don't log everyone out) plus the `data/mcp-sessions/` artifact
 dirs between the local checkout and a running instance (`pyscripts/deploy.py` →

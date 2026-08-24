@@ -1,9 +1,12 @@
-"""Host worker for admin-created MCP exploration sessions.
+"""Host worker for admin-created MCP agent runs.
 
 Runs as a systemd `--user` service on the host. Polls the shared SQLite
-(`mcp_sessions`) for `queued` rows, claims one atomically, runs `deep.py` into
-the session's directory under `$MCP_SESSIONS_ROOT`, and ingests the resulting
-`findings.json` meta back into the row. One run at a time; robust across the
+(`mcp_sessions`) for `queued` rows, claims one atomically, and spawns the row's
+workflow via the `pyscripts.explore.runs` registry (`params.type`; deep
+exploration when absent). Deep runs write into the session's directory under
+`$MCP_SESSIONS_ROOT` and the worker ingests the resulting `findings.json` meta;
+self-closing workflows (the object-store generators) own their session row and
+the worker only checks the exit code. One run at a time; robust across the
 blue/green frontend workers because claiming is a single atomic UPDATE.
 
     uv run -m pyscripts.mcp_worker [--once]     # make mcp-worker
@@ -24,21 +27,13 @@ import time
 from pathlib import Path
 
 from pyscripts import paths
+from pyscripts.explore.runs import SESSIONS_SCHEMA, WORKFLOWS
 
 DB_PATH = os.environ.get("RANKLESS_DB_PATH", paths.DB_REL)
 SESSIONS_ROOT = os.environ.get("MCP_SESSIONS_ROOT", paths.MCP_SESSIONS_REL)
 DEFAULT_MODEL = os.environ.get("MCP_WORKER_MODEL", "claude-sonnet-5")
 RUNNER = os.environ.get("MCP_WORKER_RUNNER", "claude-cli")
 POLL_S = int(os.environ.get("MCP_WORKER_POLL_S", "5"))
-
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS mcp_sessions (
-    name TEXT PRIMARY KEY, orcid TEXT, status TEXT NOT NULL DEFAULT 'queued',
-    visibility TEXT NOT NULL DEFAULT 'private', title TEXT, params TEXT NOT NULL,
-    meta TEXT, error TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-"""
 
 
 def main() -> int:
@@ -61,12 +56,15 @@ def main() -> int:
 
 
 def _recover_orphans() -> None:
-    """Re-queue rows left 'running' by a killed worker (deep.py dies with it)."""
+    """Re-queue worker-owned rows left 'running' by a killed worker (their
+    processes die with it). Self-registered CLI runs (params.origin = 'cli')
+    are not the worker's to restart."""
     conn = _connect()
     try:
         n = conn.execute(
             "UPDATE mcp_sessions SET status='queued', updated_at=datetime('now') "
-            "WHERE status='running'"
+            "WHERE status='running' "
+            "AND COALESCE(json_extract(params, '$.origin'), '') != 'cli'"
         ).rowcount
         conn.commit()
         if n:
@@ -79,7 +77,7 @@ def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.execute("PRAGMA busy_timeout = 5000")
     conn.execute("PRAGMA journal_mode = WAL")
-    conn.executescript(_SCHEMA)
+    conn.executescript(SESSIONS_SCHEMA)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -96,11 +94,24 @@ def _claim_next(conn: sqlite3.Connection) -> sqlite3.Row | None:
 
 def _process(conn: sqlite3.Connection, name: str, params: dict) -> None:
     print(f"[mcp-worker] running {name}: {params}")
-    argv = _build_argv(name, params)
+    wf_type = params.get("type", "deep")
+    workflow = WORKFLOWS.get(wf_type)
+    if workflow is None:
+        _fail(conn, name, f"unknown workflow type {wf_type!r}")
+        return
+    argv = workflow.build_argv(name, params, DEFAULT_MODEL, RUNNER, SESSIONS_ROOT)
     try:
         proc = subprocess.run(argv, capture_output=True, text=True, check=False)
     except OSError as exc:
         _fail(conn, name, f"spawn failed: {exc}")
+        return
+    if workflow.self_closing:
+        if proc.returncode == 0:
+            print(f"[mcp-worker] done {name}")
+        else:
+            _fail(
+                conn, name, (proc.stderr or proc.stdout or f"{wf_type} failed")[-2000:]
+            )
         return
     findings = Path(SESSIONS_ROOT) / name / "findings.json"
     if proc.returncode == 0 and findings.exists():
@@ -117,35 +128,6 @@ def _process(conn: sqlite3.Connection, name: str, params: dict) -> None:
             -2000:
         ]
         _fail(conn, name, tail)
-
-
-def _build_argv(name: str, params: dict) -> list[str]:
-    argv = [
-        sys.executable,
-        "-m",
-        "pyscripts.explore.deep",
-        "--out-root",
-        SESSIONS_ROOT,
-        "--out",
-        name,
-        "--backend",
-        params.get("backend", "live"),
-        "--model",
-        params.get("model") or DEFAULT_MODEL,
-        "--runner",
-        RUNNER,
-    ]
-    if foci := params.get("foci"):
-        argv += ["--foci", ",".join(foci)]
-    if params.get("subject"):
-        argv += ["--subject", params["subject"]]
-    if params.get("question"):
-        argv += ["--question", params["question"]]
-    if params.get("investigate"):
-        argv += ["--investigate", params["investigate"]]
-    if params.get("suggestEndpoints") is False:
-        argv += ["--no-suggest-endpoints"]
-    return argv
 
 
 def _fail(conn: sqlite3.Connection, name: str, error: str) -> None:

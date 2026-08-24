@@ -32,20 +32,16 @@ import argparse
 import asyncio
 import json
 import os
-import re
 import sys
 import time
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
-
-import httpx
 
 import mcp_server
 from mcp_server import client as be_client
-from mcp_server.tools import TOOL_FNS
-from pyscripts.explore import cli, evidence, runner
+from pyscripts import object_store
+from pyscripts.explore import cli, evidence, runner, runs, verify
 
 FOCI = ("share", "query", "data-issue")
 # Output root: personal PKM by default, overridable (env or --out-root) so the
@@ -56,8 +52,6 @@ WRITEUPS_DIR = Path(
 MAX_TURNS = 120
 TIMEOUT_S = 3600
 DEFAULT_SAMPLE = 8
-
-_PATH_TOKEN_RE = re.compile(r"\.?([^.\[\]]+)|\[(\d+)\]")
 
 # Backend GET a metric's tool maps to, for human-reproducible curl lines. Value
 # is (path_template, query_arg_names); None for tools whose call isn't a plain
@@ -107,6 +101,7 @@ class DeepConfig:
     backend_label: str
     foci: list[str]
     suggest_endpoints: bool
+    store: bool
     question: str | None
     subject: str | None
     investigate: dict | None
@@ -129,7 +124,6 @@ def main() -> int:
     # snapshot seeds would only dilute it.
     focused = bool(args.subject or investigate)
     seeds = [] if focused else evidence.sample_snapshots(_load_seeds(), args.sample)
-    stamp = datetime.now().strftime("%Y%m%d-%H%M")
     config = DeepConfig(
         model=cli.resolve_model(args.model),
         runner=args.runner,
@@ -137,12 +131,14 @@ def main() -> int:
         backend_label=backend_label,
         foci=foci,
         suggest_endpoints=args.suggest_endpoints,
+        store=args.store,
         question=args.question,
         subject=args.subject,
         investigate=investigate,
         seeds=seeds,
         sample=args.sample,
-        out_dir=Path(args.out_root) / (args.out or f"{backend_label}-{stamp}"),
+        out_dir=Path(args.out_root)
+        / (args.out or runs.run_name("deep", backend_label)),
     )
 
     print(
@@ -169,7 +165,9 @@ def main() -> int:
         "total": round(time.monotonic() - t0, 1),
     }
 
-    paths = _write(findings, suggestions, config, stamp, timing)
+    paths = _write(findings, suggestions, config, timing)
+    if config.store:
+        _store_findings(findings, config)
     n_ok = sum(f["_verified"] for f in findings)
     print(
         f"[deep] {len(findings)} finding(s), {n_ok} fully reproduced, "
@@ -213,6 +211,12 @@ def build_parser() -> argparse.ArgumentParser:
         action=argparse.BooleanOptionalAction,
         default=True,
         help="ask the session to propose missing backend endpoints (default: on).",
+    )
+    p.add_argument(
+        "--store",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="collect fully verified findings into the MCP object store (default: on).",
     )
     p.add_argument(
         "--model",
@@ -400,12 +404,7 @@ async def _reproduce(findings: list[dict], config: DeepConfig) -> None:
     try:
         for finding in findings:
             metrics = finding.get("metrics", [])
-            for metric in metrics:
-                # The agent records the tool it actually called, e.g.
-                # "mcp__rankless__get_peers"; TOOL_FNS is keyed by the bare name.
-                metric["tool"] = _tool_name(metric.get("tool", ""))
-                metric["reproduced"], metric["error"] = await _reissue(metric)
-                metric["ok"] = _metric_ok(metric)
+            await verify.verify_facts(metrics)
             finding["numbers"] = {
                 m["key"]: m["reproduced"] for m in metrics if not m["error"]
             }
@@ -414,52 +413,15 @@ async def _reproduce(findings: list[dict], config: DeepConfig) -> None:
         await be_client.aclose()
 
 
-def _tool_name(tool: str) -> str:
-    """Bare tool name, stripping any `mcp__<server>__` prefix the agent used."""
-    return tool.split("__")[-1] if tool.startswith("mcp__") else tool
-
-
-async def _reissue(metric: dict) -> tuple[object, str | None]:
-    fn = TOOL_FNS.get(metric.get("tool", ""))
-    if fn is None:
-        return None, f"unknown tool {metric.get('tool')!r}"
-    try:
-        result = await fn(**metric.get("args", {}))
-        return _walk(result, metric.get("path", "")), None
-    except (httpx.HTTPError, ValueError, TypeError, KeyError, IndexError) as exc:
-        return None, f"{type(exc).__name__}: {exc}"
-
-
-def _metric_ok(metric: dict) -> bool:
-    if metric["error"]:
-        return False
-    claimed = metric.get("claimed")
-    if claimed is None:
-        return True
-    return _values_match(metric["reproduced"], claimed)
-
-
-def _walk(obj, path: str):
-    for name, idx in _PATH_TOKEN_RE.findall(path):
-        obj = obj[int(idx)] if idx else obj[name]
-    return obj
-
-
-def _values_match(actual, expected) -> bool:
-    if isinstance(actual, (int, float)) and isinstance(expected, (int, float)):
-        return float(actual) == float(expected)
-    return actual == expected
-
-
 def _write(
     findings: list[dict],
     suggestions: list[dict],
     config: DeepConfig,
-    stamp: str,
     timing: dict,
 ) -> dict[str, Path]:
     config.out_dir.mkdir(parents=True, exist_ok=True)
     meta = {
+        "type": "deep",
         "backend": config.backend_label,
         "backendUrl": config.backend_url,
         "model": config.model,
@@ -467,7 +429,7 @@ def _write(
         "subject": config.subject,
         "question": config.question,
         "investigate": config.investigate["ref"] if config.investigate else None,
-        "generated": stamp,
+        "generated": runs.utc_now_iso(),
         "seedCount": len(config.seeds),
         "runtimeSeconds": timing,
         "counts": _counts(findings, suggestions),
@@ -510,6 +472,29 @@ def _counts(findings: list[dict], suggestions: list[dict]) -> dict:
         "metricsError": sum(1 for m in metrics if m["error"]),
         "endpointSuggestions": len(suggestions),
     }
+
+
+def _store_findings(findings: list[dict], config: DeepConfig) -> None:
+    run = config.out_dir.name
+    objects = [
+        {
+            "kind": "finding",
+            "obj_key": f"{run}|{f['id']}",
+            "title": f.get("title"),
+            "payload": f,
+        }
+        for f in findings
+        if f["_verified"]
+    ]
+    if not objects:
+        print("[deep] no fully verified findings; nothing stored")
+        return
+    con = object_store.connect()
+    try:
+        n = object_store.write_bundle(con, run, objects)
+    finally:
+        con.close()
+    print(f"[deep] {n} verified finding(s) -> object store bundle {run!r}")
 
 
 def _append_runs_log(config: DeepConfig, meta: dict) -> None:
@@ -638,7 +623,7 @@ def _cell(metric: dict) -> str:
         return f"⚠️ {metric['error']}"
     val = metric["reproduced"]
     claimed = metric.get("claimed")
-    if claimed is not None and not _values_match(val, claimed):
+    if claimed is not None and not verify.values_match(val, claimed):
         return f"**{val}** (model claimed {claimed})"
     return f"{val}"
 
