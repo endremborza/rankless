@@ -1829,6 +1829,7 @@ dependencies = [
     { name = "mcp" },
     { name = "protocli" },
     { name = "psutil" },
+    { name = "zstandard" },
 ]
 
 [package.dev-dependencies]
@@ -1859,6 +1860,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=1.28.1" },
     { name = "protocli", specifier = ">=0.1.0" },
     { name = "psutil", specifier = ">=7.2.2" },
+    { name = "zstandard", specifier = ">=0.25.0" },
 ]
 
 [package.metadata.requires-dev]
