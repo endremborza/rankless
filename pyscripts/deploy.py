@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 from protocli import Dispatcher
 from tqdm import tqdm
 
-from pyscripts import gitutil, mcp_db, paths, services
+from pyscripts import gitutil, paths, services, userdb
 
 load_dotenv()
 
@@ -111,7 +111,7 @@ ignores = [
     "source-pairs-by-path",
 ]
 
-# MCP + ledger transfer (sync/merge_db_*): curated tables move via pyscripts.mcp_db,
+# MCP + ledger transfer (sync/merge_db_*): curated tables move via pyscripts.userdb,
 # the artifact dirs via rsync. Same relative layout (paths.py) on both ends.
 LOCAL_REPO = services.REPO_ROOT
 DB_XFER_TMP = f"{paths.DATA_DIR}/_dbxfer"
@@ -764,12 +764,15 @@ upstream {BE_UPSTREAM} {{
         # leave un-checkpointed commits in the -wal sidecar and risk a torn image.
         local_tmp = LOCAL_REPO / DB_XFER_TMP
         local_tmp.mkdir(parents=True, exist_ok=True)
-        mcp_db.snapshot(str(local_db), str(local_tmp / db_name))
+        userdb.snapshot(str(local_db), str(local_tmp / db_name))
         tmp = f"{self.deploy_dir}/{DB_XFER_TMP}"
         incoming = f"{tmp}/{db_name}"
         self.ssh.run(f"rm -rf {tmp} && mkdir -p {tmp}")
         self.ssh.rsync(str(local_tmp / db_name), tmp)
-        self._run_mcp_db(f"{self.deploy_dir}/{paths.DB_REL} {incoming} {mode}")
+        self.run_userdb(
+            f"transfer --target {self.deploy_dir}/{paths.DB_REL}"
+            f" --incoming {incoming} --mode {mode}"
+        )
         self.ssh.run(f"rm -rf {tmp}")
         shutil.rmtree(local_tmp)
         for rel in MCP_ARTIFACT_DIRS:
@@ -792,12 +795,12 @@ upstream {BE_UPSTREAM} {{
         # rsync'ing the raw file could miss un-checkpointed commits or tear the image.
         remote_tmp = f"{self.deploy_dir}/{DB_XFER_TMP}"
         self.ssh.run(f"rm -rf {remote_tmp} && mkdir -p {remote_tmp}")
-        self._run_mcp_db(f"snapshot {paths.DB_REL} {DB_XFER_TMP}/{db_name}")
+        self.run_userdb(f"snapshot --src {paths.DB_REL} --dst {DB_XFER_TMP}/{db_name}")
         tmp = LOCAL_REPO / DB_XFER_TMP
         tmp.mkdir(parents=True, exist_ok=True)
         self.ssh.rsync_from(f"{remote_tmp}/{db_name}", str(tmp))
         self.ssh.run(f"rm -rf {remote_tmp}")
-        mcp_db.transfer(str(LOCAL_REPO / paths.DB_REL), str(tmp / db_name), mode)
+        userdb.transfer(str(LOCAL_REPO / paths.DB_REL), str(tmp / db_name), mode)
         shutil.rmtree(tmp)
         for rel in MCP_ARTIFACT_DIRS:
             remote_dir = f"{self.deploy_dir}/{rel}"
@@ -994,8 +997,8 @@ upstream {BE_UPSTREAM} {{
     def _depcomm(self, comm: str):
         self.ssh.run(f"cd {self.deploy_dir};source ~/.profile;{comm}")
 
-    def _run_mcp_db(self, args: str):
-        self._depcomm(f"{self.venv_python} -m pyscripts.mcp_db {args}")
+    def run_userdb(self, args: str):
+        self._depcomm(f"{self.venv_python} -m pyscripts userdb {args}")
 
     def _get_fe_service(self, conf: FrontendServiceConf, port):
         return ServiceMan(conf.template_fname().replace("@", f"@{port}"), self.ssh)

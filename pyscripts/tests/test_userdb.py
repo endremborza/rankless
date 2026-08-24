@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-from pyscripts import mcp_db
+from pyscripts import userdb
 
 LEDGER_DDL = """
 CREATE TABLE ledger_events (
@@ -82,11 +82,11 @@ def test_merge_moves_user_tables_and_is_idempotent(tmp_path: Path) -> None:
     _seed_source(_make_db(src))
     _make_db(dst).close()
 
-    mcp_db.transfer(str(dst), str(src), "merge")
+    userdb.transfer(str(dst), str(src), "merge")
     assert _counts(dst) == {"ledger_events": 1, "email_consents": 1, "sessions": 1}
 
     # re-merge: no duplicates, including the unique-index-less email_consents
-    mcp_db.transfer(str(dst), str(src), "merge")
+    userdb.transfer(str(dst), str(src), "merge")
     assert _counts(dst) == {"ledger_events": 1, "email_consents": 1, "sessions": 1}
 
     con = sqlite3.connect(dst)
@@ -105,7 +105,7 @@ def test_merge_keeps_target_rows(tmp_path: Path) -> None:
     dst_con.commit()
     dst_con.close()
 
-    mcp_db.transfer(str(dst), str(src), "merge")
+    userdb.transfer(str(dst), str(src), "merge")
     assert _counts(dst)["ledger_events"] == 2
 
 
@@ -144,7 +144,7 @@ def test_merge_reconciles_moderation(tmp_path: Path) -> None:
     dst_con.commit()
     dst_con.close()
 
-    mcp_db.transfer(str(dst), str(src), "merge")
+    userdb.transfer(str(dst), str(src), "merge")
 
     con = sqlite3.connect(dst)
     rows = dict(

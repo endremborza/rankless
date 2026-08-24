@@ -27,7 +27,7 @@ COMMANDS = {
     "game-cards": "pyscripts.explore.game_cards",
     "impact-stories": "pyscripts.explore.impact_stories",
     "objects": "pyscripts.object_store",
-    "backup": "pyscripts.backup",
+    "userdb": "pyscripts.userdb",
 }
 
 

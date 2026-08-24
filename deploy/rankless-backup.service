@@ -10,4 +10,4 @@ Type=oneshot
 WorkingDirectory={{ repo_root }}
 EnvironmentFile=-{{ repo_root }}/.env
 Environment=PYTHONUNBUFFERED=1
-ExecStart={{ python }} -m pyscripts backup --source {{ source }} --dest {{ dest }}
+ExecStart={{ python }} -m pyscripts userdb backup --source {{ source }} --dest {{ dest }}
