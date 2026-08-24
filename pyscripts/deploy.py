@@ -115,6 +115,7 @@ ignores = [
 # the artifact dirs via rsync. Same relative layout (paths.py) on both ends.
 LOCAL_REPO = services.REPO_ROOT
 DB_XFER_TMP = f"{paths.DATA_DIR}/_dbxfer"
+MCP_ARTIFACT_DIRS = paths.MCP_ARTIFACT_RELS
 
 
 @cache
@@ -757,7 +758,8 @@ upstream {BE_UPSTREAM} {{
             return
         mode = "mirror" if mirror else "merge"
         db_name = Path(paths.DB_REL).name
-        (LOCAL_REPO / paths.MCP_SESSIONS_REL).mkdir(parents=True, exist_ok=True)
+        for rel in MCP_ARTIFACT_DIRS:
+            (LOCAL_REPO / rel).mkdir(parents=True, exist_ok=True)
         # Ship a hot snapshot, never the live local file: a WAL-mode writer would
         # leave un-checkpointed commits in the -wal sidecar and risk a torn image.
         local_tmp = LOCAL_REPO / DB_XFER_TMP
@@ -770,11 +772,12 @@ upstream {BE_UPSTREAM} {{
         self._run_mcp_db(f"{self.deploy_dir}/{paths.DB_REL} {incoming} {mode}")
         self.ssh.run(f"rm -rf {tmp}")
         shutil.rmtree(local_tmp)
-        self.ssh.rsync(
-            str(LOCAL_REPO / paths.MCP_SESSIONS_REL),
-            f"{self.deploy_dir}/{paths.DATA_DIR}",
-            delete=mirror,
-        )
+        for rel in MCP_ARTIFACT_DIRS:
+            self.ssh.rsync(
+                str(LOCAL_REPO / rel),
+                f"{self.deploy_dir}/{paths.DATA_DIR}",
+                delete=mirror,
+            )
 
     def _pull_db(self, mirror):
         remote_db = f"{self.deploy_dir}/{paths.DB_REL}"
@@ -796,13 +799,14 @@ upstream {BE_UPSTREAM} {{
         self.ssh.run(f"rm -rf {remote_tmp}")
         mcp_db.transfer(str(LOCAL_REPO / paths.DB_REL), str(tmp / db_name), mode)
         shutil.rmtree(tmp)
-        remote_sessions = f"{self.deploy_dir}/{paths.MCP_SESSIONS_REL}"
-        if self.ssh.remote_exists(remote_sessions):
-            self.ssh.rsync_from(
-                remote_sessions,
-                str(LOCAL_REPO / paths.DATA_DIR),
-                delete=mirror,
-            )
+        for rel in MCP_ARTIFACT_DIRS:
+            remote_dir = f"{self.deploy_dir}/{rel}"
+            if self.ssh.remote_exists(remote_dir):
+                self.ssh.rsync_from(
+                    remote_dir,
+                    str(LOCAL_REPO / paths.DATA_DIR),
+                    delete=mirror,
+                )
 
     def setup_code(self, branch=None):
         self.ssh.run(f"rm -rf {self.deploy_dir}")

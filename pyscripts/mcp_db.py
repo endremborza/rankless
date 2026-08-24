@@ -1,13 +1,15 @@
 """Move the user DB (MCP + ledger + auth) between a local checkout and a deployed box.
 
 Transfers every curated table of `data/rankless.sqlite` between two copies of it:
-`mcp_sessions`, `ledger_events`, `ledger_runs`, `owner_pins`, `users`,
-`email_consents`, the review tables `subject_enrichment` / `review_verdicts`
-(keyed by external ids / subject hashes, so rows stay valid across boxes), and
-auth `sessions` (year-long TTL: dropping them logs everyone out on each deploy),
-of which only unexpired rows move. Runs on the receiving side against a shipped
-copy of the source DB; `pyscripts.deploy` moves the `data/mcp-sessions/` artifact
-dirs alongside it.
+`mcp_sessions`, `mcp_objects` (the unified MCP object store — merges dedup on
+`(kind, obj_key, bundle)` and review statuses propagate like moderation),
+`game_results` (play logs), `ledger_events`, `ledger_runs`, `owner_pins`,
+`users`, `email_consents`, the review tables `subject_enrichment` /
+`review_verdicts` (keyed by external ids / subject hashes, so rows stay valid
+across boxes), and auth `sessions` (year-long TTL: dropping them logs everyone
+out on each deploy), of which only unexpired rows move. Runs on the receiving
+side against a shipped copy of the source DB; `pyscripts.deploy` moves the
+`data/mcp-sessions/` + `data/mcp-objects/` artifact dirs alongside it.
 
     python -m pyscripts.mcp_db <target_db> <incoming_db> merge|mirror
     python -m pyscripts.mcp_db snapshot <src_db> <dst>
@@ -33,6 +35,8 @@ import sys
 
 TABLES = (
     "mcp_sessions",
+    "mcp_objects",
+    "game_results",
     "ledger_events",
     "ledger_runs",
     "owner_pins",
@@ -76,6 +80,7 @@ def transfer(target_db: str, incoming_db: str, mode: str) -> None:
                 _transfer_table(con, table, mode)
             if mode == "merge":
                 _reconcile_moderation(con)
+                _reconcile_object_status(con)
     finally:
         con.execute("DETACH DATABASE src")
         con.close()
@@ -85,6 +90,7 @@ def _transfer_table(con: sqlite3.Connection, table: str, mode: str) -> None:
     if not _has_table(con, "src", table):
         return
     _ensure_target_table(con, table)
+    _align_src_columns(con, table)
     conds = [ROW_FILTERS[table]] if table in ROW_FILTERS else []
     if mode == "mirror":
         con.execute(f"DELETE FROM main.{table}")
@@ -146,6 +152,52 @@ def _reconcile_moderation(con: sqlite3.Connection) -> None:
     )
 
 
+def _reconcile_object_status(con: sqlite3.Connection) -> None:
+    # Same shape as moderation: a review decision made on the source box must
+    # reach a version row both boxes already hold; a decided target never
+    # reverts, and on conflicting decisions the target's wins (with a warning).
+    if not (
+        _has_table(con, "src", "mcp_objects") and _has_table(con, "main", "mcp_objects")
+    ):
+        return
+    key_match = (
+        "s.kind = main.mcp_objects.kind"
+        " AND s.obj_key = main.mcp_objects.obj_key"
+        " AND s.bundle = main.mcp_objects.bundle"
+    )
+    conflicts = con.execute(
+        "SELECT t.kind, t.obj_key, t.bundle, t.status, s.status"
+        " FROM main.mcp_objects t JOIN src.mcp_objects s"
+        " ON s.kind = t.kind AND s.obj_key = t.obj_key AND s.bundle = t.bundle"
+        " WHERE t.status != 'new' AND s.status != 'new' AND t.status != s.status"
+    ).fetchall()
+    for kind, key, bundle, kept, ignored in conflicts:
+        print(
+            f"warning: object status conflict on {kind}|{key}@{bundle}:"
+            f" keeping {kept!r}, ignoring incoming {ignored!r}",
+            file=sys.stderr,
+        )
+    con.execute(
+        f"UPDATE main.mcp_objects"
+        f" SET (status, status_note, updated_at) ="
+        f" (SELECT s.status, s.status_note, s.updated_at FROM src.mcp_objects s"
+        f"  WHERE {key_match} AND s.status != 'new')"
+        f" WHERE status = 'new'"
+        f" AND EXISTS (SELECT 1 FROM src.mcp_objects s"
+        f"  WHERE {key_match} AND s.status != 'new')"
+    )
+
+
+def _align_src_columns(con: sqlite3.Connection, table: str) -> None:
+    # A snapshot from a box on older code may lack columns the target's schema
+    # has since grown; add them (NULL) to the attached throwaway copy so the
+    # transfer SQL's target-side column list resolves on both schemas.
+    src_cols = {r[1] for r in con.execute(f"PRAGMA src.table_info({table})")}
+    for r in con.execute(f"PRAGMA main.table_info({table})"):
+        if r[1] not in src_cols:
+            con.execute(f"ALTER TABLE src.{table} ADD COLUMN {r[1]} {r[2]}")
+
+
 def _has_table(con: sqlite3.Connection, schema: str, table: str) -> bool:
     row = con.execute(
         f"SELECT 1 FROM {schema}.sqlite_master WHERE type='table' AND name=?",
@@ -161,6 +213,13 @@ def _ensure_target_table(con: sqlite3.Connection, table: str) -> None:
         "SELECT sql FROM src.sqlite_master WHERE type='table' AND name=?", (table,)
     ).fetchone()
     con.execute(ddl[0])
+    # Indexes too — merge dedup relies on the source's unique indexes.
+    for (idx_sql,) in con.execute(
+        "SELECT sql FROM src.sqlite_master"
+        " WHERE type='index' AND tbl_name=? AND sql IS NOT NULL",
+        (table,),
+    ):
+        con.execute(idx_sql)
 
 
 def _columns(con: sqlite3.Connection, table: str) -> list[str]:
