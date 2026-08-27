@@ -4,7 +4,7 @@ A generator workflow over `pyscripts/explore/generation.py`: one agentic
 session per entity writes a 6-clue ladder (hardest first) over the MCP tools;
 every cited number is re-issued deterministically (`verify.verify_facts`) and
 clue text is linted against name/acronym/city leaks. Accepted cards land as
-`game-card` objects, which the `/game` route reads server-side.
+`game-card` objects, which the `/game-clues` route reads server-side.
 
     uv run -m pyscripts game-cards --backend local --count 24
 """
