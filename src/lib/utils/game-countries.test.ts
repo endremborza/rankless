@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { CountryCard } from '../types/game-countries';
-import { DECK_CAP, buildDeck, runShareText } from './game-countries';
+import { DECK_CAP, LIVES, buildDeck, livesLeft, runShareText } from './game-countries';
 
 const pack: CountryCard[] = Array.from({ length: DECK_CAP + 10 }, (_, i) => ({
 	semId: `uni-${i}`,
@@ -33,10 +33,23 @@ describe('buildDeck', () => {
 	});
 });
 
+describe('livesLeft', () => {
+	it('counts down from LIVES and floors at zero', () => {
+		expect(livesLeft(0)).toBe(LIVES);
+		expect(livesLeft(1)).toBe(LIVES - 1);
+		expect(livesLeft(LIVES)).toBe(0);
+		expect(livesLeft(LIVES + 2)).toBe(0);
+	});
+});
+
 describe('runShareText', () => {
-	it('reports a miss score and celebrates a sweep', () => {
-		expect(runShareText('2026-08-23', 4, 30)).toContain('4/30 before a miss');
-		expect(runShareText('2026-08-23', 30, 30)).toContain('swept all 30');
-		expect(runShareText('2026-08-23', 4, 30)).toContain('https://rankless.org/game-countries');
+	it('shows the score, the lives spent, and a cleared deck', () => {
+		const out = runShareText('2026-08-23', 12, 2, false);
+		expect(out).toContain('12 placed');
+		expect(out).toContain('❤️'.repeat(LIVES - 2) + '🖤'.repeat(2));
+		expect(out).toContain('https://rankless.org/game-countries');
+
+		expect(runShareText('2026-08-23', 30, 0, true)).toContain('cleared the deck');
+		expect(runShareText('2026-08-23', 30, 0, true)).toContain('❤️'.repeat(LIVES));
 	});
 });

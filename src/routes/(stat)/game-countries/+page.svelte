@@ -13,7 +13,13 @@
 		postGameLog,
 		saveGameState
 	} from '$lib/utils/game';
-	import { ADVANCE_MS, RUN_SECONDS, runShareText } from '$lib/utils/game-countries';
+	import {
+		ADVANCE_MS,
+		LIVES,
+		RUN_SECONDS,
+		livesLeft,
+		runShareText
+	} from '$lib/utils/game-countries';
 
 	export let data: PageData;
 
@@ -26,6 +32,7 @@
 		lastDay: string;
 		lastScore: number;
 		lastOutOf: number;
+		lastMissed: number;
 		lastSwept: boolean;
 	};
 	const EMPTY_STATE: StoredState = {
@@ -33,12 +40,15 @@
 		lastDay: '',
 		lastScore: 0,
 		lastOutOf: 0,
+		lastMissed: 0,
 		lastSwept: false
 	};
 
 	let mounted = false;
 	let mode: 'daily' | 'practice' = 'daily';
-	let phase: 'idle' | 'playing' | 'over' = 'idle';
+	// `reveal` is a lost life the run survives: the clock is stopped and the card's
+	// note is on screen until the player continues.
+	let phase: 'idle' | 'playing' | 'reveal' | 'over' = 'idle';
 	let deck: CountryPlayCard[] = [];
 	let idx = -1;
 	let picked: string | null = null;
@@ -46,6 +56,7 @@
 	let swept = false;
 	let score = 0;
 	let outOf = 0;
+	let missed: string[] = [];
 	let streak = 0;
 	let playedToday = false;
 	let copied = false;
@@ -64,6 +75,11 @@
 
 	onDestroy(stopClocks);
 
+	// Spread over the defaults so a round stored under an older shape still reads.
+	function readState(): StoredState {
+		return { ...EMPTY_STATE, ...loadGameState(STORAGE_KEY, EMPTY_STATE) };
+	}
+
 	function stopClocks() {
 		if (timer) clearInterval(timer);
 		if (advancing) clearTimeout(advancing);
@@ -74,12 +90,13 @@
 	// Restores the finished daily round from storage; false when today is
 	// still unplayed (the caller decides what phase that means).
 	function restoreDaily(): boolean {
-		const stored = loadGameState(STORAGE_KEY, EMPTY_STATE);
+		const stored = readState();
 		streak = stored.streak;
 		if (stored.lastDay !== day) return false;
 		playedToday = true;
 		score = stored.lastScore;
 		outOf = stored.lastOutOf;
+		missed = Array(stored.lastMissed).fill('');
 		swept = stored.lastSwept;
 		idx = -1;
 		picked = null;
@@ -95,6 +112,7 @@
 		outOf = cards.length;
 		idx = 0;
 		score = 0;
+		missed = [];
 		picked = null;
 		timedOut = false;
 		swept = false;
@@ -134,41 +152,55 @@
 			msLeft = Math.max(0, deadline - Date.now());
 			if (msLeft <= 0) {
 				timedOut = true;
-				endRun();
+				loseLife();
 			}
 		}, TICK_MS);
 	}
 
 	function pick(cc: string) {
 		if (phase !== 'playing' || picked !== null || !card) return;
-		if (timer) clearInterval(timer);
-		timer = null;
 		picked = cc;
 		if (cc === card.cc) {
+			if (timer) clearInterval(timer);
+			timer = null;
 			score += 1;
 			advancing = setTimeout(advance, ADVANCE_MS);
 		} else {
-			endRun();
+			loseLife();
 		}
+	}
+
+	// A miss costs a life and holds the reveal on screen; the run ends only when
+	// the last one goes.
+	function loseLife() {
+		stopClocks();
+		missed = [...missed, card?.semId ?? ''];
+		if (livesLeft(missed.length) === 0 || idx + 1 >= deck.length) {
+			endRun();
+			return;
+		}
+		phase = 'reveal';
 	}
 
 	function advance() {
 		advancing = null;
 		if (idx + 1 >= deck.length) {
-			swept = true;
 			endRun();
 			return;
 		}
 		idx += 1;
 		picked = null;
+		timedOut = false;
+		phase = 'playing';
 		startTimer();
 	}
 
 	function endRun() {
 		stopClocks();
+		swept = score + missed.length >= deck.length;
 		phase = 'over';
 		if (mode === 'daily') {
-			const stored = loadGameState(STORAGE_KEY, EMPTY_STATE);
+			const stored = readState();
 			// a scoreless run breaks the streak, like giving up does in the clue game
 			streak = nextStreak(stored.streak, stored.lastDay, day, score === 0);
 			playedToday = true;
@@ -177,6 +209,7 @@
 				lastDay: day,
 				lastScore: score,
 				lastOutOf: outOf,
+				lastMissed: missed.length,
 				lastSwept: swept
 			});
 		}
@@ -189,20 +222,22 @@
 			day,
 			score,
 			outOf,
-			failedSemId: swept ? null : (card?.semId ?? null)
+			missedSemIds: missed.filter(Boolean)
 		};
 		postGameLog('/api/game-countries', payload);
 	}
 
 	async function copyShare() {
-		copied = await copyShareText(runShareText(day, score, outOf));
+		copied = await copyShareText(runShareText(day, score, missed.length, swept));
 	}
 
 	$: card = idx >= 0 && idx < deck.length ? deck[idx] : null;
 	$: timerPct = (msLeft / RUN_MS) * 100;
-	$: missed = phase === 'over' && !swept && card !== null;
-	// A pick locks the buttons; over-state keeps them frozen for the reveal.
-	$: locked = picked !== null || phase === 'over';
+	$: hearts =
+		'\u2665'.repeat(livesLeft(missed.length)) + '\u2661'.repeat(Math.min(missed.length, LIVES));
+	$: lastWasMiss = card !== null && missed[missed.length - 1] === card.semId;
+	// A pick locks the buttons; reveal/over keep them frozen for the reveal.
+	$: locked = picked !== null || phase === 'reveal' || phase === 'over';
 	$: optionState = (cc: string): string => {
 		if (!locked || !card) return '';
 		if (cc === card.cc) return 'correct';
@@ -222,8 +257,8 @@
 <GameShell title="Name that country" streak={mounted ? streak : 0}>
 	<p class="intro">
 		Real universities whose names point everywhere but home. Pick the country from four options —
-		{RUN_SECONDS} seconds each, no lifelines. One wrong pick ends the run; your score is how many you
-		place in a row.
+		{RUN_SECONDS} seconds each. You get {LIVES} lives; a wrong pick or a timeout costs one, and your score
+		is how many you place before they run out.
 	</p>
 
 	{#if !mounted}
@@ -247,6 +282,9 @@
 			{#if idx >= 0}
 				<div class="progress-row">
 					<span>{Math.min(idx + 1, deck.length)}/{deck.length}</span>
+					<span class="lives" aria-label="{livesLeft(missed.length)} of {LIVES} lives left">
+						{hearts}
+					</span>
 					<span class="score-label">score {score}</span>
 				</div>
 			{/if}
@@ -273,29 +311,41 @@
 				</div>
 			{/if}
 
-			{#if phase === 'over'}
+			{#if phase === 'reveal' || phase === 'over'}
 				<div class="reveal">
-					{#if missed && card}
+					{#if lastWasMiss && card}
 						<p>
 							{timedOut ? '⏱️ Time ran out on' : 'That one was'}
 							<strong>{card.name}</strong> — {ccFlag(card.cc)}
 							<strong>{ccName(card.cc)}</strong>.
 							{card.note}
 						</p>
-					{:else if swept}
-						<p>🏆 You swept the whole deck.</p>
 					{/if}
-					<p class="verdict">
-						<strong>{score}</strong> in a row{mode === 'daily' ? ` on ${day}` : ''}.
-					</p>
-					<div class="actions">
-						{#if mode === 'daily'}
-							<button class="btn" on:click={copyShare}>{copied ? 'Copied!' : 'Copy result'}</button>
-						{/if}
-						<button class="btn primary" on:click={startPractice} disabled={fetching}>
-							{mode === 'practice' ? 'Play again' : 'Practice run'}
-						</button>
-					</div>
+					{#if swept}
+						<p>{missed.length === 0 ? '🏆 A perfect run.' : '🏁 You cleared the whole deck.'}</p>
+					{/if}
+					{#if phase === 'reveal'}
+						<div class="actions">
+							<button class="btn primary" on:click={advance}>
+								Keep going — {livesLeft(missed.length)}
+								{livesLeft(missed.length) === 1 ? 'life' : 'lives'} left
+							</button>
+						</div>
+					{:else}
+						<p class="verdict">
+							<strong>{score}</strong> placed{mode === 'daily' ? ` on ${day}` : ''}.
+						</p>
+						<div class="actions">
+							{#if mode === 'daily'}
+								<button class="btn" on:click={copyShare}
+									>{copied ? 'Copied!' : 'Copy result'}</button
+								>
+							{/if}
+							<button class="btn primary" on:click={startPractice} disabled={fetching}>
+								{mode === 'practice' ? 'Play again' : 'Practice run'}
+							</button>
+						</div>
+					{/if}
 				</div>
 			{/if}
 		{/if}
@@ -308,6 +358,11 @@
 		justify-content: space-between;
 		font-weight: 600;
 		margin-bottom: 0.5rem;
+	}
+
+	.lives {
+		letter-spacing: 0.15em;
+		color: var(--color-err);
 	}
 
 	.timer {

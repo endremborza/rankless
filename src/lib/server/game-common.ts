@@ -34,6 +34,14 @@ export function okInt(v: unknown, lo: number, hi: number): boolean {
 	return Number.isInteger(v) && okNum(v, lo, hi);
 }
 
+export function okSemIdList(v: unknown, maxLen: number): v is string[] {
+	return (
+		Array.isArray(v) &&
+		v.length <= maxLen &&
+		v.every((s) => typeof s === 'string' && SEM_ID_RE.test(s))
+	);
+}
+
 export async function readJsonBody(request: Request): Promise<unknown> {
 	const body = await request.text();
 	if (body.length > MAX_BODY_BYTES) error(413, 'Result too large');

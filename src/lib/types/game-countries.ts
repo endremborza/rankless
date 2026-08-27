@@ -19,10 +19,13 @@ export type CountryPlayCard = Omit<CountryCard, 'decoys' | 'papers' | 'citations
 	options: string[];
 };
 
+// `outOf` is the deck size the run drew from, so a sweep (score + misses ===
+// outOf) and the lives left (LIVES - misses) both stay derivable without
+// storing either.
 export type CountryRunLog = {
 	mode: 'daily' | 'practice';
 	day: string;
 	score: number;
 	outOf: number;
-	failedSemId: string | null;
+	missedSemIds: string[];
 };

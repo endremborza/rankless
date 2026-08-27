@@ -1,15 +1,17 @@
 // Server side of the country game (/game-countries): pack reads over the MCP
 // object store (`country-card` objects from pyscripts country-cards) and the
-// run log. A run is sudden-death: every deck is a fresh random shuffle of the
-// pack, capped at DECK_CAP cards, and the whole deck ships at once — the
-// per-question timer is what keeps lookups out, so the client checks picks
-// locally like the clue game does with its coordinates.
+// run log. A run costs a life per miss and ends on the LIVES-th: every deck is
+// a fresh random shuffle of the pack, capped at DECK_CAP cards, and the whole
+// deck ships at once — the per-question timer is what keeps lookups out, so the
+// client checks picks locally like the clue game does with its coordinates.
 
-import { DAY_RE, SEM_ID_RE, gameDb, okInt } from './game-common';
+import { DAY_RE, gameDb, okInt, okSemIdList } from './game-common';
 import { currentObjects } from './objects';
-import { DECK_CAP, buildDeck } from '$lib/utils/game-countries';
+import { DECK_CAP, LIVES, buildDeck } from '$lib/utils/game-countries';
 import type { CountryCard, CountryPlayCard, CountryRunLog } from '$lib/types/game-countries';
 
+// `missed_sem_ids` is a JSON array — one run costs up to LIVES cards, and every
+// one of them is difficulty signal for the card pack.
 const COUNTRY_SCHEMA = `
 CREATE TABLE IF NOT EXISTS country_game_results (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -17,7 +19,7 @@ CREATE TABLE IF NOT EXISTS country_game_results (
 	day TEXT NOT NULL,
 	score INTEGER NOT NULL,
 	out_of INTEGER NOT NULL,
-	failed_sem_id TEXT,
+	missed_sem_ids TEXT,
 	orcid TEXT,
 	created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -35,10 +37,10 @@ export function newDeck(): CountryPlayCard[] {
 export function recordRun(run: CountryRunLog, orcid: string | null): void {
 	gameDb(COUNTRY_SCHEMA)
 		.prepare(
-			`INSERT INTO country_game_results (mode, day, score, out_of, failed_sem_id, orcid)
+			`INSERT INTO country_game_results (mode, day, score, out_of, missed_sem_ids, orcid)
 			 VALUES (?, ?, ?, ?, ?, ?)`
 		)
-		.run(run.mode, run.day, run.score, run.outOf, run.failedSemId, orcid);
+		.run(run.mode, run.day, run.score, run.outOf, JSON.stringify(run.missedSemIds), orcid);
 }
 
 // Boundary validation of a posted run: the endpoint is public, so every field
@@ -52,8 +54,9 @@ export function parseRun(raw: unknown): CountryRunLog | null {
 		!DAY_RE.test(r.day) ||
 		!okInt(r.outOf, 1, DECK_CAP) ||
 		!okInt(r.score, 0, r.outOf as number) ||
-		(r.failedSemId !== null &&
-			(typeof r.failedSemId !== 'string' || !SEM_ID_RE.test(r.failedSemId)))
+		!okSemIdList(r.missedSemIds, LIVES) ||
+		// every card seen was either placed or missed, so the two must fit the deck
+		(r.score as number) + (r.missedSemIds as string[]).length > (r.outOf as number)
 	)
 		return null;
 	return {
@@ -61,6 +64,6 @@ export function parseRun(raw: unknown): CountryRunLog | null {
 		day: r.day,
 		score: r.score as number,
 		outOf: r.outOf as number,
-		failedSemId: r.failedSemId as string | null
+		missedSemIds: r.missedSemIds as string[]
 	};
 }

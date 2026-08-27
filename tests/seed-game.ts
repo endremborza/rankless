@@ -80,7 +80,7 @@ const clueCards = (
 
 // Every country card resolves to HU, so the spec can answer (or miss) at will
 // without knowing the shuffled deck order.
-const countryCards = ['c', 'd', 'e'].map((suffix, i): FixtureObject => {
+const countryCards = ['c', 'd', 'e', 'f', 'g'].map((suffix, i): FixtureObject => {
 	const semId = `fixture-${suffix}`;
 	return {
 		kind: 'country-card',
