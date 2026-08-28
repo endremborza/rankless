@@ -23,12 +23,8 @@ def _daily_repo() -> TableRepo:
 
 
 def _sessions_repo() -> TableRepo:
-    path = AGGREGATES_DIR / "sessions"
-    (path / "data.parquet").unlink(
-        missing_ok=True
-    )  # migrate from flat to date-partitioned
     return TableRepo(
-        path,
+        AGGREGATES_DIR / "sessions",
         compression="zstd",
         partition_cols=["start_date"],
         dedup_cols=["session_id"],
