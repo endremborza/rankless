@@ -62,6 +62,10 @@ const COHORT_NOUN: Record<string, string> = {
 	sources: 'journals'
 };
 
+// Minimum standing tier worth surfacing as a badge — tier 1 (the loosest band, "top 20%")
+// is suppressed everywhere standings show: the hero's subfield chips and the game cards.
+export const STANDING_MIN_TIER = 2;
+
 // Build the tier labels from the ladder's percentile bands so they never drift from the
 // backend: "top 20%" … "top 0.01%".
 export function tierLabels(pctBands: number[]): string[] {

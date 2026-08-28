@@ -8,6 +8,7 @@
 		buildImpactTiles,
 		buildProductionTiles
 	} from '$lib/hero-config';
+	import { STANDING_MIN_TIER } from '$lib/peers-utils';
 	import YearTicks from '$lib/components/YearTicks.svelte';
 	import IndexedCitationLink from '$lib/components/IndexedCitationLink.svelte';
 	import HeroFieldBlocks from '$lib/components/HeroFieldBlocks.svelte';
@@ -24,9 +25,6 @@
 
 	const MAX_CHIPS = 5;
 	const MAX_TOPICS = 8;
-	// Suppress the loosest standing band ("top 20%", tier 1): only tier 2+ (top 10% and stricter) is
-	// showcase-worthy on the header. The full ladder still surfaces in the Peers section.
-	const HERO_MIN_TIER = 2;
 
 	let abstractExpanded = false;
 	let ticksHeight: number;
@@ -52,7 +50,7 @@
 		grouped,
 		rootType,
 		MAX_CHIPS,
-		HERO_MIN_TIER,
+		STANDING_MIN_TIER,
 		MAX_TOPICS,
 		selfSemanticId
 	);
