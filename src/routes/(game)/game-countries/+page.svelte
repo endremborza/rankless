@@ -263,10 +263,10 @@
 </script>
 
 <svelte:head>
-	<title>Home Ground — Rankless</title>
+	<title>Place the Name — Rankless</title>
 	<meta
 		name="description"
-		content="University names lie about where home is. Call their bluff in a daily speed round: four flags, {RUN_SECONDS} seconds a name, {LIVES} lives."
+		content="Institution names can point far from home. A daily speed round: four flags, {RUN_SECONDS} seconds a name, {LIVES} lives."
 	/>
 </svelte:head>
 
@@ -282,10 +282,10 @@
 	{:else if phase === 'idle'}
 		<div class="start">
 			<div class="title-block">
-				<h1 class="title"><span>Home</span><span>Ground</span></h1>
+				<h1 class="title"><span>Place</span><span>the Name</span></h1>
 				<div class="ramp-bar title-bar"></div>
 			</div>
-			<p class="tagline">University names lie about where home is. Call their bluff.</p>
+			<p class="tagline">An institution's name can point far from home. Where is it actually?</p>
 			<div class="stat-tiles">
 				<div class="stat t0">
 					<span class="num">{data.deck.length}</span><span class="lbl">Names</span>

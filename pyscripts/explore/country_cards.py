@@ -1,4 +1,4 @@
-"""Generate country-quiz cards for the misleading-university-names game.
+"""Generate country-quiz cards for the misleading-institution-names game.
 
 Unlike the per-entity agentic generators (game_cards, impact_stories), this
 workflow is batch-prompted: the backend already knows every institution's name
@@ -195,7 +195,7 @@ async def _candidates(
 def _user_prompt(chunk: list[dict]) -> str:
     lines = "\n".join(f"{c['semId']}\t{c['name']}\t{c['cc']}" for c in chunk)
     return (
-        "Pick the misleadingly named universities from this list and respond "
+        "Pick the misleadingly named institutions from this list and respond "
         f"with the JSON only.\n\n{lines}"
     )
 

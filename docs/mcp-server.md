@@ -123,7 +123,7 @@ itself as an `mcp_sessions` row (self-registered from the CLI with `params.origi
   text linted against name/acronym/city leaks; accepted cards become `game-card`
   objects, which the `/game-clues` route reads server-side (no LLM at play time).
 - **`uv run -m pyscripts country-cards`** (`country_cards.py`) — country-quiz cards for
-  `/game-homeground`: batch-prompted (no per-entity agentic session, the backend already
+  `/game-countries`: batch-prompted (no per-entity agentic session, the backend already
   knows name + country) judgment over a deep slice of mid-tier institutions, keeping
   the misleadingly named ones with three ISO-validated decoy countries and a
   post-answer reveal note; accepted picks become `country-card` objects.
@@ -159,7 +159,7 @@ skip). The frontend reads the same index + bundles via `src/lib/server/objects.t
 (decompressed bundles are cached per process — immutability makes that safe; rows
 whose bundle hasn't reached this box read as payload-less and are dropped from
 consumer reads): `/game-clues` consumes current cards of its pack's etype
-(`GAME_PACK_ETYPE` in `src/lib/server/game-clues.ts`) and `/game-homeground` its
+(`GAME_PACK_ETYPE` in `src/lib/server/game-clues.ts`) and `/game-countries` its
 `country-card` pack; `/mcp` shows approved findings and
 impact stories publicly and gives admins the full review list (approve/reject —
 rejecting requires a reason, stored as `status_note` and shown in the list so

@@ -1,4 +1,4 @@
-// Server side of the country game (/game-homeground): pack reads over the MCP
+// Server side of the country game (/game-countries): pack reads over the MCP
 // object store (`country-card` objects from pyscripts country-cards) and the
 // run log. A run costs a life per miss and ends on the LIVES-th: every deck is
 // a fresh random shuffle of the pack, capped at DECK_CAP cards, and the whole

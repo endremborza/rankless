@@ -7,7 +7,7 @@
 	<title>Games — Rankless</title>
 	<meta
 		name="description"
-		content="Daily guessing games over verified scholarly data: pin the hidden institution on a map, or call the bluff on university names that lie about home."
+		content="Daily guessing games over verified scholarly data: pin the hidden institution on a map, or place institutions whose names point far from home."
 	/>
 </svelte:head>
 
@@ -21,11 +21,11 @@
 				pin on the map; the earlier and closer, the more points.
 			</p>
 		</a>
-		<a class="game-tile" href="/game-homeground">
-			<h2>🏛️ Home Ground</h2>
+		<a class="game-tile" href="/game-countries">
+			<h2>🏛️ Place the Name</h2>
 			<p>
-				University names lie about where home is. Four flags, ten seconds a name, three lives — call
-				their bluff.
+				Institution names can point far from home. Four flags, ten seconds a name, three lives —
+				trust your first instinct.
 			</p>
 		</a>
 	</div>

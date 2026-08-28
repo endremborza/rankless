@@ -10,14 +10,15 @@ async function miss(page: import('@playwright/test').Page) {
 	await page.locator('.option', { hasNotText: CORRECT }).first().click();
 }
 
-test('home-ground run: a miss costs a life, the run ends when the last one goes', async ({
+test('place-the-name run: a miss costs a life, the run ends when the last one goes', async ({
 	page
 }) => {
-	await page.goto('/game-homeground');
+	await page.goto('/game-countries');
 	await page.click('button:has-text("Play today\'s run")');
 
 	await expect(page.locator('.option')).toHaveCount(4);
 	await expect(page.locator('.timer')).toBeVisible();
+	await expect(page.locator('.badge').first()).toBeVisible();
 	await expect(page.locator('.progress-row')).toContainText('1/5');
 	await expect(page.locator('.lives')).toHaveAttribute(
 		'aria-label',

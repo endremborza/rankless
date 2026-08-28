@@ -1,4 +1,4 @@
-<!-- Full-viewport phone-first frame for the arcade game pages (/game-homeground,
+<!-- Full-viewport phone-first frame for the arcade game pages (/game-countries,
 	and the ranking game next): hub link + centered mode label + streak header,
 	plus the chrome the game screens share as :global classes scoped under the
 	frame — the palette-ramp bar (.ramp-bar), the big buttons (.g-btn) and the
