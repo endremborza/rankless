@@ -154,11 +154,6 @@ ROUTE_SVELTEKIT_DATA = {
     "/{rootType}/{semanticId}/__data.json",
 }
 
-# Kept for render/classification.py compat (features removed, so empty).
-ROUTE_HARD_HUMAN_POST: set[str] = set()
-ROUTE_HARD_HUMAN_GET: set[str] = set()
-WRITE_METHODS: tuple[()] = ()
-
 
 # --- rule data structures -----------------------------------------------
 

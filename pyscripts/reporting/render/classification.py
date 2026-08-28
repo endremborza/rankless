@@ -33,8 +33,6 @@ def render(ctx: RenderContext) -> None:
             soft_bot_threshold=classify.SOFT_BOT_THRESHOLD,
             route_groups=[
                 ("Bot-only routes", sorted(classify.ROUTE_HARD_BOT)),
-                ("Hard-human POST routes", sorted(classify.ROUTE_HARD_HUMAN_POST)),
-                ("Hard-human GET routes", sorted(classify.ROUTE_HARD_HUMAN_GET)),
                 ("HTML page routes", sorted(classify.ROUTE_HTML_PAGES)),
                 ("Browser-asset routes", sorted(classify.ROUTE_BROWSER_ASSETS)),
                 (
