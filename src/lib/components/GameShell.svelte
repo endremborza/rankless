@@ -1,7 +1,7 @@
-<!-- Shared frame for the game pages (/game, /game-clues, /game-countries):
-	centered card, title + streak header, and the chrome classes the games share
-	(intro, mode-row, actions, reveal, verdict, error) as :global styles scoped
-	under the card. -->
+<!-- Centered-card frame for the hub and the clue game (/game, /game-clues),
+	with title + streak header and their shared chrome classes (intro, mode-row,
+	actions, reveal, verdict, error) as :global styles scoped under the card.
+	The arcade game pages use the full-viewport GameFrame instead. -->
 <script lang="ts">
 	export let title: string;
 	export let streak = 0;
