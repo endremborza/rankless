@@ -10,9 +10,11 @@ async function miss(page: import('@playwright/test').Page) {
 	await page.locator('.option', { hasNotText: CORRECT }).first().click();
 }
 
-test('country run: a miss costs a life, the run ends when the last one goes', async ({ page }) => {
-	await page.goto('/game-countries');
-	await page.click('button:has-text("Start today\'s run")');
+test('home-ground run: a miss costs a life, the run ends when the last one goes', async ({
+	page
+}) => {
+	await page.goto('/game-homeground');
+	await page.click('button:has-text("Play today\'s run")');
 
 	await expect(page.locator('.option')).toHaveCount(4);
 	await expect(page.locator('.timer')).toBeVisible();
@@ -23,7 +25,6 @@ test('country run: a miss costs a life, the run ends when the last one goes', as
 	);
 
 	await page.click(`.option:has-text("${CORRECT}")`);
-	await expect(page.locator('.progress-row')).toContainText('score 1');
 	await expect(page.locator('.progress-row')).toContainText('2/5');
 
 	// Deliberate misses: the run survives all but the last one.
@@ -39,11 +40,14 @@ test('country run: a miss costs a life, the run ends when the last one goes', as
 		await expect(page.locator('.timer')).toBeVisible();
 	}
 
+	// The last miss still holds the reveal; the result screen sits behind it.
 	await miss(page);
-	await expect(page.locator('.verdict')).toContainText('1');
+	await expect(page.locator('.reveal')).toContainText('Fixture note');
 	await expect(page.locator('button:has-text("Keep going")')).toHaveCount(0);
 	await expect(page.locator('.option.correct')).toHaveCount(1);
 	await expect(page.locator('.option.wrong')).toHaveCount(1);
+	await page.click('button:has-text("See result")');
+	await expect(page.locator('.score-big')).toHaveText('1');
 
 	await page.click('button:has-text("Practice run")');
 	await expect(page.locator('.mode-label')).toHaveText('Practice run');

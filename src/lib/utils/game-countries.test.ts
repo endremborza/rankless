@@ -47,7 +47,7 @@ describe('runShareText', () => {
 		const out = runShareText('2026-08-23', 12, 2, false);
 		expect(out).toContain('12 placed');
 		expect(out).toContain('❤️'.repeat(LIVES - 2) + '🖤'.repeat(2));
-		expect(out).toContain('https://rankless.org/game-countries');
+		expect(out).toContain('https://rankless.org/game-homeground');
 
 		expect(runShareText('2026-08-23', 30, 0, true)).toContain('cleared the deck');
 		expect(runShareText('2026-08-23', 30, 0, true)).toContain('❤️'.repeat(LIVES));

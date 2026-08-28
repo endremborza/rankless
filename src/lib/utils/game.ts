@@ -1,4 +1,4 @@
-// Shared plumbing for the games (/game-clues, /game-countries): day identity,
+// Shared plumbing for the games (/game-clues, /game-homeground): day identity,
 // streak rule, daily pick, shuffling, flags/names, share text, result logging,
 // and the localStorage round state. Game-specific math lives in game-clues.ts /
 // game-countries.ts.

@@ -1,4 +1,4 @@
-// Client-side rules for the country game (/game-countries): lives, the
+// Client-side rules for the country game (/game-homeground): lives, the
 // per-question timer that keeps lookups out, and the share line. Shared game
 // plumbing is in utils/game.ts, types in types/game-countries.ts.
 
@@ -18,7 +18,7 @@ export function livesLeft(missed: number): number {
 export function runShareText(day: string, score: number, missed: number, swept: boolean): string {
 	const hearts = '❤️'.repeat(livesLeft(missed)) + '🖤'.repeat(Math.min(missed, LIVES));
 	const result = swept ? `cleared the deck — ${score} placed` : `${score} placed`;
-	return shareMessage(day, `🏛️⏱️ ${result} ${hearts}`, '/game-countries');
+	return shareMessage(day, `🏛️🌍 ${result} ${hearts}`, '/game-homeground');
 }
 
 // Every deck is a fresh random draw over the pack — deck order and each
