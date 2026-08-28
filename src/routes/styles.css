@@ -93,6 +93,8 @@
 	--badge-award-bg: rgba(var(--color-range-90), 0.22);
 	--badge-award-text: rgb(150, 115, 10);
 
+	--border-light: var(--color-theme-lightgrey);
+
 	/* Semantic status colors (success / warning / error), tuned per scheme so pages
 	   don't each hardcode a fixed hex that only reads on a light background. */
 	--color-ok: #0a7d28;
@@ -120,6 +122,8 @@
 		--badge-prestigious-text: rgb(185, 160, 245);
 		--badge-award-bg: rgba(var(--color-range-95), 0.3);
 		--badge-award-text: rgb(var(--color-range-100));
+
+		--border-light: var(--color-theme-darkgrey3);
 
 		--color-ok: #45c46a;
 		--color-warn: #e0a63a;
