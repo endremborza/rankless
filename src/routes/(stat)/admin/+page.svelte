@@ -26,7 +26,8 @@
 <div class="admin">
 	<nav class="topnav">
 		<a href="{base}/mcp">→ MCP exploration sessions</a> ·
-		<a href="{base}/admin/ledger">→ Ledger review queue ({data.pendingCount} pending)</a>
+		<a href="{base}/admin/ledger">→ Ledger review queue ({data.pendingCount} pending)</a> ·
+		<a href="{base}/admin/games">→ Games</a>
 	</nav>
 
 	<h1>Users &amp; email consent</h1>
