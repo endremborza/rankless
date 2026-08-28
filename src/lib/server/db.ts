@@ -77,8 +77,6 @@ export function getDb(): Database {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			orcid TEXT NOT NULL,
 			email TEXT NOT NULL,
-			-- legacy, always 'manual' now (kept: deployed DBs already have the NOT NULL column)
-			email_source TEXT NOT NULL DEFAULT 'manual',
 			purposes TEXT NOT NULL,
 			consent_version TEXT NOT NULL,
 			granted_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -581,7 +579,6 @@ type ConsentRow = {
 	id: number;
 	orcid: string;
 	email: string;
-	email_source: string;
 	purposes: string;
 	consent_version: string;
 	granted_at: string;
@@ -611,7 +608,7 @@ export const ConsentDb = {
 				"UPDATE email_consents SET withdrawn_at = datetime('now') WHERE orcid = ? AND withdrawn_at IS NULL"
 			).run(orcid);
 			db.prepare(
-				"INSERT INTO email_consents (orcid, email, email_source, purposes, consent_version) VALUES (?, ?, 'manual', ?, ?)"
+				'INSERT INTO email_consents (orcid, email, purposes, consent_version) VALUES (?, ?, ?, ?)'
 			).run(orcid, email, JSON.stringify(purposes), version);
 			db.run('COMMIT');
 		} catch (e) {

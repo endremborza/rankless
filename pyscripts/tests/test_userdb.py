@@ -23,7 +23,6 @@ CREATE TABLE email_consents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     orcid TEXT NOT NULL,
     email TEXT NOT NULL,
-    email_source TEXT NOT NULL DEFAULT 'manual',
     purposes TEXT NOT NULL,
     consent_version TEXT NOT NULL,
     granted_at TEXT NOT NULL DEFAULT (datetime('now')),
