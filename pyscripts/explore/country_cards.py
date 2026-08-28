@@ -32,18 +32,21 @@ NOTE_LEN = (20, 300)
 ISO2_PATH = "src/lib/assets/data/country-alpha-2-to-3.json"
 
 _SYSTEM = """\
-You curate cards for "name that country", a speed quiz on Rankless, a
-scholarly citation explorer: players see a real university's name and must
+You curate cards for a country-guessing speed quiz on Rankless, a scholarly
+citation explorer: players see a real research institution's name and must
 pick its country from four options within seconds. Good cards are lesser-known
-universities whose names MISLEAD about the country — they evoke another place,
+institutions whose names MISLEAD about the country — they evoke another place,
 a person, a saint, a cross-border region, or nothing geographic at all. Skip
 any name that states or clearly implies its country, its best-known city, or
 its demonym; a name merely being in the local language is only a weak signal.
+Also skip any name shared with other institutions elsewhere; if you keep such
+a name anyway, never use a namesake's country as a decoy — a player who knows
+the other bearer would be marked wrong.
 Prefer names an educated player would confidently place in the WRONG country.
 Be selective: usually only a minority of a list qualifies.
 
-You get lines of `semantic_id<TAB>university name<TAB>ISO country`. For each
-KEPT university return:
+You get lines of `semantic_id<TAB>institution name<TAB>ISO country`. For each
+KEPT institution return:
 - "decoys": exactly 3 uppercase ISO 3166-1 alpha-2 codes of OTHER countries a
   player might plausibly pick precisely because of the name — include the
   country the name evokes most; never the true country, no duplicates.
