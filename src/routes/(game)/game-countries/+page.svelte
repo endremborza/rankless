@@ -403,6 +403,7 @@
 	}
 
 	.start {
+		--tile-gap: 10px;
 		flex: 1;
 		display: flex;
 		flex-direction: column;
@@ -427,9 +428,10 @@
 		text-transform: uppercase;
 	}
 
+	/* The bar's right edge lands exactly on the middle stat tile's right edge. */
 	.title-bar {
 		height: 10px;
-		width: 62%;
+		width: calc((100% - 2 * var(--tile-gap)) * 2 / 3 + var(--tile-gap));
 		margin-top: 14px;
 	}
 
@@ -443,7 +445,7 @@
 	.stat-tiles {
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 10px;
+		gap: var(--tile-gap);
 	}
 
 	.stat {
@@ -521,6 +523,7 @@
 		background: var(--color-err);
 	}
 
+	/* The bottom bias centers the question optically, not geometrically. */
 	.stage {
 		flex: 1;
 		display: flex;
@@ -529,7 +532,7 @@
 		align-items: center;
 		gap: 14px;
 		text-align: center;
-		padding: 0 6px;
+		padding: 0 6px clamp(20px, 6svh, 48px);
 		min-height: 0;
 	}
 

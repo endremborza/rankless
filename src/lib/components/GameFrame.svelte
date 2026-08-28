@@ -32,7 +32,7 @@
 		height: 100svh;
 		max-width: 480px;
 		margin: 0 auto;
-		padding: 14px 18px calc(20px + env(safe-area-inset-bottom));
+		padding: 14px 18px calc(40px + env(safe-area-inset-bottom));
 		display: flex;
 		flex-direction: column;
 		gap: 14px;
