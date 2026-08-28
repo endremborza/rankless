@@ -79,26 +79,27 @@ const clueCards = (
 );
 
 // Every country card resolves to HU, so the spec can answer (or miss) at will
-// without knowing the shuffled deck order.
-const countryCards = ['c', 'd', 'e', 'f', 'g'].map((suffix, i): FixtureObject => {
-	const semId = `fixture-${suffix}`;
-	return {
+// without knowing the shuffled deck order. The sem-ids are real institutions:
+// serving computes badge standings from the local backend (which the e2e suite
+// needs running anyway), and a card without a standing never serves.
+const countryCards = ['massey-university', 'embo', 'nwafu', 'brandeis-university', 'ucc'].map(
+	(semId, i): FixtureObject => ({
 		kind: 'country-card',
 		obj_key: `institutions|${semId}`,
 		etype: 'institutions',
 		sem_id: semId,
-		title: `Fixture Misnomer University ${suffix.toUpperCase()}`,
+		title: `Fixture Misnomer University ${i + 1}`,
 		payload: {
 			semId,
-			name: `Fixture Misnomer University ${suffix.toUpperCase()}`,
+			name: `Fixture Misnomer University ${i + 1}`,
 			cc: 'HU',
 			decoys: ['DE', 'FR', 'ES'],
 			note: `Fixture note ${i + 1}: it is in Hungary after all.`,
 			papers: 1,
 			citations: 1
 		}
-	};
-});
+	})
+);
 
 seedBundle('game-card', 'seed-game-fixture', clueCards);
 seedBundle('country-card', 'seed-country-fixture', countryCards);

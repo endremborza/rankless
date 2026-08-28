@@ -322,6 +322,13 @@
 				<span class="ask">Where is</span>
 				<h2 class="uni {nameClass}">{card.name}</h2>
 				<span class="ask">actually?</span>
+				{#if card.badges.length}
+					<div class="badges">
+						{#each card.badges as b, i (i)}
+							<span class="badge">{b.label} · {b.subfield}</span>
+						{/each}
+					</div>
+				{/if}
 			</div>
 			<div class="options">
 				{#each card.options as cc, i (i)}
@@ -550,6 +557,22 @@
 
 	.uni.sm {
 		font-size: min(21px, 5.5vw);
+	}
+
+	/* Real standing, no country leak: the card's top-percentile subfield badges. */
+	.badges {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 8px;
+	}
+
+	.badge {
+		border: 1px solid var(--border-light);
+		padding: 4px 10px;
+		font-size: 12px;
+		color: var(--game-sub);
+		white-space: nowrap;
 	}
 
 	.options {

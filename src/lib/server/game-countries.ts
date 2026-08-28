@@ -7,8 +7,18 @@
 
 import { DAY_RE, gameDb, okInt, okSemIdList } from './game-common';
 import { currentObjects } from './objects';
+import { BE_URL } from '$lib/constants';
+import { STANDING_MIN_TIER, citStandingTier, standingLabel, tierLabels } from '$lib/peers-utils';
+import { urlFriendlify } from '$lib/tree-functions';
+import type * as tt from '$lib/tree-types';
 import { DECK_CAP, LIVES, buildDeck } from '$lib/utils/game-countries';
-import type { CountryCard, CountryPlayCard, CountryRunLog } from '$lib/types/game-countries';
+import type {
+	BadgedCountryCard,
+	CountryBadge,
+	CountryCard,
+	CountryPlayCard,
+	CountryRunLog
+} from '$lib/types/game-countries';
 
 // `missed_sem_ids` is a JSON array — one run costs up to LIVES cards, and every
 // one of them is difficulty signal for the card pack.
@@ -26,12 +36,77 @@ CREATE TABLE IF NOT EXISTS country_game_results (
 CREATE INDEX IF NOT EXISTS idx_cgr_day ON country_game_results(day);
 `;
 
+// Cards show up to this many standings; the strictest win.
+const MAX_BADGES = 2;
+// Enrichment fan-out per round trip, kept well under the backend's request-queue cap.
+const FETCH_CHUNK = 32;
+const BADGE_ROOT = 'institutions';
+
+// Both caches live for the process, like the bundle cache: standings only move
+// on a dataset change, which restarts the server anyway.
+const badgeCache = new Map<string, CountryBadge[]>();
+let ladderCache: { labels: string[]; rows: (number | null)[][] } | null = null;
+
 export function currentCountryPack(): CountryCard[] {
 	return currentObjects('country-card').map((o) => o.payload as CountryCard);
 }
 
-export function newDeck(): CountryPlayCard[] {
-	return buildDeck(currentCountryPack());
+// The pack that actually serves: every card enriched with its live standings
+// and gated to cards holding at least one badge — real standing is the on-card
+// credibility signal. Computed at serve time with the same peers-utils
+// machinery as the entity hero, so it stays current with the dataset.
+export async function servedCountryPack(): Promise<BadgedCountryCard[]> {
+	const pack = currentCountryPack();
+	const enriched: BadgedCountryCard[] = [];
+	for (let i = 0; i < pack.length; i += FETCH_CHUNK) {
+		const chunk = pack.slice(i, i + FETCH_CHUNK);
+		const badges = await Promise.all(chunk.map((c) => badgesFor(c.semId)));
+		chunk.forEach((c, j) => enriched.push({ ...c, badges: badges[j] }));
+	}
+	return enriched.filter((c) => c.badges.length > 0);
+}
+
+// Strongest standings of one institution, strictest first; [] when the backend
+// has no peers profile for it. Only resolved values are cached, so a transient
+// backend failure throws without poisoning the cache.
+export async function badgesFor(semId: string): Promise<CountryBadge[]> {
+	const hit = badgeCache.get(semId);
+	if (hit) return hit;
+	const [ladder, peers] = await Promise.all([getLadder(), getPeers(semId)]);
+	const badges = peers
+		? peers.topSubfields
+				.map((sf, i) => ({
+					tier: citStandingTier(ladder.rows[sf.dmId] ?? [], peers.hero.subfieldCitations[i] ?? 0),
+					cits: peers.hero.subfieldCitations[i] ?? 0,
+					subfield: sf.name
+				}))
+				.filter((s) => s.tier >= STANDING_MIN_TIER)
+				.sort((a, b) => b.tier - a.tier || b.cits - a.cits)
+				.slice(0, MAX_BADGES)
+				.map((s) => ({ label: standingLabel(s.tier, ladder.labels) ?? '', subfield: s.subfield }))
+		: [];
+	badgeCache.set(semId, badges);
+	return badges;
+}
+
+export async function newDeck(): Promise<CountryPlayCard[]> {
+	return buildDeck(await servedCountryPack());
+}
+
+async function getLadder(): Promise<NonNullable<typeof ladderCache>> {
+	if (ladderCache) return ladderCache;
+	const res = await fetch(`${BE_URL}/ladder/${BADGE_ROOT}`);
+	if (!res.ok) throw new Error(`ladder fetch failed: ${res.status}`);
+	const data = (await res.json()) as tt.LadderData;
+	ladderCache = { labels: tierLabels(data.pctBands), rows: data.ladder };
+	return ladderCache;
+}
+
+async function getPeers(semId: string): Promise<tt.EntityPeersResp | null> {
+	const res = await fetch(`${BE_URL}/peers/${BADGE_ROOT}/${urlFriendlify(semId)}`);
+	if (res.status === 404) return null;
+	if (!res.ok) throw new Error(`peers fetch failed for ${semId}: ${res.status}`);
+	return (await res.json()) as tt.EntityPeersResp;
 }
 
 export function recordRun(run: CountryRunLog, orcid: string | null): void {

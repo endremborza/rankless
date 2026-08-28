@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import type { CountryCard } from '../types/game-countries';
+import type { BadgedCountryCard } from '../types/game-countries';
 import { DECK_CAP, LIVES, buildDeck, livesLeft, runShareText } from './game-countries';
 
-const pack: CountryCard[] = Array.from({ length: DECK_CAP + 10 }, (_, i) => ({
+const pack: BadgedCountryCard[] = Array.from({ length: DECK_CAP + 10 }, (_, i) => ({
 	semId: `uni-${i}`,
 	name: `University ${i}`,
 	cc: 'HU',
 	decoys: ['DE', 'FR', 'ES'],
 	note: `Note ${i}.`,
+	badges: [{ label: 'top 10%', subfield: 'Immunology' }],
 	papers: 1,
 	citations: 1
 }));
@@ -27,6 +28,7 @@ describe('buildDeck', () => {
 			expect(card.options).toHaveLength(4);
 			expect(card.options).toContain(card.cc);
 			expect(new Set(card.options).size).toBe(4);
+			expect(card.badges).toEqual([{ label: 'top 10%', subfield: 'Immunology' }]);
 			expect(card).not.toHaveProperty('decoys');
 			expect(card).not.toHaveProperty('papers');
 		}

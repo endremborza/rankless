@@ -31,6 +31,7 @@ export function buildDeck(pack: CountryCard[]): CountryPlayCard[] {
 			name: c.name,
 			cc: c.cc,
 			note: c.note,
+			badges: c.badges,
 			options: shuffle([c.cc, ...c.decoys])
 		}));
 }
