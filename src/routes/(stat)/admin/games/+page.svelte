@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { base } from '$app/paths';
 	import type { PageData } from './$types';
+	import { BRAND } from '$lib/utils/game-countries';
 
 	export let data: PageData;
 </script>
@@ -13,8 +14,8 @@
 	<h1>Games</h1>
 	<p class="sub">
 		Card packs come from the MCP object store; "served" is the pack after the serve-time gates
-		(latest non-rejected version, and for Place the Name at least one top-percentile badge). Runs
-		are logged daily + practice rounds.
+		(latest non-rejected version, and for {BRAND} at least one top-percentile badge; its decks admit only
+		a few medical names, so that share is shown). Runs are logged daily + practice rounds.
 	</p>
 
 	<div class="table-wrap">
@@ -24,6 +25,7 @@
 					<th>game</th>
 					<th>cards served</th>
 					<th>cards current</th>
+					<th>medical-named</th>
 					<th>runs logged</th>
 					<th>cards</th>
 				</tr>
@@ -34,6 +36,7 @@
 						<td><a href="{base}{g.route}">{g.title}</a></td>
 						<td>{g.packServed}</td>
 						<td>{g.packCurrent}</td>
+						<td>{g.medicalServed ?? '—'}</td>
 						<td>{g.runs}</td>
 						<td><a href="{base}{g.review}">→ review</a></td>
 					</tr>
