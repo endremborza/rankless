@@ -118,7 +118,7 @@
 	}
 
 	function beginRun(runMode: 'daily' | 'practice', cards: CountryPlayCard[]) {
-		stopClocks();
+		stopClock();
 		mode = runMode;
 		deck = cards;
 		outOf = cards.length;
@@ -153,7 +153,7 @@
 	}
 
 	function backToDaily() {
-		stopClocks();
+		stopClock();
 		mode = 'daily';
 		deck = data.deck;
 		if (!restoreDaily()) phase = 'idle';
@@ -166,7 +166,7 @@
 			msLeft = Math.max(0, deadline - Date.now());
 			if (msLeft <= 0) {
 				timedOut = true;
-				loseLife();
+				settle(false);
 			}
 		}, TICK_MS);
 	}
@@ -174,35 +174,24 @@
 	function pick(cc: string) {
 		if (phase !== 'playing' || picked !== null || !card) return;
 		picked = cc;
-		if (cc === card.cc) {
-			if (timer) clearInterval(timer);
-			timer = null;
-			score += 1;
-			advancing = setTimeout(advance, ADVANCE_MS);
-		} else {
-			loseLife();
-		}
+		settle(cc === card.cc);
 	}
 
-	// A miss costs a life and holds the reveal on screen. A run-ending miss is
-	// booked immediately — the reveal then leads to the result, not the next card.
-	function loseLife() {
-		stopClocks();
-		missed = [...missed, card?.semId ?? ''];
+	// Every answer holds its reveal. A miss costs a life; an answer that ends the
+	// run — last life or last card — books it right away, so the reveal leads to
+	// the result instead of the next card.
+	function settle(hit: boolean) {
+		if (!card) return;
+		stopClock();
+		if (hit) score += 1;
+		else missed = [...missed, card.semId];
 		runDone = livesLeft(missed.length) === 0 || idx + 1 >= deck.length;
 		if (runDone) finishRun();
 		phase = 'reveal';
 	}
 
 	function continueFromReveal() {
-		if (runDone) phase = 'over';
-		else advance();
-	}
-
-	function advance() {
-		advancing = null;
-		if (idx + 1 >= deck.length) {
-			finishRun();
+		if (runDone) {
 			phase = 'over';
 			return;
 		}
@@ -256,6 +245,7 @@
 	$: hearts = '♥'.repeat(livesLeft(missed.length)) + '♡'.repeat(Math.min(missed.length, LIVES));
 	// A pick locks the buttons; reveal/over keep them frozen for the reveal.
 	$: locked = picked !== null || phase === 'reveal' || phase === 'over';
+	$: hit = card !== null && picked === card.cc;
 	$: optionState = (cc: string): string => {
 		if (!locked || !card) return '';
 		if (cc === card.cc) return 'correct';
@@ -350,6 +340,9 @@
 			</div>
 			{#if phase === 'reveal'}
 				<div class="sheet reveal" in:fly={{ y: 220, duration: 200 }}>
+					<span class="verdict-tag" class:ok={hit}>
+						{hit ? '✓ Correct' : timedOut ? '⏱ Time ran out' : '✗ Wrong'}
+					</span>
 					<div class="sheet-head">
 						<span class="sheet-flag">{ccFlag(card.cc)}</span>
 						<div class="sheet-names">
