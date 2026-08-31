@@ -15,6 +15,7 @@ and the per-country cap come from the shared engine (`generation.py`).
 
 import asyncio
 import json
+import re
 import sqlite3
 from pathlib import Path
 
@@ -31,14 +32,36 @@ NOTE_LEN = (20, 300)
 
 ISO2_PATH = "src/lib/assets/data/country-alpha-2-to-3.json"
 
+# Names every country has one of: the English translation is arbitrary and the
+# pick is a guess, so they never reach the model. "National <Proper Noun>
+# University" stays — those point at a namesake elsewhere.
+_GENERIC_RE = re.compile(
+    r"^(?:national|state|federal|central|regional|general)\s+"
+    r"(?:institutes?|research|councils?|cent(?:er|re)s?|laborator(?:y|ies)|academy|"
+    r"physical|cancer|defen[cs]e|medical|health|university of)\b"
+    r"|^(?:southern|northern|eastern|western|central|capital|general|first|second|third|fourth)"
+    r"\s+(?:medical|military)(?:\s+medical)?\s+university\b"
+    r"|\b(?:army|air force|naval|navy)\b.*\b(?:university|college|academy)\b"
+    r"|^(?:institutes?|cent(?:er|re)s?) (?:of|for) [a-z ,&-]+$",
+    re.I,
+)
+
 _SYSTEM = """\
 You curate cards for a country-guessing speed quiz on Rankless, a scholarly
 citation explorer: players see a real research institution's name and must
 pick its country from four options within seconds. Good cards are lesser-known
-institutions whose names MISLEAD about the country — they evoke another place,
-a person, a saint, a cross-border region, or nothing geographic at all. Skip
-any name that states or clearly implies its country, its best-known city, or
-its demonym; a name merely being in the local language is only a weak signal.
+institutions whose names point at a SPECIFIC wrong place — another country's
+city or region, a person, a saint or royal title that reads as British, a
+cross-border region or river. The name must give the player somewhere wrong
+to go: a name that says nothing makes the pick a coin toss, not a misdirection.
+Skip any name that states or clearly implies its country, its best-known city,
+or its demonym; a name merely being in the local language is only a weak
+signal. Skip generic institutional names outright — "National/State/Central
+Institute/Council/Center/Laboratory of X", "<Adjective> Medical University",
+numbered or military universities: every country has one and the English
+translation is arbitrary. Hospitals and medical schools only when the name
+itself is a strong misdirect (a saint, royal or person name), never one named
+after its own city; the pack already has plenty of them.
 Also skip any name shared with other institutions elsewhere; if you keep such
 a name anyway, never use a namesake's country as a decoy — a player who knows
 the other bearer would be marked wrong.
@@ -99,6 +122,10 @@ def main(
         ),
         report_line=_report_line,
     )
+
+
+def is_generic_name(name: str) -> bool:
+    return _GENERIC_RE.search(name) is not None
 
 
 def _report_line(o: dict) -> str:
@@ -178,7 +205,7 @@ async def _candidates(
     out = []
     for ent in ranked:
         cc = generation.flag_cc(ent.get("distinctText", ""))
-        if not cc or ent["semanticId"] in have:
+        if not cc or ent["semanticId"] in have or is_generic_name(ent["name"]):
             continue
         out.append(
             {
