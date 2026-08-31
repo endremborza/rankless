@@ -2,11 +2,12 @@ import { error, json } from '@sveltejs/kit';
 
 import type { RequestHandler } from './$types';
 import { readJsonBody } from '$lib/server/game-common';
-import { newDeck, parseRun, recordRun } from '$lib/server/game-countries';
+import { parseRun, recordRun, servedPracticeDeck } from '$lib/server/game-countries';
+import type { CountryRunResult } from '$lib/types/game-countries';
 
 // A freshly shuffled practice deck.
 export const GET: RequestHandler = async () => {
-	const deck = await newDeck();
+	const deck = await servedPracticeDeck();
 	if (!deck.length) error(404, 'No cards in the store');
 	return json(deck);
 };

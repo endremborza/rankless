@@ -299,7 +299,7 @@
 		<div class="bottom-stack">
 			<button class="g-btn primary" on:click={startDaily}>Play today's run</button>
 			<button class="g-btn ghost" on:click={startPractice} disabled={fetching}>Practice</button>
-			<div class="foot-note">Daily resets 00:00 UTC</div>
+			<div class="foot-note">Same deck for everyone · resets 00:00 UTC</div>
 		</div>
 	{:else if phase === 'playing' || phase === 'reveal'}
 		<div class="progress-row">

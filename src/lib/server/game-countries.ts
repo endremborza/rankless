@@ -1,9 +1,10 @@
-// Server side of the country game (/game-countries): pack reads over the MCP
+// Server side of the country game: pack reads over the MCP
 // object store (`country-card` objects from pyscripts country-cards) and the
-// run log. A run costs a life per miss and ends on the LIVES-th: every deck is
-// a fresh random shuffle of the pack, capped at DECK_CAP cards, and the whole
-// deck ships at once — the per-question timer is what keeps lookups out, so the
-// client checks picks locally like the clue game does with its coordinates.
+// run log. A run costs a life per miss and ends on the LIVES-th. The daily
+// deck is the same for everyone (hash-ordered by day, utils/game-countries),
+// practice decks are random; both cap at DECK_CAP and ship whole — the
+// per-question timer is what keeps lookups out, so the client checks picks
+// locally like the clue game does with its coordinates.
 
 import { DAY_RE, gameDb, okInt, okSemIdList } from './game-common';
 import { currentObjects } from './objects';
@@ -11,13 +12,14 @@ import { BE_URL } from '$lib/constants';
 import { STANDING_MIN_TIER, citStandingTier, standingLabel, tierLabels } from '$lib/peers-utils';
 import { urlFriendlify } from '$lib/tree-functions';
 import type * as tt from '$lib/tree-types';
-import { DECK_CAP, LIVES, buildDeck } from '$lib/utils/game-countries';
+import { DECK_CAP, LIVES, dailyDeck, practiceDeck } from '$lib/utils/game-countries';
 import type {
 	BadgedCountryCard,
 	CountryBadge,
 	CountryCard,
 	CountryPlayCard,
-	CountryRunLog
+	CountryRunLog,
+	DayStanding
 } from '$lib/types/game-countries';
 
 // `missed_sem_ids` is a JSON array — one run costs up to LIVES cards, and every
@@ -89,8 +91,12 @@ export async function badgesFor(semId: string): Promise<CountryBadge[]> {
 	return badges;
 }
 
-export async function newDeck(): Promise<CountryPlayCard[]> {
-	return buildDeck(await servedCountryPack());
+export async function servedDailyDeck(day: string): Promise<CountryPlayCard[]> {
+	return dailyDeck(await servedCountryPack(), day);
+}
+
+export async function servedPracticeDeck(): Promise<CountryPlayCard[]> {
+	return practiceDeck(await servedCountryPack());
 }
 
 async function getLadder(): Promise<NonNullable<typeof ladderCache>> {

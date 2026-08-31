@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BadgedCountryCard } from '../types/game-countries';
-import { DECK_CAP, LIVES, buildDeck, livesLeft, runShareText } from './game-countries';
+import {
+	BRAND,
+	DECK_CAP,
+	HIST_BUCKETS,
+	LIVES,
+	MAX_MEDICAL_CARDS,
+	PATH,
+	dailyDeck,
+	isMedicalName,
+	livesLeft,
+	practiceDeck,
+	runShareText,
+	runStats,
+	verdictLine
+} from './game-countries';
 
 const pack: BadgedCountryCard[] = Array.from({ length: DECK_CAP + 10 }, (_, i) => ({
 	semId: `uni-${i}`,
