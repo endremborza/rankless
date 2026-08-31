@@ -409,6 +409,12 @@
 				<button class="g-btn ghost" on:click={backToDaily}>Back to daily</button>
 			{/if}
 		</div>
+		{#if showStats}
+			<div class="sheet" in:fly={{ y: 220, duration: 200 }}>
+				<CountryStats {runs} {streak} />
+				<button class="g-btn ghost" on:click={() => (showStats = false)}>Close</button>
+			</div>
+		{/if}
 	{/if}
 </GameFrame>
 
@@ -706,18 +712,16 @@
 		opacity: 0.3;
 	}
 
-	.sheet {
-		position: absolute;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 14px;
-		background: var(--text-bg-2);
-		border-top: 2px solid var(--color-text);
-		box-shadow: 0 -3px 10px var(--color-theme-shadow);
-		padding: 22px 18px calc(24px + env(safe-area-inset-bottom));
+	.verdict-tag {
+		font-size: var(--text-sm);
+		font-weight: 700;
+		letter-spacing: 2px;
+		text-transform: uppercase;
+		color: var(--color-err);
+	}
+
+	.verdict-tag.ok {
+		color: var(--color-ok);
 	}
 
 	.sheet-head {

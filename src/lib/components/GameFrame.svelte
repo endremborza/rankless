@@ -1,8 +1,9 @@
-<!-- Full-viewport phone-first frame for the arcade game pages (/game-countries,
-	and the ranking game next): hub link + centered mode label + streak header,
+<!-- Full-viewport phone-first frame for the arcade game pages (the country
+	game, and the ranking game next): hub link + centered mode label + streak header,
 	plus the chrome the game screens share as :global classes scoped under the
-	frame — the palette-ramp bar (.ramp-bar), the big buttons (.g-btn) and the
-	status-colored hearts (.hearts). Sub-labels read var(--game-sub). -->
+	frame — the palette-ramp bar (.ramp-bar), the big buttons (.g-btn), the
+	status-colored hearts (.hearts) and the bottom sheet (.sheet) that holds a
+	reveal or a stats panel over the screen. Sub-labels read var(--game-sub). -->
 <script lang="ts">
 	export let label = '';
 	export let streak = 0;
@@ -128,5 +129,19 @@
 	.frame :global(.hearts) {
 		color: var(--color-err);
 		letter-spacing: 5px;
+	}
+
+	.frame :global(.sheet) {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+		background: var(--text-bg-2);
+		border-top: 2px solid var(--color-text);
+		box-shadow: 0 -3px 10px var(--color-theme-shadow);
+		padding: 22px 18px calc(24px + env(safe-area-inset-bottom));
 	}
 </style>
