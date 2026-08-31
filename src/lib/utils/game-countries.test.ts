@@ -28,23 +28,65 @@ const pack: BadgedCountryCard[] = Array.from({ length: DECK_CAP + 10 }, (_, i) =
 	citations: 1
 }));
 
-describe('buildDeck', () => {
-	it('caps the deck and draws every card from the pack', () => {
-		const a = buildDeck(pack);
-		expect(a).toHaveLength(DECK_CAP);
-		const semIds = new Set(pack.map((c) => c.semId));
-		expect(new Set(a.map((c) => c.semId)).size).toBe(DECK_CAP);
-		for (const card of a) expect(semIds.has(card.semId)).toBe(true);
+function checkPlayCards(deck: ReturnType<typeof practiceDeck>) {
+	expect(deck).toHaveLength(DECK_CAP);
+	const semIds = new Set(pack.map((c) => c.semId));
+	expect(new Set(deck.map((c) => c.semId)).size).toBe(DECK_CAP);
+	for (const card of deck) {
+		expect(semIds.has(card.semId)).toBe(true);
+		expect(card.options).toHaveLength(4);
+		expect(card.options).toContain(card.cc);
+		expect(new Set(card.options).size).toBe(4);
+		expect(card.badges).toEqual([{ label: 'top 10%', subfield: 'Immunology' }]);
+		expect(card).not.toHaveProperty('decoys');
+		expect(card).not.toHaveProperty('papers');
+	}
+}
+
+describe('practiceDeck', () => {
+	it('caps the deck, draws from the pack and folds the answer into four options', () => {
+		checkPlayCards(practiceDeck(pack));
+	});
+});
+
+describe('dailyDeck', () => {
+	it('builds the same play cards for the same day, whatever the pack order', () => {
+		const a = dailyDeck(pack, '2026-08-31');
+		checkPlayCards(a);
+		expect(dailyDeck([...pack].reverse(), '2026-08-31')).toEqual(a);
+		expect(dailyDeck(pack, '2026-09-01')).not.toEqual(a);
 	});
 
-	it('folds the answer into four shuffled options and drops the decoy list', () => {
-		for (const card of buildDeck(pack)) {
-			expect(card.options).toHaveLength(4);
-			expect(card.options).toContain(card.cc);
-			expect(new Set(card.options).size).toBe(4);
-			expect(card.badges).toEqual([{ label: 'top 10%', subfield: 'Immunology' }]);
-			expect(card).not.toHaveProperty('decoys');
-			expect(card).not.toHaveProperty('papers');
+	it('shifts at most one slot when a card joins the pack mid-day', () => {
+		const before = dailyDeck(pack, '2026-08-31').map((c) => c.semId);
+		const after = dailyDeck(
+			[...pack, { ...pack[0], semId: 'newcomer', name: 'Newcomer' }],
+			'2026-08-31'
+		).map((c) => c.semId);
+		const kept = before.filter((id) => after.includes(id));
+		expect(kept.length).toBeGreaterThanOrEqual(DECK_CAP - 1);
+		expect(kept).toEqual(after.filter((id) => before.includes(id)));
+	});
+});
+
+describe('medical quota', () => {
+	const medical = [
+		'Royal Perth Hospital',
+		'Hôpital Cochin',
+		'Southern Medical University',
+		'Austin Health'
+	];
+	it('recognizes hospital and medical-school names', () => {
+		for (const n of medical) expect(isMedicalName(n)).toBe(true);
+		expect(isMedicalName('University of Georgia')).toBe(false);
+		expect(isMedicalName('Medici Institute')).toBe(false);
+	});
+
+	it('admits only a few medical names per deck, daily and practice alike', () => {
+		const mixed = pack.map((c, i) => (i % 4 ? c : { ...c, name: medical[i % medical.length] }));
+		for (const deck of [dailyDeck(mixed, '2026-08-31'), practiceDeck(mixed)]) {
+			expect(deck).toHaveLength(DECK_CAP);
+			expect(deck.filter((c) => isMedicalName(c.name))).toHaveLength(MAX_MEDICAL_CARDS);
 		}
 	});
 });
