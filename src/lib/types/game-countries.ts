@@ -42,3 +42,31 @@ export type CountryRunLog = {
 	outOf: number;
 	missedSemIds: string[];
 };
+
+// Where a daily run sits among that day's logged runs: rank 1 = nobody scored
+// higher (ties share a rank). Practice runs have no standing.
+export type DayStanding = {
+	rank: number;
+	players: number;
+};
+
+// The run POST's answer.
+export type CountryRunResult = {
+	standing: DayStanding | null;
+};
+
+// One finished daily run as the browser remembers it (localStorage): the
+// history behind the stats sheet and the result screen's miss recap.
+export type DailyRun = {
+	day: string;
+	score: number;
+	outOf: number;
+	missedIds: string[];
+};
+
+export type RunStats = {
+	played: number;
+	best: number;
+	avg: number;
+	hist: number[];
+};

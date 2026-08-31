@@ -15,6 +15,6 @@ export const GET: RequestHandler = async () => {
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const run = parseRun(await readJsonBody(request));
 	if (!run) error(400, 'Bad run payload');
-	recordRun(run, locals.user?.orcid ?? null);
-	return new Response(null, { status: 204 });
+	const standing = recordRun(run, locals.user?.orcid ?? null);
+	return json({ standing } satisfies CountryRunResult);
 };

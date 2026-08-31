@@ -115,13 +115,22 @@ async function getPeers(semId: string): Promise<tt.EntityPeersResp | null> {
 	return (await res.json()) as tt.EntityPeersResp;
 }
 
-export function recordRun(run: CountryRunLog, orcid: string | null): void {
-	gameDb(COUNTRY_SCHEMA)
+// Logs the run and, for a daily one, answers with its standing among the
+// day's runs so far (the just-logged run included).
+export function recordRun(run: CountryRunLog, orcid: string | null): DayStanding | null {
+	const d = gameDb(COUNTRY_SCHEMA);
+	d.prepare(
+		`INSERT INTO country_game_results (mode, day, score, out_of, missed_sem_ids, orcid)
+		 VALUES (?, ?, ?, ?, ?, ?)`
+	).run(run.mode, run.day, run.score, run.outOf, JSON.stringify(run.missedSemIds), orcid);
+	if (run.mode !== 'daily') return null;
+	const row = d
 		.prepare(
-			`INSERT INTO country_game_results (mode, day, score, out_of, missed_sem_ids, orcid)
-			 VALUES (?, ?, ?, ?, ?, ?)`
+			`SELECT count(*) AS players, sum(score > ?) AS above
+			 FROM country_game_results WHERE mode = 'daily' AND day = ?`
 		)
-		.run(run.mode, run.day, run.score, run.outOf, JSON.stringify(run.missedSemIds), orcid);
+		.get(run.score, run.day) as { players: number; above: number };
+	return { rank: row.above + 1, players: row.players };
 }
 
 // Boundary validation of a posted run: the endpoint is public, so every field

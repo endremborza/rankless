@@ -78,13 +78,19 @@ export function saveGameState(key: string, state: unknown): void {
 	}
 }
 
-// Fire-and-forget play-result log; losing one is fine.
-export function postGameLog(path: string, payload: unknown): void {
-	fetch(path, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(payload)
-	}).catch(() => {});
+// Play-result log; the endpoint's JSON answer (if it gives one) comes back,
+// and losing a log — or its answer — is fine.
+export async function postGameLog<T>(path: string, payload: unknown): Promise<T | null> {
+	try {
+		const res = await fetch(path, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload)
+		});
+		return res.ok && res.status !== 204 ? ((await res.json()) as T) : null;
+	} catch {
+		return null;
+	}
 }
 
 export async function copyShareText(text: string): Promise<boolean> {
