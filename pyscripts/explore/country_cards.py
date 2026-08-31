@@ -7,7 +7,7 @@ institutions, keep the ones whose names mislead about (or say nothing about)
 their country, and write three plausible decoy countries plus a one-sentence
 post-answer reveal. Decoys are validated against the ISO country set and the
 true country; accepted picks land as `country-card` objects, which the
-`/game-countries` route reads server-side. Run lifecycle, candidate slicing,
+country-game route reads server-side. Run lifecycle, candidate slicing,
 and the per-country cap come from the shared engine (`generation.py`).
 
     uv run -m pyscripts country-cards --backend local --count 60

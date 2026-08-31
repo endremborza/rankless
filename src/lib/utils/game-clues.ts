@@ -51,6 +51,7 @@ export function shareText(
 	const ladder = '🟩'.repeat(cluesUsed) + '⬜'.repeat(Math.max(0, totalClues - cluesUsed));
 	const result = distanceKm == null ? 'gave up' : `${Math.round(distanceKm)} km off → ${score} pts`;
 	return shareMessage(
+		'Rankless quiz',
 		day,
 		`${ladder} ${cluesUsed} clue${cluesUsed === 1 ? '' : 's'}, ${result}`,
 		'/game-clues'

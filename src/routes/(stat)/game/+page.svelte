@@ -1,6 +1,7 @@
 <!-- Hub for the games; also keeps pre-split /game share links working. -->
 <script lang="ts">
 	import GameShell from '$lib/components/GameShell.svelte';
+	import { BRAND, PATH } from '$lib/utils/game-countries';
 </script>
 
 <svelte:head>
@@ -21,8 +22,8 @@
 				pin on the map; the earlier and closer, the more points.
 			</p>
 		</a>
-		<a class="game-tile" href="/game-countries">
-			<h2>🏛️ Place the Name</h2>
+		<a class="game-tile" href={PATH}>
+			<h2>🏛️ {BRAND}</h2>
 			<p>
 				Institution names can point far from home. Four flags, ten seconds a name, three lives —
 				trust your first instinct.

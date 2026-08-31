@@ -3,6 +3,7 @@
 	import { entToLink } from '$lib/tree-functions';
 	import type { PageData } from './$types';
 	import { ccFlag, ccName } from '$lib/utils/game';
+	import { BRAND } from '$lib/utils/game-countries';
 
 	export let data: PageData;
 
@@ -23,12 +24,12 @@
 	}
 </script>
 
-<svelte:head><title>Place the Name cards · Rankless</title></svelte:head>
+<svelte:head><title>{BRAND} cards · Rankless</title></svelte:head>
 
 <div class="admin">
 	<nav class="topnav"><a href="{base}/admin/games">← Games</a></nav>
 
-	<h1>Place the Name — cards</h1>
+	<h1>{BRAND} — cards</h1>
 	<p class="sub">
 		{cards.length} cards, {servedCount} served. Every card at its latest version: the name players see,
 		the true country, the decoy options, the reveal text, and the badge standings. A wrong or misleading

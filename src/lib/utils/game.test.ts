@@ -54,7 +54,7 @@ describe('country display', () => {
 
 describe('shareMessage', () => {
 	it('stamps the day, line, and route URL', () => {
-		expect(shareMessage('2026-08-23', 'line here', '/game-clues')).toBe(
+		expect(shareMessage('Rankless quiz', '2026-08-23', 'line here', '/game-clues')).toBe(
 			'Rankless quiz 2026-08-23\nline here\nhttps://rankless.org/game-clues'
 		);
 	});

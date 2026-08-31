@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
 
+import { PATH } from '../src/lib/utils/game-countries';
+
 // Fixture country cards (tests/seed-game.ts) all resolve to Hungary, so the
-// spec can answer correctly or miss on purpose without knowing the shuffled
-// deck order.
+// spec can answer correctly or miss on purpose without knowing the deck order.
 const CORRECT = 'Hungary';
 const LIVES = 3;
 
@@ -10,10 +11,10 @@ async function miss(page: import('@playwright/test').Page) {
 	await page.locator('.option', { hasNotText: CORRECT }).first().click();
 }
 
-test('place-the-name run: a miss costs a life, the run ends when the last one goes', async ({
+test('campusquest run: every answer holds its reveal, a miss costs a life, the last one ends the run', async ({
 	page
 }) => {
-	await page.goto('/game-countries');
+	await page.goto(PATH);
 	await page.click('button:has-text("Play today\'s run")');
 
 	await expect(page.locator('.option')).toHaveCount(4);

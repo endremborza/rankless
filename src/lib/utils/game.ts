@@ -1,4 +1,4 @@
-// Shared plumbing for the games (/game-clues, /game-countries): day identity,
+// Shared plumbing for the games (the clue game, the country game): day identity,
 // streak rule, daily pick, shuffling, flags/names, share text, result logging,
 // and the localStorage round state. Game-specific math lives in game-clues.ts /
 // game-countries.ts.
@@ -56,8 +56,8 @@ export function ccName(cc: string): string {
 	}
 }
 
-export function shareMessage(day: string, line: string, path: string): string {
-	return `Rankless quiz ${day}\n${line}\nhttps://rankless.org${path}`;
+export function shareMessage(brand: string, day: string, line: string, path: string): string {
+	return `${brand} ${day}\n${line}\nhttps://rankless.org${path}`;
 }
 
 export function loadGameState<T>(key: string, fallback: T): T {

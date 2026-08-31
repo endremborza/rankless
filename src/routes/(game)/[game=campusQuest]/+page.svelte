@@ -292,7 +292,7 @@
 	{:else if phase === 'idle'}
 		<div class="start">
 			<div class="title-block">
-				<h1 class="title"><span>Place</span><span>the Name</span></h1>
+				<h1 class="title"><span>Campus</span><span>Quest</span></h1>
 				<div class="ramp-bar title-bar"></div>
 			</div>
 			<p class="tagline">An institution's name can point far from home. Where is it actually?</p>
