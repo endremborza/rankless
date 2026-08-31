@@ -3,8 +3,15 @@
 	import { fly } from 'svelte/transition';
 
 	import type { PageData } from './$types';
+	import CountryStats from '$lib/components/CountryStats.svelte';
 	import GameFrame from '$lib/components/GameFrame.svelte';
-	import type { CountryPlayCard, CountryRunLog } from '$lib/types/game-countries';
+	import type {
+		CountryPlayCard,
+		CountryRunLog,
+		CountryRunResult,
+		DailyRun,
+		DayStanding
+	} from '$lib/types/game-countries';
 	import {
 		ccFlag,
 		ccName,
@@ -15,11 +22,12 @@
 		saveGameState
 	} from '$lib/utils/game';
 	import {
-		ADVANCE_MS,
+		BRAND,
 		LIVES,
 		RUN_SECONDS,
 		livesLeft,
-		runShareText
+		runShareText,
+		verdictLine
 	} from '$lib/utils/game-countries';
 
 	export let data: PageData;
@@ -28,47 +36,40 @@
 	const STORAGE_KEY = 'rankless-game-countries';
 	const RUN_MS = RUN_SECONDS * 1000;
 	const TICK_MS = 100;
+	// Daily history kept in the browser; oldest runs fall off.
+	const MAX_RUNS = 400;
 
 	type StoredState = {
 		streak: number;
-		lastDay: string;
-		lastScore: number;
-		lastOutOf: number;
-		lastMissed: number;
-		lastSwept: boolean;
+		lastStanding: DayStanding | null;
+		runs: DailyRun[];
 	};
-	const EMPTY_STATE: StoredState = {
-		streak: 0,
-		lastDay: '',
-		lastScore: 0,
-		lastOutOf: 0,
-		lastMissed: 0,
-		lastSwept: false
-	};
+	const EMPTY_STATE: StoredState = { streak: 0, lastStanding: null, runs: [] };
 
 	let mounted = false;
 	let mode: 'daily' | 'practice' = 'daily';
-	// `reveal` is a miss held on screen: the clock is stopped and the card's note
-	// stays up until the player continues — into the next card, or (when that
-	// miss ended the run, already logged) into the result screen.
+	// `reveal` holds the answered card on screen — hit or miss — with the clock
+	// stopped and its note up until the player continues: into the next card,
+	// or (when that answer ended the run, already booked) into the result screen.
 	let phase: 'idle' | 'playing' | 'reveal' | 'over' = 'idle';
 	let runDone = false;
 	let deck: CountryPlayCard[] = [];
 	let idx = -1;
 	let picked: string | null = null;
 	let timedOut = false;
-	let swept = false;
 	let score = 0;
 	let outOf = 0;
 	let missed: string[] = [];
 	let streak = 0;
+	let runs: DailyRun[] = [];
+	let standing: DayStanding | null = null;
 	let playedToday = false;
 	let copied = false;
 	let fetching = false;
+	let showStats = false;
 	let msLeft = RUN_MS;
 	let deadline = 0;
 	let timer: ReturnType<typeof setInterval> | null = null;
-	let advancing: ReturnType<typeof setTimeout> | null = null;
 
 	const day = data.day;
 
@@ -77,31 +78,37 @@
 		mounted = true;
 	});
 
-	onDestroy(stopClocks);
+	onDestroy(stopClock);
 
 	// Spread over the defaults so a round stored under an older shape still reads.
 	function readState(): StoredState {
 		return { ...EMPTY_STATE, ...loadGameState(STORAGE_KEY, EMPTY_STATE) };
 	}
 
-	function stopClocks() {
+	function persist() {
+		saveGameState(STORAGE_KEY, { streak, lastStanding: standing, runs } satisfies StoredState);
+	}
+
+	function stopClock() {
 		if (timer) clearInterval(timer);
-		if (advancing) clearTimeout(advancing);
 		timer = null;
-		advancing = null;
 	}
 
 	// Restores the finished daily round from storage; false when today is
-	// still unplayed (the caller decides what phase that means).
+	// still unplayed (the caller decides what phase that means). The daily deck
+	// is the same all day, so the stored miss ids resolve against it.
 	function restoreDaily(): boolean {
 		const stored = readState();
 		streak = stored.streak;
-		if (stored.lastDay !== day) return false;
+		runs = stored.runs;
+		const last = runs[runs.length - 1];
+		if (last?.day !== day) return false;
 		playedToday = true;
-		score = stored.lastScore;
-		outOf = stored.lastOutOf;
-		missed = Array(stored.lastMissed).fill('');
-		swept = stored.lastSwept;
+		deck = data.deck;
+		score = last.score;
+		outOf = last.outOf;
+		missed = last.missedIds;
+		standing = stored.lastStanding;
 		idx = -1;
 		picked = null;
 		timedOut = false;
@@ -120,8 +127,9 @@
 		missed = [];
 		picked = null;
 		timedOut = false;
-		swept = false;
+		standing = null;
 		copied = false;
+		showStats = false;
 		runDone = false;
 		phase = 'playing';
 		startTimer();
@@ -205,40 +213,37 @@
 		startTimer();
 	}
 
-	// Books the run (streak, storage, log) without deciding what is on screen.
+	// Books the run (streak, history, log) without deciding what is on screen.
 	function finishRun() {
-		stopClocks();
-		swept = score + missed.length >= deck.length;
+		stopClock();
 		if (mode === 'daily') {
 			const stored = readState();
+			const last = stored.runs[stored.runs.length - 1];
 			// a scoreless run breaks the streak, like giving up does in the clue game
-			streak = nextStreak(stored.streak, stored.lastDay, day, score === 0);
+			streak = nextStreak(stored.streak, last?.day ?? '', day, score === 0);
 			playedToday = true;
-			saveGameState(STORAGE_KEY, {
-				streak,
-				lastDay: day,
-				lastScore: score,
-				lastOutOf: outOf,
-				lastMissed: missed.length,
-				lastSwept: swept
-			});
+			runs = [...stored.runs, { day, score, outOf, missedIds: missed }].slice(-MAX_RUNS);
+			persist();
 		}
 		logRun();
 	}
 
-	function logRun() {
+	async function logRun() {
 		const payload: CountryRunLog = {
 			mode,
 			day,
 			score,
 			outOf,
-			missedSemIds: missed.filter(Boolean)
+			missedSemIds: missed
 		};
-		postGameLog('/api/game-countries', payload);
+		const res = await postGameLog<CountryRunResult>('/api/game-countries', payload);
+		if (mode !== 'daily' || !res?.standing) return;
+		standing = res.standing;
+		persist();
 	}
 
 	async function copyShare() {
-		copied = await copyShareText(runShareText(day, score, missed.length, swept));
+		copied = await copyShareText(shareText);
 	}
 
 	function nextDailyText(): string {
@@ -259,11 +264,16 @@
 	};
 	$: nameClass = card && card.name.length > 42 ? 'sm' : card && card.name.length > 26 ? 'md' : 'lg';
 	$: headerLabel = mode === 'practice' ? 'Practice run' : `Daily · ${day}`;
+	$: swept = score + missed.length >= outOf;
+	$: missedCards = missed
+		.map((id) => deck.find((c) => c.semId === id))
+		.filter((c): c is CountryPlayCard => c !== undefined);
+	$: shareText = runShareText(day, score, missed.length, swept);
 	$: nextIn = phase === 'over' && mode === 'daily' ? nextDailyText() : '';
 </script>
 
 <svelte:head>
-	<title>Place the Name — Rankless</title>
+	<title>{BRAND} — Rankless</title>
 	<meta
 		name="description"
 		content="Institution names can point far from home. A daily speed round: four flags, {RUN_SECONDS} seconds a name, {LIVES} lives."
@@ -347,28 +357,39 @@
 							<span class="sheet-uni">{card.name}</span>
 						</div>
 					</div>
-					<p class="note">{timedOut ? '⏱️ Time ran out. ' : ''}{card.note}</p>
+					<p class="note">{card.note}</p>
 					<button class="g-btn primary" on:click={continueFromReveal}>
-						{runDone ? 'See result' : `Keep going · ${'♥'.repeat(livesLeft(missed.length))}`}
+						{runDone ? 'See result' : `Next · ${'♥'.repeat(livesLeft(missed.length))}`}
 					</button>
 				</div>
 			{/if}
 		{/if}
 	{:else}
 		<div class="results">
-			<span class="ask">{mode === 'daily' ? "Today's run" : 'Practice run'}</span>
+			<span class="ask">{mode === 'daily' ? `Today's run · ${day}` : 'Practice run'}</span>
+			<p class="verdict">{verdictLine(score, missed.length, outOf)}</p>
 			<div class="score-row">
 				<span class="score-big">{score}</span><span class="score-word">placed</span>
 			</div>
 			<span class="hearts big-hearts">{hearts}</span>
-			{#if swept}
-				<p class="swept">
-					{missed.length === 0 ? '🏆 A perfect run.' : '🏁 Cleared the whole deck.'}
-				</p>
+			{#if missedCards.length}
+				<ul class="misses">
+					{#each missedCards as c, i (i)}
+						<li>
+							<span class="miss-name">{c.name}</span>
+							<span class="miss-where">{ccFlag(c.cc)} {ccName(c.cc)}</span>
+						</li>
+					{/each}
+				</ul>
 			{/if}
-			<div class="ramp-bar divider"></div>
 			{#if mode === 'daily'}
-				<div class="share-box">{runShareText(day, score, missed.length, swept)}</div>
+				<div class="ramp-bar divider"></div>
+				{#if standing}
+					<span class="standing">#{standing.rank} of {standing.players} today</span>
+				{/if}
+				<button class="stats-line" on:click={() => (showStats = true)}>
+					Played {runs.length} · Best {Math.max(0, ...runs.map((r) => r.score))} · Stats ›
+				</button>
 			{/if}
 		</div>
 		<div class="bottom-stack">
@@ -376,6 +397,7 @@
 				<button class="g-btn primary" on:click={copyShare}
 					>{copied ? 'Copied!' : 'Share result'}</button
 				>
+				<div class="share-preview">{shareText.split('\n')[1]}</div>
 				<button class="g-btn ghost" on:click={startPractice} disabled={fetching}
 					>Practice run</button
 				>
@@ -740,9 +762,16 @@
 		flex-direction: column;
 		justify-content: center;
 		align-items: center;
-		gap: 18px;
+		gap: 12px;
 		text-align: center;
 		min-height: 0;
+	}
+
+	.verdict {
+		margin: 0;
+		font-size: var(--text-md);
+		font-weight: 700;
+		text-wrap: balance;
 	}
 
 	.score-row {
@@ -752,7 +781,7 @@
 	}
 
 	.score-big {
-		font-size: clamp(80px, 30vw, 120px);
+		font-size: clamp(64px, 24vw, 96px);
 		line-height: 1;
 		font-weight: 700;
 	}
@@ -767,8 +796,35 @@
 		letter-spacing: 6px;
 	}
 
-	.swept {
+	.misses {
+		list-style: none;
 		margin: 0;
+		padding: 0;
+		width: 100%;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		font-size: 13px;
+	}
+
+	.misses li {
+		display: flex;
+		justify-content: space-between;
+		gap: 10px;
+		text-align: left;
+	}
+
+	.miss-name {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--color-err);
+	}
+
+	.miss-where {
+		flex-shrink: 0;
+		font-weight: 700;
 	}
 
 	.divider {
@@ -777,16 +833,24 @@
 		max-width: 240px;
 	}
 
-	.share-box {
-		width: 100%;
-		border: 1px solid var(--border-light);
-		background: var(--text-bg-2);
-		padding: 14px 16px;
-		text-align: left;
+	.standing {
+		font-weight: 700;
+	}
+
+	.stats-line {
+		border: none;
+		background: none;
+		padding: 4px 0;
+		font-family: inherit;
 		font-size: var(--text-sm);
-		line-height: 1.6;
 		color: var(--accent-text);
-		white-space: pre-line;
+		cursor: pointer;
+	}
+
+	.share-preview {
+		font-size: var(--text-xs);
+		color: var(--game-sub);
+		text-align: center;
 		overflow-wrap: anywhere;
 	}
 </style>

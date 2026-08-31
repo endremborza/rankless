@@ -44,12 +44,40 @@ describe('livesLeft', () => {
 	});
 });
 
+describe('verdictLine', () => {
+	it('names the card that ended the run, or the sweep', () => {
+		expect(verdictLine(7, 3, 30)).toBe('Run over at card 10 of 30');
+		expect(verdictLine(30, 0, 30)).toBe('Perfect run — all 30 placed');
+		expect(verdictLine(28, 2, 30)).toBe('Cleared the deck — 30 names');
+	});
+});
+
+describe('runStats', () => {
+	it('summarizes the daily history into tiles and a score histogram', () => {
+		const runs = [3, 12, 30, 0].map((score, i) => ({
+			day: `2026-08-0${i + 1}`,
+			score,
+			outOf: 30,
+			missedIds: []
+		}));
+		const s = runStats(runs);
+		expect(s).toMatchObject({ played: 4, best: 30, avg: 11.3 });
+		expect(s.hist).toHaveLength(HIST_BUCKETS.length);
+		expect(s.hist.reduce((a, b) => a + b)).toBe(4);
+		expect(s.hist[0]).toBe(2);
+		expect(s.hist[s.hist.length - 1]).toBe(1);
+		expect(HIST_BUCKETS[HIST_BUCKETS.length - 1][1]).toBe(DECK_CAP);
+		expect(runStats([])).toEqual({ played: 0, best: 0, avg: 0, hist: s.hist.map(() => 0) });
+	});
+});
+
 describe('runShareText', () => {
 	it('shows the score, the lives spent, and a cleared deck', () => {
 		const out = runShareText('2026-08-23', 12, 2, false);
+		expect(out.startsWith(`${BRAND} 2026-08-23`)).toBe(true);
 		expect(out).toContain('12 placed');
 		expect(out).toContain('❤️'.repeat(LIVES - 2) + '🖤'.repeat(2));
-		expect(out).toContain('https://rankless.org/game-countries');
+		expect(out).toContain(`https://rankless.org${PATH}`);
 
 		expect(runShareText('2026-08-23', 30, 0, true)).toContain('cleared the deck');
 		expect(runShareText('2026-08-23', 30, 0, true)).toContain('❤️'.repeat(LIVES));
