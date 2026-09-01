@@ -89,8 +89,6 @@ def write_events(df: pl.DataFrame) -> dict[str, int]:
     """Append events to per-day partitions, deduped. Returns net-new counts per date."""
     if df.is_empty():
         return {}
-    if "route_template" not in df.columns:
-        df = annotate_routes(df)
     df = df.with_columns(
         pl.col("t").dt.convert_time_zone("UTC").dt.date().alias("__date")
     )

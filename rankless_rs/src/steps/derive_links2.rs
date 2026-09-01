@@ -132,7 +132,7 @@ make_interface_struct!(CDBackends,
     wsources -> WorkSources,
     winsts -> WorkInstitutions,
     w_aships -> WorkAnyAuthorships,
-    fship_insts -> FilteredAuthorshipInstitutions;
+    fship_insts -> FilteredAuthorshipInstitutions;;
 );
 
 trait IRelAdder: NumberedEntity {

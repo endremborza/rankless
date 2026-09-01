@@ -393,12 +393,11 @@ class Transper:
 
     def install_fonts(self):
         # Register the vendored brand fonts (static/fonts/) into the deploy user's fontconfig so the
-        # share-card rasterizer (rsvg-convert) renders them. No-op on a checkout without the fonts.
+        # share-card rasterizer (rsvg-convert) renders them.
         font_dir = f"{self.inst_home}/.local/share/fonts/rankless"
         self.ssh.run(
-            f"if ls {self.deploy_dir}/static/fonts/*.ttf >/dev/null 2>&1; then "
             f"mkdir -p {font_dir} && cp {self.deploy_dir}/static/fonts/*.ttf {font_dir}/ && "
-            f"fc-cache -f {font_dir}; fi"
+            f"fc-cache -f {font_dir}"
         )
 
     def setup(self, backend=True):

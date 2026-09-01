@@ -80,9 +80,8 @@
 
 	onDestroy(stopClock);
 
-	// Spread over the defaults so a round stored under an older shape still reads.
 	function readState(): StoredState {
-		return { ...EMPTY_STATE, ...loadGameState(STORAGE_KEY, EMPTY_STATE) };
+		return loadGameState(STORAGE_KEY, EMPTY_STATE);
 	}
 
 	function persist() {

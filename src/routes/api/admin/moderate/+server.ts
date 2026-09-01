@@ -11,8 +11,7 @@ export async function POST({ locals, request }: RequestEvent) {
 
 	const body = await request.json();
 	const { decision } = body;
-	// Bulk shape { event_ids } with the pre-bulk { event_id } form still accepted.
-	const ids: unknown = body.event_ids ?? (body.event_id !== undefined ? [body.event_id] : null);
+	const ids: unknown = body.event_ids;
 	if (
 		!Array.isArray(ids) ||
 		ids.length === 0 ||

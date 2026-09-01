@@ -105,11 +105,7 @@ macro_rules! add_parent_parsed_id_traits {
 
 #[macro_export]
 macro_rules! make_interface_struct {
-    // 4-category compat: delegates to 5-category with empty loc group
-    ($IT:ident, $($e_key:ident > $e_t:ty),*;$($f_key:ident => $f_t:ty),*; $($v_key:ident -> $v_t:ty),*; $($m_key:ident >> $m_t:ty),*) => {
-        $crate::make_interface_struct!($IT, $($e_key > $e_t),*; $($f_key => $f_t),*; $($v_key -> $v_t),*;; $($m_key >> $m_t),*);
-    };
-    // 5-category canonical (e, f, v, loc, m)
+    // groups: e (work-keyed), f (fixed), v (var), loc (locators), m (maps)
     ($IT:ident, $($e_key:ident > $e_t:ty),*;$($f_key:ident => $f_t:ty),*; $($v_key:ident -> $v_t:ty),*; $($loc_key:ident loc $loc_t:ty),*; $($m_key:ident >> $m_t:ty),*) => {
         pub struct $IT {
             $(pub $e_key: BeS<QuickAttPair, MAA<$e_t, MainWorkMarker>>,)*
