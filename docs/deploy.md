@@ -225,24 +225,20 @@ bigs chunk) — parts are deleted after each read.
 
 ## ship-alpha
 
-Guards first: no uncommitted artifact files, `HEAD == origin/<branch>`. Then
-`new_large_alpha` (EC2 instance, full setup from nothing) which includes the user-DB
-handoff — live → local → new box, all user tables, unexpired auth sessions included
-(see [mcp-server.md](mcp-server.md) → Moving sessions between boxes) — and an
-observability bootstrap: a detached `ops` tmux session (btop + user-unit journal
-tail) so later logins just `tmux attach -t ops`. Ends with smoke checks: frontend
-root, `/v1/specs`, a slice, one tree response, and the per-FE-worker memory table.
+Guards first: no uncommitted artifact files, `HEAD == origin/<branch>`, and the deploy host's user DB holds users (a dev checkout carries only the mega_test fixture — shipping from it would seed production with fixture rows). Then `new_large_alpha` (EC2 instance, full setup from nothing) which includes the user-DB handoff — live → local → new box, all user tables, unexpired auth sessions included (see [mcp-server.md](mcp-server.md) → Moving sessions between boxes) — followed by the schema catch-up (below), plus an observability bootstrap: the `rankless-status.service` unit (the `/status` producer on :5566 that `live_monitoring.py` polls) and a detached `ops` tmux session (btop + user-unit journal tail) so later logins just `tmux attach -t ops`. The data root reaches the box through the same push definition the fleet uses (`manifest.push_data`: a `--delete` mirror of everything the digest covers — `user-ledger/` and the `stamp` included — then the tree cache seeded additively), so a box built by either path carries a matching stamp. Ends with smoke checks: frontend root, `/v1/specs`, a slice, one tree response, the backend port owned by `rankless-server` itself (an `ssh -R` tunnel from another box would answer `/v1/specs` with that box's version — the check reads `ss -lntp`, not the HTTP answer), and the per-FE-worker memory table.
 
 ## promote
 
-Gated on the release report: the committed report asset's `run_id` must match
-alpha's served `/v1/specs.version` before anything flips — the report the new
-live site shows is mechanically the release it serves. Then
+Refuses on a host whose user DB holds no users (same guard as ship-alpha) and on an alpha whose backend port is not owned by its own `rankless-server` (same check as the smoke). Then gated on the release report: the committed report asset's `run_id` must match alpha's served `/v1/specs.version` before anything flips — the report the new live site shows is mechanically the release it serves. Then
 `promote_alpha_to_live`: pre-flip DB catch-up (everything users did on live while
 alpha baked, merged with claims made on alpha during validation), frontend re-built
 for the live domain, nginx + EIP flip, cert refresh, then a post-flip final DB merge
 from the old live box (it keeps running on a fresh ephemeral IP as a safety net).
 Ends with live smoke checks and a reminder: once satisfied, `make kill_dangling`.
+
+## Code deploys (`sync_fe_to_{alpha,live}`, `sync_data_to_{alpha,live}`)
+
+A frontend deploy (`Transper.update_fe`) pulls the branch, then runs every script under `pyscripts/migration_scripts/` with the box's own venv before the build — the schema is brought up to what the new code expects before that code serves a request. The scripts are idempotent, so a deploy with nothing to catch up is a few no-op lines; a box without a user DB yet (fresh alpha before the handoff) skips the step, and `new_*_alpha` re-runs it once the handoff has landed the DB. Then blue/green: build into the staging slot, restart + probe its workers, point nginx at it, flush the FE cache, stop the other slot. A data deploy (`update_data`) pulls, rebuilds the backend, pushes the data root with `manifest.push_data` and restarts the backend.
 
 ## Backups
 

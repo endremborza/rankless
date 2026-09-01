@@ -131,6 +131,20 @@ def transfer(target_db: str, incoming_db: str, mode: str) -> None:
         con.close()
 
 
+def user_count(db: str) -> int:
+    """Rows in `users`; 0 for a missing file or a DB without the table."""
+    try:
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    except sqlite3.OperationalError:
+        return 0
+    try:
+        return con.execute("SELECT count(*) FROM users").fetchone()[0]
+    except sqlite3.OperationalError:
+        return 0
+    finally:
+        con.close()
+
+
 def backup(
     *, source: str = "live", dest: str = "data/backups", keep_days: int = 7
 ) -> None:

@@ -80,6 +80,7 @@ SMOKE_BOOT_S = 300
 SMOKE_POLL_S = 10
 LARGE_FE_PROCS = 12
 DEFAULT_RS_PORT = 3038
+BACKEND_PROCESS = "rankless-server"
 
 # Systemd unit shapes live in deploy/ (rendered by pyscripts/services.py); this
 # module only feeds them remote-instance values and ships them over SSH.
@@ -1394,6 +1395,7 @@ def ship_alpha() -> None:
     from pyscripts.recalc import assert_released
 
     assert_released()
+    _assert_deploy_host_holds_users()
     new_large_alpha()
     smoke(live=False)
     print("alpha up — validate by hand, then `make promote`")
@@ -1403,6 +1405,8 @@ def promote() -> None:
     """Flip alpha to live + smoke checks (gated on the release report)."""
     from pyscripts.release_report import assert_report_documents
 
+    _assert_deploy_host_holds_users()
+    get_running_tpr(False).assert_backend_owns_port()
     specs = _check_json(f"https://{ALPHA_BACKEND}/v1/specs", "alpha specs")
     assert_report_documents(specs.get("version", ""))
     promote_alpha_to_live()
@@ -1432,7 +1436,9 @@ def smoke(live: bool) -> None:
     )
     if not tree:
         raise SystemExit("smoke: tree response empty")
-    print(get_running_tpr(live).get_fe_memory_df().to_string())
+    tpr = get_running_tpr(live)
+    tpr.assert_backend_owns_port()
+    print(tpr.get_fe_memory_df().to_string())
     print(f"smoke checks passed for {fe}")
 
 
@@ -1455,6 +1461,31 @@ def _check_ok(url: str, desc: str, wait_s: int = 0) -> requests.Response:
 
 def _check_json(url: str, desc: str, wait_s: int = 0):
     return _check_ok(url, desc, wait_s).json()
+
+
+def listeners(ss_output: str, port: int) -> list[tuple[str, str]]:
+    """(local address, owning process) per listening socket on `port`, from
+    `ss -lntpH` output; the process is '' when ss shows no owner."""
+    rows = []
+    for line in ss_output.splitlines():
+        cols = line.split()
+        if len(cols) < 4 or not cols[3].endswith(f":{port}"):
+            continue
+        owner = re.search(r'users:\(\("([^"]+)"', line)
+        rows.append((cols[3], owner.group(1) if owner else ""))
+    return rows
+
+
+def _assert_deploy_host_holds_users():
+    """ship/promote push this checkout's user DB toward production; only the host
+    holding the real decisions has users in it (a dev checkout carries the
+    mega_test fixture: events, no users)."""
+    db = LOCAL_REPO / paths.DB_REL
+    if userdb.user_count(str(db)) == 0:
+        raise SystemExit(
+            f"{db} holds no users — run this on the host that holds the user DB "
+            "(the one that drove the release), not a dev checkout"
+        )
 
 
 def primitives() -> list[str]:
