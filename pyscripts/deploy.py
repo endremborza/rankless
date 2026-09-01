@@ -465,6 +465,13 @@ class Transper:
             man.enable()
             man.restart()
 
+    def setup_status_service(self):
+        self.sync_service(services.render_status(self.deploy_dir), services.STATUS_UNIT)
+        self.reload_systemctl()
+        man = ServiceMan(services.STATUS_UNIT, self.ssh)
+        man.enable()
+        man.restart()
+
     def setup_fe_services(self, inst_domain: str, procs: int = 2):
         confs = [
             FrontendServiceConf(sport, procs, suff)
@@ -1107,6 +1114,14 @@ def sync_nginx_to_live():
     _sync_nginx(True)
 
 
+def setup_status_alpha():
+    get_running_tpr(False).setup_status_service()
+
+
+def setup_status_live():
+    get_running_tpr(True).setup_status_service()
+
+
 def merge_db_from_live():
     get_running_tpr(True).merge_db_from()
 
@@ -1146,9 +1161,10 @@ def full_setup_from_nothing(
     tpr.validate(backend=backend)
     tpr.setup_fe_services(domain, procs=procn)
     tpr.setup_code(branch)
-    tpr.update_fe()
     tpr.sync_py()
+    tpr.update_fe()
     tpr.setup_mcp_services("local" if backend else "live")
+    tpr.setup_status_service()
     if backend:
         tpr.build_rs()
         tpr.sync_data_to()

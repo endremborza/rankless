@@ -10,8 +10,8 @@ the same templates for cloud instances over SSH.
 
 Profiles = which services a box runs:
 - dev:         backend + mcp-server + mcp-worker
-- small-alpha: frontend (blue+green) + mcp-server + mcp-worker
-- live:        frontend + backend + mcp-server + mcp-worker
+- small-alpha: frontend (blue+green) + mcp-server + mcp-worker + status
+- live:        frontend + backend + mcp-server + mcp-worker + status
 
 The MCP server's backend is a parameter (`--mcp-backend local|alpha|live|<url>`),
 defaulting per profile; re-run with a different value to re-point it.
@@ -35,6 +35,7 @@ MCP_SERVER_UNIT = "rankless-mcp-server.service"
 MCP_WORKER_UNIT = "rankless-mcp-worker.service"
 BACKUP_SERVICE_UNIT = "rankless-backup.service"
 BACKUP_TIMER_UNIT = "rankless-backup.timer"
+STATUS_UNIT = "rankless-status.service"
 FE_UNIT_FRAME = "rankless-frontend-{}@.service"
 FE_BUILD_NAMES = ["blue", "green"]
 
@@ -49,8 +50,8 @@ DEFAULT_WORKER_RUNNER = "claude-cli"
 
 PROFILES = {
     "dev": ("backend", "mcp-server", "mcp-worker"),
-    "small-alpha": ("frontend", "mcp-server", "mcp-worker"),
-    "live": ("frontend", "backend", "mcp-server", "mcp-worker"),
+    "small-alpha": ("frontend", "mcp-server", "mcp-worker", "status"),
+    "live": ("frontend", "backend", "mcp-server", "mcp-worker", "status"),
     "worker": ("backend",),  # cache-warm fleet box: backend unit only
 }
 # Where the MCP server points by default: a dev box mines real data from the
@@ -155,6 +156,10 @@ def render_mcp_worker(
     )
 
 
+def render_status(repo_root: str) -> str:
+    return render(STATUS_UNIT, repo_root=repo_root)
+
+
 def render_nginx_mcp(port: int = MCP_PORT) -> str:
     return render("nginx-mcp-location.conf", mcp_port=port)
 
@@ -244,6 +249,8 @@ def _render_units(args: argparse.Namespace) -> dict[str, str]:
         units[MCP_WORKER_UNIT] = render_mcp_worker(
             repo, python, args.worker_model, args.worker_runner
         )
+    if "status" in wanted:
+        units[STATUS_UNIT] = render_status(repo)
     if args.backup_source:
         units[BACKUP_SERVICE_UNIT] = render(
             BACKUP_SERVICE_UNIT,

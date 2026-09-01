@@ -244,7 +244,7 @@ make setup-services ARGS="--profile dev --mcp-backend local"    # re-point the M
 ```
 
 Profiles pick the service set: `dev` = backend + mcp-server + mcp-worker, `small-alpha` =
-frontend (blue+green) + mcp-server + mcp-worker, `live` = all four. The MCP server's backend
+frontend (blue+green) + mcp-server + mcp-worker + status, `live` = all five. The MCP server's backend
 is a parameter (`--mcp-backend local|alpha|live|<url>`) with per-profile defaults (dev → alpha
 API, small-alpha → live API, live → local backend). Cloud instances get the same templates via
 `pyscripts/deploy.py` (`Transper.setup_mcp_services`, called from `full_setup_from_nothing`),
