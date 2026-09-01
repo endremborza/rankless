@@ -27,7 +27,6 @@ SERIVCE_DIR = ".config/systemd/user"
 BUN_PATH = "/.bun/bin/bun"
 SSL_ETC_DIR = "/etc/letsencrypt/live"
 LOCAL_SSL_TAR = "ssl_dir.tar.gz"
-AMI_IMG_CSV = "ami-imgs.csv"
 
 MAIN_DOMAIN = "rankless.org"
 
@@ -70,7 +69,6 @@ ORCID_VARS = {
     for k in ["ORCID_CLIENT_ID", "ORCID_CLIENT_SECRET", "ADMIN_ORCIDS"]
 }
 
-BIG16 = "c6a.4xlarge"
 BIG16 = "c6a.8xlarge"
 SMALL = "c6a.large"
 
@@ -1103,14 +1101,6 @@ def sync_nginx_to_live():
     _sync_nginx(True)
 
 
-def setup_status_alpha():
-    get_running_tpr(False).setup_status_service()
-
-
-def setup_status_live():
-    get_running_tpr(True).setup_status_service()
-
-
 def merge_db_from_live():
     get_running_tpr(True).merge_db_from()
 
@@ -1227,46 +1217,6 @@ def _new_alpha(storage, itype, fe_procn, backend):
     return new_tpr
 
 
-def new_large_image():
-    v = subprocess.check_output(["git", "tag", "--points-at", "HEAD"]).decode().strip()
-    vns = _parse_v(v)
-    inst = get_new_inst(LARGE_STORAGE_GB, LARGE_INSTANCE_TYPE)
-    tpr = get_tpr(inst)
-    full_setup_from_nothing(tpr, LIVE_DOMAIN, LARGE_FE_PROCS)
-    inst.stop()
-    inst.wait_until_stopped()
-    image = inst.create_image(
-        Name=f"Rankless {v}",
-        Description=f"{v} node, bun, rust and services",
-    )
-    inst.terminate()
-    pd.read_csv(AMI_IMG_CSV).pipe(
-        lambda df: pd.concat(
-            [df, pd.DataFrame([[*vns, image.id]], columns=df.columns)],
-            ignore_index=True,
-        )
-    ).drop_duplicates().to_csv(AMI_IMG_CSV, index=False)
-    return image.id
-
-
-def horizontal_instances(n):
-    ips = []
-    for inst in ec2().create_instances(  # pyright: ignore[reportAttributeAccessIssue]
-        ImageId=_last_img(),
-        InstanceType=LARGE_INSTANCE_TYPE,
-        KeyName=key_name(),
-        MinCount=n,
-        MaxCount=n,
-    ):
-        inst.wait_until_running()
-        inst.load()
-        tpr = get_tpr(inst)
-        tpr.update_fe()
-        tpr.be_service.start()
-        ips.append(inst.public_ip_address)
-    return ips
-
-
 def setup_local_test():
     full_setup_from_nothing(_local_tpr(), ALPHA_DOMAIN, 3, True)
 
@@ -1355,15 +1305,6 @@ def tryfloat(s):
 
 def _local_tpr():
     return Transper(SSHrer("127.0.0.1", "ubuntu", reset=True, port=2223))
-
-
-def _last_img():
-    return (
-        pd.read_csv(AMI_IMG_CSV)
-        .pipe(lambda df: df.set_index([*df.columns[:3]]))
-        .sort_index()
-        .iloc[-1, 0]
-    )
 
 
 def _last_vns():

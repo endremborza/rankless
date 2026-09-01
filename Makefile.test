@@ -1,16 +1,15 @@
-# Testing, coverage & profiling targets — split out of the main Makefile to keep
-# it readable. Included from ./Makefile, so it shares that file's variables
-# (.env, OA_ROOT, CURDIR, …) and `check` stays the main file's default goal.
+# Testing, coverage & profiling targets, included from ./Makefile: it shares that
+# file's variables (.env, OA_ROOT, CURDIR, …) and `check` stays the main file's
+# default goal.
 #
-#   Suites      test (= test-rs + test-js), test-rs, test-js, big-test,
-#               sanity-check, test-dev-env
+#   Suites      test (= test-rs + test-js), test-rs, test-js, big-test, test-dev-env
 #   Coverage    coverage
 #   Profiling   profile, heaptrack — built with the `profiling` Cargo profile
 #               (release opt + debug symbols, LTO off; [profile.profiling] in
 #               Cargo.toml), so their binaries land under target/profiling/
 #   Cleanup     clean-profile
 
-.PHONY: test test-rs test-js big-test sanity-check test-dev-env mega_test coverage profile heaptrack clean-profile
+.PHONY: test test-rs test-js big-test test-dev-env mega_test coverage profile heaptrack clean-profile
 
 # --- Suites -------------------------------------------------------------------
 
@@ -59,9 +58,6 @@ explore:
 	uv run -m pyscripts.explore $(if $(PATHS),--paths $(PATHS)) $(if $(MODEL),--model $(MODEL))
 
 # Backwards-compatible alias: the bugs path is the original sanity check.
-sanity-check:
-	$(MAKE) explore PATHS=bugs
-
 # End-to-end test of the bootstrap flow inside a clean Ubuntu container.
 # Requires `nano-snapshot.tar.zst` reachable from the container — by default
 # the entrypoint hits http://127.0.0.1:8000/nano-snapshot.tar.zst via
