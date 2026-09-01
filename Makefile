@@ -106,7 +106,7 @@ filter: export_user_ledger clean-filters clean-cache
 run-server:
 	cargo run --release -p rankless-server -- $(OA_ROOT) 
 
-extend_csvs lib_data_generation homepage_showcase live_monitoring reporting sitemap_validation survey_result_export log_parsing nobel export_user_ledger:
+extend_csvs lib_data_generation homepage_showcase live_monitoring reporting sitemap_validation survey_result_export nobel export_user_ledger:
 	uv run -m pyscripts.$@
 
 # Scrub all report history (local + gh-pages) before promoting a new live instance.

@@ -10,7 +10,7 @@ the validator links to click through. Optionally runs the live Facebook scrape A
     uv run -m pyscripts.sharecard_test <url> --fb-token <token> # live FB scrape
 
 Exits non-zero if any check FAILs, so it doubles as a pre-launch gate.
-See .cril/writeups/sharecard-render-test.md.
+See docs/sharecard-render-test.md.
 """
 
 from __future__ import annotations

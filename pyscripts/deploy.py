@@ -1208,8 +1208,7 @@ def _handoff_db_to(target_tpr: Transper, pull_warn_only: bool = False):
                 raise
             print(
                 f"WARNING: live DB sync failed ({e}); continuing with the local DB. "
-                "Sync it manually with local-moks/sync-live-db.sh, "
-                "then merge_db_to_alpha()."
+                "Retry with merge_db_from_live, then merge_db_to_alpha."
             )
     target_tpr.merge_db_to()
 

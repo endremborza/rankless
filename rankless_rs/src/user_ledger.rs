@@ -247,11 +247,7 @@ impl UserLedger {
             if author_filter.contains(&root) {
                 applied.push(key.clone());
             } else {
-                eprintln!(
-                    "user_ledger: event {key} skipped — author oa_id {root} not in dataset. \
-                     If this ID was recently deprecated by OpenAlex, re-implement merged_ids \
-                     redirect support (see docs/todo-backend.md, ledger deferred follow-ups)."
-                );
+                eprintln!("user_ledger: event {key} skipped — author oa_id {root} not in dataset.");
                 skipped.push(SkippedEvent {
                     key: key.clone(),
                     reason: SkipReason::OaIdNotInDataset,
@@ -263,11 +259,7 @@ impl UserLedger {
             if work_filter.contains(&root) {
                 applied.push(key.clone());
             } else {
-                eprintln!(
-                    "user_ledger: event {key} skipped — work oa_id {root} not in dataset. \
-                     If this ID was recently deprecated by OpenAlex, re-implement merged_ids \
-                     redirect support (see docs/todo-backend.md, ledger deferred follow-ups)."
-                );
+                eprintln!("user_ledger: event {key} skipped — work oa_id {root} not in dataset.");
                 skipped.push(SkippedEvent {
                     key: key.clone(),
                     reason: SkipReason::OaIdNotInDataset,

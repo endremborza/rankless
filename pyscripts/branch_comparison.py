@@ -12,7 +12,7 @@ Each comparison: each ref is checked out detached into /tmp/rankless-perf, built
 imaged (cached by sha), then run sequentially (one container at a time, so timing
 is contention-free) against the same sampled query set. Queries use
 ``cacheable=false`` + no ``year`` over a read-only data mount, so every request is
-a full cold recompute. See docs/perf-benchmark-framework.md.
+a full cold recompute. See docs/benchmarking.md.
 """
 
 import dataclasses

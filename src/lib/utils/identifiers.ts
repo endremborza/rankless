@@ -3,7 +3,7 @@
 // stored form is the canonical one and downstream matching is plain equality.
 //
 // Cross-language mirrors — keep the three in step:
-//   pyscripts/ledger_ids.py         (review lane, migrations)
+//   pyscripts/ledger_ids.py         (review lane)
 //   rankless_rs/src/user_ledger.rs  (pipeline: ledger claims ↔ works-CSV doi column)
 
 export function canonicalDoi(doi: string): string {
