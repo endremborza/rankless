@@ -15,7 +15,7 @@ import datetime as dt
 import json
 import os
 import shlex
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from pyscripts.fleet.remote import Host
@@ -39,6 +39,16 @@ DIGEST_LEN = 12
 
 def rankless_env(env: Mapping[str, str] = os.environ) -> str:
     return env.get("RANKLESS_ENV", "full")
+
+
+def push_data(rsync: Callable[..., None], local_root: str, remote_root: str) -> None:
+    """The one definition of a data-root push, shared by the fleet and the box
+    deploy: mirror every file the digest covers (`--delete`; the per-box dirs are
+    excluded, and rsync leaves excluded paths alone on the receiver), then seed the
+    tree cache additively — a box keeps whatever it has already warmed.
+    `rsync(src, dst, *, excludes=(), delete=False)` is the caller's transport."""
+    rsync(f"{local_root}/", f"{remote_root}/", excludes=PUSH_EXCLUDES, delete=True)
+    rsync(f"{local_root}/cache/", f"{remote_root}/cache/")
 
 
 def digest(host: Host, root: str) -> str:

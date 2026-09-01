@@ -23,6 +23,7 @@ whole flow is resumable by rerunning it. Run from tmux on the primary data box.
 import shlex
 import threading
 import time
+from functools import partial
 
 from pyscripts import gitutil, services
 from pyscripts.fleet import manifest, preflight
@@ -190,16 +191,9 @@ def _invalidate_stale_cache(w: Worker, host, primary: Primary) -> None:
 
 def _push_data(w: Worker, local_root: str) -> None:
     log(w.name, "pushing data + seeding cache")
-    # --delete makes the worker root a true mirror (mod the excluded per-box
-    # dirs, which rsync protects) — the manifest check depends on it.
-    rsync(
-        f"{local_root}/",
-        f"{w.host}:{w.data_root}/",
-        w.name,
-        excludes=manifest.PUSH_EXCLUDES,
-        delete=True,
+    manifest.push_data(
+        partial(rsync, prefix=w.name), local_root, f"{w.host}:{w.data_root}"
     )
-    rsync(f"{local_root}/cache/", f"{w.host}:{w.data_root}/cache/", w.name)
 
 
 def _sync_back(w: Worker, local_root: str) -> None:

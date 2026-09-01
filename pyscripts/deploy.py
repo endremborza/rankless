@@ -17,9 +17,9 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 from protocli import Dispatcher
-from tqdm import tqdm
 
-from pyscripts import gitutil, paths, services, userdb
+from pyscripts import gitutil, migration_scripts, paths, services, userdb
+from pyscripts.fleet import manifest
 
 load_dotenv()
 
@@ -97,20 +97,6 @@ local_tmp_home = Path("/tmp/rls-services")
 local_service_path = local_tmp_home / SERIVCE_DIR
 local_service_path.mkdir(exist_ok=True, parents=True)
 
-local_data_root = os.environ[OA_ROOT_VAR]
-data_subdirs = [
-    "a1_entity_mapping",
-    "a2_init_atts",
-    "derive_links1",
-    "derive_links2",
-    "derive_links3",
-    "derive_links4",
-    "derive_links5",
-    "cache",
-]
-ignores = [
-    "source-pairs-by-path",
-]
 
 # MCP + ledger transfer (sync/merge_db_*): curated tables move via pyscripts.userdb,
 # the artifact dirs via rsync. Same relative layout (paths.py) on both ends.
@@ -743,8 +729,7 @@ upstream {BE_UPSTREAM} {{
         self._nginx_run(["reload", "status"])
 
     def sync_data_to(self):
-        for subdir in tqdm(data_subdirs):
-            self.ssh.rsync(f"{local_data_root}/{subdir}", self.data_dir, ignores)
+        manifest.push_data(self._rsync_dir, os.environ[OA_ROOT_VAR], self.data_dir)
 
     def merge_db_to(self):
         self._push_db(mirror=False)
@@ -1028,6 +1013,9 @@ upstream {BE_UPSTREAM} {{
 
     def _depcomm(self, comm: str):
         self.ssh.run(f"cd {self.deploy_dir};source ~/.profile;{comm}")
+
+    def _rsync_dir(self, src: str, dst: str, excludes=(), delete: bool = False):
+        self.ssh.rsync(src, dst.rstrip("/"), list(excludes), delete=delete)
 
     def run_userdb(self, args: str):
         self._depcomm(f"{self.venv_python} -m pyscripts userdb {args}")
