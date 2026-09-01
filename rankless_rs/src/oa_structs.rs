@@ -100,7 +100,7 @@ pub struct IdSet {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CountByYear {
     pub parent_id: Option<String>,
-    year: i32, // data errors ins 2026-02-25 release
+    year: i32, // source years can be malformed (negative, out of range)
     works_count: Option<u32>,
     cited_by_count: u32,
 }

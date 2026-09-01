@@ -96,7 +96,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		a.online !== b.online ? (a.online ? -1 : 1) : b.last_seen.localeCompare(a.last_seen)
 	);
 
-	// Ledger moderation lives at /admin/ledger now; surface only the pending count here.
+	// Ledger moderation lives at /admin/ledger; surface only the pending count here.
 	return {
 		users: userRows,
 		names: Object.fromEntries(

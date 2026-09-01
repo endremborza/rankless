@@ -1,4 +1,4 @@
-<!-- Hub for the games; also keeps pre-split /game share links working. -->
+<!-- Hub for the games. -->
 <script lang="ts">
 	import GameShell from '$lib/components/GameShell.svelte';
 	import { BRAND, PATH } from '$lib/utils/game-countries';

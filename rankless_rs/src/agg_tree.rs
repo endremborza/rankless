@@ -11,10 +11,9 @@ pub struct AggTreeBase<IdType, Node, Child> {
 }
 
 // Records are only ever pushed in bulk and then fully drained in ascending order, so this is a
-// sort, not a heap. A lazily `sort_unstable`'d `Vec` replaces the old `BinaryHeap<Reverse<T>>`
-// heapsort: ~12x faster at scale, since draining a large binary heap is cache-hostile (see
-// docs/tree-perf-profiling.md). Push-after-drain is supported (re-sorts on the next `pop`) but
-// never happens in practice — the fill/drain phases are disjoint.
+// sort, not a heap: a lazily `sort_unstable`'d `Vec`, since draining a large binary heap is
+// cache-hostile. Push-after-drain is supported (re-sorts on the next `pop`) but never happens in
+// practice — the fill/drain phases are disjoint.
 pub struct MinHeap<T> {
     data: Vec<T>,
     sorted: bool,

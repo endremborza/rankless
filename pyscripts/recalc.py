@@ -59,7 +59,7 @@ def refresh_data(*, from_snapshot: bool = False, no_db_pull: bool = False) -> No
         _make("filter", "extend_csvs")
         # The gen ladder's make deps only see steps/*.rs — it cannot know the
         # data changed under it, and after `filter` it always has. Force it,
-        # and only it (this replaces the old blanket `make -B post-csvs`).
+        # and only it.
         _make("-B", LADDER_TOP)
         # Stamp before restart-service: the backend reads the stamp at startup
         # and echoes it in /v1/specs — the warm fleet's version handshake.

@@ -23,7 +23,7 @@
 	}>();
 
 	// Data layer lives in the shared works loader (also feeding the co-author network),
-	// so every page is fetched once. These aliases keep the rest of the component unchanged.
+	// so every page is fetched once.
 	$: papers = $works.papers;
 	$: entityAtts = $works.entityAtts;
 	$: discAuthorNames = $works.discAuthorNames;

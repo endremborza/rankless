@@ -4,8 +4,7 @@ import { getSession } from '$lib/server/session';
 // Tie every server-side fetch to the client's abort signal so a request that
 // disconnects mid-render (bots bailing after <head>, nginx->bun upstream
 // timeouts) cancels its backend calls instead of leaving bun holding the fetched
-// data + render context. This was the FE OOM leak; centralising it here covers
-// every route (not just the entity page) in one place.
+// data + render context; one hook covers every route.
 export const handleFetch: HandleFetch = ({ event, request, fetch }) =>
 	fetch(new Request(request, { signal: event.request.signal }));
 

@@ -214,10 +214,9 @@
 
 <section id="impact" class="shadowy padded marged main-block">
 	<!-- Key on entity identity so navigating between entities tears the tree down and rebuilds it
-	     from the fresh props. Reusing the instance left FullQc's local `currentTreeSpec` seeded from
-	     a one-time prop default, so a new entity's tree rendered against the old spec → first-level
-	     names resolved against the wrong entity type → "Unknown". The year filter mutates conf in
-	     place (same identity), so it stays within one instance and still hot-reloads via loadNewQc. -->
+	     from the fresh props: FullQc seeds its local `currentTreeSpec` once from a prop default. The
+	     year filter mutates conf in place (same identity), so it stays within one instance and still
+	     hot-reloads via loadNewQc. -->
 	{#key `${data.conf.rootType}/${data.conf.semanticId}`}
 		<FullQc
 			rootName={data.view.name}

@@ -891,7 +891,7 @@ upstream {BE_UPSTREAM} {{
 
     def rolling_restart_live_fe(self):
         # Sickest first: an at-cap worker is the pressure source and must
-        # recycle before the restart concentrates load on it (07-10 outage).
+        # recycle before the restart concentrates load on it.
         _stage_conf, live_conf = self.get_fe_systems()
         by_name = {s.name: s for s in self._iter_conf_services(live_conf)}
         order = (
@@ -911,12 +911,12 @@ upstream {BE_UPSTREAM} {{
         self.ssh.run("tmux split-window -h -t ops 'journalctl --user -f'")
 
     def harden_host(self):
-        # systemd-oomd's PSI-kill on user@.service killed init.scope — the
-        # session manager itself — in all three 2026-07 live outages, with
-        # Linger=no leaving everything down until a manual login. Linger the
-        # session, exempt the user manager from oomd (set-property applies it
-        # to the running user@ without a session restart); containment lives
-        # on the per-unit MemoryMax walls in the deploy/ templates.
+        # oomd must never PSI-kill user@.service: that takes init.scope — the
+        # session manager itself — down with it, and without linger nothing
+        # comes back until a manual login. Linger the session, exempt the user
+        # manager from oomd (set-property applies it to the running user@
+        # without a session restart); containment lives on the per-unit
+        # MemoryMax walls in the deploy/ templates.
         dropin = "/etc/systemd/system/user@.service.d/10-rankless-no-oomd-kill.conf"
         for comm in [
             "sudo loginctl enable-linger $(whoami)",

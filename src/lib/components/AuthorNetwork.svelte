@@ -220,8 +220,7 @@
 
 	// fcose is randomized, so re-solving produces a different arrangement every time. It must run ONCE
 	// per dataset/params — never on a mere resize or a network⇄timeline toggle, both of which re-fire
-	// the size binds and previously re-rolled the whole graph (the "stuck between layouts / sometimes
-	// terrible" symptom). We freeze the coordinate box the positions were solved in (`layoutW`) and let
+	// the size binds. We freeze the coordinate box the positions were solved in (`layoutW`) and let
 	// the SVG viewBox rescale it responsively; only a change of data, algorithm, or a tuning knob
 	// re-solves. The bind reports 0 while hidden (timeline tab), so solving waits for a real measurement.
 	let layoutW = height;

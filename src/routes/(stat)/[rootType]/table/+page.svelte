@@ -22,7 +22,7 @@
 	let extraRows = $state<SearchResult[]>([]);
 	let loadingMore = $state(false);
 	// Pagination state is seeded from the initial load, then mutated by loadMore (not reset on
-	// data changes — matches the pre-runes behavior); untrack marks the read as intentional.
+	// data changes); untrack marks the read as intentional.
 	let noMore = $state(untrack(() => !data.hasMore));
 	let currentFrom = $state(untrack(() => data.from + data.rows.length));
 

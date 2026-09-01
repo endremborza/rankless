@@ -270,7 +270,7 @@
 	// A chart's raw scale: the largest real multiplier among the bars, floored at CLOSE_RATIO so a
 	// near-tie keeps baseline headroom. ×∞ slices (a peer with no citations in a slot, common in a
 	// peer's pre-career years) carry no finite ratio, so they're dropped here and clamped to the top in
-	// the bar — but a real, large gap now sets the top honestly instead of pinning to a fixed ceiling.
+	// the bar; a real, large gap sets the top.
 	function chartMax(ratios: number[]): number {
 		return Math.max(CLOSE_RATIO, ...ratios.filter((r) => Number.isFinite(r)));
 	}

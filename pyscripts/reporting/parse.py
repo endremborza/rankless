@@ -93,8 +93,8 @@ def keep_live_hosts(df: pl.DataFrame) -> tuple[pl.DataFrame, int]:
 
     A live box is a promoted alpha, so its access.log mixes live traffic with the
     box's prior alpha vhosts and junk hitting it by raw IP / EC2 hostname / spoofed
-    Host. An allowlist of the live domains is robust where an `alpha*` prefix
-    denylist let that non-alpha junk (e.g. the old alpha box's IP) score as live.
+    Host. An allowlist of the live domains is the only robust filter: a denylist
+    cannot name the junk.
     `host` is used only at ingest and never persisted, keeping the archive schema
     stable."""
     if "host" not in df.columns:

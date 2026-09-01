@@ -14,8 +14,6 @@ function build(node: RefTree, seen: SeenMap, depth: number, parent: number) {
 			seen[key].level = depth;
 		}
 		// Always register the edge — even when key sits at a shallower level than depth.
-		// The previous code guarded on (depth === seen[key].level), which silently dropped
-		// edges for nodes already reached via a shorter path.
 		seen[key].parents.add(parent);
 		if (parent !== 0) {
 			(seen[parent] ??= {

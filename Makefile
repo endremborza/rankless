@@ -154,7 +154,7 @@ merge_db_from_live sync_db_from_live merge_db_to_live sync_db_to_live merge_db_f
 # Recalc flow (docs/deploy.md): one stage = one command, run them in order.
 # Sequencing/orchestration lives in pyscripts/recalc.py; pass flags via ARGS,
 # e.g. `make refresh-data ARGS="--from-snapshot"`. Shipping the result
-# (ship-alpha, promote) is deploy territory — same commands as before.
+# (ship-alpha, promote) is deploy territory.
 refresh-data commit-artifacts warm-caches:
 	uv run -m pyscripts recalc $@ $(ARGS)
 

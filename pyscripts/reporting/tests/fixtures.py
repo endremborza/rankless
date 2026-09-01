@@ -49,8 +49,7 @@ LINE_EMPTY_CS = (
 )
 
 # Non-live lines (dropped by keep_live_hosts): the alpha vhost, and a raw-IP Host
-# (the old alpha box's public IP or a scanner) that the old alpha* prefix denylist
-# wrongly kept as live.
+# (a scanner, or the box's own public IP).
 LINE_HOST_LIVE = LINE_HUMAN
 LINE_HOST_ALPHA = (
     "203.0.113.43 - - [29/Jun/2026:10:14:15 +0000] "

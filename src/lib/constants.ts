@@ -5,7 +5,7 @@ import { dev } from '$app/environment';
 export const APP_NAME = 'Rankless';
 
 // Master switch for email collection (header banner, /email-preferences, consent API).
-// Dev-only for now; change to `true` to release it.
+// Dev-only; `true` releases it.
 export const EMAIL_FEATURE_ON = dev;
 
 // Brand proof-points. The home card pulls live figures from the backend /counts endpoint; this is

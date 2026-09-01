@@ -63,7 +63,7 @@ DEFAULT_MCP_BACKEND = {"dev": "alpha", "small-alpha": "live", "live": "local"}
 # sits ~150-300 MB, so this only bites a runaway/leak. Hard wall ONLY — no
 # MemoryHigh: on a swapless box a leaky (anon-heavy) worker pinned at a soft cap
 # cannot be reclaimed, so the kernel throttles it into a permanent stall that
-# radiates PSI into user@ (the 2026-07-10 outage trigger). MemoryMax +
+# radiates PSI into user@. MemoryMax +
 # OOMPolicy=kill + Restart=always turn the same state into a seconds-long
 # self-healing blip contained to one cgroup. TimeoutStopSec=5 for the same
 # reason: a wedged worker can't run a graceful shutdown, and SSR is stateless.

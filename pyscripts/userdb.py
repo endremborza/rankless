@@ -281,9 +281,10 @@ def _warn_divergent(
 
 
 def _align_src_columns(con: sqlite3.Connection, table: str) -> None:
-    # A snapshot from a box on older code may lack columns the target's schema
-    # has since grown; add them (NULL) to the attached throwaway copy so the
-    # transfer SQL's target-side column list resolves on both schemas.
+    # The source may run older code than the target (live lags during an alpha
+    # bake), so columns the target has and the source lacks are added (NULL) to
+    # the attached throwaway copy: the transfer SQL's target-side column list
+    # then resolves on both schemas.
     src_cols = {r[1] for r in con.execute(f"PRAGMA src.table_info({table})")}
     for r in con.execute(f"PRAGMA main.table_info({table})"):
         if r[1] not in src_cols:

@@ -4,7 +4,7 @@ The config is machine-local and gitignored (example in docs/deploy.md). Bands
 are (lo, hi] in millions of cut_basis (citations × breakdown count) — pd.cut
 right-inclusive, so a tree exactly on a boundary belongs to the lower band and
 `bigs` (strictly above the top hi) tiles exactly. Static validation catches at
-load time what used to surface hours in at the coverage gate: bands must tile
+load time what the coverage gate would only report after the run: bands must tile
 (0, big_limit] with no gap or overlap, and exactly one worker owns the top
 band with `bigs = true` (it computes everything above it via chunked
 prep→read).

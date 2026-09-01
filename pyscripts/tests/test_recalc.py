@@ -103,7 +103,7 @@ def test_deploy_primitives_derived() -> None:
     assert {"new_large_alpha", "merge_db_from_live", "ship_alpha", "promote"} <= set(
         prims
     )
-    # helpers with required args, privates, and the shim itself stay out
+    # helpers with required args and privates stay out
     assert not {"run_logged", "primitives", "_last_vns"} & set(prims)
 
 

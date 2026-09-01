@@ -1,5 +1,4 @@
-"""Stress-suite driver + memory sampler (phases in
-.cril/writeups/2026-07-10-alpha-stress-suite.md).
+"""Stress-suite driver + memory sampler.
 
     uv run -m pyscripts stress --corpus slugs.gz --ssh-host rankless-alpha   # DEFAULT: meltdown
     uv run -m pyscripts stress capacity                    # fleet ceiling (= `make capacity`)
@@ -316,7 +315,7 @@ def fe_worker_stat(host: str, port: int) -> tuple[int, int, float]:
 
     Reads the bun MainPID's VmRSS — the btop number and the OOM-relevant heap.
     NOT cgroup `memory.current`, which counts reclaimable page cache and gave a
-    false "balloon" on the disk-card-cache-writing card path (2026-07-11).
+    false "balloon" on the disk-card-cache-writing card path.
     """
     color = "green" if port >= FE_GREEN_START else "blue"
     unit = f"rankless-frontend-{color}@{port}"
@@ -405,7 +404,7 @@ def meltdown(args: argparse.Namespace) -> None:
     """Tear the whole FE deployment down: bounded abort-flood (client disconnects
     mid-render) round-robin across ALL workers on the box until the box OOMs.
 
-    Reproduces the real outage — the leak is that bun retains the request context
+    The leak: bun retains the request context
     when the client aborts before the response completes (live's nginx->bun
     upstream timeouts/resets). Runs on the box (loopback), monitors to death.
     """

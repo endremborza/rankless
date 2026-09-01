@@ -55,8 +55,8 @@ def _rule_stats(sessions: pl.DataFrame) -> dict:
 
     n = len(sessions)
     # Decode + explode the per-session signal arrays into one signal per row in
-    # polars; a Python json.loads loop over every session is what previously blew
-    # the millions of sessions up into millions of Python objects.
+    # polars; a per-session json.loads loop would materialize millions of
+    # Python objects.
     sigs = (
         sessions.lazy()
         .select(
