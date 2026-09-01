@@ -81,8 +81,18 @@ const clueCards = (
 // Every country card resolves to HU, so the spec can answer (or miss) at will
 // without knowing the shuffled deck order. The sem-ids are real institutions:
 // serving computes badge standings from the local backend (which the e2e suite
-// needs running anyway), and a card without a standing never serves.
-const countryCards = ['massey-university', 'embo', 'nwafu', 'brandeis-university', 'ucc'].map(
+// needs running anyway), and a card without a standing never serves. The pack
+// outlasts a full run — one hit plus every life — so a run can end on lives
+// rather than on the deck.
+const countryCards = [
+	'massey-university',
+	'embo',
+	'nwafu',
+	'brandeis-university',
+	'ucc',
+	'kth',
+	'inserm'
+].map(
 	(semId, i): FixtureObject => ({
 		kind: 'country-card',
 		obj_key: `institutions|${semId}`,

@@ -25,7 +25,7 @@
 		<a class="game-tile" href={PATH}>
 			<h2>🏛️ {BRAND}</h2>
 			<p>
-				Institution names can point far from home. Four flags, ten seconds a name, three lives —
+				Institution names can point far from home. Four flags, ten seconds a name, five lives —
 				trust your first instinct.
 			</p>
 		</a>

@@ -19,7 +19,7 @@ export const SLUG = 'campus-quest';
 export const PATH = `/${SLUG}`;
 export const RUN_SECONDS = 10;
 export const DECK_CAP = 30;
-export const LIVES = 3;
+export const LIVES = 5;
 // Hospitals and medical schools are a quarter of the pack; a deck admits only
 // a few so a run reads as institutions, not wards.
 export const MAX_MEDICAL_CARDS = 3;
