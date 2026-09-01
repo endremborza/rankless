@@ -242,28 +242,33 @@ impl UserLedger {
         let mut applied = Vec::new();
         let mut skipped = self.skipped.clone();
 
-        for (key, drop_oa, _) in &self.author_merge_events {
-            let root = *self.author_aliases.get(drop_oa).unwrap_or(drop_oa);
-            if author_filter.contains(&root) {
-                applied.push(key.clone());
-            } else {
-                eprintln!("user_ledger: event {key} skipped — author oa_id {root} not in dataset.");
-                skipped.push(SkippedEvent {
-                    key: key.clone(),
-                    reason: SkipReason::OaIdNotInDataset,
-                });
-            }
-        }
-        for (key, drop_oa, _) in &self.work_merge_events {
-            let root = *self.work_aliases.get(drop_oa).unwrap_or(drop_oa);
-            if work_filter.contains(&root) {
-                applied.push(key.clone());
-            } else {
-                eprintln!("user_ledger: event {key} skipped — work oa_id {root} not in dataset.");
-                skipped.push(SkippedEvent {
-                    key: key.clone(),
-                    reason: SkipReason::OaIdNotInDataset,
-                });
+        for (label, events, aliases, filter) in [
+            (
+                "author",
+                &self.author_merge_events,
+                &self.author_aliases,
+                author_filter,
+            ),
+            (
+                "work",
+                &self.work_merge_events,
+                &self.work_aliases,
+                work_filter,
+            ),
+        ] {
+            for (key, drop_oa, _) in events {
+                let root = *aliases.get(drop_oa).unwrap_or(drop_oa);
+                if filter.contains(&root) {
+                    applied.push(key.clone());
+                } else {
+                    eprintln!(
+                        "user_ledger: event {key} skipped — {label} oa_id {root} not in dataset."
+                    );
+                    skipped.push(SkippedEvent {
+                        key: key.clone(),
+                        reason: SkipReason::OaIdNotInDataset,
+                    });
+                }
             }
         }
 
