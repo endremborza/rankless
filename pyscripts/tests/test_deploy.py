@@ -82,6 +82,24 @@ def test_run_migrations_runs_each_script_once_a_db_exists() -> None:
     ]
 
 
+def test_release_tree_gate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(deploy, "LOCAL_REPO", tmp_path)
+    with pytest.raises(SystemExit, match="holds no users"):
+        deploy._assert_release_tree()
+    db = tmp_path / deploy.paths.DB_REL
+    db.parent.mkdir(parents=True)
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE users (orcid TEXT)")
+    con.execute("INSERT INTO users VALUES ('a')")
+    con.commit()
+    con.close()
+    monkeypatch.setattr(migration_scripts, "module_names", lambda: ["add_x"])
+    with pytest.raises(SystemExit, match="add_x"):
+        deploy._assert_release_tree()
+    monkeypatch.setattr(migration_scripts, "module_names", list)
+    deploy._assert_release_tree()
+
+
 def test_user_count(tmp_path: Path) -> None:
     db = tmp_path / "u.sqlite"
     assert userdb.user_count(str(db)) == 0

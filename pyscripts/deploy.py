@@ -1207,7 +1207,6 @@ def _new_alpha(storage, itype, fe_procn, backend):
     tpr = get_tpr(inst)
     full_setup_from_nothing(tpr, ALPHA_DOMAIN, fe_procn, backend=backend)
     _handoff_db_to(tpr, pull_warn_only=True)
-    tpr.run_migrations()
     associate_id(inst, False)
     time.sleep(15)
     new_tpr = get_tpr(inst)
@@ -1322,7 +1321,7 @@ def ship_alpha() -> None:
     from pyscripts.recalc import assert_released
 
     assert_released()
-    _assert_deploy_host_holds_users()
+    _assert_release_tree()
     new_large_alpha()
     smoke(live=False)
     print("alpha up — validate by hand, then `make promote`")
@@ -1332,7 +1331,7 @@ def promote() -> None:
     """Flip alpha to live + smoke checks (gated on the release report)."""
     from pyscripts.release_report import assert_report_documents
 
-    _assert_deploy_host_holds_users()
+    _assert_release_tree()
     get_running_tpr(False).assert_backend_owns_port()
     specs = _check_json(f"https://{ALPHA_BACKEND}/v1/specs", "alpha specs")
     assert_report_documents(specs.get("version", ""))
@@ -1403,15 +1402,22 @@ def listeners(ss_output: str, port: int) -> list[tuple[str, str]]:
     return rows
 
 
-def _assert_deploy_host_holds_users():
-    """ship/promote push this checkout's user DB toward production; only the host
-    holding the real decisions has users in it (a dev checkout carries the
-    mega_test fixture: events, no users)."""
+def _assert_release_tree():
+    """What ship/promote may run from: the host holding the real user DB (a dev
+    checkout carries the mega_test fixture: events, no users — and this DB is what
+    gets pushed toward production), with no catch-up script left in the tree (a
+    release never carries one; the running boxes already applied it, and a fresh
+    box takes its schema from this host's DB)."""
     db = LOCAL_REPO / paths.DB_REL
     if userdb.user_count(str(db)) == 0:
         raise SystemExit(
             f"{db} holds no users — run this on the host that holds the user DB "
             "(the one that drove the release), not a dev checkout"
+        )
+    if pending := migration_scripts.module_names():
+        raise SystemExit(
+            f"migration_scripts/ still holds {pending} — run them on this host's DB, "
+            "delete them, commit; the boxes applied them at their code deploy"
         )
 
 
