@@ -838,6 +838,29 @@ upstream {BE_UPSTREAM} {{
         # re-resolve that would still try to read that missing path.
         self._depcomm("~/.local/bin/uv sync --frozen --no-default-groups")
 
+    def run_migrations(self):
+        """Bring the box's deployed state up to the checked-out code's schema:
+        every `migration_scripts/` script, in order, with the box's own venv (each
+        is a no-op once applied). A box without a user DB has nothing to catch up."""
+        if not self.ssh.remote_exists(f"{self.deploy_dir}/{paths.DB_REL}"):
+            print("no user DB on the box yet — nothing to migrate")
+            return
+        for name in migration_scripts.module_names():
+            self._depcomm(f"{self.venv_python} -m pyscripts.migration_scripts.{name}")
+
+    def assert_backend_owns_port(self, port: int = DEFAULT_RS_PORT):
+        """Every listener on the backend port must be the backend binary itself. A
+        reverse tunnel (`ssh -R`) from another box can hold the port and answer
+        `/v1/specs` with that box's version, so a gate that talks to this box over
+        the network proves nothing until the socket is its own."""
+        owners = listeners(self.ssh.run(f"sudo ss -lntpH 'sport = :{port}'"), port)
+        if not owners or any(proc != BACKEND_PROCESS for _, proc in owners):
+            raise SystemExit(
+                f"{self.ssh.full_host}: port {port} is held by "
+                f"{owners or 'nobody'}, expected only {BACKEND_PROCESS} — an sshd "
+                "owner is a reverse tunnel from another box; stop its unit there"
+            )
+
     def update_env(self):
         domain = self.get_domain()
         be_url = "https://" + self.get_backend_domain()
@@ -850,6 +873,7 @@ upstream {BE_UPSTREAM} {{
             self.sync_code()
         else:
             self.update_env()
+        self.run_migrations()
         self.install_fonts()
         self.build_js()
         stage_conf, live_conf = self.get_fe_systems()
@@ -1190,6 +1214,7 @@ def _new_alpha(storage, itype, fe_procn, backend):
     tpr = get_tpr(inst)
     full_setup_from_nothing(tpr, ALPHA_DOMAIN, fe_procn, backend=backend)
     _handoff_db_to(tpr, pull_warn_only=True)
+    tpr.run_migrations()
     associate_id(inst, False)
     time.sleep(15)
     new_tpr = get_tpr(inst)

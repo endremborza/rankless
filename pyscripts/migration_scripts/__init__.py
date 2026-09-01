@@ -14,8 +14,15 @@ runtime-only venv and survive a second invocation:
 """
 
 import sqlite3
+from pathlib import Path
 
 from pyscripts import paths
+
+
+def module_names() -> list[str]:
+    """Every script in the package, in run order — a deploy runs them all, each
+    one a no-op once applied."""
+    return sorted(p.stem for p in Path(__file__).parent.glob("[a-z]*.py"))
 
 
 def user_db(db: str | None = None) -> sqlite3.Connection:
