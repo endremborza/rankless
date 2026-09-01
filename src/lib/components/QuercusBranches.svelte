@@ -13,8 +13,6 @@
 	export let levelOutSpecs: LevelOutSpec[] = [];
 	export let pathInCompleteTree: number[] = [];
 
-	//export let treeVizKind: TreeVizKind = 'verticalRectangle';
-
 	export let branchReachBack = 0;
 	export let rootD2 = 30;
 	export let treeD2 = 70;
@@ -28,7 +26,6 @@
 	export let childrenInternalMargin = 0.9;
 
 	export let parentSideMargin = 0.8;
-	//export let childSideMargin = 3.8; TODO
 
 	export let showText = true;
 	export let heightMultiplier: number = 1.2;

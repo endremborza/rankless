@@ -31,7 +31,6 @@
 	let mounted = false;
 	let dropdownOpen = false;
 	let userMenuOpen = false;
-	// let innerWidth = 900;
 	let innerWidth: number;
 
 	// Width thresholds for how many type links sit inline before the rest fold into the "More"/"Types"

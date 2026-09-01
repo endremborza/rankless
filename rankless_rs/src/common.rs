@@ -29,8 +29,6 @@ pub type NET<E> = <E as NumberedEntity>::T;
 pub const MAIN_NAME: &str = "main";
 pub const BUILD_LOC: &str = "qc-builds";
 pub const SEM_DIR: &str = "semantic-ids";
-// pub const A_STAT_PATH: &str = "attribute-statics";
-// pub const QC_CONF: &str = "qc-specs";
 
 pub const ID_PREFIX: &str = "https://openalex.org/";
 pub const N_PEERS: usize = 10;

@@ -21,8 +21,6 @@
 
 	$: line1 = citeGraph.citations.map((x) => x * mainScaler);
 
-	// let mainColor = 'rgb(var(--color-range-30))';
-	// let subColor = 'rgb(var(--color-range-65))';
 	let mainColor = 'var(--color-theme-darkblue)';
 	let subColor = 'var(--color-theme-red)';
 

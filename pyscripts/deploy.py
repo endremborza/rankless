@@ -157,7 +157,6 @@ class UpstreamConf:
         return self.sconf(self.be_port)
 
     def fe_servers(self):
-        # self.suffix = f" max_fails=1 fail_timeout={self.fe_timeout}s"
         return map(self.sconf, self.fe_ports)
 
     def sconf(self, port):
@@ -286,7 +285,6 @@ class SSHrer:
         )
         if port:
             self.basis.extend(["-p", str(port)])
-            # self.rsync_basis.append(f"--port={port}")
         self.basis.extend(self.key_extend)
         self.full_host = host if user is None else f"{user}@{host}"
         self.basis.append(self.full_host)
@@ -1239,8 +1237,6 @@ export const VERSION = '{next_v}';
     subprocess.call(["git", "commit", "-m", f"{next_v} consts"])
     subprocess.call(["git", "tag", next_v])
     subprocess.call(["git", "push", "origin", "tag", next_v])
-    # annoted, within the ancestors tags
-    # git push --follow-tags
 
 
 def rolling_restart_live_fe():

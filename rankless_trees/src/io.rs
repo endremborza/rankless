@@ -195,8 +195,6 @@ pub struct BreakdownSpec {
     #[serde(rename = "specDenomInd")] //this is to know how deep to go back for spec calculation
     //e.g a country->inst is the same resolver
     pub spec_denom_ind: u8,
-    // description: String, // used to be for spec calculation -> separate for different kinds of
-    // breakdowns
     #[serde(rename = "sourceSide")]
     pub source_side: bool,
 }

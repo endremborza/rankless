@@ -1,9 +1,6 @@
 const SOURCE_BUF_SIZE: usize = 0x200;
 const TARGET_BUF_SIZE: usize = 0x500;
 
-// pub sources: StackWExtension<SOURCE_BUF_SIZE, WorkWInd>,
-// pub targets: StackWExtension<TARGET_BUF_SIZE, WT>,
-
 struct StackWExtension<const L: usize, T> {
     buf: [T; L],
     blen: usize,

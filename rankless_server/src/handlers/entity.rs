@@ -43,9 +43,6 @@ pub(crate) async fn tree_get(
     if let Some(nstate) = ns_map.get(root_type.as_str()) {
         if (root_type == HitPapers::NAME) && (semantic_id == "all") {
             tq.cacheable = Some(true);
-            //TODO: all hit papers
-            // let resp = Json(tm.get_single_resp(tq, &root_type, HitPapers::N + 1));
-            // return (cache_header(60), resp);
         }
         let psid = parse_semantic_id(semantic_id);
         if let Some(&dm_id) = nstate.semantic_id_map.get(psid.as_str()) {

@@ -154,10 +154,6 @@
 			`rgba(${getColorArr(minColorRate)}, ${minOp}%) 0%`,
 			`rgba(${getColorArr(maxColorRate)}, ${maxOp}%) 100%`
 		];
-		// for (const [i, cr] of colorRates.entries()) {
-		// 	let pct = (100 * i) / (colorRates.length - 1);
-		// 	steps.push(`rgba(${getColorArr(cr)}, ${baselineOp}) ${pct}%`);
-		// }
 		return `linear-gradient(to right, ${steps.join(', ')})`;
 	}
 
