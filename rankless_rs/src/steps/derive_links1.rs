@@ -140,7 +140,7 @@ where
     fn stow_inner(mut self, stowage: &Stowage, name: &str) {
         let muv = Arc::get_mut(&mut self.data).unwrap();
         let iter = muv.into_iter().map(mem::take);
-        stowage.add_iter_owned::<VarAttBuilder, _, _>(iter, Some(name));
+        stowage.add_iter_owned::<VarAttBuilder, _, _>(iter, name);
         stowage.declare_link::<L::Target, L::Source>(name);
     }
 }
@@ -296,6 +296,6 @@ where
         }
         collapsed.push(ends.into_boxed_slice());
     }
-    stowage.add_iter_owned::<VarAttBuilder, _, _>(collapsed.into_iter(), Some(name));
+    stowage.add_iter_owned::<VarAttBuilder, _, _>(collapsed.into_iter(), name);
     stowage.declare_link::<Link1::Source, Link2::Target>(name);
 }

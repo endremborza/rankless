@@ -155,22 +155,19 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         })
         .collect();
 
-    starc.add_iter_owned::<Data64MappedEntityBuilder, _, _>(hit_papers, Some("hit-papers"));
-    starc.add_iter_owned::<VarAttBuilder, _, _>(hit_names.into_iter(), Some("hit-papers-names"));
-    starc.add_iter_owned::<VarAttBuilder, _, _>(hit_dois.into_iter(), Some("hit-papers-dois"));
-    starc.add_iter_owned::<VarAttBuilder, _, _>(hit_wids.into_iter(), Some("hit-papers-wids"));
-    starc.add_iter_owned::<VarAttBuilder, _, _>(coauthorships.into_iter(), Some("coauthors"));
+    starc.add_iter_owned::<Data64MappedEntityBuilder, _, _>(hit_papers, "hit-papers");
+    starc.add_iter_owned::<VarAttBuilder, _, _>(hit_names.into_iter(), "hit-papers-names");
+    starc.add_iter_owned::<VarAttBuilder, _, _>(hit_dois.into_iter(), "hit-papers-dois");
+    starc.add_iter_owned::<VarAttBuilder, _, _>(hit_wids.into_iter(), "hit-papers-wids");
+    starc.add_iter_owned::<VarAttBuilder, _, _>(coauthorships.into_iter(), "coauthors");
     starc.add_iter_owned::<DowncastingBuilder, _, _>(
         hit_ccounts.into_iter(),
-        Some("hit-papers-cite-counts"),
+        "hit-papers-cite-counts",
     );
-    starc.add_iter_owned::<DowncastingBuilder, _, _>(
-        hit_bms.into_iter(),
-        Some("hit-papers-benchmarks"),
-    );
+    starc.add_iter_owned::<DowncastingBuilder, _, _>(hit_bms.into_iter(), "hit-papers-benchmarks");
     starc.add_iter_owned::<DowncastingBuilder, _, _>(
         hit_created_topics.into_iter(),
-        Some("hit-papers-created-topic"),
+        "hit-papers-created-topic",
     );
     // --- Page filters, work counts, and semantic IDs ---
 

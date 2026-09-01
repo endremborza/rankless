@@ -520,7 +520,7 @@ impl Getters {
             ["W0", "W1", "W2", "W3", &last]
                 .iter()
                 .map(|e| e.to_string()),
-            Some(WorksNames::NAME),
+            WorksNames::NAME,
         );
 
         let mut ifs = Interfaces::fake();

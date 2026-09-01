@@ -194,7 +194,7 @@ impl Stowage {
         self.add_iter_owned::<DiscoMapEntityBuilder<
             (<Sources as Entity>::T, <Years as Entity>::T),
             <Qs as Entity>::T,
-        >, _, _>(source_q_kv_iter, Some("source-year-qs"));
+        >, _, _>(source_q_kv_iter, "source-year-qs");
     }
 
     fn add_inst_atts(
@@ -274,7 +274,7 @@ impl Stowage {
         add_name_box::<Cities>(self, pick_best(ciname_counts));
         add_name_box::<Institutions>(self, inames);
         self.add_barr::<FixAttBuilder, _>(ccs, "country-codes");
-        self.add_iter_owned::<FixAttBuilder, _, _>(cc3s.into_iter(), Some("country-codes-three"));
+        self.add_iter_owned::<FixAttBuilder, _, _>(cc3s.into_iter(), "country-codes-three");
         self.add_barr::<FixAttBuilder, _>(locs, "inst-locs");
         self.add_barr::<FixAttBuilder, _>(rors, "inst-rors");
         self.add_barr::<FixAttBuilder, _>(cities, "inst-cities");
@@ -431,7 +431,7 @@ impl Stowage {
         w.para(self.read_csv_objs::<CsvObj>(main, sub))
             .worker
             .ingest_result(|atts| {
-                self.add_iter_owned::<Builder, _, IngestableAtt>(atts, Some(name));
+                self.add_iter_owned::<Builder, _, IngestableAtt>(atts, name);
             });
     }
 
@@ -530,7 +530,7 @@ impl WorkAttWriter {
     fn post(self, stowage: &Stowage) -> Box<[ET<Years>]> {
         let wyname = "work-years";
         let wyears = self.wyears.into_inner().unwrap();
-        stowage.add_iter_owned::<FixAttBuilder, _, _>(wyears.iter().copied(), Some(wyname));
+        stowage.add_iter_owned::<FixAttBuilder, _, _>(wyears.iter().copied(), wyname);
         stowage.declare_link::<Works, Years>(wyname);
         stowage.declare_iter::<VarAttBuilder, _, _, Works, NameMarker>(
             iter_mboxa(self.wnames),
@@ -631,37 +631,37 @@ impl<'a> ShipRelWriter<'a> {
             self.fship2a
                 .into_iter()
                 .map(|e| <ET<Authors> as UnsignedNumber>::from_usize(e)),
-            Some(faa_name),
+            faa_name,
         );
         stowage.add_iter_owned::<FixAttBuilder, _, _>(
             self.dship2a
                 .into_iter()
                 .map(|e| <ET<DiscardedAuthors> as UnsignedNumber>::from_usize(e)),
-            Some(daa_name),
+            daa_name,
         );
 
         stowage.add_iter_owned::<VarAttBuilder, _, _>(
             self.fship2is.into_iter().map(|v| v.into_boxed_slice()),
-            Some(fai_name),
+            fai_name,
         );
         stowage.add_iter_owned::<VarAttBuilder, _, _>(
             self.dship2is.into_iter().map(|v| v.into_boxed_slice()),
-            Some("discarded-authorship-institutions"),
+            "discarded-authorship-institutions",
         );
         stowage.add_iter_owned::<DowncastingBuilder, _, _>(
             self.fship2pos.into_iter().map(|p| p as usize),
-            Some("filtered-authorship-position"),
+            "filtered-authorship-position",
         );
         stowage.add_iter_owned::<DowncastingBuilder, _, _>(
             self.dship2pos.into_iter().map(|p| p as usize),
-            Some("discarded-authorship-position"),
+            "discarded-authorship-position",
         );
         stowage.add_iter_owned::<DowncastingPrefixedVarBuilder, _, _>(
             self.w2combined_ships
                 .into_vec()
                 .into_iter()
                 .map(|v| v.into_boxed_slice()),
-            Some("work-any-authorships"),
+            "work-any-authorships",
         );
     }
 }
@@ -679,10 +679,8 @@ impl WorkBiblioWriter {
     }
 
     fn post(self, stowage: &Stowage) {
-        stowage.add_iter_owned::<VarAttBuilder, _, _>(
-            iter_mboxa(self.biblios).tqdm(),
-            Some("work-biblios"),
-        );
+        stowage
+            .add_iter_owned::<VarAttBuilder, _, _>(iter_mboxa(self.biblios).tqdm(), "work-biblios");
     }
 }
 
@@ -1212,7 +1210,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
                         }
                         out.into_boxed_slice()
                     }),
-                Some("work-references"),
+                "work-references",
             );
             sarc.declare_link::<Works, Works>("work-references");
             println!("Year inversions (ref year > citing year): {n_inversions}");

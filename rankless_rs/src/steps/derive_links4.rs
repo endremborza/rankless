@@ -241,14 +241,10 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         })
         .unzip::<_, _, Vec<_>, Vec<_>>();
 
-    parc.0.add_iter_owned::<VarAttBuilder, _, _>(
-        direct_out.into_iter(),
-        Some("author-citing-hits-direct"),
-    );
-    parc.0.add_iter_owned::<VarAttBuilder, _, _>(
-        once_out.into_iter(),
-        Some("author-citing-hits-once"),
-    );
+    parc.0
+        .add_iter_owned::<VarAttBuilder, _, _>(direct_out.into_iter(), "author-citing-hits-direct");
+    parc.0
+        .add_iter_owned::<VarAttBuilder, _, _>(once_out.into_iter(), "author-citing-hits-once");
 
     let hp_oa_ids = reverse_id::<HitPapers>(&parc.0);
     let hit_sem_ids = parc

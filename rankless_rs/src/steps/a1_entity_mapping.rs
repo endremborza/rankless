@@ -200,10 +200,10 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
                         None
                     }
                 });
-            sc.add_iter_owned::<Data64MappedEntityBuilder, _, _>(a_iter, Some("discarded-authors"));
+            sc.add_iter_owned::<Data64MappedEntityBuilder, _, _>(a_iter, "discarded-authors");
             sc.add_iter_owned::<Data64MappedEntityBuilder, _, _>(
                 selected_authors.into_iter(),
-                Some(authors::C),
+                authors::C,
             );
         }));
     }
@@ -300,13 +300,13 @@ where
     match filter {
         None => {
             println!("{name} no filter");
-            stowage.add_iter_owned::<Data64MappedEntityBuilder, _, _>(iter, Some(name));
+            stowage.add_iter_owned::<Data64MappedEntityBuilder, _, _>(iter, name);
         }
         Some(fs) => {
             println!("{name} filter of {:?}", fs.len());
             stowage.add_iter_owned::<Data64MappedEntityBuilder, _, _>(
                 iter.filter(|e| fs.contains(e)),
-                Some(name),
+                name,
             );
         }
     };

@@ -352,21 +352,20 @@ impl Stowage {
         Ok(())
     }
 
-    pub fn add_iter_owned<B, I, T>(&self, iter: I, name_o: Option<&str>)
+    pub fn add_iter_owned<B, I, T>(&self, iter: I, name: &str)
     where
         B: MetaIntegrator<T>,
         I: Iterator<Item = T>,
     {
-        let name = name_o.unwrap(); //TODO - temp
-        B::add_iter_owned(&self.builder.as_ref().unwrap(), iter, &name);
-        self.mu_bu().declare_ns(&name, &self.current_ns);
+        B::add_iter_owned(&self.builder.as_ref().unwrap(), iter, name);
+        self.mu_bu().declare_ns(name, &self.current_ns);
     }
 
     pub fn add_barr<B, T>(&self, barr: Box<[T]>, name: &str)
     where
         B: MetaIntegrator<T>,
     {
-        self.add_iter_owned::<B, _, T>(barr.into_vec().into_iter(), Some(name));
+        self.add_iter_owned::<B, _, T>(barr.into_vec().into_iter(), name);
     }
 
     pub fn add_barr_of_vecs<T>(&self, barr: Box<[Vec<T>]>, name: &str)
@@ -375,7 +374,7 @@ impl Stowage {
     {
         self.add_iter_owned::<VarAttBuilder, _, Box<[T]>>(
             barr.into_vec().into_iter().map(|e| e.into_boxed_slice()),
-            Some(name),
+            name,
         );
     }
 
@@ -392,7 +391,7 @@ impl Stowage {
         B: MetaIntegrator<E>,
         I: Iterator<Item = E>,
     {
-        self.add_iter_owned::<B, I, E>(iter, Some(name));
+        self.add_iter_owned::<B, I, E>(iter, name);
         self.declare::<S, M>(name)
     }
 

@@ -524,12 +524,10 @@ impl CiteDeriver {
         ext.add_iters(&self.stowage);
         self.stowage.add_iter_owned::<FixAttBuilder, _, _>(
             source_paths.into_iter(),
-            Some("source-pairs-by-path"),
+            "source-pairs-by-path",
         );
-        self.stowage.add_iter_owned::<FixAttBuilder, _, _>(
-            sf_paths.into_iter(),
-            Some("subfield-pairs-by-path"),
-        );
+        self.stowage
+            .add_iter_owned::<FixAttBuilder, _, _>(sf_paths.into_iter(), "subfield-pairs-by-path");
         self.stowage
             .ditf::<HIndexMarker, Authors, u32>(h_indices, "h-index");
         self.stowage
@@ -582,7 +580,7 @@ impl CiteDeriver {
 
         self.stowage.add_iter_owned::<FixAttBuilder, _, _>(
             source_stats.into_vec().into_iter(),
-            Some("source-stats"),
+            "source-stats",
         );
 
         self.stowage
@@ -776,7 +774,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let stowage = cd.stowage;
     let interface = stowage.get_entity_interface::<WorksCiting, ReadIter>();
     let wc_name = "work-citing-counts";
-    stowage.add_iter_owned::<DowncastingBuilder, _, _>(interface.map(|e| e.len()), Some(&wc_name));
+    stowage.add_iter_owned::<DowncastingBuilder, _, _>(interface.map(|e| e.len()), &wc_name);
     stowage.declare::<Works, CiteCountMarker>(wc_name);
 
     a_inverter.stow_as_work_link(&stowage, "author-works");

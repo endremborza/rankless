@@ -124,7 +124,7 @@ impl CiteDeriver {
             .ditf::<YearlyCitationsMarker, HitPapers, _>(cy_eras.into_vec(), "era");
         self.stowage.add_iter_owned::<VarAttBuilder, _, _>(
             cy_counts.to_vec().into_iter(),
-            Some("hit-paper-yearly-citations"),
+            "hit-paper-yearly-citations",
         );
         self.stowage
             .ditf::<TopJournalMarker, HitPapers, _>(top5_journals.into_vec(), "top-journals");
