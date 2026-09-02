@@ -245,6 +245,7 @@ describe('idFromBd', () => {
 describe('urlFriendlify', () => {
 	it('escapes slashes', () => {
 		expect(urlFriendlify('a/b')).toBe('a%2Fb');
+		expect(urlFriendlify('10.3115/v1/d14-1162')).toBe('10.3115%2Fv1%2Fd14-1162');
 	});
 	it('no-op for safe strings', () => {
 		expect(urlFriendlify('hello')).toBe('hello');

@@ -8,6 +8,7 @@ use axum::{
     routing::get,
     Router,
 };
+use percent_encoding::percent_decode_str;
 use serde::Serialize;
 
 use crate::consts::STAMP_FNAME;
@@ -41,8 +42,13 @@ pub(crate) fn version_stamp(data_root: &str) -> String {
     )
 }
 
+// Axum already percent-decodes route and query values once, but a semantic id can still carry one
+// encoding layer: the frontend's `urlFriendlify` pre-encodes `/` inside the id so a DOI stays a
+// single path segment, and `encodeURIComponent` wraps that pre-encoded id again when it travels in
+// a query string (`resolve/author`). The pass is a no-op on an id without `%`; a stored id that
+// itself contains a literal `%` cannot round-trip through it.
 pub(crate) fn parse_semantic_id(id: String) -> String {
-    id.replace("%2F", "/")
+    percent_decode_str(&id).decode_utf8_lossy().into_owned()
 }
 
 pub(crate) fn get_empty() -> (HeaderMap, Response) {
@@ -61,4 +67,26 @@ pub(crate) fn bad_request(msg: &'static str) -> (HeaderMap, Response) {
 
 async fn state_get(str_state: State<Arc<str>>) -> (HeaderMap, Response<Body>) {
     (cache_header(60), str_state.to_string().into_response())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_semantic_id;
+
+    #[test]
+    fn decodes_any_percent_escape_case_insensitively() {
+        assert_eq!(
+            parse_semantic_id("10.1038%2Fnmeth.2019".into()),
+            "10.1038/nmeth.2019"
+        );
+        assert_eq!(
+            parse_semantic_id("10.1038%2fnmeth.2019".into()),
+            "10.1038/nmeth.2019"
+        );
+        assert_eq!(
+            parse_semantic_id("10.1038%2Fnmeth%2E2019".into()),
+            "10.1038/nmeth.2019"
+        );
+        assert_eq!(parse_semantic_id("plain-slug".into()), "plain-slug");
+    }
 }

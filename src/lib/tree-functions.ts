@@ -108,7 +108,7 @@ export function idFromBd(bd: tt.BreakdownSpec): string {
 }
 
 export function urlFriendlify(s: string) {
-	return s.replace('/', '%2F');
+	return s.replaceAll('/', '%2F');
 }
 
 export function viewBeUrl(root: string, conf: tt.FullTreeConfig): string {
@@ -121,7 +121,7 @@ export function treeBeUrl(
 	conf: tt.FullTreeConfig,
 	shallow: undefined | number = undefined
 ): string {
-	const urlFriendlySemId = urlFriendlify(conf.semanticId.replace('/', '%2F'));
+	const urlFriendlySemId = urlFriendlify(conf.semanticId);
 	let url = `${root}/trees/${conf.rootType}/${urlFriendlySemId}?tid=${conf.treeId}&year=${conf.year}`;
 	if (shallow != undefined) {
 		url += `&shallow=${shallow}`;

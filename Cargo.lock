@@ -1033,6 +1033,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "mimalloc",
  "muwo-search",
+ "percent-encoding",
  "rand",
  "rankless-rs",
  "rankless-trees",
