@@ -18,26 +18,3 @@ export function circleLayout(
 		return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius };
 	});
 }
-
-export function radialWeightedLayout(
-	nodes: string[],
-	edgeWeights: number[],
-	{ height = 400, width = 400 }
-) {
-	const cx = width / 2;
-	const cy = height / 2;
-	const maxR = Math.min(width, height) * 0.35;
-	const weights = nodes.map((_, i) =>
-		nodes.reduce((sum, _, j) => {
-			if (i === j) return sum;
-			const idx = i < j ? i * nodes.length + j - 1 : j * nodes.length + i - 1;
-			return sum + (edgeWeights[idx] || 0);
-		}, 0)
-	);
-	const maxW = Math.max(...weights) || 1;
-	return nodes.map((_, i) => {
-		const angle = (i / nodes.length) * Math.PI * 2 - Math.PI / 2;
-		const r = maxR * (1 - weights[i] / maxW); // strong = center
-		return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
-	});
-}
