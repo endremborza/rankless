@@ -42,11 +42,7 @@ pub(crate) fn version_stamp(data_root: &str) -> String {
     )
 }
 
-// Axum already percent-decodes route and query values once, but a semantic id can still carry one
-// encoding layer: the frontend's `urlFriendlify` pre-encodes `/` inside the id so a DOI stays a
-// single path segment, and `encodeURIComponent` wraps that pre-encoded id again when it travels in
-// a query string (`resolve/author`). The pass is a no-op on an id without `%`; a stored id that
-// itself contains a literal `%` cannot round-trip through it.
+//  frontend's `urlFriendlify` pre-encodes `/` inside the id so a DOI stays a single segment
 pub(crate) fn parse_semantic_id(id: String) -> String {
     percent_decode_str(&id).decode_utf8_lossy().into_owned()
 }
