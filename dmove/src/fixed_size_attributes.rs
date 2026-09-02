@@ -81,6 +81,7 @@ where
     V: ByteFixArrayInterface,
 {
     fn load_backend(path: &PathBuf) -> Self {
+        let () = V::FITS_FIXBUF;
         let mut out = Vec::with_capacity(E::N + 1);
         let fp = path.join(E::NAME);
         let mut br = BufReader::new(File::open(&fp).expect(fp.to_str().unwrap()));
@@ -98,6 +99,7 @@ where
     E: FixWriteSizeEntity,
 {
     fn load_backend(path: &PathBuf) -> Self {
+        let () = E::FWT::FITS_FIXBUF;
         let full_path = path.join(E::NAME);
         let file = File::open(&full_path).expect(full_path.to_str().unwrap());
         Self {
@@ -147,7 +149,7 @@ where
     T: ByteFixArrayInterface,
 {
     fn setup(builder: &MainBuilder, name: &str) -> Self {
-        assert!(T::S <= MAX_FIXBUF);
+        let () = T::FITS_FIXBUF;
         let full_path = builder.parent_root.join(name);
         let file = File::create(&full_path).expect(full_path.to_str().unwrap());
         let writer = BufWriter::new(file);

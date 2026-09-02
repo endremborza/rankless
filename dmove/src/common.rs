@@ -129,6 +129,12 @@ pub trait ByteFixArrayInterface {
     //serialized, sized
     //can be different from in-memory size due to padding
     const S: usize;
+    // Post-monomorphization guard: the fixed-attribute writer and readers reference it, so a type
+    // wider than their `[u8; MAX_FIXBUF]` buffer fails the build instead of overrunning at load.
+    const FITS_FIXBUF: () = assert!(
+        Self::S <= MAX_FIXBUF,
+        "fixed attribute wider than MAX_FIXBUF"
+    );
 
     fn to_fbytes(&self) -> Box<[u8]>;
     fn from_fbytes(buf: &[u8]) -> Self;
