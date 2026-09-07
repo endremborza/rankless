@@ -52,11 +52,18 @@ def push_data(rsync: Callable[..., None], local_root: str, remote_root: str) -> 
 
 
 def digest(host: Host, root: str) -> str:
-    prunes = " -o ".join(f"-name {shlex.quote(e)}" for e in DATA_EXCLUDES)
     return host.out(
-        f"cd {shlex.quote(root)} && find . \\( {prunes} \\) -prune -o "
-        "-type f -printf '%P\\t%s\\n' | LC_ALL=C sort | sha256sum | cut -d' ' -f1"
+        f"{_find_pushed(root)} -printf '%P\\t%s\\n' | LC_ALL=C sort | sha256sum "
+        "| cut -d' ' -f1"
     ).strip()
+
+
+def largest_file(host: Host, root: str) -> int:
+    """Bytes of the biggest file the push replaces: rsync writes each new
+    version to a temp file beside the old one and renames, so a transfer peaks
+    one such file above its final size."""
+    out = host.out(f"{_find_pushed(root)} -printf '%s\\n' | sort -n | tail -1")
+    return int(out or 0)
 
 
 def read_stamp(host: Host, root: str) -> str:
@@ -81,3 +88,8 @@ def run_id(root: str | None) -> str:
     if root and snap.exists():
         return json.loads(snap.read_text())["run_id"]
     return dt.date.today().isoformat()
+
+
+def _find_pushed(root: str) -> str:
+    prunes = " -o ".join(f"-name {shlex.quote(e)}" for e in DATA_EXCLUDES)
+    return f"cd {shlex.quote(root)} && find . \\( {prunes} \\) -prune -o -type f"

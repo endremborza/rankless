@@ -54,6 +54,7 @@ class Primary:
     stamp: str
     digest: str
     data_size_gb: float
+    largest_file_gb: float
 
     @property
     def version(self) -> str:
@@ -83,6 +84,7 @@ class Primary:
             stamp=stamp,
             digest=dig,
             data_size_gb=size_b / GB,
+            largest_file_gb=manifest.largest_file(local, root) / GB,
         )
 
 

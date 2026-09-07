@@ -15,6 +15,7 @@ PRIMARY = Primary(
     stamp=f"r1:{'f' * 12}",
     digest=DIG,
     data_size_gb=50.0,
+    largest_file_gb=10.0,
 )
 
 

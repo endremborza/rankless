@@ -66,6 +66,7 @@ def test_stale_worker_cache_wiped_on_stamp_change() -> None:
         stamp="2026-08-13T11:25:57Z:16310bb25271",
         digest="16310bb25271",
         data_size_gb=1.0,
+        largest_file_gb=0.1,
     )
     stale = _StampHost("2026-07-10T21:56:32Z:5ce8249b5f50")
     drive._invalidate_stale_cache(w, stale, primary)

@@ -6,6 +6,7 @@ import pytest
 
 from pyscripts import deploy, migration_scripts, userdb
 from pyscripts.fleet import manifest
+from pyscripts.fleet.remote import Host
 
 SS_TUNNEL = (
     'LISTEN 0 128 127.0.0.1:3038 0.0.0.0:* users:(("sshd",pid=1201,fd=9))\n'
@@ -55,6 +56,17 @@ def test_push_data_is_the_fleet_definition() -> None:
     assert "user-ledger" not in manifest.PUSH_EXCLUDES
     assert manifest.STAMP_NAME not in manifest.PUSH_EXCLUDES
     assert "cache" in manifest.PUSH_EXCLUDES
+
+
+def test_push_peak_is_the_largest_pushed_file(tmp_path: Path) -> None:
+    local = Host("t", None)
+    assert manifest.largest_file(local, str(tmp_path)) == 0
+    for rel, size in [("a1/names", 3), ("top.bin", 10), ("cache/x/resp", 100)]:
+        p = tmp_path / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"\0" * size)
+    # the per-box cache is seeded additively, never replaced: it is not the peak
+    assert manifest.largest_file(local, str(tmp_path)) == 10
 
 
 def test_migration_scripts_are_enumerated_in_order() -> None:
