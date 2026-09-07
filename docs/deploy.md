@@ -102,7 +102,7 @@ min_citations = 100000 # warm worklist floor, uniform across workers
 mem_base_gb = 41.0     # backend startup baseline (full env)
 gb_per_mcut = 0.25     # peak compute GB per M cut_basis per in-flight tree
 headroom_gb = 8.0      # OS + page cache + safety margin
-parts_gb_per_big = 20.0 # /tmp/dmove-parts footprint per prepped big
+parts_gb_per_big = 20.0 # parts-root footprint per prepped big
 
 [[worker]]
 name = "local"
@@ -128,7 +128,8 @@ data_root = "/home/borza/rankless-data"
 band = [160.0, 320.0]
 procs = [1]
 bigs = true            # owns the top band + everything above it
-big_chunk = 4          # trees of /tmp/dmove-parts at a time
+big_chunk = 4          # trees of parts spilled at a time
+parts_root = "/mnt/common-ssd/dmove-parts" # = the box's .env RANKLESS_PARTS_ROOT; default /tmp/dmove-parts
 ```
 
 Design rules: **the cache directory is the state** (a worker's backend serves
@@ -143,9 +144,13 @@ failure hours later, overlap = double compute) and fleets without exactly one
 1. **prepare** (parallel per worker): pre-checks — clean checkout (the driver
    too: a dirty driver runs code no commit describes while still reporting a
    matching baked commit, so warm-caches mechanically requires
-   commit-artifacts first), `.env` agreement (`OA_ROOT`, `RANKLESS_ENV`), disk
-   headroom for the push and (bigs)
-   `/tmp/dmove-parts`, RAM ≥ the `[model]` peak estimate for the band — then
+   commit-artifacts first), `.env` agreement (`OA_ROOT`, `RANKLESS_ENV`,
+   `RANKLESS_PARTS_ROOT` against the worker's `parts_root`), disk
+   headroom for the push (growth to the primary's size plus its largest pushed
+   file — rsync writes each replacement beside the old one and renames, so one
+   file is in flight on top — plus a margin; the additive cache seed is not
+   counted) and (bigs)
+   the parts root's filesystem, RAM ≥ the `[model]` peak estimate for the band — then
    rsync data (`--delete` mirror of the pushed subdirs; per-box dirs excluded)
    - seed the union cache, `git pull --ff-only`, a frozen dep sync
      (`--no-install-package` for the science-data editable + psycopg2 — workers
@@ -184,12 +189,13 @@ deploy tooling and stay).
 
 ### Fleet helpers (`make fleet-<action>`, i.e. `uv run -m pyscripts fleet <action>`)
 
-- `probe` — per-machine facts: RAM, cores, data-root + `/tmp` free space,
+- `probe` — per-machine facts: RAM, cores, data-root + parts-root free space,
   checkout HEAD, backend-unit state, cargo/uv presence. Adding a machine =
-  ssh-config alias + checkout + `.env` (`OA_ROOT`, `RANKLESS_ENV`) +
+  ssh-config alias + checkout + `.env` (`OA_ROOT`, `RANKLESS_ENV`,
+  `RANKLESS_PARTS_ROOT` when `/tmp` is small) +
   `make setup-services ARGS="--profile worker --no-start"` (backend unit only;
   the driver starts it after the data push) + cargo/uv; `probe --host <alias>`
-  (then with `--repo-dir/--data-root`) checks each step's result.
+  (then with `--repo-dir/--data-root/--parts-root`) checks each step's result.
 - `suggest` — drafts a complete `warm.toml`: probes every configured worker,
   pulls the real worklist from the local backend, tiles bands so estimated
   wall-clock is balanced by `speed` and every band fits its box's RAM under
@@ -216,7 +222,7 @@ Recalibrate `[model]` after each real run: read each box's
 (peak − base) / (procs × band hi); per-band wall-clocks (the drive's
 `done in N hours` lines) fit each worker's `speed` — `speed` is the deliberate
 manual lever, suggest does not fold per-bin parallelism into its cost split.
-`parts_gb_per_big` can only be sampled mid-run (`du /tmp/dmove-parts` during a
+`parts_gb_per_big` can only be sampled mid-run (`du` of the parts root during a
 bigs chunk) — parts are deleted after each read.
 
 ## ship-alpha

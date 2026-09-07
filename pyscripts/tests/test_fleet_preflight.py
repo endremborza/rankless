@@ -125,6 +125,44 @@ def test_bigs_tmp_headroom() -> None:
     assert not _run_full(w, {"df --output=avail -B1 /tmp": str(40 * GB)})["disk"]
 
 
+def test_push_needs_the_delta_plus_one_file_in_flight() -> None:
+    # 45G on the box, 50G to push: the 5G delta alone is not enough — rsync
+    # writes each replacement beside the old file and renames, so the largest
+    # file (10G) is in flight on top, before the 5G margin.
+    assert not _run_full(_worker(), {"df --output=avail": str(12 * GB)})["disk"]
+    assert _run_full(_worker(), {"df --output=avail": str(21 * GB)})["disk"]
+
+
+def test_bigs_parts_root_filesystem_is_measured() -> None:
+    root = "/mnt/ssd/dmove-parts"
+    w = _worker(name="big", bigs=True, big_chunk=4, parts_root=root)
+    env = f"OA_ROOT={w.data_root}\nRANKLESS_ENV=full\nRANKLESS_PARTS_ROOT={root}\n"
+
+    def run(mnt_free_gb: int) -> dict[str, bool]:
+        # the root is created on demand, so its parent's filesystem is probed
+        host = FakeHost(
+            {
+                "df --output=avail -B1 /mnt/ssd": str(mnt_free_gb * GB),
+                **_green(w),
+                ".env": env,
+            }
+        )
+        return {c.name: c.ok for c in preflight.full_checks(w, host, Model(), PRIMARY)}
+
+    assert all(run(100).values())
+    oks = run(40)  # /tmp still has 200G — it is not where the parts go
+    assert not oks.pop("disk")
+    assert all(oks.values()), f"unexpected extra failures: {oks}"
+
+
+def test_env_parts_root_must_match_config() -> None:
+    # a silent .env means the box's backend writes under the default root,
+    # so a configured root the gate would measure elsewhere is a lie
+    assert not _run_full(_worker(parts_root="/mnt/ssd/dmove-parts"))["env"]
+    env = "OA_ROOT=/home/x/rankless-data\nRANKLESS_ENV=full\nRANKLESS_PARTS_ROOT=/mnt/ssd/p"
+    assert not _run_full(_worker(), {".env": env})["env"]
+
+
 def test_gate_aborts_naming_failures(capsys) -> None:
     w = _worker()
     host = FakeHost({**_green(w), "curl": json.dumps({"version": "stale"})})

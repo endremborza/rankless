@@ -1,11 +1,13 @@
 """Calibration helper: probe machines, draft bands/procs/limits for warm.toml.
 
-`probe` gathers per-box facts (RAM, disk, /tmp, cores, checkout, backend unit,
-toolchain) — the readiness checklist for adding a machine to the fleet.
+`probe` gathers per-box facts (RAM, disk, parts headroom, cores, checkout,
+backend unit, toolchain) — the readiness checklist for adding a machine to the
+fleet.
 `suggest` turns probes + the actual warm worklist into a complete draft config:
 bands tiled so estimated wall-clock is balanced by each box's `speed` weight,
 every band capped by what the box's RAM can hold (the [model] coefficients),
-the top band + bigs duty on the highest-ceiling box, `big_chunk` from /tmp.
+the top band + bigs duty on the highest-ceiling box, `big_chunk` from the parts
+root's headroom.
 
 The output is a draft to paste into data/warm.toml and hand-tune — the same
 [model] numbers the preflight gate enforces are printed with it, so a lie here
@@ -15,7 +17,14 @@ fails loudly there.
 from dataclasses import dataclass, replace
 
 from pyscripts import gitutil, services
-from pyscripts.fleet.config import DEFAULT_PORT, Fleet, Model, Worker
+from pyscripts.fleet.config import (
+    DEFAULT_PARTS_ROOT,
+    DEFAULT_PORT,
+    Fleet,
+    Model,
+    Worker,
+    parts_fs,
+)
 from pyscripts.fleet.remote import Host
 
 GB = 1024**3
@@ -31,14 +40,18 @@ class Probe:
     mem_avail_gb: float = -1
     cores: int = -1
     data_avail_gb: float = -1
-    tmp_avail_gb: float = -1
+    parts_avail_gb: float = -1
     head: str = "?"
     unit: str = "?"
     tools_ok: bool = False
 
 
 def probe(
-    name: str, host: str | None, repo_dir: str = "", data_root: str = ""
+    name: str,
+    host: str | None,
+    repo_dir: str = "",
+    data_root: str = "",
+    parts_root: str = DEFAULT_PARTS_ROOT,
 ) -> Probe:
     h = Host(name, host)
     fields: dict = {}
@@ -52,7 +65,11 @@ def probe(
     _try("mem_total_gb", "free -b | awk '/Mem:/ {print $2}'", lambda s: int(s) / GB)
     _try("mem_avail_gb", "free -b | awk '/Mem:/ {print $7}'", lambda s: int(s) / GB)
     _try("cores", "nproc", int)
-    _try("tmp_avail_gb", "df --output=avail -B1 /tmp | tail -1", lambda s: int(s) / GB)
+    _try(
+        "parts_avail_gb",
+        f"df --output=avail -B1 {parts_fs(parts_root)} | tail -1",
+        lambda s: int(s) / GB,
+    )
     _try("unit", f"systemctl --user is-active {services.BACKEND_UNIT} || true", str)
     _try(
         "tools_ok",
@@ -72,17 +89,18 @@ def probe(
 
 def probe_fleet(fleet: Fleet) -> dict[str, Probe]:
     return {
-        w.name: probe(w.name, w.host, w.repo_dir, w.data_root) for w in fleet.workers
+        w.name: probe(w.name, w.host, w.repo_dir, w.data_root, w.parts_root)
+        for w in fleet.workers
     }
 
 
 def print_probes(probes: dict[str, Probe]) -> None:
-    hdr = f"{'worker':12} {'ram':>6} {'avail':>6} {'cores':>5} {'data':>7} {'/tmp':>7} {'unit':>8} {'tools':>5}  head"
+    hdr = f"{'worker':12} {'ram':>6} {'avail':>6} {'cores':>5} {'data':>7} {'parts':>7} {'unit':>8} {'tools':>5}  head"
     print(hdr)
     for p in probes.values():
         print(
             f"{p.name:12} {p.mem_total_gb:5.0f}G {p.mem_avail_gb:5.0f}G {p.cores:5} "
-            f"{p.data_avail_gb:6.0f}G {p.tmp_avail_gb:6.0f}G {p.unit:>8} "
+            f"{p.data_avail_gb:6.0f}G {p.parts_avail_gb:6.0f}G {p.unit:>8} "
             f"{'ok' if p.tools_ok else 'MISS':>5}  {p.head}"
         )
 
@@ -186,6 +204,8 @@ def render_toml(fleet: Fleet, workers: list[Worker]) -> str:
                 f'repo_dir = "{w.repo_dir}"',
                 f'data_root = "{w.data_root}"',
             ]
+        if w.parts_root != DEFAULT_PARTS_ROOT:
+            lines.append(f'parts_root = "{w.parts_root}"')
         lines.append(f"band = [{w.band[0]:.1f}, {w.band[1]:.1f}]")
         lines.append(f"bins = [{', '.join(f'{b:.1f}' for b in w.bins)}]")
         lines.append(f"procs = [{', '.join(map(str, w.procs))}]")
@@ -226,6 +246,6 @@ def _bins_and_procs(
 
 
 def _big_chunk(p: Probe, model: Model) -> int:
-    if p.tmp_avail_gb <= 0:
+    if p.parts_avail_gb <= 0:
         return 1
-    return max(1, min(MAX_BIG_CHUNK, int(p.tmp_avail_gb // model.parts_gb_per_big)))
+    return max(1, min(MAX_BIG_CHUNK, int(p.parts_avail_gb // model.parts_gb_per_big)))

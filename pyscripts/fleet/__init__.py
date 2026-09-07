@@ -9,7 +9,7 @@ import os
 from dotenv import load_dotenv
 from protocli import Dispatcher
 
-from pyscripts.fleet.config import DEFAULT_CONFIG, load_config
+from pyscripts.fleet.config import DEFAULT_CONFIG, DEFAULT_PARTS_ROOT, load_config
 from pyscripts.fleet.drive import coverage_gate, warm  # noqa: F401 — package API
 
 load_dotenv()
@@ -20,6 +20,7 @@ def probe(
     host: str | None = None,
     repo_dir: str = "",
     data_root: str = "",
+    parts_root: str = DEFAULT_PARTS_ROOT,
     config: str = DEFAULT_CONFIG,
 ) -> None:
     """Per-machine facts (RAM/disk/cores/checkout/unit/tools) — the readiness
@@ -27,7 +28,7 @@ def probe(
     from pyscripts.fleet import calibrate
 
     if host:
-        probes = {host: calibrate.probe(host, host, repo_dir, data_root)}
+        probes = {host: calibrate.probe(host, host, repo_dir, data_root, parts_root)}
     else:
         fleet = load_config(config, require_bands=False)
         probes = calibrate.probe_fleet(fleet)

@@ -11,9 +11,9 @@ CUTS = sorted(
 )
 
 PROBES = {
-    "local": Probe("local", mem_total_gb=64, cores=16, tmp_avail_gb=30),
-    "mid": Probe("mid", mem_total_gb=128, cores=8, tmp_avail_gb=50),
-    "big": Probe("big", mem_total_gb=256, cores=8, tmp_avail_gb=100),
+    "local": Probe("local", mem_total_gb=64, cores=16, parts_avail_gb=30),
+    "mid": Probe("mid", mem_total_gb=128, cores=8, parts_avail_gb=50),
+    "big": Probe("big", mem_total_gb=256, cores=8, parts_avail_gb=100),
 }
 
 
@@ -81,8 +81,19 @@ def test_bins_and_procs_shape() -> None:
         assert all(1 <= p <= calibrate.MAX_PROCS for p in w.procs)
 
 
-def test_big_chunk_from_tmp() -> None:
+def test_big_chunk_from_parts_headroom() -> None:
     model = Model()  # 20G parts per big
     assert calibrate._big_chunk(PROBES["big"], model) == 5
-    assert calibrate._big_chunk(Probe("x", tmp_avail_gb=500), model) == 8  # capped
+    assert calibrate._big_chunk(Probe("x", parts_avail_gb=500), model) == 8  # capped
     assert calibrate._big_chunk(Probe("x"), model) == 1  # unknown → minimal
+
+
+def test_parts_root_round_trips(tmp_path: Path) -> None:
+    fleet = _bandless_fleet()
+    fleet.workers[2].parts_root = "/mnt/ssd/dmove-parts"
+    workers = calibrate.suggest_workers(fleet, PROBES, CUTS)
+    p = tmp_path / "warm.toml"
+    p.write_text(calibrate.render_toml(fleet, workers))
+    loaded = {w.name: w for w in config.load_config(str(p)).workers}
+    assert loaded["big"].parts_root == "/mnt/ssd/dmove-parts"
+    assert loaded["mid"].parts_root == config.DEFAULT_PARTS_ROOT

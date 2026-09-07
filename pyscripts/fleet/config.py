@@ -10,6 +10,7 @@ band with `bigs = true` (it computes everything above it via chunked
 prep→read).
 """
 
+import os
 import tomllib
 from dataclasses import dataclass, field
 
@@ -19,6 +20,8 @@ DEFAULT_CONFIG = "data/warm.toml"
 DEFAULT_MIN_CITATIONS = 100_000
 DEFAULT_BIG_CHUNK = 4
 DEFAULT_PORT = 3038
+PARTS_ROOT_VAR = "RANKLESS_PARTS_ROOT"
+DEFAULT_PARTS_ROOT = "/tmp/dmove-parts"  # the backend's default for PARTS_ROOT_VAR
 
 
 @dataclass(frozen=True)
@@ -32,7 +35,7 @@ class Model:
     mem_base_gb: float = 41.0  # backend startup baseline (full env)
     gb_per_mcut: float = 0.25  # peak compute GB per M cut_basis per in-flight tree
     headroom_gb: float = 8.0  # OS + page cache + safety margin
-    parts_gb_per_big: float = 20.0  # /tmp/dmove-parts footprint per prepped big
+    parts_gb_per_big: float = 20.0  # parts-root footprint per prepped big
 
 
 @dataclass
@@ -45,7 +48,9 @@ class Worker:
     bins: list[float] = field(default_factory=list)
     procs: list[int] = field(default_factory=list)
     bigs: bool = False
-    big_chunk: int = DEFAULT_BIG_CHUNK  # bigs in flight on /tmp per prep→read cycle
+    big_chunk: int = DEFAULT_BIG_CHUNK  # bigs in flight in the parts root per prep→read
+    # where this box's backend spills bigs parts: its .env PARTS_ROOT_VAR
+    parts_root: str = DEFAULT_PARTS_ROOT
     port: int = DEFAULT_PORT
     speed: float = 1.0  # relative per-proc throughput; hand-tuned from measured clocks
 
@@ -109,6 +114,12 @@ class Fleet:
         band = self.bigs_worker().band
         assert band is not None
         return band[1]
+
+
+def parts_fs(parts_root: str) -> str:
+    """The directory whose filesystem the parts fill: the root itself is created
+    on demand and removed by clean-cache, its parent always exists."""
+    return os.path.dirname(parts_root.rstrip("/")) or "/"
 
 
 def load_config(path: str, require_bands: bool = True) -> Fleet:
