@@ -19,7 +19,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from protocli import Dispatcher
 
-from pyscripts import fleet, gitutil
+from pyscripts import fleet, gitutil, services
 from pyscripts.fleet import manifest
 
 load_dotenv()
@@ -54,6 +54,9 @@ def refresh_data(*, from_snapshot: bool = False, no_db_pull: bool = False) -> No
     with pipeline_lock():
         if not no_db_pull:
             _pull_db()
+        # The resident backend holds tens of GB the filter step needs;
+        # restart-service at the end brings it back.
+        services.systemctl("stop", services.BACKEND_UNIT)
         if from_snapshot:
             _make("to-csv")
         _make("filter", "extend_csvs")

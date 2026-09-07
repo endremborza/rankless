@@ -164,6 +164,10 @@ def render_nginx_mcp(port: int = MCP_PORT) -> str:
     return render("nginx-mcp-location.conf", mcp_port=port)
 
 
+def systemctl(*args: str) -> None:
+    subprocess.run(["systemctl", "--user", *args], check=True)
+
+
 def main() -> int:
     load_dotenv()
     args = _build_parser().parse_args()
@@ -269,25 +273,21 @@ def _install(units: dict[str, str], start: bool) -> None:
     for name, text in units.items():
         (unit_dir / name).write_text(text)
         print(f"[services] wrote {unit_dir / name}")
-    _systemctl("daemon-reload")
+    systemctl("daemon-reload")
     for name in units:
         # Template units (fe blue/green) are enabled per instance by the
         # blue/green deploy flow (deploy.py), not here; the backup service is
         # oneshot and only ever triggered by its timer.
         if "@" in name or name == BACKUP_SERVICE_UNIT:
             continue
-        _systemctl("enable", name)
+        systemctl("enable", name)
         if start:
             if name.endswith(".timer"):
-                _systemctl("start", name)
+                systemctl("start", name)
                 print(f"[services] armed {name}")
             else:
-                _systemctl("restart", name)
+                systemctl("restart", name)
                 print(f"[services] restarted {name}")
-
-
-def _systemctl(*args: str) -> None:
-    subprocess.run(["systemctl", "--user", *args], check=True)
 
 
 if __name__ == "__main__":

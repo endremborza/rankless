@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from pyscripts import recalc
+from pyscripts import recalc, services
 from pyscripts.fleet.manifest import STAMP_NAME
 
 
@@ -94,6 +94,31 @@ def test_pipeline_lock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     recalc.LOCK_PATH.write_text(str(dead.pid))
     with recalc.pipeline_lock():
         assert recalc.LOCK_PATH.read_text() != str(dead.pid)
+
+
+def test_refresh_data_stops_backend_before_compute(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(recalc, "LOCK_PATH", tmp_path / "lock")
+    monkeypatch.setattr(recalc, "_make", lambda *g: calls.append(f"make {' '.join(g)}"))
+    monkeypatch.setattr(recalc, "_pull_db", lambda: calls.append("pull_db"))
+    monkeypatch.setattr(
+        services, "systemctl", lambda *a: calls.append(f"systemctl {' '.join(a)}")
+    )
+    monkeypatch.setattr(recalc.manifest, "write_stamp", lambda root, rid: "r:abc")
+    monkeypatch.setattr(recalc, "write_release_manifest", lambda root: root)
+    monkeypatch.setenv("OA_ROOT", str(tmp_path))
+
+    recalc.refresh_data(from_snapshot=True)
+
+    # the DB pull needs no RAM and may fail on AWS — the box keeps serving
+    # until the data-building goals are about to run
+    stop = calls.index(f"systemctl stop {services.BACKEND_UNIT}")
+    first_make = next(i for i, c in enumerate(calls) if c.startswith("make"))
+    assert calls.index("pull_db") < stop < first_make
+    assert calls[first_make] == "make to-csv"
+    assert "restart-service" in calls[-1]
 
 
 def test_deploy_primitives_derived() -> None:

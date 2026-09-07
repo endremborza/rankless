@@ -27,6 +27,7 @@ accepted claim), then: `make filter extend_csvs` → forced gen-ladder rebuild �
 - `ARGS="--from-snapshot"` prepends `make to-csv` (a new OpenAlex snapshot landed;
   `make download-snapshot` stays manual).
 - `ARGS="--no-db-pull"` skips the DB merge (box without AWS access).
+- Stops `rankless-backend` right after the DB pull, before the first data-building goal: the filter step needs the tens of GB a resident backend holds, and `restart-service` at the end brings it back. The pull needs no RAM, so a failed pull leaves the box serving.
 - Ends by writing the data-root **stamp** (`$OA_ROOT/stamp`, `<run_id>:<digest12>`)
   before restarting the backend — the backend echoes it in `/v1/specs.version`,
   which is what the warm fleet's preflight handshake compares. After any manual
