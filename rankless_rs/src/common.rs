@@ -33,6 +33,8 @@ pub const SEM_DIR: &str = "semantic-ids";
 pub const ID_PREFIX: &str = "https://openalex.org/";
 pub const N_PEERS: usize = 10;
 pub const EXT_SEP: &str = "-;-";
+// Relative to the cwd the make pipeline runs from (the workspace root).
+pub const GEN_DIR: &str = "rankless_rs/src/gen";
 
 pub struct NameMarker;
 pub struct NameExtensionMarker;
@@ -206,6 +208,7 @@ pub struct Stowage {
     pub paths: PathCollection,
     current_ns: String,
     builder: Option<Mutex<MainBuilder>>,
+    code_dir: PathBuf,
 }
 
 //TODO/clarity: this is sort of a mess - could be just generic types
@@ -273,7 +276,14 @@ impl Stowage {
             paths: PathCollection::new(root_path),
             current_ns: "".to_string(),
             builder: None,
+            code_dir: PathBuf::from(GEN_DIR),
         }
+    }
+
+    /// Redirect the generated `gen/<step>.rs` a step writes; the default is the checked-in tree.
+    pub fn with_code_dir(mut self, code_dir: impl Into<PathBuf>) -> Self {
+        self.code_dir = code_dir.into();
+        self
     }
 
     pub fn set_namespace(&mut self, ns: &'static str) {
@@ -284,8 +294,10 @@ impl Stowage {
     }
 
     pub fn write_code(&self) -> io::Result<usize> {
-        let suffix = self.current_ns.replace("-", "_");
-        self.mu_bu().write_code(&code_path(&suffix))
+        let path = self
+            .code_dir
+            .join(format!("{}.rs", self.current_ns.replace("-", "_")));
+        self.mu_bu().write_code(path.to_str().unwrap())
     }
 
     pub fn get_out_csv_path(&self) -> &str {
@@ -645,12 +657,6 @@ pub fn init_empty_slice<E: Entity, T: Default>() -> Box<[T]> {
         .map(|_| T::default())
         .collect::<Vec<T>>()
         .into()
-}
-
-pub fn code_path(suffix: &str) -> String {
-    //TODO: this WET knows gen path :(
-    //move to dmove-util somehow
-    format!("rankless_rs/src/gen/{}.rs", suffix)
 }
 
 pub fn reverse_id<E>(stowage: &Stowage) -> Box<[BigId]>

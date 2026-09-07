@@ -40,15 +40,19 @@ macro_rules! mods_as_comms {
 }
 
 pub fn runner(comm: &str, root_str: &str, in_root_o: Option<String>) -> io::Result<()> {
-    let stowage = Stowage::new(root_str);
-    if comm == "to-csv" {
-        if let Some(in_root_str) = in_root_o {
-            csv_writers::write_csvs(&in_root_str, &stowage)?;
-        }
-    } else if comm == "filter" {
-        return filter::main(stowage);
+    run_step(comm, Stowage::new(root_str), in_root_o.as_deref())
+}
+
+/// One pipeline command on a prepared `Stowage`; `in_root` is the snapshot data dir `to-csv` reads.
+pub fn run_step(comm: &str, stowage: Stowage, in_root: Option<&str>) -> io::Result<()> {
+    match comm {
+        "to-csv" => match in_root {
+            Some(in_root) => csv_writers::write_csvs(in_root, &stowage),
+            None => Ok(()),
+        },
+        "filter" => filter::main(stowage),
+        _ => subrun(comm, stowage),
     }
-    subrun(comm, stowage)
 }
 mods_as_comms!(
     a1_entity_mapping,
