@@ -13,6 +13,7 @@
 	import { formatNumber, shortYear } from '$lib/text-format-util';
 	import { urlFriendlify } from '$lib/tree-functions';
 	import { BE_REMOTE_URL, LATEST_YEAR } from '$lib/constants';
+	import { createStaleGuard } from '$lib/utils/stale-guard';
 	import { dev, version } from '$app/environment';
 	import { onMount } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
@@ -39,10 +40,13 @@
 	let selHeroId = '';
 	// User-swapped peers, keyed by grid slot. Each entry overrides data.peers[slot] in `displayPeers`.
 	let overrides: Record<number, PeerEntry> = {};
+	const claimHero = createStaleGuard();
+	let heroIsCurrent = claimHero();
 	$: if (data.hero.semanticId !== selHeroId) {
 		selHeroId = data.hero.semanticId;
 		sel = data.topSubfields.slice(0, DEFAULT_FIELD_N).map((_, i) => i);
 		overrides = {};
+		heroIsCurrent = claimHero();
 	}
 	$: selPos = [...sel].sort((a, b) => a - b);
 	$: displayPeers = data.peers.map((p, i) => overrides[i] ?? p);
@@ -51,11 +55,12 @@
 	// current hero's topSubfields by subfield dmId (0 where the entity has none in that subfield).
 	async function swapPeer(result: SearchResult) {
 		const slot = selectedIdx;
+		const isCurrent = heroIsCurrent;
 		try {
 			const resp: EntityPeersResp | null = await fetch(
 				`${BE_REMOTE_URL}/peers/${rootType}/${urlFriendlify(result.semanticId)}`
 			).then((r) => (r.ok ? r.json() : null));
-			if (!resp) return;
+			if (!resp || !isCurrent()) return;
 			const byDmId = new Map<number, number>();
 			resp.topSubfields.forEach((sf, i) =>
 				byDmId.set(sf.dmId, resp.hero.subfieldCitations[i] ?? 0)

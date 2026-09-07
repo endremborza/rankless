@@ -25,6 +25,7 @@
 	import AuthorOwnerTools from '$lib/components/AuthorOwnerTools.svelte';
 	import AuthorLedgerPanel from '$lib/components/AuthorLedgerPanel.svelte';
 	import { createWorksLoader } from '$lib/utils/works-loader';
+	import { createStaleGuard } from '$lib/utils/stale-guard';
 	import type { LedgerEvent, AppliedManifest } from '$lib/types/ledger';
 
 	export let data: {
@@ -83,17 +84,16 @@
 
 	let disownedSet = new Set(data.disownedWids);
 	let mergedPairsState = [...data.mergedPairs];
+	const claimNavigation = createStaleGuard();
 	afterNavigate(() => {
+		const isCurrent = claimNavigation();
 		disownedSet = new Set(data.disownedWids);
 		mergedPairsState = [...data.mergedPairs];
 		hitPaperAbstract = null;
 		abstractLoading = isHitPaper;
 		if (isHitPaper) {
-			const sid = data.conf.semanticId;
-			fetchOaAbstract(sid).then((result) => {
-				// Ignore a slow fetch for a previous paper that resolves after we navigated away, so it
-				// can't clobber the current paper's abstract or loading state.
-				if (sid !== data.conf.semanticId) return;
+			fetchOaAbstract(data.conf.semanticId).then((result) => {
+				if (!isCurrent()) return;
 				hitPaperAbstract = result;
 				abstractLoading = false;
 			});
