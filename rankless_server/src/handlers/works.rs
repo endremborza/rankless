@@ -62,7 +62,7 @@ pub(crate) async fn works_get(
     let page_size = wq.n.unwrap_or(WORKS_PAGE_SIZE_MAX).min(WORKS_PAGE_SIZE_MAX);
     if let Some(state) = states.0 .0.get(etype.as_str()) {
         let psid = parse_semantic_id(sem_id);
-        if let Some(&dm_id) = state.semantic_id_map.get(psid.as_str()) {
+        if let Some(&dm_id) = state.sem_to_dm.get(psid.as_str()) {
             let gets = &states.0 .2.state.gets;
             if let Some(work_arr) = gets.works_of_entity(dm_id as usize, etype) {
                 if !work_arr.is_empty() {
@@ -128,10 +128,7 @@ pub(crate) async fn intersect_get(
                 return bad_request("too many operands");
             }
             // Unresolved ids drop out; a clause left with no operand makes the AND empty.
-            if let Some(&dm_id) = ns
-                .semantic_id_map
-                .get(parse_semantic_id(raw_id.into()).as_str())
-            {
+            if let Some(&dm_id) = ns.sem_to_dm.get(parse_semantic_id(raw_id.into()).as_str()) {
                 if let Some(slice) = gets.works_of_entity(dm_id as usize, etype.into()) {
                     operands.push(slice);
                 }
@@ -162,7 +159,7 @@ pub(crate) async fn paper_profile(
 ) -> (HeaderMap, Response) {
     let astates = states.0 .0.get(Authors::NAME).unwrap();
     let gets = &states.0 .2.state.gets;
-    let Some(&aid_dm) = astates.semantic_id_map.get(author_sem_id.as_str()) else {
+    let Some(&aid_dm) = astates.sem_to_dm.get(author_sem_id.as_str()) else {
         return get_empty();
     };
     let aid = aid_dm as usize;

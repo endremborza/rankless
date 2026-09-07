@@ -98,7 +98,7 @@ pub(crate) async fn sem_id_get(
 ) -> Json<[Option<String>; 1]> {
     let mut out = None;
     if let Some(nstate) = states.0 .0.get(etype.as_str()) {
-        if let Some(&rid) = nstate.oa_id_map.get(&oa_id) {
+        if let Some(&rid) = nstate.oa_to_rid.get(&oa_id) {
             let s = nstate.responses[rid as usize].semantic_id.to_string();
             out = Some(s);
         }
@@ -180,7 +180,7 @@ pub(crate) async fn resolve_author_get(
         d
     } else if let Some(sem_id) = &q.semantic_id {
         let psid = parse_semantic_id(sem_id.clone());
-        match nstate.semantic_id_map.get(psid.as_str()) {
+        match nstate.sem_to_dm.get(psid.as_str()) {
             Some(&d) => d as usize,
             None => return (StatusCode::NOT_FOUND, Json(None)),
         }
@@ -194,7 +194,7 @@ pub(crate) async fn resolve_author_get(
             None => return (StatusCode::NOT_FOUND, Json(None)),
         }
     } else if let Some(oa_id) = q.oa_id {
-        match nstate.oa_id_map.get(&oa_id) {
+        match nstate.oa_to_rid.get(&oa_id) {
             Some(&rid) => nstate.responses[rid as usize].dm_id,
             None => return (StatusCode::NOT_FOUND, Json(None)),
         }

@@ -35,7 +35,7 @@ fn peers_inner(etype: &str, sem_id: &str, states: &StatesT) -> (HeaderMap, Respo
     let gets = &states.2.state.gets;
     let top_rels = gets.top_rels_for(etype);
 
-    let Some(&hero_dm) = astates.semantic_id_map.get(sem_id) else {
+    let Some(&hero_dm) = astates.sem_to_dm.get(sem_id) else {
         return get_empty();
     };
     let hero_dm = hero_dm as usize;

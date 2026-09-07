@@ -49,9 +49,9 @@ pub(crate) struct NameState {
     pub engine: SearchEngine<SEARCH_SIZE>,
     pub responses: Box<[SearchResult]>,
     pub exts: Box<[EntityExt]>,
-    pub semantic_id_map: HashMap<Arc<str>, u32>,
-    pub oa_id_map: HashMap<u64, u32>,
-    dm_to_response_id: Box<[u32]>,
+    pub sem_to_dm: HashMap<Arc<str>, u32>,
+    pub oa_to_rid: HashMap<u64, u32>,
+    dm_to_rid: Box<[u32]>,
     pub peers: Box<[[u32; N_PEERS]]>,
     pub cit_rank_ladder: Box<[[u32; LADDER_LEN]]>,
 }
@@ -269,7 +269,7 @@ where
             let att = &satts[target_etype][dm];
             let semantic_id = nstates
                 .get(target_etype)
-                .and_then(|rs| rs.semantic_id_map.get(att.semantic_id.as_ref()))
+                .and_then(|rs| rs.sem_to_dm.get(att.semantic_id.as_ref()))
                 .map(|_| att.semantic_id.to_string())
                 .unwrap_or_default();
             let (parent_name, parent_semantic_id) = if is_topic {
@@ -278,7 +278,7 @@ where
                     let p = &satts[Subfields::NAME][sf_dm];
                     let sid = nstates
                         .get(Subfields::NAME)
-                        .and_then(|rs| rs.semantic_id_map.get(p.semantic_id.as_ref()))
+                        .and_then(|rs| rs.sem_to_dm.get(p.semantic_id.as_ref()))
                         .map(|_| p.semantic_id.to_string());
                     (Some(p.name.to_string()), sid)
                 } else {
@@ -361,16 +361,16 @@ impl NameState {
             if from_cache { "cached" } else { "built" }
         );
         let n = responses.len();
-        let mut semantic_id_map = HashMap::with_capacity(n);
-        let mut oa_id_map = HashMap::with_capacity(n);
-        let mut dm_to_response_id: Box<[u32]> = vec![u32::MAX; names_arc.len()].into_boxed_slice();
+        let mut sem_to_dm = HashMap::with_capacity(n);
+        let mut oa_to_rid = HashMap::with_capacity(n);
+        let mut dm_to_rid: Box<[u32]> = vec![u32::MAX; names_arc.len()].into_boxed_slice();
         for (i, res) in responses.iter().enumerate() {
             let dm_id = res.dm_id;
             let oa_id = entif.oa_id[dm_id];
-            oa_id_map.insert(oa_id, i as u32);
-            semantic_id_map.insert(res.semantic_id.clone(), dm_id as u32);
-            if dm_id < dm_to_response_id.len() {
-                dm_to_response_id[dm_id] = i as u32;
+            oa_to_rid.insert(oa_id, i as u32);
+            sem_to_dm.insert(res.semantic_id.clone(), dm_id as u32);
+            if dm_id < dm_to_rid.len() {
+                dm_to_rid[dm_id] = i as u32;
             }
         }
 
@@ -384,9 +384,9 @@ impl NameState {
             engine: engine.into(),
             exts: EntityExt::from_resps(&responses, entif, gets),
             responses,
-            semantic_id_map,
-            oa_id_map,
-            dm_to_response_id,
+            sem_to_dm,
+            oa_to_rid,
+            dm_to_rid,
             peers,
             cit_rank_ladder: entif.cit_rank_ladder.clone(),
         }
@@ -425,7 +425,7 @@ impl NameState {
     }
 
     pub fn response_id_from_dm(&self, dm_id: usize) -> Option<usize> {
-        let rid = *self.dm_to_response_id.get(dm_id)?;
+        let rid = *self.dm_to_rid.get(dm_id)?;
         if rid == u32::MAX {
             None
         } else {

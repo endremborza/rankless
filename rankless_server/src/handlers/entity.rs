@@ -45,7 +45,7 @@ pub(crate) async fn tree_get(
             tq.cacheable = Some(true);
         }
         let psid = parse_semantic_id(semantic_id);
-        if let Some(&dm_id) = nstate.semantic_id_map.get(psid.as_str()) {
+        if let Some(&dm_id) = nstate.sem_to_dm.get(psid.as_str()) {
             let dm_id_u = dm_id as usize;
             let ncite = nstate
                 .response_id_from_dm(dm_id_u)
@@ -106,7 +106,7 @@ pub(crate) async fn view_get(
     let mut out = None;
     if let Some(state) = states.0 .0.get(etype.as_str()) {
         let psid = parse_semantic_id(semantic_id);
-        if let Some(&dm_id) = state.semantic_id_map.get(psid.as_str()) {
+        if let Some(&dm_id) = state.sem_to_dm.get(psid.as_str()) {
             let dm_id_u = dm_id as usize;
             if let Some(i) = state.response_id_from_dm(dm_id_u) {
                 let srs = &state.responses[i];
@@ -150,7 +150,7 @@ pub(crate) async fn stats_get(
     };
     let satts = &states.0 .1;
     let psid = parse_semantic_id(semantic_id);
-    let Some(&dm_id) = state.semantic_id_map.get(psid.as_str()) else {
+    let Some(&dm_id) = state.sem_to_dm.get(psid.as_str()) else {
         return get_empty();
     };
     let dm_id_u = dm_id as usize;
@@ -185,7 +185,7 @@ pub(crate) async fn stats_get(
         if let Some(s) = q.subfield.as_ref() {
             let sf_psid = parse_semantic_id(s.clone());
             if let Some(sf_state) = states.0 .0.get(Subfields::NAME) {
-                if let Some(&sf_dm) = sf_state.semantic_id_map.get(sf_psid.as_str()) {
+                if let Some(&sf_dm) = sf_state.sem_to_dm.get(sf_psid.as_str()) {
                     let sf_dm = sf_dm as usize;
                     let att = &satts[Subfields::NAME][sf_dm];
                     subfield = Some(StatsSubfield {
