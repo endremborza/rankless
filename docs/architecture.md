@@ -217,6 +217,8 @@ the only viz dependency).
 | `lib/util.ts`                     | General utilities                                                                                                                                                  |
 | `lib/utils/ledger-effective.ts`   | Derives effective disowned/ledger sets for `AllWorks` from applied + pending events                                                                                |
 | `lib/utils/works-loader.ts`       | Shared paginated author-works store (`createWorksLoader`); one instance per hero page feeds both `AllWorks` and `AuthorNetwork` so works are fetched once          |
+| `lib/utils/stale-guard.ts`        | `createStaleGuard`: `claim()` marks a new in-flight op and returns `isCurrent()`; every entity-page fetch drops a superseded response through it                   |
+| `lib/utils/tree-loader.ts`        | `createTreeLoader`: `load(conf, shallow?)` resolves to the tree only while still the newest request; `$state` = conf/resp/loading; one per `FullQc`/`FlatOutFrame` |
 | `lib/utils/works-intersection.ts` | `fetchWorkIntersection`: encodes a CNF `WorkSetQuery` (`$lib/types/work-set.ts`) into the `/works-intersect/*spec` path and returns a `PaginatedPaperSetResp`      |
 | `lib/hero-config.ts`              | Per-root-type `HERO_CONFIG` + chip/leader/field-topic builders for `EntityHero` (stat, badge policy, leaders, topics nested under their parent field)              |
 
@@ -490,7 +492,7 @@ How users explore an entity's impact/production hierarchically (`FullQc.svelte`)
 - **`updateLevelSpecs`** — traverses `breakdownOptions` by `selectedBreakdowns` to prepare
   `levelOptions` for the next level. `MidpathBar` renders the available options.
 - **Dynamic tree loading** — `updateTreeSpecId` detects when a selection requires a
-  different `treeId`; `loadNewQc` fetches that tree from the backend.
+  different `treeId`; `loadNewQc` fetches that tree through the component's `tree-loader`, which drops a response a newer request has superseded.
 - **Semantic descriptions** — `semantify` (in `text-format-util.ts`) maps raw option
   identifiers to human-readable text via the hierarchical `SEM_MAP`, context-aware on the
   selection path (e.g. `"countries-false"` → `"are cited by authors working in"`).

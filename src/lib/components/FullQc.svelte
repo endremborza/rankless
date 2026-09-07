@@ -2,7 +2,7 @@
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 	import { pluralize } from '$lib/text-format-util';
-	import { MAX_LEVEL_COUNT, BE_REMOTE_URL, WIDE_LAYOUT_PX } from '$lib/constants';
+	import { MAX_LEVEL_COUNT, WIDE_LAYOUT_PX } from '$lib/constants';
 
 	import QuercusBranches from '$lib/components/QuercusBranches.svelte';
 	import PathLevelInfoBox from '$lib/components/PathLevelInfoBox.svelte';
@@ -14,6 +14,7 @@
 	import { replaceState } from '$app/navigation';
 	import { debounce } from '$lib/util';
 	import { htmlToText } from '$lib/utils/paper-helpers';
+	import { createTreeLoader } from '$lib/utils/tree-loader';
 
 	export let conf: tt.FullTreeConfig;
 	export let selectedQcRootId: number;
@@ -73,26 +74,16 @@
 	let controlSpecs = tf.getDefaultControlSpecs(isGlobalSpecialization);
 	let maxOnOneLevel = 15;
 
+	const treeLoader = createTreeLoader();
+
 	onMount(async () => {
 		mounted = true;
 		if (shallowed && allowControls) {
-			let initConf = conf;
-			try {
-				const jsv = await tf.fetchTree(BE_REMOTE_URL, initConf);
-				if (
-					initConf.treeId == conf.treeId &&
-					initConf.semanticId == conf.semanticId &&
-					initConf.year == conf.year
-				) {
-					[completeTree, attributeLabels, shallowed] = [jsv.tree, jsv.atts, false];
-				}
-			} catch (e) {
-				console.error('error', e);
-			}
+			const jsv = await treeLoader.load(conf);
+			if (jsv) [completeTree, attributeLabels, shallowed] = [jsv.tree, jsv.atts, false];
 		}
 	});
 
-	const childD1Rate = expandControlInd == undefined ? defaultChildD1Rate : 0.7;
 	$: svgD1 = (containerHeight / containerWidth) * svgD2;
 	$: d1ToPixels = (d1: number) => (d1 * containerHeight) / svgD1;
 	$: d2ToPixels = (d2: number) => (d2 * containerWidth) / svgD2;
@@ -203,43 +194,32 @@
 		if (newTreeSpec.defaultIsSpec != currentTreeSpec.defaultIsSpec) {
 			newGlobalSpec = newTreeSpec.defaultIsSpec;
 		}
-		const reqTreeId = conf.treeId;
-		const reqYear = conf.year;
-		try {
-			const jsv = await tf.fetchTree(BE_REMOTE_URL, conf);
-			// Drop a response the user has already superseded (rapid tree-spec or year-filter changes
-			// within this entity), so a slow earlier fetch can't clobber the current tree and its spec.
-			if (conf.treeId !== reqTreeId || conf.year !== reqYear) {
-				return;
-			}
-			[
-				completeTree,
-				attributeLabels,
-				selectionState,
-				currentTreeSpec,
-				highlightRoot,
-				selectedBreakdowns,
-				isGlobalSpecialization,
-				shallowed
-			] = [
-				jsv.tree,
-				jsv.atts,
-				tf.intersectionTree(tf.pruneTree(selectionState, breakdownMatchLevel), jsv.tree),
-				newTreeSpec,
-				selectedQcRootId,
-				selectedBreakdowns,
-				newGlobalSpec,
-				false
-			];
-		} catch (e) {
-			console.error('error', e);
-		}
+		const jsv = await treeLoader.load(conf);
+		if (!jsv) return;
+		[
+			completeTree,
+			attributeLabels,
+			selectionState,
+			currentTreeSpec,
+			highlightRoot,
+			selectedBreakdowns,
+			isGlobalSpecialization,
+			shallowed
+		] = [
+			jsv.tree,
+			jsv.atts,
+			tf.intersectionTree(tf.pruneTree(selectionState, breakdownMatchLevel), jsv.tree),
+			newTreeSpec,
+			selectedQcRootId,
+			selectedBreakdowns,
+			newGlobalSpec,
+			false
+		];
 	}
 
 	function updateLevelSpecs(
 		tree: tt.TreeInfo,
 		svgD1: number,
-		expandedControlInd: number | undefined,
 		breakdownOptions: tt.BreakdownOptions,
 		selectedBreakdowns: tt.SelectedBreakdowns
 	) {

@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
-	import { BE_REMOTE_URL } from '$lib/constants';
+	import { createTreeLoader } from '$lib/utils/tree-loader';
 	import PathLevelInfoBox from './PathLevelInfoBox.svelte';
 
 	export let l1Type: tt.EntityType;
@@ -18,16 +18,14 @@
 	export let year = conf.year;
 	export let resp: tt.TreeResponse | undefined = undefined;
 	export let isSpec = false;
-	export let treeId =
-		treeSpecs.specs[conf.rootType][conf.treeId].breakdowns[0].attributeType == l1Type
-			? conf.treeId
-			: indsByEntityType[l1Type][0];
+	export let treeId: number;
 	export let backupNames: Record<number, string> = {};
 	export let showPaper = false;
 	export let showInfobox = true;
 
 	let mounted = false;
 	let selectedBreakdowns = tf.getDefaultBreakdowns(treeSpecs.specs[conf.rootType][treeId]);
+	const treeLoader = createTreeLoader();
 
 	$: levelOptions = tf.fillBreakdownOptions(
 		indsByEntityType[l1Type].map(
@@ -59,15 +57,11 @@
 		year: number,
 		_rootId: number
 	) {
-		if (mounted == false) return;
-		let newConf: tt.FullTreeConfig = { ...conf, treeId, year, wide: true };
-		try {
-			const jsv = await tf.fetchTree(BE_REMOTE_URL, newConf, 0);
-			infoPath = [];
-			resp = jsv;
-		} catch (e) {
-			console.error('error', e);
-		}
+		if (!mounted) return;
+		const jsv = await treeLoader.load({ ...conf, treeId, year, wide: true }, 0);
+		if (!jsv) return;
+		infoPath = [];
+		resp = jsv;
 	}
 
 	function setNewFlout(resp: tt.TreeResponse | undefined, isSpec: boolean, treeSpec: tt.TreeSpec) {
