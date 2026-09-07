@@ -44,11 +44,10 @@
 	let highlightedPath: tt.PathInTree = []; //TODO: investigate why this is how it is
 	let highlightRoot = selectedQcRootId;
 	let selectedPath: tt.PathInTree = [];
-	let expandControlInd: number | undefined;
 	let armingPath: tt.PathInTree | null = null;
 	let highlightDelay = 1000;
 
-	let defaultChildD1Rate = 0.3;
+	let childD1Rate = 0.3;
 
 	let svgD2 = 100;
 	let rootD2 = 25;
@@ -131,7 +130,6 @@
 	$: updateLevelSpecs(
 		visibleTreeInfo,
 		svgD1 * (1 - (headerRate + d1BottomPadRate) / 100),
-		expandControlInd,
 		tf.getBreakdownOptions(treeSpecs, conf.rootType),
 		selectedBreakdowns
 	);
@@ -252,10 +250,9 @@
 		}
 		let currentOptions = breakdownOptions;
 		let topOffset = 0;
-		const stepSize =
-			expandedControlInd === undefined ? svgD1 / visibleLevelCount : svgD1 / visibleLevelCount / 2;
+		const stepSize = svgD1 / visibleLevelCount;
 		for (let i = 0; i < MAX_LEVEL_COUNT; i++) {
-			levelOutSpecs[i].totalSize = expandedControlInd == i ? svgD1 / 2 + stepSize : stepSize;
+			levelOutSpecs[i].totalSize = stepSize;
 			levelOutSpecs[i].topOffset = topOffset;
 			levelOutSpecs[i].levelOptions = Object.keys(currentOptions);
 			levelOutSpecs[i].isVisible = i < visibleLevelCount;
