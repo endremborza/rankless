@@ -16,7 +16,7 @@ make promote            # flip alpha to live (DB catch-ups + smoke)
 ```
 
 `refresh-data` and `warm-caches` take a pipeline lock (`/tmp/rankless-pipeline.lock`):
-`/tmp/dmove-parts` is shared, two data pipelines on one box corrupt each other.
+the dmove-parts root is shared, two data pipelines on one box corrupt each other.
 
 ## refresh-data
 
@@ -170,11 +170,7 @@ failure hours later, overlap = double compute) and fleets without exactly one
    primary root (no requests, so a gap can never trigger an out-of-memory
    compute locally).
 
-Bigs = everything above the top band's `hi`, computed via chunked prep→read:
-`big_chunk` trees prepped into `/tmp/dmove-parts`, then read (the server deletes
-each tree's parts after its read), then the next chunk. Raise `big_chunk` if the
-SSD allows, lower it if it fills — preflight enforces `big_chunk ×
-parts_gb_per_big` of `/tmp` headroom.
+Bigs = everything above the top band's `hi`, computed via chunked prep→read: `big_chunk` trees prepped into the server's parts root, then read (the server deletes each tree's parts after its read), then the next chunk. The parts root is `RANKLESS_PARTS_ROOT` (default `/tmp/dmove-parts`; empty = default), read by the backend at startup from the box's `.env` and by `make clean-cache` — point it at a large SSD on a box whose `/tmp` is small, and mirror it as the worker's `parts_root` so preflight measures that filesystem (its parent directory: the root itself is created on demand) and fails the env check when the two disagree. Raise `big_chunk` if the SSD allows, lower it if it fills — preflight enforces `big_chunk × parts_gb_per_big` of headroom there.
 
 Flags: `--config <toml>`, `--only <worker>`, `--no-push` (skip the data rsync),
 `--gate-only` (just re-check coverage). Single-box primitives stay available as

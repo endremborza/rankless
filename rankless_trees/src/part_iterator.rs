@@ -5,8 +5,7 @@ use std::{
     marker::PhantomData,
     mem,
     os::linux::fs::MetadataExt,
-    path::PathBuf,
-    str::FromStr,
+    path::{Path, PathBuf},
     sync::{LazyLock, Mutex},
 };
 
@@ -43,9 +42,13 @@ const SHALLOW_LIMIT: u64 = 50_000; // size (bytes) of file
 
 // The FE's SSR fetch is always ?shallow=1 (entity +page.server.ts)
 const PRECALC_SHALLOW_DEPTH: u8 = 1;
+const PARTS_ROOT_VAR: &str = "RANKLESS_PARTS_ROOT";
+const DEFAULT_PARTS_ROOT: &str = "/tmp/dmove-parts";
 
 static DEBUG_LOG: LazyLock<bool> =
     LazyLock::new(|| std::env::var("RANKLESS_DEBUG_LOG").is_ok_and(|v| v != "0"));
+static PARTS_ROOT: LazyLock<PathBuf> =
+    LazyLock::new(|| parts_root(std::env::var(PARTS_ROOT_VAR).ok()));
 
 pub type NetRoot<'a, Pit> = NET<IteratorRootEtype<'a, Pit>>;
 
@@ -358,7 +361,7 @@ where
 
     fn write_tmp_parts(&self) {
         let et_id = NET::<IteratorRootEtype<TMK>>::from_usize(self.params.fq.ck.eid);
-        let cache_root = tmp_part_cache_root(&self.params.fq.ck);
+        let cache_root = part_cache_root(&self.params.fq.ck);
         let piter = TMK::new(et_id, &self.params.state.gets);
         let mut writers: Vec<BufWriter<File>> = YearInterface::iter()
             .map(|yp| {
@@ -385,7 +388,7 @@ where
 
     fn read_big_calculate(&mut self) {
         let et_id = NetRoot::<'a, TMK>::from_usize(self.params.fq.ck.eid);
-        let cache_root = tmp_part_cache_root(&self.params.fq.ck);
+        let cache_root = part_cache_root(&self.params.fq.ck);
         let mut buf: [u8; MAX_BUFSIZE] = [0; MAX_BUFSIZE];
         let mut ser_tree_o = None;
         let mut year_bp_iter = POSSIBLE_YEAR_FILTERS.iter().rev();
@@ -612,9 +615,50 @@ fn set_single_resp(cvp: ResCvp, sresp: TreeResponse) {
     set_and_notify(cvp, val);
 }
 
-fn tmp_part_cache_root(ck: &CacheKey) -> PathBuf {
-    let pstr = format!("/tmp/dmove-parts/{}/{}/{}", ck.etype, ck.tid, ck.eid);
-    let cache_root = PathBuf::from_str(&pstr).expect("tmp path");
-    create_dir_all(&cache_root).expect("making tmp dir");
-    cache_root
+fn part_cache_root(ck: &CacheKey) -> PathBuf {
+    let dir = part_dir(&PARTS_ROOT, ck);
+    create_dir_all(&dir).expect("making parts dir");
+    dir
+}
+
+fn part_dir(root: &Path, ck: &CacheKey) -> PathBuf {
+    root.join(format!("{}/{}/{}", ck.etype, ck.tid, ck.eid))
+}
+
+fn parts_root(var: Option<String>) -> PathBuf {
+    match var.as_deref() {
+        Some(root) if !root.is_empty() => PathBuf::from(root),
+        _ => PathBuf::from(DEFAULT_PARTS_ROOT),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parts_root_is_the_env_var_or_the_default() {
+        assert_eq!(parts_root(None), Path::new(DEFAULT_PARTS_ROOT));
+        assert_eq!(
+            parts_root(Some(String::new())),
+            Path::new(DEFAULT_PARTS_ROOT)
+        );
+        assert_eq!(
+            parts_root(Some("/mnt/ssd/parts".into())),
+            Path::new("/mnt/ssd/parts")
+        );
+    }
+
+    #[test]
+    fn part_dir_nests_the_key_under_the_root() {
+        let ck = CacheKey {
+            etype: 3,
+            eid: 42,
+            tid: 7,
+        };
+        assert_eq!(
+            part_dir(Path::new("/mnt/ssd/parts"), &ck),
+            Path::new("/mnt/ssd/parts/3/7/42")
+        );
+    }
 }

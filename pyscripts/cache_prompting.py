@@ -32,7 +32,7 @@ load_dotenv(".env", override=True)
 
 # Size-band defaults, in millions of cut_basis (citations × breakdown count).
 # min..big_limit is a box's `rest` share, above big_limit is the `bigs` set
-# (prep/read via /tmp/dmove-parts). Banded runs get these as CLI flags — from
+# (prep/read via the server's parts root). Banded runs get these as CLI flags — from
 # data/warm.toml when driven (pyscripts/fleet), by hand otherwise.
 DEFAULT_BINS = [1.5 * 4, 3.5 * 4, 12 * 4]
 DEFAULT_PROCS = [16, 8, 4, 1]
@@ -85,7 +85,7 @@ class BatchRequester:
             self._run(suburls, gid)
 
     def do_bigs(self, chunk_size=DEFAULT_BIG_CHUNK):
-        # Chunked prep→read: the server deletes each tree's /tmp/dmove-parts
+        # Chunked prep→read: the server deletes each tree's parts
         # after its read, so parts disk peaks at one chunk instead of every big
         # at once. Already-cached trees are skipped (prep/read bypass the cache,
         # so a plain rerun would recompute them) — rerunning resumes.

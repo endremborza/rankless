@@ -1,6 +1,9 @@
 -include .env
 export
 
+# Where the backend spills bigs parts during prep→read; .env overrides it.
+RANKLESS_PARTS_ROOT ?= /tmp/dmove-parts
+
 .PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest mcp-worker setup-services
 .PHONY: check format check-rs check-py check-js format-rs format-py format-js
 .PHONY: refresh-data commit-artifacts warm-caches ship-alpha promote
@@ -194,7 +197,7 @@ clean-filters:
 
 clean-cache:
 	rm -rf $(OA_ROOT)/cache
-	rm -rf /tmp/dmove-parts
+	rm -rf $(RANKLESS_PARTS_ROOT)
 
 clean-ledger:
 	rm -rf $(OA_ROOT)/user-ledger

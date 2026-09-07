@@ -4,7 +4,7 @@ Shipping the recalculated data (`ship_alpha`, `promote`) lives in
 pyscripts/deploy.py — those deploy the application; these rebuild its data.
 
 Stages are idempotent — rerunning resumes/verifies rather than redoing work.
-`refresh-data` and `warm-caches` take the pipeline lock: /tmp/dmove-parts is
+`refresh-data` and `warm-caches` take the pipeline lock: the dmove-parts root is
 shared, two data pipelines on one box corrupt each other.
 """
 
@@ -35,7 +35,7 @@ def pipeline_lock():
         if pid and _alive(pid):
             raise SystemExit(
                 f"pipeline lock held by pid {pid} ({LOCK_PATH}) — "
-                "/tmp/dmove-parts is shared, never run two pipelines at once"
+                "the dmove-parts root is shared, never run two pipelines at once"
             )
         print(f"stealing stale pipeline lock (pid {pid} is gone)")
         LOCK_PATH.unlink()
