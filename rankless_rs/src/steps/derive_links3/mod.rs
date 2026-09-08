@@ -7,7 +7,7 @@ use dmove::{
 use hashbrown::HashMap;
 
 use crate::{
-    common::{reverse_id, CitRankLadderMarker, MainWorkMarker, YearlyPapersMarker},
+    common::{CitRankLadderMarker, MainWorkMarker, YearlyPapersMarker},
     env_consts::FINAL_YEAR,
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
@@ -27,12 +27,6 @@ mod topic_tags;
 
 pub use hit_papers::get_nobeled_works;
 pub use peer_ctx::AuthorPeerCtx;
-
-pub const AUTHOR_BLACKLIST: [u64; 3] = [
-    5030786976, //Lynnette Nathalie Lyzwinski
-    5036138197, //David S. Gokhin
-    5034807195, //Shadi Yarandi
-];
 
 pub(super) fn dec_work_count<E: Entity, I: Iterator<Item = usize>>(stowage: &Stowage, it: I) {
     stowage.declare_iter::<DowncastingBuilder, _, _, E, WorkCountMarker>(
@@ -188,16 +182,11 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         entity_sem_ids::source_sem_names,
     );
 
-    let author_oa_ids = reverse_id::<Authors>(&starc);
     let author_yearly_papers =
         starc.get_marked_interface::<Authors, YearlyPapersMarker, QuickestBox>();
     let (author_filter, author_wcounts) = entity_sem_ids::page_filter::<Authors, _, _>(
         &starc,
-        |i, _c, p| {
-            p < 10_000
-                && *author_yearly_papers[i].iter().max().unwrap_or(&0) < 300
-                && !AUTHOR_BLACKLIST.contains(&author_oa_ids[i])
-        },
+        |i, _c, p| p < 10_000 && *author_yearly_papers[i].iter().max().unwrap_or(&0) < 300,
         entity_sem_ids::basic_sem_names,
     );
     let (country_filter, country_wcounts) = entity_sem_ids::country_page_filter(&starc);

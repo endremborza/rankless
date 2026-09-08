@@ -1,10 +1,10 @@
 use std::sync::{Arc, Mutex};
 
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 
 use dmove::{
     para::{set_and_notify, wait_for_data_copy, AcTuple},
-    para_multi_gen_run, Entity, NamespacedEntity,
+    para_multi_gen_run, BigId, Entity, NamespacedEntity,
 };
 use rankless_rs::{
     common::MainEntity,
@@ -27,6 +27,11 @@ use rankless_trees::{
 
 use crate::responses::{CountsResponse, EntityDescription, TopResult};
 use crate::state::{InstTrm, IsTop, NameState, NameStateMap};
+
+/// OpenAlex ids of authors who asked for no profile (`<oa_id> <name>` per line). Their
+/// semantic id is blank at load, which removes the profile page, search hit, tree slices
+/// and top-list rows together while their name and papers stay everywhere else.
+const AUTHOR_BLACKLIST: &str = include_str!("../author_blacklist.txt");
 
 type StateKv = (&'static str, (NameState, TopResult, EntityDescription));
 
@@ -79,6 +84,18 @@ pub(crate) fn get_rest(
     (ns_map, asatts, tm, counts_response, tops, peer_aux)
 }
 
+fn author_blacklist() -> HashSet<BigId> {
+    AUTHOR_BLACKLIST
+        .lines()
+        .filter_map(|line| line.split_whitespace().next())
+        .filter(|head| !head.starts_with('#'))
+        .map(|head| {
+            head.parse()
+                .expect("author_blacklist.txt: non-numeric oa id")
+        })
+        .collect()
+}
+
 fn print_mem_use(suff: &str) {
     if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
         for line in status.lines() {
@@ -113,7 +130,22 @@ where
     let name = E::NAME.to_string();
     let ent_intf = RootInterfaces::<E>::new(&gets_clone.stowage);
     let names_arc: Box<[Arc<str>]> = (&ent_intf.names).into();
-    let sem_ids_arc: Box<[Arc<str>]> = (&ent_intf.sem_ids).into();
+    let sem_ids_arc: Box<[Arc<str>]> = if E::NAME == Authors::NAME {
+        let blacklist = author_blacklist();
+        println!("author blacklist: {} entries", blacklist.len());
+        ent_intf
+            .sem_ids
+            .0
+            .iter()
+            .enumerate()
+            .map(|(i, sem_id)| match blacklist.contains(&ent_intf.oa_id[i]) {
+                true => Arc::from(""),
+                false => Arc::from(sem_id.as_str()),
+            })
+            .collect()
+    } else {
+        (&ent_intf.sem_ids).into()
+    };
     let nstate = NameState::new::<E>(&ent_intf, &gets_clone, &names_arc, &sem_ids_arc);
     let ccount = wait_for_data_copy(shared_cvp);
     let (k, v) = make_stats_entry_arc::<E>(&names_arc, &sem_ids_arc, &ent_intf.ccounts, ccount);
