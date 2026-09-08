@@ -1,7 +1,6 @@
 use std::fmt::{Debug, Display};
 use std::io::{prelude::*, BufWriter};
 use std::marker::PhantomData;
-use std::num::ParseIntError;
 use std::ops::Range;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::{
@@ -586,19 +585,14 @@ impl<T> MappableEntity for EmptyAttributeEntity<T> {
     type KeyType = usize;
 }
 
-pub fn oa_id_parse_res(id: &str) -> Result<BigId, ParseIntError> {
-    id[(ID_PREFIX.len() + 1)..].parse::<u64>()
-}
-
+/// `https://openalex.org/<letter><digits>` → the digits; None for anything shorter or
+/// non-numeric, an empty cell included.
 pub fn oa_id_parse_opt(id: &str) -> Option<BigId> {
-    match oa_id_parse_res(id) {
-        Ok(i) => Some(i),
-        Err(_) => None,
-    }
+    id.get((ID_PREFIX.len() + 1)..)?.parse::<u64>().ok()
 }
 
 pub fn oa_id_parse(id: &str) -> BigId {
-    oa_id_parse_res(id).expect(id)
+    oa_id_parse_opt(id).expect(id)
 }
 
 pub fn field_id_parse(id: &str) -> u64 {
