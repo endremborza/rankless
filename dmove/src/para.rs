@@ -138,12 +138,15 @@ where
                 }
             });
         }
+        // The workers hold the only receivers: if every one of them dies, the bounded
+        // send fails instead of blocking forever.
+        drop(r);
 
         for e in it {
-            sender.send(Some(e)).unwrap();
+            sender.send(Some(e)).expect("every map worker died");
         }
         for _ in 0..n_threads {
-            sender.send(None).unwrap();
+            sender.send(None).expect("every map worker died");
         }
     });
 
@@ -166,12 +169,13 @@ where
             let in_clone = r.clone();
             threads_v.push(s.spawn(move || subf(in_clone, |e| setup.proc(e))));
         }
+        drop(r);
 
         for e in in_v {
-            sender.send(Some(e)).unwrap();
+            sender.send(Some(e)).expect("every worker died");
         }
         for _ in 0..(n_threads) {
-            sender.send(None).unwrap();
+            sender.send(None).expect("every worker died");
         }
         for t in threads_v.into_iter() {
             t.join().expect("thread failed");
@@ -190,5 +194,34 @@ where
         } else {
             break;
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn map_reduce_sums_across_workers() {
+        let total = map_reduce(
+            0..1000u64,
+            |acc: &mut u64, e| *acc += e,
+            |a, b| *a += b,
+            Some(3),
+        );
+        assert_eq!(total, 499_500);
+    }
+
+    #[test]
+    #[should_panic(expected = "every map worker died")]
+    fn map_reduce_fails_loudly_when_every_worker_dies() {
+        // More items than the bounded channel holds: the sender must be unblocked by the
+        // workers' disconnect, not by consumption.
+        map_reduce(
+            0..100u64,
+            |_: &mut u64, _| panic!("worker down"),
+            |_, _| {},
+            Some(2),
+        );
     }
 }
