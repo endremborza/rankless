@@ -22,8 +22,7 @@ export type RestoredAggregates = {
 	outside_standard: number;
 	outside_type: number;
 	outside_citations: number;
-	claim_auto: number;
-	claim_merged: number;
+	claimed: number;
 	author_rescues: number;
 };
 

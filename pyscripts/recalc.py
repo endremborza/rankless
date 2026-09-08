@@ -119,8 +119,7 @@ FORCED_AGGREGATES = (
     "outside_standard",
     "outside_type",
     "outside_citations",
-    "claim_auto",
-    "claim_merged",
+    "claimed",
     "author_rescues",
 )
 

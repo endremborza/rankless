@@ -20,9 +20,7 @@ use crate::{
         Biblio, FieldLike, Geo, Named, NamedEntity, ReferencedWork, Work, WorkTopic,
     },
     steps::a1_entity_mapping::{iter_authorships, Qs, RawYear, SourceArea, YearInterface, Years},
-    user_ledger::{
-        augment_with_aliases, build_author_orcid_map, strip_doi_prefix, UserLedger, ORCID_PREF,
-    },
+    user_ledger::{strip_doi_prefix, ORCID_PREF},
 };
 use dmove::{
     par_join, para::Worker, BigId, DiscoMapEntityBuilder, DowncastingBuilder,
@@ -71,7 +69,7 @@ struct NobelEntry {
     year: RawYear,
 }
 
-struct ShipRelWriter<'a> {
+struct ShipRelWriter {
     fship2a: Vec<usize>,
     fship2is: Vec<Vec<ET<Institutions>>>,
     fship2pos: Vec<u16>,
@@ -86,14 +84,12 @@ struct ShipRelWriter<'a> {
     fainf: LoadedIdMap<ET<Authors>>,
     dainf: LoadedIdMap<ET<DiscardedAuthors>>,
     iinf: LoadedIdMap<ET<Institutions>>,
-    removed_edges: &'a hashbrown::HashSet<(dmove::BigId, dmove::BigId)>,
-    seen_filtered_ships: hashbrown::HashSet<(usize, usize)>,
+    seen_filtered_ships: HashSet<(usize, usize)>,
 }
 
 struct WorkBiblioWriter {
     biblios: Mutex<Box<[BiblioInfo]>>,
     winf: Arc<LoadedIdMap<ET<Works>>>,
-    work_drops: Arc<hashbrown::HashSet<dmove::BigId>>,
 }
 
 struct WorkAttWriter {
@@ -101,8 +97,6 @@ struct WorkAttWriter {
     wnames: Mutex<Box<[String]>>,
     wdois: Mutex<Box<[String]>>,
     winf: Arc<LoadedIdMap<ET<Works>>>,
-    /// Drop-side work oa_ids: skip their attributes (keep's win).
-    work_drops: Arc<hashbrown::HashSet<dmove::BigId>>,
 }
 
 struct BoxRoller<T, E> {
@@ -282,10 +276,8 @@ impl Stowage {
         (iif, coif)
     }
 
-    fn add_author_atts(&self, ledger: &UserLedger) {
-        let mut aif = self.get_entity_interface::<Authors, QuickestNumbered>();
-        // Augment so drop-side oa_ids resolve to keep's dm_id.
-        augment_with_aliases(&mut aif, &ledger.author_aliases);
+    fn add_author_atts(&self) {
+        let aif = self.get_entity_interface::<Authors, QuickestNumbered>();
         self.add_nobels(&aif);
         let mut names = init_empty_slice::<Authors, String>();
         let mut wiki_slugs = init_empty_slice::<Authors, String>();
@@ -302,24 +294,16 @@ impl Stowage {
                     return Some(aname);
                 };
                 let aid = aidt.to_usize();
-                // Counts always accumulate (zero-initialised slice); merging a drop
-                // into a keep is just two += against the same dm_id, which is order-
-                // independent across CSV rows.
-                raw_cites[aid] += aobj.cited_by_count.unwrap_or(0) as usize;
-                raw_works[aid] += aobj.works_count.unwrap_or(0) as usize;
-                if !ledger.author_aliases.contains_key(&pid) {
-                    names[aid] = aname;
-                    assign_farr(aobj.orcid, ORCID_PREF, &mut orcids, aid);
-                }
+                raw_cites[aid] = aobj.cited_by_count.unwrap_or(0) as usize;
+                raw_works[aid] = aobj.works_count.unwrap_or(0) as usize;
+                names[aid] = aname;
+                assign_farr(aobj.orcid, ORCID_PREF, &mut orcids, aid);
                 None
             });
 
         for wobj in self.read_csv_objs::<WikiId>(Authors::NAME, "wiki-slug") {
             if let Some(aidt) = aif.0.get(&wobj.oa_id) {
-                // Only set wiki slug for keep-side authors.
-                if !ledger.author_aliases.contains_key(&wobj.oa_id) {
-                    wiki_slugs[aidt.to_usize()] = wobj.slug;
-                }
+                wiki_slugs[aidt.to_usize()] = wobj.slug;
             }
         }
         let init_wu = vec!["Unknown".to_string()].into_iter();
@@ -358,31 +342,24 @@ impl Stowage {
     fn add_work_atts(
         &self,
         winf: Arc<LoadedIdMap<ET<Works>>>,
-        work_drops: Arc<hashbrown::HashSet<dmove::BigId>>,
     ) -> (LoadedIdMap<ET<Works>>, Box<[ET<Years>]>) {
-        let wyears = WorkAttWriter::new(winf.clone(), work_drops)
+        let wyears = WorkAttWriter::new(winf.clone())
             .para(self.read_csv_objs(Works::NAME, MAIN_NAME))
             .post(self);
         (Arc::into_inner(winf).unwrap(), wyears)
     }
 
-    fn add_ship_relations(
-        &self,
-        ledger: &UserLedger,
-        work_drops: Arc<hashbrown::HashSet<dmove::BigId>>,
-    ) -> LoadedIdMap<ET<Works>> {
-        let mut winf: LoadedIdMap<ET<Works>> =
-            self.get_entity_interface::<Works, QuickestNumbered>();
-        augment_with_aliases(&mut winf, &ledger.work_aliases);
-        let winf: Arc<LoadedIdMap<ET<Works>>> = winf.into();
+    fn add_ship_relations(&self) -> LoadedIdMap<ET<Works>> {
+        let winf: Arc<LoadedIdMap<ET<Works>>> =
+            Arc::new(self.get_entity_interface::<Works, QuickestNumbered>());
 
-        let mut ship_rel_writer = ShipRelWriter::new(winf.clone(), self, ledger);
+        let mut ship_rel_writer = ShipRelWriter::new(winf.clone(), self);
         for ship in iter_authorships(self) {
             ship_rel_writer.proc_next(ship);
         }
         ship_rel_writer.post(self);
         {
-            WorkBiblioWriter::new(winf.clone(), work_drops.clone())
+            WorkBiblioWriter::new(winf.clone())
                 .para(self.read_csv_objs(Works::NAME, "biblio"))
                 .post(self);
         }
@@ -514,16 +491,12 @@ impl Stowage {
 }
 
 impl WorkAttWriter {
-    fn new(
-        winf: Arc<LoadedIdMap<ET<Works>>>,
-        work_drops: Arc<hashbrown::HashSet<dmove::BigId>>,
-    ) -> Self {
+    fn new(winf: Arc<LoadedIdMap<ET<Works>>>) -> Self {
         Self {
             wdois: init_empty_slice::<Works, _>().into(),
             wyears: init_empty_slice::<Works, _>().into(),
             wnames: init_empty_slice::<Works, _>().into(),
             winf,
-            work_drops,
         }
     }
 
@@ -544,10 +517,8 @@ impl WorkAttWriter {
     }
 }
 
-impl<'a> ShipRelWriter<'a> {
-    fn new(winf: Arc<LoadedIdMap<ET<Works>>>, stowage: &Stowage, ledger: &'a UserLedger) -> Self {
-        let mut fainf = stowage.get_entity_interface::<Authors, QuickestNumbered>();
-        augment_with_aliases(&mut fainf, &ledger.author_aliases);
+impl ShipRelWriter {
+    fn new(winf: Arc<LoadedIdMap<ET<Works>>>, stowage: &Stowage) -> Self {
         Self {
             fship2a: vec![0],
             fship2is: vec![Vec::new()],
@@ -557,11 +528,10 @@ impl<'a> ShipRelWriter<'a> {
             dship2pos: vec![0],
             w2combined_ships: init_empty_slice::<Works, _>(),
             winf,
-            fainf,
+            fainf: stowage.get_entity_interface::<Authors, QuickestNumbered>(),
             dainf: stowage.get_entity_interface::<DiscardedAuthors, QuickestNumbered>(),
             iinf: stowage.get_entity_interface::<Institutions, QuickestNumbered>(),
-            removed_edges: &ledger.removed_edges,
-            seen_filtered_ships: hashbrown::HashSet::new(),
+            seen_filtered_ships: HashSet::new(),
         }
     }
 
@@ -574,13 +544,6 @@ impl<'a> ShipRelWriter<'a> {
             Some(w) => w.to_usize(),
             None => return,
         };
-
-        // Skip edges that the user has disowned.
-        if let Some(author_oa) = ship.author_id.as_deref().and_then(oa_id_parse_opt) {
-            if self.removed_edges.contains(&(author_oa, work_oa)) {
-                return;
-            }
-        }
 
         let ivec: Vec<ET<Institutions>> = ship
             .institutions
@@ -667,14 +630,10 @@ impl<'a> ShipRelWriter<'a> {
 }
 
 impl WorkBiblioWriter {
-    fn new(
-        winf: Arc<LoadedIdMap<ET<Works>>>,
-        work_drops: Arc<hashbrown::HashSet<dmove::BigId>>,
-    ) -> Self {
+    fn new(winf: Arc<LoadedIdMap<ET<Works>>>) -> Self {
         Self {
             biblios: init_empty_slice::<Works, _>().into(),
             winf,
-            work_drops,
         }
     }
 
@@ -690,13 +649,6 @@ impl Worker<Work> for WorkAttWriter {
             Some(wpi) => wpi,
             None => return,
         };
-        // Drop-side work: keep's attrs win; skip.
-        if let Some(oa_id) = input.get_parsed_id() {
-            if self.work_drops.contains(&oa_id) {
-                return;
-            }
-        }
-
         if let Some(doi) = input.get_att() {
             self.wdois.lock().unwrap()[w_ind] = doi;
         }
@@ -715,12 +667,6 @@ impl Worker<Biblio> for WorkBiblioWriter {
             Some(wpi) => wpi,
             None => return,
         };
-        // Drop-side work: keep's biblio wins; skip.
-        if let Some(oa_id) = bib.get_parsed_id() {
-            if self.work_drops.contains(&oa_id) {
-                return;
-            }
-        }
         let new_bib: BiblioInfo = bib.into();
         if new_bib != BiblioInfo::default() {
             self.biblios.lock().unwrap()[w_ind] = new_bib;
@@ -1090,17 +1036,9 @@ where
 }
 
 pub fn main(stowage: Stowage) -> io::Result<()> {
-    let mut ledger = UserLedger::load(&stowage)?;
-    let orcid_to_oa = build_author_orcid_map(&stowage);
-    ledger.resolve_orcids(&orcid_to_oa);
-
-    // Collect drop-side work oa_ids for attribute writers.
-    let work_drops: Arc<hashbrown::HashSet<dmove::BigId>> =
-        Arc::new(ledger.work_aliases.keys().copied().collect());
-
     let (works_interface, wyears) = {
-        let winf = stowage.add_ship_relations(&ledger, work_drops.clone());
-        stowage.add_work_atts(winf.into(), work_drops.clone())
+        let winf = stowage.add_ship_relations();
+        stowage.add_work_atts(winf.into())
     };
     let sarc = Arc::new(stowage);
 
@@ -1113,7 +1051,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         sources_interface,
         topics_interface,
     ) = std::thread::scope(|s| {
-        s.spawn(|| sarc.add_author_atts(&ledger));
+        s.spawn(|| sarc.add_author_atts());
         let h1 = s.spawn(|| sarc.add_inst_atts());
         let h3 = s.spawn(|| write_entity_name::<FieldLike, Domains>(&sarc));
         let h4 = s.spawn(|| write_entity_name::<FieldLike, Fields>(&sarc));
@@ -1219,7 +1157,6 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
 
     let stowage = Arc::try_unwrap(sarc).ok().unwrap();
     stowage.write_code()?;
-    ledger.write_final_manifest(&stowage)?;
     Ok(())
 }
 

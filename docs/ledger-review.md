@@ -20,10 +20,10 @@ Humans make every remaining decision; the AI never moderates.
    which admin (multiple admins supported via `ADMIN_ORCIDS`).
 
 Accepted events flow to the pipeline via `export_user_ledger.py` as before.
-The filter step resolves each claim's DOI to a work and forces it through the
-type/citation screens; a claim is applied when the claimant is credited on the
-surviving work (skips: `doi_not_in_snapshot`, `orcid_not_in_dataset`,
-`oa_id_not_in_dataset`, `claimant_not_attributed`).
+A claim forces nothing on its own: every signed-in owner's whole œuvre already rides
+through the type/citation screens, so a claim is a status line — applied when the
+claimant is credited on the DOI's work once merges and disowns are applied (skips:
+`doi_not_in_snapshot`, `orcid_not_in_dataset`, `claimant_not_attributed`).
 
 ## Release claims lane (`pyscripts/claims.py`)
 

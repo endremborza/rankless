@@ -4,7 +4,7 @@
 //   Mirror: rankless_rs/src/user_ledger.rs — EventPayload, WorkSubject, AuthorSubject
 //
 // applied_manifest.json (Rust → TS): AppliedManifest
-//   Mirror of: rankless_rs/src/user_ledger.rs — write_final_manifest output
+//   Mirror of: rankless_rs/src/user_ledger.rs — Outcomes::write_manifest output
 //
 // Events are referenced across boxes by their logical key `${orcid}|${kind}|${subject_hash}`
 // (see logicalKey in ledger-hash.ts), never by the autoincrement event_id — that id is a
@@ -67,7 +67,7 @@ export type LedgerEvent = {
 	created_at: string;
 };
 
-// Mirror of rankless_rs/src/user_ledger.rs write_final_manifest output. Events are keyed by
+// Mirror of rankless_rs/src/user_ledger.rs Outcomes::write_manifest output. Events are keyed by
 // their logical key, not event_id (see the boundary note above).
 export type AppliedManifest = {
 	run_id: string;

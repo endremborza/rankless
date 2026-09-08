@@ -38,8 +38,7 @@ CUR["forced_works"] = {
     "outside_standard": 12,
     "outside_type": 9,
     "outside_citations": 5,
-    "claim_auto": 1,
-    "claim_merged": 0,
+    "claimed": 1,
     "author_rescues": 1,
 }
 

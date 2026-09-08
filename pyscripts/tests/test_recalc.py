@@ -173,8 +173,7 @@ def _seed_sidecars(root: Path, run_id: str = "2026-08-12T10:00:00Z") -> None:
                 "outside_standard": 12,
                 "outside_type": 9,
                 "outside_citations": 5,
-                "claim_auto": 1,
-                "claim_merged": 0,
+                "claimed": 1,
                 "author_rescues": 1,
                 "outside_wids": [3, 5, 8],
             }
@@ -221,8 +220,7 @@ def test_release_manifest_assembly(
         "outside_standard": 12,
         "outside_type": 9,
         "outside_citations": 5,
-        "claim_auto": 1,
-        "claim_merged": 0,
+        "claimed": 1,
         "author_rescues": 1,
     }
     assert m["filter_counts"]["10"]["works"] == {"in": None, "kept": 100}

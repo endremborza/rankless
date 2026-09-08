@@ -15,7 +15,6 @@ use crate::{
         post::{Authorship, Institution},
         Geo, IdStruct,
     },
-    user_ledger::UserLedger,
     NameMarker, QuickestVBox,
 };
 use dmove::{
@@ -144,11 +143,6 @@ impl EntityImmutableMapperBackend<Years> for YearInterface {
 }
 
 pub fn main(stowage: Stowage) -> io::Result<()> {
-    // Load ledger before Arc-wrapping so we can borrow it across threads.
-    let ledger = UserLedger::load(&stowage)?;
-    let author_aliases = Arc::new(ledger.author_aliases.clone());
-    let work_aliases = Arc::new(ledger.work_aliases.clone());
-
     let mut threads = Vec::new();
     let starc = Arc::new(stowage);
 
@@ -158,18 +152,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
             ids_from_atts::<IdStruct, _>(&sc, sw, sw, |e| Some(field_id_parse(&e.id.unwrap())));
         }));
     }
-
-    // Works: skip drop-side alias oa_ids so they get no dm_id.
-    let work_filter_thread = {
-        let sc = starc.clone();
-        let wa = work_aliases.clone();
-        thread::spawn(move || {
-            ids_from_atts::<IdStruct, _>(&sc, works::C, works::C, |e| {
-                e.get_parsed_id().filter(|id| !wa.contains_key(id))
-            })
-        })
-    };
-    for en in vec![institutions::C, sources::C, topics::C] {
+    for en in vec![works::C, institutions::C, sources::C, topics::C] {
         let sc = starc.clone();
         threads.push(thread::spawn(move || {
             ids_from_atts::<IdStruct, _>(&sc, en, en, |e| e.get_parsed_id());
@@ -180,25 +163,17 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     {
         let sc = starc.clone();
         let filter = author_filter.clone();
-        let aa = author_aliases.clone();
         threads.push(thread::spawn(move || {
             let mut selected_authors = Vec::new();
             let a_iter = sc
                 .read_csv_objs::<IdStruct>(authors::C, MAIN_NAME)
                 .filter_map(|e| {
-                    if let Some(pid) = e.get_parsed_id() {
-                        if aa.contains_key(&pid) {
-                            // Drop-side alias: no dm_id in any space.
-                            return None;
-                        }
-                        if filter.contains(&pid) {
-                            selected_authors.push(pid);
-                            return None;
-                        }
-                        Some(pid)
-                    } else {
-                        None
+                    let pid = e.get_parsed_id()?;
+                    if filter.contains(&pid) {
+                        selected_authors.push(pid);
+                        return None;
                     }
+                    Some(pid)
                 });
             sc.add_iter_owned::<Data64MappedEntityBuilder, _, _>(a_iter, "discarded-authors");
             sc.add_iter_owned::<Data64MappedEntityBuilder, _, _>(
@@ -240,22 +215,15 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let mut filt_ship_n = 0;
     let mut disc_ship_n = 0;
     for ship in iter_authorships(&starc) {
-        if let Some(raw_a_oaid) = ship.author_id {
-            if let Some(aid) = oa_id_parse_opt(&raw_a_oaid) {
-                // Aliases redirect to keep; for counting purposes use effective id.
-                let effective = author_aliases.get(&aid).copied().unwrap_or(aid);
-                if author_filter.contains(&effective) {
-                    filt_ship_n += 1;
-                } else {
-                    disc_ship_n += 1;
-                }
+        if let Some(aid) = ship.author_id.as_deref().and_then(oa_id_parse_opt) {
+            if author_filter.contains(&aid) {
+                filt_ship_n += 1;
+            } else {
+                disc_ship_n += 1;
             }
         }
     }
     threads.into_iter().for_each(|h| h.join().unwrap());
-    // Manifest: record which merge events were applied vs skipped.
-    let work_filter = work_filter_thread.join().unwrap().unwrap();
-    ledger.write_a1_manifest(&starc, &author_filter, &work_filter)?;
     starc
         .mu_bu()
         .add_scaled_entity("authorships-filtered-author", filt_ship_n, true);
@@ -271,26 +239,19 @@ pub fn iter_authorships(stowage: &Stowage) -> ShipIterator {
     ShipIterator::new(stowage)
 }
 
-fn ids_from_atts<T, F>(
-    stowage: &Stowage,
-    out_name: &str,
-    parent_entity: &str,
-    closure: F,
-) -> Option<HashSet<BigId>>
+fn ids_from_atts<T, F>(stowage: &Stowage, out_name: &str, parent_entity: &str, closure: F)
 where
     T: DeserializeOwned,
     F: Fn(T) -> Option<BigId>,
 {
-    let last_filter = stowage.get_last_filter(out_name);
     entities_from_iter(
         stowage,
         out_name,
         stowage
             .read_csv_objs::<T>(parent_entity, MAIN_NAME)
             .filter_map(closure),
-        &last_filter,
+        &stowage.get_last_filter(out_name),
     );
-    last_filter
 }
 
 fn entities_from_iter<I>(stowage: &Stowage, name: &str, iter: I, filter: &Option<HashSet<BigId>>)

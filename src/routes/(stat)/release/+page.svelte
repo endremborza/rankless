@@ -31,7 +31,7 @@
 	const entityRows = Object.entries(report.entities);
 	const deltaRows = Object.entries(report.deltas?.entities ?? {});
 
-	const claimed = (report.restored?.claim_auto ?? 0) + (report.restored?.claim_merged ?? 0);
+	const claimed = report.restored?.claimed ?? 0;
 	const claimedClause = claimed > 0 ? `, ${fmt(claimed)} of them individually claimed` : '';
 </script>
 

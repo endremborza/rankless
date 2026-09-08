@@ -22,6 +22,7 @@ use dmove::{
 };
 
 pub use crate::csv_iter::ObjIter;
+use crate::user_ledger::ResolvedLedger;
 pub type BeS<M, E> = <M as BackendSelector<E>>::BE;
 pub type NET<E> = <E as NumberedEntity>::T;
 
@@ -205,6 +206,9 @@ macro_rules! pathfields_fn {
 
 pub struct Stowage {
     pub paths: PathCollection,
+    /// Applied to every CSV read (`csv_iter`); absent only while `to-csv` writes and the
+    /// filter step resolves the ledger from the raw tables
+    pub(crate) ledger: Option<Arc<ResolvedLedger>>,
     current_ns: String,
     builder: Option<Mutex<MainBuilder>>,
     code_dir: PathBuf,
@@ -273,6 +277,7 @@ impl Stowage {
     pub fn new(root_path: &str) -> Self {
         Self {
             paths: PathCollection::new(root_path),
+            ledger: None,
             current_ns: "".to_string(),
             builder: None,
             code_dir: PathBuf::from(GEN_DIR),
@@ -283,6 +288,16 @@ impl Stowage {
     pub fn with_code_dir(mut self, code_dir: impl Into<PathBuf>) -> Self {
         self.code_dir = code_dir.into();
         self
+    }
+
+    /// Read through the ledger the filter step resolved for this data root.
+    pub fn with_ledger(mut self) -> io::Result<Self> {
+        self.set_ledger(ResolvedLedger::load(&self.paths.user_ledger)?);
+        Ok(self)
+    }
+
+    pub fn set_ledger(&mut self, ledger: ResolvedLedger) {
+        self.ledger = Some(Arc::new(ledger));
     }
 
     pub fn set_namespace(&mut self, ns: &'static str) {
@@ -416,7 +431,7 @@ impl Stowage {
         main_path: &str,
         sub_path: &str,
     ) -> ObjIter<T> {
-        ObjIter::from_dir(&self.paths.entity_csvs, main_path, sub_path)
+        ObjIter::new(self, main_path, sub_path)
     }
 
     pub fn get_entity_interface<E, Marker>(&self) -> Marker::BE
