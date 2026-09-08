@@ -1,5 +1,6 @@
 [package]
 name = "rankless-rs"
+default-run = "rankless-rs"
 version.workspace = true
 edition.workspace = true
 
@@ -21,3 +22,7 @@ kd-tree = "0.6.0"
 ordered-float = "4"
 typenum = "1.17.0"
 nalgebra = "0.33"
+
+[[bin]]
+name = "fixture-build"
+path = "src/bin/fixture_build.rs"

@@ -2,14 +2,15 @@
 # file's variables (.env, OA_ROOT, CURDIR, …) and `check` stays the main file's
 # default goal.
 #
-#   Suites      test (= test-rs + test-js), test-rs, test-js, big-test, test-dev-env
+#   Suites      test (= test-rs + test-js), test-rs, test-js, test-ledger, big-test,
+#               test-dev-env; fixture-build writes the ledger gate's synthetic snapshot
 #   Coverage    coverage
 #   Profiling   profile, heaptrack — built with the `profiling` Cargo profile
 #               (release opt + debug symbols, LTO off; [profile.profiling] in
 #               Cargo.toml), so their binaries land under target/profiling/
 #   Cleanup     clean-profile
 
-.PHONY: test test-rs test-js big-test test-dev-env mega_test coverage profile heaptrack clean-profile
+.PHONY: test test-rs test-js test-ledger fixture-build big-test test-dev-env mega_test coverage profile heaptrack clean-profile
 
 # --- Suites -------------------------------------------------------------------
 
@@ -39,6 +40,17 @@ test-rs:
 	  --ignore "/*" \
 	  -o ./target/coverage/html
 	rm -f default_*.profraw ./*/default_*.profraw
+
+# The ledger pipeline gate (rankless_rs/tests/ledger_pipeline.rs): a synthetic
+# snapshot through to-csv → filter → a1_entity_mapping,
+# in-process, seconds. Part of `cargo test`; this is the inner loop.
+test-ledger:
+	cargo test -p rankless-rs --test ledger_pipeline
+
+# The same synthetic snapshot on disk (<dir>/snapshot, to-csv reads its data/)
+# plus scenario.json naming every id the ledger flow can act on.
+fixture-build:
+	cargo run -p rankless-rs --bin fixture-build -- $(or $(FIXTURE_DIR),/tmp/rankless-fixture)
 
 # Playwright e2e + the link-crawl that copies collected paragraph text to the
 # clipboard (xxclip).
