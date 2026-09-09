@@ -70,6 +70,7 @@ CAUSES = {
     "oa_id_not_in_dataset": "paper carries no author records to attribute",
     "doi_not_in_snapshot": "DOI absent from this snapshot",
     "orcid_not_in_dataset": "claimant has no author record in this snapshot",
+    "claimant_not_attributed": "snapshot does not credit the claimant on this paper",
     "identity_match_rejected": "only candidate match was a different researcher",
 }
 
