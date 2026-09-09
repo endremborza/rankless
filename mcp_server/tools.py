@@ -5,7 +5,7 @@ the explore-path evidence verifier re-issues these deterministically
 (pyscripts/explore/paths/deep_stories.py).
 """
 
-from mcp_server import ROOT_TYPES, SEARCH_TYPES, entity_url
+from mcp_server import ROOT_TYPES, SEARCH_TYPES, encode_semantic_id, entity_url
 from mcp_server.client import get_json
 from mcp_server.response_shaping import add_url, flatten_tree, truncate_lists
 
@@ -59,7 +59,7 @@ async def get_entity_profile(entity_type: str, semantic_id: str) -> dict:
     citing-fields, paper-journals, paper-authors, ...).
     """
     _check_etype(entity_type)
-    res = await get_json(f"/views/{entity_type}/{semantic_id}")
+    res = await get_json(f"/views/{entity_type}/{encode_semantic_id(semantic_id)}")
     shaped = {k: v for k, v in res.items() if k not in VIEW_DROP_KEYS}
     shaped["rankless_url"] = entity_url(entity_type, semantic_id)
     return truncate_lists(shaped)
@@ -80,7 +80,7 @@ async def get_entity_stats(
     """
     _check_etype(entity_type)
     res = await get_json(
-        f"/stats/{entity_type}/{semantic_id}",
+        f"/stats/{entity_type}/{encode_semantic_id(semantic_id)}",
         {"year_from": year_from, "year_to": year_to, "subfield": subfield},
     )
     res["rankless_url"] = entity_url(entity_type, semantic_id)
@@ -108,7 +108,7 @@ async def get_citation_tree(
         raise ValueError(f"tree_index must be in 0..{len(specs) - 1}")
     spec = specs[tree_index]
     res = await get_json(
-        f"/trees/{entity_type}/{semantic_id}",
+        f"/trees/{entity_type}/{encode_semantic_id(semantic_id)}",
         {"year": since_year or spec["defaultYear"], "tid": tree_index},
     )
     return {
@@ -135,7 +135,8 @@ async def get_papers(
     """
     _check_etype(entity_type)
     res = await get_json(
-        f"/works/{entity_type}/{semantic_id}/{offset}", {"n": limit, "sort": sort}
+        f"/works/{entity_type}/{encode_semantic_id(semantic_id)}/{offset}",
+        {"n": limit, "sort": sort},
     )
     papers = [
         {k: p.get(k) for k in ("name", "year", "doi", "citations", "oaId")}
@@ -147,7 +148,7 @@ async def get_papers(
 async def get_peers(entity_type: str, semantic_id: str) -> dict:
     """Peer entities (comparable size + field profile) and top subfields."""
     _check_etype(entity_type)
-    res = await get_json(f"/peers/{entity_type}/{semantic_id}")
+    res = await get_json(f"/peers/{entity_type}/{encode_semantic_id(semantic_id)}")
     res["rankless_url"] = entity_url(entity_type, semantic_id)
     return truncate_lists(res)
 

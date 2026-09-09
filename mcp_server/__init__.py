@@ -9,6 +9,7 @@ Run over stdio with `uv run -m mcp_server`.
 """
 
 import os
+from urllib.parse import quote
 
 BE_URL = os.environ.get("RANKLESS_BE_URL", "http://127.0.0.1:3038/v1")
 SITE_URL = os.environ.get("RANKLESS_SITE_URL", "https://rankless.org")
@@ -17,8 +18,19 @@ ROOT_TYPES = ("authors", "institutions", "sources", "countries", "subfields")
 SEARCH_TYPES = (*ROOT_TYPES, "all")
 
 
+# JS encodeURIComponent's unreserved set, so an id encodes to the same bytes here
+# as in the frontend and both produce the site's canonical URL for it.
+_SEM_SAFE = "!*'()"
+
+
+def encode_semantic_id(semantic_id: str) -> str:
+    """One backend path segment; the backend decodes it exactly once."""
+    return quote(semantic_id, safe=_SEM_SAFE)
+
+
 def entity_url(entity_type: str, semantic_id: str) -> str:
-    return f"{SITE_URL}/{entity_type}/{semantic_id}"
+    # The site route is a rest param: '/' stays a separator, the segments are encoded.
+    return f"{SITE_URL}/{entity_type}/{quote(semantic_id, safe=_SEM_SAFE + '/')}"
 
 
 def set_backend(url: str) -> None:
