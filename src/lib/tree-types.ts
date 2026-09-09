@@ -255,7 +255,7 @@ export type OaPaperResp = {
 	doi: string;
 	abstract: string;
 	year: number;
-	authors: { name: string; link: string; institutions: string[] }[];
+	authors: { name: string; link?: string; institutions: string[] }[];
 };
 
 export type PeerSubfield = {

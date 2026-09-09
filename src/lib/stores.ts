@@ -1,16 +1,18 @@
 import { browser } from '$app/environment';
 import { writable } from 'svelte/store';
 import type { OaPaperResp } from '$lib/tree-types';
-import { reconstructAbstractFromInvIndex } from '$lib/utils/paper-helpers';
+import { fetchOaJson, oaWorkToPaperResp, type OaWorkJson } from '$lib/utils/paper-helpers';
 
 export const resultsHidden = writable(true);
 
 const LS_KEY = 'rankless:papers';
 const MAX_CACHE = 300;
 
+type PaperCallback = (paper?: OaPaperResp) => void;
+
 const paperCache = new Map<number, OaPaperResp>();
 const fetchingSet = new Set<number>();
-const pendingCallbacks = new Map<number, Array<() => void>>();
+const pendingCallbacks = new Map<number, PaperCallback[]>();
 
 if (browser) {
 	try {
@@ -38,10 +40,21 @@ export function getCachedPaper(id: number) {
 	return paperCache.get(id);
 }
 
-export function prefetchPaper(workId: number, onDone?: () => void) {
-	if (!browser || workId === 0) return;
-	if (paperCache.has(workId)) {
+// Every waiter is settled exactly once, with the paper or with nothing — a failed load has to
+// reach the callers, or their placeholders stay up for the life of the page.
+function settle(workId: number, paper?: OaPaperResp) {
+	pendingCallbacks.get(workId)?.forEach((cb) => cb(paper));
+	pendingCallbacks.delete(workId);
+}
+
+export function prefetchPaper(workId: number, onDone?: PaperCallback) {
+	if (!browser || workId === 0) {
 		onDone?.();
+		return;
+	}
+	const cached = paperCache.get(workId);
+	if (cached) {
+		onDone?.(cached);
 		return;
 	}
 	if (onDone) {
@@ -52,28 +65,13 @@ export function prefetchPaper(workId: number, onDone?: () => void) {
 	if (fetchingSet.has(workId)) return;
 	fetchingSet.add(workId);
 	const oaUrl = `https://api.openalex.org/works/W${workId}?select=publication_year,title,doi,authorships,abstract_inverted_index`;
-	fetch(oaUrl)
-		.then((r) => r.json())
+	fetchOaJson<OaWorkJson>(oaUrl)
 		.then((o) => {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const authors = o.authorships.map((aship: any) => {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				const institutions = (aship.institutions || []).map((aff: any) => aff.id);
-				const lElems = aship.author.id.split('/');
-				const link = `/oa-id/${lElems[lElems.length - 1]}`;
-				return { name: aship.author.display_name, link, institutions };
-			});
-			paperCache.set(workId, {
-				title: o.title,
-				doi: o.doi || '',
-				year: o.publication_year,
-				abstract: reconstructAbstractFromInvIndex(o.abstract_inverted_index) ?? '',
-				authors
-			});
-			if (browser) persistCache();
-			pendingCallbacks.get(workId)?.forEach((cb) => cb());
-			pendingCallbacks.delete(workId);
+			const paper = oaWorkToPaperResp(o);
+			paperCache.set(workId, paper);
+			persistCache();
+			settle(workId, paper);
 		})
-		.catch(() => pendingCallbacks.delete(workId))
+		.catch(() => settle(workId))
 		.finally(() => fetchingSet.delete(workId));
 }

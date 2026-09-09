@@ -14,10 +14,11 @@
 	let abstract = '';
 	let abstractExpanded = false;
 	let y = 0;
-	let authors: { name: string; link: string; isOfInst: boolean }[] = [];
+	let authors: { name: string; link?: string; isOfInst: boolean }[] = [];
 	let localCount = 0;
 
 	let paperResp: OaPaperResp | undefined;
+	let loadState: 'loading' | 'ready' | 'unavailable' = 'loading';
 	let mounted = false;
 	let activeWorkId = 0;
 	const placeholder = 'Loading top paper...';
@@ -73,6 +74,7 @@
 		const cached = getCachedPaper(workId);
 		if (cached != undefined) {
 			paperResp = cached;
+			loadState = 'ready';
 			return;
 		}
 		title = '';
@@ -80,10 +82,13 @@
 		abstract = '';
 		abstractExpanded = false;
 		paperResp = undefined;
-		if (!mounted || workId == 0) return;
-		prefetchPaper(workId, () => {
+		loadState = 'loading';
+		if (!mounted) return;
+		// Settles with nothing for an id of 0 or a failed load, so the placeholder always resolves.
+		prefetchPaper(workId, (paper) => {
 			if (activeWorkId !== workId) return;
-			paperResp = getCachedPaper(workId);
+			paperResp = paper;
+			loadState = paper ? 'ready' : 'unavailable';
 		});
 	}
 
@@ -93,11 +98,13 @@
 	});
 </script>
 
-{#if title}
+{#if loadState === 'ready'}
 	<div id="main" class="padded">
 		<row>
 			<h2 class="vw-lg">Top Paper:</h2>
-			<p class="vw-base"><a {href} target="_blank">{@html title} ({y})</a></p>
+			<p class="vw-base">
+				<a {href} target="_blank">{@html title || 'Untitled paper'}{y ? ` (${y})` : ''}</a>
+			</p>
 		</row>
 		{#if abstract}
 			<div class="abstract-section">
@@ -116,11 +123,14 @@
 				</h4>
 				<al class="vw-base">
 					{#each authors.slice(0, 3).entries() as [i, author] (i)}
-						<a href={author.link} target="_blank"
+						<svelte:element
+							this={author.link ? 'a' : 'span'}
+							href={author.link}
+							target={author.link ? '_blank' : undefined}
 							>{author.name}{author.isOfInst ? '*' : ''}{i < Math.min(authors.length - 1, 2)
 								? ','
 								: ''}
-						</a>
+						</svelte:element>
 					{/each}
 					{#if authors.length > 3}
 						<a href={oaLink} target="_blank">& {authors.length - 3} others</a>
@@ -137,8 +147,12 @@
 			{#if localCount > 0}*: author {fullInstName} ({localCount}/{authors.length}){/if}
 		</footnote>
 	</div>
-{:else}
+{:else if loadState === 'loading'}
 	<div class="loading-sign"><h4>{@html placeholder}</h4></div>
+{:else if workId > 0}
+	<div class="loading-sign">
+		<h4>Top paper unavailable — <a href={oaLink} target="_blank">view on OpenAlex</a></h4>
+	</div>
 {/if}
 
 <style>

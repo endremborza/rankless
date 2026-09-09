@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAuthorNameOrNull, resolveAuthors, mergeEntityAtts } from './paper-helpers';
+import {
+	resolveAuthorNameOrNull,
+	resolveAuthors,
+	mergeEntityAtts,
+	oaWorkToPaperResp
+} from './paper-helpers';
 import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
 
 const atts: EntityAttsForLinks = {
@@ -90,5 +95,32 @@ describe('mergeEntityAtts', () => {
 
 	it('ignores undefined parts', () => {
 		expect(mergeEntityAtts(undefined, atts).authors['1'].name).toBe('Alice Smith');
+	});
+});
+
+describe('oaWorkToPaperResp', () => {
+	it('keeps authorships whose author was never matched to an OpenAlex entity', () => {
+		const resp = oaWorkToPaperResp({
+			title: 'Third assessment report',
+			doi: null,
+			publication_year: 2002,
+			authorships: [
+				{ author: { id: null, display_name: 'Australia' }, institutions: [] },
+				{
+					author: { id: 'https://openalex.org/A5079108119', display_name: 'Uzbekistan' },
+					institutions: [{ id: 'https://openalex.org/I1' }]
+				}
+			]
+		});
+		expect(resp.authors).toEqual([
+			{ name: 'Australia', link: undefined, institutions: [] },
+			{
+				name: 'Uzbekistan',
+				link: '/oa-id/A5079108119',
+				institutions: ['https://openalex.org/I1']
+			}
+		]);
+		expect(resp.doi).toBe('');
+		expect(resp.year).toBe(2002);
 	});
 });

@@ -1,4 +1,4 @@
-import type { Paper, PaperAuthorship, EntityAttsForLinks } from '$lib/tree-types';
+import type { Paper, PaperAuthorship, EntityAttsForLinks, OaPaperResp } from '$lib/tree-types';
 import { fixName } from '$lib/name-overrides';
 
 export const PRESTIGIOUS_SOURCE_SEM_IDS = new Set(['science', 'nature']);
@@ -54,12 +54,56 @@ export function reconstructAbstractFromInvIndex(
 	return result || null;
 }
 
+const OA_FETCH_TIMEOUT_MS = 10_000;
+
+// Shape of the OpenAlex work JSON this app selects; every field is optional because the API
+// omits or nulls any of them (an authorship's author.id is null for a raw name it never
+// matched to an author entity).
+export type OaWorkJson = {
+	title?: string | null;
+	doi?: string | null;
+	publication_year?: number | null;
+	abstract_inverted_index?: Record<string, number[]> | null;
+	authorships?:
+		| {
+				author?: { id?: string | null; display_name?: string | null } | null;
+				institutions?: { id: string }[] | null;
+		  }[]
+		| null;
+};
+
+// Every browser-side OpenAlex call goes through this: a bounded wait and a status check, so a
+// stalled or erroring request rejects instead of leaving a caller waiting forever.
+export async function fetchOaJson<T>(url: string): Promise<T> {
+	const res = await fetch(url, { signal: AbortSignal.timeout(OA_FETCH_TIMEOUT_MS) });
+	if (!res.ok) throw new Error(`${res.status} for ${url}`);
+	return (await res.json()) as T;
+}
+
+export function oaWorkToPaperResp(o: OaWorkJson): OaPaperResp {
+	const authors = (o.authorships ?? []).map((aship) => {
+		const oaId = aship.author?.id?.split('/').pop();
+		return {
+			name: aship.author?.display_name ?? '',
+			link: oaId ? `/oa-id/${oaId}` : undefined,
+			institutions: (aship.institutions ?? []).map((aff) => aff.id)
+		};
+	});
+	return {
+		title: o.title ?? '',
+		doi: o.doi ?? '',
+		year: o.publication_year ?? 0,
+		abstract: reconstructAbstractFromInvIndex(o.abstract_inverted_index) ?? '',
+		authors
+	};
+}
+
 export async function fetchOaAbstract(semanticId: string): Promise<string | null> {
 	const url = semanticId.startsWith('W')
 		? `https://api.openalex.org/works/${semanticId}?select=abstract_inverted_index`
 		: `https://api.openalex.org/works/https://doi.org/${semanticId}?select=abstract_inverted_index`;
 	try {
-		const d = await fetch(url).then((r) => r.json());
+		const d = await fetchOaJson<Pick<OaWorkJson, 'abstract_inverted_index'>>(url);
 		return reconstructAbstractFromInvIndex(d?.abstract_inverted_index);
 	} catch {
 		return null;
