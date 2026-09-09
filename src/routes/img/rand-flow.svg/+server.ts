@@ -17,11 +17,11 @@ export const GET: RequestHandler = async ({ url }) => {
 	const selectionState: tt.BareNode = spec.selectionState;
 	const props = { selectionState, height: 100, ...loader.getTreeSvgProps() };
 	const html = renderSvgComponent(TreeSvg, props);
-	const urlFriendlySemId = tf.urlFriendlify(loader.conf.semanticId);
+	const fileSemId = loader.conf.semanticId.replaceAll('/', '-');
 	return new Response(html, {
 		headers: {
 			'Content-Type': 'image/svg+xml',
-			'Content-Disposition': `inline;filename=${urlFriendlySemId}-breakdown.svg`
+			'Content-Disposition': `inline;filename=${fileSemId}-breakdown.svg`
 		}
 	});
 };
