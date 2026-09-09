@@ -36,11 +36,11 @@ export type SessionVisibility = 'public' | 'private';
 // minus deep, which has its own param shape).
 export type GenerationType = 'game-cards' | 'country-cards' | 'impact-stories';
 
-// What an admin submits to enqueue a run, discriminated on `type`: absent (or
-// 'deep') mirrors deep.py's scoping flags; generation workflows carry
-// etype/count instead of foci.
+// What an admin submits to enqueue a run, discriminated on `type`: 'deep'
+// mirrors deep.py's scoping flags; generation workflows carry etype/count
+// instead of foci.
 export type DeepParams = {
-	type?: 'deep';
+	type: 'deep';
 	backend: string;
 	foci: string[];
 	subject?: string | null;
@@ -63,7 +63,7 @@ export type SessionParams = DeepParams | GenerationParams;
 // The `meta` block a run writes, discriminated the same way: deep.py's
 // findings.json shape, or the leaner generation summary.
 export type DeepMeta = {
-	type?: 'deep';
+	type: 'deep';
 	backend: string;
 	backendUrl: string;
 	model: string;

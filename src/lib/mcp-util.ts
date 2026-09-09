@@ -21,11 +21,11 @@ export function isGenerationType(t: string): t is GenerationType {
 }
 
 export function isGenerationParams(p: SessionParams): p is GenerationParams {
-	return p.type !== undefined && p.type !== 'deep';
+	return isGenerationType(p.type);
 }
 
 export function isGenerationMeta(m: SessionMeta): m is GenerationMeta {
-	return m.type !== undefined && m.type !== 'deep';
+	return isGenerationType(m.type);
 }
 
 // Mirrors pyscripts/explore/runs.py run_stamp/run_name: every agent run is

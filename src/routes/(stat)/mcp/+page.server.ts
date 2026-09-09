@@ -62,6 +62,7 @@ export const actions: Actions = {
 				.filter((f) => FOCI.includes(f));
 			if (!foci.length) return fail(400, { message: 'Pick at least one focus.' });
 			params = {
+				type: 'deep',
 				backend,
 				foci,
 				subject: str(form.get('subject')),
