@@ -2,7 +2,7 @@
 	import { browser } from '$app/environment';
 	import { BE_REMOTE_URL } from '$lib/constants';
 	import type { TreeResponse, NamedNode, AttributeLabels, TreeSpec } from '$lib/tree-types';
-	import { urlFriendlify, flatFromResp } from '$lib/tree-functions';
+	import { encodeSemanticId, flatFromResp } from '$lib/tree-functions';
 	import TileTreeMap from './TileTreeMap.svelte';
 
 	export let semanticId: string;
@@ -26,7 +26,7 @@
 		entityLabel = '';
 		try {
 			const resp: TreeResponse = await fetch(
-				`${BE_REMOTE_URL}/trees/hit-papers/${urlFriendlify(semId)}?tid=${tid}&year=0&shallow=1`
+				`${BE_REMOTE_URL}/trees/hit-papers/${encodeSemanticId(semId)}?tid=${tid}&year=0&shallow=1`
 			)
 				.then((r) => r.json())
 				.catch(() => null);

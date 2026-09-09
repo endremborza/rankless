@@ -28,7 +28,8 @@ import {
 	getDefaultControlSpecs,
 	getDefaultLevelSpecs,
 	idFromBd,
-	urlFriendlify,
+	encodeSemanticId,
+	getEntityPath,
 	getDefaultYear,
 	deriveVisibleTree,
 	nameById,
@@ -242,13 +243,29 @@ describe('idFromBd', () => {
 	});
 });
 
-describe('urlFriendlify', () => {
+describe('encodeSemanticId', () => {
 	it('escapes slashes', () => {
-		expect(urlFriendlify('a/b')).toBe('a%2Fb');
-		expect(urlFriendlify('10.3115/v1/d14-1162')).toBe('10.3115%2Fv1%2Fd14-1162');
+		expect(encodeSemanticId('a/b')).toBe('a%2Fb');
+		expect(encodeSemanticId('10.3115/v1/d14-1162')).toBe('10.3115%2Fv1%2Fd14-1162');
+	});
+	it('escapes a literal percent so the decoded id is the stored one', () => {
+		const stored = '10.1007/jhep11%282018%29102';
+		expect(encodeSemanticId(stored)).toBe('10.1007%2Fjhep11%25282018%2529102');
+		expect(decodeURIComponent(encodeSemanticId(stored))).toBe(stored);
 	});
 	it('no-op for safe strings', () => {
-		expect(urlFriendlify('hello')).toBe('hello');
+		expect(encodeSemanticId('hello')).toBe('hello');
+	});
+});
+
+describe('getEntityPath', () => {
+	it('keeps slashes as route separators and encodes the segments', () => {
+		expect(getEntityPath('hit-papers', '10.1007/jhep11%282018%29102')).toBe(
+			'/hit-papers/10.1007/jhep11%25282018%2529102'
+		);
+	});
+	it('leaves a slug untouched', () => {
+		expect(getEntityPath('authors', 'endre-borza')).toBe('/authors/endre-borza');
 	});
 });
 

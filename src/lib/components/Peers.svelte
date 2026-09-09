@@ -11,7 +11,7 @@
 		SUBFIELD_COLOR_VARS
 	} from '$lib/peers-utils';
 	import { formatNumber, shortYear } from '$lib/text-format-util';
-	import { urlFriendlify } from '$lib/tree-functions';
+	import { encodeSemanticId } from '$lib/tree-functions';
 	import { BE_REMOTE_URL, LATEST_YEAR } from '$lib/constants';
 	import { createStaleGuard } from '$lib/utils/stale-guard';
 	import { dev, version } from '$app/environment';
@@ -58,7 +58,7 @@
 		const isCurrent = heroIsCurrent;
 		try {
 			const resp: EntityPeersResp | null = await fetch(
-				`${BE_REMOTE_URL}/peers/${rootType}/${urlFriendlify(result.semanticId)}`
+				`${BE_REMOTE_URL}/peers/${rootType}/${encodeSemanticId(result.semanticId)}`
 			).then((r) => (r.ok ? r.json() : null));
 			if (!resp || !isCurrent()) return;
 			const byDmId = new Map<number, number>();

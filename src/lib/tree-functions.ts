@@ -107,13 +107,16 @@ export function idFromBd(bd: tt.BreakdownSpec): string {
 	return `${bd.attributeType}-${bd.sourceSide}`;
 }
 
-export function urlFriendlify(s: string) {
-	return s.replaceAll('/', '%2F');
+// The single encoding layer for semantic ids: a stored id is raw text (DOIs carry '/', '%', '#'),
+// so every id that reaches a URL is encoded here exactly once and decoded exactly once by whoever
+// reads it back — axum's Path extractor for the backend, SvelteKit's router for a site path.
+export function encodeSemanticId(s: string) {
+	return encodeURIComponent(s);
 }
 
 export function viewBeUrl(root: string, conf: tt.FullTreeConfig): string {
-	const urlFriendlySemId = urlFriendlify(conf.semanticId);
-	return `${root}/views/${conf.rootType}/${urlFriendlySemId}`;
+	const encodedSemId = encodeSemanticId(conf.semanticId);
+	return `${root}/views/${conf.rootType}/${encodedSemId}`;
 }
 
 export function treeBeUrl(
@@ -121,8 +124,8 @@ export function treeBeUrl(
 	conf: tt.FullTreeConfig,
 	shallow: undefined | number = undefined
 ): string {
-	const urlFriendlySemId = urlFriendlify(conf.semanticId);
-	let url = `${root}/trees/${conf.rootType}/${urlFriendlySemId}?tid=${conf.treeId}&year=${conf.year}`;
+	const encodedSemId = encodeSemanticId(conf.semanticId);
+	let url = `${root}/trees/${conf.rootType}/${encodedSemId}?tid=${conf.treeId}&year=${conf.year}`;
 	if (shallow != undefined) {
 		url += `&shallow=${shallow}`;
 	}
@@ -152,8 +155,9 @@ export function entToLink(e: { rootType: tt.RootType; semanticId: string }): str
 	return entToDirectedLink(e, '');
 }
 
+// The site route is a rest param, so '/' stays a real separator and only the segments are encoded.
 export function getEntityPath(rootType: tt.RootType, semanticId: string) {
-	return `/${rootType}/${semanticId}`;
+	return `/${rootType}/${semanticId.split('/').map(encodeSemanticId).join('/')}`;
 }
 
 export function externalEntityUrl(rootType: tt.RootType, semanticId: string): string {

@@ -109,7 +109,7 @@ async function getLadder(): Promise<NonNullable<typeof ladderCache>> {
 }
 
 async function getPeers(semId: string): Promise<tt.EntityPeersResp | null> {
-	const res = await fetch(`${BE_URL}/peers/${BADGE_ROOT}/${urlFriendlify(semId)}`);
+	const res = await fetch(`${BE_URL}/peers/${BADGE_ROOT}/${encodeSemanticId(semId)}`);
 	if (res.status === 404) return null;
 	if (!res.ok) throw new Error(`peers fetch failed for ${semId}: ${res.status}`);
 	return (await res.json()) as tt.EntityPeersResp;

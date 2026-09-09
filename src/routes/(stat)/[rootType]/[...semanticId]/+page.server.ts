@@ -83,7 +83,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 	// Peers are available for these root entity types (each has a precomputed peer set + ladder).
 	// The ladder is fetched alongside so the hero header can render standing badges in SSR.
 	if (PEER_ROOT_TYPES.includes(rootType)) {
-		peersPromise = fetch(`${BE_URL}/peers/${rootType}/${tf.urlFriendlify(semanticId)}`)
+		peersPromise = fetch(`${BE_URL}/peers/${rootType}/${tf.encodeSemanticId(semanticId)}`)
 			.then((r) => (r.ok ? r.json() : null))
 			.catch(() => null);
 		ladderPromise = fetch(`${BE_URL}/ladder/${rootType}`)
@@ -92,13 +92,13 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 	}
 
 	if (rootType === 'authors') {
-		const urlFriendlySemId = tf.urlFriendlify(semanticId);
+		const encodedSemId = tf.encodeSemanticId(semanticId);
 		const [profileResp, worksResp]: [tt.PaperProfileResp | null, tt.PaginatedPaperSetResp | null] =
 			await Promise.all([
-				fetch(`${BE_URL}/paper-profile/${urlFriendlySemId}`)
+				fetch(`${BE_URL}/paper-profile/${encodedSemId}`)
 					.then((r) => r.json())
 					.catch(() => null),
-				fetch(`${BE_URL}/works/authors/${urlFriendlySemId}/0?n=${INITIAL_WORKS_N}&sort=citations`)
+				fetch(`${BE_URL}/works/authors/${encodedSemId}/0?n=${INITIAL_WORKS_N}&sort=citations`)
 					.then((r) => r.json())
 					.catch(() => null)
 			]);
@@ -133,7 +133,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 		if (!authorOrcid) {
 			try {
 				const resolveResp = await fetch(
-					`${BE_URL}/resolve/author?semantic_id=${encodeURIComponent(urlFriendlySemId)}`
+					`${BE_URL}/resolve/author?semantic_id=${encodedSemId}`
 				).then((r) => (r.ok ? r.json() : null));
 				authorOrcid = resolveResp?.orcid ?? null;
 			} catch {
