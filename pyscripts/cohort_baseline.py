@@ -32,7 +32,6 @@ def main() -> None:
     with urllib.request.urlopen(f"{BASE}/specs", timeout=60) as r:
         version = json.load(r)["version"]
     record = documented_release(version)
-    assert record is not None
 
     pins_file = root / "user-ledger" / "owner_pins.txt"
     pins = [line for line in pins_file.read_text().splitlines() if line.strip()]

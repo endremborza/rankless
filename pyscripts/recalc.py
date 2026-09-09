@@ -211,16 +211,9 @@ def write_release_manifest(root: Path | None = None) -> Path:
     return out
 
 
-def documented_release(version: str, *, warn_missing: bool = False) -> dict | None:
-    """releases/release.json, asserted to document the served version
-    (warn_missing: warn-only while the root predates release manifests)."""
+def documented_release(version: str) -> dict:
+    """releases/release.json, asserted to document the served version."""
     path = Path(os.environ["OA_ROOT"]) / "releases" / "release.json"
-    if warn_missing and not path.exists():
-        print(
-            "WARNING — no release manifest for this root; "
-            "run `uv run -m pyscripts recalc manifest`"
-        )
-        return None
     built = json.loads(path.read_text())
     run_id = built["run_id"]
     if not version.rsplit("|", 1)[-1].startswith(run_id):

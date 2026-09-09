@@ -189,7 +189,6 @@ def _assert_release_record() -> None:
     with urllib.request.urlopen(f"{BE_URL}/specs", timeout=10) as resp:
         served = json.load(resp)["version"]
     rel = documented_release(served)
-    assert rel is not None
 
     works = rel["filter_counts"]["10"]["works"]["kept"]
     assert works > 0, "filter_counts: no works survived step 10"

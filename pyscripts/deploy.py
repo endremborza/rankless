@@ -1337,7 +1337,7 @@ def smoke(live: bool) -> None:
     be = LIVE_BACKEND if live else ALPHA_BACKEND
     _check_ok(f"https://{fe}/", "frontend root", SMOKE_BOOT_S)
     specs_resp = _check_json(f"https://{be}/v1/specs", "specs", SMOKE_BOOT_S)
-    documented_release(specs_resp.get("version", ""), warn_missing=True)
+    documented_release(specs_resp.get("version", ""))
     specs = specs_resp["specs"]
     rt = next(iter(specs))
     rows = _check_json(f"https://{be}/v1/slice/{rt}/0/2", f"slice {rt}")
