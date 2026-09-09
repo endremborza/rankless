@@ -8,8 +8,7 @@ the `(bundle, line)` address, generation stamp, review `status`
 (new → approved/rejected), and denormalized display fields. Regeneration never
 rewrites anything: a later run's bundle adds a superseding version row, and
 consumers read the latest non-rejected version per key. `gen_at` is a sortable
-UTC ISO datetime, stamped here at write time (`ingest --gen-at` overrides it for
-historical backfills). Bundles move between boxes with the `data/mcp-sessions/`
+UTC ISO datetime, stamped here at write time. Bundles move between boxes with the `data/mcp-sessions/`
 artifact copy; index rows ride the user-DB handoff (`pyscripts/userdb.py`) where
 merges dedup on `(kind, obj_key, bundle)` and review decisions propagate. The
 frontend reads the same table + bundles via `src/lib/server/objects.ts`
@@ -84,16 +83,15 @@ def connect(db_path: str = "") -> sqlite3.Connection:
     return con
 
 
-def write_bundle(
-    con: sqlite3.Connection, run: str, objects: list[dict], gen_at: str = ""
-) -> int:
+def write_bundle(con: sqlite3.Connection, run: str, objects: list[dict]) -> int:
     """Write `<run>.jsonl.zst` (immutable — refuses to overwrite) and index
-    every object; returns the number of indexed rows."""
+    every object; returns the number of indexed rows. Review status is index
+    state, not payload, so it never enters the bundle."""
     if not objects:
         return 0
     fields = ("kind", "obj_key", "etype", "sem_id", "title", "payload")
     objects = [{k: o.get(k) for k in fields} for o in objects]
-    stamp = gen_at or utc_now_iso()
+    stamp = utc_now_iso()
     path = bundle_path(run)
     raw = "".join(json.dumps(o, sort_keys=True) + "\n" for o in objects).encode()
     if path.exists():
@@ -177,9 +175,10 @@ def list_cmd(*, kind: str = "", status: str = "", db: str = "") -> None:
         con.close()
 
 
-def ingest(*, path: str, run: str = "", gen_at: str = "", db: str = "") -> None:
+def ingest(*, path: str, run: str = "", db: str = "") -> None:
     """Ingest a bundle file (.jsonl or .jsonl.zst of {kind, obj_key, payload, ...}
-    objects) into the store under --run (default: the file's stem)."""
+    objects) into the store under --run (default: the file's stem); a review
+    status carried by an exported line is restored onto the index row."""
     src = Path(path)
     raw = src.read_bytes()
     if src.name.endswith(".zst"):
@@ -188,10 +187,32 @@ def ingest(*, path: str, run: str = "", gen_at: str = "", db: str = "") -> None:
     name = run or src.name.removesuffix(".zst").removesuffix(".jsonl")
     con = connect(db)
     try:
-        n = write_bundle(con, name, objects, gen_at)
+        n = write_bundle(con, name, objects)
+        reviewed = _restore_status(con, name, objects)
     finally:
         con.close()
-    print(f"{n} object(s) indexed from bundle {name!r}")
+    note = f", {reviewed} with a review status" if reviewed else ""
+    print(f"{n} object(s) indexed from bundle {name!r}{note}")
+
+
+def _restore_status(con: sqlite3.Connection, run: str, objects: list[dict]) -> int:
+    """Review status travels in an exported line but not in the immutable
+    bundle, so it lands on the index row after indexing."""
+    n = 0
+    with con:
+        for obj in objects:
+            status = obj.get("status")
+            if not status:
+                continue
+            if status not in STATUSES:
+                raise SystemExit(f"status must be one of {STATUSES}, got {status!r}")
+            n += con.execute(
+                "UPDATE mcp_objects SET status = ?, status_note = ?,"
+                " updated_at = datetime('now')"
+                " WHERE kind = ? AND obj_key = ? AND bundle = ?",
+                (status, obj.get("status_note"), obj["kind"], obj["obj_key"], run),
+            ).rowcount
+    return n
 
 
 def export(*, path: str, kind: str = "", status: str = "", db: str = "") -> None:

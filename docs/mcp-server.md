@@ -147,8 +147,9 @@ findings, whatever comes next — split into immutable payloads and a reviewable
   a superseding version row; consumers read the **latest non-rejected** version per
   key, so rejecting a bad regeneration falls back to the previous good one.
 
-`gen_at` is a sortable UTC ISO datetime stamped by `write_bundle` (`ingest --gen-at`
-overrides it for historical backfills).
+`gen_at` is a sortable UTC ISO datetime stamped by `write_bundle`. Review status is
+index state, never bundle payload, so `export` carries it in its lines and `ingest`
+restores it onto the index rows it writes.
 
 Writers: `pyscripts/object_store.py` (shared write/read/CLI:
 `uv run -m pyscripts objects {list,ingest,export,set-status,fsck}` — `fsck` verifies
