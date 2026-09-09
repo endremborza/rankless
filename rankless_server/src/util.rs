@@ -8,10 +8,10 @@ use axum::{
     routing::get,
     Router,
 };
-use percent_encoding::percent_decode_str;
 use serde::Serialize;
 
 use crate::consts::STAMP_FNAME;
+use crate::state::{NameState, NameStateMap};
 
 pub(crate) fn cache_header(mins: usize) -> HeaderMap {
     let mut headers = HeaderMap::new();
@@ -42,9 +42,26 @@ pub(crate) fn version_stamp(data_root: &str) -> String {
     )
 }
 
-//  frontend's `urlFriendlify` pre-encodes `/` inside the id so a DOI stays a single segment
-pub(crate) fn parse_semantic_id(id: String) -> String {
-    percent_decode_str(&id).decode_utf8_lossy().into_owned()
+/// Semantic id → its entity type's state and dmove id. Callers get the id
+/// already percent-decoded: the client encodes it once, axum decodes it once.
+pub(crate) fn resolve_dm<'a>(
+    ns_map: &'a NameStateMap,
+    etype: &str,
+    sem_id: &str,
+) -> Option<(&'a NameState, usize)> {
+    let nstate = ns_map.get(etype)?;
+    Some((nstate, *nstate.sem_to_dm.get(sem_id)? as usize))
+}
+
+/// As `resolve_dm`, plus the response id — `None` for an entity that has a
+/// dmove id but no search response (below the response cutoff).
+pub(crate) fn resolve_entity<'a>(
+    ns_map: &'a NameStateMap,
+    etype: &str,
+    sem_id: &str,
+) -> Option<(&'a NameState, usize, usize)> {
+    let (nstate, dm_id) = resolve_dm(ns_map, etype, sem_id)?;
+    Some((nstate, dm_id, nstate.response_id_from_dm(dm_id)?))
 }
 
 pub(crate) fn get_empty() -> (HeaderMap, Response) {
@@ -63,26 +80,4 @@ pub(crate) fn bad_request(msg: &'static str) -> (HeaderMap, Response) {
 
 async fn state_get(str_state: State<Arc<str>>) -> (HeaderMap, Response<Body>) {
     (cache_header(60), str_state.to_string().into_response())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::parse_semantic_id;
-
-    #[test]
-    fn decodes_any_percent_escape_case_insensitively() {
-        assert_eq!(
-            parse_semantic_id("10.1038%2Fnmeth.2019".into()),
-            "10.1038/nmeth.2019"
-        );
-        assert_eq!(
-            parse_semantic_id("10.1038%2fnmeth.2019".into()),
-            "10.1038/nmeth.2019"
-        );
-        assert_eq!(
-            parse_semantic_id("10.1038%2Fnmeth%2E2019".into()),
-            "10.1038/nmeth.2019"
-        );
-        assert_eq!(parse_semantic_id("plain-slug".into()), "plain-slug");
-    }
 }

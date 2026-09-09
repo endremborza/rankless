@@ -31,7 +31,7 @@ use rankless_trees::{
 use crate::consts::{CACHEABLE_FROM, MAX_SHALLOW_IDS, N_SUBFIELDS};
 use crate::responses::{LadderResp, StatsQ, StatsResp, StatsSubfield, TopResult, ViewResult};
 use crate::state::{EntityExt, StatesT};
-use crate::util::{cache_header, get_empty, parse_semantic_id};
+use crate::util::{cache_header, get_empty, resolve_dm, resolve_entity};
 
 pub(crate) async fn tree_get(
     Path((root_type, semantic_id)): Path<(String, String)>,
@@ -40,23 +40,18 @@ pub(crate) async fn tree_get(
 ) -> (HeaderMap, Json<Option<TreeResponse>>) {
     let mut tq = tree_q.0;
     let (ns_map, _, tm, _) = states.0;
-    if let Some(nstate) = ns_map.get(root_type.as_str()) {
-        if (root_type == HitPapers::NAME) && (semantic_id == "all") {
-            tq.cacheable = Some(true);
-        }
-        let psid = parse_semantic_id(semantic_id);
-        if let Some(&dm_id) = nstate.sem_to_dm.get(psid.as_str()) {
-            let dm_id_u = dm_id as usize;
-            let ncite = nstate
-                .response_id_from_dm(dm_id_u)
-                .map(|rid| nstate.responses[rid].citations)
-                .unwrap_or(0);
-            tq.cacheable = Some(ncite >= CACHEABLE_FROM);
-            let resp = tm.get_single_resp(tq, &root_type, dm_id_u);
-            return oresp_cached_if_some(resp);
-        }
+    if (root_type == HitPapers::NAME) && (semantic_id == "all") {
+        tq.cacheable = Some(true);
     }
-    (cache_header(0), None.into())
+    let Some((nstate, dm_id)) = resolve_dm(&ns_map, &root_type, &semantic_id) else {
+        return (cache_header(0), None.into());
+    };
+    let ncite = nstate
+        .response_id_from_dm(dm_id)
+        .map(|rid| nstate.responses[rid].citations)
+        .unwrap_or(0);
+    tq.cacheable = Some(ncite >= CACHEABLE_FROM);
+    oresp_cached_if_some(tm.get_single_resp(tq, &root_type, dm_id))
 }
 
 pub(crate) async fn shallows_get(
@@ -103,41 +98,25 @@ pub(crate) async fn view_get(
     states: StatesT,
 ) -> Json<Option<ViewResult>> {
     let satts = &states.0 .1;
-    let mut out = None;
-    if let Some(state) = states.0 .0.get(etype.as_str()) {
-        let psid = parse_semantic_id(semantic_id);
-        if let Some(&dm_id) = state.sem_to_dm.get(psid.as_str()) {
-            let dm_id_u = dm_id as usize;
-            if let Some(i) = state.response_id_from_dm(dm_id_u) {
-                let srs = &state.responses[i];
-                let similars = state.peers[dm_id_u]
-                    .iter()
-                    .filter(|&&pid| pid != 0)
-                    .filter_map(|&pid| {
-                        state
-                            .response_id_from_dm(pid as usize)
-                            .map(|rid| state.responses[rid].clone())
-                    })
-                    .collect();
-                let gets = &states.0 .2.state.gets;
-                let meta = compute_meta(etype.as_str(), dm_id_u, gets, &state.exts[i]);
-                let vr = ViewResult {
-                    similars,
-                    ext: state.exts[i].to_serializable(
-                        etype.as_str(),
-                        dm_id_u,
-                        satts,
-                        &states.0 .0,
-                        gets,
-                    ),
-                    sr: srs.clone(),
-                    meta,
-                };
-                out = Some(vr)
-            }
-        };
-    }
-    Json(out)
+    let Some((state, dm_id, rid)) = resolve_entity(&states.0 .0, &etype, &semantic_id) else {
+        return Json(None);
+    };
+    let similars = state.peers[dm_id]
+        .iter()
+        .filter(|&&pid| pid != 0)
+        .filter_map(|&pid| {
+            state
+                .response_id_from_dm(pid as usize)
+                .map(|r| state.responses[r].clone())
+        })
+        .collect();
+    let gets = &states.0 .2.state.gets;
+    Json(Some(ViewResult {
+        similars,
+        ext: state.exts[rid].to_serializable(etype.as_str(), dm_id, satts, &states.0 .0, gets),
+        sr: state.responses[rid].clone(),
+        meta: compute_meta(etype.as_str(), dm_id, gets, &state.exts[rid]),
+    }))
 }
 
 pub(crate) async fn stats_get(
@@ -145,16 +124,8 @@ pub(crate) async fn stats_get(
     q: Query<StatsQ>,
     states: StatesT,
 ) -> (HeaderMap, Response) {
-    let Some(state) = states.0 .0.get(etype.as_str()) else {
-        return get_empty();
-    };
     let satts = &states.0 .1;
-    let psid = parse_semantic_id(semantic_id);
-    let Some(&dm_id) = state.sem_to_dm.get(psid.as_str()) else {
-        return get_empty();
-    };
-    let dm_id_u = dm_id as usize;
-    let Some(rid) = state.response_id_from_dm(dm_id_u) else {
+    let Some((state, dm_id, rid)) = resolve_entity(&states.0 .0, &etype, &semantic_id) else {
         return get_empty();
     };
     let sr = &state.responses[rid];
@@ -180,21 +151,17 @@ pub(crate) async fn stats_get(
     let mut top_subfields = Vec::new();
     let mut subfield = None;
     if let Some(aux) = states.0 .3.get(etype.as_str()) {
-        let row = aux.cit_subfields.row(dm_id_u);
+        let row = aux.cit_subfields.row(dm_id);
         top_subfields = build_top_subfields(&row, satts, 10);
-        if let Some(s) = q.subfield.as_ref() {
-            let sf_psid = parse_semantic_id(s.clone());
-            if let Some(sf_state) = states.0 .0.get(Subfields::NAME) {
-                if let Some(&sf_dm) = sf_state.sem_to_dm.get(sf_psid.as_str()) {
-                    let sf_dm = sf_dm as usize;
-                    let att = &satts[Subfields::NAME][sf_dm];
-                    subfield = Some(StatsSubfield {
-                        name: att.name.clone(),
-                        semantic_id: att.semantic_id.clone(),
-                        dm_id: sf_dm,
-                        citations: row[sf_dm],
-                    });
-                }
+        if let Some(sf_sem) = q.subfield.as_ref() {
+            if let Some((_, sf_dm)) = resolve_dm(&states.0 .0, Subfields::NAME, sf_sem) {
+                let att = &satts[Subfields::NAME][sf_dm];
+                subfield = Some(StatsSubfield {
+                    name: att.name.clone(),
+                    semantic_id: att.semantic_id.clone(),
+                    dm_id: sf_dm,
+                    citations: row[sf_dm],
+                });
             }
         }
     }
@@ -202,7 +169,7 @@ pub(crate) async fn stats_get(
     let resp = StatsResp {
         name: sr.name.clone(),
         semantic_id: sr.semantic_id.clone(),
-        dm_id: dm_id_u,
+        dm_id,
         papers: sr.papers,
         citations: sr.citations,
         era_from,

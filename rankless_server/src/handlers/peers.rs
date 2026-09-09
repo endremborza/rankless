@@ -18,7 +18,7 @@ use rankless_trees::{
 use crate::consts::N_SUBFIELDS;
 use crate::responses::{EntityPeersResp, PeerEntry, PeerSubfieldInfo, RefSubfieldInfo};
 use crate::state::{NameState, StatesT};
-use crate::util::{cache_header, get_empty};
+use crate::util::{cache_header, get_empty, resolve_entity};
 
 pub(crate) async fn peers_get(
     Path((etype, sem_id)): Path<(String, String)>,
@@ -28,20 +28,15 @@ pub(crate) async fn peers_get(
 }
 
 fn peers_inner(etype: &str, sem_id: &str, states: &StatesT) -> (HeaderMap, Response) {
-    let (Some(astates), Some(aux)) = (states.0 .0.get(etype), states.0 .3.get(etype)) else {
+    let Some(aux) = states.0 .3.get(etype) else {
+        return get_empty();
+    };
+    let Some((astates, hero_dm, hero_rid)) = resolve_entity(&states.0 .0, etype, sem_id) else {
         return get_empty();
     };
     let satts = &states.0 .1;
     let gets = &states.2.state.gets;
     let top_rels = gets.top_rels_for(etype);
-
-    let Some(&hero_dm) = astates.sem_to_dm.get(sem_id) else {
-        return get_empty();
-    };
-    let hero_dm = hero_dm as usize;
-    let Some(hero_rid) = astates.response_id_from_dm(hero_dm) else {
-        return get_empty();
-    };
 
     let sf_atts = &satts[Subfields::NAME];
     let sf_row = aux.cit_subfields.row(hero_dm);

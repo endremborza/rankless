@@ -40,7 +40,7 @@ use crate::responses::{
     PaperSetResp,
 };
 use crate::state::{InstTrm, StatesT};
-use crate::util::{bad_request, cache_header, get_empty, parse_semantic_id};
+use crate::util::{bad_request, cache_header, get_empty, resolve_dm, resolve_entity};
 
 // Entity types whose work-lists may be intersected. Restricted to the five "stat" facets: their
 // semantic IDs are slugs containing none of the path separators (`/ , :`), so the catch-all CNF
@@ -60,35 +60,32 @@ pub(crate) async fn works_get(
     states: StatesT,
 ) -> (HeaderMap, Response) {
     let page_size = wq.n.unwrap_or(WORKS_PAGE_SIZE_MAX).min(WORKS_PAGE_SIZE_MAX);
-    if let Some(state) = states.0 .0.get(etype.as_str()) {
-        let psid = parse_semantic_id(sem_id);
-        if let Some(&dm_id) = state.sem_to_dm.get(psid.as_str()) {
-            let gets = &states.0 .2.state.gets;
-            if let Some(work_arr) = gets.works_of_entity(dm_id as usize, etype) {
-                if !work_arr.is_empty() {
-                    let total = work_arr.len();
-                    let start = min(pstart, total - 1);
-                    let rmaker = |a: &[WT]| {
-                        get_paper_set_resp(a[start..].iter().take(page_size), states.2.clone())
-                    };
-                    let resp = if wq.sort.as_deref() == Some("citations") {
-                        let mut sorted = work_arr.to_vec();
-                        sorted.sort_by_key(|&w| Reverse(gets.wccount(w.to_usize())));
-                        rmaker(&sorted)
-                    } else {
-                        rmaker(work_arr)
-                    };
-                    let out = PaginatedPaperSetResp {
-                        resp,
-                        total_papers: total,
-                        slice_start: start,
-                    };
-                    return (cache_header(60), Json(out).into_response());
-                }
-            }
-        }
+    let Some((_, dm_id)) = resolve_dm(&states.0 .0, &etype, &sem_id) else {
+        return get_empty();
+    };
+    let gets = &states.0 .2.state.gets;
+    let Some(work_arr) = gets.works_of_entity(dm_id, etype) else {
+        return get_empty();
+    };
+    if work_arr.is_empty() {
+        return get_empty();
     }
-    get_empty()
+    let total = work_arr.len();
+    let start = min(pstart, total - 1);
+    let rmaker = |a: &[WT]| get_paper_set_resp(a[start..].iter().take(page_size), states.2.clone());
+    let resp = if wq.sort.as_deref() == Some("citations") {
+        let mut sorted = work_arr.to_vec();
+        sorted.sort_by_key(|&w| Reverse(gets.wccount(w.to_usize())));
+        rmaker(&sorted)
+    } else {
+        rmaker(work_arr)
+    };
+    let out = PaginatedPaperSetResp {
+        resp,
+        total_papers: total,
+        slice_start: start,
+    };
+    (cache_header(60), Json(out).into_response())
 }
 
 // Intersect entity work-sets given as a conjunctive normal form (AND of OR-clauses) encoded in the
@@ -128,7 +125,7 @@ pub(crate) async fn intersect_get(
                 return bad_request("too many operands");
             }
             // Unresolved ids drop out; a clause left with no operand makes the AND empty.
-            if let Some(&dm_id) = ns.sem_to_dm.get(parse_semantic_id(raw_id.into()).as_str()) {
+            if let Some(&dm_id) = ns.sem_to_dm.get(raw_id) {
                 if let Some(slice) = gets.works_of_entity(dm_id as usize, etype.into()) {
                     operands.push(slice);
                 }
@@ -157,15 +154,11 @@ pub(crate) async fn paper_profile(
     Path(author_sem_id): Path<String>,
     states: StatesT,
 ) -> (HeaderMap, Response) {
-    let astates = states.0 .0.get(Authors::NAME).unwrap();
+    let Some((astates, aid, aid_rid)) = resolve_entity(&states.0 .0, Authors::NAME, &author_sem_id)
+    else {
+        return get_empty();
+    };
     let gets = &states.0 .2.state.gets;
-    let Some(&aid_dm) = astates.sem_to_dm.get(author_sem_id.as_str()) else {
-        return get_empty();
-    };
-    let aid = aid_dm as usize;
-    let Some(aid_rid) = astates.response_id_from_dm(aid) else {
-        return get_empty();
-    };
     let hw_set: HashSet<WT> = astates.exts[aid_rid]
         .hit_papers
         .iter()

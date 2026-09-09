@@ -25,7 +25,7 @@ use crate::responses::{
     ResolveWorkResp, SearchResult, UnionSearchResult,
 };
 use crate::state::StatesT;
-use crate::util::{cache_header, get_empty, parse_semantic_id};
+use crate::util::{cache_header, get_empty};
 
 pub(crate) async fn name_get(
     Path(etype): Path<String>,
@@ -179,8 +179,7 @@ pub(crate) async fn resolve_author_get(
     let dm_id: usize = if let Some(d) = q.dm_id {
         d
     } else if let Some(sem_id) = &q.semantic_id {
-        let psid = parse_semantic_id(sem_id.clone());
-        match nstate.sem_to_dm.get(psid.as_str()) {
+        match nstate.sem_to_dm.get(sem_id.as_str()) {
             Some(&d) => d as usize,
             None => return (StatusCode::NOT_FOUND, Json(None)),
         }
