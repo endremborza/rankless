@@ -6,15 +6,8 @@ import { servedCountryPack } from '$lib/server/game-countries';
 import { currentObjects } from '$lib/server/objects';
 import { BRAND, PATH, isMedicalName } from '$lib/utils/game-countries';
 
-// Result tables are created lazily on the first run POST, so a fresh box
-// legitimately has none — that reads as zero runs, not an error.
 function countRows(table: string): number {
-	const d = getDb();
-	const t = d
-		.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
-		.get(table);
-	if (!t) return 0;
-	return (d.prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n;
+	return (getDb().prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n;
 }
 
 export const load: PageServerLoad = async ({ locals }) => {

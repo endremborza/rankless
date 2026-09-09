@@ -1,26 +1,12 @@
-// Server plumbing shared by the games: lazy per-game schema setup on the user
-// DB, boundary-validation helpers (all game endpoints are public), and the
-// size-capped JSON body reader for result POSTs.
+// Server plumbing shared by the games: boundary-validation helpers (all game
+// endpoints are public) and the size-capped JSON body reader for result POSTs.
 
 import { error } from '@sveltejs/kit';
-
-import { getDb } from './db';
 
 export const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 export const SEM_ID_RE = /^[\w.-]{1,80}$/;
 
 const MAX_BODY_BYTES = 2048;
-
-const ensured = new Set<string>();
-
-export function gameDb(schema: string) {
-	const d = getDb();
-	if (!ensured.has(schema)) {
-		d.run(schema);
-		ensured.add(schema);
-	}
-	return d;
-}
 
 function okNum(v: unknown, lo: number, hi: number): boolean {
 	return typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;

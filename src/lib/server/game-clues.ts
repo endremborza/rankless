@@ -2,36 +2,14 @@
 // the play-result log. Cards ship to the browser one at a time (daily via the
 // page load, practice via GET /api/game-clues) with verification facts stripped.
 
-import { DAY_RE, SEM_ID_RE, gameDb, okInt, okNullNum } from './game-common';
+import { DAY_RE, SEM_ID_RE, okInt, okNullNum } from './game-common';
+import { getDb } from './db';
 import { currentObjects } from './objects';
 import { dailyIndex } from '$lib/utils/game';
 import type { GameCard, GameResultLog, PlayCard } from '$lib/types/game-clues';
 
 // The etype whose game-card pack /game-clues serves.
 export const GAME_PACK_ETYPE = 'institutions';
-
-const GAME_SCHEMA = `
-CREATE TABLE IF NOT EXISTS game_results (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	mode TEXT NOT NULL,
-	day TEXT NOT NULL,
-	sem_id TEXT NOT NULL,
-	clues_used INTEGER NOT NULL,
-	gave_up INTEGER NOT NULL,
-	guess_lat REAL,
-	guess_lon REAL,
-	distance_km REAL,
-	score INTEGER NOT NULL,
-	orcid TEXT,
-	created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_gr_day ON game_results(day);
-CREATE TABLE IF NOT EXISTS game_daily (
-	day TEXT PRIMARY KEY,
-	sem_id TEXT NOT NULL,
-	created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-`;
 
 let dailyPin: { day: string; semId: string } | null = null;
 
@@ -59,7 +37,7 @@ export function dailyCard(day: string, pack: GameCard[] = currentPack()): PlayCa
 }
 
 function pinnedDaily(day: string, pack: GameCard[]): GameCard {
-	const db = gameDb(GAME_SCHEMA);
+	const db = getDb();
 	const row = db.prepare('SELECT sem_id FROM game_daily WHERE day = ?').get(day) as {
 		sem_id: string;
 	} | null;
@@ -82,7 +60,7 @@ export function practiceCard(exclude: string | null): PlayCard | null {
 }
 
 export function recordResult(result: GameResultLog, orcid: string | null): void {
-	gameDb(GAME_SCHEMA)
+	getDb()
 		.prepare(
 			`INSERT INTO game_results
 			 (mode, day, sem_id, clues_used, gave_up, guess_lat, guess_lon, distance_km, score, orcid)

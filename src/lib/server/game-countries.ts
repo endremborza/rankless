@@ -6,11 +6,12 @@
 // per-question timer is what keeps lookups out, so the client checks picks
 // locally like the clue game does with its coordinates.
 
-import { DAY_RE, gameDb, okInt, okSemIdList } from './game-common';
+import { DAY_RE, okInt, okSemIdList } from './game-common';
+import { getDb } from './db';
 import { currentObjects } from './objects';
 import { BE_URL } from '$lib/constants';
 import { STANDING_MIN_TIER, citStandingTier, standingLabel, tierLabels } from '$lib/peers-utils';
-import { urlFriendlify } from '$lib/tree-functions';
+import { encodeSemanticId } from '$lib/tree-functions';
 import type * as tt from '$lib/tree-types';
 import { DECK_CAP, LIVES, dailyDeck, practiceDeck } from '$lib/utils/game-countries';
 import type {
@@ -21,22 +22,6 @@ import type {
 	CountryRunLog,
 	DayStanding
 } from '$lib/types/game-countries';
-
-// `missed_sem_ids` is a JSON array — one run costs up to LIVES cards, and every
-// one of them is difficulty signal for the card pack.
-const COUNTRY_SCHEMA = `
-CREATE TABLE IF NOT EXISTS country_game_results (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	mode TEXT NOT NULL,
-	day TEXT NOT NULL,
-	score INTEGER NOT NULL,
-	out_of INTEGER NOT NULL,
-	missed_sem_ids TEXT,
-	orcid TEXT,
-	created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_cgr_day ON country_game_results(day);
-`;
 
 // Cards show up to this many standings; the strictest win.
 const MAX_BADGES = 2;
@@ -118,7 +103,7 @@ async function getPeers(semId: string): Promise<tt.EntityPeersResp | null> {
 // Logs the run and, for a daily one, answers with its standing among the
 // day's runs so far (the just-logged run included).
 export function recordRun(run: CountryRunLog, orcid: string | null): DayStanding | null {
-	const d = gameDb(COUNTRY_SCHEMA);
+	const d = getDb();
 	d.prepare(
 		`INSERT INTO country_game_results (mode, day, score, out_of, missed_sem_ids, orcid)
 		 VALUES (?, ?, ?, ?, ?, ?)`

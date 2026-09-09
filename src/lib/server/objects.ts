@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { env } from '$env/dynamic/private';
 import { getDb } from './db';
-import { OBJECTS_CURRENT_SQL, OBJECTS_SCHEMA } from './objects-schema';
+import { OBJECTS_CURRENT_SQL } from './objects-schema';
 import type { McpObject, ObjectKind, ObjectStatus } from '$lib/types/objects';
 
 const BUNDLE_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
@@ -31,7 +31,6 @@ type Row = {
 	updated_at: string;
 };
 
-let ensured = false;
 const bundleCache = new Map<string, unknown[]>();
 const warnedBundles = new Set<string>();
 
@@ -54,7 +53,7 @@ export function listObjects(opts: {
 		params.push(...opts.statuses);
 	}
 	const where = conds.length ? ` WHERE ${conds.join(' AND ')}` : '';
-	const rows = db()
+	const rows = getDb()
 		.prepare(`SELECT * FROM mcp_objects${where} ORDER BY kind, obj_key, gen_at DESC`)
 		.all(...params) as Row[];
 	return rows.map(rowToObject);
@@ -64,26 +63,17 @@ export function listObjects(opts: {
 // Rows whose bundle is missing on this box are dropped (and logged), so
 // consumers never see a null payload; the review list keeps them visible.
 export function currentObjects(kind: ObjectKind): McpObject[] {
-	const rows = db().prepare(OBJECTS_CURRENT_SQL).all(kind) as Row[];
+	const rows = getDb().prepare(OBJECTS_CURRENT_SQL).all(kind) as Row[];
 	return rows.map(rowToObject).filter((o) => o.payload !== null);
 }
 
 export function setObjectStatus(id: number, status: ObjectStatus, note: string | null): boolean {
-	const res = db()
+	const res = getDb()
 		.prepare(
 			"UPDATE mcp_objects SET status = ?, status_note = ?, updated_at = datetime('now') WHERE id = ?"
 		)
 		.run(status, note, id);
 	return res.changes > 0;
-}
-
-function db() {
-	const d = getDb();
-	if (!ensured) {
-		d.run(OBJECTS_SCHEMA);
-		ensured = true;
-	}
-	return d;
 }
 
 function readBundle(name: string): unknown[] {

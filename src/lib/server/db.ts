@@ -5,6 +5,7 @@ import type { LedgerKind, LedgerPayload, ModerationState } from '$lib/types/ledg
 import type { EnrichmentEntry, EnrichmentSource, ReviewVerdict } from '$lib/types/review';
 import type { EmailConsent, EmailPurposeKey } from '$lib/types/email-consent';
 import type { SessionUserData } from './session';
+import { OBJECTS_SCHEMA } from './objects-schema';
 
 let _db: Database | null = null;
 
@@ -131,7 +132,44 @@ export function getDb(): Database {
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_rv_dedup
 			ON review_verdicts(orcid, kind, subject_hash, model, created_at);
 		CREATE INDEX IF NOT EXISTS idx_rv_subject ON review_verdicts(orcid, kind, subject_hash);
+		-- Clue-ladder game: one row per finished round, plus the day's pinned card so
+		-- the pick survives pack growth and rides the cross-box merge.
+		CREATE TABLE IF NOT EXISTS game_results (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			mode TEXT NOT NULL,
+			day TEXT NOT NULL,
+			sem_id TEXT NOT NULL,
+			clues_used INTEGER NOT NULL,
+			gave_up INTEGER NOT NULL,
+			guess_lat REAL,
+			guess_lon REAL,
+			distance_km REAL,
+			score INTEGER NOT NULL,
+			orcid TEXT,
+			created_at TEXT NOT NULL DEFAULT (datetime('now'))
+		);
+		CREATE INDEX IF NOT EXISTS idx_gr_day ON game_results(day);
+		CREATE TABLE IF NOT EXISTS game_daily (
+			day TEXT PRIMARY KEY,
+			sem_id TEXT NOT NULL,
+			created_at TEXT NOT NULL DEFAULT (datetime('now'))
+		);
+		-- Country game: one row per run. missed_sem_ids is a JSON array — a run costs
+		-- up to LIVES cards, and every one of them is difficulty signal for the pack.
+		CREATE TABLE IF NOT EXISTS country_game_results (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			mode TEXT NOT NULL,
+			day TEXT NOT NULL,
+			score INTEGER NOT NULL,
+			out_of INTEGER NOT NULL,
+			missed_sem_ids TEXT,
+			orcid TEXT,
+			created_at TEXT NOT NULL DEFAULT (datetime('now'))
+		);
+		CREATE INDEX IF NOT EXISTS idx_cgr_day ON country_game_results(day);
 	`);
+	// Mirrored in pyscripts/object_store.py for the Python writers.
+	_db.run(OBJECTS_SCHEMA);
 	return _db;
 }
 
