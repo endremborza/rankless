@@ -65,7 +65,7 @@ DEFAULT_PLAN = ".cril/claims-plan.json"
 MODERATED_BY = "auto:snapshot-authorship"
 WORK_SOURCES = ("openalex", "crossref")
 # Plan verdict/reason → the cause named in the report. Public phrasing: no internal
-# skip-reason identifiers, no individual named.
+# skip-reason identifiers (SkipReason rust enum), no individual named.
 CAUSES = {
     "oa_id_not_in_dataset": "paper carries no author records to attribute",
     "doi_not_in_snapshot": "DOI absent from this snapshot",
