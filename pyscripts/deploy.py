@@ -1178,25 +1178,14 @@ def kill_alpha():
     get_running_inst(False).terminate()
 
 
-def _handoff_db_to(target_tpr: Transper, pull_warn_only: bool = False):
+def _handoff_db_to(target_tpr: Transper):
     # Pull the live DB onto this deploy host, then push the merged local DB to the
-    # target. pull_warn_only keeps a spinning-up alpha unblocked when the live box
-    # can't be snapshotted (e.g. an old deploy without the MCP tooling); a promote
-    # leaves it False so a failed pre-flip catch-up aborts rather than flipping
-    # stale data live.
+    # target: a failed catch-up aborts rather than handing over stale data.
     live_inst = get_running_inst(True)
     if live_inst is None:
         print("no live box to pull DB from; pushing local DB as-is")
     else:
-        try:
-            get_tpr(live_inst).merge_db_from()
-        except Exception as e:
-            if not pull_warn_only:
-                raise
-            print(
-                f"WARNING: live DB sync failed ({e}); continuing with the local DB. "
-                "Retry with merge_db_from_live, then merge_db_to_alpha."
-            )
+        get_tpr(live_inst).merge_db_from()
     target_tpr.merge_db_to()
 
 
@@ -1204,7 +1193,7 @@ def _new_alpha(storage, itype, fe_procn, backend):
     inst = get_new_inst(storage, itype)
     tpr = get_tpr(inst)
     full_setup_from_nothing(tpr, ALPHA_DOMAIN, fe_procn, backend=backend)
-    _handoff_db_to(tpr, pull_warn_only=True)
+    _handoff_db_to(tpr)
     associate_id(inst, False)
     time.sleep(15)
     new_tpr = get_tpr(inst)
