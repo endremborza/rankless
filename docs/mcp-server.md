@@ -235,8 +235,11 @@ One page serves everyone — **`/mcp`** (`src/routes/(stat)/mcp/`, "Developers" 
 A session is a SQLite index row (`mcp_sessions` in `data/rankless.sqlite`) plus a directory
 `$MCP_SESSIONS_ROOT/<name>/` (default `data/mcp-sessions/`) holding the deep.py artifacts.
 The frontend reads/writes rows via `bun:sqlite` (`src/lib/server/mcp-sessions.ts`); the host
-worker uses Python's `sqlite3` on the same WAL file. Sessions are only created through this
-flow (admin form → worker) — there is no side-channel seeding.
+worker uses Python's `sqlite3` on the same WAL file. Sessions come from this flow (admin form
+→ worker), from CLI generator runs that register themselves, or from `uv run -m pyscripts runs
+import <dir>... [--public]`, which copies a finished deep run made elsewhere (`deep.py
+--no-store`, another box) under the sessions root and registers it as a `done` row (params and
+title derived from its `findings.json` meta) — there is no other side channel.
 
 `pyscripts/mcp_worker.py` (`make mcp-worker`, systemd in prod) polls for `queued` rows, claims
 one atomically, and spawns the row's workflow via the `explore/runs.py` `WORKFLOWS` registry

@@ -15,13 +15,24 @@ worker's orphan recovery never re-queues a run it does not own.
 """
 
 import json
+import re
+import shutil
 import sqlite3
 import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Callable
 
+from protocli import Dispatcher
+
+from pyscripts import paths
+
 STAMP_FMT = "%Y%m%dT%H%M%S"
+GENERATED_FMT = "%Y-%m-%dT%H:%M:%SZ"
+DB_TIME_FMT = "%Y-%m-%d %H:%M:%S"
+# Mirrors NAME_RE in src/lib/server/mcp-sessions.ts.
+NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
 
 SESSIONS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS mcp_sessions (
@@ -81,6 +92,82 @@ def close_run(
             " updated_at = datetime('now') WHERE name = ?",
             (status, json.dumps(meta) if meta else None, error, name),
         )
+
+
+def import_run(con: sqlite3.Connection, src: Path, visibility: str) -> bool:
+    """Register a finished deep run made elsewhere (`deep.py --no-store`, another
+    box) as a done session: the dir is copied under the sessions root and its
+    findings.json meta becomes the row. False when the name is already taken."""
+    name = src.name
+    if not NAME_RE.match(name):
+        raise SystemExit(f"{name}: not a session name")
+    meta = json.loads((src / "findings.json").read_text())["meta"]
+    if meta["type"] != "deep":
+        raise SystemExit(f"{name}: generator runs register on the box that mines them")
+    con.executescript(SESSIONS_SCHEMA)
+    if con.execute("SELECT 1 FROM mcp_sessions WHERE name = ?", (name,)).fetchone():
+        return False
+    dst = Path(paths.sessions_root()) / name
+    if dst.exists():
+        raise SystemExit(f"{dst} exists without a session row; remove it first")
+    shutil.copytree(src, dst)
+    params = _deep_params(meta)
+    at = datetime.strptime(meta["generated"], GENERATED_FMT).strftime(DB_TIME_FMT)
+    with con:
+        con.execute(
+            "INSERT INTO mcp_sessions (name, status, visibility, title, params, meta,"
+            " created_at, updated_at) VALUES (?, 'done', ?, ?, ?, ?, ?, ?)",
+            (
+                name,
+                visibility,
+                deep_title(params),
+                json.dumps(params),
+                json.dumps(meta),
+                at,
+                at,
+            ),
+        )
+    return True
+
+
+def deep_title(params: dict) -> str:
+    """Mirrors sessionTitle in src/lib/server/mcp-sessions.ts for deep params."""
+    if params.get("investigate"):
+        return f"Deepening {params['investigate']}"
+    return (
+        params.get("subject")
+        or params.get("question")
+        or f"{', '.join(params['foci'])} on {params['backend']}"
+    )
+
+
+def _deep_params(meta: dict) -> dict:
+    """The queue params (`DeepParams` in src/lib/types/mcp.ts) a run's meta implies."""
+    return {
+        "type": "deep",
+        "backend": meta["backendUrl"]
+        if meta["backend"] == "custom"
+        else meta["backend"],
+        "foci": meta["foci"],
+        "subject": meta["subject"],
+        "question": meta["question"],
+        "investigate": meta["investigate"],
+        "model": meta["model"],
+        "origin": "cli",
+    }
+
+
+def _import_cmd(*dirs: str, public: bool = False, db: str = "") -> None:
+    """Register finished deep-run dirs (deep.py --no-store output) as done
+    sessions under the sessions root; --public lists them on /mcp."""
+    con = sqlite3.connect(db or paths.db_path())
+    try:
+        for d in dirs:
+            src = Path(d)
+            done = import_run(con, src, "public" if public else "private")
+            print(f"{src.name}: {'registered' if done else 'already registered'}")
+    finally:
+        con.close()
 
 
 def _generation_argv(command: str) -> ArgvBuilder:
@@ -147,3 +234,5 @@ WORKFLOWS: dict[str, Workflow] = {
     ),
     "impact-stories": Workflow(_generation_argv("impact-stories"), self_closing=True),
 }
+
+_dispatcher = Dispatcher("pyscripts runs", {"import": _import_cmd})
