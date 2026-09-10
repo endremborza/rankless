@@ -57,7 +57,8 @@ LIVE_DOMAIN = subd("www")
 FW_DOMAIN = MAIN_DOMAIN
 ALPHA_BACKEND = subd("alpha-api")
 LIVE_BACKEND = subd("api")
-# Both: a promote flips the box's domain without re-rendering the MCP unit.
+# Both public backend domains: the unit answers on whichever one the front
+# door routes to the box, before and after a promote.
 MCP_PUBLIC_HOSTS = f"{ALPHA_BACKEND},{LIVE_BACKEND}"
 
 FE_UPSTREAM = "rankless_frontend"
@@ -951,17 +952,6 @@ upstream {BE_UPSTREAM} {{
                 "owner is a reverse tunnel from another box; stop its unit there"
             )
 
-    def assert_mcp_hosts(self, hosts: str = MCP_PUBLIC_HOSTS):
-        """The MCP unit admits every public backend domain. A promote flips the
-        box's domain without re-rendering the unit, so a unit missing the live
-        domain would answer 421 only after the flip."""
-        unit = self.ssh.run(f"cat {self.systemd_dir}/{services.MCP_SERVER_UNIT}")
-        if f"MCP_PUBLIC_HOSTS={hosts}" not in unit:
-            raise SystemExit(
-                f"{self.ssh.full_host}: {services.MCP_SERVER_UNIT} lacks "
-                f"MCP_PUBLIC_HOSTS={hosts}; re-render it (setup_mcp_services) first"
-            )
-
     def update_env(self):
         domain = self.get_domain()
         be_url = "https://" + self.get_backend_domain()
@@ -1440,7 +1430,6 @@ def promote() -> None:
     _assert_release_tree()
     alpha = get_running_tpr(False)
     alpha.assert_backend_owns_port()
-    alpha.assert_mcp_hosts()
     specs = _check_json(f"https://{ALPHA_BACKEND}/v1/specs", "alpha specs")
     assert_report_documents(specs.get("version", ""))
     promote_alpha_to_live()

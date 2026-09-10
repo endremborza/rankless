@@ -18,8 +18,7 @@ Environment:
 - `RANKLESS_SITE_URL` — base for `rankless_url` backlinks (default `https://rankless.org`)
 - `MCP_PUBLIC_HOSTS` — comma-separated `Host` header values the hosted endpoint accepts
   (the SDK's DNS-rebinding guard admits localhost only without it; nginx forwards the
-  public domain, and the deploy renders both backend domains into the unit so a promoted
-  box needs no re-render)
+  public domain, and the ops definition renders both backend domains into the unit)
 - `MCP_LOG_DIR` — when set, every tool call (a failing one with its `error`), `verify_claims`
   result and `suggest_endpoint` lands as one JSON line per day (`<dir>/YYYY-MM-DD.jsonl`,
   keyed by MCP session id — a stranger's session is not a run, so it stays out of
