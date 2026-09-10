@@ -286,7 +286,7 @@ Profiles pick the service set: `dev` = backend + mcp-server + mcp-worker, `small
 frontend (blue+green) + mcp-server + mcp-worker + status, `live` = all five. The MCP server's backend
 is a parameter (`--mcp-backend local|alpha|live|<url>`) with per-profile defaults (dev → alpha
 API, small-alpha → live API, live → local backend). Cloud instances get the same templates via
-`pyscripts/deploy.py` (`Transper.setup_mcp_services`, called from `full_setup_from_nothing`),
+`pyscripts/deploy.py` (`Transper.setup_mcp_services`, the `mcp_units` step of the ops definition in `docs/deploy.md`),
 which also injects the `deploy/nginx-mcp-location.conf` proxy into the backend server block,
 exposing `https://alpha-api.rankless.org/mcp`. Set `MCP_PUBLIC_URL` to that when baking the
 manifest.

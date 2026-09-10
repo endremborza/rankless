@@ -41,7 +41,7 @@ arr: &ET<MAA<Authors, CitSubfieldsArrayMarker>>,
 
 ### Production code speaks only the current schema
 
-No runtime schema patching, no version sniffing, no branch for an older shape, no shim for a renamed alpha route or key. A change that strands an already-deployed database or data directory ships a stdlib-only idempotent script in `pyscripts/migration_scripts/`, which is **empty in steady state**: code deploys run whatever is there on the box, the author runs it once on the primary host's DB, and the next commit deletes it — `ship-alpha`/`promote` refuse while any remain. Retrofitting a running box is a one-off command noted in `.cril/`, never a primitive or make target. Git keeps the history; the tree does not.
+No runtime schema patching, no version sniffing, no branch for an older shape, no shim for a renamed alpha route or key. A change that strands an already-deployed database or data directory ships a stdlib-only idempotent script in `pyscripts/migration_scripts/`, which is **empty in steady state**: code deploys run whatever is there on the box, the author runs it once on the primary host's DB, and the next commit deletes it — `ship-alpha`/`promote` refuse while any remain. A running box is never retrofitted to an older shape by a primitive or make target: it is converged on the current ops definition (`make sync_ops_to_{alpha,live}`, the same `OPS_STEPS` a fresh box and a promote apply), and anything that definition cannot express is a one-off command noted in `.cril/`. Git keeps the history; the tree does not.
 
 ### Bootstrap constraint: step X cannot use types from `gen/X.rs`
 

@@ -236,10 +236,16 @@ Guards first: no uncommitted artifact files, `HEAD == origin/<branch>`, the depl
 
 Refuses on a host whose user DB holds no users or whose tree still holds a catch-up script (same guards as ship-alpha) and on an alpha whose backend port is not owned by its own `rankless-server` (same check as the smoke). Then gated on the release report: the committed report asset's `run_id` must match alpha's served `/v1/specs.version` before anything flips — the report the new live site shows is mechanically the release it serves. Then
 `promote_alpha_to_live`: pre-flip DB catch-up (everything users did on live while
-alpha baked, merged with claims made on alpha during validation), frontend re-built
-for the live domain, nginx + EIP flip, cert refresh, then a post-flip final DB merge
-from the old live box (it keeps running on a fresh ephemeral IP as a safety net).
+alpha baked, merged with claims made on alpha during validation), the ops definition
+applied for the live domain (every unit re-rendered, the alpha site conf retired, the
+apex redirect added), frontend re-built for the live domain, EIP flip, cert refresh,
+then a post-flip final DB merge from the old live box (it keeps running on a fresh
+ephemeral IP as a safety net).
 Ends with live smoke checks and a reminder: once satisfied, `make kill_dangling`.
+
+## The ops definition (`sync_ops_to_{alpha,live}`)
+
+Everything a serving box carries besides its checkout, its frontend build and its data is one ordered list, `OPS_STEPS` in `pyscripts/deploy.py`: host hardening (linger, no oomd kill of `user@`), the share-card age rule, the checkout's venv, the frontend / backend / MCP / status unit templates, certificates (copied from a running public box when the box has none), the nginx site conf for the box's domain (the other public domain's conf retired, the apex redirect when live) and the `ops` tmux session. Each step is idempotent and gated on a `BoxSpec` (domain, frontend worker count, whether the box runs its own backend — read off a running box, given for a fresh one). Three paths apply the same list: `new_*_alpha` on a fresh box (host bootstrap → checkout → ops → frontend → data), `sync_ops_to_{alpha,live}` on a running box (pull, then ops), and `promote` with the live spec before it rebuilds the frontend. `ARGS=--explain` prints the steps in order and stops; `ARGS="--only site"` applies one (`sync_nginx_to_*` is that step alone, without a pull). A re-rendered unit template does not restart what it describes unless the step says so: MCP and status units restart, the frontend's serving slot is left to the next blue/green flip, the backend to `make restart-service`. There is no retrofit path: a box that predates a template change is converged, not patched.
 
 ## Code deploys (`sync_fe_to_{alpha,live}`, `sync_data_to_{alpha,live}`)
 
@@ -247,7 +253,7 @@ A frontend deploy (`Transper.update_fe`) pulls the branch, then runs every scrip
 
 ## Front door (nginx)
 
-`Transper.setup_nginx` renders the site conf through `render_nginx_conf` (`sync_nginx_to_{alpha,live}` re-renders and reloads). Both public hosts sit behind Cloudflare, so the conf trusts `CLOUDFLARE_RANGES` for `CF-Connecting-IP` and every per-client zone keys on the visitor, not the edge. The frontend host gets `pagelimit` (2 r/s, burst 20 per visitor), an in-flight cap on renders (`pageload` 96 for the whole box, `pageconn` 8 per visitor, answered 503), a 30 s `proxy_read_timeout`, retries only on a dead worker (`proxy_next_upstream error invalid_header`, two tries) and FE upstreams rendered with `max_fails=0` so a slow render never marks the pool dead; a `$junk_ua` map returns 429 to user-agent strings no browser has sent in a decade. The API host and `/mcp` share `apilimit` (10 r/s, burst 50 per visitor). On the alpha, `LOADTEST_TOKEN` renders the `$lt_*` maps that exempt the load-test driver from every limit and cache (`make capacity`). Provisioning also installs a `tmpfiles.d` rule that ages the share-card cache (`/tmp/rankless-cards`, written by `card-raster.ts`) out at 7 days. Directives are asserted in `pyscripts/tests/test_deploy.py`; the rendered file passes `nginx -t` on 1.24 (mount it with a stub upstream file and a self-signed cert into `nginx:1.24-alpine`).
+`Transper.setup_nginx` renders the site conf through `render_nginx_conf` (`sync_nginx_to_{alpha,live}` re-renders and restarts; it is the `site` step of the ops definition). Both public hosts sit behind Cloudflare, so the conf trusts `CLOUDFLARE_RANGES` for `CF-Connecting-IP` and every per-client zone keys on the visitor, not the edge. The frontend host gets `pagelimit` (2 r/s, burst 20 per visitor), an in-flight cap on renders (`pageload` 96 for the whole box, `pageconn` 8 per visitor, answered 503), a 30 s `proxy_read_timeout`, retries only on a dead worker (`proxy_next_upstream error invalid_header`, two tries) and FE upstreams rendered with `max_fails=0` so a slow render never marks the pool dead; a `$junk_ua` map returns 429 to user-agent strings no browser has sent in a decade. The API host and `/mcp` share `apilimit` (10 r/s, burst 50 per visitor). On the alpha, `LOADTEST_TOKEN` renders the `$lt_*` maps that exempt the load-test driver from every limit and cache (`make capacity`). Provisioning also installs a `tmpfiles.d` rule that ages the share-card cache (`/tmp/rankless-cards`, written by `card-raster.ts`) out at 7 days. Directives are asserted in `pyscripts/tests/test_deploy.py`; the rendered file passes `nginx -t` on 1.24 (mount it with a stub upstream file and a self-signed cert into `nginx:1.24-alpine`).
 
 ## Backups
 
