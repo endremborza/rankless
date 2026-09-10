@@ -126,13 +126,14 @@ def run_bundle(
     backend_label: str,
     model: str,
     count: int,
-    kind: str,
+    kinds: tuple[str, ...],
     session: str,
     generate: Callable[[sqlite3.Connection], tuple[list[dict], int, list[str]]],
     report_line: Callable[[dict], str] = default_report_line,
 ) -> None:
     """Shared run lifecycle: session row, bundle write, meta/report, summary.
-    `generate` returns (accepted objects, target/candidate count, log)."""
+    `generate` returns (accepted objects, target/candidate count, log);
+    `kinds` are the object kinds the workflow writes, for the stored count."""
     name = session or runs.run_name(workflow, etype)
     con = object_store.connect()
     params = {
@@ -146,8 +147,10 @@ def run_bundle(
     try:
         objects, n_targets, log = generate(con)
         object_store.write_bundle(con, name, objects)
-        n_current = len(
-            [r for r in object_store.current(con, kind) if r["etype"] == etype]
+        n_current = sum(
+            r["etype"] == etype
+            for kind in kinds
+            for r in object_store.current(con, kind)
         )
         meta = {
             "type": workflow,
@@ -216,7 +219,7 @@ def run(
         backend_label=backend_label,
         model=cfg.model,
         count=count,
-        kind=spec.kind,
+        kinds=(spec.kind,),
         session=session,
         generate=generate,
     )
