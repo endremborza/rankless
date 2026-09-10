@@ -23,11 +23,14 @@ def tool_name(tool: str) -> str:
     return tool.split("__")[-1] if tool.startswith("mcp__") else tool
 
 
-async def verify_facts(facts: list[dict]) -> list[dict]:
+async def verify_facts(
+    facts: list[dict], calls: dict[str, object] | None = None
+) -> list[dict]:
     """Re-issue every fact in place (tool normalized, `reproduced`/`error`/`ok`
     set), one backend call per distinct tool + args; returns the facts that
-    failed to reproduce."""
-    calls: dict[str, object] = {}
+    failed to reproduce. Pass `calls` to share the memo across batches."""
+    if calls is None:
+        calls = {}
     for fact in facts:
         fact["tool"] = tool_name(fact.get("tool", ""))
         fact["reproduced"], fact["error"] = await reissue(fact, calls)
