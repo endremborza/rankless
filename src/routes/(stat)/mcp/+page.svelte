@@ -273,15 +273,18 @@
 	<section>
 		<h2>Tools</h2>
 		<p class="note">
-			Each tool proxies one backend endpoint and returns <code>rankless_url</code> backlinks; ids must
-			come from the resolution tools, never guessed.
+			Each data tool proxies one backend endpoint and returns <code>rankless_url</code> backlinks;
+			ids must come from the resolution tools, never guessed. Every data-tool response carries a
+			receipt naming the call that produced it; <code>verify_claims</code> re-issues cited numbers
+			and
+			<code>suggest_endpoint</code> records what the tools lacked.
 		</p>
 		<ul class="cards">
 			{#each m.tools as tool, i (i)}
 				<li>
 					<div class="card-head">
 						<code class="name">{tool.name}</code>
-						<code class="ep">{tool.endpoint}</code>
+						{#if tool.endpoint}<code class="ep">{tool.endpoint}</code>{/if}
 					</div>
 					<p>{tool.summary}</p>
 				</li>

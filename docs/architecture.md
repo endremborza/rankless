@@ -367,17 +367,21 @@ Cross-language type/API-shape coherence audit (`uv run -m pyscripts.typeaudit`,
 
 ### MCP server (`mcp_server/`)
 
-Python MCP proxy (stdio, `uv run -m mcp_server` / `make mcp-server`) exposing the Rust
-backend to any MCP client; see [mcp-server.md](mcp-server.md).
+Python MCP proxy (stdio `uv run -m mcp_server` / `make mcp-server`; streamable-http behind
+nginx as `alpha-api.rankless.org/mcp`) exposing the Rust backend to any MCP client, with
+receipts on every response and a `verify_claims` tool; see [mcp-server.md](mcp-server.md).
 
-| File                  | Role                                                                                                     |
-| --------------------- | -------------------------------------------------------------------------------------------------------- |
-| `server.py`           | FastMCP wiring: registers tools/resources/prompts, stdio transport                                       |
-| `tools.py`            | Tool implementations as plain async functions (`TOOL_FNS` registry, reused by the deep-stories verifier) |
-| `client.py`           | Async httpx client for the backend (`RANKLESS_BE_URL`, default `127.0.0.1:3038/v1`)                      |
-| `response_shaping.py` | Tree flattening via `/v1/specs` breakdowns, list truncation, `rankless_url` backlinks                    |
-| `resources.py`        | Static schema/guide resources (`rankless://schema/entity-types`, `rankless://guide/agent`)               |
-| `prompts.py`          | Reusable prompts (`author_impact_report`)                                                                |
+| File                  | Role                                                                                                                                                                                                      |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `server.py`           | FastMCP wiring: data tools registered in the receipt envelope, grounding tools, resources/prompts, server `instructions`; stdio or streamable-http, `MCP_PUBLIC_HOSTS` host guard for the hosted endpoint |
+| `tools.py`            | Data tool implementations as plain async functions (`TOOL_FNS` registry, re-issued by `verify.py`)                                                                                                        |
+| `receipts.py`         | `{receipt, data}` envelope + per-session receipt log (keyed by MCP session id, bounded) mirrored as daily JSONL under `MCP_LOG_DIR`; `with_receipt` wraps a plain tool for registration                   |
+| `grounding.py`        | `verify_claims` (re-issue cited numbers by receipt id or tool+args, one fact-record format) and `suggest_endpoint` (log what the tools lacked)                                                            |
+| `verify.py`           | Deterministic re-issue of model-cited tool calls (`verify_facts`, dotted-path walk); shared by the live tool and every offline miner                                                                      |
+| `client.py`           | Async httpx client for the backend (`RANKLESS_BE_URL`, default `127.0.0.1:3038/v1`)                                                                                                                       |
+| `response_shaping.py` | Tree flattening via `/v1/specs` breakdowns, list truncation, `rankless_url` backlinks, `coauthor_edges` (upper-triangle `authorNetwork` → named strongest ties)                                           |
+| `resources.py`        | Static schema/guide resources (`rankless://schema/entity-types`, `rankless://guide/agent` = the resolve → call → cite → verify → answer loop)                                                             |
+| `prompts.py`          | Reusable prompts (`author_impact_report`)                                                                                                                                                                 |
 
 ---
 

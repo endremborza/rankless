@@ -1,21 +1,49 @@
 """FastMCP wiring: registers tools, resources and prompts.
 
 Default transport is stdio (local proxy for Claude Code / Desktop). For the
-hosted public endpoint, run with `--transport streamable-http` behind nginx.
+hosted public endpoint, run with `--transport streamable-http` behind nginx and
+set MCP_PUBLIC_HOSTS to the Host header values the proxy forwards; without it
+the SDK's guard admits localhost only.
 """
 
 import argparse
 import os
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
+from mcp_server.grounding import GROUNDING_TOOLS
 from mcp_server.prompts import PROMPTS
-from mcp_server.resources import RESOURCES
+from mcp_server.receipts import with_receipt
+from mcp_server.resources import AGENT_GUIDE, RESOURCES
 from mcp_server.tools import TOOLS
 
-mcp = FastMCP("rankless")
+LOCAL_HOSTS = ["127.0.0.1:*", "localhost:*"]
+
+
+def transport_security(public_hosts: str) -> TransportSecuritySettings | None:
+    """Host-header guard admitting the public hosts plus localhost; None keeps
+    the SDK's localhost-only default."""
+    hosts = [h.strip() for h in public_hosts.split(",") if h.strip()]
+    if not hosts:
+        return None
+    return TransportSecuritySettings(
+        allowed_hosts=[*hosts, *LOCAL_HOSTS],
+        allowed_origins=[f"https://{h}" for h in hosts]
+        + [f"http://{h}" for h in LOCAL_HOSTS],
+    )
+
+
+mcp = FastMCP(
+    "rankless",
+    instructions=AGENT_GUIDE,
+    transport_security=transport_security(os.environ.get("MCP_PUBLIC_HOSTS", "")),
+)
 
 for fn in TOOLS:
+    mcp.tool()(with_receipt(fn))
+
+for fn in GROUNDING_TOOLS:
     mcp.tool()(fn)
 
 for prompt_fn in PROMPTS:

@@ -50,33 +50,53 @@ resolution is slow enough that clients can give up on the connect):
 
 ## Surface
 
-Tools (each response carries `rankless_url` backlinks; ids must come from the
+Data tools (each response carries `rankless_url` backlinks; ids must come from the
 resolution tools, never guessed):
 
-| Tool                                                                         | Backend                 | Notes                                                                |
-| ---------------------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------- |
-| `search_entities(query, entity_type)`                                        | `/v1/names/:etype?q=`   | tier-1 resolution; `entity_type` ∈ root types or `all`               |
-| `get_top_entities()`                                                         | `/v1/tops`              | seed entities per type                                               |
-| `get_entity_profile(etype, sem_id)`                                          | `/v1/views/:etype/:sem` | drops `authorNetwork`, truncates long lists                          |
-| `get_entity_stats(etype, sem_id, year_from?, year_to?, subfield?)`           | `/v1/stats/...`         | recent-era window clamped to `[eraFrom, eraTo]`                      |
-| `get_citation_tree(etype, sem_id, tree_index?, since_year?, top_n?, depth?)` | `/v1/trees/...`         | flattened top-N per level; level meaning from `/v1/specs` breakdowns |
-| `get_papers(etype, sem_id, offset?, limit?, sort?)`                          | `/v1/works/...`         | `sort="citations"` for hit papers                                    |
-| `get_peers(etype, sem_id)`                                                   | `/v1/peers/...`         |                                                                      |
-| `lookup_orcid(orcid)`                                                        | `/v1/orcid/:id`         |                                                                      |
+| Tool                                                                         | Backend                 | Notes                                                                                 |
+| ---------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------- |
+| `search_entities(query, entity_type)`                                        | `/v1/names/:etype?q=`   | tier-1 resolution; `entity_type` ∈ root types or `all`                                |
+| `get_top_entities()`                                                         | `/v1/tops`              | seed entities per type                                                                |
+| `get_entity_profile(etype, sem_id)`                                          | `/v1/views/:etype/:sem` | truncates long lists; `coauthorEdges` = strongest ties among the entity's top authors |
+| `get_entity_stats(etype, sem_id, year_from?, year_to?, subfield?)`           | `/v1/stats/...`         | recent-era window clamped to `[eraFrom, eraTo]`                                       |
+| `get_citation_tree(etype, sem_id, tree_index?, since_year?, top_n?, depth?)` | `/v1/trees/...`         | flattened top-N per level; level meaning from `/v1/specs` breakdowns                  |
+| `get_papers(etype, sem_id, offset?, limit?, sort?)`                          | `/v1/works/...`         | `sort="citations"` for hit papers                                                     |
+| `get_peers(etype, sem_id)`                                                   | `/v1/peers/...`         |                                                                                       |
+| `lookup_orcid(orcid)`                                                        | `/v1/orcid/:id`         |                                                                                       |
 
-Resources: `rankless://schema/entity-types`, `rankless://guide/agent` (resolution-first
-rule, provenance expectations). Prompt: `author_impact_report(author_name)`.
+Every data-tool response is an envelope `{"receipt": {"id", "tool", "args"}, "data": ...}`
+(`mcp_server/receipts.py`): the receipt names the call that produced the data, ids run
+`r1, r2, …` per MCP session, and the session's receipts are the reproduction record of
+everything the model was handed. Two grounding tools close the loop
+(`mcp_server/grounding.py`):
+
+| Tool                                    | Does                                                                                                                                                                                                                                                                                         |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verify_claims(claims)`                 | re-issues every claim (`{label, claimed, path, receipt}` or `{…, tool, args}`; `path` is dotted, relative to `data`) through the same tool functions (one backend call per distinct tool + args) and returns each with `reproduced`/`ok`/`error`; the reproduced value is the one to publish |
+| `suggest_endpoint(need, why, question)` | records what the tools could not supply for a question, into the log                                                                                                                                                                                                                         |
+
+A claim's record — `{tool, args, path, claimed}` + `{reproduced, ok, error}` — is the one
+verified-fact format: the same shape the offline miners store in `findings.json` metrics
+(`mcp_server/verify.py` serves both). Contract for the model: resolve → call → cite
+receipt ids → `verify_claims` → answer with numbers, links and receipt ids. It is stated
+three times, because no client loads all of them: the server `instructions` (sent on
+`initialize`), the `rankless://guide/agent` resource, and a trailing line on every data
+tool's description. A tool cannot force itself to be called; the log is what catches a
+session that skipped it.
+
+Resources: `rankless://schema/entity-types`, `rankless://guide/agent`. Prompt:
+`author_impact_report(author_name)`.
 
 Tool implementations are plain async functions (`mcp_server/tools.py`, `TOOL_FNS`
-registry) deliberately importable without the MCP transport — the deep-stories
-evidence verifier re-issues them directly.
+registry) deliberately importable without the MCP transport — `server.py` registers them
+wrapped in the receipt envelope, and `mcp_server/verify.py` re-issues them bare.
 
 ## Consumer: deep exploration
 
 ```bash
 uv run -m pyscripts.explore.deep --backend live --foci all \
     [--subject "César Hidalgo"] [--question "..."] [--investigate <run>[:<id>]] \
-    [--model opus] [--sample 8] [--out my-run]
+    [--model opus] [--sample 8] [--max-turns 60] [--out my-run]
 # make alias: make deep-explore ARGS="--backend live --foci all"
 ```
 

@@ -14,6 +14,8 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from mcp_server import BACKENDS
+from mcp_server.grounding import GROUNDING_TOOLS
 from mcp_server.prompts import PROMPTS
 from mcp_server.resources import RESOURCES
 from mcp_server.tools import TOOLS
@@ -75,7 +77,7 @@ def _connect() -> dict:
 
 def _tools() -> list[dict]:
     out = []
-    for fn in TOOLS:
+    for fn in (*TOOLS, *GROUNDING_TOOLS):
         doc = inspect.getdoc(fn) or ""
         out.append(
             {

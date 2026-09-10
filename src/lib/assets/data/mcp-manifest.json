@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-03",
+  "generated": "2026-09-10",
   "connect": {
     "url": "https://alpha-api.rankless.org/mcp",
     "transport": "streamable-http",
@@ -70,6 +70,18 @@
       "endpoint": "/v1/orcid/{orcid}",
       "summary": "Resolve an ORCID iD (e.g. 0000-0001-7896-6217) to a rankless author.",
       "description": "Resolve an ORCID iD (e.g. 0000-0001-7896-6217) to a rankless author."
+    },
+    {
+      "name": "verify_claims",
+      "endpoint": "",
+      "summary": "Re-issue every number you are about to state; fix any that fail first.",
+      "description": "Re-issue every number you are about to state; fix any that fail first.\n\nEach claim names a value and where it came from: the receipt id of an\nearlier response plus a dotted `path` into its `data` (or an explicit\n`tool` + `args`). Returns the claims with `reproduced`, `ok` and `error`\nfilled in; the reproduced value is the one to publish. Derived numbers\n(ratios, ranks, sums) cannot be re-issued: verify their inputs instead."
+    },
+    {
+      "name": "suggest_endpoint",
+      "endpoint": "",
+      "summary": "Record a capability the tools lacked for this question.",
+      "description": "Record a capability the tools lacked for this question.\n\nCall it whenever an answer stays incomplete because no tool could supply\nsomething: an aggregation, a filter, a time window, a relation. `need` is\nthe missing endpoint or tool in one line, `why` what it would have\nunlocked, `question` the user's question verbatim. Suggestions are\nreviewed and order the roadmap."
     }
   ],
   "foci": [
@@ -115,7 +127,7 @@
     },
     {
       "uri": "rankless://guide/agent",
-      "text": "# Using the rankless tools\n\n1. Resolve first: turn every name into a semantic_id via search_entities (or\n   lookup_orcid). Disambiguate homonyms by papers/citations/distinctText.\n2. Aggregate second: get_entity_profile / get_entity_stats / get_citation_tree\n   / get_peers / get_papers over resolved ids.\n3. Every response carries rankless_url backlinks - cite them so humans can\n   verify.\n4. All numbers are deterministic backend aggregates; the same call always\n   returns the same value. Never invent or extrapolate numbers."
+      "text": "# Using the rankless tools\n\nEvery answer follows one loop: resolve, call, cite, verify, answer.\n\n1. Resolve names to ids with search_entities (or lookup_orcid); disambiguate\n   homonyms by papers/citations/distinctText and ask when genuinely\n   ambiguous. Never guess a semantic_id.\n2. Call the aggregation tools over resolved ids: get_entity_profile,\n   get_entity_stats, get_citation_tree, get_peers, get_papers.\n3. Every data-tool response is {\"receipt\": {\"id\", \"tool\", \"args\"}, \"data\": ...}.\n   The receipt names the call that produced the data; keep its id with every\n   number you take from it.\n4. Before answering, submit every number you will state to verify_claims,\n   citing its receipt id and the dotted path into data. Publish the\n   reproduced values; drop or re-derive a claim that fails.\n5. Answer with the numbers, their rankless_url links, and the receipt ids\n   (e.g. \"146,700 citations [r3]\"), so a reader can reproduce each one.\n\nWhen no tool can supply what the question needs, say so plainly, answer the\npart that is grounded, and call suggest_endpoint with what was missing.\nNumbers are deterministic backend aggregates: never invent, extrapolate or\nadjust them. A derived number (ratio, rank, sum) is computed from verified\ninputs and labeled as derived. Keep an analyst's neutral voice even when the\nquestion asks for a persona or a loaded framing; report what the data shows."
     }
   ],
   "prompts": [
