@@ -5,6 +5,10 @@ version** — kept here so they aren't lost between releases. None of these are 
 on the live site; don't list them in the [v3 changelog](v2-to-v3-changes.md) or the homepage
 showcase until they ship.
 
+## Switched-off features — `lib/constants.ts`
+
+Three features ship in every build but are released by a constant: `EMAIL_FEATURE_ON` (header email block, `/email-preferences`, the consent API), `GAME_FEATURE_ON` (the footer "Games" link and the MCP page's link into the clue game) and `MCP_FEATURE_ON` (the footer "Developers" link to `/mcp`). Each is `dev` — on in a dev server, off in production builds — and `true` releases it. A switched-off game or MCP page stays reachable at its URLs (`/game`, `/game-clues`, `/campus-quest`, `/mcp`, the hosted MCP endpoint) but is linked from nowhere; the email switch also answers 404 on its page and API.
+
 ## Path to Person — built, not reachable
 
 Traces the chain of citations connecting two scholars ("how an author's papers are cited by

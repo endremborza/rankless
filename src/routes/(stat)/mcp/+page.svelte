@@ -1,6 +1,7 @@
 <script lang="ts">
 	import manifestJson from '$lib/assets/data/mcp-manifest.json';
 	import { BACKENDS, GENERATIONS, isGenerationMeta } from '$lib/mcp-util';
+	import { GAME_FEATURE_ON } from '$lib/constants';
 	import type { GenerationType, McpManifest } from '$lib/types/mcp';
 	import type { ActionData, PageData } from './$types';
 
@@ -215,8 +216,9 @@
 		<h2>Collected objects</h2>
 		<p class="note">
 			The unified store of reusable artifacts the miners produce — verified findings, impact
-			stories, and clue cards feeding <a href="/game-clues">the game</a>. Every number inside was
-			re-issued from the backend before the object was stored.
+			stories, and clue cards feeding {#if GAME_FEATURE_ON}<a href="/game-clues">the game</a
+				>{:else}the game{/if}. Every number inside was re-issued from the backend before the object
+			was stored.
 		</p>
 		{#if objects.length === 0}
 			<p class="empty">Nothing collected yet.</p>

@@ -10,7 +10,13 @@
 
 	import { page } from '$app/state';
 	import type { RootType } from '$lib/tree-types';
-	import { EMAIL_FEATURE_ON, LATEST_YEAR, ROOT_TYPES } from '$lib/constants';
+	import {
+		EMAIL_FEATURE_ON,
+		GAME_FEATURE_ON,
+		LATEST_YEAR,
+		MCP_FEATURE_ON,
+		ROOT_TYPES
+	} from '$lib/constants';
 	import { prettifyRoot } from '$lib/text-format-util';
 	import { resultsHidden } from '$lib/stores';
 
@@ -290,9 +296,11 @@
 		<TextedLogo pad={0} size={30} />
 		<span>{LATEST_YEAR}</span>
 		<div id="foot-r">
-			{#if data.user}<a href="/mcp">Developers</a>{/if}<a href="/game">Games</a><a href="/release"
-				>Data</a
-			><a href="/privacy">Privacy</a><a href="/#contact">Contact</a>
+			{#if MCP_FEATURE_ON}<a href="/mcp">Developers</a>{/if}{#if GAME_FEATURE_ON}<a href="/game"
+					>Games</a
+				>{/if}<a href="/release">Data</a><a href="/privacy">Privacy</a><a href="/#contact"
+				>Contact</a
+			>
 		</div>
 	</div>
 </div>

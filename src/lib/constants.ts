@@ -4,9 +4,12 @@ import { dev } from '$app/environment';
 
 export const APP_NAME = 'Rankless';
 
-// Master switch for email collection (header banner, /email-preferences, consent API).
-// Dev-only; `true` releases it.
+// Feature switches: `dev` keeps a feature dev-only, `true` releases it. A switched-off
+// feature stays reachable at its URLs but is linked from nowhere; email also closes its
+// consent API and preferences page.
 export const EMAIL_FEATURE_ON = dev;
+export const GAME_FEATURE_ON = dev;
+export const MCP_FEATURE_ON = dev;
 
 // Brand proof-points. The home card pulls live figures from the backend /counts endpoint; this is
 // the fallback shown only if that fetch fails, so it stays roughly current but approximate.
