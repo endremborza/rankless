@@ -11,7 +11,8 @@ clue text is linted against name/acronym/city leaks. Accepted cards land as
 
 import unicodedata
 
-from pyscripts.explore import generation, runner, verify
+from mcp_server import verify
+from pyscripts.explore import generation, runner
 
 MIN_CLUES = 5
 N_CLUES = 6

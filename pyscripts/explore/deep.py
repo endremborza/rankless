@@ -41,8 +41,9 @@ from pathlib import Path
 
 import mcp_server
 from mcp_server import client as be_client
+from mcp_server import verify
 from pyscripts import object_store
-from pyscripts.explore import cli, evidence, runner, runs, verify
+from pyscripts.explore import cli, evidence, runner, runs
 
 FOCI = ("share", "query", "data-issue")
 # Output root: personal PKM by default, overridable (env or --out-root) so the

@@ -4,7 +4,7 @@ stories, ...).
 A generator run is one `mcp_sessions` row (self-registered when CLI-started,
 worker-claimed when queued from `/mcp`) that picks target entities from the
 backend's citation-ordered slice, mines each with one agentic session over the
-MCP tools, verifies every cited number through `verify.reissue`, and lands the
+MCP tools, verifies every cited number through `mcp_server.verify`, and lands the
 accepted objects as one immutable bundle in the object store. A workflow
 supplies only its prompts and its accept policy via `GeneratorSpec`; naming,
 session lifecycle, target picking, concurrency, bundling, and reporting live

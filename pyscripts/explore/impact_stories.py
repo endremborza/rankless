@@ -11,7 +11,8 @@ Accepted stories land as `impact-story` objects; approved ones show publicly on
     uv run -m pyscripts impact-stories --backend local --etype authors --count 12
 """
 
-from pyscripts.explore import generation, runner, verify
+from mcp_server import verify
+from pyscripts.explore import generation, runner
 
 MIN_FACTS = 2
 
