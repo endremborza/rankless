@@ -4,7 +4,9 @@
 
 export type ObjectStatus = 'new' | 'approved' | 'rejected';
 
-export type ObjectKind = 'game-card' | 'country-card' | 'finding' | 'impact-story';
+import type { CardKind } from './game-geo';
+
+export type ObjectKind = CardKind | 'finding' | 'impact-story';
 
 export type McpObject = {
 	id: number;

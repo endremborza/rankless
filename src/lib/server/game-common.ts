@@ -12,10 +12,6 @@ function okNum(v: unknown, lo: number, hi: number): boolean {
 	return typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 }
 
-export function okNullNum(v: unknown, lo: number, hi: number): boolean {
-	return v === null || okNum(v, lo, hi);
-}
-
 export function okInt(v: unknown, lo: number, hi: number): boolean {
 	return Number.isInteger(v) && okNum(v, lo, hi);
 }

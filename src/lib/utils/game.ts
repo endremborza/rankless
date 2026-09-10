@@ -23,10 +23,6 @@ export function fnv1a(s: string): number {
 	return h >>> 0;
 }
 
-export function dailyIndex(day: string, cardCount: number): number {
-	return fnv1a(day) % cardCount;
-}
-
 export function shuffle<T>(items: readonly T[]): T[] {
 	const out = [...items];
 	for (let i = out.length - 1; i > 0; i--) {

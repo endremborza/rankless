@@ -21,16 +21,14 @@
 		const p = payload as {
 			description?: string;
 			story?: string;
-			clues?: unknown[];
 			cc?: string;
 			decoys?: string[];
 			note?: string;
 		};
 		if (p.description) return p.description;
 		if (p.story) return p.story;
-		if (p.clues) return `${p.clues.length} verified clues`;
 		if (p.decoys) return `${p.cc} vs ${p.decoys.join(', ')} — ${p.note}`;
-		return '';
+		return p.note ?? '';
 	}
 
 	// A rejection must carry a reason (stored, reviewable later against data

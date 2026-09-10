@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ccFlag, ccName, dailyIndex, nextStreak, shareMessage, shuffle } from './game';
+import { ccFlag, ccName, fnv1a, nextStreak, shareMessage, shuffle } from './game';
 
 describe('nextStreak', () => {
 	it('continues a streak from yesterday and starts one otherwise', () => {
@@ -19,18 +19,11 @@ describe('nextStreak', () => {
 	});
 });
 
-describe('dailyIndex', () => {
-	it('is deterministic and in range', () => {
-		const i = dailyIndex('2026-08-21', 24);
-		expect(i).toBe(dailyIndex('2026-08-21', 24));
-		expect(i).toBeGreaterThanOrEqual(0);
-		expect(i).toBeLessThan(24);
-	});
-
-	it('varies across days', () => {
+describe('fnv1a', () => {
+	it('is deterministic and varies across days', () => {
+		expect(fnv1a('2026-08-21')).toBe(fnv1a('2026-08-21'));
 		const days = ['2026-08-21', '2026-08-22', '2026-08-23', '2026-08-24'];
-		const inds = new Set(days.map((d) => dailyIndex(d, 24)));
-		expect(inds.size).toBeGreaterThan(1);
+		expect(new Set(days.map(fnv1a)).size).toBe(days.length);
 	});
 });
 
@@ -54,8 +47,8 @@ describe('country display', () => {
 
 describe('shareMessage', () => {
 	it('stamps the day, line, and route URL', () => {
-		expect(shareMessage('Rankless quiz', '2026-08-23', 'line here', '/game-clues')).toBe(
-			'Rankless quiz 2026-08-23\nline here\nhttps://rankless.org/game-clues'
+		expect(shareMessage('Rankless quiz', '2026-08-23', 'line here', '/quiz')).toBe(
+			'Rankless quiz 2026-08-23\nline here\nhttps://rankless.org/quiz'
 		);
 	});
 });
