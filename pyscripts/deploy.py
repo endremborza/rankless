@@ -405,6 +405,7 @@ class Transper:
                 "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
             )
         self.harden_host()
+        self.cap_card_cache()
         self.ssh.run("curl -fsSL https://bun.sh/install | bash")
         # uv drives the python side (mcp server + worker) on the instance.
         self.ssh.run("curl -LsSf https://astral.sh/uv/install.sh | sh")
@@ -926,6 +927,14 @@ upstream {BE_UPSTREAM} {{
             "systemctl show user@$(id -u).service -p ManagedOOMMemoryPressure"
         ).strip()
         assert state == "ManagedOOMMemoryPressure=auto", state
+
+    def cap_card_cache(self):
+        # systemd-tmpfiles-clean.timer ages the share-card cache out daily; the
+        # rasterizer treats a missing file as a miss and re-renders.
+        rule = f"d {CARD_CACHE_DIR} 0755 $(whoami) $(whoami) {CARD_CACHE_MAX_AGE}"
+        conf = "/etc/tmpfiles.d/rankless-cards.conf"
+        self.ssh.run(f"printf '{rule}\\n' | sudo tee {conf}")
+        self.ssh.run(f"sudo systemd-tmpfiles --create {conf}")
 
     def reload_systemctl(self):
         self.ssh.run("sudo systemctl daemon-reload")
