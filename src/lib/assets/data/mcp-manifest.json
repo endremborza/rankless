@@ -9,12 +9,16 @@
         "cmd": "claude mcp add --transport http rankless https://alpha-api.rankless.org/mcp"
       },
       {
-        "label": "MCP config (.mcp.json / Cursor / Desktop)",
+        "label": "Claude.ai / Claude Desktop",
+        "cmd": "Settings → Connectors → Add custom connector → name: rankless, URL: https://alpha-api.rankless.org/mcp"
+      },
+      {
+        "label": "MCP config (.mcp.json / Cursor / other clients)",
         "cmd": "{\n  \"mcpServers\": {\n    \"rankless\": {\n      \"type\": \"http\",\n      \"url\": \"https://alpha-api.rankless.org/mcp\"\n    }\n  }\n}"
       },
       {
         "label": "Or run the stdio proxy against the public REST API",
-        "cmd": "RANKLESS_BE_URL=https://alpha-api.rankless.org/v1 uv run -m mcp_server"
+        "cmd": "RANKLESS_BE_URL=https://api.rankless.org/v1 uv run -m mcp_server"
       }
     ]
   },

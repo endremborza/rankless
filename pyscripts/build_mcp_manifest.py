@@ -59,7 +59,12 @@ def _connect() -> dict:
                 "label": "Claude Code",
                 "cmd": f"claude mcp add --transport http rankless {MCP_PUBLIC_URL}",
             },
-            {"label": "MCP config (.mcp.json / Cursor / Desktop)", "cmd": proxy},
+            {
+                "label": "Claude.ai / Claude Desktop",
+                "cmd": "Settings → Connectors → Add custom connector → "
+                f"name: rankless, URL: {MCP_PUBLIC_URL}",
+            },
+            {"label": "MCP config (.mcp.json / Cursor / other clients)", "cmd": proxy},
             {
                 "label": "Or run the stdio proxy against the public REST API",
                 "cmd": f"RANKLESS_BE_URL={PUBLIC_BE_URL} uv run -m mcp_server",
