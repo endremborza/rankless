@@ -8,7 +8,7 @@ their country, and write three plausible decoy countries plus a one-sentence
 post-answer reveal. Decoys are validated against the ISO country set and the
 true country; accepted picks land as `country-card` objects, which the
 country-game route reads server-side. Run lifecycle, candidate slicing,
-and the per-country cap come from the shared engine (`generation.py`).
+and the per-country cap come from the shared engine (`object_mining.py`).
 
     uv run -m pyscripts country-cards --backend local --count 60
 """
@@ -20,7 +20,7 @@ import sqlite3
 from pathlib import Path
 
 import mcp_server
-from pyscripts.explore import cli, generation, runner
+from pyscripts.explore import cli, object_mining, runner
 
 WORKFLOW = "country-cards"
 KIND = "country-card"
@@ -107,7 +107,7 @@ def main(
     backend_url, backend_label = mcp_server.resolve_backend(backend)
     mcp_server.set_backend(backend_url)
     model = cli.resolve_model(model)
-    generation.run_bundle(
+    object_mining.run_bundle(
         workflow=WORKFLOW,
         title=TITLE,
         etype=etype,
@@ -143,14 +143,14 @@ def _generate(
     model: str,
     refresh: bool,
 ) -> tuple[list[dict], int, list[str]]:
-    have = {} if refresh else generation.stored_ccs(con, KIND, etype)
+    have = {} if refresh else object_mining.stored_ccs(con, KIND, etype)
     candidates = asyncio.run(_candidates(etype, skip, pool, have))
     print(
         f"[{WORKFLOW}] {len(candidates)} candidate(s) from slice "
         f"{skip}..{skip + pool}; model={model}; {len(have)} already stored"
     )
     iso2 = set(json.loads(Path(ISO2_PATH).read_text()))
-    cap = generation.CcCap(have.values(), per_country)
+    cap = object_mining.CcCap(have.values(), per_country)
     log: list[str] = []
     objects: list[dict] = []
     failures = 0
@@ -164,12 +164,12 @@ def _generate(
             )
             picks = cli.parse_json(raw).get("picks", [])
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
-            generation.log_note(log, WORKFLOW, f"batch at {start}: failed ({exc})")
+            object_mining.log_note(log, WORKFLOW, f"batch at {start}: failed ({exc})")
             failures += 1
             # dead auth / exhausted usage window fails every batch — bail like
-            # generation.py's _MineBreaker; an idempotent rerun resumes later
-            if failures >= generation.BREAK_AFTER:
-                generation.log_note(
+            # object_mining.py's _MineBreaker; an idempotent rerun resumes later
+            if failures >= object_mining.BREAK_AFTER:
+                object_mining.log_note(
                     log,
                     WORKFLOW,
                     f"aborting after {failures} consecutive batch failures",
@@ -183,13 +183,13 @@ def _generate(
                 break
             obj, why = _build_card(pick, by_sem, iso2, etype)
             if obj is None:
-                generation.log_note(
+                object_mining.log_note(
                     log, WORKFLOW, f"drop {pick.get('semId', '?')}: {why}"
                 )
                 continue
             cc = obj["payload"]["cc"]
             if cap.full(cc):
-                generation.log_note(
+                object_mining.log_note(
                     log, WORKFLOW, f"drop {obj['sem_id']}: {cc} at per-country cap"
                 )
                 continue
@@ -201,10 +201,10 @@ def _generate(
 async def _candidates(
     etype: str, skip: int, pool: int, have: dict[str, str]
 ) -> list[dict]:
-    ranked = await generation.fetch_slice(etype, skip, skip + pool)
+    ranked = await object_mining.fetch_slice(etype, skip, skip + pool)
     out = []
     for ent in ranked:
-        cc = generation.flag_cc(ent.get("distinctText", ""))
+        cc = object_mining.flag_cc(ent.get("distinctText", ""))
         if not cc or ent["semanticId"] in have or is_generic_name(ent["name"]):
             continue
         out.append(

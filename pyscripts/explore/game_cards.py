@@ -1,6 +1,6 @@
 """Generate verified clue-ladder cards for the guessing game.
 
-A generator workflow over `pyscripts/explore/generation.py`: one agentic
+A generator workflow over `pyscripts/explore/object_mining.py`: one agentic
 session per entity writes a 6-clue ladder (hardest first) over the MCP tools;
 every cited number is re-issued deterministically (`verify.verify_facts`) and
 clue text is linted against name/acronym/city leaks. Accepted cards land as
@@ -12,7 +12,7 @@ clue text is linted against name/acronym/city leaks. Accepted cards land as
 import unicodedata
 
 from mcp_server import verify
-from pyscripts.explore import generation, runner
+from pyscripts.explore import object_mining, runner
 
 MIN_CLUES = 5
 N_CLUES = 6
@@ -108,7 +108,7 @@ def main(
     mcp_session and writes one immutable bundle; --count new cards per run
     (--refresh re-mines carded entities; --sem-ids overrides pool selection;
     --session joins a worker-claimed session row; --backend as in explore.deep)."""
-    generation.run(
+    object_mining.run(
         SPEC,
         backend=backend,
         etype=etype,
@@ -140,13 +140,13 @@ async def _build_card(target: dict, parsed: dict, log: list[str]) -> dict | None
         leaks = _leaks(clue.get("text", ""), target)
         if bad or leaks:
             reasons = [f"fact {f['tool']}:{f.get('path')}" for f in bad] + leaks
-            generation.log_note(
+            object_mining.log_note(
                 log, SPEC.workflow, f"{sem}: drop stage {clue.get('stage')}: {reasons}"
             )
             continue
         kept.append(clue)
     if len(kept) < MIN_CLUES:
-        generation.log_note(
+        object_mining.log_note(
             log, SPEC.workflow, f"{sem}: only {len(kept)} clean clues, card rejected"
         )
         return None
@@ -200,7 +200,7 @@ def _tokens(s: str) -> list[str]:
     return [t for t in _fold(s).split() if t]
 
 
-SPEC = generation.GeneratorSpec(
+SPEC = object_mining.GeneratorSpec(
     workflow="game-cards",
     kind="game-card",
     title="Game cards",

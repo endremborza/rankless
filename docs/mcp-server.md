@@ -144,7 +144,7 @@ an SDK/API engine without touching the mining or reproduction logic.
 
 ## Generator workflows
 
-`pyscripts/explore/generation.py` is the shared engine for workflows that mine
+`pyscripts/explore/object_mining.py` is the shared engine for workflows that mine
 per-entity objects into the store: it picks targets from the backend's citation-ordered
 slice (idempotent reruns skip already-stored keys, a per-country cap keeps packs
 diverse), mines each target with one agentic session, and lands the accepted objects as

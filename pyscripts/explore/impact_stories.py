@@ -1,6 +1,6 @@
 """Generate verified per-entity impact stories.
 
-A generator workflow over `pyscripts/explore/generation.py`: one agentic
+A generator workflow over `pyscripts/explore/object_mining.py`: one agentic
 session per entity writes a short, numbers-driven narrative of how the target's
 research gets used — where its citations flow, who builds on its landmark
 papers, its standing among peers. Every cited number is re-issued
@@ -12,7 +12,7 @@ Accepted stories land as `impact-story` objects; approved ones show publicly on
 """
 
 from mcp_server import verify
-from pyscripts.explore import generation, runner
+from pyscripts.explore import object_mining, runner
 
 MIN_FACTS = 2
 
@@ -56,7 +56,7 @@ def main(
     an mcp_session and writes one immutable bundle; --count new stories per run
     (--refresh re-mines storied entities; --sem-ids overrides pool selection;
     --session joins a worker-claimed session row; --backend as in explore.deep)."""
-    generation.run(
+    object_mining.run(
         SPEC,
         backend=backend,
         etype=etype,
@@ -86,16 +86,16 @@ async def _build_story(target: dict, parsed: dict, log: list[str]) -> dict | Non
     story = (parsed.get("story") or "").strip()
     facts = parsed.get("facts", [])
     if not title or not story:
-        generation.log_note(log, SPEC.workflow, f"{sem}: empty title/story, dropped")
+        object_mining.log_note(log, SPEC.workflow, f"{sem}: empty title/story, dropped")
         return None
     if len(facts) < MIN_FACTS:
-        generation.log_note(
+        object_mining.log_note(
             log, SPEC.workflow, f"{sem}: only {len(facts)} facts, dropped"
         )
         return None
     if bad := await verify.verify_facts(facts):
         reasons = [f"{f['tool']}:{f.get('path')}" for f in bad]
-        generation.log_note(
+        object_mining.log_note(
             log, SPEC.workflow, f"{sem}: unreproducible facts {reasons}, dropped"
         )
         return None
@@ -114,7 +114,7 @@ async def _build_story(target: dict, parsed: dict, log: list[str]) -> dict | Non
     }
 
 
-SPEC = generation.GeneratorSpec(
+SPEC = object_mining.GeneratorSpec(
     workflow="impact-stories",
     kind="impact-story",
     title="Impact stories",

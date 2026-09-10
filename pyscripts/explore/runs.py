@@ -4,7 +4,7 @@ Every agentic workflow — deep exploration and the object-store generators —
 names its runs `<workflow>-<scope>-<UTC stamp>`, registers them as
 `mcp_sessions` rows, and is spawnable by the host worker through the
 `WORKFLOWS` registry. Adding a workflow means one registry entry plus a module
-with its prompts (the generators share their whole engine, see generation.py);
+with its prompts (the generators share their whole engine, see object_mining.py);
 the worker, the session pages, and the run naming need no new code. The
 frontend mirrors the naming in `src/lib/mcp-util.ts` and the params/meta shapes
 in `src/lib/types/mcp.ts`.
