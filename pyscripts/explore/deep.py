@@ -186,7 +186,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--backend",
         default="local",
-        help=f"one of {list(runner.BACKENDS)} or a full /v1 base URL (default: local).",
+        help=f"one of {list(mcp_server.BACKENDS)} or a full /v1 base URL (default: local).",
     )
     p.add_argument(
         "--foci",

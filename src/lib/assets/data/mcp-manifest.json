@@ -85,7 +85,7 @@
   "options": [
     {
       "flag": "--backend",
-      "help": "one of ['local', 'live'] or a full /v1 base URL (default: local)."
+      "help": "one of ['local', 'alpha', 'live'] or a full /v1 base URL (default: local)."
     },
     {
       "flag": "--foci",

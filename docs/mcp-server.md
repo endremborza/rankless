@@ -80,8 +80,9 @@ A one-line-per-run record is also appended to `.cril/writeups/explorations/runs.
 
 Parameters:
 
-- `--backend` — `local` (`127.0.0.1:3038`), `live` (`alpha-api.rankless.org`), or a full
-  `/v1` URL. Passed to the spawned MCP server (`RANKLESS_BE_URL` in the MCP config's `env`)
+- `--backend` — `local`, `alpha` or `live` (the `mcp_server.BACKENDS` table:
+  `127.0.0.1:3038`, `alpha-api.rankless.org`, `api.rankless.org`), or a full `/v1` URL.
+  Passed to the spawned MCP server (`RANKLESS_BE_URL` in the MCP config's `env`)
   **and** the in-process verifier (`mcp_server.set_backend`), so both hit the same data.
 - `--foci` — any of `share` (interesting/shareable, sub-typed by `share_kind`), `query` (a
   specific investigation, drivable with `--question`), `data-issue` (a data problem: an

@@ -23,8 +23,10 @@ OUT_PATH = Path("src/lib/assets/data/mcp-manifest.json")
 OPTION_FLAGS = ("--backend", "--foci", "--subject", "--question", "--investigate")
 
 # Public hosted MCP endpoint (streamable-http); override per deployment.
-MCP_PUBLIC_URL = os.environ.get("MCP_PUBLIC_URL", "https://alpha-api.rankless.org/mcp")
-PUBLIC_BE_URL = os.environ.get("MCP_PUBLIC_BE_URL", "https://alpha-api.rankless.org/v1")
+MCP_PUBLIC_URL = os.environ.get(
+    "MCP_PUBLIC_URL", BACKENDS["alpha"].removesuffix("/v1") + "/mcp"
+)
+PUBLIC_BE_URL = os.environ.get("MCP_PUBLIC_BE_URL", BACKENDS["live"])
 
 
 def main() -> int:

@@ -18,6 +18,7 @@ import requests
 from dotenv import load_dotenv
 from protocli import Dispatcher
 
+from mcp_server import resolve_backend
 from pyscripts import gitutil, migration_scripts, paths, services, userdb
 from pyscripts.fleet import manifest
 

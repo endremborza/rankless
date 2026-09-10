@@ -104,7 +104,7 @@ def main(
         raise SystemExit(
             f"{WORKFLOW} only supports the {runner.DEFAULT_RUNNER!r} engine"
         )
-    backend_url, backend_label = runner.resolve_backend(backend)
+    backend_url, backend_label = mcp_server.resolve_backend(backend)
     mcp_server.set_backend(backend_url)
     model = cli.resolve_model(model)
     generation.run_bundle(

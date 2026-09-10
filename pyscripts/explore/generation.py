@@ -188,7 +188,7 @@ def run(
     refresh: bool,
     session: str,
 ) -> None:
-    backend_url, backend_label = runner.resolve_backend(backend)
+    backend_url, backend_label = mcp_server.resolve_backend(backend)
     mcp_server.set_backend(backend_url)
     cfg = GenConfig(
         backend_url=backend_url,

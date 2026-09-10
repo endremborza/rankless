@@ -8,6 +8,9 @@ import type {
 	SessionParams
 } from '$lib/types/mcp';
 
+// Backend labels a queued run may name; mirrors mcp_server.BACKENDS.
+export const BACKENDS = ['local', 'alpha', 'live'] as const;
+
 // The queueable generator workflows: label + allowed entity types per workflow.
 // Mirrors pyscripts/explore/runs.py WORKFLOWS (minus deep).
 export const GENERATIONS: Record<GenerationType, { label: string; etypes: string[] }> = {

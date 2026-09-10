@@ -9,7 +9,13 @@ import {
 	setVisibility
 } from '$lib/server/mcp-sessions';
 import { currentObjects, listObjects, setObjectStatus } from '$lib/server/objects';
-import { GENERATIONS, isGenerationParams, isGenerationType, runName } from '$lib/mcp-util';
+import {
+	BACKENDS,
+	GENERATIONS,
+	isGenerationParams,
+	isGenerationType,
+	runName
+} from '$lib/mcp-util';
 import type { SessionParams, SessionVisibility } from '$lib/types/mcp';
 import type { ObjectStatus } from '$lib/types/objects';
 
@@ -42,8 +48,8 @@ export const actions: Actions = {
 		requireAdmin(locals);
 		const form = await request.formData();
 		const backend = String(form.get('backend') ?? 'live');
-		if (backend !== 'local' && backend !== 'live' && !backend.startsWith('http'))
-			return fail(400, { message: 'Backend must be local, live, or an http(s) URL.' });
+		if (!(BACKENDS as readonly string[]).includes(backend) && !backend.startsWith('http'))
+			return fail(400, { message: `Backend must be ${BACKENDS.join(', ')} or an http(s) URL.` });
 
 		let params: SessionParams;
 		const type = String(form.get('type') ?? 'deep');

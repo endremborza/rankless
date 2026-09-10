@@ -25,6 +25,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from mcp_server import BACKENDS, resolve_backend
 from pyscripts import paths
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -40,11 +41,8 @@ FE_UNIT_FRAME = "rankless-frontend-{}@.service"
 FE_BUILD_NAMES = ["blue", "green"]
 
 MCP_PORT = 8100
-MCP_BACKENDS = {
-    "local": "http://127.0.0.1:3038/v1",
-    "alpha": "https://alpha-api.rankless.org/v1",
-    "live": "https://api.rankless.org/v1",
-}
+# The per-client API budget, shared by the `/v1` and `/mcp` locations.
+API_LIMIT_REQ = "limit_req zone=apilimit burst=50 nodelay;"
 DEFAULT_WORKER_MODEL = "claude-sonnet-5"
 DEFAULT_WORKER_RUNNER = "claude-cli"
 
@@ -92,14 +90,6 @@ def render(template: str, **values: object) -> str:
         return str(values[key])
 
     return _VAR_RE.sub(sub, text)
-
-
-def resolve_mcp_backend(arg: str) -> str:
-    if arg in MCP_BACKENDS:
-        return MCP_BACKENDS[arg]
-    if arg.startswith("http"):
-        return arg.rstrip("/")
-    raise SystemExit(f"--mcp-backend must be one of {list(MCP_BACKENDS)} or a URL.")
 
 
 def render_backend(repo_root: str, data_root: str) -> str:

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import manifestJson from '$lib/assets/data/mcp-manifest.json';
-	import { GENERATIONS, isGenerationMeta } from '$lib/mcp-util';
+	import { BACKENDS, GENERATIONS, isGenerationMeta } from '$lib/mcp-util';
 	import type { GenerationType, McpManifest } from '$lib/types/mcp';
 	import type { ActionData, PageData } from './$types';
 
@@ -82,9 +82,8 @@
 					<div class="row">
 						<label
 							>Backend
-							<select name="backend">
-								<option value="live">live</option>
-								<option value="local">local</option>
+							<select name="backend" value="live">
+								{#each BACKENDS as b (b)}<option value={b}>{b}</option>{/each}
 							</select>
 						</label>
 						<label
@@ -135,9 +134,8 @@
 						</label>
 						<label
 							>Backend
-							<select name="backend">
-								<option value="local">local</option>
-								<option value="live">live</option>
+							<select name="backend" value="local">
+								{#each BACKENDS as b (b)}<option value={b}>{b}</option>{/each}
 							</select>
 						</label>
 						<label

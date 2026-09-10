@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from pyscripts import paths
+import mcp_server
 from pyscripts.explore import cli, runner
 from pyscripts.ledger_ids import canonical_doi, normalize_orcid
 
@@ -325,7 +326,7 @@ def main(
 
 
 def _run(args: argparse.Namespace) -> None:
-    backend_url, backend_label = runner.resolve_backend(args.backend)
+    backend_url, backend_label = mcp_server.resolve_backend(args.backend)
     con = connect(args.db)
     claims = select_claims(con, args.model, args.kind, args.limit, args.force)
     if not claims:
