@@ -26,6 +26,7 @@ Scoping options:
 - --investigate deepen a past finding: `<run>` or `<run>:<id>` (finding ids
                 are `f1`, `f2`, ... in that run's findings.json).
 - --suggest-endpoints  propose missing backend endpoints (on by default).
+- --max-turns   cap on agent turns (default 120).
 """
 
 import argparse
@@ -107,12 +108,13 @@ class DeepConfig:
     investigate: dict | None
     seeds: list[dict]
     sample: int
+    max_turns: int
     out_dir: Path
 
 
 def main() -> int:
     args = build_parser().parse_args()
-    backend_url, backend_label = runner.resolve_backend(args.backend)
+    backend_url, backend_label = mcp_server.resolve_backend(args.backend)
     investigate = _load_investigation(args.investigate) if args.investigate else None
     foci_arg = args.foci or ("query" if (investigate or args.question) else "share")
     foci = list(FOCI) if foci_arg == "all" else _split(foci_arg)
@@ -137,6 +139,7 @@ def main() -> int:
         investigate=investigate,
         seeds=seeds,
         sample=args.sample,
+        max_turns=args.max_turns,
         out_dir=Path(args.out_root)
         / (args.out or runs.run_name("deep", backend_label)),
     )
@@ -232,6 +235,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--sample", type=int, default=DEFAULT_SAMPLE, help="seed entity count."
     )
+    p.add_argument("--max-turns", type=int, default=MAX_TURNS, help="agent turn cap.")
     p.add_argument("--out", default=None, help="run dir name under the output root.")
     p.add_argument(
         "--out-root",
@@ -268,7 +272,7 @@ def _mine(config: DeepConfig) -> str:
         user=_user_prompt(config),
         model=config.model,
         backend_url=config.backend_url,
-        max_turns=MAX_TURNS,
+        max_turns=config.max_turns,
         timeout_s=TIMEOUT_S,
     )
     return runner.get_runner(config.runner)(job)

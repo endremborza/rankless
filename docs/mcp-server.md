@@ -94,11 +94,12 @@ Parameters:
   (`f1`, `f2`, …) in its run's `findings.json`; `--investigate <run>:f5` loads that
   finding's description + reproduced numbers as the seed and tells the agent to dig further.
   Omit `:<id>` to follow up the whole run.
+- `--max-turns` — cap on agent turns (default 120).
 - `--suggest-endpoints` / `--no-suggest-endpoints` — surface backend endpoints that don't
   exist yet but would unlock better insight (on by default).
 
-`mcp_server/tools.py`'s `TOOL_FNS` registry is reused verbatim as the verifier
-(`pyscripts/explore/verify.py`).
+`mcp_server/verify.py` re-issues the cited calls through `TOOL_FNS`, the same code the
+`verify_claims` tool runs for a live session.
 
 The mining engine is pluggable: `pyscripts/explore/runner.py` holds a `RUNNERS` registry
 (selected with `--runner`, default `claude-cli`), so the Claude Code CLI can be swapped for
