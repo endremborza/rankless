@@ -14,8 +14,7 @@ export const BACKENDS = ['local', 'alpha', 'live'] as const;
 // The queueable generator workflows: label + allowed entity types per workflow.
 // Mirrors pyscripts/explore/runs.py WORKFLOWS (minus deep).
 export const GENERATIONS: Record<GenerationType, { label: string; etypes: string[] }> = {
-	'game-cards': { label: 'Game cards', etypes: ['institutions', 'countries'] },
-	'country-cards': { label: 'Country cards', etypes: ['institutions'] },
+	'rankless-game-card-mining': { label: 'Game cards', etypes: ['institutions'] },
 	'impact-stories': { label: 'Impact stories', etypes: ['institutions', 'authors', 'countries'] }
 };
 

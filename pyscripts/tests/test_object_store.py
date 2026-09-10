@@ -5,11 +5,11 @@ def test_read_entries_tolerates_missing_bundle(tmp_path, monkeypatch):
     monkeypatch.setenv("MCP_OBJECTS_ROOT", str(tmp_path / "objects"))
     con = object_store.connect(str(tmp_path / "db.sqlite"))
     try:
-        obj = {"kind": "game-card", "obj_key": "k1", "payload": {"cc": "HU"}}
+        obj = {"kind": "country-card", "obj_key": "k1", "payload": {"cc": "HU"}}
         object_store.write_bundle(con, "run-a", [obj])
         object_store.write_bundle(con, "run-b", [{**obj, "obj_key": "k2"}])
         object_store.bundle_path("run-a").unlink()
-        entries = object_store.read_entries(object_store.rows(con, "game-card"))
+        entries = object_store.read_entries(object_store.rows(con, "country-card"))
     finally:
         con.close()
     assert entries[0] is None
@@ -25,11 +25,11 @@ def test_export_ingest_roundtrip_keeps_review_status(tmp_path, monkeypatch):
             con,
             "run-a",
             [
-                {"kind": "game-card", "obj_key": "k1", "payload": {"cc": "HU"}},
-                {"kind": "game-card", "obj_key": "k2", "payload": {"cc": "SK"}},
+                {"kind": "country-card", "obj_key": "k1", "payload": {"cc": "HU"}},
+                {"kind": "country-card", "obj_key": "k2", "payload": {"cc": "SK"}},
             ],
         )
-        ids = [r["id"] for r in object_store.rows(con, "game-card")]
+        ids = [r["id"] for r in object_store.rows(con, "country-card")]
     finally:
         con.close()
     object_store.set_status(ids=str(ids[1]), status="rejected", note="dup", db=src_db)
@@ -42,7 +42,7 @@ def test_export_ingest_roundtrip_keeps_review_status(tmp_path, monkeypatch):
     try:
         got = {
             r["obj_key"]: (r["status"], r["status_note"])
-            for r in object_store.rows(con, "game-card")
+            for r in object_store.rows(con, "country-card")
         }
     finally:
         con.close()

@@ -13,7 +13,7 @@
 	$: sessions = data.sessions;
 	$: objects = data.objects;
 
-	let genType: GenerationType = 'game-cards';
+	let genType: GenerationType = 'rankless-game-card-mining';
 	$: genEtypes = GENERATIONS[genType].etypes;
 
 	function objectLine(payload: unknown): string {

@@ -156,15 +156,17 @@ itself as an `mcp_sessions` row (self-registered from the CLI with `params.origi
 — the naming every agent run shares (`runs.run_name`, mirrored in
 `src/lib/mcp-util.ts`).
 
-- **`uv run -m pyscripts game-cards`** (`game_cards.py`) — 6-clue guessing ladders,
-  hardest first; every cited number re-issued through `verify.verify_facts` and clue
-  text linted against name/acronym/city leaks; accepted cards become `game-card`
-  objects, which the `/game-clues` route reads server-side (no LLM at play time).
-- **`uv run -m pyscripts country-cards`** (`country_cards.py`) — country-quiz cards for
-  `/campus-quest`: batch-prompted (no per-entity agentic session, the backend already
-  knows name + country) judgment over a deep slice of mid-tier institutions, keeping
-  the misleadingly named ones with three ISO-validated decoy countries and a
-  post-answer reveal note; accepted picks become `country-card` objects.
+- **`uv run -m pyscripts rankless-game-card-mining`** (`game_card_mining.py`) — the
+  CampusQuest card round, one mixed batch-prompted round over every card kind
+  (`country-card`, `intruder-card`, `nearest-card`, `city-card`, `local-card`; no
+  per-entity agentic session, the backend already knows name, city and country).
+  Each batch sees a chunk of anchor candidates plus the recognizable-institution
+  roster as its option pool; the model returns question shapes only (kind, anchor,
+  option ids or decoy names, reveal note), never an answer. Every answer is
+  recomputed from `get_entity_profile` facts re-issued through `verify.verify_facts`
+  (coordinates + place, stored on the card as `facts`); a card failing any check is
+  dropped. One bundle holds every kind, `(kind, semId)` is the skip key and the
+  per-country cap applies per kind (no LLM at play time).
 - **`uv run -m pyscripts impact-stories`** (`impact_stories.py`) — short verified
   narratives of how an entity's research gets used (citation flows, landmark papers,
   peers); stories with any unreproducible fact are dropped; approved `impact-story`

@@ -11,8 +11,9 @@ session lifecycle, target picking, concurrency, bundling, and reporting live
 here. Reruns are idempotent per entity: already-stored keys are skipped
 (`--refresh` re-mines them) and the per-country cap keeps packs diverse — the
 spec's payloads must carry the target's `semId` and `cc` for that bookkeeping.
-Batch-prompted workflows (country_cards) skip the per-target mining but share
-the run lifecycle via `run_bundle` and the selection helpers.
+Batch-prompted workflows (game_card_mining) skip the per-target mining but
+share the run lifecycle via `run_bundle` and the selection helpers; a bundle
+may hold several kinds, and the skip key is `(kind, semId)`.
 """
 
 import asyncio
@@ -311,14 +312,6 @@ def flag_cc(distinct_text: str) -> str:
     # country flag emoji = two regional-indicator codepoints (ISO2)
     ris = [c for c in distinct_text if 0x1F1E6 <= ord(c) <= 0x1F1FF]
     return "".join(chr(ord(c) - 0x1F1E6 + ord("A")) for c in ris[:2])
-
-
-async def fetch_slice(etype: str, lo: int, hi: int) -> list[dict]:
-    """One-shot ranked-slice fetch for workflows that need no per-target views."""
-    try:
-        return await be_client.get_json(f"/slice/{etype}/{lo}/{hi}")
-    finally:
-        await be_client.aclose()
 
 
 def _mine_one(

@@ -34,7 +34,7 @@ export type SessionVisibility = 'public' | 'private';
 
 // The object-store generator workflows (pyscripts/explore/runs.py WORKFLOWS,
 // minus deep, which has its own param shape).
-export type GenerationType = 'game-cards' | 'country-cards' | 'impact-stories';
+export type GenerationType = 'rankless-game-card-mining' | 'impact-stories';
 
 // What an admin submits to enqueue a run, discriminated on `type`: 'deep'
 // mirrors deep.py's scoping flags; generation workflows carry etype/count

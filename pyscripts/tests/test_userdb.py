@@ -208,7 +208,7 @@ def _insert_obj(
     con.execute(
         "INSERT INTO mcp_objects"
         " (kind, obj_key, bundle, line, gen_at, status, status_note, updated_at)"
-        " VALUES ('game-card', ?, 'b1', 0, '2026-01-01', ?, ?, ?)",
+        " VALUES ('country-card', ?, 'b1', 0, '2026-01-01', ?, ?, ?)",
         (obj_key, status, note, updated_at),
     )
 

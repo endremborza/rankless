@@ -12,11 +12,11 @@ UTC ISO datetime, stamped here at write time. Bundles move between boxes with th
 artifact copy; index rows ride the user-DB handoff (`pyscripts/userdb.py`) where
 merges dedup on `(kind, obj_key, bundle)` and review decisions propagate. The
 frontend reads the same table + bundles via `src/lib/server/objects.ts`
-(`/game` consumes cards, `/mcp` reviews/presents).
+(`/campus-quest` consumes cards, `/mcp` reviews/presents).
 
-    uv run -m pyscripts objects list --kind game-card
+    uv run -m pyscripts objects list --kind country-card
     uv run -m pyscripts objects ingest --path run.jsonl.zst
-    uv run -m pyscripts objects export --kind game-card --path out.jsonl.zst
+    uv run -m pyscripts objects export --kind country-card --path out.jsonl.zst
     uv run -m pyscripts objects set-status --ids 3,4 --status approved
     uv run -m pyscripts objects fsck
 """
