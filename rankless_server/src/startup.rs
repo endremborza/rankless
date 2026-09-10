@@ -28,7 +28,8 @@ use rankless_trees::{
 use crate::responses::{CountsResponse, EntityDescription, TopResult};
 use crate::state::{InstTrm, IsTop, NameState, NameStateMap};
 
-/// OpenAlex ids of authors who asked for no profile (`<oa_id> <name>` per line). Their
+/// OpenAlex ids that get no author profile (`<oa_id> <name>` per line): people who asked
+/// for theirs to go, and records that are a country rather than a person. Their
 /// semantic id is blank at load, which removes the profile page, search hit, tree slices
 /// and top-list rows together while their name and papers stay everywhere else.
 const AUTHOR_BLACKLIST: &str = include_str!("../author_blacklist.txt");

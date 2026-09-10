@@ -24,6 +24,7 @@ COMMANDS = {
     "stress": "pyscripts.stress",
     "review-ledger": "pyscripts.review_ledger",
     "calibrate-map": "pyscripts.calibrate_map",
+    "country-authors": "pyscripts.country_authors",
     "game-cards": "pyscripts.explore.game_cards",
     "country-cards": "pyscripts.explore.country_cards",
     "impact-stories": "pyscripts.explore.impact_stories",

@@ -1,6 +1,85 @@
-# OpenAlex ids of authors who asked for no profile: `<oa_id> <name>` per line.
+# OpenAlex ids that get no author profile: `<oa_id> <name>` per line.
 # Embedded into the server at build time; a change is a rebuild + restart.
+
+# Asked for no profile.
 5030786976 Lynnette Nathalie Lyzwinski
 5036138197 David S. Gokhin
 5034807195 Shadi Yarandi
 5074445473 Dominik Florian Stangler
+
+# Not people: OpenAlex credits the country itself — or the UN — for its constitutions,
+# legal codes, development plans and UN documents. The name alone does not identify one,
+# since real authors carry it too, so a record is judged by its papers; `# cleared` marks
+# the ones that turned out to be a person.
+# `uv run -m pyscripts country-authors` owns every line below.
+5030154332 Afghanistan
+5048675003 Algeria
+5110814620 Argentina
+5088506431 Azerbaijan
+5068329933 Bulgaria
+5021636274 Burkina Faso
+5054712445 Cameroon
+5027332718 Colombia
+5027829171 Costa Rica
+5081213947 Croatia
+5088409376 Cuba
+5085050793 Cyprus
+5108234773 Czech Republic
+5080331549 Czechia
+5027333287 Dominican Republic
+5056031051 Egypt
+5029870474 El Salvador
+5038679409 Eritrea
+5053419735 Estonia
+5027867133 Ethiopia
+5042872536 Fiji
+5064336525 Finland
+5046694722 Ghana
+5071809629 Greece
+5082421267 Greenland
+5079873669 Guatemala
+5025421532 Honduras
+5075945591 Hungary
+5008363104 Ireland
+5028600872 Jamaica
+5014817381 Kazakhstan
+5068022730 Kenya
+5003680997 Latvia
+5010509016 Lesotho
+5038320008 Liechtenstein
+5032056723 Lithuania
+5004683632 Luxembourg
+5013779686 Micronesia
+5066213122 Montenegro
+5085380527 Morocco
+5029815664 Myanmar
+5049527600 Netherlands
+5028787709 Nicaragua
+5047293040 Palau
+5079309484 Papua New Guinea
+5088733385 Paraguay
+5055675742 Portugal
+5108103235 Russian Federation
+5037229663 Rwanda
+5110256847 Saudi Arabia
+5053435721 Serbia
+5029934040 Sierra Leone
+5082958126 Slovakia
+5027500983 Slovenia
+5113702203 Sri Lanka
+5069014746 Swaziland
+5050198787 Switzerland
+5030980840 Thailand
+5082489234 Timor-Leste
+5077142632 United Arab Emirates
+5028630436 United Kingdom
+5006058837 United Nations
+5040610398 United Nations
+5073470416 Uruguay
+5079108119 Uzbekistan
+5091272619 Venezuela
+5016186646 Zimbabwe
+# cleared 5030842375 Hong Kong — Korean animal genetics, own ORCID
+# cleared 5109545269 Hong Kong — Malaysian and Chinese oncology
+# cleared 5060917617 Hong Kong — immunology, own ORCID
+# cleared 5044933779 Monaco — Italian gastroenterology

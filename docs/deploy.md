@@ -81,6 +81,8 @@ accepted claim), then: `make filter extend_csvs` → forced gen-ladder rebuild �
   `complete` remain as internal targets for from-scratch builders (bootstrap,
   branch comparison, mega_test).
 
+- A snapshot refresh can add author records that are a country rather than a person; `uv run -m pyscripts country-authors scan` names the ones the blacklist does not decide yet and exits 1 on any, `… review` shows their papers and takes the verdict (see the `author_blacklist.txt` row in `docs/architecture.md`). A verdict is a code change, so it lands with the next code deploy, not with the data.
+
 ## commit-artifacts
 
 Commits exactly the pipeline outputs — `rankless_rs/src/gen/`, `src/lib/assets/data/`
