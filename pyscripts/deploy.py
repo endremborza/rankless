@@ -1098,7 +1098,8 @@ upstream {BE_UPSTREAM} {{
     def cap_card_cache(self):
         # systemd-tmpfiles-clean.timer ages the share-card cache out daily; the
         # rasterizer treats a missing file as a miss and re-renders.
-        rule = f"d {CARD_CACHE_DIR} 0755 $(whoami) $(whoami) {CARD_CACHE_MAX_AGE}"
+        owner = self.ssh.run("whoami").strip()
+        rule = f"d {CARD_CACHE_DIR} 0755 {owner} {owner} {CARD_CACHE_MAX_AGE}"
         conf = "/etc/tmpfiles.d/rankless-cards.conf"
         self.ssh.run(f"printf '{rule}\\n' | sudo tee {conf}")
         self.ssh.run(f"sudo systemd-tmpfiles --create {conf}")
