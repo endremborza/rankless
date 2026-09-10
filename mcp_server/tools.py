@@ -1,15 +1,19 @@
 """The MCP tool implementations: plain async functions over the backend.
 
-Kept independent of the MCP server object so they can be called directly —
-the explore-path evidence verifier re-issues these deterministically
-(pyscripts/explore/paths/deep_stories.py).
+Kept independent of the MCP server object so they can be called directly:
+`mcp_server.verify` re-issues them deterministically for the `verify_claims`
+tool and the offline miners, and `server.py` registers them wrapped in the
+receipt envelope (`mcp_server.receipts`).
 """
 
 from mcp_server import ROOT_TYPES, SEARCH_TYPES, encode_semantic_id, entity_url
 from mcp_server.client import get_json
-from mcp_server.response_shaping import add_url, flatten_tree, truncate_lists
-
-VIEW_DROP_KEYS = ("authorNetwork",)
+from mcp_server.response_shaping import (
+    add_url,
+    coauthor_edges,
+    flatten_tree,
+    truncate_lists,
+)
 
 _specs_cache: dict | None = None
 
@@ -56,11 +60,16 @@ async def get_entity_profile(entity_type: str, semantic_id: str) -> dict:
 
     `yearlyPapers`/`yearlyCites` cover the recent era (2016..now). `relations`
     holds ranked related entities per relation type (paper-fields,
-    citing-fields, paper-journals, paper-authors, ...).
+    citing-fields, paper-journals, paper-authors, ...). `coauthorEdges` lists
+    the strongest ties among the entity's top authors (an author's co-authors):
+    the papers each pair wrote together anywhere, not only within this entity
+    (counts cap at 255).
     """
     _check_etype(entity_type)
     res = await get_json(f"/views/{entity_type}/{encode_semantic_id(semantic_id)}")
-    shaped = {k: v for k, v in res.items() if k not in VIEW_DROP_KEYS}
+    shaped = {k: v for k, v in res.items() if k != "authorNetwork"}
+    if "authorNetwork" in res:
+        shaped["coauthorEdges"] = coauthor_edges(res)
     shaped["rankless_url"] = entity_url(entity_type, semantic_id)
     return truncate_lists(shaped)
 

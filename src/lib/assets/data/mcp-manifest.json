@@ -39,7 +39,7 @@
       "name": "get_entity_profile",
       "endpoint": "/v1/views/{entity_type}/{semantic_id}",
       "summary": "Full profile of one entity: totals, yearly series, top relations, similars.",
-      "description": "Full profile of one entity: totals, yearly series, top relations, similars.\n\n`yearlyPapers`/`yearlyCites` cover the recent era (2016..now). `relations`\nholds ranked related entities per relation type (paper-fields,\nciting-fields, paper-journals, paper-authors, ...)."
+      "description": "Full profile of one entity: totals, yearly series, top relations, similars.\n\n`yearlyPapers`/`yearlyCites` cover the recent era (2016..now). `relations`\nholds ranked related entities per relation type (paper-fields,\nciting-fields, paper-journals, paper-authors, ...). `coauthorEdges` lists\nthe strongest ties among the entity's top authors (an author's co-authors):\nthe papers each pair wrote together anywhere, not only within this entity\n(counts cap at 255)."
     },
     {
       "name": "get_entity_stats",
