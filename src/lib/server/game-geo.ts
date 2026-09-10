@@ -141,43 +141,35 @@ export async function badgesFor(semId: string): Promise<CardBadge[]> {
 	return badges;
 }
 
-export async function servedDailyDeck(day: string): Promise<CountryPlayCard[]> {
-	return dailyDeck(await servedCountryPack(), day);
+export async function servedDailyDeck(day: string): Promise<PlayCard[]> {
+	return dailyDeck(await servedPack(), day);
 }
 
-export async function servedPracticeDeck(): Promise<CountryPlayCard[]> {
-	return practiceDeck(await servedCountryPack());
-}
-
-async function getLadder(): Promise<NonNullable<typeof ladderCache>> {
-	if (ladderCache) return ladderCache;
-	const res = await fetch(`${BE_URL}/ladder/${BADGE_ROOT}`);
-	if (!res.ok) throw new Error(`ladder fetch failed: ${res.status}`);
-	const data = (await res.json()) as tt.LadderData;
-	ladderCache = { labels: tierLabels(data.pctBands), rows: data.ladder };
-	return ladderCache;
-}
-
-async function getPeers(semId: string): Promise<tt.EntityPeersResp | null> {
-	const res = await fetch(`${BE_URL}/peers/${BADGE_ROOT}/${encodeSemanticId(semId)}`);
-	if (res.status === 404) return null;
-	if (!res.ok) throw new Error(`peers fetch failed for ${semId}: ${res.status}`);
-	return (await res.json()) as tt.EntityPeersResp;
+export async function servedSurvivalDeck(): Promise<PlayCard[]> {
+	return survivalDeck(await servedPack());
 }
 
 // Logs the run and, for a daily one, answers with its standing among the
 // day's runs so far (the just-logged run included).
-export function recordRun(run: CountryRunLog, orcid: string | null): DayStanding | null {
+export function recordRun(run: RunLog, orcid: string | null): DayStanding | null {
 	const d = getDb();
 	d.prepare(
-		`INSERT INTO country_game_results (mode, day, score, out_of, missed_sem_ids, orcid)
-		 VALUES (?, ?, ?, ?, ?, ?)`
-	).run(run.mode, run.day, run.score, run.outOf, JSON.stringify(run.missedSemIds), orcid);
+		`INSERT INTO geo_game_runs (mode, day, score, out_of, missed_sem_ids, lifelined_sem_ids, orcid)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`
+	).run(
+		run.mode,
+		run.day,
+		run.score,
+		run.outOf,
+		JSON.stringify(run.missedSemIds),
+		JSON.stringify(run.lifelinedSemIds),
+		orcid
+	);
 	if (run.mode !== 'daily') return null;
 	const row = d
 		.prepare(
 			`SELECT count(*) AS players, sum(score > ?) AS above
-			 FROM country_game_results WHERE mode = 'daily' AND day = ?`
+			 FROM geo_game_runs WHERE mode = 'daily' AND day = ?`
 		)
 		.get(run.score, run.day) as { players: number; above: number };
 	return { rank: row.above + 1, players: row.players };
