@@ -6,8 +6,8 @@ reconciliation, and retained off-box backups. `pyscripts.deploy` provides the
 ssh/rsync transport and calls in; flows in docs/mcp-server.md + docs/deploy.md.
 
 Transfers cover every curated table: `mcp_sessions`, `mcp_objects` (payload-free
-object index; review statuses reconcile by version key), `game_results` +
-`game_daily` + `country_game_results` (play logs, daily-card pins), `ledger_events` (+ moderation
+object index; review statuses reconcile by version key), `geo_game_runs` (the
+quiz's play log), `ledger_events` (+ moderation
 reconciliation), `ledger_runs`, `owner_pins`, `users`, `email_consents`,
 `subject_enrichment`, `review_verdicts`, and unexpired auth `sessions`. A
 transfer runs on the receiving side against a shipped snapshot of the source
@@ -20,7 +20,7 @@ DB; the artifact dirs move alongside by rsync (deploy.py, and `backup` below).
 - transfer merge:  union rows; the source never clobbers the target (INSERT OR
         IGNORE, plus a NULL-safe exact-row guard so tables without a unique
         index, e.g. `email_consents`, stay duplicate-free on re-merge).
-        Auto-id rows (`ledger_events`, `game_results`) drop their id so the
+        Auto-id rows (`ledger_events`, `geo_game_runs`) drop their id so the
         target assigns fresh ones and dedup falls to the logical unique index.
         Decisions on rows both boxes hold are then reconciled by logical key
         (`_reconcile_decisions`): ledger moderation (a decided row beats a
@@ -60,9 +60,7 @@ from pyscripts import paths
 TABLES = (
     "mcp_sessions",
     "mcp_objects",
-    "game_results",
-    "game_daily",
-    "country_game_results",
+    "geo_game_runs",
     "ledger_events",
     "ledger_runs",
     "owner_pins",
