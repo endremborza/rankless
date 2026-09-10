@@ -35,7 +35,7 @@ ERROR_DEQUE = deque(maxlen=8)
 
 
 def val_url(url):
-    r = requests.get(url)
+    r = requests.get(url, timeout=10)
     assert r.ok, f"{url} failed with {r.status_code}"
     t = r.elapsed.microseconds / 1_000_000
     assert t < 1.2, f"{url} took {t}s"
@@ -54,7 +54,7 @@ def warn(subject, body):
     msg["Subject"] = subject
     msg["From"] = EMAIL_ADDRESS
     msg["To"] = TO_EMAIL
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
         server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
         server.sendmail(EMAIL_ADDRESS, TO_EMAIL, msg.as_string())
     time.sleep(WAIT_POST_WARN)
@@ -131,10 +131,10 @@ if __name__ == "__main__":
             time.sleep(WAIT_SECONDS)
         else:
             started = True
-            warn(
-                "Rankless monitoring",
-                f"just started with\n{get_success_dic()}",
-            )
+            try:
+                warn("Rankless monitoring", f"just started with\n{get_success_dic()}")
+            except OSError as e:
+                print(f"startup mail failed: {e}")
             continue
         with multiprocessing.Pool(1) as pool:
             try:
@@ -147,7 +147,7 @@ if __name__ == "__main__":
                 except Exception as e:
                     log_result(e, "long time")
         try:
-            status_dic = requests.get(f"http://{IP}:5566/status").json()
+            status_dic = requests.get(f"http://{IP}:5566/status", timeout=10).json()
         except Exception as e:
             print("failed status json")
             log_result(e, "status json")
