@@ -55,9 +55,43 @@ LIVE_DOMAIN = subd("www")
 FW_DOMAIN = MAIN_DOMAIN
 ALPHA_BACKEND = subd("alpha-api")
 LIVE_BACKEND = subd("api")
+# Both: a promote flips the box's domain without re-rendering the MCP unit.
+MCP_PUBLIC_HOSTS = f"{ALPHA_BACKEND},{LIVE_BACKEND}"
 
 FE_UPSTREAM = "rankless_frontend"
 BE_UPSTREAM = "rankless_backend"
+
+# Cloudflare fronts www + api, so nginx only sees edge addresses; these are the
+# ranges (cloudflare.com/ips) it trusts to hand over the visitor's address in
+# CF-Connecting-IP. A request from anywhere else keeps its own address.
+CLOUDFLARE_RANGES = [
+    "173.245.48.0/20",
+    "103.21.244.0/22",
+    "103.22.200.0/22",
+    "103.31.4.0/22",
+    "141.101.64.0/18",
+    "108.162.192.0/18",
+    "190.93.240.0/20",
+    "188.114.96.0/20",
+    "197.234.240.0/22",
+    "198.41.128.0/17",
+    "162.158.0.0/15",
+    "104.16.0.0/13",
+    "104.24.0.0/14",
+    "172.64.0.0/13",
+    "131.0.72.0/22",
+    "2400:cb00::/32",
+    "2606:4700::/32",
+    "2803:f800::/32",
+    "2405:b500::/32",
+    "2405:8100::/32",
+    "2a06:98c0::/29",
+    "2c0f:f248::/32",
+]
+# Where src/lib/server/card-raster.ts writes rendered share cards (tmpdir()/rankless-cards);
+# the module never evicts, so the box's tmpfiles rule ages them out.
+CARD_CACHE_DIR = "/tmp/rankless-cards"
+CARD_CACHE_MAX_AGE = "7d"
 
 BE_URL_VAR = "PUBLIC_BACKEND_URL"
 PUB_URL_VAR = "PUBLIC_ORIGIN"
@@ -157,7 +191,12 @@ class UpstreamConf:
         return self.sconf(self.be_port)
 
     def fe_servers(self):
-        return map(self.sconf, self.fe_ports)
+        # max_fails=0: a slow render must not mark a worker dead, or one timeout per
+        # worker blacks out the whole pool ("no live upstreams") under a burst.
+        return (
+            f"server {self.ip}:{port} max_fails=0{self.suffix};"
+            for port in self.fe_ports
+        )
 
     def sconf(self, port):
         return f"server {self.ip}:{port}{self.suffix};"
@@ -174,6 +213,167 @@ class FrontendServiceConf:
 
     def build_dir(self):
         return f"built-{self.suffix}"
+
+
+def render_nginx_conf(
+    fe_prefix: str,
+    be_prefix: str,
+    inst_domain: str,
+    be_cache_dir: str,
+    fe_cache_dir: str,
+    lt_token: str | None = None,
+) -> str:
+    """The site conf: the frontend and API hosts behind Cloudflare plus the :5566
+    status endpoint. Visitor addresses come from CF-Connecting-IP, so every
+    per-client zone keys on the visitor rather than the edge. Pages and the API
+    get separate per-client budgets, and page renders are capped in flight
+    (globally and per client) so a burst is shed with instant 503s instead of
+    queueing into the bun workers and timing out."""
+    limit_key, global_key = "$binary_remote_addr", "$server_name"
+    bypass_vars, no_cache_line, lt_maps = "$http_upgrade", "", ""
+    if lt_token:
+        # Alpha-only load-test lane (`make capacity`): requests carrying the secret
+        # X-Loadtest token bypass the per-client limits, the in-flight caps and the
+        # proxy caches, so the driver can push full-rate load through the real
+        # serving path and every test request lands in the access log. Cost is a
+        # few O(1) map lookups per request. To remove: unset LOADTEST_TOKEN (or run
+        # on live, where it never renders) and `make sync_nginx_to_alpha`.
+        lt_maps = f"""
+map $http_x_loadtest $lt_limit_key {{
+    default $binary_remote_addr;
+    "{lt_token}" "";
+}}
+
+map $http_x_loadtest $lt_global_key {{
+    default $server_name;
+    "{lt_token}" "";
+}}
+
+map $http_x_loadtest $lt_skip_cache {{
+    default 0;
+    "{lt_token}" 1;
+}}
+"""
+        limit_key, global_key = "$lt_limit_key", "$lt_global_key"
+        bypass_vars = "$http_upgrade $lt_skip_cache"
+        no_cache_line = "\n        proxy_no_cache $lt_skip_cache;"
+    real_ip = "\n".join(f"set_real_ip_from {r};" for r in CLOUDFLARE_RANGES)
+    security_headers = """
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;"""
+    server_prefix = f"""
+    listen 443 ssl;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    gzip_min_length 1000;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    access_log /var/log/nginx/access.log upstream_time;
+{security_headers}"""
+    loc_suffix = f"""
+        proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass {bypass_vars};{no_cache_line}
+
+        # SvelteKit ships a ~3.5KB Link (modulepreload) header that overflows the
+        # default 4-8KB proxy header buffer on heavier pages -> "upstream sent too
+        # big header" 502s. 16KB clears it.
+        proxy_buffer_size 16k;
+        proxy_buffers 8 16k;"""
+
+    return f"""
+proxy_cache_path {be_cache_dir} levels=1:2 keys_zone=be-cache:50m max_size=20g;
+proxy_cache_path {fe_cache_dir} levels=1:2 keys_zone=fe-cache:50m max_size=10g;
+
+{real_ip}
+real_ip_header CF-Connecting-IP;
+{lt_maps}
+limit_req_zone {limit_key} zone=pagelimit:10m rate=2r/s;
+limit_req_zone {limit_key} zone=apilimit:10m rate=10r/s;
+limit_conn_zone {limit_key} zone=pageconn:10m;
+limit_conn_zone {global_key} zone=pageload:1m;
+limit_req_status 429;
+limit_conn_status 503;
+
+# User-agent strings no browser has sent in a decade; the burst scrapers rotate
+# through them, real traffic never carries them.
+map $http_user_agent $junk_ua {{
+    default 0;
+    "~MSIE [5-9]\\." 1;
+    "~PPC Mac OS X" 1;
+    "~Windows 98" 1;
+    "~Sogou" 1;
+}}
+
+log_format upstream_time '$remote_addr - $remote_user [$time_local] '
+                         '"$request" $status $body_bytes_sent '
+                         '"$http_referer" "$http_user_agent"'
+                         'rt=$request_time uct="$upstream_connect_time" uht="$upstream_header_time" urt="$upstream_response_time" cs=$upstream_cache_status host=$host';
+
+server {{
+
+    {fe_prefix}
+    {server_prefix}
+
+    location / {{
+        if ($junk_ua) {{
+            return 429;
+        }}
+        proxy_pass http://{FE_UPSTREAM};
+        proxy_cache fe-cache;
+        {loc_suffix}
+
+        limit_req zone=pagelimit burst=20 nodelay;
+        limit_conn pageconn 8;
+        limit_conn pageload 96;
+        # A render past this is a queue, not a page; and a bun 500 is a render
+        # error, so only a dead worker is worth a second try.
+        proxy_read_timeout 30s;
+        proxy_next_upstream error invalid_header;
+        proxy_next_upstream_tries 2;
+    }}
+}}
+
+server {{
+    {be_prefix}
+    {server_prefix}
+
+    location / {{
+        proxy_pass http://{BE_UPSTREAM};
+        proxy_cache be-cache;
+        {loc_suffix}
+        {services.API_LIMIT_REQ}
+        add_header Access-Control-Allow-Origin *;
+        {security_headers}
+    }}
+
+    {services.render_nginx_mcp()}
+}}
+
+server {{
+   listen 80;
+   server_name {inst_domain};
+   return 301 https://$server_name$request_uri;
+}}
+
+server {{
+    listen 5566;
+
+    location /status {{
+        default_type application/json;
+        alias /tmp/status_cache.json;
+    }}
+}}
+
+"""
 
 
 def get_ip_alloc(live: bool):
@@ -521,124 +721,18 @@ class Transper:
         if cert:
             self.get_cert(inst_domain)
         self._add_upstreams_from_conf(self.get_fe_systems()[1])
-        # Alpha-only load-test lane (`make capacity`): requests carrying the
-        # secret X-Loadtest token bypass the per-IP rate limit and the proxy
-        # caches, so the driver can push full-rate load through the real
-        # serving path and every test request lands in the access log. Cost is
-        # two O(1) map lookups per request — nothing measurable. To remove:
-        # unset LOADTEST_TOKEN (or run on live, where it never renders) and
-        # `make sync_nginx_to_alpha` — the conf reverts to exactly this block.
         lt_token = (
             os.environ.get("LOADTEST_TOKEN") if inst_domain == ALPHA_DOMAIN else None
         )
-        lt_maps, limit_key = "", "$binary_remote_addr"
-        bypass_vars, no_cache_line = "$http_upgrade", ""
-        if lt_token:
-            lt_maps = f"""
-map $http_x_loadtest $lt_limit_key {{
-    default $binary_remote_addr;
-    "{lt_token}" "";
-}}
-
-map $http_x_loadtest $lt_skip_cache {{
-    default 0;
-    "{lt_token}" 1;
-}}
-"""
-            limit_key = "$lt_limit_key"
-            bypass_vars = "$http_upgrade $lt_skip_cache"
-            no_cache_line = "\n        proxy_no_cache $lt_skip_cache;"
-        security_headers = """
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;"""
-        server_prefix = f"""
-    listen 443 ssl;
-
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-    gzip_min_length 1000;   
-
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-
-    access_log /var/log/nginx/access.log upstream_time;
-{security_headers}"""
-        loc_suffix = f"""
-        proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass {bypass_vars};{no_cache_line}
-
-        # SvelteKit ships a ~3.5KB Link (modulepreload) header that overflows the
-        # default 4-8KB proxy header buffer on heavier pages -> "upstream sent too
-        # big header" 502s. 16KB clears it.
-        proxy_buffer_size 16k;
-        proxy_buffers 8 16k;
-
-        limit_req zone=baselimit burst=55 nodelay;
-        limit_req_status 429;"""
-
-        nginx_conf = f"""
-proxy_cache_path {self.be_cache_dir} levels=1:2 keys_zone=be-cache:50m max_size=20g;
-proxy_cache_path {self.fe_cache_dir} levels=1:2 keys_zone=fe-cache:50m max_size=10g;
-{lt_maps}
-limit_req_zone {limit_key} zone=baselimit:10m rate=2r/s;
-
-log_format upstream_time '$remote_addr - $remote_user [$time_local] '
-                         '"$request" $status $body_bytes_sent '
-                         '"$http_referer" "$http_user_agent"'
-                         'rt=$request_time uct="$upstream_connect_time" uht="$upstream_header_time" urt="$upstream_response_time" cs=$upstream_cache_status host=$host';
-
-server {{
-
-    {self.get_server_prefix(inst_domain)}
-    {server_prefix}
-
-    location / {{
-        proxy_pass http://{FE_UPSTREAM};
-        proxy_cache fe-cache;
-        {loc_suffix}
-        proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
-        proxy_next_upstream_tries 5;
-    }}
-}}
-
-server {{
-    {self.get_server_prefix(self.get_backend_domain())}
-    {server_prefix}
-
-    location / {{
-        proxy_pass http://{BE_UPSTREAM};
-        proxy_cache be-cache;
-        {loc_suffix}
-        add_header Access-Control-Allow-Origin *;
-        {security_headers}
-    }}
-
-    {services.render_nginx_mcp()}
-}}
-
-server {{
-   listen 80;
-   server_name {inst_domain};
-   return 301 https://$server_name$request_uri;
-}}
-
-server {{
-    listen 5566;
-
-    location /status {{
-        default_type application/json;
-        alias /tmp/status_cache.json;
-    }}
-}}
-
-        """
-        self._send_nginx_conf(nginx_conf, inst_domain)
+        conf = render_nginx_conf(
+            self.get_server_prefix(inst_domain),
+            self.get_server_prefix(self.get_backend_domain()),
+            inst_domain,
+            self.be_cache_dir,
+            self.fe_cache_dir,
+            lt_token,
+        )
+        self._send_nginx_conf(conf, inst_domain)
 
     def get_server_prefix(self, domain):
         cert_dir = f"{SSL_ETC_DIR}/{domain}"

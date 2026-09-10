@@ -124,3 +124,46 @@ def test_user_count(tmp_path: Path) -> None:
     con.commit()
     con.close()
     assert userdb.user_count(str(db)) == 2
+
+
+def test_nginx_conf_keys_on_the_visitor_and_caps_renders() -> None:
+    conf = deploy.render_nginx_conf(
+        "server_name www.x;", "server_name api.x;", "www.x", "/c/be", "/c/fe"
+    )
+    for line in [
+        "set_real_ip_from 104.16.0.0/13;",
+        "set_real_ip_from 2606:4700::/32;",
+        "real_ip_header CF-Connecting-IP;",
+        "limit_req_zone $binary_remote_addr zone=pagelimit:10m rate=2r/s;",
+        "limit_req_zone $binary_remote_addr zone=apilimit:10m rate=10r/s;",
+        "limit_conn_zone $binary_remote_addr zone=pageconn:10m;",
+        "limit_conn_zone $server_name zone=pageload:1m;",
+        "limit_req zone=pagelimit burst=20 nodelay;",
+        "limit_conn pageconn 8;",
+        "limit_conn pageload 96;",
+        "limit_conn_status 503;",
+        "proxy_read_timeout 30s;",
+        "proxy_next_upstream error invalid_header;",
+        "proxy_next_upstream_tries 2;",
+        "limit_req zone=apilimit burst=50 nodelay;",
+        '"~MSIE [5-9]\\." 1;',
+    ]:
+        assert line in conf, line
+    assert "baselimit" not in conf
+    assert "$lt_" not in conf
+    # the load-test lane swaps every key for the token maps
+    lt = deploy.render_nginx_conf(
+        "server_name www.x;", "server_name api.x;", "www.x", "/c/be", "/c/fe", "tok"
+    )
+    assert "limit_req_zone $lt_limit_key zone=pagelimit" in lt
+    assert "limit_conn_zone $lt_global_key zone=pageload" in lt
+    assert "proxy_no_cache $lt_skip_cache;" in lt
+    # a slow worker is retried, never marked dead; the single backend keeps the default
+    assert list(deploy.UpstreamConf([4200, 4201]).fe_servers()) == [
+        "server 127.0.0.1:4200 max_fails=0;",
+        "server 127.0.0.1:4201 max_fails=0;",
+    ]
+    assert (
+        deploy.UpstreamConf([4200]).be_server()
+        == f"server 127.0.0.1:{deploy.DEFAULT_RS_PORT};"
+    )
