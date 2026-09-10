@@ -167,3 +167,50 @@ def test_nginx_conf_keys_on_the_visitor_and_caps_renders() -> None:
         deploy.UpstreamConf([4200]).be_server()
         == f"server 127.0.0.1:{deploy.DEFAULT_RS_PORT};"
     )
+
+
+def test_ops_plan_is_ordered_and_gated_on_the_spec() -> None:
+    names = [s.name for s in deploy.OPS_STEPS]
+    assert names.index("fe_units") < names.index("site")  # site reads the FE domain
+    assert names.index("certs") < names.index("site")  # site conf names the cert files
+    assert names.index("python_env") < names.index("mcp_units")
+    full = deploy.BoxSpec("www.x", 12, backend=True)
+    small = deploy.BoxSpec("alpha.x", 2, backend=False)
+    assert dict((s.name, ok) for s, ok in deploy.ops_plan(full))["backend_unit"]
+    assert not dict((s.name, ok) for s, ok in deploy.ops_plan(small))["backend_unit"]
+    assert small.mcp_backend == "live" and full.mcp_backend == "local"
+    assert [s.name for s, _ in deploy.ops_plan(full, "site")] == ["site"]
+    with pytest.raises(SystemExit, match="unknown ops step"):
+        deploy.ops_plan(full, "nope")
+
+
+def test_apply_ops_explains_without_touching_the_box(capsys) -> None:
+    class Untouchable:
+        def __getattr__(self, name):
+            raise AssertionError(f"explain touched the box: {name}")
+
+    spec = deploy.BoxSpec("alpha.x", 2, backend=False)
+    deploy.apply_ops(Untouchable(), spec, explain=True)
+    out = capsys.readouterr().out.splitlines()
+    assert len(out) == len(deploy.OPS_STEPS)
+    assert any(line.startswith("skip backend_unit") for line in out)
+    assert all(line.startswith(("ops ", "skip ")) for line in out)
+
+
+def test_apply_ops_runs_the_applicable_steps_in_order() -> None:
+    calls: list[str] = []
+    steps = [
+        deploy.BoxStep("a", "", lambda t, s: calls.append("a")),
+        deploy.BoxStep("b", "", lambda t, s: calls.append("b"), when=lambda s: False),
+        deploy.BoxStep("c", "", lambda t, s: calls.append("c")),
+    ]
+    spec = deploy.BoxSpec("alpha.x", 2, backend=False)
+    orig = deploy.OPS_STEPS
+    deploy.OPS_STEPS = steps
+    try:
+        deploy.apply_ops(None, spec)
+        assert calls == ["a", "c"]
+        deploy.apply_ops(None, spec, only="c")
+        assert calls == ["a", "c", "c"]
+    finally:
+        deploy.OPS_STEPS = orig

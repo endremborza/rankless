@@ -147,8 +147,8 @@ stress:
 capacity:
 	uv run -m pyscripts stress capacity $(ARGS)
 
-pull_live_certs sync_fe_to_alpha sync_fe_to_alpha_nopull sync_fe_to_live sync_fe_to_local sync_data_to_alpha sync_data_to_live sync_nginx_to_alpha sync_nginx_to_live setup_local_test bump_v bump_v_minor rolling_restart_live_fe new_small_alpha new_large_alpha kill_dangling kill_alpha:
-	uv run -m pyscripts deploy $@
+pull_live_certs sync_fe_to_alpha sync_fe_to_alpha_nopull sync_fe_to_live sync_fe_to_local sync_data_to_alpha sync_data_to_live sync_ops_to_alpha sync_ops_to_live sync_nginx_to_alpha sync_nginx_to_live setup_local_test bump_v bump_v_minor rolling_restart_live_fe new_small_alpha new_large_alpha kill_dangling kill_alpha:
+	uv run -m pyscripts deploy $@ $(ARGS)
 
 # User DB movement (ledger + MCP + auth sessions): {merge,sync}_db_{to,from}_{live,alpha} (see pyscripts/deploy.py).
 merge_db_from_live sync_db_from_live merge_db_to_live sync_db_to_live merge_db_from_alpha sync_db_from_alpha merge_db_to_alpha sync_db_to_alpha:

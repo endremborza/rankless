@@ -218,6 +218,31 @@ class FrontendServiceConf:
         return f"built-{self.suffix}"
 
 
+@dataclass(frozen=True)
+class BoxSpec:
+    """What distinguishes one serving box from another; everything else about
+    a box follows from the ops definition."""
+
+    domain: str
+    fe_procs: int
+    backend: bool  # runs its own rankless-server (a small alpha proxies live)
+
+    @property
+    def mcp_backend(self) -> str:
+        return "local" if self.backend else "live"
+
+
+@dataclass(frozen=True)
+class BoxStep:
+    """One idempotent step of the ops definition: `touches` names what it writes
+    on the box, `when` gates it on the spec."""
+
+    name: str
+    touches: str
+    apply: Callable[["Transper", BoxSpec], None]
+    when: Callable[[BoxSpec], bool] = lambda spec: True
+
+
 def render_nginx_conf(
     fe_prefix: str,
     be_prefix: str,
@@ -607,8 +632,6 @@ class Transper:
             self.ssh.run(
                 "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
             )
-        self.harden_host()
-        self.cap_card_cache()
         self.ssh.run("curl -fsSL https://bun.sh/install | bash")
         # uv drives the python side (mcp server + worker) on the instance.
         self.ssh.run("curl -LsSf https://astral.sh/uv/install.sh | sh")
@@ -628,11 +651,23 @@ class Transper:
     def sync_service(self, txt, name):
         self.sync_txt(txt, name, self.systemd_dir)
 
-    def setup_be_service(self):
-        be_service_txt = services.render_backend(self.deploy_dir, self.data_dir)
-        self.sync_service(be_service_txt, be_service_name)
+    def render_be_unit(self):
+        # A running backend keeps its old unit until `make restart-service`.
+        self.sync_service(
+            services.render_backend(self.deploy_dir, self.data_dir), be_service_name
+        )
+        self.reload_systemctl()
+
+    def start_backend(self):
         self.be_service.enable()
         self.be_service.start()
+
+    def box_spec(self) -> BoxSpec:
+        return BoxSpec(
+            self.get_domain(),
+            self.get_fe_systems()[0].n_procs,
+            self.ssh.remote_exists(f"{self.systemd_dir}/{be_service_name}"),
+        )
 
     def setup_mcp_services(self, mcp_backend: str = "local"):
         """MCP server + worker units on the instance (venv must be synced)."""
@@ -679,7 +714,6 @@ class Transper:
             self.sync_service(fe_service_txt, conf.template_fname())
             for service in self._iter_conf_services(conf):
                 service.enable()
-                service.stop()
         self.reload_systemctl()
 
     def get_fe_systems(self):
@@ -741,6 +775,37 @@ class Transper:
             lt_token,
         )
         self._send_nginx_conf(conf, inst_domain)
+
+    def setup_site(self, domain: str):
+        """The front door for `domain`: its site conf, the other public domain's
+        conf gone, the apex redirect when live; then a restart."""
+        self.setup_nginx(domain, cert=False)
+        other = LIVE_DOMAIN if domain == ALPHA_DOMAIN else ALPHA_DOMAIN
+        self.ssh.run(f"sudo rm -f {NGINX_ENDIR}/{other} {NGINX_AVDIR}/{other}")
+        if domain == LIVE_DOMAIN:
+            self.add_domain_fw(FW_DOMAIN, cert=False)
+        self.restart_nginx()
+
+    def has_certs(self, domain: str) -> bool:
+        # the letsencrypt tree is root-only, so a plain `test -e` cannot see it
+        try:
+            self.ssh.run(f"sudo ls {SSL_ETC_DIR}/{domain}")
+            return True
+        except Exception:
+            return False
+
+    def ensure_certs(self, domain: str):
+        """A box without certificates for its domain takes every running public
+        box's copy (each push is additive); certbot refreshes them once the
+        address moves."""
+        if self.has_certs(domain):
+            return
+        for live in [False, True]:
+            try:
+                get_running_tpr(live).pull_certs()
+                self.push_certs()
+            except Exception:
+                pass
 
     def get_server_prefix(self, domain):
         cert_dir = f"{SSL_ETC_DIR}/{domain}"
@@ -1163,6 +1228,90 @@ upstream {BE_UPSTREAM} {{
             self.ssh.run(f"sudo ln -s {NGINX_AVDIR}/{slug} {NGINX_ENDIR}/")
 
 
+# The ops definition: everything a serving box carries besides its checkout,
+# its frontend build and its data, in apply order. A fresh box, a running box
+# (`sync_ops_to_*`) and a promote all converge on this list, so the tree never
+# needs to know what an older box looked like.
+OPS_STEPS: list[BoxStep] = [
+    BoxStep(
+        "harden_host",
+        "linger for the deploy user, user@ exempt from oomd",
+        lambda tpr, spec: tpr.harden_host(),
+    ),
+    BoxStep(
+        "card_cache",
+        f"tmpfiles rule ageing {CARD_CACHE_DIR} out at {CARD_CACHE_MAX_AGE}",
+        lambda tpr, spec: tpr.cap_card_cache(),
+    ),
+    BoxStep(
+        "python_env",
+        "the checkout's venv for the MCP units (uv sync --frozen)",
+        lambda tpr, spec: tpr.sync_py(),
+    ),
+    BoxStep(
+        "fe_units",
+        "frontend unit templates for the box's domain (serving slot untouched)",
+        lambda tpr, spec: tpr.setup_fe_services(spec.domain, procs=spec.fe_procs),
+    ),
+    BoxStep(
+        "backend_unit",
+        f"{be_service_name} template (a running backend keeps its old one)",
+        lambda tpr, spec: tpr.render_be_unit(),
+        when=lambda spec: spec.backend,
+    ),
+    BoxStep(
+        "mcp_units",
+        "MCP server + worker units, restarted",
+        lambda tpr, spec: tpr.setup_mcp_services(spec.mcp_backend),
+    ),
+    BoxStep(
+        "status_unit",
+        f"{services.STATUS_UNIT} (/status producer on :5566), restarted",
+        lambda tpr, spec: tpr.setup_status_service(),
+    ),
+    BoxStep(
+        "certs",
+        "certificates copied from a running public box when this one has none",
+        lambda tpr, spec: tpr.ensure_certs(spec.domain),
+    ),
+    BoxStep(
+        "site",
+        "nginx site conf for the box's domain, other domain retired, nginx restarted",
+        lambda tpr, spec: tpr.setup_site(spec.domain),
+    ),
+    BoxStep(
+        "ops_tmux",
+        "detached `ops` tmux session (btop + user-unit journal)",
+        lambda tpr, spec: tpr.setup_observability(),
+    ),
+]
+
+
+def ops_plan(spec: BoxSpec, only: str | None = None) -> list[tuple[BoxStep, bool]]:
+    """(step, applies) in order; `only` narrows to one named step."""
+    names = {s.name for s in OPS_STEPS}
+    if only is not None and only not in names:
+        raise SystemExit(f"unknown ops step {only!r}; one of {sorted(names)}")
+    return [
+        (step, step.when(spec))
+        for step in OPS_STEPS
+        if only is None or step.name == only
+    ]
+
+
+def apply_ops(tpr, spec: BoxSpec, *, only: str | None = None, explain=False):
+    """Converge `tpr` on the ops definition for `spec`. Prints the plan first;
+    `explain` stops there."""
+    plan = ops_plan(spec, only)
+    for step, applies in plan:
+        print(f"{'ops ' if applies else 'skip'} {step.name}: {step.touches}")
+    if explain:
+        return
+    for step, applies in plan:
+        if applies:
+            step.apply(tpr, spec)
+
+
 def pull_live_certs():
     get_tpr(get_running_inst(True)).pull_certs()
 
@@ -1195,18 +1344,31 @@ def sync_data_to_live():
     get_running_tpr(True).update_data()
 
 
-def _sync_nginx(live: bool):
+def _sync_ops(live: bool, only: str | None, explain: bool, pull=True):
     tpr = get_running_tpr(live)
-    tpr.setup_nginx(cert=False)
-    tpr.restart_nginx()
+    spec = tpr.box_spec()
+    if pull and not explain:
+        tpr.sync_code()
+    apply_ops(tpr, spec, only=only, explain=explain)
+
+
+def sync_ops_to_alpha(*, only: str = "", explain: bool = False):
+    """Pull, then converge the alpha on the ops definition (`--explain` prints
+    the steps and stops; `--only <step>` applies one)."""
+    _sync_ops(False, only or None, explain)
+
+
+def sync_ops_to_live(*, only: str = "", explain: bool = False):
+    """Pull, then converge live on the ops definition (`--explain`, `--only`)."""
+    _sync_ops(True, only or None, explain)
 
 
 def sync_nginx_to_alpha():
-    _sync_nginx(False)
+    _sync_ops(False, "site", False, pull=False)
 
 
 def sync_nginx_to_live():
-    _sync_nginx(True)
+    _sync_ops(True, "site", False, pull=False)
 
 
 def merge_db_from_live():
@@ -1244,28 +1406,16 @@ def sync_db_to_alpha():
 def full_setup_from_nothing(
     tpr: Transper, domain, procn: int, backend=True, branch=None
 ):
+    spec = BoxSpec(domain, procn, backend)
     tpr.setup(backend=backend)
     tpr.validate(backend=backend)
-    tpr.setup_fe_services(domain, procs=procn)
     tpr.setup_code(branch)
-    tpr.sync_py()
+    apply_ops(tpr, spec)
     tpr.update_fe()
-    tpr.setup_mcp_services("local" if backend else "live")
-    tpr.setup_status_service()
     if backend:
         tpr.build_rs()
         tpr.sync_data_to()
-        tpr.setup_be_service()
-    for live in [False, True]:
-        try:
-            get_running_tpr(live).pull_certs()
-            tpr.push_certs()
-        except Exception:
-            pass
-    tpr.push_certs()
-    tpr.setup_nginx(cert=False)
-    tpr.restart_nginx()
-    tpr.setup_observability()
+        tpr.start_backend()
 
 
 def new_small_alpha():
@@ -1353,13 +1503,10 @@ def promote_alpha_to_live():
     old_live_inst = get_running_inst(True)
     tpr = get_tpr(alpha_inst)
     _handoff_db_to(tpr)
-    tpr.setup_fe_services(LIVE_DOMAIN, procs=LARGE_FE_PROCS)
-    tpr.update_env()
+    # The box changes domain: every ops step re-renders for live, then the
+    # frontend is rebuilt for it (update_fe pulls and rewrites .env first).
+    apply_ops(tpr, BoxSpec(LIVE_DOMAIN, LARGE_FE_PROCS, tpr.box_spec().backend))
     tpr.update_fe()
-    tpr.ssh.run(f"sudo rm -f {NGINX_ENDIR}/{ALPHA_DOMAIN}")
-    tpr.setup_nginx(cert=False)
-    tpr.add_domain_fw(FW_DOMAIN, cert=False)
-    tpr.restart_nginx()
     time.sleep(10)
     associate_id(alpha_inst, True)
     time.sleep(5)
