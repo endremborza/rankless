@@ -10,6 +10,7 @@ import time
 from functools import cache
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 from urllib.parse import quote_plus
 
 import boto3
@@ -634,9 +635,14 @@ class Transper:
 
     def setup_mcp_services(self, mcp_backend: str = "local"):
         """MCP server + worker units on the instance (venv must be synced)."""
-        be_url = services.resolve_mcp_backend(mcp_backend)
+        be_url, _ = resolve_backend(mcp_backend)
         self.sync_service(
-            services.render_mcp_server(self.deploy_dir, self.venv_python, be_url),
+            services.render_mcp_server(
+                self.deploy_dir,
+                self.venv_python,
+                be_url,
+                public_hosts=MCP_PUBLIC_HOSTS,
+            ),
             services.MCP_SERVER_UNIT,
         )
         self.sync_service(
@@ -943,6 +949,17 @@ upstream {BE_UPSTREAM} {{
                 f"{self.ssh.full_host}: port {port} is held by "
                 f"{owners or 'nobody'}, expected only {BACKEND_PROCESS} — an sshd "
                 "owner is a reverse tunnel from another box; stop its unit there"
+            )
+
+    def assert_mcp_hosts(self, hosts: str = MCP_PUBLIC_HOSTS):
+        """The MCP unit admits every public backend domain. A promote flips the
+        box's domain without re-rendering the unit, so a unit missing the live
+        domain would answer 421 only after the flip."""
+        unit = self.ssh.run(f"cat {self.systemd_dir}/{services.MCP_SERVER_UNIT}")
+        if f"MCP_PUBLIC_HOSTS={hosts}" not in unit:
+            raise SystemExit(
+                f"{self.ssh.full_host}: {services.MCP_SERVER_UNIT} lacks "
+                f"MCP_PUBLIC_HOSTS={hosts}; re-render it (setup_mcp_services) first"
             )
 
     def update_env(self):
@@ -1421,7 +1438,9 @@ def promote() -> None:
     from pyscripts.release_report import assert_report_documents
 
     _assert_release_tree()
-    get_running_tpr(False).assert_backend_owns_port()
+    alpha = get_running_tpr(False)
+    alpha.assert_backend_owns_port()
+    alpha.assert_mcp_hosts()
     specs = _check_json(f"https://{ALPHA_BACKEND}/v1/specs", "alpha specs")
     assert_report_documents(specs.get("version", ""))
     promote_alpha_to_live()
@@ -1451,21 +1470,31 @@ def smoke(live: bool) -> None:
     )
     if not tree:
         raise SystemExit("smoke: tree response empty")
+    _check_mcp(f"https://{be}/mcp")
     tpr = get_running_tpr(live)
     tpr.assert_backend_owns_port()
     print(tpr.get_fe_memory_df().to_string())
     print(f"smoke checks passed for {fe}")
 
 
-def _check_ok(url: str, desc: str, wait_s: int = 0) -> requests.Response:
+def _check_ok(
+    url: str,
+    desc: str,
+    wait_s: int = 0,
+    *,
+    method: str = "GET",
+    json: dict | None = None,
+    headers: dict[str, str] | None = None,
+    accept: Callable[[requests.Response], bool] = lambda r: r.ok,
+) -> requests.Response:
     deadline = time.monotonic() + wait_s
     while True:
         try:
-            r = requests.get(url, timeout=300)
-            if r.ok:
+            r = requests.request(method, url, json=json, headers=headers, timeout=300)
+            if accept(r):
                 print(f"smoke: {desc} ok")
                 return r
-            status = r.status_code
+            status = f"{r.status_code} {r.text[:200]}" if json else r.status_code
         except requests.RequestException as e:
             status = type(e).__name__
         if time.monotonic() >= deadline:
@@ -1476,6 +1505,36 @@ def _check_ok(url: str, desc: str, wait_s: int = 0) -> requests.Response:
 
 def _check_json(url: str, desc: str, wait_s: int = 0):
     return _check_ok(url, desc, wait_s).json()
+
+
+def check_mcp(*, live: bool = False) -> None:
+    """One `initialize` against the public MCP endpoint."""
+    _check_mcp(f"https://{LIVE_BACKEND if live else ALPHA_BACKEND}/mcp")
+
+
+def _check_mcp(url: str) -> None:
+    """The hosted MCP server answers `initialize` through the proxy: it is up
+    and its host guard admits the forwarded Host header (421 otherwise)."""
+    init = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "rankless-smoke", "version": "0"},
+        },
+    }
+    r = _check_ok(
+        url,
+        "mcp initialize",
+        method="POST",
+        json=init,
+        headers={"Accept": "application/json, text/event-stream"},
+        accept=lambda r: r.ok and "serverInfo" in r.text,
+    )
+    if sid := r.headers.get("mcp-session-id"):
+        requests.delete(url, headers={"mcp-session-id": sid}, timeout=30)
 
 
 def listeners(ss_output: str, port: int) -> list[tuple[str, str]]:

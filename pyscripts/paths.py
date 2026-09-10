@@ -10,6 +10,7 @@ DATA_DIR = "data"
 DB_REL = f"{DATA_DIR}/rankless.sqlite"
 MCP_SESSIONS_REL = f"{DATA_DIR}/mcp-sessions"
 MCP_OBJECTS_REL = f"{DATA_DIR}/mcp-objects"
+MCP_LOG_REL = f"{DATA_DIR}/mcp-log"
 # The on-disk companions of the user DB: session artifacts + object bundles.
 # Deploys rsync them next to the DB handoff; backups mirror them next to the
 # DB snapshots.

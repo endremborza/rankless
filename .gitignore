@@ -39,3 +39,4 @@ docs/mega-test-last-run.md
 docs/*.html
 data/mcp-sessions/
 data/mcp-objects/
+data/mcp-log/

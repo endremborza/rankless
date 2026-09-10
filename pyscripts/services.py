@@ -118,7 +118,11 @@ def render_frontend(
 
 
 def render_mcp_server(
-    repo_root: str, python: str, be_url: str, port: int = MCP_PORT
+    repo_root: str,
+    python: str,
+    be_url: str,
+    port: int = MCP_PORT,
+    public_hosts: str = "",
 ) -> str:
     return render(
         MCP_SERVER_UNIT,
@@ -126,6 +130,8 @@ def render_mcp_server(
         python=python,
         mcp_be_url=be_url,
         mcp_port=port,
+        mcp_public_hosts=public_hosts,
+        mcp_log_dir=f"{repo_root}/{paths.MCP_LOG_REL}",
     )
 
 
@@ -151,7 +157,7 @@ def render_status(repo_root: str) -> str:
 
 
 def render_nginx_mcp(port: int = MCP_PORT) -> str:
-    return render("nginx-mcp-location.conf", mcp_port=port)
+    return render("nginx-mcp-location.conf", mcp_port=port, api_limit_req=API_LIMIT_REQ)
 
 
 def systemctl(*args: str) -> None:
@@ -181,10 +187,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--mcp-backend",
         default=None,
-        help=f"backend for the MCP server: {list(MCP_BACKENDS)} or a /v1 URL "
+        help=f"backend for the MCP server: {list(BACKENDS)} or a /v1 URL "
         f"(default per profile: {DEFAULT_MCP_BACKEND}).",
     )
     p.add_argument("--mcp-port", type=int, default=MCP_PORT)
+    p.add_argument(
+        "--mcp-public-hosts",
+        default="",
+        help="comma-separated Host headers nginx forwards to the MCP server "
+        "(the public endpoint's domain); empty = localhost only.",
+    )
     p.add_argument("--worker-model", default=DEFAULT_WORKER_MODEL)
     p.add_argument(
         "--worker-runner",
@@ -235,10 +247,12 @@ def _render_units(args: argparse.Namespace) -> dict[str, str]:
                 repo, args.domain, suffix, f"built-{suffix}", bun
             )
     if "mcp-server" in wanted:
-        be_url = resolve_mcp_backend(
+        be_url, _ = resolve_backend(
             args.mcp_backend or DEFAULT_MCP_BACKEND[args.profile]
         )
-        units[MCP_SERVER_UNIT] = render_mcp_server(repo, python, be_url, args.mcp_port)
+        units[MCP_SERVER_UNIT] = render_mcp_server(
+            repo, python, be_url, args.mcp_port, args.mcp_public_hosts
+        )
     if "mcp-worker" in wanted:
         units[MCP_WORKER_UNIT] = render_mcp_worker(
             repo, python, args.worker_model, args.worker_runner

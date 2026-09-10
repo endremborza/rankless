@@ -12,6 +12,8 @@ Environment=MCP_TRANSPORT=streamable-http
 Environment=MCP_HOST=127.0.0.1
 Environment=MCP_PORT={{ mcp_port }}
 Environment=RANKLESS_BE_URL={{ mcp_be_url }}
+Environment=MCP_PUBLIC_HOSTS={{ mcp_public_hosts }}
+Environment=MCP_LOG_DIR={{ mcp_log_dir }}
 ExecStart={{ python }} -m mcp_server
 Restart=on-failure
 RestartSec=5

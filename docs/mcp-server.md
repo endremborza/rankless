@@ -16,8 +16,25 @@ Environment:
 
 - `RANKLESS_BE_URL` — backend base URL (default `http://127.0.0.1:3038/v1`)
 - `RANKLESS_SITE_URL` — base for `rankless_url` backlinks (default `https://rankless.org`)
+- `MCP_PUBLIC_HOSTS` — comma-separated `Host` header values the hosted endpoint accepts
+  (the SDK's DNS-rebinding guard admits localhost only without it; nginx forwards the
+  public domain, and the deploy renders both backend domains into the unit so a promoted
+  box needs no re-render)
+- `MCP_LOG_DIR` — when set, every tool call (a failing one with its `error`), `verify_claims`
+  result and `suggest_endpoint` lands as one JSON line per day (`<dir>/YYYY-MM-DD.jsonl`,
+  keyed by MCP session id — a stranger's session is not a run, so it stays out of
+  `mcp_sessions`, and a file per day is greppable on the box); the unit points it at
+  `paths.MCP_LOG_REL`
 
-Client config (Claude Code / Desktop — prefer the venv python directly; `uv run`
+The hosted endpoint is `https://<backend domain>/mcp` (streamable-http behind nginx):
+`alpha-api.rankless.org/mcp` on the alpha, `api.rankless.org/mcp` once a box is promoted;
+the alpha URL is the published one (manifest, `/mcp` page).
+Any MCP client points at it: `claude mcp add --transport http rankless <url>`, a
+Claude.ai / Claude Desktop custom connector (Settings → Connectors), or an
+`{"mcpServers": {"rankless": {"type": "http", "url": ...}}}` entry; the `/mcp` page carries
+the current snippets.
+
+Local client config (Claude Code / Desktop — prefer the venv python directly; `uv run`
 resolution is slow enough that clients can give up on the connect):
 
 ```json
@@ -255,10 +272,17 @@ which also injects the `deploy/nginx-mcp-location.conf` proxy into the backend s
 exposing `https://alpha-api.rankless.org/mcp`. Set `MCP_PUBLIC_URL` to that when baking the
 manifest.
 
+The public endpoint is guarded on both sides: nginx forwards the real `Host`, applies the
+site's per-client `apilimit` zone to `/mcp` (429 past the burst), and the unit's
+`MCP_PUBLIC_HOSTS` (both backend domains, rendered once by `setup_mcp_services`; a promote
+flips the box's domain without touching the unit, so `promote` first checks the alpha's unit
+carries both) tells the SDK's DNS-rebinding guard to admit it — any other `Host` gets 421. The deploy smoke checks
+(`smoke`, run by `ship-alpha` and `promote`) include one `initialize` against the public
+URL; `uv run -m pyscripts deploy check_mcp [--live]` runs that check alone.
+
 Notes:
 
 - The worker's `claude-cli` runner **requires an authenticated `claude` CLI** in the service
   user's home; runs are sandboxed to `--allowedTools mcp__rankless` (read-only citation tools,
   no bash/fs). `ADMIN_ORCIDS` gates who can create sessions.
-- Rate-limiting/keys for the public endpoint are still open (nginx/IP is the near-term lever;
-  see `.cril/ideas.md` §8 Phase 2+).
+- Keys/auth tiers for the public endpoint are still open (`.cril/ideas.md` §8 Phase 4).
