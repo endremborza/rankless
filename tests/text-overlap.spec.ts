@@ -23,8 +23,8 @@ const CHARTS: OverlapChart[] = [
 		name: 'PaperRainbow citation timeline',
 		type: 'authors',
 		probes: 12,
-		svg: '#papers .plot svg',
-		present: '#papers .plot svg',
+		svg: '#hits .plot svg',
+		present: '#hits .plot svg',
 		hover: '#paper-list li[data-index]',
 		maxHovers: 15
 	},
