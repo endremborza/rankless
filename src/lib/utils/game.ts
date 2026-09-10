@@ -1,7 +1,6 @@
-// Shared plumbing for the games (the clue game, the country game): day identity,
-// streak rule, daily pick, shuffling, flags/names, share text, result logging,
-// and the localStorage round state. Game-specific math lives in game-clues.ts /
-// game-countries.ts.
+// Shared plumbing for the games: day identity, streak rule, hashing,
+// shuffling, flags/names, share text, result logging, and the localStorage
+// round state. Game-specific rules live in game-geo.ts.
 
 export function utcDayStamp(date: Date = new Date()): string {
 	return date.toISOString().slice(0, 10);

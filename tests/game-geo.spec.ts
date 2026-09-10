@@ -1,19 +1,19 @@
 import { expect, test } from '@playwright/test';
 
-import { LIVES, PATH } from '../src/lib/utils/game-countries';
+import { DAILY_RECIPE, DAILY_SIZE, LIVES, PATH } from '../src/lib/utils/game-geo';
 
-// Fixture country cards (tests/seed-game.ts) all resolve to Hungary, so the
-// spec can answer correctly or miss on purpose without knowing the deck order.
-const CORRECT = 'Hungary';
-// How many cards tests/seed-game.ts seeds — one more than a full run spends,
-// so the run ends on lives rather than on the deck.
-const DECK = LIVES + 2;
+// Every fixture card's answer is knowable from its option text
+// (tests/seed-game.ts), whatever the deck and option order.
+const ANSWER = /Hungary|Budapest|Near One|Fixture Intruder|Fixture Local/;
 
-async function miss(page: import('@playwright/test').Page) {
-	await page.locator('.option', { hasNotText: CORRECT }).first().click();
+async function answer(page: import('@playwright/test').Page, correctly: boolean) {
+	const options = page.locator('.option:not([disabled])');
+	await (correctly ? options.filter({ hasText: ANSWER }) : options.filter({ hasNotText: ANSWER }))
+		.first()
+		.click();
 }
 
-test('campusquest run: every answer holds its reveal, a miss costs a life, the last one ends the run', async ({
+test('campusquest daily: ten cards of the recipe, a lifeline for half a point, a miss, the grid', async ({
 	page
 }) => {
 	await page.goto(PATH);
@@ -22,56 +22,74 @@ test('campusquest run: every answer holds its reveal, a miss costs a life, the l
 	await expect(page.locator('.option')).toHaveCount(4);
 	await expect(page.locator('.timer')).toBeVisible();
 	await expect(page.locator('.badge').first()).toBeVisible();
-	await expect(page.locator('.progress-row')).toContainText(`1/${DECK}`);
+	await expect(page.locator('.progress-row')).toContainText(`1/${DAILY_SIZE}`);
+
+	// Card 1: a plain hit holds its reveal under a green verdict.
+	await answer(page, true);
+	await expect(page.locator('.reveal .verdict-tag')).toHaveText('✓ Correct');
+	await expect(page.locator('.reveal')).toContainText('Fixture note');
+	await page.click('button:has-text("Next")');
+	await expect(page.locator('.progress-row')).toContainText(`2/${DAILY_SIZE}`);
+
+	// Card 2: the 50:50 leaves two options and the hit is worth half.
+	await page.click('.lifeline');
+	await expect(page.locator('.option:not([disabled])')).toHaveCount(2);
+	await expect(page.locator('.option.faded')).toHaveCount(2);
+	await answer(page, true);
+	await expect(page.locator('.reveal .verdict-tag')).toHaveText('✓ Correct · ½');
+	await page.click('button:has-text("Next")');
+	await expect(page.locator('.progress-row')).toContainText('1½');
+
+	// Card 3: a miss shows the answer and costs no life — the run goes on.
+	await answer(page, false);
+	await expect(page.locator('.reveal .verdict-tag')).toHaveText('✗ Wrong');
+	await expect(page.locator('.option.correct')).toHaveCount(1);
+	await expect(page.locator('.option.wrong')).toHaveCount(1);
+	await page.click('button:has-text("Next")');
+
+	// The rest of the recipe, every kind of card, all placed; the nearest
+	// reveal shows the map.
+	for (let i = 3; i < DAILY_SIZE; i++) {
+		await expect(page.locator('.progress-row')).toContainText(`${i + 1}/${DAILY_SIZE}`);
+		await answer(page, true);
+		await expect(page.locator('.reveal .verdict-tag')).toHaveText('✓ Correct');
+		if (DAILY_RECIPE[i] === 'nearest-card') {
+			await expect(page.locator('.reveal svg')).toBeVisible();
+			await expect(page.locator('.opt-km')).toHaveCount(4);
+		}
+		await page.click(`button:has-text("${i === DAILY_SIZE - 1 ? 'See result' : 'Next'}")`);
+	}
+
+	// Result: 8 hits + one half = 8½, the grid, the miss with its answer, the
+	// day's standing from the run log, and the stats sheet.
+	await expect(page.locator('.verdict')).toHaveText(`8½ of ${DAILY_SIZE} placed`);
+	await expect(page.locator('.score-big')).toHaveText('8½');
+	await expect(page.locator('.grid')).toHaveText('🟩🟨🟥' + '🟩'.repeat(DAILY_SIZE - 3));
+	await expect(page.locator('.misses li')).toHaveCount(1);
+	await expect(page.locator('.misses .miss-where')).toHaveText(ANSWER);
+	await expect(page.locator('.standing')).toHaveText(/#\d+ of \d+ today/);
+	await expect(page.locator('.share-preview')).toContainText(`8½/${DAILY_SIZE}`);
+	await page.click('.stats-line');
+	await expect(page.locator('.sheet .tile').first()).toContainText('1');
+
+	// The finished daily survives a reload, ids resolved against the same deck.
+	await page.reload();
+	await expect(page.locator('.score-big')).toHaveText('8½');
+	await expect(page.locator('.grid')).toHaveText('🟩🟨🟥' + '🟩'.repeat(DAILY_SIZE - 3));
+
+	// Survival: lives, no lifeline, the whole pack.
+	await page.click('button:has-text("Survival")');
+	await expect(page.locator('.mode-label')).toHaveText('Survival');
+	await expect(page.locator('.option')).toHaveCount(4);
+	await expect(page.locator('.lifeline')).toHaveCount(0);
 	await expect(page.locator('.lives')).toHaveAttribute(
 		'aria-label',
 		`${LIVES} of ${LIVES} lives left`
 	);
-
-	// A hit holds the same reveal a miss does, under a green verdict.
-	await page.click(`.option:has-text("${CORRECT}")`);
-	await expect(page.locator('.reveal .verdict-tag')).toHaveText(/Correct/);
-	await expect(page.locator('.reveal')).toContainText('Fixture note');
+	await answer(page, false);
 	await page.click('button:has-text("Next")');
-	await expect(page.locator('.progress-row')).toContainText(`2/${DECK}`);
-
-	// Deliberate misses: the run survives all but the last one.
-	for (let spent = 1; spent < LIVES; spent++) {
-		await miss(page);
-		await expect(page.locator('.reveal .verdict-tag')).toHaveText(/Wrong/);
-		await expect(page.locator('.reveal')).toContainText(CORRECT);
-		await expect(page.locator('.lives')).toHaveAttribute(
-			'aria-label',
-			`${LIVES - spent} of ${LIVES} lives left`
-		);
-		await page.click('button:has-text("Next")');
-		await expect(page.locator('.timer')).toBeVisible();
-	}
-
-	// The last miss still holds the reveal; the result screen sits behind it.
-	await miss(page);
-	await expect(page.locator('.reveal')).toContainText('Fixture note');
-	await expect(page.locator('button:has-text("Next")')).toHaveCount(0);
-	await expect(page.locator('.option.correct')).toHaveCount(1);
-	await expect(page.locator('.option.wrong')).toHaveCount(1);
-	await page.click('button:has-text("See result")');
-
-	// Result: verdict, score, the misses with their true country, the day's
-	// standing from the run log, and the stats sheet over the daily history.
-	await expect(page.locator('.verdict')).toHaveText(`Run over at card ${LIVES + 1} of ${DECK}`);
-	await expect(page.locator('.score-big')).toHaveText('1');
-	await expect(page.locator('.misses li')).toHaveCount(LIVES);
-	await expect(page.locator('.misses .miss-where').first()).toContainText(CORRECT);
-	await expect(page.locator('.standing')).toHaveText(/#\d+ of \d+ today/);
-	await page.click('.stats-line');
-	await expect(page.locator('.sheet .tile').first()).toContainText('1');
-
-	// The finished daily survives a reload, misses resolved against the same deck.
-	await page.reload();
-	await expect(page.locator('.score-big')).toHaveText('1');
-	await expect(page.locator('.misses li')).toHaveCount(LIVES);
-
-	await page.click('button:has-text("Practice run")');
-	await expect(page.locator('.mode-label')).toHaveText('Practice run');
-	await expect(page.locator('.option')).toHaveCount(4);
+	await expect(page.locator('.lives')).toHaveAttribute(
+		'aria-label',
+		`${LIVES - 1} of ${LIVES} lives left`
+	);
 });

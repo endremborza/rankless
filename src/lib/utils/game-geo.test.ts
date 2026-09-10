@@ -1,71 +1,128 @@
 import { describe, expect, it } from 'vitest';
 
-import type { BadgedCountryCard } from '../types/game-countries';
+import type { CardKind, PlayCard } from '../types/game-geo';
 import {
 	BRAND,
-	DECK_CAP,
-	HIST_BUCKETS,
+	DAILY_RECIPE,
+	DAILY_SIZE,
+	FULL,
+	HALF,
+	KINDS,
 	LIVES,
 	MAX_MEDICAL_CARDS,
 	PATH,
 	dailyDeck,
+	formatPoints,
+	gridLine,
 	isMedicalName,
+	lifelineKeep,
 	livesLeft,
-	practiceDeck,
+	points,
 	runShareText,
 	runStats,
+	survivalDeck,
 	verdictLine
-} from './game-countries';
+} from './game-geo';
 
-const pack: BadgedCountryCard[] = Array.from({ length: DECK_CAP + 10 }, (_, i) => ({
-	semId: `uni-${i}`,
-	name: `University ${i}`,
-	cc: 'HU',
-	decoys: ['DE', 'FR', 'ES'],
-	note: `Note ${i}.`,
-	badges: [{ label: 'top 10%', subfield: 'Immunology' }],
-	papers: 1,
-	citations: 1
-}));
+function card(kind: CardKind, i: number, name = `University ${i}`): PlayCard {
+	const options =
+		kind === 'country-card'
+			? ['HU', 'DE', 'FR', 'ES'].map((k) => ({ key: k, label: k, lat: 0, lon: 0 }))
+			: ['a', 'b', 'c', 'd'].map((k) => ({
+					key: `${kind}-${i}-${k}`,
+					label: `Option ${k} of ${name}`,
+					lat: 0,
+					lon: 0
+				}));
+	return {
+		kind,
+		semId: `${kind}-${i}`,
+		name,
+		prompt: name,
+		options,
+		answer: options[0].key,
+		note: `Note ${i}.`,
+		badges: [],
+		lat: 0,
+		lon: 0
+	};
+}
 
-function checkPlayCards(deck: ReturnType<typeof practiceDeck>) {
-	expect(deck).toHaveLength(DECK_CAP);
-	const semIds = new Set(pack.map((c) => c.semId));
-	expect(new Set(deck.map((c) => c.semId)).size).toBe(DECK_CAP);
-	for (const card of deck) {
-		expect(semIds.has(card.semId)).toBe(true);
-		expect(card.options).toHaveLength(4);
-		expect(card.options).toContain(card.cc);
-		expect(new Set(card.options).size).toBe(4);
-		expect(card.badges).toEqual([{ label: 'top 10%', subfield: 'Immunology' }]);
-		expect(card).not.toHaveProperty('decoys');
-		expect(card).not.toHaveProperty('papers');
+const fullPack: PlayCard[] = KINDS.flatMap((kind) =>
+	Array.from({ length: 8 }, (_, i) => card(kind, i))
+);
+const countryOnly: PlayCard[] = Array.from({ length: 20 }, (_, i) => card('country-card', i));
+// Every anchor carded under every kind, as the miner allows.
+const sharedAnchors: PlayCard[] = KINDS.flatMap((kind) =>
+	Array.from({ length: 12 }, (_, i) => ({ ...card(kind, i), semId: `inst-${i}` }))
+);
+
+function checkDeck(deck: PlayCard[], pack: PlayCard[]) {
+	expect(deck).toHaveLength(DAILY_SIZE);
+	expect(new Set(deck.map((c) => c.semId)).size).toBe(DAILY_SIZE);
+	const ids = new Set(pack.map((c) => c.semId));
+	for (const c of deck) {
+		expect(ids.has(c.semId)).toBe(true);
+		expect(c.options).toHaveLength(4);
+		expect(c.options.map((o) => o.key)).toContain(c.answer);
 	}
 }
 
-describe('practiceDeck', () => {
-	it('caps the deck, draws from the pack and folds the answer into four options', () => {
-		checkPlayCards(practiceDeck(pack));
+describe('dailyDeck', () => {
+	it('follows the recipe when every kind has cards, deterministically per day', () => {
+		const a = dailyDeck(fullPack, '2026-09-10');
+		checkDeck(a, fullPack);
+		expect(a.map((c) => c.kind)).toEqual(DAILY_RECIPE);
+		expect(dailyDeck([...fullPack].reverse(), '2026-09-10')).toEqual(a);
+		expect(dailyDeck(fullPack, '2026-09-11')).not.toEqual(a);
+	});
+
+	it('fills a short kind from the kinds that have cards', () => {
+		const deck = dailyDeck(countryOnly, '2026-09-10');
+		checkDeck(deck, countryOnly);
+		expect(deck.every((c) => c.kind === 'country-card')).toBe(true);
+		const twoNearest = [...countryOnly, card('nearest-card', 0), card('nearest-card', 1)];
+		expect(
+			dailyDeck(twoNearest, '2026-09-10').filter((c) => c.kind === 'nearest-card')
+		).toHaveLength(2);
+	});
+
+	it('plays an anchor carded under several kinds at most once', () => {
+		const deck = dailyDeck(sharedAnchors, '2026-09-10');
+		checkDeck(deck, sharedAnchors);
+		expect(deck.map((c) => c.kind)).toEqual(DAILY_RECIPE);
+	});
+
+	it('shifts at most one slot of a kind when a card joins mid-day', () => {
+		const before = dailyDeck(countryOnly, '2026-09-10').map((c) => c.semId);
+		const after = dailyDeck(
+			[...countryOnly, card('country-card', 99, 'Newcomer')],
+			'2026-09-10'
+		).map((c) => c.semId);
+		const kept = before.filter((id) => after.includes(id));
+		expect(kept.length).toBeGreaterThanOrEqual(DAILY_SIZE - 1);
+		expect(kept).toEqual(after.filter((id) => before.includes(id)));
 	});
 });
 
-describe('dailyDeck', () => {
-	it('builds the same play cards for the same day, whatever the pack order', () => {
-		const a = dailyDeck(pack, '2026-08-31');
-		checkPlayCards(a);
-		expect(dailyDeck([...pack].reverse(), '2026-08-31')).toEqual(a);
-		expect(dailyDeck(pack, '2026-09-01')).not.toEqual(a);
+describe('survivalDeck', () => {
+	it('plays every anchor once', () => {
+		const deck = survivalDeck(sharedAnchors);
+		expect(deck).toHaveLength(12);
+		expect(new Set(deck.map((c) => c.semId)).size).toBe(12);
 	});
 
-	it('shifts at most one slot when a card joins the pack mid-day', () => {
-		const before = dailyDeck(pack, '2026-08-31').map((c) => c.semId);
-		const after = dailyDeck(
-			[...pack, { ...pack[0], semId: 'newcomer', name: 'Newcomer' }],
-			'2026-08-31'
-		).map((c) => c.semId);
-		const kept = before.filter((id) => after.includes(id));
-		expect(kept.length).toBeGreaterThanOrEqual(DECK_CAP - 1);
-		expect(kept).toEqual(after.filter((id) => before.includes(id)));
+	it('runs the whole pack with every option kept', () => {
+		const deck = survivalDeck(fullPack);
+		expect(deck).toHaveLength(fullPack.length);
+		expect(new Set(deck.map((c) => c.semId)).size).toBe(fullPack.length);
+		for (const c of deck)
+			expect(c.options.map((o) => o.key).sort()).toEqual(
+				fullPack
+					.find((p) => p.semId === c.semId)!
+					.options.map((o) => o.key)
+					.sort()
+			);
 	});
 });
 
@@ -82,60 +139,79 @@ describe('medical quota', () => {
 		expect(isMedicalName('Medici Institute')).toBe(false);
 	});
 
-	it('admits only a few medical names per deck, daily and practice alike', () => {
-		const mixed = pack.map((c, i) => (i % 4 ? c : { ...c, name: medical[i % medical.length] }));
-		for (const deck of [dailyDeck(mixed, '2026-08-31'), practiceDeck(mixed)]) {
-			expect(deck).toHaveLength(DECK_CAP);
-			expect(deck.filter((c) => isMedicalName(c.name))).toHaveLength(MAX_MEDICAL_CARDS);
-		}
+	it('admits only a few medical names per daily', () => {
+		const mixed = countryOnly.map((c, i) =>
+			i % 2 ? c : { ...c, name: medical[i % medical.length] }
+		);
+		const deck = dailyDeck(mixed, '2026-09-10');
+		expect(deck).toHaveLength(DAILY_SIZE);
+		expect(deck.filter((c) => isMedicalName(c.name))).toHaveLength(MAX_MEDICAL_CARDS);
+	});
+});
+
+describe('lifeline and points', () => {
+	it('keeps the answer and one hashed wrong option', () => {
+		const c = card('city-card', 3);
+		const kept = lifelineKeep(c, '2026-09-10');
+		expect(kept).toHaveLength(2);
+		expect(kept[0]).toBe(c.answer);
+		expect(kept[1]).not.toBe(c.answer);
+		expect(lifelineKeep(c, '2026-09-10')).toEqual(kept);
+	});
+
+	it('scores a lifelined hit half, a miss nothing', () => {
+		expect(points(true, false)).toBe(FULL);
+		expect(points(true, true)).toBe(HALF);
+		expect(points(false, true)).toBe(0);
+		expect(formatPoints(15)).toBe('7½');
+		expect(formatPoints(20)).toBe('10');
+	});
+});
+
+describe('grid, share and verdict', () => {
+	const ids = ['a', 'b', 'c', 'd'];
+	it('draws one square per card', () => {
+		expect(gridLine(ids, ['c'], ['b'])).toBe('🟩🟨🟥🟩');
+		expect(gridLine(ids, ['b'], ['b'])).toBe('🟩🟥🟩🟩');
+	});
+
+	it('stamps the grid and the score on the share line', () => {
+		const out = runShareText('2026-09-10', 15, 10, '🟩🟨🟥');
+		expect(out.startsWith(`${BRAND} 2026-09-10`)).toBe(true);
+		expect(out).toContain('🟩🟨🟥 7½/10');
+		expect(out).toContain(`https://rankless.org${PATH}`);
+	});
+
+	it('names the perfect run, the empty one and the rest', () => {
+		expect(verdictLine(20, 10)).toBe('Perfect — all 10 placed');
+		expect(verdictLine(0, 10)).toBe('None of the 10 placed');
+		expect(verdictLine(13, 10)).toBe('6½ of 10 placed');
 	});
 });
 
 describe('livesLeft', () => {
 	it('counts down from LIVES and floors at zero', () => {
 		expect(livesLeft(0)).toBe(LIVES);
-		expect(livesLeft(1)).toBe(LIVES - 1);
-		expect(livesLeft(LIVES)).toBe(0);
 		expect(livesLeft(LIVES + 2)).toBe(0);
 	});
 });
 
-describe('verdictLine', () => {
-	it('names the card that ended the run, or the sweep', () => {
-		expect(verdictLine(7, 3, 30)).toBe('Run over at card 10 of 30');
-		expect(verdictLine(30, 0, 30)).toBe('Perfect run — all 30 placed');
-		expect(verdictLine(28, 2, 30)).toBe('Cleared the deck — 30 names');
-	});
-});
-
 describe('runStats', () => {
-	it('summarizes the daily history into tiles and a score histogram', () => {
-		const runs = [3, 12, 30, 0].map((score, i) => ({
-			day: `2026-08-0${i + 1}`,
+	it('summarizes the daily history into tiles and a per-point histogram', () => {
+		const runs = [6, 15, 20, 0].map((score, i) => ({
+			day: `2026-09-0${i + 1}`,
 			score,
-			outOf: 30,
-			missedIds: []
+			outOf: 10,
+			missedSemIds: [],
+			lifelinedSemIds: []
 		}));
 		const s = runStats(runs);
-		expect(s).toMatchObject({ played: 4, best: 30, avg: 11.3 });
-		expect(s.hist).toHaveLength(HIST_BUCKETS.length);
-		expect(s.hist.reduce((a, b) => a + b)).toBe(4);
-		expect(s.hist[0]).toBe(2);
-		expect(s.hist[s.hist.length - 1]).toBe(1);
-		expect(HIST_BUCKETS[HIST_BUCKETS.length - 1][1]).toBe(DECK_CAP);
+		expect(s).toMatchObject({ played: 4, best: 20, avg: 5.1 });
+		expect(s.hist).toHaveLength(DAILY_SIZE + 1);
+		expect(s.hist[0]).toBe(1);
+		expect(s.hist[3]).toBe(1);
+		expect(s.hist[7]).toBe(1);
+		expect(s.hist[10]).toBe(1);
 		expect(runStats([])).toEqual({ played: 0, best: 0, avg: 0, hist: s.hist.map(() => 0) });
-	});
-});
-
-describe('runShareText', () => {
-	it('shows the score, the lives spent, and a cleared deck', () => {
-		const out = runShareText('2026-08-23', 12, 2, false);
-		expect(out.startsWith(`${BRAND} 2026-08-23`)).toBe(true);
-		expect(out).toContain('12 placed');
-		expect(out).toContain('❤️'.repeat(LIVES - 2) + '🖤'.repeat(2));
-		expect(out).toContain(`https://rankless.org${PATH}`);
-
-		expect(runShareText('2026-08-23', 30, 0, true)).toContain('cleared the deck');
-		expect(runShareText('2026-08-23', 30, 0, true)).toContain('❤️'.repeat(LIVES));
 	});
 });

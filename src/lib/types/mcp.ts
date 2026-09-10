@@ -109,17 +109,22 @@ export type McpSession = {
 	updatedAt: string;
 };
 
-// One reproduced metric inside a finding (keys as deep.py emits them).
-export type SessionMetric = {
-	key: string;
-	label: string;
+// One backend read replayed by mcp_server/verify.py: the call, the dotted
+// path into its response, what the model claimed and what the replay found.
+export type VerifiedFact<V = unknown> = {
 	tool: string;
 	args: Record<string, unknown>;
 	path: string;
-	claimed: number | string | null;
-	reproduced: number | string | null;
+	claimed: V;
+	reproduced: V;
 	ok: boolean;
 	error: string | null;
+};
+
+// One reproduced metric inside a finding (keys as deep.py emits them).
+export type SessionMetric = VerifiedFact<number | string | null> & {
+	key: string;
+	label: string;
 };
 
 export type SessionFinding = {

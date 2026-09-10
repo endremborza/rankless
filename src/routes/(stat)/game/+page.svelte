@@ -1,32 +1,25 @@
 <!-- Hub for the games. -->
 <script lang="ts">
 	import GameShell from '$lib/components/GameShell.svelte';
-	import { BRAND, PATH } from '$lib/utils/game-countries';
+	import { BRAND, DAILY_SIZE, PATH } from '$lib/utils/game-geo';
 </script>
 
 <svelte:head>
 	<title>Games — Rankless</title>
 	<meta
 		name="description"
-		content="Daily guessing games over verified scholarly data: pin the hidden institution on a map, or place institutions whose names point far from home."
+		content="A daily geography quiz over verified scholarly data: where an institution really is, which city, which is closest, which one is not here."
 	/>
 </svelte:head>
 
 <GameShell title="Games">
-	<p class="intro">Two daily rounds over the live citation data. New cards every day.</p>
+	<p class="intro">A daily round over the live citation data. New cards every day.</p>
 	<div class="games">
-		<a class="game-tile" href="/game-clues">
-			<h2>🗺️ Guess the institution</h2>
-			<p>
-				A hidden research institution, described by verified citation facts — hardest first. Drop a
-				pin on the map; the earlier and closer, the more points.
-			</p>
-		</a>
 		<a class="game-tile" href={PATH}>
 			<h2>🏛️ {BRAND}</h2>
 			<p>
-				Institution names can point far from home. Four flags, ten seconds a name, five lives —
-				trust your first instinct.
+				Institution names can point far from home. {DAILY_SIZE} cards a day: where is it actually, which
+				city, which is closest, which one is not here — trust your first instinct.
 			</p>
 		</a>
 	</div>

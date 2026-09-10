@@ -2,8 +2,8 @@
 	import { base } from '$app/paths';
 	import { entToLink } from '$lib/tree-functions';
 	import type { PageData } from './$types';
-	import { ccFlag, ccName } from '$lib/utils/game';
-	import { BRAND } from '$lib/utils/game-countries';
+	import { ccFlag } from '$lib/utils/game';
+	import { BRAND, QUESTIONS, answerLabel, optionLabel, promptLabel } from '$lib/utils/game-geo';
 
 	export let data: PageData;
 
@@ -31,9 +31,10 @@
 
 	<h1>{BRAND} — cards</h1>
 	<p class="sub">
-		{cards.length} cards, {servedCount} served. Every card at its latest version: the name players see,
-		the true country, the decoy options, the reveal text, and the badge standings. A wrong or misleading
-		card gets rejected here (with a reason); rejecting frees its institution for re-mining.
+		{cards.length} cards, {servedCount} served. Every card at its latest version: the question the player
+		sees, the answer the data gave, the other options, the reveal text and how many of its backend facts
+		reproduced. A wrong or misleading card gets rejected here (with a reason); rejecting frees its anchor
+		for re-mining in that kind.
 	</p>
 
 	<div class="table-wrap">
@@ -41,11 +42,13 @@
 			<thead>
 				<tr>
 					<th>status</th>
-					<th>name</th>
+					<th>kind</th>
+					<th>question</th>
 					<th>answer</th>
-					<th>decoys</th>
+					<th>other options</th>
 					<th>badges</th>
 					<th>reveal text</th>
+					<th>facts</th>
 					<th>actions</th>
 				</tr>
 			</thead>
@@ -57,33 +60,47 @@
 							{#if c.served}<span class="served" title="in the served pack">●</span>{/if}
 							{#if c.statusNote}<div class="note-line">{c.statusNote}</div>{/if}
 						</td>
-						<td>
-							{#if c.card}
-								<a href={entToLink({ rootType: 'institutions', semanticId: c.semId })}
-									>{c.card.name}</a
-								>
-							{:else}
-								<span class="muted">payload missing on this box</span>
-							{/if}
-							<div class="mono sem">{c.semId}</div>
-						</td>
+						<td class="nowrap">{c.kind}</td>
 						{#if c.card}
-							<td class="nowrap">{ccFlag(c.card.cc)} {ccName(c.card.cc)}</td>
+							{@const q = QUESTIONS[c.card.kind]}
+							{@const km = c.card.options.find((o) => o.key === c.card?.answer)?.km}
 							<td>
-								{#each c.card.decoys as d, i (i)}
-									<span class="nowrap">{ccFlag(d)} {ccName(d)}</span>{i < 2 ? ', ' : ''}
+								<span class="muted">{q.above}</span>
+								{promptLabel(c.card)}
+								<span class="muted">{q.below}</span>
+								<div class="mono sem">
+									<a href={entToLink({ rootType: 'institutions', semanticId: c.semId })}
+										>{c.card.name}</a
+									>
+								</div>
+							</td>
+							<td class="nowrap">
+								{#if q.options === 'country'}{ccFlag(c.card.answer)}{/if}
+								{answerLabel(c.card)}
+								{#if km !== undefined}<span class="muted">{km} km</span>{/if}
+							</td>
+							<td>
+								{#each c.card.options.filter((o) => o.key !== c.card?.answer) as o, i (i)}
+									<div class="nowrap">
+										{#if q.options === 'country'}{ccFlag(o.key)}{/if}
+										{optionLabel(c.card.kind, o)}
+										{#if o.km !== undefined}<span class="muted">{o.km} km</span>{/if}
+									</div>
 								{/each}
 							</td>
 							<td>
-								{#each c.badges as b, i (i)}
+								{#each c.card.badges as b, i (i)}
 									<div class="nowrap">{b.label} · {b.subfield}</div>
 								{:else}
-									<span class="muted">none</span>
+									<span class="muted">—</span>
 								{/each}
 							</td>
 							<td class="reveal">{c.card.note}</td>
+							<td class="nowrap" class:bad={c.facts.ok < c.facts.total}>
+								{c.facts.total ? `${c.facts.ok}/${c.facts.total}` : '—'}
+							</td>
 						{:else}
-							<td colspan="4" class="muted">—</td>
+							<td colspan="6" class="muted">payload missing on this box · {c.semId}</td>
 						{/if}
 						<td class="actions">
 							{#each ['approved', 'rejected'] as target (target)}
@@ -108,7 +125,7 @@
 
 <style>
 	.admin {
-		max-width: 1300px;
+		max-width: 1400px;
 		margin: 1rem auto;
 		padding: 0 1rem;
 	}
@@ -175,13 +192,15 @@
 	}
 
 	.mono.sem {
-		font-family: var(--font-mono);
 		font-size: var(--text-xs);
-		color: var(--color-text-light);
 	}
 
 	.nowrap {
 		white-space: nowrap;
+	}
+
+	.bad {
+		color: var(--color-err);
 	}
 
 	.reveal {

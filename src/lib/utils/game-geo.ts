@@ -1,14 +1,10 @@
-// Client-side rules for the country game: lives, the per-question timer that
-// keeps lookups out, deck builds, the share line and the personal stats.
-// Shared game plumbing is in utils/game.ts, types in types/game-countries.ts.
+// Client-side rules of the geography quiz: the question each card kind asks,
+// the daily recipe and survival lives, the question timer, the 50:50 lifeline
+// and half-point scoring, the share grid and the personal stats.
+// Shared game plumbing is in utils/game.ts, types in types/game-geo.ts.
 
-import { fnv1a, shareMessage, shuffle } from './game';
-import type {
-	BadgedCountryCard,
-	CountryPlayCard,
-	DailyRun,
-	RunStats
-} from '../types/game-countries';
+import { ccFlag, ccName, fnv1a, shareMessage, shuffle } from './game';
+import type { CardKind, DailyRun, PlayCard, PlayOption, RunStats } from '../types/game-geo';
 
 // Public identity of the game, and the only place a rename touches: the route
 // directory matches on SLUG (src/params/campusQuest.ts) instead of naming it,
@@ -17,21 +13,80 @@ import type {
 export const BRAND = 'CampusQuest';
 export const SLUG = 'campus-quest';
 export const PATH = `/${SLUG}`;
-export const RUN_SECONDS = 10;
-export const DECK_CAP = 30;
+
+export const KINDS: CardKind[] = [
+	'country-card',
+	'intruder-card',
+	'nearest-card',
+	'city-card',
+	'local-card'
+];
+
+// The pair on screen is the instruction: each kind asks one question, always,
+// so nothing needs a label. `prompt`/`options` say how each side reads.
+export const QUESTIONS: Record<
+	CardKind,
+	{
+		above: string;
+		below: string;
+		prompt: 'institution' | 'country' | 'city';
+		options: 'country' | 'institution' | 'city';
+	}
+> = {
+	'country-card': {
+		above: 'Where is',
+		below: 'actually?',
+		prompt: 'institution',
+		options: 'country'
+	},
+	'city-card': { above: 'Which city is', below: 'in?', prompt: 'institution', options: 'city' },
+	'nearest-card': {
+		above: 'Which is closest to',
+		below: '?',
+		prompt: 'institution',
+		options: 'institution'
+	},
+	'intruder-card': {
+		above: 'Which is not in',
+		below: '?',
+		prompt: 'country',
+		options: 'institution'
+	},
+	'local-card': { above: 'Which is in', below: '?', prompt: 'city', options: 'institution' }
+};
+
+// The daily is the same ten kinds in the same order every day, so the rhythm
+// is learnable; a kind whose pack runs short is filled from the kinds that
+// have cards, in KINDS order.
+export const DAILY_RECIPE: CardKind[] = [
+	'country-card',
+	'country-card',
+	'country-card',
+	'intruder-card',
+	'intruder-card',
+	'nearest-card',
+	'nearest-card',
+	'city-card',
+	'city-card',
+	'local-card'
+];
+export const DAILY_SIZE = DAILY_RECIPE.length;
 export const LIVES = 5;
-// Hospitals and medical schools are a quarter of the pack; a deck admits only
-// a few so a run reads as institutions, not wards.
+
+// Scores count half-points: a plain hit is FULL, a hit after the 50:50 HALF
+// (0.5 x 0.5 = 0.25 is what a blind guess at four options is worth, so the
+// lifeline buys certainty, never score).
+export const FULL = 2;
+export const HALF = 1;
+
+// One clock for every card, whatever it reads; the lifeline restarts it.
+export const RUN_SECONDS = 15;
+
+// Hospitals and medical schools are a quarter of the misdirect pack; a daily
+// admits only a few so a run reads as institutions, not wards.
 export const MAX_MEDICAL_CARDS = 3;
 const MEDICAL_RE =
 	/\b(hospitals?|hôpital|hopital|ospedale|hospice|clinics?|clínic|klinik|infirmary|medicine|medical|health|sjukhus|sairaala|sygehus|ziekenhuis|krankenhaus)\b/i;
-// Score histogram buckets of the stats sheet: [lo, hi] inclusive, the last one
-// absorbing the deck cap.
-export const HIST_STEP = 5;
-export const HIST_BUCKETS: [number, number][] = Array.from(
-	{ length: DECK_CAP / HIST_STEP },
-	(_, i) => [i * HIST_STEP, i === DECK_CAP / HIST_STEP - 1 ? DECK_CAP : (i + 1) * HIST_STEP - 1]
-);
 
 export function livesLeft(missed: number): number {
 	return Math.max(0, LIVES - missed);
@@ -41,67 +96,117 @@ export function isMedicalName(name: string): boolean {
 	return MEDICAL_RE.test(name);
 }
 
-export function runShareText(day: string, score: number, missed: number, swept: boolean): string {
-	const hearts = '❤️'.repeat(livesLeft(missed)) + '🖤'.repeat(Math.min(missed, LIVES));
-	const result = swept ? `cleared the deck — ${score} placed` : `${score} placed`;
-	return shareMessage(BRAND, day, `🏛️🌍 ${result} ${hearts}`, PATH);
+export function promptLabel(card: Pick<PlayCard, 'kind' | 'prompt'>): string {
+	return QUESTIONS[card.kind].prompt === 'country'
+		? `${ccFlag(card.prompt)} ${ccName(card.prompt)}`
+		: card.prompt;
 }
 
-export function verdictLine(score: number, missed: number, outOf: number): string {
-	const seen = score + missed;
-	if (seen < outOf) return `Run over at card ${seen} of ${outOf}`;
-	return missed === 0 ? `Perfect run — all ${outOf} placed` : `Cleared the deck — ${outOf} names`;
+export function optionLabel(kind: CardKind, option: PlayOption): string {
+	return QUESTIONS[kind].options === 'country' ? ccName(option.label) : option.label;
+}
+
+export function answerLabel(card: PlayCard): string {
+	const o = card.options.find((x) => x.key === card.answer);
+	return o ? optionLabel(card.kind, o) : card.answer;
+}
+
+// The two options the 50:50 leaves: the answer and one wrong option, picked
+// by hash so the same card keeps the same pair all day.
+export function lifelineKeep(card: PlayCard, day: string): string[] {
+	const wrong = card.options
+		.filter((o) => o.key !== card.answer)
+		.sort(
+			(a, b) => fnv1a(`${day}|${card.semId}|${a.key}`) - fnv1a(`${day}|${card.semId}|${b.key}`)
+		);
+	return [card.answer, wrong[0].key];
+}
+
+export function points(hit: boolean, lifelined: boolean): number {
+	return hit ? (lifelined ? HALF : FULL) : 0;
+}
+
+export function formatPoints(halves: number): string {
+	const whole = Math.floor(halves / FULL);
+	return halves % FULL ? `${whole}½` : `${whole}`;
+}
+
+// 🟩 placed, 🟨 placed on the lifeline, 🟥 missed or timed out.
+export function gridLine(deckIds: string[], missed: string[], lifelined: string[]): string {
+	return deckIds
+		.map((id) => (missed.includes(id) ? '🟥' : lifelined.includes(id) ? '🟨' : '🟩'))
+		.join('');
+}
+
+export function runShareText(day: string, score: number, outOf: number, grid: string): string {
+	return shareMessage(BRAND, day, `${grid} ${formatPoints(score)}/${outOf}`, PATH);
+}
+
+export function verdictLine(score: number, outOf: number): string {
+	if (score === outOf * FULL) return `Perfect — all ${outOf} placed`;
+	if (score === 0) return `None of the ${outOf} placed`;
+	return `${formatPoints(score)} of ${outOf} placed`;
 }
 
 // The daily deck is the same for every player: cards rank by a hash of the
 // day and their id (rendezvous order), so the pick is deterministic without a
-// pin table and a card added or pulled mid-day shifts at most one slot. Option
-// order hashes the same way. The per-question timer is what keeps lookups out.
-export function dailyDeck(pack: BadgedCountryCard[], day: string): CountryPlayCard[] {
+// pin table and a card added or pulled mid-day shifts at most one slot of its
+// kind. Option order hashes the same way. An anchor carries one card per
+// kind in the pack but plays at most once per deck: a second card would give
+// the first away, and runs are keyed by anchor.
+export function dailyDeck(pack: PlayCard[], day: string): PlayCard[] {
 	const key = (s: string) => fnv1a(`${day}|${s}`);
-	return admit([...pack].sort((a, b) => key(a.semId) - key(b.semId))).map((c) =>
-		playCard(
-			c,
-			[c.cc, ...c.decoys].sort((a, b) => key(`${c.semId}|${a}`) - key(`${c.semId}|${b}`))
-		)
-	);
+	const queues = new Map<CardKind, PlayCard[]>(KINDS.map((k) => [k, []]));
+	for (const c of [...pack].sort(
+		(a, b) => key(`${a.semId}|${a.kind}`) - key(`${b.semId}|${b.kind}`)
+	))
+		queues.get(c.kind)?.push(c);
+	const deck: PlayCard[] = [];
+	const anchors = new Set<string>();
+	let medical = 0;
+	const take = (kind: CardKind): boolean => {
+		const queue = queues.get(kind) ?? [];
+		while (queue.length) {
+			const c = queue.shift() as PlayCard;
+			if (anchors.has(c.semId)) continue;
+			if (isMedicalName(c.name)) {
+				if (medical === MAX_MEDICAL_CARDS) continue;
+				medical += 1;
+			}
+			anchors.add(c.semId);
+			deck.push(c);
+			return true;
+		}
+		return false;
+	};
+	for (const kind of DAILY_RECIPE) {
+		if (!take(kind)) KINDS.some(take);
+	}
+	return deck.map((c) => ({
+		...c,
+		options: [...c.options].sort((a, b) => key(`${c.semId}|${a.key}`) - key(`${c.semId}|${b.key}`))
+	}));
 }
 
-// Practice decks are a fresh random draw over the pack — deck order and each
-// card's option order alike.
-export function practiceDeck(pack: BadgedCountryCard[]): CountryPlayCard[] {
-	return admit(shuffle(pack)).map((c) => playCard(c, shuffle([c.cc, ...c.decoys])));
+// Survival runs every anchor once in a fresh random order (a random one of
+// its kinds), option order alike; the run ends on the last life or the last card.
+export function survivalDeck(pack: PlayCard[]): PlayCard[] {
+	const anchors = new Set<string>();
+	return shuffle(pack)
+		.filter((c) => !anchors.has(c.semId) && anchors.add(c.semId))
+		.map((c) => ({ ...c, options: shuffle(c.options) }));
 }
 
+// One histogram bucket per whole point of the daily (a half rounds down).
 export function runStats(runs: DailyRun[]): RunStats {
-	const hist = HIST_BUCKETS.map(() => 0);
+	const hist = Array.from({ length: DAILY_SIZE + 1 }, () => 0);
 	let total = 0;
 	let best = 0;
 	for (const r of runs) {
-		hist[Math.min(Math.floor(r.score / HIST_STEP), hist.length - 1)] += 1;
+		hist[Math.min(Math.floor(r.score / FULL), DAILY_SIZE)] += 1;
 		total += r.score;
 		best = Math.max(best, r.score);
 	}
-	const avg = runs.length ? Math.round((total / runs.length) * 10) / 10 : 0;
+	const avg = runs.length ? Math.round((total / runs.length / FULL) * 10) / 10 : 0;
 	return { played: runs.length, best, avg, hist };
-}
-
-// Walks an ordered pack into a deck: the first DECK_CAP cards, medical names
-// beyond their quota skipped.
-function admit(ordered: BadgedCountryCard[]): BadgedCountryCard[] {
-	const deck: BadgedCountryCard[] = [];
-	let medical = 0;
-	for (const c of ordered) {
-		if (deck.length === DECK_CAP) break;
-		if (isMedicalName(c.name)) {
-			if (medical === MAX_MEDICAL_CARDS) continue;
-			medical += 1;
-		}
-		deck.push(c);
-	}
-	return deck;
-}
-
-function playCard(c: BadgedCountryCard, options: string[]): CountryPlayCard {
-	return { semId: c.semId, name: c.name, cc: c.cc, note: c.note, badges: c.badges, options };
 }

@@ -1,9 +1,9 @@
-<!-- Personal stats for the country game's daily runs: the browser's own
-	history (localStorage), nothing server-side. Rendered inside GameFrame, so
-	the .ramp-bar chrome is in scope. -->
+<!-- Personal stats for the quiz's daily runs: the browser's own history
+	(localStorage), nothing server-side. Rendered inside GameFrame, so the
+	.ramp-bar chrome is in scope. -->
 <script lang="ts">
-	import type { DailyRun } from '$lib/types/game-countries';
-	import { HIST_BUCKETS, runStats } from '$lib/utils/game-countries';
+	import type { DailyRun } from '$lib/types/game-geo';
+	import { formatPoints, runStats } from '$lib/utils/game-geo';
 
 	export let runs: DailyRun[];
 	export let streak = 0;
@@ -16,14 +16,16 @@
 	<span class="heading">Your daily runs</span>
 	<div class="tiles">
 		<div class="tile"><span class="num">{stats.played}</span><span class="lbl">Played</span></div>
-		<div class="tile"><span class="num">{stats.best}</span><span class="lbl">Best</span></div>
+		<div class="tile">
+			<span class="num">{formatPoints(stats.best)}</span><span class="lbl">Best</span>
+		</div>
 		<div class="tile"><span class="num">{stats.avg}</span><span class="lbl">Average</span></div>
 		<div class="tile"><span class="num">{streak}</span><span class="lbl">Streak</span></div>
 	</div>
 	<div class="hist" aria-label="Runs by score">
 		{#each stats.hist as n, i (i)}
 			<div class="row">
-				<span class="range">{HIST_BUCKETS[i][0]}–{HIST_BUCKETS[i][1]}</span>
+				<span class="range">{i}</span>
 				<div class="track"><div class="bar ramp-bar" style="width: {(n / peak) * 100}%"></div></div>
 				<span class="n">{n}</span>
 			</div>
@@ -76,12 +78,12 @@
 	.hist {
 		display: flex;
 		flex-direction: column;
-		gap: 5px;
+		gap: 4px;
 	}
 
 	.row {
 		display: grid;
-		grid-template-columns: 44px 1fr 24px;
+		grid-template-columns: 24px 1fr 24px;
 		align-items: center;
 		gap: 8px;
 		font-size: var(--text-xs);
@@ -93,7 +95,7 @@
 	}
 
 	.track {
-		height: 12px;
+		height: 10px;
 	}
 
 	.bar {

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { base } from '$app/paths';
 	import type { PageData } from './$types';
-	import { BRAND } from '$lib/utils/game-countries';
+	import { BRAND, PATH } from '$lib/utils/game-geo';
 
 	export let data: PageData;
 </script>
@@ -13,32 +13,31 @@
 
 	<h1>Games</h1>
 	<p class="sub">
-		Card packs come from the MCP object store; "served" is the pack after the serve-time gates
-		(latest non-rejected version, and for {BRAND} at least one top-percentile badge; its decks admit only
-		a few medical names, so that share is shown). Runs are logged daily + practice rounds.
+		<a href="{base}{PATH}">{BRAND}</a> serves one pack per card kind from the MCP object store;
+		"served" is the pack after the serve-time gates (latest non-rejected version, and for country
+		cards at least one top-percentile badge). A daily admits only a few medical names, so that share
+		is shown.
+		{data.runs} runs logged (daily + survival).
+		<a href="{base}/admin/games/cards">→ review the cards</a>
 	</p>
 
 	<div class="table-wrap">
 		<table>
 			<thead>
 				<tr>
-					<th>game</th>
+					<th>kind</th>
 					<th>cards served</th>
 					<th>cards current</th>
 					<th>medical-named</th>
-					<th>runs logged</th>
-					<th>cards</th>
 				</tr>
 			</thead>
 			<tbody>
-				{#each data.games as g (g.route)}
+				{#each data.kinds as k (k.kind)}
 					<tr>
-						<td><a href="{base}{g.route}">{g.title}</a></td>
-						<td>{g.packServed}</td>
-						<td>{g.packCurrent}</td>
-						<td>{g.medicalServed ?? '—'}</td>
-						<td>{g.runs}</td>
-						<td><a href="{base}{g.review}">→ review</a></td>
+						<td>{k.kind}</td>
+						<td>{k.served}</td>
+						<td>{k.current}</td>
+						<td>{k.medical}</td>
 					</tr>
 				{/each}
 			</tbody>

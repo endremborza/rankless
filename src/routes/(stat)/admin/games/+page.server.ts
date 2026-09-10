@@ -2,42 +2,23 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { isAdmin } from '$lib/server/admin';
 import { getDb } from '$lib/server/db';
-import { servedCountryPack } from '$lib/server/game-countries';
+import { servedPack } from '$lib/server/game-geo';
 import { currentObjects } from '$lib/server/objects';
-import { BRAND, PATH, isMedicalName } from '$lib/utils/game-countries';
-
-function countRows(table: string): number {
-	return (getDb().prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n;
-}
+import { KINDS, isMedicalName } from '$lib/utils/game-geo';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	// 404 (not 403) so the page's existence stays hidden from non-admins.
 	if (!isAdmin(locals.user?.orcid)) error(404, 'Not found');
-	const clues = currentObjects('game-card').length;
-	const served = await servedCountryPack();
+	const served = await servedPack();
 	return {
-		games: [
-			{
-				title: BRAND,
-				route: PATH,
-				kind: 'country-card',
-				packCurrent: currentObjects('country-card').length,
-				// served = current AND badge-gated; medical names are quota'd per deck
-				packServed: served.length,
-				medicalServed: served.filter((c) => isMedicalName(c.name)).length,
-				runs: countRows('country_game_results'),
-				review: '/admin/games/countries'
-			},
-			{
-				title: 'Guess the institution',
-				route: '/game-clues',
-				kind: 'game-card',
-				packCurrent: clues,
-				packServed: clues,
-				medicalServed: null,
-				runs: countRows('game_results'),
-				review: '/mcp'
-			}
-		]
+		// served = current AND (for country cards) badge-gated; medical names
+		// are quota'd per daily, so their served share is shown
+		kinds: KINDS.map((kind) => ({
+			kind,
+			current: currentObjects(kind).length,
+			served: served.filter((c) => c.kind === kind).length,
+			medical: served.filter((c) => c.kind === kind && isMedicalName(c.name)).length
+		})),
+		runs: (getDb().prepare('SELECT count(*) AS n FROM geo_game_runs').get() as { n: number }).n
 	};
 };

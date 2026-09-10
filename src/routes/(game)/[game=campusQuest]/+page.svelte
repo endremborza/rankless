@@ -3,18 +3,19 @@
 	import { fly } from 'svelte/transition';
 
 	import type { PageData } from './$types';
-	import CountryStats from '$lib/components/CountryStats.svelte';
 	import GameFrame from '$lib/components/GameFrame.svelte';
+	import GameMap from '$lib/components/GameMap.svelte';
+	import GameStats from '$lib/components/GameStats.svelte';
 	import type {
-		CountryPlayCard,
-		CountryRunLog,
-		CountryRunResult,
 		DailyRun,
-		DayStanding
-	} from '$lib/types/game-countries';
+		DayStanding,
+		PlayCard,
+		PlayOption,
+		RunLog,
+		RunResult
+	} from '$lib/types/game-geo';
 	import {
 		ccFlag,
-		ccName,
 		copyShareText,
 		loadGameState,
 		nextStreak,
@@ -23,17 +24,26 @@
 	} from '$lib/utils/game';
 	import {
 		BRAND,
+		DAILY_SIZE,
 		LIVES,
+		QUESTIONS,
 		RUN_SECONDS,
+		answerLabel,
+		formatPoints,
+		gridLine,
+		lifelineKeep,
 		livesLeft,
+		optionLabel,
+		points,
+		promptLabel,
 		runShareText,
 		verdictLine
-	} from '$lib/utils/game-countries';
+	} from '$lib/utils/game-geo';
 
 	export let data: PageData;
 
 	// Decoupled from the route name: changing the key resets every player's streak.
-	const STORAGE_KEY = 'rankless-game-countries';
+	const STORAGE_KEY = 'rankless-game-geo';
 	const RUN_MS = RUN_SECONDS * 1000;
 	const TICK_MS = 100;
 	// Daily history kept in the browser; oldest runs fall off.
@@ -43,25 +53,32 @@
 		streak: number;
 		lastStanding: DayStanding | null;
 		runs: DailyRun[];
+		survivalBest: number;
 	};
-	const EMPTY_STATE: StoredState = { streak: 0, lastStanding: null, runs: [] };
+	const EMPTY_STATE: StoredState = { streak: 0, lastStanding: null, runs: [], survivalBest: 0 };
 
 	let mounted = false;
-	let mode: 'daily' | 'practice' = 'daily';
+	let mode: 'daily' | 'survival' = 'daily';
 	// `reveal` holds the answered card on screen — hit or miss — with the clock
 	// stopped and its note up until the player continues: into the next card,
 	// or (when that answer ended the run, already booked) into the result screen.
 	let phase: 'idle' | 'playing' | 'reveal' | 'over' = 'idle';
 	let runDone = false;
-	let deck: CountryPlayCard[] = [];
+	let deck: PlayCard[] = [];
 	let idx = -1;
+	// Cards answered so far (hit, miss or timeout).
+	let settled = 0;
 	let picked: string | null = null;
 	let timedOut = false;
+	// The 50:50 on the current card: the two option keys it leaves, if used.
+	let kept: string[] | null = null;
 	let score = 0;
 	let outOf = 0;
 	let missed: string[] = [];
+	let lifelined: string[] = [];
 	let streak = 0;
 	let runs: DailyRun[] = [];
+	let survivalBest = 0;
 	let standing: DayStanding | null = null;
 	let playedToday = false;
 	let copied = false;
@@ -81,11 +98,16 @@
 	onDestroy(stopClock);
 
 	function readState(): StoredState {
-		return loadGameState(STORAGE_KEY, EMPTY_STATE);
+		return { ...EMPTY_STATE, ...loadGameState(STORAGE_KEY, EMPTY_STATE) };
 	}
 
 	function persist() {
-		saveGameState(STORAGE_KEY, { streak, lastStanding: standing, runs } satisfies StoredState);
+		saveGameState(STORAGE_KEY, {
+			streak,
+			lastStanding: standing,
+			runs,
+			survivalBest
+		} satisfies StoredState);
 	}
 
 	function stopClock() {
@@ -95,43 +117,46 @@
 
 	// Restores the finished daily round from storage; false when today is
 	// still unplayed (the caller decides what phase that means). The daily deck
-	// is the same all day, so the stored miss ids resolve against it.
+	// is the same all day, so the stored ids resolve against it.
 	function restoreDaily(): boolean {
 		const stored = readState();
 		streak = stored.streak;
 		runs = stored.runs;
+		survivalBest = stored.survivalBest;
 		const last = runs[runs.length - 1];
 		if (last?.day !== day) return false;
 		playedToday = true;
 		deck = data.deck;
 		score = last.score;
 		outOf = last.outOf;
-		missed = last.missedIds;
+		missed = last.missedSemIds;
+		lifelined = last.lifelinedSemIds;
 		standing = stored.lastStanding;
+		settled = outOf;
 		idx = -1;
 		picked = null;
 		timedOut = false;
+		kept = null;
 		runDone = false;
 		phase = 'over';
 		return true;
 	}
 
-	function beginRun(runMode: 'daily' | 'practice', cards: CountryPlayCard[]) {
+	function beginRun(runMode: 'daily' | 'survival', cards: PlayCard[]) {
 		stopClock();
 		mode = runMode;
 		deck = cards;
 		outOf = cards.length;
 		idx = 0;
+		settled = 0;
 		score = 0;
 		missed = [];
-		picked = null;
-		timedOut = false;
-		standing = null;
+		lifelined = [];
+		if (runMode === 'daily') standing = null;
 		copied = false;
 		showStats = false;
 		runDone = false;
-		phase = 'playing';
-		startTimer();
+		startCard();
 	}
 
 	function startDaily() {
@@ -139,12 +164,12 @@
 		beginRun('daily', data.deck);
 	}
 
-	async function startPractice() {
+	async function startSurvival() {
 		if (fetching) return;
 		fetching = true;
 		try {
-			const res = await fetch('/api/game-countries');
-			if (res.ok) beginRun('practice', (await res.json()) as CountryPlayCard[]);
+			const res = await fetch('/api/game-geo');
+			if (res.ok) beginRun('survival', (await res.json()) as PlayCard[]);
 		} catch {
 			// backend unreachable: stay on the current screen
 		}
@@ -158,7 +183,16 @@
 		if (!restoreDaily()) phase = 'idle';
 	}
 
-	function startTimer() {
+	function startCard() {
+		picked = null;
+		timedOut = false;
+		kept = null;
+		phase = 'playing';
+		startClock();
+	}
+
+	function startClock() {
+		stopClock();
 		deadline = Date.now() + RUN_MS;
 		msLeft = RUN_MS;
 		timer = setInterval(() => {
@@ -170,21 +204,31 @@
 		}, TICK_MS);
 	}
 
-	function pick(cc: string) {
+	function pick(key: string) {
 		if (phase !== 'playing' || picked !== null || !card) return;
-		picked = cc;
-		settle(cc === card.cc);
+		picked = key;
+		settle(key === card.answer);
 	}
 
-	// Every answer holds its reveal. A miss costs a life; an answer that ends the
-	// run — last life or last card — books it right away, so the reveal leads to
-	// the result instead of the next card.
+	// Daily only: two options fall away for half the card's worth, and the
+	// clock starts over.
+	function useLifeline() {
+		if (mode !== 'daily' || phase !== 'playing' || kept || !card) return;
+		kept = lifelineKeep(card, day);
+		lifelined = [...lifelined, card.semId];
+		startClock();
+	}
+
+	// Every answer holds its reveal. The daily runs every card; survival ends on
+	// the last life. A run-ending answer books the run right away, so the
+	// reveal leads to the result instead of the next card.
 	function settle(hit: boolean) {
 		if (!card) return;
 		stopClock();
-		if (hit) score += 1;
+		settled += 1;
+		if (hit) score += points(true, kept !== null);
 		else missed = [...missed, card.semId];
-		runDone = livesLeft(missed.length) === 0 || idx + 1 >= deck.length;
+		runDone = idx + 1 >= deck.length || (mode === 'survival' && livesLeft(missed.length) === 0);
 		if (runDone) finishRun();
 		phase = 'reveal';
 	}
@@ -195,36 +239,39 @@
 			return;
 		}
 		idx += 1;
-		picked = null;
-		timedOut = false;
-		phase = 'playing';
-		startTimer();
+		startCard();
 	}
 
-	// Books the run (streak, history, log) without deciding what is on screen.
+	// Books the run (streak, history, best, log) without deciding what is on screen.
 	function finishRun() {
 		stopClock();
+		const stored = readState();
 		if (mode === 'daily') {
-			const stored = readState();
 			const last = stored.runs[stored.runs.length - 1];
-			// a scoreless run breaks the streak, like giving up does in the clue game
+			// a scoreless run breaks the streak
 			streak = nextStreak(stored.streak, last?.day ?? '', day, score === 0);
 			playedToday = true;
-			runs = [...stored.runs, { day, score, outOf, missedIds: missed }].slice(-MAX_RUNS);
-			persist();
+			runs = [
+				...stored.runs,
+				{ day, score, outOf, missedSemIds: missed, lifelinedSemIds: lifelined }
+			].slice(-MAX_RUNS);
+		} else {
+			survivalBest = Math.max(stored.survivalBest, settled - missed.length);
 		}
+		persist();
 		logRun();
 	}
 
 	async function logRun() {
-		const payload: CountryRunLog = {
+		const payload: RunLog = {
 			mode,
 			day,
 			score,
 			outOf,
-			missedSemIds: missed
+			missedSemIds: missed,
+			lifelinedSemIds: lifelined
 		};
-		const res = await postGameLog<CountryRunResult>('/api/game-countries', payload);
+		const res = await postGameLog<RunResult>('/api/game-geo', payload);
 		if (mode !== 'daily' || !res?.standing) return;
 		standing = res.standing;
 		persist();
@@ -240,32 +287,47 @@
 	}
 
 	$: card = idx >= 0 && idx < deck.length ? deck[idx] : null;
+	$: question = card ? QUESTIONS[card.kind] : null;
 	$: timerPct = (msLeft / RUN_MS) * 100;
+	$: placed = settled - missed.length;
 	$: hearts = '♥'.repeat(livesLeft(missed.length)) + '♡'.repeat(Math.min(missed.length, LIVES));
 	// A pick locks the buttons; reveal/over keep them frozen for the reveal.
 	$: locked = picked !== null || phase === 'reveal' || phase === 'over';
-	$: hit = card !== null && picked === card.cc;
-	$: optionState = (cc: string): string => {
-		if (!locked || !card) return '';
-		if (cc === card.cc) return 'correct';
-		if (cc === picked) return 'wrong';
-		return 'faded';
+	$: hit = card !== null && picked === card.answer;
+	$: optionState = (o: PlayOption): string => {
+		if (!card) return '';
+		if (locked) return o.key === card.answer ? 'correct' : o.key === picked ? 'wrong' : 'faded';
+		return kept && !kept.includes(o.key) ? 'faded' : '';
 	};
-	$: nameClass = card && card.name.length > 42 ? 'sm' : card && card.name.length > 26 ? 'md' : 'lg';
-	$: headerLabel = mode === 'practice' ? 'Practice run' : `Daily · ${day}`;
-	$: swept = score + missed.length >= outOf;
+	$: promptText = card ? promptLabel(card) : '';
+	$: promptClass = promptText.length > 42 ? 'sm' : promptText.length > 26 ? 'md' : 'lg';
+	$: headerLabel = mode === 'survival' ? 'Survival' : `Daily · ${day}`;
 	$: missedCards = missed
 		.map((id) => deck.find((c) => c.semId === id))
-		.filter((c): c is CountryPlayCard => c !== undefined);
-	$: shareText = runShareText(day, score, missed.length, swept);
+		.filter((c): c is PlayCard => c !== undefined);
+	$: grid = gridLine(
+		deck.map((c) => c.semId),
+		missed,
+		lifelined
+	);
+	$: shareText = runShareText(day, score, outOf, grid);
 	$: nextIn = phase === 'over' && mode === 'daily' ? nextDailyText() : '';
+	$: mapPoints =
+		card?.kind === 'nearest-card'
+			? card.options.map((o) => ({
+					lat: o.lat,
+					lon: o.lon,
+					label: o.label,
+					answer: o.key === card?.answer
+				}))
+			: [];
 </script>
 
 <svelte:head>
 	<title>{BRAND} — Rankless</title>
 	<meta
 		name="description"
-		content="Institution names can point far from home. A daily speed round: four flags, {RUN_SECONDS} seconds a name, {LIVES} lives."
+		content="Institution names can point far from home. {DAILY_SIZE} cards a day: where is it actually, which city, which is closest, which one is not here."
 	/>
 </svelte:head>
 
@@ -284,92 +346,126 @@
 				<h1 class="title"><span>Campus</span><span>Quest</span></h1>
 				<div class="ramp-bar title-bar"></div>
 			</div>
-			<p class="tagline">An institution's name can point far from home. Where is it actually?</p>
+			<p class="tagline">
+				An institution's name can point far from home. Where is it actually — and which city, which
+				is closest, which one is not here?
+			</p>
 			<div class="stat-tiles">
 				<div class="stat t0">
-					<span class="num">{data.deck.length}</span><span class="lbl">Names</span>
+					<span class="num">{DAILY_SIZE}</span><span class="lbl">Cards</span>
 				</div>
 				<div class="stat t1">
 					<span class="num">{RUN_SECONDS}s</span><span class="lbl">Each</span>
 				</div>
-				<div class="stat t3"><span class="num">{LIVES}</span><span class="lbl">Lives</span></div>
+				<div class="stat t3"><span class="num">50:50</span><span class="lbl">Lifeline</span></div>
 			</div>
 		</div>
 		<div class="bottom-stack">
 			<button class="g-btn primary" on:click={startDaily}>Play today's run</button>
-			<button class="g-btn ghost" on:click={startPractice} disabled={fetching}>Practice</button>
+			<button class="g-btn ghost" on:click={startSurvival} disabled={fetching}>Survival</button>
 			<div class="foot-note">Same deck for everyone · resets 00:00 UTC</div>
 		</div>
-	{:else if phase === 'playing' || phase === 'reveal'}
+	{:else if (phase === 'playing' || phase === 'reveal') && card && question}
 		<div class="progress-row">
-			<span class="count"
-				>{Math.min(idx + 1, deck.length)}<span class="of">/{deck.length}</span></span
-			>
-			<span class="hearts lives" aria-label="{livesLeft(missed.length)} of {LIVES} lives left"
-				>{hearts}</span
-			>
+			{#if mode === 'daily'}
+				<span class="count">{idx + 1}<span class="of">/{deck.length}</span></span>
+				<span class="count">{formatPoints(score)}<span class="of"> pts</span></span>
+			{:else}
+				<span class="count">{placed}<span class="of"> placed</span></span>
+				<span class="hearts lives" aria-label="{livesLeft(missed.length)} of {LIVES} lives left"
+					>{hearts}</span
+				>
+			{/if}
 		</div>
-		<div class="timer" class:paused={picked !== null || phase === 'reveal'}>
+		<div class="timer" class:paused={locked}>
 			<div
 				class="timer-fill ramp-bar"
 				class:urgent={msLeft < RUN_MS / 4}
 				style="width: {timerPct}%"
 			></div>
 		</div>
-		{#if card}
-			<div class="stage">
-				<span class="ask">Where is</span>
-				<h2 class="uni {nameClass}">{card.name}</h2>
-				<span class="ask">actually?</span>
-				{#if card.badges.length}
-					<div class="badges">
-						{#each card.badges as b, i (i)}
-							<span class="badge">{b.label} · {b.subfield}</span>
-						{/each}
-					</div>
-				{/if}
-			</div>
-			<div class="options">
-				{#each card.options as cc, i (i)}
-					<button class="option t{i} {optionState(cc)}" disabled={locked} on:click={() => pick(cc)}>
-						<span class="opt-flag">{ccFlag(cc)}</span>
-						<span class="opt-name">{ccName(cc)}</span>
-					</button>
-				{/each}
-			</div>
-			{#if phase === 'reveal'}
-				<div class="sheet reveal" in:fly={{ y: 220, duration: 200 }}>
-					<span class="verdict-tag" class:ok={hit}>
-						{hit ? '✓ Correct' : timedOut ? '⏱ Time ran out' : '✗ Wrong'}
-					</span>
-					<div class="sheet-head">
-						<span class="sheet-flag">{ccFlag(card.cc)}</span>
-						<div class="sheet-names">
-							<span class="sheet-country">{ccName(card.cc)}</span>
-							<span class="sheet-uni">{card.name}</span>
-						</div>
-					</div>
-					<p class="note">{card.note}</p>
-					<button class="g-btn primary" on:click={continueFromReveal}>
-						{runDone ? 'See result' : `Next · ${'♥'.repeat(livesLeft(missed.length))}`}
-					</button>
+		<div class="stage">
+			<span class="ask">{question.above}</span>
+			<h2 class="prompt {promptClass}">{promptText}</h2>
+			<span class="ask">{question.below}</span>
+			{#if card.badges.length}
+				<div class="badges">
+					{#each card.badges as b, i (i)}
+						<span class="badge">{b.label} · {b.subfield}</span>
+					{/each}
 				</div>
 			{/if}
+		</div>
+		<div class="options" class:names={question.options !== 'country'}>
+			{#each card.options as o, i (i)}
+				<button
+					class="option t{i} {optionState(o)}"
+					disabled={locked || (kept !== null && !kept.includes(o.key))}
+					on:click={() => pick(o.key)}
+				>
+					{#if question.options === 'country'}
+						<span class="opt-flag">{ccFlag(o.key)}</span>
+					{/if}
+					<span class="opt-name">{optionLabel(card.kind, o)}</span>
+					{#if locked && o.km !== undefined}
+						<span class="opt-km">{o.km} km</span>
+					{/if}
+				</button>
+			{/each}
+		</div>
+		{#if mode === 'daily'}
+			<button class="lifeline" on:click={useLifeline} disabled={locked || kept !== null}>
+				{kept ? '50:50 used · ½ point' : '50:50 · half a point, fresh clock'}
+			</button>
+		{/if}
+		{#if phase === 'reveal'}
+			<div class="sheet reveal" in:fly={{ y: 220, duration: 200 }}>
+				<span class="verdict-tag" class:ok={hit}>
+					{hit ? (kept ? '✓ Correct · ½' : '✓ Correct') : timedOut ? '⏱ Time ran out' : '✗ Wrong'}
+				</span>
+				<div class="sheet-head">
+					{#if question.options === 'country'}
+						<span class="sheet-flag">{ccFlag(card.answer)}</span>
+					{/if}
+					<div class="sheet-names">
+						<span class="sheet-answer">{answerLabel(card)}</span>
+						<span class="sheet-sub">{promptText}</span>
+					</div>
+				</div>
+				{#if card.kind === 'nearest-card'}
+					<GameMap anchor={card} points={mapPoints} />
+				{/if}
+				<p class="note">{card.note}</p>
+				<button class="g-btn primary" on:click={continueFromReveal}>
+					{runDone ? 'See result' : 'Next'}
+				</button>
+			</div>
 		{/if}
 	{:else}
 		<div class="results">
-			<span class="ask">{mode === 'daily' ? `Today's run · ${day}` : 'Practice run'}</span>
-			<p class="verdict">{verdictLine(score, missed.length, outOf)}</p>
-			<div class="score-row">
-				<span class="score-big">{score}</span><span class="score-word">placed</span>
-			</div>
-			<span class="hearts big-hearts">{hearts}</span>
+			<span class="ask">{mode === 'daily' ? `Today's run · ${day}` : 'Survival'}</span>
+			{#if mode === 'daily'}
+				<p class="verdict">{verdictLine(score, outOf)}</p>
+				<div class="score-row">
+					<span class="score-big">{formatPoints(score)}</span><span class="score-word"
+						>/{outOf}</span
+					>
+				</div>
+				<span class="grid">{grid}</span>
+			{:else}
+				<p class="verdict">{placed === outOf ? 'Cleared the whole pack' : 'Run over'}</p>
+				<div class="score-row">
+					<span class="score-big">{placed}</span><span class="score-word">placed</span>
+				</div>
+				<span class="hearts big-hearts">{hearts}</span>
+				<span class="standing">Best {survivalBest}</span>
+			{/if}
 			{#if missedCards.length}
 				<ul class="misses">
 					{#each missedCards as c, i (i)}
 						<li>
-							<span class="miss-name">{c.name}</span>
-							<span class="miss-where">{ccFlag(c.cc)} {ccName(c.cc)}</span>
+							<span class="miss-name">{promptLabel(c)}</span>
+							<span class="miss-where">{answerLabel(c)}</span>
 						</li>
 					{/each}
 				</ul>
@@ -380,7 +476,8 @@
 					<span class="standing">#{standing.rank} of {standing.players} today</span>
 				{/if}
 				<button class="stats-line" on:click={() => (showStats = true)}>
-					Played {runs.length} · Best {Math.max(0, ...runs.map((r) => r.score))} · Stats ›
+					Played {runs.length} · Best {formatPoints(Math.max(0, ...runs.map((r) => r.score)))} · Stats
+					›
 				</button>
 			{/if}
 		</div>
@@ -390,12 +487,10 @@
 					>{copied ? 'Copied!' : 'Share result'}</button
 				>
 				<div class="share-preview">{shareText.split('\n')[1]}</div>
-				<button class="g-btn ghost" on:click={startPractice} disabled={fetching}
-					>Practice run</button
-				>
+				<button class="g-btn ghost" on:click={startSurvival} disabled={fetching}>Survival</button>
 				{#if nextIn}<div class="foot-note">{nextIn}</div>{/if}
 			{:else}
-				<button class="g-btn primary" on:click={startPractice} disabled={fetching}
+				<button class="g-btn primary" on:click={startSurvival} disabled={fetching}
 					>Play again</button
 				>
 				<button class="g-btn ghost" on:click={backToDaily}>Back to daily</button>
@@ -403,7 +498,7 @@
 		</div>
 		{#if showStats}
 			<div class="sheet" in:fly={{ y: 220, duration: 200 }}>
-				<CountryStats {runs} {streak} />
+				<GameStats {runs} {streak} />
 				<button class="g-btn ghost" on:click={() => (showStats = false)}>Close</button>
 			</div>
 		{/if}
@@ -478,9 +573,10 @@
 	}
 
 	.stat .num {
-		font-size: 30px;
+		font-size: 26px;
 		font-weight: 700;
 		line-height: 1;
+		white-space: nowrap;
 	}
 
 	.stat .lbl {
@@ -552,7 +648,7 @@
 		align-items: center;
 		gap: 14px;
 		text-align: center;
-		padding: 0 6px clamp(20px, 6svh, 48px);
+		padding: 0 6px clamp(12px, 4svh, 36px);
 		min-height: 0;
 	}
 
@@ -563,22 +659,22 @@
 		color: var(--game-sub);
 	}
 
-	.uni {
+	.prompt {
 		margin: 0;
 		font-weight: 700;
 		line-height: 1.15;
 		text-wrap: balance;
 	}
 
-	.uni.lg {
+	.prompt.lg {
 		font-size: min(34px, 8.5vw);
 	}
 
-	.uni.md {
+	.prompt.md {
 		font-size: min(27px, 7vw);
 	}
 
-	.uni.sm {
+	.prompt.sm {
 		font-size: min(21px, 5.5vw);
 	}
 
@@ -606,6 +702,7 @@
 	}
 
 	.option {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -634,6 +731,47 @@
 		font-weight: 700;
 		letter-spacing: 1px;
 		text-transform: uppercase;
+	}
+
+	/* Name rows are several times the reading of a flag row: a hard two-line cap. */
+	.options.names .option {
+		height: clamp(84px, 12svh, 110px);
+	}
+
+	.options.names .opt-name {
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		overflow: hidden;
+		letter-spacing: 0.5px;
+		text-transform: none;
+		font-size: 14px;
+		line-height: 1.3;
+	}
+
+	.opt-km {
+		position: absolute;
+		right: 8px;
+		bottom: 6px;
+		font-size: var(--text-xs);
+		color: var(--game-sub);
+	}
+
+	.lifeline {
+		border: 1px dashed var(--border-light);
+		background: none;
+		padding: 8px;
+		font-family: inherit;
+		font-size: var(--text-sm);
+		color: var(--accent-text);
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.lifeline:disabled {
+		cursor: default;
+		color: var(--game-sub);
 	}
 
 	/* Positional tile tints off the palette ramp — decorative, never meaningful. */
@@ -731,16 +869,18 @@
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
+		min-width: 0;
 	}
 
-	.sheet-country {
+	.sheet-answer {
 		font-size: 21px;
 		font-weight: 700;
 		letter-spacing: 1px;
 		text-transform: uppercase;
+		text-wrap: balance;
 	}
 
-	.sheet-uni {
+	.sheet-sub {
 		font-size: var(--text-sm);
 		color: var(--game-sub);
 	}
@@ -787,6 +927,11 @@
 		font-weight: 700;
 	}
 
+	.grid {
+		font-size: 22px;
+		letter-spacing: 2px;
+	}
+
 	.big-hearts {
 		font-size: 24px;
 		letter-spacing: 6px;
@@ -820,6 +965,10 @@
 
 	.miss-where {
 		flex-shrink: 0;
+		max-width: 55%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 		font-weight: 700;
 	}
 
