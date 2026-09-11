@@ -418,7 +418,9 @@
 					{#if question.options === 'country'}
 						<span class="opt-flag">{ccFlag(o.key)}</span>
 					{/if}
-					<span class="opt-name">{optionLabel(card.kind, o)}</span>
+					<span class="opt-name {optionClass(optionLabel(card.kind, o))}"
+						>{optionLabel(card.kind, o)}</span
+					>
 					{#if locked && o.km !== undefined}
 						<span class="opt-km">{o.km} km</span>
 					{/if}
@@ -752,7 +754,8 @@
 		text-transform: uppercase;
 	}
 
-	/* Name rows are several times the reading of a flag row: a hard two-line cap. */
+	/* Name rows are several times the reading of a flag row: a three-line cap,
+	   the type stepping down so a long name shows whole. */
 	.options.names .option {
 		height: clamp(84px, 12svh, 110px);
 	}
@@ -760,13 +763,23 @@
 	.options.names .opt-name {
 		display: -webkit-box;
 		-webkit-box-orient: vertical;
-		-webkit-line-clamp: 2;
-		line-clamp: 2;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
 		overflow: hidden;
 		letter-spacing: 0.5px;
 		text-transform: none;
 		font-size: 14px;
-		line-height: 1.3;
+		line-height: 1.25;
+		text-wrap: balance;
+	}
+
+	.options.names .opt-name.mid {
+		font-size: 12.5px;
+	}
+
+	.options.names .opt-name.long {
+		font-size: 11px;
+		letter-spacing: 0.2px;
 	}
 
 	.opt-km {
