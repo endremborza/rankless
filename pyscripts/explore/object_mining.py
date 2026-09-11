@@ -51,6 +51,20 @@ BREAK_AFTER = 5
 
 
 @dataclass(frozen=True)
+class Generated:
+    """What a workflow's generate step hands the run lifecycle: the accepted
+    objects, how many targets or candidates it considered, the run log, the
+    model spend (`batches`, `seconds`, `output_tokens`, `thinking_tokens`,
+    `usd`) when the workflow measures it, and extra report sections."""
+
+    objects: list[dict]
+    n_targets: int
+    log: list[str]
+    cost: dict | None = None
+    sections: dict[str, list[str]] | None = None
+
+
+@dataclass(frozen=True)
 class GenConfig:
     backend_url: str
     backend_label: str
@@ -129,11 +143,10 @@ def run_bundle(
     count: int,
     kinds: tuple[str, ...],
     session: str,
-    generate: Callable[[sqlite3.Connection], tuple[list[dict], int, list[str]]],
+    generate: Callable[[sqlite3.Connection], Generated],
     report_line: Callable[[dict], str] = default_report_line,
 ) -> None:
     """Shared run lifecycle: session row, bundle write, meta/report, summary.
-    `generate` returns (accepted objects, target/candidate count, log);
     `kinds` are the object kinds the workflow writes, for the stored count."""
     name = session or runs.run_name(workflow, etype)
     con = object_store.connect()
@@ -146,7 +159,8 @@ def run_bundle(
     }
     runs.open_run(con, name, f"{title}: {etype}", params)
     try:
-        objects, n_targets, log = generate(con)
+        gen = generate(con)
+        objects, n_targets = gen.objects, gen.n_targets
         object_store.write_bundle(con, name, objects)
         n_current = sum(
             r["etype"] == etype
@@ -164,7 +178,9 @@ def run_bundle(
                 "stored": n_current,
             },
         }
-        _write_report(name, title, objects, log, meta, report_line)
+        if gen.cost:
+            meta["cost"] = gen.cost
+        _write_report(name, title, objects, gen, meta, report_line)
         runs.close_run(con, name, "done", meta=meta)
     except BaseException as exc:
         runs.close_run(con, name, "failed", error=repr(exc))
@@ -208,9 +224,9 @@ def run(
         refresh=refresh,
     )
 
-    def generate(con: sqlite3.Connection) -> tuple[list[dict], int, list[str]]:
+    def generate(con: sqlite3.Connection) -> Generated:
         objects, targets, log = _generate(con, spec, cfg)
-        return objects, len(targets), log
+        return Generated(objects, len(targets), log)
 
     run_bundle(
         workflow=spec.workflow,
@@ -377,7 +393,7 @@ def _write_report(
     name: str,
     title: str,
     objects: list[dict],
-    log: list[str],
+    gen: Generated,
     meta: dict,
     report_line: Callable[[dict], str],
 ) -> None:
@@ -390,12 +406,23 @@ def _write_report(
         "",
         f"_Model `{meta['model']}` · {meta['generated']} · "
         f"{c['accepted']}/{c['targets']} accepted._",
-        "",
-        "## Accepted",
-        "",
     ]
+    if gen.cost:
+        lines.append(f"_{cost_line(gen.cost)}_")
+    lines += ["", "## Accepted", ""]
     lines += [report_line(o) for o in objects]
-    if log:
+    if gen.log:
         lines += ["", "## Verification log", ""]
-        lines += [f"- {entry}" for entry in log]
+        lines += [f"- {entry}" for entry in gen.log]
+    for heading, body in (gen.sections or {}).items():
+        lines += ["", f"## {heading}", ""]
+        lines += body
     (run_dir / "report.md").write_text("\n".join(lines) + "\n")
+
+
+def cost_line(cost: dict) -> str:
+    return (
+        f"{cost['batches']} model call(s) in {cost['seconds']:.0f} s, "
+        f"{cost['output_tokens']:,} output tokens "
+        f"({cost['thinking_tokens']:,} thinking), ${cost['usd']:.2f}"
+    )
