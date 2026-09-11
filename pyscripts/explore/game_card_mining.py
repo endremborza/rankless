@@ -50,6 +50,9 @@ N_DECOYS = 3
 MIN_TIER1_OPTIONS = 2
 NEAREST_MARGIN = 2.0
 NEAREST_MAX_KM = 2000.0
+# a nearest option sharing the anchor's coordinates is a same-city card in
+# disguise and one dot on the reveal map
+NEAREST_MIN_KM = 1.0
 NEAREST_MENU = 12
 EARTH_RADIUS_KM = 6371.0
 BATCH_SIZE = 20
@@ -312,18 +315,28 @@ def unusable(anchor: Place, world: World) -> dict[str, str]:
 
 
 def menu(
-    anchor: Place, world: World, roster: list[Place], have: dict[str, dict[str, str]]
+    anchor: Place,
+    world: World,
+    roster: list[Place],
+    have: dict[str, dict[str, str]],
+    caps: dict[str, object_mining.CcCap] | None = None,
+    wanted: tuple[str, ...] = KINDS,
 ) -> Menu:
-    """The anchor's menu against the located roster; a nearest card also needs
-    a roster institution within the ceiling."""
+    """The anchor's menu against the located roster: a kind already carded,
+    at its country cap or outside the round's `wanted` kinds is closed, a
+    nearest card also needs a roster institution within the ceiling, and
+    co-located roster entries are left off the distance list."""
     shut = unusable(anchor, world)
     nearest: tuple[tuple[Place, int], ...] = ()
     if "nearest-card" not in shut:
         around = sorted(
             (
-                (o, round(haversine_km(anchor, o)))
+                (o, km)
                 for o in roster
-                if o.sem_id != anchor.sem_id and _located(o) and _located(anchor)
+                if o.sem_id != anchor.sem_id
+                and _located(o)
+                and _located(anchor)
+                and (km := round(haversine_km(anchor, o))) >= NEAREST_MIN_KM
             ),
             key=lambda x: x[1],
         )[:NEAREST_MENU]
@@ -441,6 +454,8 @@ def _judge_nearest(anchor: Place, options: list[Place]) -> tuple[dict | None, st
     if not all(map(_located, [anchor, *options])):
         return None, "an institution has no coordinates"
     ranked = sorted(haversine_km(anchor, o) for o in options)
+    if ranked[0] < NEAREST_MIN_KM:
+        return None, "the nearest shares the anchor's location"
     if ranked[0] > NEAREST_MAX_KM:
         return None, f"nearest is {ranked[0]:.0f} km away, over the ceiling"
     if ranked[1] <= ranked[0] * NEAREST_MARGIN:
