@@ -160,13 +160,34 @@ itself as an `mcp_sessions` row (self-registered from the CLI with `params.origi
   CampusQuest card round, one mixed batch-prompted round over every card kind
   (`country-card`, `intruder-card`, `nearest-card`, `city-card`, `local-card`; no
   per-entity agentic session, the backend already knows name, city and country).
-  Each batch sees a chunk of anchor candidates plus the recognizable-institution
-  roster as its option pool; the model returns question shapes only (kind, anchor,
-  option ids or decoy names, reveal note), never an answer. Every answer is
-  recomputed from `get_entity_profile` facts re-issued through `verify.verify_facts`
-  (coordinates + place, stored on the card as `facts`); a card failing any check is
-  dropped. One bundle holds every kind, `(kind, semId)` is the skip key and the
-  per-country cap applies per kind (no LLM at play time).
+  The work is split: a deterministic harness decides what is _unusable_ (entity X
+  for kind Y) and the model decides what is interesting. `unusable()` shuts kinds
+  per anchor — a curated note in `src/lib/assets/data/institution-notes.json`
+  (`{semId: note}`, never an anchor of any kind, quoted to the prompt), a generic
+  name, a display name shared within the pool, no country, a name stating its own
+  city (every kind but nearest) or country (country, intruder), a tier-1 roster
+  name (country, intruder: placeable by definition), a non-tier-1 name (nearest), a
+  name off the roster (local) — and `menu()` hands the model, per candidate in a
+  batch of 20, the kinds still open and the nearest roster institutions with
+  distances, so it never does geography. The stable system prompt carries the
+  hand-edited `HOUSE_STYLE` taste block, the roster grouped by country as the only
+  legal option ids, the roster's cities as the only legal decoy cities, the
+  countries that can host an intruder card, the notes, and every reviewer
+  rejection (`status_note`) grouped by reason. Proposals are capped at 10 per
+  batch and are question shapes only (kind, anchor, option ids or decoy names,
+  reveal note), never an answer: every answer is recomputed from
+  `get_entity_profile` facts re-issued through `verify.verify_facts` (coordinates +
+  place, stored on the card as `facts`, one memoised profile fetch per institution
+  per run), `judge()` re-applies `unusable()` plus the option rules (roster ids
+  only, at least two of tier 1, the 2× nearest margin, one shared country for the
+  intruder locals, no local option in or naming the asked city), and a card
+  failing any check is dropped. One card per name family per run
+  (`family()`: first identifying word, so Duke University and Duke Medical Center
+  are one). One bundle holds every kind, `(kind, semId)` is the skip key and the
+  per-country cap applies per kind (no LLM at play time). The run log and
+  `report.md` carry per-batch model spend from the CLI's JSON envelope
+  (`cli.query_claude_cli(stats=…)`: seconds, output and thinking tokens, USD) and
+  a "Held back" table listing every candidate the harness shut and why.
 - **`uv run -m pyscripts impact-stories`** (`impact_stories.py`) — short verified
   narratives of how an entity's research gets used (citation flows, landmark papers,
   peers); stories with any unreproducible fact are dropped; approved `impact-story`
