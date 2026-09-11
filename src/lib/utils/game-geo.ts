@@ -23,12 +23,14 @@ export const KINDS: CardKind[] = [
 ];
 
 // The pair on screen is the instruction: each kind asks one question, always,
-// so nothing needs a label. `prompt`/`options` say how each side reads.
+// so nothing needs a label. `prompt`/`options` say how each side reads;
+// `stress` is the one word of the question that flips its meaning.
 export const QUESTIONS: Record<
 	CardKind,
 	{
 		above: string;
 		below: string;
+		stress?: string;
 		prompt: 'institution' | 'country' | 'city';
 		options: 'country' | 'institution' | 'city';
 	}
@@ -49,6 +51,7 @@ export const QUESTIONS: Record<
 	'intruder-card': {
 		above: 'Which is not in',
 		below: '?',
+		stress: 'not',
 		prompt: 'country',
 		options: 'institution'
 	},
@@ -100,6 +103,53 @@ export function promptLabel(card: Pick<PlayCard, 'kind' | 'prompt'>): string {
 	return QUESTIONS[card.kind].prompt === 'country'
 		? `${ccFlag(card.prompt)} ${ccName(card.prompt)}`
 		: card.prompt;
+}
+
+// The question's opening line split around its stressed word: [before, word, after].
+export function askParts(kind: CardKind): [string, string, string] {
+	const q = QUESTIONS[kind];
+	if (!q.stress) return [q.above, '', ''];
+	const at = q.above.indexOf(q.stress);
+	return [q.above.slice(0, at), q.stress, q.above.slice(at + q.stress.length)];
+}
+
+// The reveal's headline flag: the answer's country on a country card, the
+// intruder's real country on an intruder card.
+export function revealFlag(card: PlayCard): string {
+	if (card.kind === 'country-card') return ccFlag(card.answer);
+	if (card.kind === 'intruder-card') return ccFlag(card.cc);
+	return '';
+}
+
+// The line under the reveal's answer: where the answer sits in relation to
+// the question — the intruder's real place, the nearest option's distance,
+// otherwise the prompt itself.
+export function revealSub(card: PlayCard): string {
+	switch (card.kind) {
+		case 'intruder-card':
+			return [card.city, ccName(card.cc)].filter(Boolean).join(', ');
+		case 'nearest-card': {
+			const km = card.options.find((o) => o.key === card.answer)?.km;
+			return km === undefined ? card.prompt : `${km} km from ${card.prompt}`;
+		}
+		default:
+			return promptLabel(card);
+	}
+}
+
+// The miss recap names the question, not just the prompt: "not in France",
+// "in Hangzhou", "closest to X", or the institution asked about.
+export function missPrompt(card: PlayCard): string {
+	switch (card.kind) {
+		case 'intruder-card':
+			return `not in ${promptLabel(card)}`;
+		case 'local-card':
+			return `in ${card.prompt}`;
+		case 'nearest-card':
+			return `closest to ${card.prompt}`;
+		default:
+			return card.prompt;
+	}
 }
 
 export function optionLabel(kind: CardKind, option: PlayOption): string {

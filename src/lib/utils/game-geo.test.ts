@@ -11,13 +11,17 @@ import {
 	LIVES,
 	MAX_MEDICAL_CARDS,
 	PATH,
+	askParts,
 	dailyDeck,
 	formatPoints,
 	gridLine,
 	isMedicalName,
 	lifelineKeep,
 	livesLeft,
+	missPrompt,
 	points,
+	revealFlag,
+	revealSub,
 	runShareText,
 	runStats,
 	survivalDeck,
@@ -38,7 +42,9 @@ function card(kind: CardKind, i: number, name = `University ${i}`): PlayCard {
 		kind,
 		semId: `${kind}-${i}`,
 		name,
-		prompt: name,
+		cc: 'HU',
+		city: 'Budapest',
+		prompt: kind === 'intruder-card' ? 'FR' : kind === 'local-card' ? 'Budapest' : name,
 		options,
 		answer: options[0].key,
 		note: `Note ${i}.`,
@@ -146,6 +152,31 @@ describe('medical quota', () => {
 		const deck = dailyDeck(mixed, '2026-09-10');
 		expect(deck).toHaveLength(DAILY_SIZE);
 		expect(deck.filter((c) => isMedicalName(c.name))).toHaveLength(MAX_MEDICAL_CARDS);
+	});
+});
+
+describe('question text', () => {
+	it('splits the intruder question around its stressed word', () => {
+		expect(askParts('intruder-card')).toEqual(['Which is ', 'not', ' in']);
+		expect(askParts('country-card')).toEqual(['Where is', '', '']);
+	});
+
+	it('reveals the intruder where it really is, with its own flag', () => {
+		const c = card('intruder-card', 1);
+		expect(revealFlag(c)).toBe('🇭🇺');
+		expect(revealSub(c)).toBe('Budapest, Hungary');
+		expect(missPrompt(c)).toBe('not in 🇫🇷 France');
+		expect(revealFlag(card('country-card', 1))).toBe('🇭🇺');
+		expect(revealSub(card('local-card', 1))).toBe('Budapest');
+		expect(missPrompt(card('local-card', 1))).toBe('in Budapest');
+	});
+
+	it('reveals the nearest option by its distance', () => {
+		const c = card('nearest-card', 1);
+		c.options[0].km = 42;
+		expect(revealSub(c)).toBe('42 km from University 1');
+		expect(revealFlag(c)).toBe('');
+		expect(missPrompt(c)).toBe('closest to University 1');
 	});
 });
 

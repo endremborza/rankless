@@ -57,6 +57,10 @@ test('campusquest daily: ten cards of the recipe, a lifeline for half a point, a
 			await expect(page.locator('.reveal svg')).toBeVisible();
 			await expect(page.locator('.opt-km')).toHaveCount(4);
 		}
+		if (DAILY_RECIPE[i] === 'intruder-card') {
+			await expect(page.locator('.stage .stress')).toHaveText('not');
+			await expect(page.locator('.reveal .sheet-sub')).toHaveText('Budapest, Hungary');
+		}
 		await page.click(`button:has-text("${i === DAILY_SIZE - 1 ? 'See result' : 'Next'}")`);
 	}
 

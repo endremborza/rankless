@@ -29,13 +29,17 @@
 		QUESTIONS,
 		RUN_SECONDS,
 		answerLabel,
+		askParts,
 		formatPoints,
 		gridLine,
 		lifelineKeep,
 		livesLeft,
+		missPrompt,
 		optionLabel,
 		points,
 		promptLabel,
+		revealFlag,
+		revealSub,
 		runShareText,
 		verdictLine
 	} from '$lib/utils/game-geo';
@@ -301,6 +305,12 @@
 	};
 	$: promptText = card ? promptLabel(card) : '';
 	$: promptClass = promptText.length > 42 ? 'sm' : promptText.length > 26 ? 'md' : 'lg';
+	$: ask = card ? askParts(card.kind) : ['', '', ''];
+
+	// Long institution names shrink instead of clipping: three lines at most.
+	function optionClass(label: string): string {
+		return label.length > 44 ? 'long' : label.length > 26 ? 'mid' : '';
+	}
 	$: headerLabel = mode === 'survival' ? 'Survival' : `Daily · ${day}`;
 	$: missedCards = missed
 		.map((id) => deck.find((c) => c.semId === id))
@@ -385,7 +395,9 @@
 			></div>
 		</div>
 		<div class="stage">
-			<span class="ask">{question.above}</span>
+			<span class="ask"
+				>{ask[0]}{#if ask[1]}<strong class="stress">{ask[1]}</strong>{/if}{ask[2]}</span
+			>
 			<h2 class="prompt {promptClass}">{promptText}</h2>
 			<span class="ask">{question.below}</span>
 			{#if card.badges.length}
@@ -424,16 +436,16 @@
 					{hit ? (kept ? '✓ Correct · ½' : '✓ Correct') : timedOut ? '⏱ Time ran out' : '✗ Wrong'}
 				</span>
 				<div class="sheet-head">
-					{#if question.options === 'country'}
-						<span class="sheet-flag">{ccFlag(card.answer)}</span>
+					{#if revealFlag(card)}
+						<span class="sheet-flag">{revealFlag(card)}</span>
 					{/if}
 					<div class="sheet-names">
 						<span class="sheet-answer">{answerLabel(card)}</span>
-						<span class="sheet-sub">{promptText}</span>
+						<span class="sheet-sub">{revealSub(card)}</span>
 					</div>
 				</div>
 				{#if card.kind === 'nearest-card'}
-					<GameMap anchor={card} points={mapPoints} />
+					<GameMap anchor={card} anchorLabel={card.name} points={mapPoints} />
 				{/if}
 				<p class="note">{card.note}</p>
 				<button class="g-btn primary" on:click={continueFromReveal}>
@@ -464,7 +476,7 @@
 				<ul class="misses">
 					{#each missedCards as c, i (i)}
 						<li>
-							<span class="miss-name">{promptLabel(c)}</span>
+							<span class="miss-name">{missPrompt(c)}</span>
 							<span class="miss-where">{answerLabel(c)}</span>
 						</li>
 					{/each}
@@ -657,6 +669,13 @@
 		letter-spacing: 3px;
 		text-transform: uppercase;
 		color: var(--game-sub);
+	}
+
+	/* The word that flips the question reads louder than the question. */
+	.stress {
+		font-size: 1.35em;
+		color: var(--color-err);
+		border-bottom: 3px solid var(--color-err);
 	}
 
 	.prompt {
@@ -883,6 +902,7 @@
 	.sheet-sub {
 		font-size: var(--text-sm);
 		color: var(--game-sub);
+		text-wrap: balance;
 	}
 
 	.note {
