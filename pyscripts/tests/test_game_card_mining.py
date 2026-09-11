@@ -2,7 +2,7 @@ import json
 import sqlite3
 
 from pyscripts import object_store
-from pyscripts.explore import cli, object_mining
+from pyscripts.explore import cli
 from pyscripts.explore import game_card_mining as gcm
 
 GENERIC = [
@@ -266,15 +266,12 @@ def test_nearest_needs_a_distinct_location() -> None:
     assert [o.sem_id for o, _ in m.nearest] == ["elte", "lmu", "unideb"]
 
 
-def test_menu_closes_a_kind_at_its_country_cap_or_outside_the_round() -> None:
+def test_menu_closes_kinds_outside_the_round() -> None:
     have = {k: {} for k in gcm.KINDS}
-    caps = {k: object_mining.CcCap([], 1) for k in gcm.KINDS}
-    caps["city-card"].add("SK")
-    m = gcm.menu(BRATISLAVA, WORLD, ROSTER, have, caps)
-    assert m.open == ("nearest-card", "local-card")
-    assert "city-card" not in m.shut
-    m = gcm.menu(BRATISLAVA, WORLD, ROSTER, have, caps, ("local-card", "city-card"))
-    assert m.open == ("local-card",)
+    m = gcm.menu(BRATISLAVA, WORLD, ROSTER, have)
+    assert m.open == ("nearest-card", "city-card", "local-card")
+    m = gcm.menu(BRATISLAVA, WORLD, ROSTER, have, ("local-card", "city-card"))
+    assert m.open == ("local-card", "city-card")
 
 
 def test_intruder_card_recomputes_the_country_from_the_locals() -> None:

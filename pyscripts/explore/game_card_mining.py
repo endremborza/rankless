@@ -19,7 +19,7 @@ failing any check is dropped, never corrected. Reviewer rejections
 `HOUSE_STYLE` block steers it without code, and the run report lists every
 candidate the harness held back and why. One immutable bundle holds every
 kind; `(kind, semId)` is the skip key, an anchor carries one card per kind, a
-name family one card per run, and the per-country cap applies per kind.
+name family one card per run.
 
     uv run -m pyscripts rankless-game-card-mining --backend local --count 100
 """
@@ -248,7 +248,6 @@ def main(
     count: int = 100,
     pool: int = 3000,
     skip: int = 0,
-    per_country: int = 20,
     model: str = "sonnet-5",
     engine: str = runner.DEFAULT_RUNNER,
     session: str = "",
@@ -258,10 +257,10 @@ def main(
     """Mine geography-quiz cards of every kind into the MCP object store; each
     run is an mcp_session and writes one immutable bundle. Candidates come from
     the citation-ordered slice ranks --skip..--skip+--pool; --count caps new
-    cards per run, --per-country caps each kind's pack per country, --kinds
-    (comma-separated) opens only those kinds so a starved kind gets a round of
-    its own (--session joins a worker-claimed session row; --backend as in
-    explore.deep). --audit instead re-judges every stored card against the
+    cards per run, --kinds (comma-separated) opens only those kinds so a
+    starved kind gets a round of its own (--session joins a worker-claimed
+    session row; --backend as in explore.deep). --audit instead re-judges
+    every stored card against the
     current rules and prints the failures with the index ids `objects
     set-status` takes: no model call, nothing written."""
     if engine != runner.DEFAULT_RUNNER:
@@ -289,9 +288,7 @@ def main(
         count=count,
         kinds=KINDS,
         session=session,
-        generate=lambda con: _generate(
-            con, count, pool, skip, per_country, model, wanted
-        ),
+        generate=lambda con: _generate(con, count, pool, skip, model, wanted),
         report_line=report_line,
     )
 
@@ -360,12 +357,11 @@ def menu(
     world: World,
     roster: list[Place],
     have: dict[str, dict[str, str]],
-    caps: dict[str, object_mining.CcCap] | None = None,
     wanted: tuple[str, ...] = KINDS,
 ) -> Menu:
-    """The anchor's menu against the located roster: a kind already carded,
-    at its country cap or outside the round's `wanted` kinds is closed, a
-    nearest card also needs a roster institution within the ceiling, and
+    """The anchor's menu against the located roster: a kind already carded
+    or outside the round's `wanted` kinds is closed, a nearest card also
+    needs a roster institution within the ceiling, and
     co-located roster entries are left off the distance list."""
     shut = unusable(anchor, world)
     nearest: tuple[tuple[Place, int], ...] = ()
@@ -387,13 +383,7 @@ def menu(
             )
         else:
             nearest = tuple(around)
-    open_ = tuple(
-        k
-        for k in wanted
-        if k not in shut
-        and anchor.sem_id not in have[k]
-        and not (caps and caps[k].full(anchor.cc))
-    )
+    open_ = tuple(k for k in wanted if k not in shut and anchor.sem_id not in have[k])
     return Menu(open_, shut, nearest)
 
 
@@ -626,7 +616,6 @@ def _generate(
     count: int,
     pool: int,
     skip: int,
-    per_country: int,
     model: str,
     wanted: tuple[str, ...] = KINDS,
 ) -> object_mining.Generated:
@@ -650,7 +639,6 @@ def _generate(
         f"{len(held)} held back for some kind; model={model}; "
         f"{sum(map(len, have.values()))} card(s) already stored"
     )
-    caps = {k: object_mining.CcCap(have[k].values(), per_country) for k in KINDS}
     cost = {
         "batches": 0,
         "seconds": 0.0,
@@ -676,7 +664,7 @@ def _generate(
         start = pos - len(chunk)
         reached = list(index).index(chunk[-1].sem_id) + 1
         placed = asyncio.run(_locate(chunk, calls, log))
-        menus = {p.sem_id: menu(p, world, roster, have, caps, wanted) for p in placed}
+        menus = {p.sem_id: menu(p, world, roster, have, wanted) for p in placed}
         for p in placed:
             if p.sem_id in menus and not menus[p.sem_id].open:
                 held.append((p, menus[p.sem_id].shut))
@@ -718,7 +706,6 @@ def _generate(
                 roster_by_id,
                 world,
                 have,
-                caps,
                 families,
                 count - len(objects),
                 log,
@@ -927,7 +914,6 @@ async def _build_batch(
     roster_by_id: dict[str, Place],
     world: World,
     have: dict[str, dict[str, str]],
-    caps: dict[str, object_mining.CcCap],
     families: set[str],
     room: int,
     log: list[str],
@@ -954,12 +940,6 @@ async def _build_batch(
                     f"drop {sem}: name family {fam!r} already carded this run",
                 )
                 continue
-            if caps[kind].full(cc):
-                object_mining.log_note(
-                    log, WORKFLOW, f"drop {sem}: {kind} {cc} at per-country cap"
-                )
-                continue
-            caps[kind].add(cc)
             have[kind][sem] = cc
             families.add(fam)
             objects.append(obj)
