@@ -37,6 +37,7 @@ from pathlib import Path
 import mcp_server
 from mcp_server import client as be_client
 from mcp_server import verify
+from pyscripts import object_store
 from pyscripts.explore import cli, object_mining, runner
 
 WORKFLOW = "rankless-game-card-mining"
@@ -251,12 +252,18 @@ def main(
     model: str = "sonnet-5",
     engine: str = runner.DEFAULT_RUNNER,
     session: str = "",
+    kinds: str = "",
+    audit: bool = False,
 ) -> None:
     """Mine geography-quiz cards of every kind into the MCP object store; each
     run is an mcp_session and writes one immutable bundle. Candidates come from
     the citation-ordered slice ranks --skip..--skip+--pool; --count caps new
-    cards per run, --per-country caps each kind's pack per country (--session
-    joins a worker-claimed session row; --backend as in explore.deep)."""
+    cards per run, --per-country caps each kind's pack per country, --kinds
+    (comma-separated) opens only those kinds so a starved kind gets a round of
+    its own (--session joins a worker-claimed session row; --backend as in
+    explore.deep). --audit instead re-judges every stored card against the
+    current rules and prints the failures with the index ids `objects
+    set-status` takes: no model call, nothing written."""
     if engine != runner.DEFAULT_RUNNER:
         raise SystemExit(
             f"{WORKFLOW} only supports the {runner.DEFAULT_RUNNER!r} engine"
@@ -265,6 +272,12 @@ def main(
         raise SystemExit(f"{WORKFLOW} mines {ETYPE} only")
     backend_url, backend_label = mcp_server.resolve_backend(backend)
     mcp_server.set_backend(backend_url)
+    if audit:
+        _audit(pool)
+        return
+    wanted = tuple(k for k in KINDS if k in kinds.split(",")) if kinds else KINDS
+    if not wanted:
+        raise SystemExit(f"--kinds must name some of {list(KINDS)}")
     model = cli.resolve_model(model)
     object_mining.run_bundle(
         workflow=WORKFLOW,
@@ -438,6 +451,33 @@ def report_line(o: dict) -> str:
     else:
         detail = f"in {p['city']} vs {', '.join(x['name'] for x in opts)}"
     return f"- `{o['sem_id']}` [{o['kind']}] — {o['title']} ({detail})"
+
+
+def stored_places(
+    kind: str, payload: dict, index: dict[str, Place]
+) -> tuple[Place, list[Place]]:
+    """The anchor and options of a stored card as places, read from the
+    payload's own fields, its reproduced facts, then the pool."""
+    facts = {
+        (f["args"]["semantic_id"], f["path"]): f.get("reproduced")
+        for f in payload.get("facts", [])
+    }
+
+    def place(o: dict) -> Place:
+        sem = o["semId"]
+        distinct = facts.get((sem, "distinctText"))
+        fact_city, fact_cc = place_parts(str(distinct)) if distinct else ("", "")
+        pooled = index.get(sem)
+        return Place(
+            sem,
+            o["name"],
+            o.get("city") or fact_city or (pooled.city if pooled else ""),
+            o.get("cc") or fact_cc or (pooled.cc if pooled else ""),
+            float(o.get("lat") or facts.get((sem, "meta.lat")) or 0),
+            float(o.get("lon") or facts.get((sem, "meta.lon")) or 0),
+        )
+
+    return place(payload), [place(o) for o in payload.get("options", [])]
 
 
 def unusable_line(anchor: Place, shut: dict[str, str]) -> str:
@@ -690,6 +730,38 @@ def _generate(
     ]
     return object_mining.Generated(
         objects, len(candidates), log, cost=cost, sections={"Held back": table}
+    )
+
+
+def _audit(pool: int) -> None:
+    """Every current card of these kinds re-judged against the current rules,
+    grouped by the reason it fails. A tightened rule lists older cards too."""
+    index, world = asyncio.run(_load_pool(0, pool))
+    con = object_store.connect()
+    failing: dict[tuple[str, str], list[tuple[int, str, str]]] = {}
+    try:
+        for kind in KINDS:
+            rows = [r for r in object_store.current(con, kind) if r["etype"] == ETYPE]
+            for row, entry in zip(rows, object_store.read_entries(rows)):
+                if entry is None:
+                    continue
+                p = entry["payload"]
+                anchor, options = stored_places(kind, p, index)
+                fragment, why = judge(kind, anchor, options, p.get("decoys", []), world)
+                if fragment is None:
+                    key = (kind, why.split(" [")[0])
+                    failing.setdefault(key, []).append(
+                        (row["id"], p["semId"], p["name"])
+                    )
+    finally:
+        con.close()
+    for (kind, why), cards in sorted(failing.items()):
+        ids = ",".join(str(i) for i, _, _ in cards)
+        print(f"{kind} — {why} ({len(cards)}) ids {ids}")
+        for _, sem, name in cards:
+            print(f"  {sem}\t{name}")
+    print(
+        f"[{WORKFLOW}] {sum(map(len, failing.values()))} stored card(s) fail the current rules"
     )
 
 

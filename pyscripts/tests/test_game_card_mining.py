@@ -343,6 +343,34 @@ def test_unusable_line_groups_kinds_by_reason() -> None:
     assert line.endswith(": names its own city (country, intruder, city, local)")
 
 
+def test_stored_places_read_payload_facts_then_pool() -> None:
+    fact = lambda sem, path, value: {  # noqa: E731
+        "args": {"semantic_id": sem},
+        "path": path,
+        "reproduced": value,
+    }
+    payload = {
+        "semId": "elte",
+        "name": "Eötvös Loránd University",
+        "cc": "HU",
+        "country": "AT",
+        "options": [{"semId": "univie", "name": "University of Vienna", "cc": "AT"}],
+        "facts": [
+            fact("elte", "meta.lat", "47.49"),
+            fact("elte", "meta.lon", "19.06"),
+            fact("elte", "distinctText", "Budapest, 🇭🇺"),
+            fact("univie", "meta.lat", "48.21"),
+            fact("univie", "meta.lon", "16.37"),
+            fact("univie", "distinctText", "Vienna, 🇦🇹"),
+        ],
+    }
+    anchor, options = gcm.stored_places("intruder-card", payload, {})
+    assert anchor == ELTE and options == [VIENNA]
+    bare = {"semId": "szte", "name": "University of Szeged", "cc": "HU", "options": []}
+    anchor, _ = gcm.stored_places("country-card", bare, {"szte": SZEGED})
+    assert anchor.city == "Szeged" and anchor.lat == 0
+
+
 def test_taste_groups_rejection_notes_with_examples() -> None:
     con = sqlite3.connect(":memory:")
     con.executescript(object_store.SCHEMA)
