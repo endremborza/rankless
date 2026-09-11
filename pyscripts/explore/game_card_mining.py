@@ -96,6 +96,26 @@ _FAMILY_STOP = frozenset(
 
 _TIER_REASONS = frozenset({"tier-1 fame", "not a tier-1 anchor", "not on the roster"})
 
+# The connectors after which a place name only qualifies its head word
+# (Newcastle upon Tyne, Frankfurt am Main, Freiburg im Breisgau).
+_PLACE_TAIL_RE = re.compile(r"\s+(?:upon|on|am|im|an|sur|de|del|di|du|bei|by)\s+|-")
+
+# Former or foreign names a place is still known by in institution names.
+_OLD_NAMES = {
+    "peking": "beijing",
+    "nanking": "nanjing",
+    "canton": "guangzhou",
+    "bombay": "mumbai",
+    "madras": "chennai",
+    "calcutta": "kolkata",
+    "bangalore": "bengaluru",
+    "kiev": "kyiv",
+    "leningrad": "saint petersburg",
+    "saigon": "ho chi minh city",
+    "rangoon": "yangon",
+    "constantinople": "istanbul",
+}
+
 # Hand-edited taste block, quoted to the model verbatim: what makes a card
 # interesting and what makes it boring. Edit the text, not the code.
 HOUSE_STYLE = """\
@@ -112,6 +132,9 @@ Interesting:
 - an intruder whose name reads as the asked country better than the locals do
 - a local card in a city with more than one famous institution, where every
   option is a name players know
+- local and intruder options that are plausible for the place — the same
+  country or region, names that do not say where they are — so the answer
+  takes knowledge, not elimination
 - a reveal note that teaches one thing: where it really is and why the wrong
   answer tempted
 
@@ -121,7 +144,8 @@ Boring:
 - names that state their country, city or demonym; institutes named after a
   plain field ("Institute of Physics")
 - options that are famous but obviously elsewhere, so the answer is the only
-  plausible one
+  plausible one; options whose names state their city or country, which a
+  player crosses out without knowing anything
 - an anchor whose only interest is being obscure: a player needs a reason to
   guess wrong, not no reason to guess at all
 - a second card on the same theme in one batch (three Max Planck cards, three
@@ -150,17 +174,19 @@ fixed question:
   that country and one elsewhere. "Which one is not here?" The anchor IS the
   intruder: an institution whose name reads as that country but sits
   elsewhere. Give three ROSTER institutions of one INTRUDER COUNTRY as options;
-  their names should read as that country.
+  their names should read as that country without stating it (no † entries).
 - local-card — prompt: a city; options: four institutions, one in that city
   and three elsewhere. "Which one is here?" The anchor IS the local one. Give
-  three ROSTER institutions outside the anchor's city, none naming it.
+  three ROSTER institutions outside the anchor's city whose names state
+  neither the asked city nor their own place (no † entries).
 
 The harness decides what is usable; you decide what is interesting. Each
 candidate comes with the kinds still open to it — everything else is already
 carded or excluded, so propose nothing outside that list — and, for nearest
 cards, the nearest ROSTER institutions with their distance in km. Option ids
-come only from the ROSTER; nearest, intruder and local cards need at least two
-options of tier 1; decoy cities come only from CITIES. You never state an
+come only from the ROSTER; nearest and local cards need at least two options
+of tier 1; a † roster entry (its name states its own city or country) can be
+a nearest option only; decoy cities come only from CITIES. You never state an
 answer, a country, a distance or a number: every answer is recomputed from
 the data and a card failing any check is dropped.
 
@@ -295,9 +321,9 @@ def unusable(anchor: Place, world: World) -> dict[str, str]:
     if not anchor.cc:
         return dict.fromkeys(KINDS, "no country")
     shut: dict[str, str] = {}
-    if names(anchor.name, anchor.city):
+    if states(anchor.name, anchor.city):
         shut = {k: "names its own city" for k in KINDS if k != "nearest-card"}
-    if names(anchor.name, world.country_names.get(anchor.cc)):
+    if states(anchor.name, world.country_names.get(anchor.cc)):
         shut.setdefault("country-card", "names its own country")
         shut.setdefault("intruder-card", "names its own country")
     if not anchor.city:
@@ -361,7 +387,7 @@ def judge(
         return _judge_country(anchor, decoys, world)
     if kind == "city-card":
         return _judge_city(anchor, decoys, world)
-    if why := _options_reject(options, world):
+    if why := _options_reject(options, world, kind):
         return None, why
     if kind == "nearest-card":
         return _judge_nearest(anchor, options)
@@ -377,6 +403,25 @@ def names(haystack: str, needle: str | None) -> bool:
     if not needle:
         return False
     return set(_tokens(needle)) <= set(_tokens(haystack))
+
+
+def states(name: str, place: str | None) -> bool:
+    """Whether an institution name states a place: its full name, its head
+    word before a qualifying connector (Newcastle University states Newcastle
+    upon Tyne), or a former name (Peking University states Beijing)."""
+    if not place:
+        return False
+    head = _PLACE_TAIL_RE.split(place, maxsplit=1)[0]
+    folded = _fold(place)
+    return (
+        names(name, place)
+        or names(name, head)
+        or any(names(name, old) for old, new in _OLD_NAMES.items() if new == folded)
+    )
+
+
+def states_own_place(p: Place, world: World) -> bool:
+    return states(p.name, p.city) or states(p.name, world.country_names.get(p.cc))
 
 
 def report_line(o: dict) -> str:
@@ -412,11 +457,20 @@ def unusable_line(anchor: Place, shut: dict[str, str]) -> str:
     return f"- `{anchor.sem_id}` {anchor.name}: {'; '.join(parts)}"
 
 
-def _options_reject(options: list[Place], world: World) -> str:
+def _options_reject(options: list[Place], world: World, kind: str) -> str:
+    """Option rules by kind: every option is a roster name; a nearest or local
+    card leans on fame (two of tier 1); an intruder or local card is decided
+    by knowledge, so no option may state its own city or country."""
     if off := [o.sem_id for o in options if o.sem_id not in world.tiers]:
         return f"options off the roster {off}"
-    if sum(world.tiers[o.sem_id] == 1 for o in options) < MIN_TIER1_OPTIONS:
+    if kind != "intruder-card" and (
+        sum(world.tiers[o.sem_id] == 1 for o in options) < MIN_TIER1_OPTIONS
+    ):
         return f"fewer than {MIN_TIER1_OPTIONS} tier-1 options"
+    if kind != "nearest-card" and (
+        telling := [o.name for o in options if states_own_place(o, world)]
+    ):
+        return f"options stating their own place {telling}"
     return ""
 
 
@@ -488,7 +542,7 @@ def _judge_local(anchor: Place, options: list[Place]) -> tuple[dict | None, str]
         return None, "anchor has no city"
     if same := [o.name for o in options if _fold(o.city) == _fold(anchor.city)]:
         return None, f"options in the asked city {same}"
-    if named := [o.name for o in options if names(o.name, anchor.city)]:
+    if named := [o.name for o in options if states(o.name, anchor.city)]:
         return None, f"options naming the city {named}"
     return {
         "city": anchor.city,
@@ -711,7 +765,9 @@ def _system_prompt(world: World, roster: list[Place], taste: list[str]) -> str:
     roster_block = "\n".join(
         f"# {cc}\n"
         + "\n".join(
-            f"{p.sem_id}\t{p.name}\t{p.city}\t{world.tiers[p.sem_id]}" for p in ps
+            f"{p.sem_id}\t{p.name}\t{p.city}\t{world.tiers[p.sem_id]}"
+            f"{'†' if states_own_place(p, world) else ''}"
+            for p in ps
         )
         for cc, ps in sorted(by_cc.items())
     )
@@ -723,7 +779,8 @@ def _system_prompt(world: World, roster: list[Place], taste: list[str]) -> str:
         [
             _RULES,
             HOUSE_STYLE,
-            "ROSTER — the only legal option ids (id, name, city, tier), by country:\n"
+            "ROSTER — the only legal option ids (id, name, city, tier; † = the name "
+            "states its own city or country, nearest option only), by country:\n"
             f"{roster_block}",
             "CITIES — the only legal decoy cities:\n"
             f"{', '.join(sorted(set(world.cities.values())))}",
@@ -735,10 +792,8 @@ def _system_prompt(world: World, roster: list[Place], taste: list[str]) -> str:
 
 
 def _hosts_intruder(locals_: list[Place], world: World) -> bool:
-    return (
-        len(locals_) >= N_OPTIONS["intruder-card"]
-        and sum(world.tiers[p.sem_id] == 1 for p in locals_) >= MIN_TIER1_OPTIONS
-    )
+    usable = [p for p in locals_ if not states_own_place(p, world)]
+    return len(usable) >= N_OPTIONS["intruder-card"]
 
 
 def _user_prompt(chunk: list[Place], menus: dict[str, Menu]) -> str:

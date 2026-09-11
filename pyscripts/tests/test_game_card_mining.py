@@ -2,7 +2,7 @@ import json
 import sqlite3
 
 from pyscripts import object_store
-from pyscripts.explore import cli
+from pyscripts.explore import cli, object_mining
 from pyscripts.explore import game_card_mining as gcm
 
 GENERIC = [
@@ -47,7 +47,8 @@ CERN = gcm.Place(
     "cern", "European Organization for Nuclear Research", "Geneva", "CH", 46.23, 6.05
 )
 DEBRECEN = gcm.Place("unideb", "Kossuth University", "Debrecen", "HU", 47.53, 21.63)
-ROSTER = [ELTE, VIENNA, BRATISLAVA, MUNICH, BUDAPEST, SZEGED, DEBRECEN]
+PECS = gcm.Place("pte", "Janus Pannonius University", "Pécs", "HU", 46.07, 18.23)
+ROSTER = [ELTE, VIENNA, BRATISLAVA, MUNICH, BUDAPEST, SZEGED, DEBRECEN, PECS]
 
 WORLD = gcm.World(
     iso2=frozenset({"HU", "AT", "SK", "DE", "GE", "US", "GB", "FR"}),
@@ -61,6 +62,7 @@ WORLD = gcm.World(
         "unideb": 1,
         "bme": 2,
         "szte": 2,
+        "pte": 2,
     },
     notes={"noted": "never an anchor"},
     homonyms=frozenset({"twin"}),
@@ -79,6 +81,18 @@ def test_names_matches_whole_words_only() -> None:
     assert gcm.names("Université de Genève", "geneve")
     assert not gcm.names("Indiana University", "India")
     assert not gcm.names("Anything", None)
+
+
+def test_states_reads_head_words_and_former_place_names_too() -> None:
+    assert gcm.states("Peking University", "Beijing")
+    assert gcm.states("University of Tokyo", "Tokyo")
+    assert gcm.states("Newcastle University", "Newcastle upon Tyne")
+    assert gcm.states("Goethe University Frankfurt", "Frankfurt am Main")
+    assert gcm.states("University of Freiburg", "Freiburg im Breisgau")
+    assert gcm.states("Universidad de Buenos Aires", "Buenos Aires")
+    assert not gcm.states("Fudan University", "Shanghai")
+    assert not gcm.states("New York University", "Newark")
+    assert not gcm.states("Anything", "")
 
 
 def test_name_family_is_the_first_identifying_word() -> None:
@@ -134,6 +148,7 @@ def test_menu_lists_the_roster_around_a_tier1_anchor() -> None:
         "univie",
         "elte",
         "bme",
+        "pte",
         "szte",
         "unideb",
         "lmu",
@@ -211,59 +226,102 @@ def test_options_must_be_roster_ids_with_two_of_tier_1() -> None:
         "nearest-card", BRATISLAVA, [ELTE, VIENNA, MUNICH, CERN], [], WORLD
     )
     assert ok is None and why == "options off the roster ['cern']"
-    ok, why = gcm.judge("local-card", ELTE, [VIENNA, BUDAPEST, SZEGED], [], WORLD)
+    ok, why = gcm.judge("local-card", ELTE, [DEBRECEN, BUDAPEST, SZEGED], [], WORLD)
     assert ok is None and why == "fewer than 2 tier-1 options"
+
+
+def test_intruder_and_local_options_never_state_their_own_place() -> None:
+    # Vienna and Munich name their cities: fine as nearest options only
+    ok, why = gcm.judge(
+        "nearest-card", BRATISLAVA, [ELTE, VIENNA, MUNICH, SZEGED], [], WORLD
+    )
+    assert ok is not None, why
+    ok, why = gcm.judge("local-card", ELTE, [VIENNA, MUNICH, BRATISLAVA], [], WORLD)
+    assert ok is None and why.startswith("options stating their own place")
+    peking = gcm.Place("pku", "Peking University", "Beijing", "CN", 39.99, 116.31)
+    world = gcm.World(
+        WORLD.iso2, WORLD.cities, WORLD.country_names, WORLD.tiers | {"pku": 1}
+    )
+    ok, why = gcm.judge("local-card", ELTE, [peking, BRATISLAVA, DEBRECEN], [], world)
+    assert ok is None and why == "options stating their own place ['Peking University']"
+    # intruder locals need no tier-1 fame, only names that give nothing away
+    ok, why = gcm.judge("intruder-card", CERN, [ELTE, BUDAPEST, SZEGED], [], WORLD)
+    assert ok is None and why.startswith("options stating their own place")
+    ok, why = gcm.judge("intruder-card", CERN, [PECS, DEBRECEN, SZEGED], [], WORLD)
+    assert (
+        ok is None and why == "options stating their own place ['University of Szeged']"
+    )
+    ok, why = gcm.judge("intruder-card", CERN, [PECS, DEBRECEN, ELTE], [], WORLD)
+    assert ok is not None and ok["country"] == "HU", why
+
+
+def test_nearest_needs_a_distinct_location() -> None:
+    twin = gcm.Place("uniba", "Comenius University", "Bratislava", "SK", 48.21, 16.37)
+    ok, why = gcm.judge(
+        "nearest-card", VIENNA, [twin, ELTE, MUNICH, DEBRECEN], [], WORLD
+    )
+    assert ok is None and why == "the nearest shares the anchor's location"
+    have = {k: {} for k in gcm.KINDS}
+    m = gcm.menu(VIENNA, WORLD, [twin, ELTE, MUNICH, DEBRECEN], have)
+    assert [o.sem_id for o, _ in m.nearest] == ["elte", "lmu", "unideb"]
+
+
+def test_menu_closes_a_kind_at_its_country_cap_or_outside_the_round() -> None:
+    have = {k: {} for k in gcm.KINDS}
+    caps = {k: object_mining.CcCap([], 1) for k in gcm.KINDS}
+    caps["city-card"].add("SK")
+    m = gcm.menu(BRATISLAVA, WORLD, ROSTER, have, caps)
+    assert m.open == ("nearest-card", "local-card")
+    assert "city-card" not in m.shut
+    m = gcm.menu(BRATISLAVA, WORLD, ROSTER, have, caps, ("local-card", "city-card"))
+    assert m.open == ("local-card",)
 
 
 def test_intruder_card_recomputes_the_country_from_the_locals() -> None:
-    ok, why = gcm.judge("intruder-card", CERN, [ELTE, BUDAPEST, SZEGED], [], WORLD)
-    assert ok is None and why == "fewer than 2 tier-1 options"
-    ok, why = gcm.judge("intruder-card", CERN, [ELTE, BUDAPEST, DEBRECEN], [], WORLD)
+    ok, why = gcm.judge("intruder-card", CERN, [ELTE, PECS, DEBRECEN], [], WORLD)
     assert ok is not None and ok["country"] == "HU", why
-    assert [o["semId"] for o in ok["options"]] == ["elte", "bme", "unideb"]
-    ok, why = gcm.judge(
-        "intruder-card", BRATISLAVA, [ELTE, BUDAPEST, DEBRECEN], [], WORLD
-    )
+    assert [o["semId"] for o in ok["options"]] == ["elte", "pte", "unideb"]
+    ok, why = gcm.judge("intruder-card", BRATISLAVA, [ELTE, PECS, DEBRECEN], [], WORLD)
     assert ok is None and why == "tier-1 fame"
-    ok, _ = gcm.judge("intruder-card", CERN, [ELTE, VIENNA, DEBRECEN], [], WORLD)
+    ok, _ = gcm.judge("intruder-card", CERN, [ELTE, BRATISLAVA, DEBRECEN], [], WORLD)
     assert ok is None
-    ok, _ = gcm.judge("intruder-card", ELTE, [BUDAPEST, DEBRECEN, VIENNA], [], WORLD)
+    ok, _ = gcm.judge("intruder-card", ELTE, [PECS, DEBRECEN, BRATISLAVA], [], WORLD)
     assert ok is None
     us_named = gcm.Place(
         "usn", "United States Naval Academy", "Annapolis", "US", 38.98, -76.48
     )
-    ok, _ = gcm.judge("intruder-card", us_named, [ELTE, BUDAPEST, DEBRECEN], [], WORLD)
+    ok, _ = gcm.judge("intruder-card", us_named, [ELTE, PECS, DEBRECEN], [], WORLD)
     assert ok is None
 
 
 def test_local_card_keeps_the_others_out_of_the_city_and_its_name() -> None:
-    ok, why = gcm.judge("local-card", ELTE, [VIENNA, MUNICH, BRATISLAVA], [], WORLD)
+    ok, why = gcm.judge("local-card", ELTE, [BRATISLAVA, DEBRECEN, PECS], [], WORLD)
     assert ok is not None and ok["city"] == "Budapest", why
     assert ok["options"][0] == {
-        "semId": "univie",
-        "name": "University of Vienna",
-        "cc": "AT",
-        "city": "Vienna",
+        "semId": "uniba",
+        "name": "Comenius University",
+        "cc": "SK",
+        "city": "Bratislava",
     }
-    ok, _ = gcm.judge("local-card", ELTE, [BUDAPEST, MUNICH, BRATISLAVA], [], WORLD)
+    ok, _ = gcm.judge("local-card", ELTE, [BUDAPEST, BRATISLAVA, DEBRECEN], [], WORLD)
     assert ok is None
-    ok, why = gcm.judge("local-card", BUDAPEST, [VIENNA, MUNICH, BRATISLAVA], [], WORLD)
+    ok, why = gcm.judge("local-card", BUDAPEST, [BRATISLAVA, DEBRECEN, PECS], [], WORLD)
     assert ok is None and why == "names its own city"
     world = gcm.World(
         WORLD.iso2, WORLD.cities, WORLD.country_names, WORLD.tiers | {"b2": 1}
     )
-    ok, _ = gcm.judge(
+    ok, why = gcm.judge(
         "local-card",
         ELTE,
         [
-            VIENNA,
+            DEBRECEN,
             gcm.Place("b2", "Budapest Business School", "Vienna", "AT"),
             BRATISLAVA,
         ],
         [],
         world,
     )
-    assert ok is None
+    assert ok is None and why.startswith("options naming the city")
 
 
 def test_unusable_line_groups_kinds_by_reason() -> None:
