@@ -83,7 +83,12 @@ describe('dailyDeck', () => {
 		expect(dailyDeck(fullPack, '2026-09-11')).not.toEqual(a);
 	});
 
-	it('fills a short kind from the kinds that have cards', () => {
+	it('opens with every kind once before any repeats', () => {
+		const opening = dailyDeck(fullPack, '2026-09-10').slice(0, KINDS.length);
+		expect(new Set(opening.map((c) => c.kind)).size).toBe(KINDS.length);
+	});
+
+	it('fills a short kind from the kind with the fewest cards dealt', () => {
 		const deck = dailyDeck(countryOnly, '2026-09-10');
 		checkDeck(deck, countryOnly);
 		expect(deck.every((c) => c.kind === 'country-card')).toBe(true);
@@ -91,6 +96,14 @@ describe('dailyDeck', () => {
 		expect(
 			dailyDeck(twoNearest, '2026-09-10').filter((c) => c.kind === 'nearest-card')
 		).toHaveLength(2);
+		// no intruder or local cards: their slots go to the kinds dealt least,
+		// so the opening five still hold four different kinds
+		const noIntruders = fullPack.filter(
+			(c) => c.kind !== 'intruder-card' && c.kind !== 'local-card'
+		);
+		const kinds = dailyDeck(noIntruders, '2026-09-10').map((c) => c.kind);
+		expect(new Set(kinds.slice(0, 4)).size).toBe(3);
+		expect(kinds.filter((k) => k === 'country-card')).toHaveLength(4);
 	});
 
 	it('plays an anchor carded under several kinds at most once', () => {

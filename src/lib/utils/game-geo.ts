@@ -213,6 +213,7 @@ export function dailyDeck(pack: PlayCard[], day: string): PlayCard[] {
 		queues.get(c.kind)?.push(c);
 	const deck: PlayCard[] = [];
 	const anchors = new Set<string>();
+	const dealt = new Map<CardKind, number>(KINDS.map((k) => [k, 0]));
 	let medical = 0;
 	const take = (kind: CardKind): boolean => {
 		const queue = queues.get(kind) ?? [];
@@ -224,13 +225,16 @@ export function dailyDeck(pack: PlayCard[], day: string): PlayCard[] {
 				medical += 1;
 			}
 			anchors.add(c.semId);
+			dealt.set(kind, (dealt.get(kind) ?? 0) + 1);
 			deck.push(c);
 			return true;
 		}
 		return false;
 	};
+	const fewestDealtFirst = () =>
+		[...KINDS].sort((a, b) => (dealt.get(a) ?? 0) - (dealt.get(b) ?? 0));
 	for (const kind of DAILY_RECIPE) {
-		if (!take(kind)) KINDS.some(take);
+		if (!take(kind)) fewestDealtFirst().some(take);
 	}
 	return deck.map((c) => ({
 		...c,
