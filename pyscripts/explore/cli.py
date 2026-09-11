@@ -25,6 +25,7 @@ def query_claude_cli(
     mcp_config: str | None = None,
     max_turns: int | None = None,
     timeout_s: int = CLI_TIMEOUT_S,
+    stats: dict | None = None,
 ) -> str:
     """Run one prompt through the Claude Code CLI and return its text response.
 
@@ -32,7 +33,9 @@ def query_claude_cli(
     block the run; the timeout is a hard backstop so a stalled CLI can never
     hang. Uses the local `claude` CLI auth, so no ANTHROPIC_API_KEY is needed.
     Pass `mcp_config` (inline JSON) plus an `allowed_tools` rule (e.g.
-    "mcp__rankless") for an agentic run with MCP tools.
+    "mcp__rankless") for an agentic run with MCP tools. Pass `stats` to receive
+    the call's usage (`seconds`, `output_tokens`, `thinking_tokens`, `usd`)
+    from the CLI's JSON envelope.
     """
     cmd = [
         "claude",
@@ -44,7 +47,7 @@ def query_claude_cli(
         "--allowedTools",
         allowed_tools,
         "--output-format",
-        "text",
+        "text" if stats is None else "json",
     ]
     if mcp_config:
         cmd += ["--mcp-config", mcp_config, "--strict-mcp-config"]
@@ -66,7 +69,29 @@ def query_claude_cli(
         detail = proc.stderr.strip() or proc.stdout.strip()
         msg = f"claude exited {proc.returncode}"
         raise RuntimeError(f"{msg}: {detail[-400:]}" if detail else msg)
-    return proc.stdout.strip()
+    if stats is None:
+        return proc.stdout.strip()
+    return unwrap_result(proc.stdout, stats)
+
+
+def unwrap_result(raw: str, stats: dict) -> str:
+    """The text of a `--output-format json` envelope, with its usage recorded
+    into `stats`."""
+    envelope = json.loads(raw)
+    if envelope.get("is_error"):
+        raise RuntimeError(
+            f"claude reported an error: {str(envelope.get('result', ''))[-400:]}"
+        )
+    usage = envelope.get("usage") or {}
+    stats.update(
+        seconds=envelope.get("duration_ms", 0) / 1000,
+        output_tokens=usage.get("output_tokens", 0),
+        thinking_tokens=(usage.get("output_tokens_details") or {}).get(
+            "thinking_tokens", 0
+        ),
+        usd=envelope.get("total_cost_usd", 0.0),
+    )
+    return str(envelope.get("result", "")).strip()
 
 
 def parse_json(raw: str):
