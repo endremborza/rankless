@@ -59,19 +59,20 @@ export const QUESTIONS: Record<
 };
 
 // The daily is the same ten kinds in the same order every day, so the rhythm
-// is learnable; a kind whose pack runs short is filled from the kinds that
-// have cards, in KINDS order.
+// is learnable, and the kinds interleave so the opening cards are all
+// different; a kind whose pack runs short is filled from the kind with the
+// fewest cards dealt so far.
 export const DAILY_RECIPE: CardKind[] = [
 	'country-card',
-	'country-card',
-	'country-card',
-	'intruder-card',
 	'intruder-card',
 	'nearest-card',
+	'city-card',
+	'local-card',
+	'country-card',
+	'intruder-card',
 	'nearest-card',
 	'city-card',
-	'city-card',
-	'local-card'
+	'country-card'
 ];
 export const DAILY_SIZE = DAILY_RECIPE.length;
 export const LIVES = 5;
