@@ -622,7 +622,7 @@ class Transper:
     def clean_caches(self):
         self.ssh.run(f"rm -rf {self.data_dir}/cache")
         self.ssh.run(f"sudo rm -rf {self.be_cache_dir}/*")
-        self.ssh.run(f"sudo rm -rf {self.fe_cache_dir}/*")
+        self.purge_fe_cache()
 
     def install_apts(self):
         self.ssh.run("sudo apt update")
@@ -1037,6 +1037,11 @@ upstream {BE_UPSTREAM} {{
         txt += "\n".join(f"{k}={v}" for k, v in ORCID_VARS.items() if v is not None)
         self.sync_txt(txt, ".env", self.deploy_dir)
 
+    def purge_fe_cache(self):
+        # nginx keeps filling the cache while it is purged; a directory it
+        # refills mid-purge is left to expire on its own
+        self.ssh.run(f"sudo rm -rf {self.fe_cache_dir}/* || true")
+
     def update_fe(self, pull=True):
         if pull:
             self.sync_code()
@@ -1054,7 +1059,7 @@ upstream {BE_UPSTREAM} {{
             pass
         self._add_upstreams_from_conf(stage_conf)
         self.reload_nginx()
-        self.ssh.run(f"sudo rm -rf {self.fe_cache_dir}/*")
+        self.purge_fe_cache()
         time.sleep(10)
         for service in self._iter_conf_services(live_conf):
             service.stop()
