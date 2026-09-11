@@ -16,11 +16,13 @@ export type CardKind =
 export type GameFact = VerifiedFact;
 
 // Every card is keyed by its anchor institution (`semId`); `cc` is the
-// anchor's country for the per-country cap. `facts` is optional on country cards.
+// anchor's country for the per-country cap, `city` its city. `facts` is
+// optional on country cards.
 type CardBase = {
 	semId: string;
 	name: string;
 	cc: string;
+	city: string;
 	note: string;
 	papers: number;
 	citations: number;
@@ -30,14 +32,11 @@ type CardBase = {
 type OptionInst = { semId: string; name: string; cc: string };
 
 export type CountryCardPayload = CardBase & { decoys: string[] };
-export type CityCardPayload = CardBase & { city: string; decoys: string[] };
+export type CityCardPayload = CardBase & { decoys: string[] };
 export type NearestCardPayload = CardBase &
 	LatLon & { options: (OptionInst & LatLon & { km: number })[] };
 export type IntruderCardPayload = CardBase & { country: string; options: OptionInst[] };
-export type LocalCardPayload = CardBase & {
-	city: string;
-	options: (OptionInst & { city: string })[];
-};
+export type LocalCardPayload = CardBase & { options: (OptionInst & { city: string })[] };
 
 export type StoredCard =
 	| { kind: 'country-card'; payload: CountryCardPayload }
@@ -66,12 +65,15 @@ export type PlayOption = LatLon & {
 };
 
 // What the routes serve to the browser — one shape for every kind, the kind
-// itself deciding how the prompt and the options read. The client checks the
-// pick locally: the per-question timer is what keeps lookups out.
+// itself deciding how the prompt and the options read; `cc`/`city` place the
+// anchor for the reveal. The client checks the pick locally: the per-question
+// timer is what keeps lookups out.
 export type PlayCard = LatLon & {
 	kind: CardKind;
 	semId: string;
 	name: string;
+	cc: string;
+	city: string;
 	prompt: string;
 	options: PlayOption[];
 	answer: string;

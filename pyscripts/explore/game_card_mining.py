@@ -856,6 +856,7 @@ async def _build_card(
             "semId": anchor.sem_id,
             "name": anchor.name,
             "cc": anchor.cc,
+            "city": anchor.city,
             "note": note,
             "papers": anchor.papers,
             "citations": anchor.citations,

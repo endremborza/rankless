@@ -69,6 +69,8 @@ export function toPlayCard(card: StoredCard, badges: CardBadge[]): PlayCard {
 		kind: card.kind,
 		semId: p.semId,
 		name: p.name,
+		cc: p.cc,
+		city: p.city,
 		note: p.note,
 		badges,
 		lat: 0,

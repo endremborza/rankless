@@ -41,7 +41,15 @@ function card(
 		etype: 'institutions',
 		sem_id: semId,
 		title: name,
-		payload: { semId, name, note: `Fixture note for ${name}.`, papers: 1, citations: 1, ...payload }
+		payload: {
+			semId,
+			name,
+			city: 'Budapest',
+			note: `Fixture note for ${name}.`,
+			papers: 1,
+			citations: 1,
+			...payload
+		}
 	};
 }
 
