@@ -351,6 +351,19 @@ server {{
     {fe_prefix}
     {server_prefix}
 
+    # Hashed build assets are not page renders: a box with no edge in front, or
+    # an edge on a cache miss, pulls a page's whole chunk set at once, so they
+    # stay off the visitor's page budget; their immutable Cache-Control keeps
+    # them in fe-cache.
+    location ^~ /_app/immutable/ {{
+        if ($junk_ua) {{
+            return 429;
+        }}
+        proxy_pass http://{FE_UPSTREAM};
+        proxy_cache fe-cache;
+        {loc_suffix}
+    }}
+
     location / {{
         if ($junk_ua) {{
             return 429;

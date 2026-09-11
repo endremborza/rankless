@@ -151,6 +151,11 @@ def test_nginx_conf_keys_on_the_visitor_and_caps_renders() -> None:
         assert line in conf, line
     assert "baselimit" not in conf
     assert "$lt_" not in conf
+    # hashed assets are cached and never draw on the page budget
+    assets = conf[
+        conf.index("location ^~ /_app/immutable/ {") : conf.index("location / {")
+    ]
+    assert "proxy_cache fe-cache;" in assets and "limit_" not in assets
     # the load-test lane swaps every key for the token maps
     lt = deploy.render_nginx_conf(
         "server_name www.x;", "server_name api.x;", "www.x", "/c/be", "/c/fe", "tok"
