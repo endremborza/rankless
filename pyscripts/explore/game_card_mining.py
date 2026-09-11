@@ -289,7 +289,9 @@ def main(
         count=count,
         kinds=KINDS,
         session=session,
-        generate=lambda con: _generate(con, count, pool, skip, per_country, model),
+        generate=lambda con: _generate(
+            con, count, pool, skip, per_country, model, wanted
+        ),
         report_line=report_line,
     )
 
@@ -385,7 +387,13 @@ def menu(
             )
         else:
             nearest = tuple(around)
-    open_ = tuple(k for k in KINDS if k not in shut and anchor.sem_id not in have[k])
+    open_ = tuple(
+        k
+        for k in wanted
+        if k not in shut
+        and anchor.sem_id not in have[k]
+        and not (caps and caps[k].full(anchor.cc))
+    )
     return Menu(open_, shut, nearest)
 
 
@@ -620,6 +628,7 @@ def _generate(
     skip: int,
     per_country: int,
     model: str,
+    wanted: tuple[str, ...] = KINDS,
 ) -> object_mining.Generated:
     have = {kind: object_mining.stored_ccs(con, kind, ETYPE) for kind in KINDS}
     index, world = asyncio.run(_load_pool(skip, pool))
@@ -633,7 +642,7 @@ def _generate(
     for p in index.values():
         if shut := unusable(p, world):
             held.append((p, shut))
-        if any(k not in shut and p.sem_id not in have[k] for k in KINDS):
+        if any(k not in shut and p.sem_id not in have[k] for k in wanted):
             candidates.append(p)
     print(
         f"[{WORKFLOW}] {len(candidates)} candidate(s) with an open kind from slice "
@@ -652,14 +661,22 @@ def _generate(
     objects: list[dict] = []
     families: set[str] = set()
     failures = 0
+    pos = 0
     reached = 0
-    for start in range(0, len(candidates), BATCH_SIZE):
-        if len(objects) >= count:
+    while len(objects) < count and pos < len(candidates):
+        # a name family carded this run is skipped before the model sees it
+        chunk: list[Place] = []
+        while pos < len(candidates) and len(chunk) < BATCH_SIZE:
+            p = candidates[pos]
+            pos += 1
+            if family(p.name) not in families:
+                chunk.append(p)
+        if not chunk:
             break
-        chunk = candidates[start : start + BATCH_SIZE]
+        start = pos - len(chunk)
         reached = list(index).index(chunk[-1].sem_id) + 1
         placed = asyncio.run(_locate(chunk, calls, log))
-        menus = {p.sem_id: menu(p, world, roster, have) for p in placed}
+        menus = {p.sem_id: menu(p, world, roster, have, caps, wanted) for p in placed}
         for p in placed:
             if p.sem_id in menus and not menus[p.sem_id].open:
                 held.append((p, menus[p.sem_id].shut))

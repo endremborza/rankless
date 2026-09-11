@@ -179,9 +179,23 @@ itself as an `mcp_sessions` row (self-registered from the CLI with `params.origi
   `get_entity_profile` facts re-issued through `verify.verify_facts` (coordinates +
   place, stored on the card as `facts`, one memoised profile fetch per institution
   per run), `judge()` re-applies `unusable()` plus the option rules (roster ids
-  only, at least two of tier 1, the 2× nearest margin, one shared country for the
-  intruder locals, no local option in or naming the asked city), and a card
-  failing any check is dropped. One card per name family per run
+  only; at least two of tier 1 for nearest and local cards; no intruder local or
+  local option whose name states its own city or country, former names included —
+  Peking University states Beijing — since such a card is solved by elimination;
+  the 2× nearest margin with the nearest at least 1 km away, so a same-city twin
+  is never the answer; one shared country for the intruder locals; no local
+  option in or naming the asked city), and a card failing any check is dropped.
+  A kind at its per-country cap is closed in the menu before the model sees the
+  anchor, and an anchor whose name family was carded earlier in the run is left
+  out of the batch. Every payload carries the anchor's `city` next to its `cc`.
+  `--kinds intruder-card,local-card` opens only those kinds, so a starved kind
+  gets a round of its own (the intruder kind is the scarcest: it needs a
+  misdirecting non-tier-1 anchor and a country with three place-free roster
+  names). `--audit` re-judges every stored card against the current rules (places read
+  from the payload, its facts, then the pool) and prints the failures grouped by
+  reason with the index ids `objects set-status` takes — no model, nothing
+  written; a tightened rule lists older cards too, so the list is a review
+  queue, not a verdict. One card per name family per run
   (`family()`: first identifying word, so Duke University and Duke Medical Center
   are one). One bundle holds every kind, `(kind, semId)` is the skip key and the
   per-country cap applies per kind (no LLM at play time). The run log and
