@@ -1,6 +1,8 @@
 // Client-safe helpers for the MCP pages (no server imports).
 
 import type {
+	DeepMeta,
+	DeepParams,
 	GenerationMeta,
 	GenerationParams,
 	GenerationType,
@@ -30,6 +32,22 @@ export function isGenerationMeta(m: SessionMeta): m is GenerationMeta {
 	return isGenerationType(m.type);
 }
 
+// Rows outlive workflows: a session written by a retired generator matches
+// neither guard, and the pages show it as such (so an admin can delete it)
+// instead of reading deep fields off it. A params row without a type is deep.
+export function isDeepParams(p: SessionParams): p is DeepParams {
+	const t = (p as { type?: string }).type;
+	return t === undefined || t === 'deep';
+}
+
+export function isDeepMeta(m: SessionMeta): m is DeepMeta {
+	return m.type === 'deep';
+}
+
+export function workflowOf(x: SessionParams | SessionMeta): string {
+	return x.type;
+}
+
 // Mirrors pyscripts/explore/runs.py run_stamp/run_name: every agent run is
 // named `<workflow>-<scope>-<UTC yyyymmddThhmmss>`.
 export function runStamp(): string {
@@ -56,6 +74,7 @@ export function sessionCommand(p: SessionParams): string {
 		if (p.model) args.push(`--model ${p.model}`);
 		return `uv run -m pyscripts ${p.type} ${args.join(' ')}`;
 	}
+	if (!isDeepParams(p)) return '';
 	const args = [`--backend ${p.backend}`, `--foci ${p.foci.join(',')}`];
 	if (p.subject) args.push(`--subject ${JSON.stringify(p.subject)}`);
 	if (p.question) args.push(`--question ${JSON.stringify(p.question)}`);

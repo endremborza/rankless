@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import SessionFindings from '$lib/components/SessionFindings.svelte';
-	import { isGenerationMeta } from '$lib/mcp-util';
+	import { isDeepMeta, isGenerationMeta, workflowOf } from '$lib/mcp-util';
 	export let data: PageData;
 	$: ({ session, findings, command } = data);
 	$: meta = session.meta;
@@ -21,21 +21,25 @@
 			{meta.backend} data · {meta.model} · {meta.counts.accepted}/{meta.counts.targets} accepted ·
 			{meta.counts.stored} in store · {meta.generated}
 		</p>
-	{:else if meta}
+	{:else if meta && isDeepMeta(meta)}
 		<p class="meta">
 			{meta.backend} data · {meta.model} · foci {meta.foci.join(', ')} ·
 			{meta.counts.metricsReproduced}/{meta.counts.metrics} numbers reproduced · mined in {Math.round(
 				meta.runtimeSeconds.mine
 			)}s · {meta.generated}
 		</p>
+	{:else if meta}
+		<p class="meta">{workflowOf(meta)} · retired workflow</p>
 	{:else}
 		<p class="status">Status: <strong>{session.status}</strong></p>
 	{/if}
 
-	<div class="command">
-		<span>Command</span>
-		<code>{command}</code>
-	</div>
+	{#if command}
+		<div class="command">
+			<span>Command</span>
+			<code>{command}</code>
+		</div>
+	{/if}
 
 	{#if session.status === 'failed'}
 		<p class="err">This run failed. {session.error ?? ''}</p>

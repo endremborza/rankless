@@ -1,6 +1,6 @@
 <script lang="ts">
 	import manifestJson from '$lib/assets/data/mcp-manifest.json';
-	import { BACKENDS, GENERATIONS, isGenerationMeta } from '$lib/mcp-util';
+	import { BACKENDS, GENERATIONS, isDeepMeta, isGenerationMeta, workflowOf } from '$lib/mcp-util';
 	import { GAME_FEATURE_ON } from '$lib/constants';
 	import { BRAND, PATH } from '$lib/utils/game-geo';
 	import type { GenerationType, McpManifest } from '$lib/types/mcp';
@@ -170,7 +170,7 @@
 									{s.meta.counts.accepted}/{s.meta.counts.targets} accepted ·
 									{s.meta.counts.stored} in store
 								</p>
-							{:else}
+							{:else if isDeepMeta(s.meta)}
 								<p class="meta">
 									{s.meta.backend} · {s.meta.model} · foci {s.meta.foci.join(', ')}
 								</p>
@@ -178,6 +178,8 @@
 									{s.meta.counts.findings} findings ·
 									{s.meta.counts.metricsReproduced}/{s.meta.counts.metrics} numbers reproduced
 								</p>
+							{:else}
+								<p class="meta">{workflowOf(s.meta)} · retired workflow</p>
 							{/if}
 						{/if}
 						<p class="date">{s.meta?.generated ?? s.createdAt.slice(0, 10)}</p>
