@@ -67,10 +67,50 @@ FACT_PATHS = ("meta.lat", "meta.lon", "distinctText")
 ISO2_PATH = Path("src/lib/assets/data/country-alpha-2-to-3.json")
 ROSTER_PATH = Path("src/lib/assets/data/recognizable-institutions.json")
 NOTES_PATH = Path("src/lib/assets/data/institution-notes.json")
+# First-level regions and other place names an institution name can carry
+# beyond its own city and country, by country.
+REGIONS_PATH = Path("src/lib/assets/data/region-names.json")
 
 # Names every country has one of: the English translation is arbitrary and the
 # pick is a guess, so they anchor nothing. "National <Proper Noun> University"
 # stays — those point at a namesake elsewhere.
+# Folded tokens (accents stripped) of institutional vocabulary in the roster's
+# languages; a name made only of these says nothing about where it is.
+_GENERIC_WORDS = frozenset(
+    """
+    university universities college colleges institute institutes institution
+    institutions research council councils center centre centers centres
+    laboratory laboratories lab labs academy academies society association
+    foundation agency authority board bureau office department ministry service
+    services hospital hospitals clinic clinics infirmary school schools faculty
+    medical medicine health healthcare science sciences scientific technology
+    technologies technological technical engineering plant plants food foods
+    agriculture agricultural environment environmental energy water marine ocean
+    oceanographic forest forestry fisheries animal veterinary public general
+    national central federal state regional international global cancer heart
+    children childrens women womens mental nuclear physics physical chemistry
+    chemical biology biological biomedical clinical pharmaceutical pharmacy
+    industrial applied advanced natural social economic economics statistics
+    statistical geological geology survey meteorological meteorology weather
+    climate space aerospace defence defense military army navy naval air force
+    education educational teaching training polytechnic open memorial community
+    the of for and in on at to a an s de del della delle dei degli di da du des
+    la le les el los las y e i und fur et en van der het voor og av pour
+    recherche recherches scientifique scientifiques nationale nationales institut
+    universite hopital hopitaux hospitalier universitaire medecine sante
+    agronomique agricole instituto universidad consejo superior investigacion
+    investigaciones cientifica cientificas ciencia ciencias nacional salud
+    tecnologico tecnologica politecnica politecnico autonoma agraria
+    universidade pesquisa pesquisas saude estadual tecnologia universita istituto
+    ricerca ricerche nazionale consiglio scienze ospedale sanita superiore studi
+    universitat technische hochschule fachhochschule forschung forschungszentrum
+    forschungsinstitut gesellschaft akademie wissenschaften medizinische klinik
+    klinikum krankenhaus zentrum bundesanstalt universiteit ziekenhuis onderzoek
+    instituut academisch medisch centrum universitet universitetet sjukhus
+    sygehus sykehus hogskola hogskolan sairaala yliopisto korkeakoulu
+    """.split()
+)
+
 _GENERIC_RE = re.compile(
     r"^(?:national|state|federal|central|regional|general)\s+"
     r"(?:institutes?|research|councils?|cent(?:er|re)s?|laborator(?:y|ies)|academy|"
@@ -294,7 +334,10 @@ def main(
 
 
 def is_generic_name(name: str) -> bool:
-    return _GENERIC_RE.search(name) is not None
+    """A generic-pattern name, or one made only of institutional vocabulary
+    (Medical Research Council): every country has one, so the pick is a
+    guess, not a misdirection."""
+    return _GENERIC_RE.search(name) is not None or set(_tokens(name)) <= _GENERIC_WORDS
 
 
 def family(name: str) -> str:
