@@ -183,7 +183,16 @@ itself as an `mcp_sessions` row (self-registered from the CLI with `params.origi
   local option whose name states its own city or country, former names included —
   Peking University states Beijing — since such a card is solved by elimination;
   the 2× nearest margin with the nearest at least 1 km away, so a same-city twin
-  is never the answer; one shared country for the intruder locals; no local
+  is never the answer, and no nearest option naming the anchor's city (two
+  Barcelonas make the answer a reading test); one shared country for the intruder locals; no intruder-local or local option
+  naming a first-level region either (`src/lib/assets/data/region-names.json`,
+  hand-curated by country: states, provinces, Länder, demonyms like Paulista —
+  a name carrying one is placed by its name; an anchor naming a region of its
+  own country is as placed as one naming its country, so it never asks where it
+  is — unless the name is listed under more than one country (Punjab, Silesia,
+  Thrace), the cross-border misdirect a country card wants); a name made only of institutional vocabulary (Medical Research Council,
+  Plant & Food Research, in English and the roster's other languages) is
+  generic and never an anchor; no local
   option in or naming the asked city), and a card failing any check is dropped.
   An anchor whose name family was carded earlier in the run is left out of the
   batch. Every payload carries the anchor's `city` next to its `cc`.

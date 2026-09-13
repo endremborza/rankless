@@ -30,7 +30,9 @@ import re
 import sqlite3
 import unicodedata
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass, field
+from itertools import chain
 from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
 
@@ -219,15 +221,15 @@ fixed question:
 - local-card — prompt: a city; options: four institutions, one in that city
   and three elsewhere. "Which one is here?" The anchor IS the local one. Give
   three ROSTER institutions outside the anchor's city whose names state
-  neither the asked city nor their own place (no † entries).
+  neither the asked city nor any place (no † entries).
 
 The harness decides what is usable; you decide what is interesting. Each
 candidate comes with the kinds still open to it — everything else is already
 carded or excluded, so propose nothing outside that list — and, for nearest
 cards, the nearest ROSTER institutions with their distance in km. Option ids
 come only from the ROSTER; nearest and local cards need at least two options
-of tier 1; a † roster entry (its name states its own city or country) can be
-a nearest option only; decoy cities come only from CITIES. You never state an
+of tier 1; a † roster entry (its name states a place: its city, its country
+or a region) can be a nearest option only; decoy cities come only from CITIES. You never state an
 answer, a country, a distance or a number: every answer is recomputed from
 the data and a card failing any check is dropped.
 
@@ -260,7 +262,8 @@ class Place:
 class World:
     """What a proposal is judged against: the ISO country set, the legal decoy
     cities by their folded form, country names by code, the roster tiers, the
-    curated notes, and the pool members whose display name another shares."""
+    curated notes, the pool members whose display name another shares, and
+    the region names as token sets."""
 
     iso2: frozenset[str]
     cities: dict[str, str]
@@ -268,6 +271,7 @@ class World:
     tiers: dict[str, int] = field(default_factory=dict)
     notes: dict[str, str] = field(default_factory=dict)
     homonyms: frozenset[str] = frozenset()
+    regions: dict[str, tuple[frozenset[str], ...]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -381,6 +385,9 @@ def unusable(anchor: Place, world: World) -> dict[str, str]:
     if states(anchor.name, world.country_names.get(anchor.cc)):
         shut.setdefault("country-card", "names its own country")
         shut.setdefault("intruder-card", "names its own country")
+    if states_own_region(anchor, world):
+        shut.setdefault("country-card", "names its own region")
+        shut.setdefault("intruder-card", "names its own region")
     if not anchor.city:
         shut.setdefault("city-card", "no city")
         shut.setdefault("local-card", "no city")
@@ -478,6 +485,33 @@ def states_own_place(p: Place, world: World) -> bool:
     return states(p.name, p.city) or states(p.name, world.country_names.get(p.cc))
 
 
+def states_region(name: str, regions: Iterable[frozenset[str]]) -> bool:
+    tokens = set(_tokens(name))
+    return any(r <= tokens for r in regions)
+
+
+def states_own_region(p: Place, world: World) -> bool:
+    """A region of the anchor's own country in its name places it there —
+    unless the name belongs to more than one country (Punjab, Silesia,
+    Thrace), which is the cross-border misdirect a country card wants."""
+    counts = Counter(chain.from_iterable(world.regions.values()))
+    own = (r for r in world.regions.get(p.cc, ()) if counts[r] == 1)
+    return states_region(p.name, own)
+
+
+def states_a_place(p: Place, world: World) -> bool:
+    """Own city or country, or any region name: an option carrying one is
+    placed by its name (California Institute of Technology is not in
+    Vancouver), so it tells nothing about the asked place."""
+    return states_own_place(p, world) or states_region(
+        p.name, chain.from_iterable(world.regions.values())
+    )
+
+
+def region_tokens(by_cc: dict[str, list[str]]) -> dict[str, tuple[frozenset[str], ...]]:
+    return {cc: tuple(frozenset(_tokens(r)) for r in rs) for cc, rs in by_cc.items()}
+
+
 def report_line(o: dict) -> str:
     p = o["payload"]
     opts = p.get("options", [])
@@ -541,7 +575,8 @@ def unusable_line(anchor: Place, shut: dict[str, str]) -> str:
 def _options_reject(options: list[Place], world: World, kind: str) -> str:
     """Option rules by kind: every option is a roster name; a nearest or local
     card leans on fame (two of tier 1); an intruder or local card is decided
-    by knowledge, so no option may state its own city or country."""
+    by knowledge, so no option may state a place: its city, its country or
+    a region."""
     if off := [o.sem_id for o in options if o.sem_id not in world.tiers]:
         return f"options off the roster {off}"
     if kind != "intruder-card" and (
@@ -549,9 +584,9 @@ def _options_reject(options: list[Place], world: World, kind: str) -> str:
     ):
         return f"fewer than {MIN_TIER1_OPTIONS} tier-1 options"
     if kind != "nearest-card" and (
-        telling := [o.name for o in options if states_own_place(o, world)]
+        telling := [o.name for o in options if states_a_place(o, world)]
     ):
-        return f"options stating their own place {telling}"
+        return f"options stating a place {telling}"
     return ""
 
 
@@ -846,6 +881,7 @@ async def _load_pool(skip: int, pool: int) -> tuple[dict[str, Place], World]:
         homonyms=frozenset(
             p.sem_id for p in index.values() if name_counts[_fold(p.name)] > 1
         ),
+        regions=region_tokens(json.loads(REGIONS_PATH.read_text())),
     )
     return index, world
 
@@ -887,7 +923,7 @@ def _system_prompt(world: World, roster: list[Place], taste: list[str]) -> str:
         f"# {cc}\n"
         + "\n".join(
             f"{p.sem_id}\t{p.name}\t{p.city}\t{world.tiers[p.sem_id]}"
-            f"{'†' if states_own_place(p, world) else ''}"
+            f"{'†' if states_a_place(p, world) else ''}"
             for p in ps
         )
         for cc, ps in sorted(by_cc.items())
@@ -901,7 +937,8 @@ def _system_prompt(world: World, roster: list[Place], taste: list[str]) -> str:
             _RULES,
             HOUSE_STYLE,
             "ROSTER — the only legal option ids (id, name, city, tier; † = the name "
-            "states its own city or country, nearest option only), by country:\n"
+            "states a place — its city, its country or a region — nearest option "
+            "only), by country:\n"
             f"{roster_block}",
             "CITIES — the only legal decoy cities:\n"
             f"{', '.join(sorted(set(world.cities.values())))}",
@@ -913,7 +950,7 @@ def _system_prompt(world: World, roster: list[Place], taste: list[str]) -> str:
 
 
 def _hosts_intruder(locals_: list[Place], world: World) -> bool:
-    usable = [p for p in locals_ if not states_own_place(p, world)]
+    usable = [p for p in locals_ if not states_a_place(p, world)]
     return len(usable) >= N_OPTIONS["intruder-card"]
 
 

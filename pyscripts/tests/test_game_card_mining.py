@@ -65,6 +65,7 @@ WORLD = gcm.World(
         "pte": 2,
     },
     notes={"noted": "never an anchor"},
+    regions=gcm.region_tokens({"US": ["California"], "CA": ["British Columbia"]}),
     homonyms=frozenset({"twin"}),
 )
 
@@ -230,29 +231,48 @@ def test_options_must_be_roster_ids_with_two_of_tier_1() -> None:
     assert ok is None and why == "fewer than 2 tier-1 options"
 
 
-def test_intruder_and_local_options_never_state_their_own_place() -> None:
+def test_intruder_and_local_options_never_state_a_place() -> None:
     # Vienna and Munich name their cities: fine as nearest options only
     ok, why = gcm.judge(
         "nearest-card", BRATISLAVA, [ELTE, VIENNA, MUNICH, SZEGED], [], WORLD
     )
     assert ok is not None, why
     ok, why = gcm.judge("local-card", ELTE, [VIENNA, MUNICH, BRATISLAVA], [], WORLD)
-    assert ok is None and why.startswith("options stating their own place")
+    assert ok is None and why.startswith("options stating a place")
     peking = gcm.Place("pku", "Peking University", "Beijing", "CN", 39.99, 116.31)
     world = gcm.World(
         WORLD.iso2, WORLD.cities, WORLD.country_names, WORLD.tiers | {"pku": 1}
     )
     ok, why = gcm.judge("local-card", ELTE, [peking, BRATISLAVA, DEBRECEN], [], world)
-    assert ok is None and why == "options stating their own place ['Peking University']"
+    assert ok is None and why == "options stating a place ['Peking University']"
     # intruder locals need no tier-1 fame, only names that give nothing away
     ok, why = gcm.judge("intruder-card", CERN, [ELTE, BUDAPEST, SZEGED], [], WORLD)
-    assert ok is None and why.startswith("options stating their own place")
+    assert ok is None and why.startswith("options stating a place")
     ok, why = gcm.judge("intruder-card", CERN, [PECS, DEBRECEN, SZEGED], [], WORLD)
-    assert (
-        ok is None and why == "options stating their own place ['University of Szeged']"
-    )
+    assert ok is None and why == "options stating a place ['University of Szeged']"
     ok, why = gcm.judge("intruder-card", CERN, [PECS, DEBRECEN, ELTE], [], WORLD)
     assert ok is not None and ok["country"] == "HU", why
+    # a region in the name places the option as surely as its city
+    caltech = gcm.Place(
+        "caltech",
+        "California Institute of Technology",
+        "Pasadena",
+        "US",
+        34.14,
+        -118.13,
+    )
+    world = gcm.World(
+        WORLD.iso2,
+        WORLD.cities,
+        WORLD.country_names,
+        WORLD.tiers | {"caltech": 1},
+        regions=WORLD.regions,
+    )
+    ok, why = gcm.judge("local-card", ELTE, [caltech, PECS, DEBRECEN], [], world)
+    assert (
+        ok is None
+        and why == "options stating a place ['California Institute of Technology']"
+    )
 
 
 def test_nearest_needs_a_distinct_location() -> None:
@@ -415,3 +435,67 @@ def test_place_parts_reads_city_and_flag() -> None:
     assert gcm.place_parts(
         "",
     ) == ("", "")
+
+
+def test_generic_vocabulary_names_are_generic() -> None:
+    for name in [
+        "Medical Research Council",
+        "Plant & Food Research",
+        "Consejo Superior de Investigaciones Científicas",
+        "Children's Hospital",
+    ]:
+        assert gcm.is_generic_name(name), name
+    for name in [
+        "Massachusetts Institute of Technology",
+        "Karolinska Institutet",
+        "Inserm",
+    ]:
+        assert not gcm.is_generic_name(name), name
+
+
+def test_anchor_naming_its_own_region_never_asks_where_it_is() -> None:
+    usc = gcm.Place(
+        "usc", "University of Southern California", "Los Angeles", "US", 34.0, -118.3
+    )
+    world = gcm.World(
+        WORLD.iso2,
+        WORLD.cities,
+        WORLD.country_names,
+        WORLD.tiers,
+        regions=gcm.region_tokens({"US": ["California"]}),
+    )
+    shut = gcm.unusable(usc, world)
+    assert shut["country-card"] == "names its own region"
+    assert shut["intruder-card"] == "names its own region"
+    assert "city-card" not in shut
+    # a region shared by two countries is the misdirect, not the giveaway
+    punjab = gcm.Place("pu", "University of the Punjab", "Lahore", "PK", 31.5, 74.3)
+    shared = gcm.World(
+        WORLD.iso2,
+        WORLD.cities,
+        WORLD.country_names,
+        WORLD.tiers,
+        regions=gcm.region_tokens({"PK": ["Punjab"], "IN": ["Punjab"]}),
+    )
+    assert "country-card" not in gcm.unusable(punjab, shared)
+
+
+def test_nearest_options_never_name_the_anchors_city() -> None:
+    medu = gcm.Place(
+        "meduniwien",
+        "Medical University of Vienna",
+        "Vienna",
+        "AT",
+        VIENNA.lat + 0.02,
+        VIENNA.lon,
+    )
+    world = gcm.World(
+        WORLD.iso2, WORLD.cities, WORLD.country_names, WORLD.tiers | {"meduniwien": 1}
+    )
+    ok, why = gcm.judge(
+        "nearest-card", VIENNA, [medu, ELTE, MUNICH, DEBRECEN], [], world
+    )
+    assert (
+        ok is None
+        and why == "options naming the anchor's city ['Medical University of Vienna']"
+    )
