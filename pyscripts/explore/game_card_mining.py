@@ -545,6 +545,8 @@ def _judge_city(
 def _judge_nearest(anchor: Place, options: list[Place]) -> tuple[dict | None, str]:
     if not all(map(_located, [anchor, *options])):
         return None, "an institution has no coordinates"
+    if telling := [o.name for o in options if states(o.name, anchor.city)]:
+        return None, f"options naming the anchor's city {telling}"
     ranked = sorted(haversine_km(anchor, o) for o in options)
     if ranked[0] < NEAREST_MIN_KM:
         return None, "the nearest shares the anchor's location"
