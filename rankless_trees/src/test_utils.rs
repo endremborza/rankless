@@ -93,7 +93,6 @@ pub fn test_q(i: u8) -> TreeQ {
     TreeQ {
         year: None,
         tid: Some(i),
-        connections: None,
         big_prep: None,
         big_read: None,
         shallow: None,

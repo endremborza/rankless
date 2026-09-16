@@ -848,13 +848,16 @@ mod big_test_tree {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::{AttributeLabels, JsSerChildren, JsSerTree, ShallowQ, TreeRunManager};
+    use crate::io::{AttributeLabels, CollapsedNodeGen, JsSerChildren, JsSerTree, TreeRunManager};
     use crate::test_utils::{test_q, TestSB, Tither};
     use dmove::{BigId, MappableEntity, NamespacedEntity};
     use rand::{rngs::StdRng, Rng, SeedableRng};
-    use rankless_rs::steps::{
-        a1_entity_mapping::{RawYear, YearInterface, Years, POSSIBLE_YEAR_FILTERS},
-        derive_links1::WorkPeriods,
+    use rankless_rs::{
+        metrics::Level,
+        steps::{
+            a1_entity_mapping::{RawYear, YearInterface, Years, POSSIBLE_YEAR_FILTERS},
+            derive_links1::WorkPeriods,
+        },
     };
     use std::{ops::Deref, sync::Arc};
 
@@ -1019,10 +1022,14 @@ mod tests {
         validate_tree_id0_node(tree);
     }
     fn validate_tree_id0_node(tree: &JsSerTree) {
-        assert_eq!(tree.node.source_count, 5);
-        assert_eq!(tree.node.link_count, 12);
         assert_eq!(tree.node.top_source, Some(13));
-        assert_eq!(tree.node.top_cite_count, 4);
+        validate_tree_id0_counts(&tree.node);
+    }
+
+    fn validate_tree_id0_counts<T: Default>(node: &CollapsedNodeGen<T>) {
+        assert_eq!(node.source_count, 5);
+        assert_eq!(node.link_count, 12);
+        assert_eq!(node.top_cite_count, 4);
     }
 
     fn validate_tree_id1(tree: &JsSerTree) {
@@ -1069,28 +1076,37 @@ mod tests {
     }
 
     #[test]
-    fn to_multiple_trees1() {
+    fn first_levels_come_from_one_profile_per_entity() {
         let tstate = TreeRunManager::<(TestEntity, TestEntity)>::fake();
-        let name = TestEntity::NAME.to_string();
-        let q0 = test_q(4);
-        let sq = ShallowQ {
-            ids: vec![0, 1, 2],
-            year: q0.year,
-            tid: q0.tid,
-            filter: None,
-            satts: None,
-        };
-        let multi_r = tstate.get_shallows(sq, &name).unwrap();
-        println!("{}", to_string_pretty(&multi_r).unwrap());
-        for ((k, lc), ts) in (0..3)
-            .zip(vec![22, 24, 21].into_iter())
-            .zip(vec![2, 2, 5].into_iter())
-        {
-            let tree = multi_r.trees.get(&k).unwrap();
-            assert_eq!(tree.node.link_count, lc);
-            assert_eq!(tree.node.top_source, Some(ts));
-            assert_eq!(tree.node.source_count, 6);
+        let name = TestEntity::NAME;
+        let level = Level::refed(Countries::NAME);
+        // tid 0 and tid 3 both open with the refed countries; the two-level tree yields the profile
+        assert_eq!(tstate.specs.profile_tid(name, level), Some(0));
+        assert!(!tstate.specs.has_level(name, Level::citing(Countries::NAME)));
+        let ids = [(0usize, true), (1, true), (2, true)];
+        let profile_dir = tstate
+            .state
+            .gets
+            .stowage
+            .paths
+            .cache
+            .join(format!("{name}/1/first/{level}"));
+        for pass in 0..2 {
+            let fls = tstate.first_levels(name, level, None, ids);
+            assert_eq!(fls.len(), 3);
+            for fl in fls.values() {
+                validate_tree_id0_counts(&fl.node);
+                assert_eq!(fl.leaves.len(), 2);
+                assert!(fl.complete);
+                let expected = fl.leaves[&30].link_count as f64 / 12.0;
+                assert_eq!(fl.share(30), Some(expected));
+                assert_eq!(fl.share(99), Some(0.0));
+            }
+            assert!(profile_dir.is_dir(), "pass {pass}: profile not cached");
         }
+        assert!(tstate
+            .first_levels(name, Level::citing(Countries::NAME), None, ids)
+            .is_empty());
 
         Arc::into_inner(tstate).unwrap().join();
     }
@@ -1128,7 +1144,6 @@ mod tests {
         let gq = |big_prep: Option<bool>, big_read: Option<bool>| TreeQ {
             year: None,
             tid: Some(3),
-            connections: None,
             big_prep,
             big_read,
             shallow: None,

@@ -135,55 +135,61 @@ the server. Steps run in order via `mods_as_comms!` in `lib.rs`:
 | File | Role |
 | --- | --- |
 | `src/interfacing.rs` | `Getters` struct; loads data interfaces; `make_interfaces!` macro; `RootInterfaces` (sem_ids, peers, hit_sem_ids, hit_dois); `RootColumns`/`load_root_columns`/`Getters::columns_for` (every `dm_id`-indexed column a root type keeps loaded, by etype string: mmap top-N relation tables, the `SubfieldProfiles` pair, author h-index and career centroid served as a calendar year — a ladder from hit papers up to authors) |
-| `src/io.rs` | `TreeRunManager` (threaded execution: bounded query queue, response-wait timeout, panicking computes answer `Failed`), `CacheKey`, `TreeResponse`, attribute labels |
+| `src/io.rs` | `TreeRunManager` (threaded execution: bounded query queue, response-wait timeout, panicking computes answer `Failed`; `first_levels` fans one profile query per entity across the pool), `FullTreeQuery` (`CacheKey` + `Level` + `Command`: `Serve::{Pruned, Wide, Profile}` or the warmer's `BigPrep`/`BigRead`), `TreeSpecs` (`first_level`/`has_level`/`profile_tid`), `FirstLevel` (a profile with `share`: zero only asserted for a complete level), `TreeResponse`, attribute labels |
 | `src/path_finder.rs` | Citation path graph traversal; `RefGraph`; `author_to_work_paths()` |
 | `src/work_set.rs` | `cnf_intersect`: AND-of-ORs intersection over the per-entity `MainWorkMarker` work-lists (sorted ascending by construction — `invert_links_sorted` fills buckets with the monotonic `enumerate` index); smallest-clause base + binary-search membership; `TooBroad` guard |
 | `src/ids.rs` | ID encoding/decoding; `AttributeLabelUnion` |
 | `src/extensions.rs` | Extension methods for tree traversal |
 | `src/instances.rs` | Concrete tree instances and test configs |
-| `src/part_iterator.rs` | Incremental tree iteration; `TreeMakingParams`; tree-cache serving (see below) |
+| `src/part_iterator.rs` | Incremental tree iteration; `TreeMakingParams`; tree-cache serving and writing (see below) |
 | `src/components.rs` | Tree components (`DisJ`, `IntX`, `PostRefIterWrap`, `CountryInstsPost`); `StackBasis` folding |
-| `src/prune.rs` | Tree result pruning |
+| `src/prune.rs` | Tree result pruning: `prune` keeps the top `MAX_SIBLINGS` by links and by specialization per level, `prune_wide` keeps the whole first level up to `MAX_WIDE` (512) leaves |
 | `src/arr_ext.rs` | Array manipulation extensions |
 | `src/test_utils.rs` | Test utilities (`#[cfg(test)]`) |
 
 Key patterns: `BeS<M, E>` (Backend Selector) for flexible data loading; condvar-based
 thread pool in `TreeRunManager`.
 
-**Tree cache** — the on-disk `.zst` files under `<data>/cache/<root_type>/<eid>/<tid>/` are the
+**Tree cache** — the on-disk `.zst` files under `<data>/cache/<root_type>/<eid>/` are the
 single source of truth; there is no in-memory done-index and nothing to build at startup. A
-request first tries to read+decompress its period file (success ⇒ serve). On miss, cacheable
-queries register in `TreeBasisState::in_progress` (`CacheKey → BoolCvp`): the first claimant
-computes and writes all period files; concurrent duplicates wait on the cvp, then re-try the
-read. The entry is removed and waiters notified on every exit — including panics — via an
-RAII guard (`InProgressGuard`); waiters hold their own `Arc` to the cvp, so immediate removal
-is safe. Non-cacheable (sub-`CACHEABLE_FROM`) queries skip the registry entirely: no file
-will appear, so waiting would only delay the recompute; they still serve a disk file if one
-exists (e.g. written before a threshold change). `big_prep`/`big_read` are explicit compute
-commands and never serve from cache.
+tree build writes, per period, the pruned tree `<tid>/{pid}.zst` (plus `<tid>/shallow1-{pid}.zst`
+when it is big) and the **first-level profile** `first/<entity>-<citing|refed>/{pid}.zst`: the
+whole first level up to `MAX_WIDE` leaves, keyed by the level a `BreakdownSpec` names, so every
+tree opening with that level reads and writes the one file (authors' citing-country trees, say)
+and the `wide=` view and the share metrics read the same profile. Files are written beside their
+target and renamed into place. A request first tries to read+decompress the file its `Serve`
+mode names (success ⇒ serve). On miss, cacheable queries register in
+`TreeBasisState::in_progress` (`CacheKey → BoolCvp`): the first claimant computes and writes all
+period files; concurrent duplicates wait on the cvp, then re-try the read. The entry is removed
+and waiters notified on every exit — including panics — via an RAII guard (`InProgressGuard`);
+waiters hold their own `Arc` to the cvp, so immediate removal is safe. Non-cacheable
+(sub-`CACHEABLE_FROM`) queries skip the registry entirely: no file will appear, so waiting
+would only delay the recompute; they still serve a disk file if one exists (e.g. written before
+a threshold change). `big_prep`/`big_read` are explicit compute commands and never serve from
+cache.
 
 ### rankless_server — HTTP API server
 
 Split by concern; `main.rs` holds only the allocator, module declarations, and route wiring.
 
-| File                   | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/main.rs`          | Allocator (mimalloc), module decls, `main`/`async_main`: `/v1` route table + socket bind                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `src/consts.rs`        | Server constants (`PORT=3038`, `MAX_HITS=80`, `SEARCH_SIZE=20`, `MAX_SLICE=40k`, `CACHEABLE_FROM=10k`, `N_SUBFIELDS`, `ETYPE_ENC`) + `FIN_*` showcase lists                                                                                                                                                                                                                                                                                                                                       |
-| `src/responses.rs`     | Wire/DTO + query-param structs (`SearchResult`, `ViewResult`, `PaperOut`, `EntityPeersResp`, `LadderResp`, `Resolve*`, …)                                                                                                                                                                                                                                                                                                                                                                         |
-| `src/state.rs`         | In-memory state model: `NameState` (`sem_to_dm` → dm id, `oa_to_rid`/`dm_to_rid` → response index), `EntityExt` (lean: yearly/start-year/hit-papers; hero relations + co-author network rebuilt per view from mmapped `TopRels`), `IsTop`, type aliases (`StatesT`, `InstTrm`, `NameStateMap`)                                                                                                                                                                                                    |
-| `src/search_cache.rs`  | On-disk cache for the per-entity `SearchEngine` (fnv64 content stamp, load/save)                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `src/startup.rs`       | Server bootstrap (`get_rest`): parallel per-entity state load (`para_multi_gen_run!`), node stats, `TreeRunManager` build; blanks the semantic id of every author in `author_blacklist.txt` as the authors state is built — the one point that removes the profile page, search hit, tree slices and top-list rows together while the name and papers stay everywhere else                                                                                                                        |
+| File | Role |
+| --- | --- |
+| `src/main.rs` | Allocator (mimalloc), module decls, `main`/`async_main`: `/v1` route table + socket bind |
+| `src/consts.rs` | Server constants (`PORT=3038`, `MAX_HITS=80`, `SEARCH_SIZE=20`, `MAX_SLICE=40k`, `CACHEABLE_FROM=10k`, `N_SUBFIELDS`, `ETYPE_ENC`) + `FIN_*` showcase lists |
+| `src/responses.rs` | Wire/DTO + query-param structs (`SearchResult`, `ViewResult`, `PaperOut`, `EntityPeersResp`, `LadderResp`, `Resolve*`, …) |
+| `src/state.rs` | In-memory state model: `NameState` (`sem_to_dm` → dm id, `oa_to_rid`/`dm_to_rid` → response index; `impact_scores` and the `Orderings` — response ids sorted by papers, impact score, h-index and career centroid, built at startup beside the citation order the response array is), `EntityExt` (lean: yearly/start-year/hit-papers, `window()` for year-windowed counts; hero relations + co-author network rebuilt per view from the mmapped tables in `RootColumns`), `IsTop`, type aliases (`StatesT`, `InstTrm`, `NameStateMap`) |
+| `src/search_cache.rs` | On-disk cache for the per-entity `SearchEngine` (fnv64 content stamp, load/save) |
+| `src/startup.rs` | Server bootstrap (`get_rest`): parallel per-entity state load (`para_multi_gen_run!`), node stats, `TreeRunManager` build; blanks the semantic id of every author in `author_blacklist.txt` as the authors state is built — the one point that removes the profile page, search hit, tree slices and top-list rows together while the name and papers stay everywhere else |
 | `author_blacklist.txt` | OpenAlex ids that get no author profile — people who asked for theirs to go, plus the records where OpenAlex credits a country (or the UN) as the author of its own constitutions, legal codes and UN documents — `<oa_id> <name>` per line, `# cleared <oa_id> <name> — why` for a person who only shares a country's name; `include_str!`-embedded, so a change is a commit + rebuild + restart, no data or DB step; everything below the marker line is written by `pyscripts country-authors` |
-| `src/util.rs`          | Shared handler helpers (`cache_header`, `static_router`, `get_empty`, `resolve_dm`/`resolve_entity` = the etype + semantic id → state/dm id/response id path every entity handler takes; ids arrive decoded — a client encodes each once, axum's `Path` decodes it once)                                                                                                                                                                                                                          |
-| `src/handlers/`        | Axum handlers by concern: `search` (names/slice/sem-id/orcid/resolve), `entity` (views/trees/shallows/ladder/tops + meta), `peers`, `works` (paper sets + DAG + CNF work-set intersection)                                                                                                                                                                                                                                                                                                        |
+| `src/util.rs` | Shared handler helpers (`cache_header`, `static_router`, `get_empty`, `resolve_dm`/`resolve_entity` = the etype + semantic id → state/dm id/response id path every entity handler takes; ids arrive decoded — a client encodes each once, axum's `Path` decodes it once) |
+| `src/handlers/` | Axum handlers by concern: `search` (names/sem-id/orcid/resolve), `entity` (views/trees/ladder/tops + meta), `peers`, `works` (paper sets + DAG + CNF work-set intersection), `table` (`/metrics` registry, `/slice` cohort pages ranked by a global metric with `sort=`/`subfield=`/`q=` and the cohort size in `x-cohort-total`, `/metrics/:etype?ids=` page-local metric values) |
 
 ### Supporting crates
 
-| Crate                   | Role                                                                                                                                                                                                                                                                    |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Crate | Role |
+| --- | --- |
 | `dmove` / `dmove_macro` | Metaprogramming: generates entity/attribute/link Rust source tailored to dataset shape; `ByteFixArrayInterface::FITS_FIXBUF` fails the build (not `cargo check`) for a fixed attribute wider than `MAX_FIXBUF` (see [Metaprogramming](#metaprogramming--make-pipeline)) |
-| `muwo_search`           | Partial-string search engine for entity names: `lib.rs` (trie/engine), `io.rs` (serialization), `fixed_heap.rs`, `merging.rs`, `tests.rs`                                                                                                                               |
+| `muwo_search` | Partial-string search engine for entity names: `lib.rs` (trie/engine), `io.rs` (serialization), `fixed_heap.rs`, `merging.rs`, `tests.rs` |
 
 ### Svelte frontend (`src/`)
 

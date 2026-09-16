@@ -11,7 +11,7 @@ use crate::{
 
 const MAX_SIBLINGS: usize = 16;
 const MAX_DEPTH: usize = 8;
-const MAX_WIDE: usize = 512;
+pub const MAX_WIDE: usize = 512;
 type IndType = u32;
 
 pub fn prune(tree: &BufSerTree, astats: &AttributeLabelUnion, bds: &[BreakdownSpec]) -> BufSerTree {

@@ -395,7 +395,7 @@ pub fn derive_tree_getter(attr: TokenStream, item: TokenStream) -> TokenStream {
         "impl TreeGetter for {attr} {{
     
     {RUN_PM_SIGN} {{
-        let tid = params.fq.q.tid.unwrap_or(0);
+        let tid = params.fq.ck.tid;
         {if_inners}
     }}
 

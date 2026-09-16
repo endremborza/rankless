@@ -72,7 +72,6 @@ async fn async_main(n_threads: usize) {
         .route("/peers/:etype/:semantic_id", get(peers_get))
         .route("/ladder/:etype", get(ladder_get))
         .route("/trees/:root_type/:semantic_id", get(tree_get))
-        .route("/shallows/:root_type", get(shallows_get))
         .route("/works/:etype/:semantic_id/:from", get(works_get))
         .route("/works-intersect/*spec", get(intersect_get))
         .with_state((ns_map_arc, satts, tree_manager.clone()));

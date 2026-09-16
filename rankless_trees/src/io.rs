@@ -32,6 +32,7 @@ use crate::{
     instances::TreeGetter,
     interfacing::{Getters, LocatorsFromMemory},
     part_iterator::TreeMakingParams,
+    prune::MAX_WIDE,
     AttributeLabelUnion,
 };
 
@@ -50,7 +51,7 @@ pub type ManFileHandle = VattReadingArcMap<WorksNames>;
 
 pub type ResCvp = AcTuple<Option<AnyResponse>>;
 pub type BoolCvp = AcTuple<Option<()>>;
-type BasisQuElem = (Option<AnyQuery>, ResCvp);
+type BasisQuElem = (Option<FullTreeQuery>, ResCvp);
 type BasisCvp = AcTuple<VecDeque<BasisQuElem>>;
 
 pub struct TreeBasisState {
@@ -74,19 +75,24 @@ pub struct CacheKey {
     pub tid: u8,
 }
 
+// A resolved query: the tree (`ck`), what its first level profiles, the since-period, and what to
+// do with it. `cacheable` is the caller's call — the handler knows the entity's citation count.
 #[derive(Clone)]
 pub struct FullTreeQuery {
-    pub q: TreeQ,
     pub ck: CacheKey,
+    pub level: Level,
     pub period: u8,
     pub name: String,
+    pub cacheable: bool,
+    pub command: Command,
 }
 
-#[derive(Clone)]
-pub struct FullMultiTreeQuery {
-    pub sq: ShallowQ,
-    pub act_fq: FullTreeQuery,
-    pub act_ind: usize,
+// A tree's first level as a profile of the root: its links over one attribute entity. `complete`
+// says whether every entity with links is present or the level is a top-`MAX_WIDE` cut.
+pub struct FirstLevel {
+    pub node: CollapsedNode,
+    pub leaves: HashMap<u32, CollapsedNode>,
+    pub complete: bool,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -108,25 +114,16 @@ pub struct AttributeLabelOut {
     pub oa_id: Option<BigId>,
 }
 
+// The HTTP query of `/trees`; `make_fq` folds its flags into a `Command`.
 #[derive(Deserialize, Clone)]
 pub struct TreeQ {
     pub year: Option<u16>,
     pub tid: Option<u8>,
-    pub connections: Option<String>,
     pub big_prep: Option<bool>,
     pub big_read: Option<bool>,
     pub shallow: Option<u8>,
     pub wide: Option<bool>,
     pub cacheable: Option<bool>,
-}
-
-#[derive(Deserialize, Clone)]
-pub struct ShallowQ {
-    pub ids: Vec<usize>,
-    pub year: Option<u16>,
-    pub tid: Option<u8>,
-    pub filter: Option<Vec<usize>>,
-    pub satts: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
@@ -159,12 +156,6 @@ pub struct TreeResponse {
     pub tree: JsSerTree,
     pub atts: AttributeLabels,
     pub shallowed: bool,
-}
-
-#[derive(Serialize)]
-pub struct ShallowTreesResponse {
-    pub trees: HashMap<usize, JsSerTree>,
-    pub atts: AttributeLabels,
 }
 
 #[derive(Serialize)]
@@ -206,14 +197,27 @@ pub struct SCIter<'a> {
     key_iter: vec::IntoIter<&'a u32>,
 }
 
-pub enum AnyQuery {
-    Single(FullTreeQuery),
-    Shallows(FullMultiTreeQuery),
+// What a query asks of the tree: a served shape, or one of the two disk-staged compute commands
+// of the cache warmer, which never serve from cache.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Command {
+    Serve(Serve),
+    BigPrep,
+    BigRead,
+}
+
+// `Pruned` is the tree the FE explores, top children per level, cut to `shallow` levels when it
+// is big; `Wide` is the first level with labels (flat-out, tiles); `Profile` is the first level raw.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Serve {
+    Pruned { shallow: Option<u8> },
+    Wide,
+    Profile,
 }
 
 pub enum AnyResponse {
-    Single(TreeResponse),
-    Shallows(ShallowTreesResponse),
+    Tree(TreeResponse),
+    Profile(FirstLevel),
     Failed,
 }
 
@@ -262,9 +266,48 @@ impl Display for FullTreeQuery {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}({}:{}/{:?})",
-            self.name, self.ck.eid, self.ck.tid, self.q.year
+            "{}({}:{}/p{} {:?})",
+            self.name, self.ck.eid, self.ck.tid, self.period, self.command
         )
+    }
+}
+
+impl FullTreeQuery {
+    pub fn serve(&self) -> Option<Serve> {
+        match self.command {
+            Command::Serve(s) => Some(s),
+            _ => None,
+        }
+    }
+}
+
+impl FirstLevel {
+    pub fn from_wide(tree: BufSerTree, n_entities: usize) -> Self {
+        let leaves = match *tree.children {
+            BufSerChildren::Leaves(leaves) => leaves,
+            BufSerChildren::Nodes(_) => panic!("a profile is one level deep"),
+        };
+        // A cut level keeps at least MAX_WIDE keys, so fewer means nothing was cut.
+        let complete = leaves.len() < MAX_WIDE || n_entities <= MAX_WIDE;
+        Self {
+            node: tree.node,
+            leaves,
+            complete,
+        }
+    }
+
+    // The leaf's share of the root's links; zero is only asserted for a complete level, an absent
+    // leaf of a cut level is unknown, as is any share of a root without links.
+    pub fn share(&self, key: u32) -> Option<f64> {
+        if self.node.link_count == 0 {
+            return None;
+        }
+        let total = self.node.link_count as f64;
+        match self.leaves.get(&key) {
+            Some(leaf) => Some(leaf.link_count as f64 / total),
+            None if self.complete => Some(0.0),
+            None => None,
+        }
     }
 }
 
@@ -299,6 +342,29 @@ impl TreeSpecs {
             }
         }
         None
+    }
+
+    pub fn first_level(&self, root_type: &str, tid: u8) -> Option<&BreakdownSpec> {
+        self.specs
+            .get(root_type)?
+            .get(tid as usize)?
+            .breakdowns
+            .first()
+    }
+
+    pub fn has_level(&self, root_type: &str, level: Level) -> bool {
+        self.profile_tid(root_type, level).is_some()
+    }
+
+    // The tree that yields a level's profile cheapest: the fewest levels, the lowest id on a tie.
+    pub fn profile_tid(&self, root_type: &str, level: Level) -> Option<u8> {
+        self.specs
+            .get(root_type)?
+            .iter()
+            .enumerate()
+            .filter(|(_, spec)| spec.breakdowns.first().is_some_and(|b| b.level == level))
+            .min_by_key(|(_, spec)| spec.breakdowns.len())
+            .map(|(i, _)| i as u8)
     }
 
     pub fn to_ck(&self, tid: u8, root_type: &String, eid: usize) -> Option<CacheKey> {
@@ -459,44 +525,57 @@ where
         eid: usize,
     ) -> Option<TreeResponse> {
         let fq = make_fq(q, eid, root_type, &self.specs)?;
-        let aq = AnyQuery::Single(fq);
-        match self.get_resp(aq)? {
-            AnyResponse::Single(resp) => Some(resp),
+        match Self::wait(self.enqueue(fq)?)? {
+            AnyResponse::Tree(resp) => Some(resp),
             _ => None,
         }
     }
 
-    pub fn get_shallows(&self, sq: ShallowQ, root_type: &String) -> Option<ShallowTreesResponse> {
-        //TODO: this is incomplete
-        let tq = TreeQ {
-            year: sq.year,
-            tid: sq.tid,
-            connections: None,
-            big_prep: None,
-            big_read: None,
-            shallow: Some(0),
-            cacheable: None,
-            wide: None,
+    // One profile per entity, each its own pool job, gathered once all are in. Entities the pool
+    // rejects or whose compute fails are absent. Empty when no tree of the root yields the level.
+    pub fn first_levels(
+        &self,
+        root_type: &str,
+        level: Level,
+        year: Option<u16>,
+        ids: impl IntoIterator<Item = (usize, bool)>,
+    ) -> HashMap<usize, FirstLevel> {
+        let Some(tid) = self.specs.profile_tid(root_type, level) else {
+            return HashMap::new();
         };
-        let act_fq = make_fq(tq, *sq.ids.get(0)?, root_type, &self.specs)?;
-        let fmq = FullMultiTreeQuery {
-            act_fq,
-            sq,
-            act_ind: 0,
-        };
-        let aq = AnyQuery::Shallows(fmq);
-        match self.get_resp(aq)? {
-            AnyResponse::Shallows(resp) => Some(resp),
-            _ => None,
-        }
+        let pending: Vec<(usize, ResCvp)> = ids
+            .into_iter()
+            .filter_map(|(eid, cacheable)| {
+                let fq = FullTreeQuery {
+                    ck: self.specs.to_ck(tid, &root_type.to_string(), eid)?,
+                    level,
+                    period: WorkPeriods::from_year(year.unwrap_or(START_YEAR)),
+                    name: root_type.to_string(),
+                    cacheable,
+                    command: Command::Serve(Serve::Profile),
+                };
+                Some((eid, self.enqueue(fq)?))
+            })
+            .collect();
+        pending
+            .into_iter()
+            .filter_map(|(eid, cvp)| match Self::wait(cvp)? {
+                AnyResponse::Profile(fl) => Some((eid, fl)),
+                _ => None,
+            })
+            .collect()
     }
 
-    fn get_resp(&self, aq: AnyQuery) -> Option<AnyResponse> {
+    fn enqueue(&self, fq: FullTreeQuery) -> Option<ResCvp> {
         let res_cvp = ResCvp::default();
-        if !self.add_to_queue(Some(aq), res_cvp.clone()) {
+        if !self.add_to_queue(Some(fq), res_cvp.clone()) {
             println!("queue full, rejecting query");
             return None;
         }
+        Some(res_cvp)
+    }
+
+    fn wait(res_cvp: ResCvp) -> Option<AnyResponse> {
         let (lock, cvar) = &*res_cvp;
         let mut out = lock.lock().unwrap();
         while out.is_none() {
@@ -540,14 +619,14 @@ where
         )
     }
 
-    fn add_to_queue(&self, aq: Option<AnyQuery>, res_cvp: ResCvp) -> bool {
+    fn add_to_queue(&self, fq: Option<FullTreeQuery>, res_cvp: ResCvp) -> bool {
         let (lock, cvar) = &*self.cv_pair;
         let mut data = lock.lock().unwrap();
         // the kill sentinel (None) must always get through
-        if aq.is_some() && data.len() >= MAX_QUEUE_LEN {
+        if fq.is_some() && data.len() >= MAX_QUEUE_LEN {
             return false;
         }
-        data.push_back((aq, res_cvp));
+        data.push_back((fq, res_cvp));
         cvar.notify_all();
         true
     }
@@ -560,11 +639,11 @@ where
             let thread = std::thread::spawn(move || loop {
                 let (fqo, res_cvp) = Self::get_q_cvp(shared_cvp.clone());
                 match fqo {
-                    Some(aq) => {
+                    Some(fq) => {
                         let panic_cvp = res_cvp.clone();
                         let run = catch_unwind(AssertUnwindSafe(|| {
                             let params =
-                                TreeMakingParams::new(&shared_state, &mut thread_fh, aq, res_cvp);
+                                TreeMakingParams::new(&shared_state, &mut thread_fh, fq, res_cvp);
                             T::run_params(params);
                         }));
                         if run.is_err() {
@@ -607,36 +686,21 @@ impl TreeBasisState {
         }
     }
 
-    pub fn full_cache_file_period(&self, fq: &FullTreeQuery, period: u8) -> PathBuf {
-        self.cache_file(fq, period, Some("full"))
-    }
-
-    pub fn wide_cache_file_period(&self, fq: &FullTreeQuery, period: u8) -> PathBuf {
-        self.cache_file(fq, period, Some("wide"))
-    }
-
     pub fn pruned_cache_file_period(&self, fq: &FullTreeQuery, period: u8) -> PathBuf {
-        self.cache_file(fq, period, None)
+        self.tree_dir(fq).join(format!("{period}.zst"))
     }
 
     pub fn shallow_cache_file_period(&self, fq: &FullTreeQuery, depth: u8, period: u8) -> PathBuf {
-        self.cache_file(fq, period, Some(&format!("shallow{depth}")))
+        self.tree_dir(fq)
+            .join(format!("shallow{depth}-{period}.zst"))
     }
 
-    fn cache_file(&self, fq: &FullTreeQuery, period: u8, prefix: Option<&str>) -> PathBuf {
-        let name = match prefix {
-            Some(p) => format!("{}-{}.zst", p, period),
-            None => format!("{}.zst", period),
-        };
-        self.cache_dir(fq).join(name)
-    }
-
-    pub fn resp_cache_file(&self, fq: &FullTreeQuery) -> PathBuf {
-        if fq.q.wide.unwrap_or(false) {
-            self.wide_cache_file_period(fq, fq.period)
-        } else {
-            self.pruned_cache_file_period(fq, fq.period)
-        }
+    // The profile is keyed by the level, so every tree opening with it reads and writes one file.
+    pub fn profile_cache_file_period(&self, fq: &FullTreeQuery, period: u8) -> PathBuf {
+        self.entity_dir(fq)
+            .join("first")
+            .join(fq.level.to_string())
+            .join(format!("{period}.zst"))
     }
 
     pub fn fake() -> Self {
@@ -647,25 +711,40 @@ impl TreeBasisState {
         }
     }
 
-    fn cache_dir(&self, fq: &FullTreeQuery) -> PathBuf {
+    fn entity_dir(&self, fq: &FullTreeQuery) -> PathBuf {
         self.gets
             .stowage
             .paths
             .cache
             .join(&fq.name)
             .join(fq.ck.eid.to_string())
-            .join(fq.ck.tid.to_string())
+    }
+
+    fn tree_dir(&self, fq: &FullTreeQuery) -> PathBuf {
+        self.entity_dir(fq).join(fq.ck.tid.to_string())
     }
 }
 
 fn make_fq(q: TreeQ, eid: usize, root_type: &String, specs: &TreeSpecs) -> Option<FullTreeQuery> {
-    let fq = FullTreeQuery {
-        ck: specs.to_ck(q.tid.unwrap_or(0), root_type, eid)?,
-        period: WorkPeriods::from_year(q.year.unwrap_or(START_YEAR)),
-        q,
-        name: root_type.to_string(),
+    let tid = q.tid.unwrap_or(0);
+    let flag = |o: Option<bool>| o.unwrap_or(false);
+    let command = if flag(q.big_read) {
+        Command::BigRead
+    } else if flag(q.big_prep) {
+        Command::BigPrep
+    } else if flag(q.wide) {
+        Command::Serve(Serve::Wide)
+    } else {
+        Command::Serve(Serve::Pruned { shallow: q.shallow })
     };
-    Some(fq)
+    Some(FullTreeQuery {
+        ck: specs.to_ck(tid, root_type, eid)?,
+        level: specs.first_level(root_type, tid)?.level,
+        period: WorkPeriods::from_year(q.year.unwrap_or(START_YEAR)),
+        name: root_type.to_string(),
+        cacheable: q.cacheable.unwrap_or(true),
+        command,
+    })
 }
 
 fn oaify(node: CollapsedNode, gets: &Getters) -> CollapsedNodeJson {
@@ -674,5 +753,56 @@ fn oaify(node: CollapsedNode, gets: &Getters) -> CollapsedNodeJson {
         link_count: node.link_count,
         source_count: node.source_count,
         top_cite_count: node.top_cite_count,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn wide(n_leaves: u32, total: u32) -> BufSerTree {
+        let leaf = |lc| CollapsedNode {
+            link_count: lc,
+            ..Default::default()
+        };
+        BufSerTree {
+            node: leaf(total),
+            children: BufSerChildren::Leaves((1..=n_leaves).map(|k| (k, leaf(1))).collect()).into(),
+        }
+    }
+
+    #[test]
+    fn a_cut_level_does_not_assert_zero_for_an_absent_leaf() {
+        let small_level = FirstLevel::from_wide(wide(MAX_WIDE as u32, 1000), MAX_WIDE);
+        assert!(small_level.complete);
+        assert_eq!(small_level.share(1), Some(0.001));
+        assert_eq!(small_level.share(9999), Some(0.0));
+
+        let cut = FirstLevel::from_wide(wide(MAX_WIDE as u32, 1000), 100_000);
+        assert!(!cut.complete);
+        assert_eq!(cut.share(1), Some(0.001));
+        assert_eq!(cut.share(9999), None);
+
+        // fewer keys than the cut keeps means nothing was cut, whatever the entity count
+        let sparse = FirstLevel::from_wide(wide(3, 10), 100_000);
+        assert!(sparse.complete);
+        assert_eq!(sparse.share(9999), Some(0.0));
+
+        assert_eq!(FirstLevel::from_wide(wide(0, 0), 10).share(1), None);
+    }
+
+    // The frontend's `BreakdownSpec` type reads exactly these three keys.
+    #[test]
+    fn a_breakdown_spec_serializes_as_the_frontend_reads_it() {
+        let bd = BreakdownSpec {
+            level: Level::citing("countries"),
+            spec_denom_ind: 1,
+            n_entities: 200,
+        };
+        let json = serde_json::to_value(&bd).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({"attributeType": "countries", "sourceSide": false, "specDenomInd": 1})
+        );
     }
 }
