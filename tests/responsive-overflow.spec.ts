@@ -3,7 +3,7 @@ import { test, expect } from './coverage/fixtures';
 import { sitemapEntityUrls } from './helpers';
 
 // Guards against the recurring "layout breaks on a small screen" bug: at each phone/tablet width it
-// loads the home page and one live instance of every root type, then asserts the document never grows
+// loads the home page, the browse table and one live instance of every root type, then asserts the document never grows
 // wider than the viewport (no page-level horizontal scrollbar). On failure it names the widest
 // offending elements so the culprit is obvious instead of needing a manual hunt.
 
@@ -65,10 +65,14 @@ async function overflowOffenders(page: Page): Promise<string[]> {
 }
 
 test.describe('No horizontal overflow on small screens', () => {
-	const routes: { label: string; url: string }[] = [{ label: 'home', url: '/' }];
+	const routes: { label: string; url: string; ready: string | null }[] = [
+		{ label: 'home', url: '/', ready: null },
+		{ label: 'authors table', url: '/authors/table', ready: 'tbody tr' }
+	];
 
 	test.beforeAll(async () => {
-		for (const t of ROOT_TYPES) routes.push({ label: t, url: await firstSitemapUrl(t) });
+		for (const t of ROOT_TYPES)
+			routes.push({ label: t, url: await firstSitemapUrl(t), ready: '#overview h1' });
 	});
 
 	for (const width of WIDTHS) {
@@ -77,9 +81,9 @@ test.describe('No horizontal overflow on small screens', () => {
 			const page = await context.newPage();
 			const failures: string[] = [];
 
-			for (const { label, url } of routes) {
+			for (const { label, url, ready } of routes) {
 				await page.goto(url, { waitUntil: 'load' });
-				if (url !== '/') await page.waitForSelector('#overview h1', { timeout: 20_000 });
+				if (ready) await page.waitForSelector(ready, { timeout: 20_000 });
 				await page.waitForTimeout(300); // let async sections (peers, charts) settle
 
 				const over = await page.evaluate(
