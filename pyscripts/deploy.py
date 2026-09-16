@@ -762,8 +762,8 @@ class Transper:
         cato = self.ssh.run(f"cat ~/{SERIVCE_DIR}/{fname_wc}")
         return re.findall("ORIGIN=https://(.*) ", cato)[0]
 
-    def get_backend_domain(self):
-        domain = self.get_domain()
+    def get_backend_domain(self, domain: str | None = None):
+        domain = domain or self.get_domain()
         if domain == ALPHA_DOMAIN:
             return ALPHA_BACKEND
         if domain == LIVE_DOMAIN:
@@ -781,7 +781,7 @@ class Transper:
         )
         conf = render_nginx_conf(
             self.get_server_prefix(inst_domain),
-            self.get_server_prefix(self.get_backend_domain()),
+            self.get_server_prefix(self.get_backend_domain(inst_domain)),
             inst_domain,
             self.be_cache_dir,
             self.fe_cache_dir,
@@ -980,7 +980,7 @@ upstream {BE_UPSTREAM} {{
                     delete=mirror,
                 )
 
-    def setup_code(self, branch=None):
+    def setup_code(self, branch=None, domain: str | None = None):
         self.ssh.run(f"rm -rf {self.deploy_dir}")
         self.ssh.run(
             f"git clone https://github.com/endremborza/rankless {self.deploy_dir}"
@@ -988,7 +988,7 @@ upstream {BE_UPSTREAM} {{
         # Deploy whatever the caller is on, not the remote's default branch — the
         # branch must be pushed to origin first.
         self._depcomm(f"git checkout {branch or gitutil.current_branch()}")
-        self.update_env()
+        self.update_env(domain)
 
     def sync_code(self):
         self._depcomm("git pull")
@@ -1030,9 +1030,11 @@ upstream {BE_UPSTREAM} {{
                 "owner is a reverse tunnel from another box; stop its unit there"
             )
 
-    def update_env(self):
-        domain = self.get_domain()
-        be_url = "https://" + self.get_backend_domain()
+    def update_env(self, domain: str | None = None):
+        # The box's own frontend unit names its domain; a box that has none yet
+        # takes it from the caller.
+        domain = domain or self.get_domain()
+        be_url = "https://" + self.get_backend_domain(domain)
         txt = f"{PUB_URL_VAR}=https://{domain}\n{BE_URL_VAR}={be_url}\n{OA_ROOT_VAR}={self.data_dir}\n"
         txt += "\n".join(f"{k}={v}" for k, v in ORCID_VARS.items() if v is not None)
         self.sync_txt(txt, ".env", self.deploy_dir)
@@ -1428,7 +1430,7 @@ def full_setup_from_nothing(
     spec = BoxSpec(domain, procn, backend)
     tpr.setup(backend=backend)
     tpr.validate(backend=backend)
-    tpr.setup_code(branch)
+    tpr.setup_code(branch, spec.domain)
     apply_ops(tpr, spec)
     tpr.update_fe()
     if backend:
