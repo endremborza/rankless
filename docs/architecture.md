@@ -204,28 +204,29 @@ the only viz dependency).
 
 **Utility modules**
 
-| File                              | Role                                                                                                                                                               |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `lib/tree-functions.ts`           | Tree traversal/flattening/filtering; `getDefaultBreakdowns()`, `getBreakdownOptions()`                                                                             |
-| `lib/tree-events.ts`              | Click/hover/selection handlers                                                                                                                                     |
-| `lib/visual-util.ts`              | `rescale()`, `getSankeyPath()`, `pinRange()`                                                                                                                       |
-| `lib/metric-calculation.ts`       | Specialization scores, impact metrics                                                                                                                              |
-| `lib/network-util.ts`             | Co-authorship graph utilities (light layouts)                                                                                                                      |
-| `lib/utils/author-timeline.ts`    | Aggregates co-authors from the full loaded works into per-year, span-bounded rows (`buildCoauthors`/`sortCoauthors`/`yearDomain`/`makeTicks`) for `AuthorTimeline` |
-| `lib/network-force.ts`            | Cytoscape/fcose force layout — lazily imported so the vendor chunk stays off initial load                                                                          |
-| `lib/route-functions.ts`          | URL builders                                                                                                                                                       |
-| `lib/loading-functions.ts`        | Data fetching orchestration                                                                                                                                        |
-| `lib/text-format-util.ts`         | Number/text formatting; `semantify` + `SEM_MAP` (see [breakdown selection](#breakdown-selection))                                                                  |
-| `lib/style-util.ts`               | CSS/SVG styling                                                                                                                                                    |
-| `lib/stores.ts`                   | Svelte reactive stores; the localStorage-backed top-paper cache (`prefetchPaper`, which settles every waiter even when the OpenAlex load fails)                    |
-| `lib/sitemap-functions.ts`        | SEO sitemap helpers                                                                                                                                                |
-| `lib/util.ts`                     | General utilities                                                                                                                                                  |
-| `lib/utils/ledger-effective.ts`   | Derives effective disowned/ledger sets for `AllWorks` from applied + pending events                                                                                |
-| `lib/utils/works-loader.ts`       | Shared paginated author-works store (`createWorksLoader`); one instance per hero page feeds both `AllWorks` and `AuthorNetwork` so works are fetched once          |
-| `lib/utils/stale-guard.ts`        | `createStaleGuard`: `claim()` marks a new in-flight op and returns `isCurrent()`; every entity-page fetch drops a superseded response through it                   |
-| `lib/utils/tree-loader.ts`        | `createTreeLoader`: `load(conf, shallow?)` resolves to the tree only while still the newest request; `$state` = conf/resp/loading; one per `FullQc`/`FlatOutFrame` |
-| `lib/utils/works-intersection.ts` | `fetchWorkIntersection`: encodes a CNF `WorkSetQuery` (`$lib/types/work-set.ts`) into the `/works-intersect/*spec` path and returns a `PaginatedPaperSetResp`      |
-| `lib/hero-config.ts`              | Per-root-type `HERO_CONFIG` + chip/leader/field-topic builders for `EntityHero` (stat, badge policy, leaders, topics nested under their parent field)              |
+| File                              | Role                                                                                                                                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lib/tree-functions.ts`           | Tree traversal/flattening/filtering; `getDefaultBreakdowns()`, `getBreakdownOptions()`                                                                                                           |
+| `lib/tree-events.ts`              | Click/hover/selection handlers                                                                                                                                                                   |
+| `lib/visual-util.ts`              | `rescale()`, `getSankeyPath()`, `pinRange()`                                                                                                                                                     |
+| `lib/metric-calculation.ts`       | Specialization scores, impact metrics                                                                                                                                                            |
+| `lib/table-utils.ts`              | Browse-table column model over the metric registry (`globalColumns`/`metricsFor`/`validSort`), row value + formatting, page-local stable sort, and the `/slice` / `/metrics/:etype` URL builders |
+| `lib/network-util.ts`             | Co-authorship graph utilities (light layouts)                                                                                                                                                    |
+| `lib/utils/author-timeline.ts`    | Aggregates co-authors from the full loaded works into per-year, span-bounded rows (`buildCoauthors`/`sortCoauthors`/`yearDomain`/`makeTicks`) for `AuthorTimeline`                               |
+| `lib/network-force.ts`            | Cytoscape/fcose force layout — lazily imported so the vendor chunk stays off initial load                                                                                                        |
+| `lib/route-functions.ts`          | URL builders                                                                                                                                                                                     |
+| `lib/loading-functions.ts`        | Data fetching orchestration                                                                                                                                                                      |
+| `lib/text-format-util.ts`         | Number/text formatting; `semantify` + `SEM_MAP` (see [breakdown selection](#breakdown-selection))                                                                                                |
+| `lib/style-util.ts`               | CSS/SVG styling                                                                                                                                                                                  |
+| `lib/stores.ts`                   | Svelte reactive stores; the localStorage-backed top-paper cache (`prefetchPaper`, which settles every waiter even when the OpenAlex load fails)                                                  |
+| `lib/sitemap-functions.ts`        | SEO sitemap helpers                                                                                                                                                                              |
+| `lib/util.ts`                     | General utilities                                                                                                                                                                                |
+| `lib/utils/ledger-effective.ts`   | Derives effective disowned/ledger sets for `AllWorks` from applied + pending events                                                                                                              |
+| `lib/utils/works-loader.ts`       | Shared paginated author-works store (`createWorksLoader`); one instance per hero page feeds both `AllWorks` and `AuthorNetwork` so works are fetched once                                        |
+| `lib/utils/stale-guard.ts`        | `createStaleGuard`: `claim()` marks a new in-flight op and returns `isCurrent()`; every entity-page fetch drops a superseded response through it                                                 |
+| `lib/utils/tree-loader.ts`        | `createTreeLoader`: `load(conf, shallow?)` resolves to the tree only while still the newest request; `$state` = conf/resp/loading; one per `FullQc`/`FlatOutFrame`                               |
+| `lib/utils/works-intersection.ts` | `fetchWorkIntersection`: encodes a CNF `WorkSetQuery` (`$lib/types/work-set.ts`) into the `/works-intersect/*spec` path and returns a `PaginatedPaperSetResp`                                    |
+| `lib/hero-config.ts`              | Per-root-type `HERO_CONFIG` + chip/leader/field-topic builders for `EntityHero` (stat, badge policy, leaders, topics nested under their parent field)                                            |
 
 **Routes**
 

@@ -132,6 +132,45 @@ export type SearchResult = {
 	dmId?: number;
 };
 
+// One `/slice` row: a search result plus its 1-based rank in the active cohort ordering and the
+// global metric columns; field columns only when the cohort is narrowed to a subfield.
+export type TableRow = {
+	name: string;
+	semanticId: string;
+	papers: number;
+	citations: number;
+	rawCites?: number;
+	distinctText?: string;
+	oaId: number;
+	dmId: number;
+	rank: number;
+	impactScore: number;
+	hIndex?: number;
+	yearCentroid?: number;
+	fieldCitations?: number;
+	fieldScore?: number;
+};
+
+export type MetricKind = 'global' | 'intricate';
+
+// One entry of the backend's metric registry (`/metrics`): the single source for a metric's label,
+// meaning text, parameters and its kind per root type.
+export type MetricDecl = {
+	id: string;
+	label: string;
+	meaning: string;
+	kinds: Partial<Record<RootType, MetricKind>>;
+	params: string[];
+};
+
+export type MetricRegistry = { metrics: MetricDecl[] };
+
+// Page-local metric values from `/metrics/:etype`: one column per metric, aligned with `ids`.
+export type MetricValuesResp = {
+	ids: number[];
+	values: Record<string, (number | null)[]>;
+};
+
 export type SubbedRel = { desc: string; subs: RelatedEntity[] };
 export type AboutPara = {
 	prefix: string;
