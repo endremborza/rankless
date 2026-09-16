@@ -34,6 +34,9 @@ export const ROOT_TYPES: RootType[] = [
 	'hit-papers'
 ];
 
+// Root types whose entities form a ranked cohort (top lists, browse tables); hit-papers are a paper set.
+export const COHORT_ROOT_TYPES: RootType[] = ROOT_TYPES.filter((rt) => rt !== 'hit-papers');
+
 export const REL_TYPES: RelTypes[] = [
 	'paper-fields',
 	'citing-fields',

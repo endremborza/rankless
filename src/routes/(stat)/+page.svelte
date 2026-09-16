@@ -23,7 +23,7 @@
 	import SpecConcrete2 from '$lib/components/SpecConcrete2.svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
-	import { APP_NAME, BRAND_TAGLINE, COMPLETE_YEAR, ROOT_TYPES } from '$lib/constants';
+	import { APP_NAME, BRAND_TAGLINE, COHORT_ROOT_TYPES, COMPLETE_YEAR } from '$lib/constants';
 	import { getExternalUrl } from '$lib/route-functions';
 	import TreeSvg from '$lib/components/TreeSvg.svelte';
 	import { resultsHidden } from '$lib/stores';
@@ -262,7 +262,7 @@
 		return `${x0} ${y0} ${w} ${fullH - pad - headHeight}`;
 	}
 	const [bgWidth, bgOffset, bgHeight] = [300, 120, 300];
-	let options: tt.RootType[] = ROOT_TYPES.filter((e) => e != 'hit-papers');
+	let options: tt.RootType[] = COHORT_ROOT_TYPES;
 	let texts = options.map(prettifyRoot);
 </script>
 
