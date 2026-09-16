@@ -20,7 +20,11 @@ from pyscripts.typeaudit.rustparse import serialized_keys, variant_tag
 
 REPORT_PATH = Path("logs/type-audit.md")
 
-RUST_RESPONSE_FILES = ("rankless_server/src/responses.rs", "rankless_trees/src/io.rs")
+RUST_RESPONSE_FILES = (
+    "rankless_server/src/responses.rs",
+    "rankless_trees/src/io.rs",
+    "rankless_rs/src/metrics.rs",
+)
 TS_RESPONSE_FILES = ("src/lib/tree-types.ts", "src/lib/server/id_resolver.ts")
 LEDGER_RUST = "rankless_rs/src/user_ledger.rs"
 LEDGER_TS = "src/lib/types/ledger.ts"
@@ -53,6 +57,9 @@ RESPONSE_PAIRS = (
     ("CountsResponse", "CountsResponse"),
     ("StatsResp", "StatsResp"),
     ("StatsSubfield", "StatsSubfield"),
+    ("TableRow", "TableRow"),
+    ("MetricDecl", "MetricDecl"),
+    ("MetricValuesResp", "MetricValuesResp"),
 )
 # Rust response structs with deliberately no TS mirror (only mcp_server reads them).
 NO_MIRROR_OK = {"StatsResp", "StatsSubfield"}
