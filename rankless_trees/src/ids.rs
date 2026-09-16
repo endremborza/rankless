@@ -63,7 +63,7 @@ fn ext_atts(
     work_map: &mut ManFileHandle,
     state: &TreeBasisState,
 ) {
-    let at = &bds[0].attribute_type;
+    let at = bds[0].level.entity;
     let eatts = atts.entry(at.to_string()).or_insert(HashMap::new());
     match tree.children.as_ref() {
         BufSerChildren::Leaves(leaves) => add_leaves(leaves.keys(), eatts, work_map, at, state),

@@ -7,6 +7,7 @@ use rankless_rs::{
     common::{NumberedEntity, NET},
     gen::a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
     gen::a2_init_atts::WorkAnyAuthorships,
+    metrics::Level,
     steps::a1_entity_mapping::{Qs, N_PERS},
 };
 
@@ -1586,9 +1587,12 @@ where
     T: FoldStackBase<C>,
 {
     BreakdownSpec {
-        attribute_type: T::LevelEntity::NAME.to_string(),
+        level: Level {
+            entity: T::LevelEntity::NAME,
+            source_side: T::SOURCE_SIDE,
+        },
         spec_denom_ind: T::SPEC_DENOM_IND as u8,
-        source_side: T::SOURCE_SIDE,
+        n_entities: T::LevelEntity::N,
     }
 }
 

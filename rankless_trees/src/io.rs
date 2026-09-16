@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use rankless_rs::{
     env_consts::START_YEAR,
     gen::{a1_entity_mapping::Works, a2_init_atts::WorksNames},
+    metrics::Level,
     steps::{
         a1_entity_mapping::{POSSIBLE_YEAR_FILTERS, YBT},
         derive_links1::WorkPeriods,
@@ -190,13 +191,14 @@ pub struct TreeSpec {
 
 #[derive(Serialize)]
 pub struct BreakdownSpec {
-    #[serde(rename = "attributeType")]
-    pub attribute_type: String,
-    #[serde(rename = "specDenomInd")] //this is to know how deep to go back for spec calculation
-    //e.g a country->inst is the same resolver
+    #[serde(flatten)]
+    pub level: Level,
+    // How many levels up the specialization denominator sits: a country -> institution level
+    // shares its parent's resolver.
+    #[serde(rename = "specDenomInd")]
     pub spec_denom_ind: u8,
-    #[serde(rename = "sourceSide")]
-    pub source_side: bool,
+    #[serde(skip)]
+    pub n_entities: usize,
 }
 
 pub struct SCIter<'a> {

@@ -98,7 +98,7 @@ fn get_keepers<const SIZE: usize>(
     let bd_denom = f64::from(denoms[bds[depth].spec_denom_ind as usize]);
     let mut top_weights: FixedHeap<Reverse<(u32, IndType)>, SIZE> = FixedHeap::new();
     let mut top_specs: FixedHeap<Reverse<(f64, IndType)>, SIZE> = FixedHeap::new();
-    let entity_type = &bds[depth].attribute_type;
+    let entity_type = bds[depth].level.entity;
     for (k, child) in tree.children.iter_items().filter(|(k, _)| **k != 0) {
         let cw = child.link_count;
         let numerator = f64::from(cw);
