@@ -35,7 +35,7 @@ pub(crate) async fn tree_get(
     states: StatesT,
 ) -> (HeaderMap, Json<Option<TreeResponse>>) {
     let mut tq = tree_q.0;
-    let (ns_map, _, tm, _) = states.0;
+    let (ns_map, _, tm) = states.0;
     if (root_type == HitPapers::NAME) && (semantic_id == "all") {
         tq.cacheable = Some(true);
     }
@@ -55,7 +55,7 @@ pub(crate) async fn shallows_get(
     q: Query<ShallowQ>,
     states: StatesT,
 ) -> (HeaderMap, Json<Option<ShallowTreesResponse>>) {
-    let (ns_map, _, tm, _) = states.0;
+    let (ns_map, _, tm) = states.0;
     let Some(nstate) = ns_map.get(root_type.as_str()) else {
         return (cache_header(0), None.into());
     };
@@ -128,11 +128,18 @@ pub(crate) async fn stats_get(
     let (era_from, era_to) = era_bounds();
     let window = state.exts[rid].window(q.year_from, q.year_to);
 
-    // Per-subfield citing profile only exists for root types with peer aux (cit_subfields).
+    // Per-subfield citing profile only exists for root types carrying the subfield profiles.
     let mut top_subfields = Vec::new();
     let mut subfield = None;
-    if let Some(aux) = states.0 .3.get(etype.as_str()) {
-        let row = aux.cit_subfields.row(dm_id);
+    let sf_profiles = states
+        .0
+         .2
+        .state
+        .gets
+        .columns_for(etype.as_str())
+        .and_then(|c| c.subfields.as_ref());
+    if let Some(sfs) = sf_profiles {
+        let row = sfs.citing.row(dm_id);
         top_subfields = build_top_subfields(&row, satts, 10);
         if let Some(sf_sem) = q.subfield.as_ref() {
             if let Some((_, sf_dm)) = resolve_dm(&states.0 .0, Subfields::NAME, sf_sem) {

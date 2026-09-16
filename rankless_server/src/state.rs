@@ -21,7 +21,7 @@ use rankless_rs::{
 };
 use rankless_trees::{
     extensions::DistinctionText,
-    interfacing::{Getters, PeerAux, PeerAuxMap, RootInterfaceable, RootInterfaces},
+    interfacing::{Getters, RootColumns, RootInterfaceable, RootInterfaces},
     io::TreeRunManager,
     AttributeLabelUnion,
 };
@@ -41,15 +41,11 @@ pub(crate) type InstTrm = TreeRunManager<(
     HitPapers,
 )>;
 pub(crate) type NameStateMap = HashMap<&'static str, NameState>;
-pub(crate) type StatesT = State<(
-    Arc<NameStateMap>,
-    Arc<AttributeLabelUnion>,
-    Arc<InstTrm>,
-    Arc<PeerAuxMap>,
-)>;
+pub(crate) type StatesT = State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>, Arc<InstTrm>)>;
 
 pub(crate) struct NameState {
     pub engine: SearchEngine<SEARCH_SIZE>,
+    // Ordered by citations descending: response id == citation rank - 1.
     pub responses: Box<[SearchResult]>,
     pub exts: Box<[EntityExt]>,
     pub sem_to_dm: HashMap<Arc<str>, u32>,
@@ -202,7 +198,7 @@ fn build_relations(
 ) -> (RelationGroups, Box<[u8]>) {
     // TODO: these parameters reappear a bunch and also there are a lot of WET
     // relation defs here, a refactor will soon be in order
-    let Some(tr) = gets.top_rels_for(etype) else {
+    let Some(tr) = gets.columns_for(etype) else {
         return (RelationGroups::default(), Box::new([]));
     };
     // For an author hero, attach the shared-paper count to each co-author from the resident per-author

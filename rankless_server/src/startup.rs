@@ -18,8 +18,8 @@ use rankless_rs::{
 use rankless_trees::{
     extensions::DistinctionText,
     interfacing::{
-        make_stats_entry_arc, Getters, NodeInterfaceable, NodeInterfaces, PeerAuxMap,
-        RootInterfaceable, RootInterfaces,
+        make_stats_entry_arc, Getters, NodeInterfaceable, NodeInterfaces, RootInterfaceable,
+        RootInterfaces,
     },
     io::TreeRunManager,
     AttributeLabelUnion,
@@ -45,18 +45,12 @@ pub(crate) fn get_rest(
     Arc<InstTrm>,
     CountsResponse,
     Vec<TopResult>,
-    Arc<PeerAuxMap>,
 ) {
     let gets = Arc::new(Getters::new(Arc::new(stowage)));
     let mux_satts: Arc<Mutex<AttributeLabelUnion>> = Arc::new(Mutex::new(HashMap::new()));
     let cv_pair = AcTuple::<Option<f64>>::default();
     let mut ns_map: NameStateMap = HashMap::new();
     let mut tops = Vec::new();
-    let peer_aux = {
-        let m = gets.build_peer_aux();
-        print_mem_use("loaded peer aux");
-        Arc::new(m)
-    };
     let counts_response = {
         let mut descriptions = Vec::new();
         print_mem_use("pre thread starts");
@@ -82,7 +76,7 @@ pub(crate) fn get_rest(
     let asatts = Arc::new(satts);
     let tm: Arc<InstTrm> = TreeRunManager::new(gets, asatts.clone(), n_threads);
     print_mem_use("got tm");
-    (ns_map, asatts, tm, counts_response, tops, peer_aux)
+    (ns_map, asatts, tm, counts_response, tops)
 }
 
 fn author_blacklist() -> HashSet<BigId> {

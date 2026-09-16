@@ -11,7 +11,7 @@ use rankless_rs::{
     peers::SPEC_BETA,
 };
 use rankless_trees::{
-    interfacing::{PeerAux, TopRels},
+    interfacing::{RootColumns, SubfieldProfiles},
     AttributeLabelUnion,
 };
 
@@ -28,18 +28,21 @@ pub(crate) async fn peers_get(
 }
 
 fn peers_inner(etype: &str, sem_id: &str, states: &StatesT) -> (HeaderMap, Response) {
-    let Some(aux) = states.0 .3.get(etype) else {
+    let gets = &states.2.state.gets;
+    // Peers are ranked over the subfield profiles, so a root type without them has no peers view.
+    let Some((cols, sfs)) = gets
+        .columns_for(etype)
+        .and_then(|c| c.subfields.as_ref().map(|s| (c, s)))
+    else {
         return get_empty();
     };
     let Some((astates, hero_dm, hero_rid)) = resolve_entity(&states.0 .0, etype, sem_id) else {
         return get_empty();
     };
     let satts = &states.0 .1;
-    let gets = &states.2.state.gets;
-    let top_rels = gets.top_rels_for(etype);
 
     let sf_atts = &satts[Subfields::NAME];
-    let sf_row = aux.cit_subfields.row(hero_dm);
+    let sf_row = sfs.citing.row(hero_dm);
     let mut sf_scores: Vec<(usize, f64)> = (0..N_SUBFIELDS)
         .filter(|&si| sf_row[si] > 0)
         .map(|si| {
@@ -65,7 +68,7 @@ fn peers_inner(etype: &str, sem_id: &str, states: &StatesT) -> (HeaderMap, Respo
         })
         .collect();
 
-    let ref_row = aux.ref_subfields.row(hero_dm);
+    let ref_row = sfs.refed.row(hero_dm);
     let ref_subfields: Vec<RefSubfieldInfo> = (0..N_SUBFIELDS)
         .filter(|&si| ref_row[si] > 0)
         .map(|si| RefSubfieldInfo {
@@ -74,24 +77,16 @@ fn peers_inner(etype: &str, sem_id: &str, states: &StatesT) -> (HeaderMap, Respo
         })
         .collect();
 
-    let hero = build_peer_entry(
-        hero_rid,
-        hero_dm,
-        astates,
-        aux,
-        satts,
-        top_rels,
-        &sf_indices,
-    );
+    let hero = build_peer_entry(hero_rid, hero_dm, astates, cols, sfs, satts, &sf_indices);
 
     let peers: Vec<PeerEntry> = astates.peers[hero_dm]
         .iter()
         .filter(|&&pid| pid != 0)
         .filter_map(|&pid| {
             let peer_dm = pid as usize;
-            astates.response_id_from_dm(peer_dm).map(|rid| {
-                build_peer_entry(rid, peer_dm, astates, aux, satts, top_rels, &sf_indices)
-            })
+            astates
+                .response_id_from_dm(peer_dm)
+                .map(|rid| build_peer_entry(rid, peer_dm, astates, cols, sfs, satts, &sf_indices))
         })
         .collect();
 
@@ -108,31 +103,29 @@ fn build_peer_entry(
     rid: usize,
     dm_id: usize,
     astates: &NameState,
-    aux: &PeerAux,
+    cols: &RootColumns,
+    sfs: &SubfieldProfiles,
     satts: &AttributeLabelUnion,
-    top_rels: Option<&TopRels>,
     sf_indices: &[usize],
 ) -> PeerEntry {
     let sr = &astates.responses[rid];
     let ext = &astates.exts[rid];
     let sf_cits: Vec<u32> = sf_indices
         .iter()
-        .map(|&si| aux.cit_subfields.elem(dm_id, si))
+        .map(|&si| sfs.citing.elem(dm_id, si))
         .collect();
-    let country = top_rels
-        .and_then(|tr| tr.aff_countries.as_ref())
-        .and_then(|m| {
-            m.row(dm_id)
-                .into_iter()
-                .map(|(_, c)| c.to_usize())
-                .find(|&c| c != 0)
-                .and_then(|cdm| {
-                    satts
-                        .get(Countries::NAME)
-                        .and_then(|labels| labels.get(cdm))
-                        .map(|l| l.name.clone())
-                })
-        });
+    let country = cols.aff_countries.as_ref().and_then(|m| {
+        m.row(dm_id)
+            .into_iter()
+            .map(|(_, c)| c.to_usize())
+            .find(|&c| c != 0)
+            .and_then(|cdm| {
+                satts
+                    .get(Countries::NAME)
+                    .and_then(|labels| labels.get(cdm))
+                    .map(|l| l.name.clone())
+            })
+    });
     PeerEntry {
         name: sr.name.clone(),
         semantic_id: sr.semantic_id.clone(),
@@ -142,8 +135,8 @@ fn build_peer_entry(
         yearly_papers: ext.yearly_papers,
         yearly_cites: ext.yearly_cites,
         start_year: ext.start_year,
-        h_index: aux.h_indices.as_ref().and_then(|h| h.get(dm_id).copied()),
-        year_centroid: aux
+        h_index: cols.h_indices.as_ref().and_then(|h| h.get(dm_id).copied()),
+        year_centroid: cols
             .year_centroids
             .as_ref()
             .and_then(|y| y.get(dm_id).copied()),

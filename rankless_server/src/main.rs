@@ -74,7 +74,7 @@ async fn async_main(n_threads: usize) {
         .route("/shallows/:root_type", get(shallows_get))
         .route("/works/:etype/:semantic_id/:from", get(works_get))
         .route("/works-intersect/*spec", get(intersect_get))
-        .with_state((ns_map_arc, satts, tree_manager.clone(), peer_aux));
+        .with_state((ns_map_arc, satts, tree_manager.clone()));
 
     let count_api = static_router(&counts_response);
     let mut specs_payload = serde_json::to_value(&tree_manager.specs).unwrap();

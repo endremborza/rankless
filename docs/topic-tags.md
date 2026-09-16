@@ -37,22 +37,21 @@ entity type**. Subfields and topics-as-entity are excluded.
 - The denominator is computed once over all citing-works' topics; numerators accumulate per entity
   in a single pass over each type's works (`emit_dominators`).
 - Stored per entity via `TopicDominatorMarker` (variable-length list of `(topic, share-in-basis-points)`).
-- Loaded into `PeerAux` for the four types; surfaced as `ViewResult.dominatedTopics` →
-  `DominatedTopics.svelte`.
+- Written by the pipeline only; nothing on the server loads or serves the column yet.
 
 ## Tuning constants
 
 All in `topic_tags.rs` (env-independent for now):
 
-| Constant                | Value | Meaning                                            |
-| ----------------------- | ----- | -------------------------------------------------- |
-| `CREATOR_CUTOFF_YEAR`   | 2000  | Min first-paper year for a topic to be eligible    |
-| `MIN_CREATOR_CITATIONS` | 50    | Impact floor for a creator paper (≥ `MIN_NEEDED`)  |
-| `MIN_DOM_TOPIC_PAPERS`  | 50    | Skip topics too small for a share to be meaningful |
-| `DOM_PCT_AUTHORS`       | 0.02  | Cited-share threshold, authors                     |
-| `DOM_PCT_INSTITUTIONS`  | 0.10  | Cited-share threshold, institutions                |
-| `DOM_PCT_SOURCES`       | 0.20  | Cited-share threshold, sources                     |
-| `DOM_PCT_COUNTRIES`     | 0.35  | Cited-share threshold, countries                   |
+| Constant | Value | Meaning |
+| --- | --- | --- |
+| `CREATOR_CUTOFF_YEAR` | 2000 | Min first-paper year for a topic to be eligible |
+| `MIN_CREATOR_CITATIONS` | 50 | Impact floor for a creator paper (≥ `MIN_NEEDED`) |
+| `MIN_DOM_TOPIC_PAPERS` | 50 | Skip topics too small for a share to be meaningful |
+| `DOM_PCT_AUTHORS` | 0.02 | Cited-share threshold, authors |
+| `DOM_PCT_INSTITUTIONS` | 0.10 | Cited-share threshold, institutions |
+| `DOM_PCT_SOURCES` | 0.20 | Cited-share threshold, sources |
+| `DOM_PCT_COUNTRIES` | 0.35 | Cited-share threshold, countries |
 
 After tuning, re-run the pipeline from `derive_links3` and restart the server.
 
