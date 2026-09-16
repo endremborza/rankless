@@ -53,6 +53,20 @@ pub(crate) struct NameState {
     dm_to_rid: Box<[u32]>,
     pub peers: Box<[[u32; N_PEERS]]>,
     pub cit_rank_ladder: Box<[[u32; LADDER_LEN]]>,
+    // Cohort mean of `papers`, the dampening constant of every size-adjusted score of this root type.
+    pub mean_papers: f64,
+    // By response id.
+    pub impact_scores: Box<[f32]>,
+    pub orderings: Orderings,
+}
+
+// Response ids sorted descending by one global metric each (stable, so ties keep citation order);
+// the citation ordering is the response array itself. Author-only columns are absent elsewhere.
+pub(crate) struct Orderings {
+    pub papers: Box<[u32]>,
+    pub impact_score: Box<[u32]>,
+    pub h_index: Option<Box<[u32]>>,
+    pub year_centroid: Option<Box<[u32]>>,
 }
 
 pub(crate) struct EntityExt {
@@ -351,6 +365,23 @@ where
     out.into()
 }
 
+impl Orderings {
+    fn new(responses: &[SearchResult], impact_scores: &[f32], cols: Option<&RootColumns>) -> Self {
+        let n = responses.len() as u32;
+        let by_dm = |col: &[u32], rid: u32| col[responses[rid as usize].dm_id] as f64;
+        Self {
+            papers: order_by(0..n, |rid| responses[rid as usize].papers as f64),
+            impact_score: order_by(0..n, |rid| impact_scores[rid as usize] as f64),
+            h_index: cols
+                .and_then(|a| a.h_indices.as_deref())
+                .map(|h| order_by(0..n, |rid| by_dm(h, rid))),
+            year_centroid: cols
+                .and_then(|a| a.year_centroids.as_deref())
+                .map(|y| order_by(0..n, |rid| y[responses[rid as usize].dm_id] as f64)),
+        }
+    }
+}
+
 impl NameState {
     pub fn new<E>(
         entif: &RootInterfaces<E>,
@@ -403,6 +434,20 @@ impl NameState {
             .map(|arr| arr.map(|e| e.to_usize() as u32).try_into().unwrap())
             .collect();
 
+        let now = std::time::Instant::now();
+        let mean_papers = mean_of(responses.iter().map(|r| r.papers));
+        let impact_scores: Box<[f32]> = responses
+            .iter()
+            .map(|r| size_adjusted_score(r.citations, r.papers, mean_papers))
+            .collect();
+        let orderings = Orderings::new(&responses, &impact_scores, gets.columns_for(E::NAME));
+        println!(
+            "orderings for {} (n={}) in {:.2?}",
+            E::NAME,
+            responses.len(),
+            now.elapsed()
+        );
+
         Self {
             engine: engine.into(),
             exts: EntityExt::from_resps(&responses, entif, gets),
@@ -412,6 +457,9 @@ impl NameState {
             dm_to_rid,
             peers,
             cit_rank_ladder: entif.cit_rank_ladder.clone(),
+            mean_papers,
+            impact_scores,
+            orderings,
         }
     }
 
