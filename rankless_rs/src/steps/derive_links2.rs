@@ -30,7 +30,8 @@ use crate::{
         derive_links1::{WorkFilteredAuthors, WorkInstitutions, WorkSubfields, WorksCiting},
     },
     make_interface_struct,
-    peers::compute_career_centroid,
+    metrics::{dampened_size, mean_of},
+    peers::{compute_career_centroid, SPEC_BETA},
     steps::{
         a1_entity_mapping::{Qs, Years},
         derive_links1::{invert_links_sorted, InvertedMultiLink},
@@ -96,6 +97,9 @@ pub struct CiteDeriver {
     pub w_top_source: Box<[ET<Sources>]>,
     // Per-subfield field size raised to SPEC_BETA; denominator for specialization-ranked top subfields.
     pub sf_spec_denoms: Arc<[f64; Subfields::N]>,
+    // The same divisor dampened by the mean field size, for entities whose per-field counts are small
+    // enough that a tiny field's divisor would otherwise dominate the ranking.
+    pub sf_spec_denoms_dampened: Arc<[f64; Subfields::N]>,
 }
 
 struct SelfExtender<T> {
@@ -336,11 +340,12 @@ where
         let mut rel_vec: Vec<InstRelation> = map_base.into_values().collect();
         rel_vec.sort_by(|l, r| (r.papers, (r.end - r.start)).cmp(&(l.papers, l.end - l.start)));
         push_cut::<N_RELS, InstRelation>(rel_vec, &mut self.rels);
-        let paper_sf_sorter = if E::NAME == Authors::NAME {
-            TopSorter::Default
+        let sf_denoms = if E::NAME == Authors::NAME {
+            &cd.sf_spec_denoms_dampened
         } else {
-            TopSorter::Specialization(cd.sf_spec_denoms.clone())
+            &cd.sf_spec_denoms
         };
+        let paper_sf_sorter = TopSorter::Specialization(sf_denoms.clone());
         self.top_paper_sfs
             .push_from_arr(&self.paper_subfields.rec.0, parent_id, paper_sf_sorter);
         self.top_citing_sfs.push_from_arr(
@@ -399,7 +404,7 @@ impl CiteDeriver {
         let astow = Arc::new(stowage);
         let backends = CDBackends::new(astow.clone());
         let wcountries = get_work_countries(&backends);
-        let sf_spec_denoms = compute_sf_spec_denoms(sf_works);
+        let (sf_spec_denoms, sf_spec_denoms_dampened) = compute_sf_spec_denoms(sf_works);
 
         Self {
             backends,
@@ -408,6 +413,7 @@ impl CiteDeriver {
             wcountries,
             w_top_source,
             sf_spec_denoms,
+            sf_spec_denoms_dampened,
         }
     }
 
@@ -593,13 +599,16 @@ impl CiteDeriver {
 
 // Field size per subfield = works assigned to it (one sequential pass over WorkSubfields, equal to
 // the subfield→works inversion length used by peer matching). Returned already raised to SPEC_BETA
-// so callers divide raw counts by it directly.
-fn compute_sf_spec_denoms(sf_works: &[Box<[ET<Works>]>]) -> Arc<[f64; Subfields::N]> {
-    Arc::new(core::array::from_fn(|s| {
-        (sf_works[s].len() as f64)
-            .max(1.0)
-            .powf(crate::peers::SPEC_BETA)
-    }))
+// so callers divide raw counts by it directly, plus the mean-dampened variant of the same divisor.
+fn compute_sf_spec_denoms(
+    sf_works: &[Box<[ET<Works>]>],
+) -> (Arc<[f64; Subfields::N]>, Arc<[f64; Subfields::N]>) {
+    let size = |s: usize| (sf_works[s].len() as f64).max(1.0);
+    let mean_size = mean_of((0..Subfields::N).map(|s| sf_works[s].len() as u32));
+    (
+        Arc::new(core::array::from_fn(|s| size(s).powf(SPEC_BETA))),
+        Arc::new(core::array::from_fn(|s| dampened_size(size(s), mean_size))),
+    )
 }
 
 impl TopSorter {
