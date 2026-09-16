@@ -12,21 +12,24 @@ use rankless_rs::{
         derive_links3::HitPapers,
     },
     ladder::LADDER_LEN,
+    metrics::{mean_of, size_adjusted_score},
     steps::{
         a1_entity_mapping::{RawYear, YearInterface, Years},
-        derive_links2::EraRec,
+        derive_links2::{EraRec, MAX_YEAR, MIN_YEAR},
     },
     N_PEERS,
 };
 use rankless_trees::{
     extensions::DistinctionText,
-    interfacing::{Getters, PeerAuxMap, RootInterfaceable, RootInterfaces},
+    interfacing::{Getters, PeerAux, PeerAuxMap, RootInterfaceable, RootInterfaces},
     io::TreeRunManager,
     AttributeLabelUnion,
 };
 
 use crate::consts::{MAX_HITS, SEARCH_SIZE};
-use crate::responses::{PostAttRelatedEntity, RelationGroups, SearchResult, SerializableExt};
+use crate::responses::{
+    PostAttRelatedEntity, RelationGroups, SearchResult, SerializableExt, YearWindow,
+};
 use crate::search_cache::{fnv64, save_engine, try_load_engine};
 
 pub(crate) type InstTrm = TreeRunManager<(
@@ -98,6 +101,30 @@ impl IsTop for Sources {
 }
 
 impl EntityExt {
+    pub fn window(&self, year_from: Option<RawYear>, year_to: Option<RawYear>) -> YearWindow {
+        let (era_from, era_to) = era_bounds();
+        let from = year_from.unwrap_or(era_from).max(era_from);
+        let to = year_to.unwrap_or(era_to).min(era_to);
+        let (yearly_papers, yearly_cites) = if from <= to {
+            let cf = (from - era_from) as usize;
+            let ct = (to - era_from) as usize;
+            (
+                self.yearly_papers[cf..=ct].to_vec(),
+                self.yearly_cites[cf..=ct].to_vec(),
+            )
+        } else {
+            (Vec::new(), Vec::new())
+        };
+        YearWindow {
+            from,
+            to,
+            papers: yearly_papers.iter().sum(),
+            citations: yearly_cites.iter().sum(),
+            yearly_papers,
+            yearly_cites,
+        }
+    }
+
     fn from_resps<E>(
         responses: &Box<[SearchResult]>,
         entif: &RootInterfaces<E>,
@@ -432,6 +459,21 @@ impl NameState {
             Some(rid as usize)
         }
     }
+}
+
+pub(crate) fn era_bounds() -> (RawYear, RawYear) {
+    (
+        YearInterface::reverse(MIN_YEAR as ET<Years>),
+        YearInterface::reverse(MAX_YEAR as ET<Years>),
+    )
+}
+
+// Descending, stable argsort of the given response ids by a metric value, so ties keep their input
+// (citation) order.
+pub(crate) fn order_by(rids: impl Iterator<Item = u32>, value: impl Fn(u32) -> f64) -> Box<[u32]> {
+    let mut rids: Vec<u32> = rids.collect();
+    rids.sort_by(|&a, &b| value(b).total_cmp(&value(a)));
+    rids.into_boxed_slice()
 }
 
 fn dedup_search_text(name: &str, ext: &str) -> String {

@@ -195,6 +195,23 @@ pub(crate) struct StatsSubfield {
     pub citations: u32,
 }
 
+// Paper and citation counts inside a year window, clamped to the era that has per-year resolution.
+#[derive(Serialize)]
+pub(crate) struct YearWindow {
+    #[serde(rename = "windowFrom")]
+    pub from: RawYear,
+    #[serde(rename = "windowTo")]
+    pub to: RawYear,
+    #[serde(rename = "windowPapers")]
+    pub papers: u32,
+    #[serde(rename = "windowCitations")]
+    pub citations: u32,
+    #[serde(rename = "yearlyPapers")]
+    pub yearly_papers: Vec<u32>,
+    #[serde(rename = "yearlyCites")]
+    pub yearly_cites: Vec<u32>,
+}
+
 // Flat, agent-friendly aggregate for one entity. `papers`/`citations` are lifetime (indexed)
 // totals; per-year resolution exists only for the recent era (`eraFrom`..`eraTo`), so the windowed
 // figures are clamped to that span. `topSubfields`/`subfield` are the citing-subfield impact
@@ -213,18 +230,8 @@ pub(crate) struct StatsResp {
     pub era_from: RawYear,
     #[serde(rename = "eraTo")]
     pub era_to: RawYear,
-    #[serde(rename = "windowFrom")]
-    pub window_from: RawYear,
-    #[serde(rename = "windowTo")]
-    pub window_to: RawYear,
-    #[serde(rename = "windowPapers")]
-    pub window_papers: u32,
-    #[serde(rename = "windowCitations")]
-    pub window_citations: u32,
-    #[serde(rename = "yearlyPapers")]
-    pub yearly_papers: Vec<u32>,
-    #[serde(rename = "yearlyCites")]
-    pub yearly_cites: Vec<u32>,
+    #[serde(flatten)]
+    pub window: YearWindow,
     #[serde(rename = "topSubfields")]
     pub top_subfields: Vec<StatsSubfield>,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -17,10 +17,6 @@ use rankless_rs::{
         derive_links3::HitPapers,
     },
     ladder::LADDER_PCT_BANDS,
-    steps::{
-        a1_entity_mapping::YearInterface,
-        derive_links2::{MAX_YEAR, MIN_YEAR},
-    },
 };
 use rankless_trees::{
     interfacing::Getters,
@@ -30,7 +26,7 @@ use rankless_trees::{
 
 use crate::consts::{CACHEABLE_FROM, MAX_SHALLOW_IDS, N_SUBFIELDS};
 use crate::responses::{LadderResp, StatsQ, StatsResp, StatsSubfield, TopResult, ViewResult};
-use crate::state::{EntityExt, StatesT};
+use crate::state::{era_bounds, EntityExt, StatesT};
 use crate::util::{cache_header, get_empty, resolve_dm, resolve_entity};
 
 pub(crate) async fn tree_get(
@@ -129,23 +125,8 @@ pub(crate) async fn stats_get(
         return get_empty();
     };
     let sr = &state.responses[rid];
-    let ext = &state.exts[rid];
-
-    // Yearly resolution exists only for the recent era [era_from, era_to]; clamp the request to it.
-    let era_from = YearInterface::reverse(MIN_YEAR as u8);
-    let era_to = YearInterface::reverse(MAX_YEAR as u8);
-    let window_from = q.year_from.unwrap_or(era_from).max(era_from);
-    let window_to = q.year_to.unwrap_or(era_to).min(era_to);
-    let (window_papers, window_citations, yearly_papers, yearly_cites) = if window_from <= window_to
-    {
-        let cf = (window_from - era_from) as usize;
-        let ct = (window_to - era_from) as usize;
-        let yp = ext.yearly_papers[cf..=ct].to_vec();
-        let yc = ext.yearly_cites[cf..=ct].to_vec();
-        (yp.iter().sum(), yc.iter().sum(), yp, yc)
-    } else {
-        (0u32, 0u32, Vec::new(), Vec::new())
-    };
+    let (era_from, era_to) = era_bounds();
+    let window = state.exts[rid].window(q.year_from, q.year_to);
 
     // Per-subfield citing profile only exists for root types with peer aux (cit_subfields).
     let mut top_subfields = Vec::new();
@@ -174,12 +155,7 @@ pub(crate) async fn stats_get(
         citations: sr.citations,
         era_from,
         era_to,
-        window_from,
-        window_to,
-        window_papers,
-        window_citations,
-        yearly_papers,
-        yearly_cites,
+        window,
         top_subfields,
         subfield,
     };
