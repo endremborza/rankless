@@ -9,7 +9,7 @@
 ## Match Rate by Category
 
 | Category | Total | Matched | Rate |
-|----------|------:|--------:|-----:|
+| --- | --: | --: | --: |
 | Chemistry | 125 | 125 | 100.0% |
 | Economics | 99 | 99 | 100.0% |
 | Physics | 142 | 140 | 98.6% |
@@ -18,7 +18,7 @@
 ## Match Rate by Decade
 
 | Decade | Total | Matched | Rate |
-|--------|------:|--------:|-----:|
+| --- | --: | --: | --: |
 | 1900s | 3 | 1 | 33.3% |
 | 1960s | 8 | 8 | 100.0% |
 | 1970s | 80 | 79 | 98.8% |
@@ -31,7 +31,7 @@
 ## Lowest-Confidence Matches (sanity check)
 
 | Nobel Name | Matched Name | Category | Year | Name Score | Final Score |
-|------------|-------------|----------|-----:|-----------:|------------:|
+| --- | --- | --- | --: | --: | --: |
 | Tu Youyou | A. Youyou | Physiology or Medicine | 2015 | 0.558 | 0.533 |
 | Allan McLeod Cormack | A. M. Cormack | Physiology or Medicine | 1979 | 0.710 | 0.536 |
 | Leonid Kantorovich | L. V. Kantorovich | Economics | 1975 | 0.704 | 0.541 |
@@ -51,7 +51,7 @@
 ## Unmatched Laureates (3)
 
 | Nobel Name | Category | Year |
-|------------|----------|-----:|
+| --- | --- | --: |
 | Wilhelm Röntgen | Physics | 1901 |
 | Emil von Behring | Physiology or Medicine | 1901 |
 | Pyotr Kapitsa | Physics | 1978 |
@@ -61,7 +61,7 @@
 ### Chemistry
 
 | Nobel Name | Matched Name | Year | Final Score |
-|------------|-------------|-----:|------------:|
+| --- | --- | --: | --: |
 | Frances H. Arnold | Frances H. Arnold | 2018 | 0.908 |
 | Arieh Warshel | Arieh Warshel | 2013 | 0.907 |
 | Robert H. Grubbs | Robert H. Grubbs | 2005 | 0.906 |
@@ -71,7 +71,7 @@
 ### Economics
 
 | Nobel Name | Matched Name | Year | Final Score |
-|------------|-------------|-----:|------------:|
+| --- | --- | --: | --: |
 | Daron Acemoglu | Daron Acemoğlu | 2024 | 0.925 |
 | Philippe Aghion | Philippe Aghion | 2025 | 0.923 |
 | Jean Tirole | Jean Tirole | 2014 | 0.918 |
@@ -81,7 +81,7 @@
 ### Physics
 
 | Nobel Name | Matched Name | Year | Final Score |
-|------------|-------------|-----:|------------:|
+| --- | --- | --: | --: |
 | John Clarke | John Clarke | 2025 | 0.915 |
 | John M. Martinis | John M. Martinis | 2025 | 0.910 |
 | Ferenc Krausz | Ferenc Krausz | 2023 | 0.899 |
@@ -91,7 +91,7 @@
 ### Physiology or Medicine
 
 | Nobel Name | Matched Name | Year | Final Score |
-|------------|-------------|-----:|------------:|
+| --- | --- | --: | --: |
 | Alfred G. Gilman | Alfred G. Gilman | 1994 | 0.952 |
 | Gregg L. Semenza | Gregg L. Semenza | 2019 | 0.931 |
 | Leland H. Hartwell | Leland H. Hartwell | 2001 | 0.929 |

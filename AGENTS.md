@@ -102,11 +102,11 @@ This distinction is used consistently throughout the codebase.
 
 Run **`make check`** before every change — it must stay clean. It is the read-only gate; **`make format`** applies every mechanical fix. Per-language sub-targets exist (`check-rs`/`check-py`/`check-js`, `format-rs`/`format-py`/`format-js`).
 
-| Layer                                                    | `make check`                                                      | `make format`                       |
-| -------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------- |
-| Rust                                                     | `cargo fmt --check` + `cargo check --workspace --all-targets`     | `cargo fmt`                         |
-| Python (`pyscripts/` + `sql-yardstick/` + `mcp_server/`) | `ruff format --check` + `ruff check`                              | `ruff check --fix` + `ruff format`  |
-| Frontend                                                 | `prettier --check` + `eslint` + `svelte-check --fail-on-warnings` | `prettier --write` + `eslint --fix` |
+| Layer | `make check` | `make format` |
+| --- | --- | --- |
+| Rust | `cargo fmt --check` + `cargo check --workspace --all-targets` | `cargo fmt` |
+| Python (`pyscripts/` + `sql-yardstick/` + `mcp_server/`) | `ruff format --check` + `ruff check` | `ruff check --fix` + `ruff format` |
+| Frontend | `prettier --check` + `eslint` + `svelte-check --fail-on-warnings` | `prettier --write` + `eslint --fix` |
 
 The JS commands live as `package.json` scripts (`lint`, `lint:fix`, `format`, `check`); the Makefile just calls them.
 

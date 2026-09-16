@@ -5,7 +5,7 @@
 ## Summary
 
 | Metric | Value |
-|--------|-------|
+| --- | --- |
 | n_comparisons | 163 |
 | n_errors | 0 |
 | total_flask_time | 1145.0s |
@@ -45,7 +45,7 @@
 ## Timing
 
 | Backend | Total (s) |
-|---------|-----------|
+| --- | --- |
 | Flask (PG) | 1145.0 |
 | Rust | 25.1 |
 | Ratio (PG/RS) | 45.7x |
@@ -55,7 +55,7 @@
 ## Memory Usage
 
 | Metric | Rust | Flask (PG) |
-|--------|------|------------|
+| --- | --- | --- |
 | Peak (MiB) | 768 | 3175 |
 | Mean (MiB) | 528 | 945 |
 | Samples | 505 | — |

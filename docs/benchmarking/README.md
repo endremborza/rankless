@@ -23,7 +23,7 @@ The primary source of divergence in both runs is query configurations involving 
 ## Cross-subset comparison
 
 | Metric | Micro (200k works) | Mini (800k works) |
-|--------|--------------------|-------------------|
+| --- | --- | --- |
 | Comparisons | 82 | 744 |
 | Speed ratio | 60.87× | 63.75× |
 | Mean Pearson LC | 0.9351 | 0.9206 |
@@ -44,7 +44,7 @@ Run timestamp: `2026-03-09 22:38` | 744 comparisons across 32 query configuratio
 ### Summary
 
 | Metric | Value |
-|--------|-------|
+| --- | --- |
 | Comparisons | 744 |
 | Errors | 0 |
 | Total time (Flask) | 4887.8s |
@@ -60,7 +60,7 @@ Run timestamp: `2026-03-09 22:38` | 744 comparisons across 32 query configuratio
 ### Memory Usage
 
 | Metric | Rust | Flask |
-|--------|------|-------|
+| --- | --- | --- |
 | Peak (MiB) | 1150 | 4359 |
 | Mean (MiB) | 950 | 1007 |
 
@@ -125,7 +125,7 @@ Run timestamp: `2026-03-09 19:10` | 82 comparisons across 22 query configuration
 ### Summary
 
 | Metric | Value |
-|--------|-------|
+| --- | --- |
 | Comparisons | 82 |
 | Errors | 0 |
 | Total time (Flask) | 913.6s |
@@ -141,7 +141,7 @@ Run timestamp: `2026-03-09 19:10` | 82 comparisons across 22 query configuration
 ### Memory Usage
 
 | Metric | Rust | Flask |
-|--------|------|-------|
+| --- | --- | --- |
 | Peak (MiB) | 662 | 2176 |
 | Mean (MiB) | 502 | 609 |
 
@@ -197,7 +197,7 @@ Run timestamp: `2026-03-09 19:10` | 82 comparisons across 22 query configuration
 Slightly larger mini set: 224k papers, 783k citations
 
 | Metric | PostgreSQL + Flask | Rankless (Rust) | Ratio |
-|--------|-------------------|-----------------|-------|
+| --- | --- | --- | --- |
 | Total query time | 6,402.3 s | 98.0 s | 65.3× |
 | Peak memory | 4,222 MiB | 1,225 MiB | 3.4× |
 | Mean memory | 1,069 MiB | 1,026 MiB | 1.0× |
@@ -214,7 +214,7 @@ Slightly larger micro set: 224k papers, 783k citations
 
 
 | Metric | PostgreSQL + Flask | Rankless (Rust) | Ratio |
-|--------|-------------------|-----------------|-------|
+| --- | --- | --- | --- |
 | Total query time | 2,622.9 s | 47.1 s | 55.7× |
 | Peak memory | 4,857 MiB | 815 MiB | 6.0× |
 

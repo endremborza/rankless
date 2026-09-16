@@ -17,3 +17,6 @@
 /docs/benchmarking
 package-lock.json
 bun.lock
+
+# Markdown: prettier column-pads tables, which rewrites every row on a one-cell edit
+*.md

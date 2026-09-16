@@ -61,11 +61,11 @@ convenient.
 Claim payloads are often DOI-only (fresh papers missing from the OA snapshot),
 so display and evidence both come from external records, cached in SQLite:
 
-| source     | key           | data (see `src/lib/types/review.ts`)                         |
-| ---------- | ------------- | ------------------------------------------------------------ |
+| source | key | data (see `src/lib/types/review.ts`) |
+| --- | --- | --- |
 | `crossref` | canonical DOI | `WorkRecord` — title/year/venue + authors w/ asserted ORCIDs |
-| `openalex` | canonical DOI | `WorkRecord` — same + `oa_work_id`                           |
-| `orcid`    | bare ORCID    | `OrcidRecord` — name + self-asserted work DOIs/titles        |
+| `openalex` | canonical DOI | `WorkRecord` — same + `oa_work_id` |
+| `orcid` | bare ORCID | `OrcidRecord` — name + self-asserted work DOIs/titles |
 
 The **only fetcher is the SvelteKit server** (`src/lib/server/enrich.ts`,
 orchestrated by `review-data.ts`): the "Fetch metadata" button on

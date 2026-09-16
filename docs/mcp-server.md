@@ -52,16 +52,16 @@ resolution is slow enough that clients can give up on the connect):
 Data tools (each response carries `rankless_url` backlinks; ids must come from the
 resolution tools, never guessed):
 
-| Tool                                                                         | Backend                 | Notes                                                                                 |
-| ---------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------- |
-| `search_entities(query, entity_type)`                                        | `/v1/names/:etype?q=`   | tier-1 resolution; `entity_type` ∈ root types or `all`                                |
-| `get_top_entities()`                                                         | `/v1/tops`              | seed entities per type                                                                |
-| `get_entity_profile(etype, sem_id)`                                          | `/v1/views/:etype/:sem` | truncates long lists; `coauthorEdges` = strongest ties among the entity's top authors |
-| `get_entity_stats(etype, sem_id, year_from?, year_to?, subfield?)`           | `/v1/stats/...`         | recent-era window clamped to `[eraFrom, eraTo]`                                       |
-| `get_citation_tree(etype, sem_id, tree_index?, since_year?, top_n?, depth?)` | `/v1/trees/...`         | flattened top-N per level; level meaning from `/v1/specs` breakdowns                  |
-| `get_papers(etype, sem_id, offset?, limit?, sort?)`                          | `/v1/works/...`         | `sort="citations"` for hit papers                                                     |
-| `get_peers(etype, sem_id)`                                                   | `/v1/peers/...`         |                                                                                       |
-| `lookup_orcid(orcid)`                                                        | `/v1/orcid/:id`         |                                                                                       |
+| Tool | Backend | Notes |
+| --- | --- | --- |
+| `search_entities(query, entity_type)` | `/v1/names/:etype?q=` | tier-1 resolution; `entity_type` ∈ root types or `all` |
+| `get_top_entities()` | `/v1/tops` | seed entities per type |
+| `get_entity_profile(etype, sem_id)` | `/v1/views/:etype/:sem` | truncates long lists; `coauthorEdges` = strongest ties among the entity's top authors |
+| `get_entity_stats(etype, sem_id, year_from?, year_to?, subfield?)` | `/v1/stats/...` | recent-era window clamped to `[eraFrom, eraTo]` |
+| `get_citation_tree(etype, sem_id, tree_index?, since_year?, top_n?, depth?)` | `/v1/trees/...` | flattened top-N per level; level meaning from `/v1/specs` breakdowns |
+| `get_papers(etype, sem_id, offset?, limit?, sort?)` | `/v1/works/...` | `sort="citations"` for hit papers |
+| `get_peers(etype, sem_id)` | `/v1/peers/...` |  |
+| `lookup_orcid(orcid)` | `/v1/orcid/:id` |  |
 
 Every data-tool response is an envelope `{"receipt": {"id", "tool", "args"}, "data": ...}`
 (`mcp_server/receipts.py`): the receipt names the call that produced the data, ids run
@@ -69,10 +69,10 @@ Every data-tool response is an envelope `{"receipt": {"id", "tool", "args"}, "da
 everything the model was handed. Two grounding tools close the loop
 (`mcp_server/grounding.py`):
 
-| Tool                                    | Does                                                                                                                                                                                                                                                                                         |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `verify_claims(claims)`                 | re-issues every claim (`{label, claimed, path, receipt}` or `{…, tool, args}`; `path` is dotted, relative to `data`) through the same tool functions (one backend call per distinct tool + args) and returns each with `reproduced`/`ok`/`error`; the reproduced value is the one to publish |
-| `suggest_endpoint(need, why, question)` | records what the tools could not supply for a question, into the log                                                                                                                                                                                                                         |
+| Tool | Does |
+| --- | --- |
+| `verify_claims(claims)` | re-issues every claim (`{label, claimed, path, receipt}` or `{…, tool, args}`; `path` is dotted, relative to `data`) through the same tool functions (one backend call per distinct tool + args) and returns each with `reproduced`/`ok`/`error`; the reproduced value is the one to publish |
+| `suggest_endpoint(need, why, question)` | records what the tools could not supply for a question, into the log |
 
 A claim's record — `{tool, args, path, claimed}` + `{reproduced, ok, error}` — is the one
 verified-fact format: the same shape the offline miners store in `findings.json` metrics
@@ -105,12 +105,12 @@ backend, then **re-issues every cited number** through the same tool functions �
 reproduced value, not the model's text, is what gets published. Each run writes to
 `.cril/writeups/explorations/<run>/`:
 
-| File                       | Contents                                                                                                                   |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `report.md`                | the stories only — prose (with numbers woven in) + entity links, each linking to its reproduction anchor. No code clutter. |
-| `reproduce.md`             | per-finding (`#f1`, `#f2`, …) numbers table + the exact calls (`tool(args) → path`) and equivalent `curl`.                 |
-| `findings.json`            | machine-readable findings incl. stable `id`, reproduced values, and `meta` (per-phase runtime + counts).                   |
-| `ledger-suggestions.jsonl` | data-issue fix suggestions as the model wrote them (`kind`, `note`, `details`; not a `LedgerPayload`).                     |
+| File | Contents |
+| --- | --- |
+| `report.md` | the stories only — prose (with numbers woven in) + entity links, each linking to its reproduction anchor. No code clutter. |
+| `reproduce.md` | per-finding (`#f1`, `#f2`, …) numbers table + the exact calls (`tool(args) → path`) and equivalent `curl`. |
+| `findings.json` | machine-readable findings incl. stable `id`, reproduced values, and `meta` (per-phase runtime + counts). |
+| `ledger-suggestions.jsonl` | data-issue fix suggestions as the model wrote them (`kind`, `note`, `details`; not a `LedgerPayload`). |
 
 A one-line-per-run record is also appended to `.cril/writeups/explorations/runs.jsonl`.
 

@@ -26,16 +26,16 @@ Fetches the page **as a social crawler** (`--ua facebook|twitter|linkedin|browse
 `og:`/`twitter:` tag, downloads the `og:image`, and runs the checklist below. **Exits non-zero on any
 FAIL**, so it doubles as a pre-launch gate / CI check.
 
-| Check                  | Pass condition                                                                                      |
-| ---------------------- | --------------------------------------------------------------------------------------------------- |
-| `og:image present`     | tag exists                                                                                          |
-| `og:image fetchable`   | downloads OK (reports size + load time)                                                             |
-| `og:image is raster`   | content-type is PNG/JPEG/WebP (**SVG ⇒ FAIL** — the blocker)                                        |
-| `twitter:card`         | `summary_large_image` (`summary` ⇒ WARN)                                                            |
-| `dimensions ~1200x630` | within ±15% (reads PNG/JPEG/SVG headers, no Pillow dep)                                             |
-| `size < 5 MiB`         | byte size under the platform limit                                                                  |
-| `loads < 2s`           | fetch latency                                                                                       |
-| `recommended tags`     | `og:image:width/height/type`, `og:url`, `og:description`, `twitter:title/description/image` present |
+| Check | Pass condition |
+| --- | --- |
+| `og:image present` | tag exists |
+| `og:image fetchable` | downloads OK (reports size + load time) |
+| `og:image is raster` | content-type is PNG/JPEG/WebP (**SVG ⇒ FAIL** — the blocker) |
+| `twitter:card` | `summary_large_image` (`summary` ⇒ WARN) |
+| `dimensions ~1200x630` | within ±15% (reads PNG/JPEG/SVG headers, no Pillow dep) |
+| `size < 5 MiB` | byte size under the platform limit |
+| `loads < 2s` | fetch latency |
+| `recommended tags` | `og:image:width/height/type`, `og:url`, `og:description`, `twitter:title/description/image` present |
 
 **Flags:**
 
