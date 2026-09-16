@@ -103,5 +103,5 @@ backed by new topic-creator/dominator computation in the pipeline. The broader
 - **Claims/author-merges** are recorded and moderated; end-to-end application of claims may be
   partial — verify before promising it in user-facing copy.
 - The **co-author timeline** landed late in the cycle and may still be settling.
-- Several features are **built but not shipping** in this version (Path to Person, Browse tables,
-  the topic-leadership listing) — tracked in [`unfinished-features.md`](unfinished-features.md).
+- Several features are **built but not shipping** in this version (Path to Person, the
+  topic-leadership listing) — tracked in [`unfinished-features.md`](unfinished-features.md).

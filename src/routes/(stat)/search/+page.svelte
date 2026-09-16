@@ -1,5 +1,7 @@
 <script lang="ts">
 	import SearchResults from '$lib/components/SearchResults.svelte';
+	import { COHORT_ROOT_TYPES } from '$lib/constants';
+	import { prettifyRoot } from '$lib/text-format-util';
 	import type { PageData } from './$types';
 
 	export let data: PageData;
@@ -30,6 +32,13 @@
 			fields.
 		</p>
 	{/if}
+	<p class="browse">
+		Or browse every
+		{#each COHORT_ROOT_TYPES as rt, i (i)}<a href="/{rt}/table">{prettifyRoot(rt)}</a>{i <
+			COHORT_ROOT_TYPES.length - 1
+				? ', '
+				: ''}{/each} ranked by citations, papers or impact.
+	</p>
 </section>
 
 <style>
@@ -56,7 +65,12 @@
 		cursor: pointer;
 	}
 
-	.search-hint {
+	.search-hint,
+	.browse {
 		opacity: 0.6;
+	}
+
+	.browse a {
+		text-transform: capitalize;
 	}
 </style>

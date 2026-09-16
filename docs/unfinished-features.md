@@ -19,14 +19,6 @@ tool isn't linked or surfaced on the live site.
 - `rankless_trees/src/path_finder.rs`
 - (`src/routes/pathlogo/` + `PathLogo.svelte` is just a logo SVG, not part of this feature.)
 
-## Browse tables — built, deferred
-
-Sortable, filterable tabular listings of all entities of a type at `/[rootType]/table`. Complete
-enough to render but deferred from this release.
-
-- `src/routes/(stat)/[rootType]/table/{+page.svelte,+page.server.ts}`
-- Backed by the existing `/slice/:etype/:from/:to` endpoint.
-
 ## Topic domination / leadership — partial
 
 The **"★ originated <topic>"** flag _is_ live (shown in `PaperRainbow.svelte` for
