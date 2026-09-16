@@ -406,6 +406,8 @@ related entities + yearly stats) → frontend renders `TreeSvg`, `ConceptMap`, `
 `subfields`, `hit-papers`. Each entity has _production_ (own papers) and _impact_ (papers
 citing those) sets.
 
+**Metrics** are declared once in `rankless_rs/src/metrics.rs` and served at `/v1/metrics`; every metric is global or intricate per root type. A global metric is one number per entity for the whole cohort, so `/v1/slice/:etype/:from/:to?sort=` orders the cohort by it (citations, papers, impact score, and for authors h-index and career centroid); `subfield=` narrows the cohort to entities active in a field and adds field citations + field score, a per-request scan of the resident `cit_subfields` rows, so only for institutions, sources and countries; `q=` returns name matches with their rank in the active ordering. An intricate metric is answered for a page of ids by `/v1/metrics/:etype?ids=&metrics=` with the parameters in the query: year-windowed counts, an author's field citations/score, and the citing-country share — the chosen country's leaf of each entity's citing-country first-level profile over the root's links, one profile query per id fanned across the tree pool and read from the level-keyed cache; a metric that reads a profile declares its `Level`, and `/v1/metrics` withholds it for the root types whose trees never open with that level, so the registry cannot promise what no tree yields. Precomputing an intricate metric promotes it to global without touching the column model or the tool surface: the registry entry flips its kind, and the row shape (`TableRow` + `ROW_FIELD`) and the slice ordering each gain one entry.
+
 ---
 
 ## Schema

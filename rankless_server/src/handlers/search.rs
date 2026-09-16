@@ -1,7 +1,4 @@
-use std::cmp::{max, min};
-
 use axum::{
-    body::Body,
     extract::{Path, Query},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
@@ -19,7 +16,6 @@ use rankless_rs::{
 };
 use rankless_trees::io::ManFileHandle;
 
-use crate::consts::MAX_SLICE;
 use crate::responses::{
     AuthoredQ, AuthoredResp, BasicQ, ResolveAuthorQ, ResolveAuthorResp, ResolveWorkQ,
     ResolveWorkResp, SearchResult, UnionSearchResult,
@@ -73,22 +69,6 @@ pub(crate) async fn name_get(
         (cache_header(60), resp.into_response())
     } else {
         get_empty()
-    }
-}
-
-pub(crate) async fn slice_get(
-    Path((etype, pstart, pend)): Path<(String, usize, usize)>,
-    states: StatesT,
-) -> Response<Body> {
-    if let Some(state) = states.0 .0.get(etype.as_str()) {
-        let start = min(pstart, state.responses.len().saturating_sub(1));
-        let end = min(
-            max(start + 1, min(start + MAX_SLICE, pend)),
-            state.responses.len(),
-        );
-        Json(&state.responses[start..end]).into_response()
-    } else {
-        (StatusCode::NOT_FOUND, "no such entity").into_response()
     }
 }
 

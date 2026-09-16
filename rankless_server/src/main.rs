@@ -19,9 +19,9 @@ use rankless_rs::Stowage;
 
 use crate::consts::{DEFAULT_N_THREADS, PORT};
 use crate::handlers::{
-    authored_get, intersect_get, ladder_get, name_get, orcid_get, paper_profile, peers_get,
-    resolve_author_get, resolve_work_get, sem_id_get, shallows_get, slice_get, stats_get, tops_get,
-    tree_get, view_get, works_get,
+    authored_get, intersect_get, ladder_get, metric_values_get, metrics_get, name_get, orcid_get,
+    paper_profile, peers_get, resolve_author_get, resolve_work_get, sem_id_get, slice_get,
+    stats_get, tops_get, tree_get, view_get, works_get,
 };
 use crate::startup::get_rest;
 use crate::state::NameStateMap;
@@ -53,13 +53,14 @@ async fn async_main(n_threads: usize) {
     let now = std::time::Instant::now();
     println!("threads: {n_threads} path: {path}");
     let stowage = Stowage::new(&path);
-    let (ns_map, satts, tree_manager, counts_response, tops, peer_aux) =
-        get_rest(stowage, n_threads);
+    let (ns_map, satts, tree_manager, counts_response, tops) = get_rest(stowage, n_threads);
     let ns_map_arc: Arc<NameStateMap> = ns_map.into();
 
     let response_api = Router::new()
         .route("/names/:etype", get(name_get))
         .route("/slice/:etype/:from/:to", get(slice_get))
+        .route("/metrics", get(metrics_get))
+        .route("/metrics/:etype", get(metric_values_get))
         .route("/views/:etype/:semantic_id", get(view_get))
         .route("/stats/:etype/:semantic_id", get(stats_get))
         .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))

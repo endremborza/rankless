@@ -32,6 +32,32 @@ pub(crate) struct SearchResult {
     pub raw_cites: Option<u32>,
 }
 
+// One browse-table row: the search result plus its 1-based rank in the active cohort ordering and
+// the global metric columns. Field columns appear only when the cohort is narrowed to a subfield.
+#[derive(Serialize)]
+pub(crate) struct TableRow {
+    #[serde(flatten)]
+    pub sr: SearchResult,
+    pub rank: u32,
+    #[serde(rename = "impactScore")]
+    pub impact_score: f32,
+    #[serde(rename = "hIndex", skip_serializing_if = "Option::is_none")]
+    pub h_index: Option<u32>,
+    #[serde(rename = "yearCentroid", skip_serializing_if = "Option::is_none")]
+    pub year_centroid: Option<f32>,
+    #[serde(rename = "fieldCitations", skip_serializing_if = "Option::is_none")]
+    pub field_citations: Option<u32>,
+    #[serde(rename = "fieldScore", skip_serializing_if = "Option::is_none")]
+    pub field_score: Option<f32>,
+}
+
+// Page-local metric values, one column per requested metric, each aligned with `ids`.
+#[derive(Serialize)]
+pub(crate) struct MetricValuesResp {
+    pub ids: Vec<usize>,
+    pub values: HashMap<&'static str, Vec<Option<f64>>>,
+}
+
 #[derive(Serialize)]
 pub(crate) struct UnionSearchResult {
     #[serde(flatten)]
@@ -340,6 +366,24 @@ pub(crate) struct WorksQ {
     // `citations` ranks the full work-set by citation count before paginating, so the first page is
     // the entity's globally most-cited works rather than an arbitrary document-order slice.
     pub sort: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct SliceQ {
+    pub sort: Option<String>,
+    pub subfield: Option<String>,
+    pub q: Option<String>,
+}
+
+// `ids` and `metrics` are comma-separated; the parameters serve every metric that takes them.
+#[derive(Deserialize)]
+pub(crate) struct MetricValuesQ {
+    pub ids: String,
+    pub metrics: String,
+    pub subfield: Option<String>,
+    pub year_from: Option<u16>,
+    pub year_to: Option<u16>,
+    pub country: Option<String>,
 }
 
 #[derive(Deserialize)]
