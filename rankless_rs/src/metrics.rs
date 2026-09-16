@@ -1,0 +1,302 @@
+use serde::Serialize;
+
+use crate::peers::SPEC_BETA;
+
+pub const CITATIONS: &str = "citations";
+pub const PAPERS: &str = "papers";
+pub const IMPACT_SCORE: &str = "impact_score";
+pub const H_INDEX: &str = "h_index";
+pub const YEAR_CENTROID: &str = "year_centroid";
+pub const FIELD_CITATIONS: &str = "field_citations";
+pub const FIELD_SCORE: &str = "field_score";
+pub const WINDOW_PAPERS: &str = "window_papers";
+pub const WINDOW_CITATIONS: &str = "window_citations";
+pub const CITING_COUNTRY_SHARE: &str = "citing_country_share";
+
+pub const PARAM_SUBFIELD: &str = "subfield";
+pub const PARAM_YEAR_FROM: &str = "year_from";
+pub const PARAM_YEAR_TO: &str = "year_to";
+pub const PARAM_COUNTRY: &str = "country";
+
+const G: MetricKind = MetricKind::Global;
+const I: MetricKind = MetricKind::Intricate;
+
+// One declaration per metric, the single source of its label, meaning text, parameters and kind per
+// root type. `kinds` names the root types the metric exists for; a global metric is one number per
+// entity held for the whole cohort (the server orders and narrows by it), an intricate one is
+// computed for a page of ids on request and never orders the cohort.
+pub const METRICS: &[MetricDecl] = &[
+    MetricDecl {
+        id: CITATIONS,
+        label: "Citations",
+        meaning: "Citation links to the entity's indexed papers.",
+        kinds: MetricKinds::all(G),
+        params: &[],
+    },
+    MetricDecl {
+        id: PAPERS,
+        label: "Papers",
+        meaning: "Indexed papers produced by the entity.",
+        kinds: MetricKinds::all(G),
+        params: &[],
+    },
+    MetricDecl {
+        id: IMPACT_SCORE,
+        label: "Impact score",
+        meaning: "Citations over the entity's dampened size: citations ÷ (papers + the root type's mean papers)^0.75. Impact beyond what size alone predicts; a small entity needs high per-paper impact to outrank a large one.",
+        kinds: MetricKinds::all(G),
+        params: &[],
+    },
+    MetricDecl {
+        id: H_INDEX,
+        label: "h-index",
+        meaning: "Largest h such that h of the author's papers have at least h citations each.",
+        kinds: MetricKinds::authors_only(G),
+        params: &[],
+    },
+    MetricDecl {
+        id: YEAR_CENTROID,
+        label: "Career centroid",
+        meaning: "Paper-count-weighted mean publication year of the author's papers.",
+        kinds: MetricKinds::authors_only(G),
+        params: &[],
+    },
+    MetricDecl {
+        id: FIELD_CITATIONS,
+        label: "Field citations",
+        meaning: "Citation links to the entity from papers in the chosen field.",
+        kinds: MetricKinds::profiled(G, I),
+        params: &[PARAM_SUBFIELD],
+    },
+    MetricDecl {
+        id: FIELD_SCORE,
+        label: "Field score",
+        meaning: "Citations from papers in the chosen field over the entity's dampened size: field citations ÷ (papers + the root type's mean papers)^0.75. Ranks entities within one field, size-adjusted; distinct from the hero's field ranking, which divides by the field's size to rank one entity's fields.",
+        kinds: MetricKinds::profiled(G, I),
+        params: &[PARAM_SUBFIELD],
+    },
+    MetricDecl {
+        id: WINDOW_PAPERS,
+        label: "Papers in window",
+        meaning: "Indexed papers published in the year window. Per-year resolution exists only for the recent era, so the window is clamped to it.",
+        kinds: MetricKinds::all(I),
+        params: &[PARAM_YEAR_FROM, PARAM_YEAR_TO],
+    },
+    MetricDecl {
+        id: WINDOW_CITATIONS,
+        label: "Citations in window",
+        meaning: "Citation links from papers published in the year window. Per-year resolution exists only for the recent era, so the window is clamped to it.",
+        kinds: MetricKinds::all(I),
+        params: &[PARAM_YEAR_FROM, PARAM_YEAR_TO],
+    },
+    MetricDecl {
+        id: CITING_COUNTRY_SHARE,
+        label: "Citing-country share",
+        meaning: "Share of the entity's citation links that come from papers with an author affiliated in the chosen country; a paper with authors in several countries counts once per country.",
+        // Answered from the tree whose first level is the citing country; sources have none.
+        kinds: MetricKinds {
+            authors: Some(I),
+            institutions: Some(I),
+            sources: None,
+            countries: Some(I),
+            subfields: Some(I),
+            hit_papers: None,
+        },
+        params: &[PARAM_COUNTRY],
+    },
+];
+
+#[derive(Serialize)]
+pub struct MetricDecl {
+    pub id: &'static str,
+    pub label: &'static str,
+    pub meaning: &'static str,
+    pub kinds: MetricKinds,
+    pub params: &'static [&'static str],
+}
+
+#[derive(Serialize)]
+pub struct MetricKinds {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authors: Option<MetricKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub institutions: Option<MetricKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sources: Option<MetricKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub countries: Option<MetricKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subfields: Option<MetricKind>,
+    #[serde(rename = "hit-papers", skip_serializing_if = "Option::is_none")]
+    pub hit_papers: Option<MetricKind>,
+}
+
+#[derive(Serialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum MetricKind {
+    Global,
+    Intricate,
+}
+
+impl MetricDecl {
+    pub fn kind_for(&self, root_type: &str) -> Option<MetricKind> {
+        self.kinds.for_root(root_type)
+    }
+}
+
+impl MetricKinds {
+    pub fn for_root(&self, root_type: &str) -> Option<MetricKind> {
+        match root_type {
+            "authors" => self.authors,
+            "institutions" => self.institutions,
+            "sources" => self.sources,
+            "countries" => self.countries,
+            "subfields" => self.subfields,
+            "hit-papers" => self.hit_papers,
+            _ => None,
+        }
+    }
+
+    const fn all(k: MetricKind) -> Self {
+        Self {
+            authors: Some(k),
+            institutions: Some(k),
+            sources: Some(k),
+            countries: Some(k),
+            subfields: Some(k),
+            hit_papers: Some(k),
+        }
+    }
+
+    const fn authors_only(k: MetricKind) -> Self {
+        Self {
+            authors: Some(k),
+            institutions: None,
+            sources: None,
+            countries: None,
+            subfields: None,
+            hit_papers: None,
+        }
+    }
+
+    // Root types with a resident per-subfield citation profile; the author cohort is too large for
+    // a per-request scan of it, so an author's field metrics are page-local.
+    const fn profiled(others: MetricKind, authors: MetricKind) -> Self {
+        Self {
+            authors: Some(authors),
+            institutions: Some(others),
+            sources: Some(others),
+            countries: Some(others),
+            subfields: None,
+            hit_papers: None,
+        }
+    }
+}
+
+pub fn metric(id: &str) -> Option<&'static MetricDecl> {
+    METRICS.iter().find(|m| m.id == id)
+}
+
+pub fn metric_kind(id: &str, root_type: &str) -> Option<MetricKind> {
+    metric(id).and_then(|m| m.kind_for(root_type))
+}
+
+/// The one size divisor behind every specialization score: `(size + mean_size)^SPEC_BETA`. Adding
+/// the cohort mean flattens the divisor for anything far below average size, so a three-paper
+/// entity (or a thousand-paper field) ranks by count where the exponent alone would let a tiny
+/// divisor dominate; far above the mean it converges to the plain `size^SPEC_BETA`.
+pub fn dampened_size(size: f64, mean_size: f64) -> f64 {
+    (size + mean_size).powf(SPEC_BETA)
+}
+
+/// Entity-in-field (or entity-overall) score: citations over the entity's dampened paper count.
+/// With every citation it is the impact score; with the citations from one field it ranks the
+/// entities of a cohort inside that field.
+pub fn size_adjusted_score(citations: u32, papers: u32, mean_papers: f64) -> f32 {
+    (citations as f64 / dampened_size(papers as f64, mean_papers)) as f32
+}
+
+pub fn mean_of(counts: impl Iterator<Item = u32>) -> f64 {
+    let (sum, n) = counts.fold((0u64, 0u64), |(s, n), c| (s + c as u64, n + 1));
+    if n == 0 {
+        0.0
+    } else {
+        sum as f64 / n as f64
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rank_fields(counts: &[(usize, u32)], sizes: &[f64], mean: f64) -> Vec<usize> {
+        let mut v: Vec<(usize, f64)> = counts
+            .iter()
+            .map(|&(s, c)| (s, c as f64 / dampened_size(sizes[s], mean)))
+            .collect();
+        v.sort_by(|a, b| b.1.total_cmp(&a.1));
+        v.into_iter().map(|(s, _)| s).collect()
+    }
+
+    #[test]
+    fn three_papers_in_a_tiny_field_do_not_outrank_three_hundred_in_a_big_one() {
+        let sizes: [f64; 2] = [1_000.0, 1_000_000.0];
+        let mean = 300_000.0;
+        // The plain field-size divisor is what the dampening replaces: under it the tiny field wins.
+        let raw = |s: usize, c: u32| c as f64 / sizes[s].powf(SPEC_BETA);
+        assert!(raw(0, 3) > raw(1, 300));
+        assert_eq!(rank_fields(&[(0, 3), (1, 300)], &sizes, mean), vec![1, 0]);
+        // Real volume in the tiny field still ranks it first.
+        assert_eq!(
+            rank_fields(&[(0, 3_000), (1, 300)], &sizes, mean),
+            vec![0, 1]
+        );
+    }
+
+    #[test]
+    fn field_score_is_size_adjusted_but_not_fooled_by_a_tiny_entity() {
+        let mean = 20.0;
+        let big_uni = size_adjusted_score(50_000, 100_000, mean);
+        let institute = size_adjusted_score(20_000, 2_000, mean);
+        assert!(institute > big_uni);
+        let one_hit = size_adjusted_score(300, 3, mean);
+        let productive = size_adjusted_score(3_000, 300, mean);
+        assert!(productive > one_hit);
+        let mega_hit = size_adjusted_score(30_000, 3, mean);
+        assert!(mega_hit > productive);
+    }
+
+    #[test]
+    fn hand_computed_fixture() {
+        let mean = 20.0;
+        let expected = 3_000.0 / (320.0f64).powf(SPEC_BETA);
+        assert!((size_adjusted_score(3_000, 300, mean) as f64 - expected).abs() < 1e-3);
+        assert_eq!(size_adjusted_score(0, 300, mean), 0.0);
+        assert!((mean_of([10, 20, 30].into_iter()) - 20.0).abs() < f64::EPSILON);
+        assert_eq!(mean_of(std::iter::empty()), 0.0);
+    }
+
+    #[test]
+    fn registry_kinds_are_declared_per_root() {
+        assert_eq!(
+            metric_kind(FIELD_SCORE, "authors"),
+            Some(MetricKind::Intricate)
+        );
+        assert_eq!(
+            metric_kind(FIELD_SCORE, "institutions"),
+            Some(MetricKind::Global)
+        );
+        assert_eq!(metric_kind(FIELD_SCORE, "subfields"), None);
+        assert_eq!(metric_kind(H_INDEX, "sources"), None);
+        // Every root type the server keeps a cohort for is ordered by citations, hit papers included.
+        assert_eq!(
+            metric_kind(CITATIONS, "hit-papers"),
+            Some(MetricKind::Global)
+        );
+        assert_eq!(metric_kind(FIELD_SCORE, "hit-papers"), None);
+        assert_eq!(metric_kind(CITATIONS, "works"), None);
+        for m in METRICS {
+            assert!(!m.meaning.is_empty(), "{} has no meaning text", m.id);
+        }
+    }
+}

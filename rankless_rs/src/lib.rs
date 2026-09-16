@@ -12,6 +12,7 @@ pub mod env_consts;
 mod filter;
 pub mod gen;
 pub mod ladder;
+pub mod metrics;
 mod oa_structs;
 pub mod peers;
 mod semantic_ids;
