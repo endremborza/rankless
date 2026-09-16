@@ -14,7 +14,7 @@ Output lands in `.cril/writeups/explorations/<run>/`:
 - report.md   -> the stories only (prose + entity links), linking out
 - reproduce.md -> per-finding numbers table + the exact calls (+ curl)
 - findings.json -> machine-readable findings incl. reproduced values + ids
-- ledger-suggestions.jsonl -> data-issue fixes in LedgerPayload shape
+- ledger-suggestions.jsonl -> data-issue fix suggestions as the model wrote them (kind, note, details)
 plus a one-line-per-run record appended to explorations/runs.jsonl.
 
 Scoping options:

@@ -110,7 +110,7 @@ reproduced value, not the model's text, is what gets published. Each run writes 
 | `report.md`                | the stories only — prose (with numbers woven in) + entity links, each linking to its reproduction anchor. No code clutter. |
 | `reproduce.md`             | per-finding (`#f1`, `#f2`, …) numbers table + the exact calls (`tool(args) → path`) and equivalent `curl`.                 |
 | `findings.json`            | machine-readable findings incl. stable `id`, reproduced values, and `meta` (per-phase runtime + counts).                   |
-| `ledger-suggestions.jsonl` | data-issue fixes in `LedgerPayload` shape (only when a finding is ledger-fixable).                                         |
+| `ledger-suggestions.jsonl` | data-issue fix suggestions as the model wrote them (`kind`, `note`, `details`; not a `LedgerPayload`).                     |
 
 A one-line-per-run record is also appended to `.cril/writeups/explorations/runs.jsonl`.
 
