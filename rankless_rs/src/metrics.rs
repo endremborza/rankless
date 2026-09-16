@@ -1,6 +1,9 @@
+use std::fmt::Display;
+
+use dmove::Entity;
 use serde::Serialize;
 
-use crate::peers::SPEC_BETA;
+use crate::{gen::a1_entity_mapping::Countries, peers::SPEC_BETA};
 
 pub const CITATIONS: &str = "citations";
 pub const PAPERS: &str = "papers";
@@ -24,7 +27,8 @@ const I: MetricKind = MetricKind::Intricate;
 // One declaration per metric, the single source of its label, meaning text, parameters and kind per
 // root type. `kinds` names the root types the metric exists for; a global metric is one number per
 // entity held for the whole cohort (the server orders and narrows by it), an intricate one is
-// computed for a page of ids on request and never orders the cohort.
+// computed for a page of ids on request and never orders the cohort. A metric read off a tree's
+// first level names that level in `profile`, and exists only for the roots whose trees yield it.
 pub const METRICS: &[MetricDecl] = &[
     MetricDecl {
         id: CITATIONS,
@@ -32,6 +36,7 @@ pub const METRICS: &[MetricDecl] = &[
         meaning: "Citation links to the entity's indexed papers.",
         kinds: MetricKinds::all(G),
         params: &[],
+        profile: None,
     },
     MetricDecl {
         id: PAPERS,
@@ -39,6 +44,7 @@ pub const METRICS: &[MetricDecl] = &[
         meaning: "Indexed papers produced by the entity.",
         kinds: MetricKinds::all(G),
         params: &[],
+        profile: None,
     },
     MetricDecl {
         id: IMPACT_SCORE,
@@ -46,6 +52,7 @@ pub const METRICS: &[MetricDecl] = &[
         meaning: "Citations over the entity's dampened size: citations ÷ (papers + the root type's mean papers)^0.75. Impact beyond what size alone predicts; a small entity needs high per-paper impact to outrank a large one.",
         kinds: MetricKinds::all(G),
         params: &[],
+        profile: None,
     },
     MetricDecl {
         id: H_INDEX,
@@ -53,6 +60,7 @@ pub const METRICS: &[MetricDecl] = &[
         meaning: "Largest h such that h of the author's papers have at least h citations each.",
         kinds: MetricKinds::authors_only(G),
         params: &[],
+        profile: None,
     },
     MetricDecl {
         id: YEAR_CENTROID,
@@ -60,6 +68,7 @@ pub const METRICS: &[MetricDecl] = &[
         meaning: "Paper-count-weighted mean publication year of the author's papers.",
         kinds: MetricKinds::authors_only(G),
         params: &[],
+        profile: None,
     },
     MetricDecl {
         id: FIELD_CITATIONS,
@@ -67,6 +76,7 @@ pub const METRICS: &[MetricDecl] = &[
         meaning: "Citation links to the entity from papers in the chosen field.",
         kinds: MetricKinds::profiled(G, I),
         params: &[PARAM_SUBFIELD],
+        profile: None,
     },
     MetricDecl {
         id: FIELD_SCORE,
@@ -74,6 +84,7 @@ pub const METRICS: &[MetricDecl] = &[
         meaning: "Citations from papers in the chosen field over the entity's dampened size: field citations ÷ (papers + the root type's mean papers)^0.75. Ranks entities within one field, size-adjusted; distinct from the hero's field ranking, which divides by the field's size to rank one entity's fields.",
         kinds: MetricKinds::profiled(G, I),
         params: &[PARAM_SUBFIELD],
+        profile: None,
     },
     MetricDecl {
         id: WINDOW_PAPERS,
@@ -81,6 +92,7 @@ pub const METRICS: &[MetricDecl] = &[
         meaning: "Indexed papers published in the year window. Per-year resolution exists only for the recent era, so the window is clamped to it.",
         kinds: MetricKinds::all(I),
         params: &[PARAM_YEAR_FROM, PARAM_YEAR_TO],
+        profile: None,
     },
     MetricDecl {
         id: WINDOW_CITATIONS,
@@ -88,21 +100,15 @@ pub const METRICS: &[MetricDecl] = &[
         meaning: "Citation links from papers published in the year window. Per-year resolution exists only for the recent era, so the window is clamped to it.",
         kinds: MetricKinds::all(I),
         params: &[PARAM_YEAR_FROM, PARAM_YEAR_TO],
+        profile: None,
     },
     MetricDecl {
         id: CITING_COUNTRY_SHARE,
         label: "Citing-country share",
         meaning: "Share of the entity's citation links that come from papers with an author affiliated in the chosen country; a paper with authors in several countries counts once per country.",
-        // Answered from the tree whose first level is the citing country; sources have none.
-        kinds: MetricKinds {
-            authors: Some(I),
-            institutions: Some(I),
-            sources: None,
-            countries: Some(I),
-            subfields: Some(I),
-            hit_papers: None,
-        },
+        kinds: MetricKinds::all(I),
         params: &[PARAM_COUNTRY],
+        profile: Some(Level::citing(Countries::NAME)),
     },
 ];
 
@@ -113,6 +119,18 @@ pub struct MetricDecl {
     pub meaning: &'static str,
     pub kinds: MetricKinds,
     pub params: &'static [&'static str],
+    #[serde(skip)]
+    pub profile: Option<Level>,
+}
+
+// One breakdown level of a tree: the attribute entity and the side of the citation link it sits
+// on. A tree's first level is a profile of the root entity, identified by this alone.
+#[derive(Serialize, Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct Level {
+    #[serde(rename = "attributeType")]
+    pub entity: &'static str,
+    #[serde(rename = "sourceSide")]
+    pub source_side: bool,
 }
 
 #[derive(Serialize)]
@@ -142,9 +160,63 @@ impl MetricDecl {
     pub fn kind_for(&self, root_type: &str) -> Option<MetricKind> {
         self.kinds.for_root(root_type)
     }
+
+    // The declared kind, withheld where the root has no tree yielding the metric's profile.
+    pub fn kind_if(
+        &self,
+        root_type: &str,
+        has_level: impl Fn(&str, Level) -> bool,
+    ) -> Option<MetricKind> {
+        self.kind_for(root_type)
+            .filter(|_| self.profile.is_none_or(|l| has_level(root_type, l)))
+    }
+
+    // The declaration with its kinds resolved against the trees that exist, what `/v1/metrics` serves.
+    pub fn resolved(&self, has_level: impl Fn(&str, Level) -> bool) -> Self {
+        Self {
+            kinds: self
+                .kinds
+                .map(|root, kind| kind.filter(|_| self.profile.is_none_or(|l| has_level(root, l)))),
+            ..*self
+        }
+    }
+}
+
+impl Level {
+    pub const fn citing(entity: &'static str) -> Self {
+        Self {
+            entity,
+            source_side: false,
+        }
+    }
+
+    pub const fn refed(entity: &'static str) -> Self {
+        Self {
+            entity,
+            source_side: true,
+        }
+    }
+}
+
+impl Display for Level {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let side = if self.source_side { "refed" } else { "citing" };
+        write!(f, "{}-{side}", self.entity)
+    }
 }
 
 impl MetricKinds {
+    pub fn map(&self, f: impl Fn(&str, Option<MetricKind>) -> Option<MetricKind>) -> Self {
+        Self {
+            authors: f("authors", self.authors),
+            institutions: f("institutions", self.institutions),
+            sources: f("sources", self.sources),
+            countries: f("countries", self.countries),
+            subfields: f("subfields", self.subfields),
+            hit_papers: f("hit-papers", self.hit_papers),
+        }
+    }
+
     pub fn for_root(&self, root_type: &str) -> Option<MetricKind> {
         match root_type {
             "authors" => self.authors,
@@ -298,5 +370,24 @@ mod tests {
         for m in METRICS {
             assert!(!m.meaning.is_empty(), "{} has no meaning text", m.id);
         }
+    }
+
+    #[test]
+    fn profile_metrics_exist_only_where_a_tree_yields_the_level() {
+        let share = metric(CITING_COUNTRY_SHARE).unwrap();
+        let level = share.profile.unwrap();
+        assert_eq!(level.to_string(), "countries-citing");
+        let has = |root: &str, l: Level| l == level && root != "sources";
+        assert_eq!(share.kind_if("authors", has), Some(MetricKind::Intricate));
+        assert_eq!(share.kind_if("sources", has), None);
+        let resolved = share.resolved(has);
+        assert_eq!(resolved.kinds.sources, None);
+        assert_eq!(resolved.kinds.countries, Some(MetricKind::Intricate));
+        // A metric without a profile is untouched by the predicate.
+        let cit = metric(CITATIONS).unwrap();
+        assert_eq!(
+            cit.kind_if("sources", |_, _| false),
+            Some(MetricKind::Global)
+        );
     }
 }
