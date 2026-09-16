@@ -8,7 +8,8 @@ const sitemapRoutes = [
 	'/sitemap-index-entities.xml',
 	'/sitemap-1.xml',
 	'/sitemap-mini-1.xml',
-	'/sitemap-entity-authors-1.xml'
+	'/sitemap-entity-authors-1.xml',
+	'/sitemap-entity-hit-papers-1.xml'
 ];
 
 for (const route of sitemapRoutes) {
