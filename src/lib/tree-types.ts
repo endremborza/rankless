@@ -132,8 +132,9 @@ export type SearchResult = {
 	dmId?: number;
 };
 
-// One `/slice` row: a search result plus its 1-based rank in the active cohort ordering and the
-// global metric columns; field columns only when the cohort is narrowed to a subfield.
+// One `/slice` row: a search result, its 1-based rank in the active cohort ordering, and the
+// metric columns the cohort carries, keyed by the metric call (`impact_score`,
+// `field_score(oncology)`).
 export type TableRow = {
 	name: string;
 	semanticId: string;
@@ -143,36 +144,49 @@ export type TableRow = {
 	distinctText?: string;
 	oaId: number;
 	dmId: number;
-	// null for a pinned entity outside the narrowed cohort.
+	// null for a pinned entity outside the ranked cohort.
 	rank: number | null;
-	impactScore: number;
-	hIndex?: number;
-	yearCentroid?: number;
-	fieldCitations?: number;
-	fieldScore?: number;
+	values: Record<string, number>;
 };
 
 export type MetricKind = 'global' | 'intricate';
+export type MetricParam = 'subfield' | 'country' | 'window';
+export type MetricValue =
+	| { type: 'count' | 'score' | 'share' | 'year' }
+	| { type: 'entity' | 'entities'; entity: string };
 
-// One entry of the backend's metric registry (`/metrics`): the single source for a metric's label,
-// meaning text, parameters and its kind per root type.
+// One entry of the backend's metric registry (`/columns`): the single source for a metric's
+// label, meaning, value type, parameter, per-entity cost and its kind per root type.
 export type MetricDecl = {
 	id: string;
 	label: string;
-	// A parameterized metric's column name, `{param}` standing for the chosen value.
+	// A parameterized metric's column name, `{param}` standing for the argument's name.
 	header?: string;
 	meaning: string;
+	value: MetricValue;
+	param?: MetricParam;
+	cost: 'read' | 'walk';
 	kinds: Partial<Record<RootType, MetricKind>>;
-	params: string[];
 };
 
 export type MetricRegistry = { metrics: MetricDecl[] };
 
-// Page-local metric values from `/metrics/:etype`: one column per metric, aligned with `ids`.
+// Page-local metric values from `/metrics/:etype`: one column per call, keyed by the call.
 export type MetricValuesResp = {
 	ids: number[];
 	values: Record<string, (number | null)[]>;
 };
+
+// A `where` expression as the backend parses it (`/where?q=`).
+export type WhereOp = 'eq' | 'ne' | 'lt' | 'le' | 'gt' | 'ge' | 'in' | 'not_in';
+export type WhereArg = number | string;
+export type WhereCall = { metric: string; args: WhereArg[] };
+export type WhereClause = { call: WhereCall; op: WhereOp; operand: WhereArg | WhereArg[] };
+export type WhereExpr =
+	| { clause: WhereClause }
+	| { and: WhereExpr[] }
+	| { or: WhereExpr[] }
+	| { not: WhereExpr };
 
 export type SubbedRel = { desc: string; subs: RelatedEntity[] };
 export type AboutPara = {

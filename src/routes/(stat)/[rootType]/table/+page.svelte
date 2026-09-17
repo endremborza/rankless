@@ -7,24 +7,29 @@
 	import { entToLink } from '$lib/tree-functions';
 	import { citStandingTier, standingLabel, tierLabels } from '$lib/peers-utils';
 	import {
+		annotatable,
+		callText,
+		clauseable,
 		columnLabel,
 		fetchColumnValues,
 		fetchSlice,
-		fieldFilterable,
 		formatMetric,
-		globalColumns,
-		metricsFor,
+		namesOf,
+		parseCall,
+		rankable,
 		rowValue,
 		sortRows,
 		tableHref,
-		type IntricateColumn,
+		type Column,
+		type MetricArgs,
 		type MetricValues,
 		type TableQuery
 	} from '$lib/table-utils';
-	import ColumnAdder from '$lib/components/ColumnAdder.svelte';
+	import ClauseBuilder from '$lib/components/ClauseBuilder.svelte';
 	import EntityPins from '$lib/components/EntityPins.svelte';
 	import InfoTip from '$lib/components/InfoTip.svelte';
-	import type { TableRow } from '$lib/tree-types';
+	import MetricPicker from '$lib/components/MetricPicker.svelte';
+	import type { MetricDecl, TableRow } from '$lib/tree-types';
 
 	let { data }: { data: PageData } = $props();
 
@@ -36,11 +41,13 @@
 	let extra = $state.raw<PageExtension>({ of: untrack(() => data.rows), rows: [], done: false });
 	let loadingMore = $state(false);
 
-	// Page-local columns: intricate metrics evaluated for the rows on screen, one call per column
-	// per loaded page, never one per row. Values are keyed by column then by dm id.
-	let columns = $state<IntricateColumn[]>([]);
+	// Page-local columns: metric calls evaluated for the rows on screen, one call per column per
+	// loaded page, never one per row. Values are keyed by column then by dm id; a cell without a
+	// value is pending while its column has a call in flight, and unknown otherwise.
+	let columns = $state<Column[]>([]);
 	let values = $state<Record<string, MetricValues>>({});
-	let loadingColumns = $state(0);
+	let inflight = $state<Record<string, number>>({});
+	// Reorders the loaded rows only, by a cohort column's key or a page-local column's key.
 	let localSort = $state<{ key: string; asc: boolean } | null>(null);
 
 	$effect(() => {
@@ -51,6 +58,7 @@
 		});
 	});
 
+	const q = $derived(data.query);
 	const extension = $derived(
 		extra.of === data.rows ? extra : { of: data.rows, rows: [], done: false }
 	);
@@ -60,48 +68,84 @@
 	);
 	const loaded = $derived(data.rows.length + extension.rows.length);
 	const noMore = $derived(extension.done || data.rows.length < data.pageSize);
-	const field = $derived(data.subfields.find((s) => s.semanticId === data.subfield));
-	const names = $derived({ subfield: field?.name });
-	const globals = $derived(globalColumns(data.registry, data.rootType, field !== undefined));
-	const intricates = $derived(metricsFor(data.registry, data.rootType, 'intricate'));
-	const narrowable = $derived(fieldFilterable(data.registry, data.rootType));
-	const hasStanding = $derived(field !== undefined && data.ladder !== null);
+	const names = $derived({ ...namesOf(data.subfields), ...namesOf(data.countries) });
+	const decls = $derived(new Map(data.registry.map((m) => [m.id, m])));
+	// The cohort's columns as the backend listed them, each with its metric and arguments.
+	const cohortCols = $derived(
+		data.columns.flatMap((key) => {
+			const { metric, args } = parseCall(key);
+			const decl = decls.get(metric);
+			return decl ? [{ key, decl, args }] : [];
+		})
+	);
+	const rankings = $derived(rankable(data.registry, data.rootType));
+	const addable = $derived(annotatable(data.registry, data.rootType));
+	const narrowers = $derived(clauseable(data.registry, data.rootType));
+	const fieldName = $derived(names[data.field] ?? data.field);
+	const hasStanding = $derived(data.field !== '' && data.ladder !== null);
 	const tierNames = $derived(data.ladder ? tierLabels(data.ladder.pctBands) : []);
-	const sortDecl = $derived(data.registry.find((m) => m.id === data.sort));
-	const sortLabel = $derived(sortDecl ? columnLabel(sortDecl, {}, names) : data.sort);
+	const sortCall = $derived(parseCall(q.sort ?? ''));
+	const sortDecl = $derived(decls.get(sortCall.metric));
+	const sortLabel = $derived(sortDecl ? columnLabel(sortDecl, sortCall.args, names) : q.sort);
+	const screened = $derived(data.screened !== null && data.screened < data.total);
 	const noun = $derived(prettifyRoot(data.rootType));
-	const span = $derived(2 + globals.length + (hasStanding ? 1 : 0) + columns.length);
+	const span = $derived(2 + cohortCols.length + (hasStanding ? 1 : 0) + columns.length);
 	const displayed = $derived.by(() => {
 		const ls = localSort;
-		return ls ? sortRows(pageRows, (r) => values[ls.key]?.[r.dmId], ls.asc) : pageRows;
+		return ls ? sortRows(pageRows, (r) => cellValue(r, ls.key), ls.asc) : pageRows;
 	});
 	const title = $derived(`${APP_NAME} | ${noun} table`);
+	const cohortNote = $derived.by(() => {
+		const parts = [`${loaded.toLocaleString()} of ${data.total.toLocaleString()} ${noun}`];
+		if (q.where) parts.push(`where ${q.where}`);
+		const top = screened ? ` among the top ${data.screened?.toLocaleString()} by citations` : '';
+		return `${parts.join(' ')}, ranked by ${sortLabel}${top}. Click a column to sort the loaded rows.`;
+	});
+
+	function cellValue(row: TableRow, key: string) {
+		return columns.some((c) => c.key === key) ? values[key]?.[row.dmId] : rowValue(row, key);
+	}
+
+	function pending(col: Column, row: TableRow) {
+		return values[col.key]?.[row.dmId] === undefined && (inflight[col.key] ?? 0) > 0;
+	}
+
+	function arrow(key: string) {
+		return localSort?.key === key ? (localSort.asc ? ' ↑' : ' ↓') : '';
+	}
 
 	function standing(row: TableRow): string {
-		if (!data.ladder || field?.dmId === undefined) return '';
-		const tier = citStandingTier(data.ladder.ladder[field.dmId] ?? [], row.fieldCitations ?? 0);
+		const sf = data.subfields.find((s) => s.semanticId === data.field);
+		if (!data.ladder || sf?.dmId === undefined) return '';
+		const cites = rowValue(row, callText('field_citations', [data.field])) ?? 0;
+		const tier = citStandingTier(data.ladder.ladder[sf.dmId] ?? [], cites);
 		return standingLabel(tier, tierNames) ?? '';
 	}
 
 	function go(patch: TableQuery) {
-		const q = { sort: data.sort, subfield: data.subfield, pin: data.pin, ...patch };
-		goto(tableHref(data.rootType, q));
+		goto(tableHref(data.rootType, { ...q, pin: data.pin, ...patch }));
+	}
+
+	function rank(metric: MetricDecl, args: MetricArgs) {
+		go({ sort: callText(metric.id, args) });
 	}
 
 	function toggleLocalSort(key: string) {
 		localSort = localSort?.key === key ? { key, asc: !localSort.asc } : { key, asc: false };
 	}
 
-	async function fillColumn(col: IntricateColumn, rows: TableRow[]) {
+	async function fillColumn(col: Column, rows: TableRow[]) {
 		if (rows.length === 0) return;
-		loadingColumns += 1;
+		inflight[col.key] = (inflight[col.key] ?? 0) + 1;
 		const got = await fetchColumnValues(BE_REMOTE_URL, data.rootType, rows, col);
 		values = { ...values, [col.key]: { ...values[col.key], ...got } };
-		loadingColumns -= 1;
+		inflight[col.key] -= 1;
 	}
 
-	function addColumn(col: IntricateColumn) {
-		if (columns.some((c) => c.key === col.key)) return;
+	function addColumn(metric: MetricDecl, args: MetricArgs) {
+		const key = callText(metric.id, args);
+		if (columns.some((c) => c.key === key) || data.columns.includes(key)) return;
+		const col = { key, label: columnLabel(metric, args, names), metric, args };
 		columns = [...columns, col];
 		fillColumn(col, [...data.pinned, ...pageRows]);
 	}
@@ -115,7 +159,6 @@
 		if (loadingMore || noMore) return;
 		loadingMore = true;
 		const of = data.rows;
-		const q = { sort: data.sort, subfield: data.subfield };
 		const { rows } = await fetchSlice(BE_REMOTE_URL, data.rootType, data.from + loaded, q);
 		loadingMore = false;
 		if (of !== data.rows) return;
@@ -139,17 +182,19 @@
 				<span class="distinct">{row.distinctText}</span>
 			{/if}
 			{#if pinned && row.rank === null}
-				<span class="distinct">not active in {field?.name}</span>
+				<span class="distinct">outside the ranked {noun}</span>
 			{/if}
 		</td>
-		{#each globals as m (m.id)}
-			<td class="num">{formatMetric(m.id, rowValue(row, m.id))}</td>
+		{#each cohortCols as c (c.key)}
+			<td class="num">{formatMetric(c.decl, rowValue(row, c.key))}</td>
 		{/each}
 		{#if hasStanding}
 			<td class="num standing">{standing(row)}</td>
 		{/if}
 		{#each columns as col (col.key)}
-			<td class="num local">{formatMetric(col.metric.id, values[col.key]?.[row.dmId])}</td>
+			<td class="num local" class:pending={pending(col, row)}>
+				{pending(col, row) ? '…' : formatMetric(col.metric, values[col.key]?.[row.dmId])}
+			</td>
 		{/each}
 	</tr>
 {/snippet}
@@ -161,43 +206,80 @@
 		{/each}
 	</nav>
 	<h1>{noun}</h1>
-	<p class="cohort-note">
-		{loaded.toLocaleString()} of {data.total.toLocaleString()}
-		{noun}{#if field}
-			active in {field.name}{/if}, ranked by {sortLabel}. Click a column to re-rank all of them.
-	</p>
+	<p class="cohort-note">{cohortNote}</p>
+	{#if data.error}
+		<p class="error">{data.error}</p>
+	{/if}
 
-	<div class="filters">
-		{#if narrowable}
-			<select
-				class="control"
-				aria-label="Narrow to a field"
-				value={data.subfield}
-				onchange={(e) => go({ subfield: e.currentTarget.value })}
-			>
-				<option value="">All fields</option>
-				{#each data.subfields as sf, i (i)}
-					<option value={sf.semanticId}>{sf.name}</option>
-				{/each}
-			</select>
-		{/if}
-		<EntityPins
-			rootType={data.rootType}
-			pins={data.pin}
-			rows={data.pinned}
-			onchange={(pin) => go({ pin })}
-		/>
+	<div class="blocks">
+		<section class="block">
+			<h2>Filter</h2>
+			<div class="controls">
+				<ClauseBuilder
+					metrics={narrowers}
+					registry={data.registry}
+					subfields={data.subfields}
+					countries={data.countries}
+					chips={data.chips}
+					where={q.where ?? ''}
+					{names}
+					onchange={(where) => go({ where })}
+				/>
+			</div>
+			<div class="controls">
+				<EntityPins
+					rootType={data.rootType}
+					pins={data.pin}
+					rows={data.pinned}
+					onchange={(pin) => go({ pin })}
+				/>
+			</div>
+		</section>
+		<section class="block">
+			<h2>Metrics</h2>
+			<div class="controls">
+				<span class="lead">Rank all {data.total.toLocaleString()} {noun} by</span>
+				<MetricPicker
+					metrics={rankings}
+					subfields={data.subfields}
+					countries={data.countries}
+					selected={q.sort}
+					action="Rank"
+					onpick={rank}
+				/>
+			</div>
+			{#if screened}
+				<p class="note">
+					{sortLabel} is computed per entity, so it ranks the {noun} with the most citations only: the
+					top {data.screened?.toLocaleString()}.
+				</p>
+			{/if}
+			<div class="controls">
+				<span class="lead">Add a column for the loaded rows</span>
+				<MetricPicker
+					metrics={addable}
+					subfields={data.subfields}
+					countries={data.countries}
+					action="Add"
+					onpick={addColumn}
+				/>
+			</div>
+		</section>
 	</div>
-	<ColumnAdder metrics={intricates} subfields={data.subfields} onadd={addColumn} />
 
 	<div class="table-wrap">
 		<table>
 			<thead>
 				<tr>
 					<th colspan="2"></th>
-					<th colspan={globals.length + (hasStanding ? 1 : 0)} class="group">
-						All {data.total.toLocaleString()}
-						{noun}
+					<th colspan={cohortCols.length + (hasStanding ? 1 : 0)} class="group">
+						{#if screened}
+							The top {data.screened?.toLocaleString()} of {data.total.toLocaleString()}
+							{noun} by citations
+						{:else}
+							All {data.total.toLocaleString()}
+							{noun}
+						{/if}
 					</th>
 					{#if columns.length > 0}
 						<th colspan={columns.length} class="group local">The loaded rows only</th>
@@ -206,22 +288,30 @@
 				<tr>
 					<th class="col-rank">#</th>
 					<th class="col-name">Name</th>
-					{#each globals as m (m.id)}
+					{#each cohortCols as c (c.key)}
 						<th
 							class="num sortable"
-							class:active={data.sort === m.id}
-							aria-sort={data.sort === m.id ? 'descending' : undefined}
-							onclick={() => go({ sort: m.id })}
+							class:ranked={q.sort === c.key}
+							class:active={localSort?.key === c.key}
+							aria-sort={localSort?.key === c.key
+								? localSort.asc
+									? 'ascending'
+									: 'descending'
+								: undefined}
+							onclick={() => toggleLocalSort(c.key)}
 						>
-							{columnLabel(m, {}, names)}{data.sort === m.id ? ' ↓' : ''}
-							<InfoTip text={m.meaning} label={m.label} />
+							{columnLabel(c.decl, c.args, names)}{arrow(c.key)}
+							{#if q.sort === c.key}
+								<span class="rank-mark">rank</span>
+							{/if}
+							<InfoTip text={c.decl.meaning} label={c.decl.label} />
 						</th>
 					{/each}
 					{#if hasStanding}
 						<th class="num">
 							Standing
 							<InfoTip
-								text="The most selective percentile band the entity's {field?.name} citations reach among all {noun} active in the field."
+								text="The most selective percentile band the entity's {fieldName} citations reach among all {noun} active in the field."
 								label="Standing"
 							/>
 						</th>
@@ -232,10 +322,9 @@
 							class:active={localSort?.key === col.key}
 							onclick={() => toggleLocalSort(col.key)}
 						>
-							{col.label}{localSort?.key === col.key ? (localSort.asc ? ' ↑' : ' ↓') : ''}
+							{col.label}{arrow(col.key)}
 							<InfoTip
-								text="{col.metric
-									.meaning} Computed for the loaded rows only; sorting by it reorders this page, not the ranking."
+								text="{col.metric.meaning} Computed for the loaded rows only."
 								label={col.label}
 							/>
 							<button
@@ -264,10 +353,6 @@
 			</tbody>
 		</table>
 	</div>
-
-	{#if loadingColumns > 0}
-		<p class="cohort-note">Computing page-local columns…</p>
-	{/if}
 
 	{#if !noMore}
 		<button class="load-more" onclick={loadMore} disabled={loadingMore}>
@@ -313,12 +398,56 @@
 		margin: 4px 0 12px;
 	}
 
-	.filters {
+	.error {
+		font-size: var(--text-sm);
+		color: var(--color-err);
+		margin: 0 0 12px;
+	}
+
+	.blocks {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 12px;
+	}
+
+	@media (max-width: 900px) {
+		.blocks {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	.block {
+		min-width: 0;
+		border: 2px solid rgba(var(--color-range-15), 0.45);
+		padding: 10px 12px;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.block h2 {
+		font-size: var(--text-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		opacity: 0.7;
+		margin: 0;
+	}
+
+	.controls {
 		display: flex;
 		gap: 8px;
 		flex-wrap: wrap;
 		align-items: center;
-		margin-bottom: 8px;
+	}
+
+	.lead,
+	.note {
+		font-size: var(--text-sm);
+		opacity: 0.7;
+	}
+
+	.note {
+		margin: 0;
 	}
 
 	.table-wrap {
@@ -363,8 +492,19 @@
 	}
 
 	thead th.sortable:hover,
-	thead th.active {
+	thead th.active,
+	thead th.ranked {
 		opacity: 1;
+	}
+
+	.rank-mark {
+		font-size: var(--text-xs);
+		letter-spacing: 0;
+		text-transform: none;
+		border: 1px solid currentColor;
+		border-radius: 3px;
+		padding: 0 4px;
+		margin-left: 4px;
 	}
 
 	.remove {
@@ -426,6 +566,10 @@
 
 	td.local {
 		opacity: 0.8;
+	}
+
+	td.pending {
+		opacity: 0.35;
 	}
 
 	.standing {

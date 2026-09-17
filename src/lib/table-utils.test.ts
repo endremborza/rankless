@@ -1,77 +1,183 @@
 import { describe, it, expect } from 'vitest';
 import {
-	columnKey,
+	annotatable,
+	callText,
+	chipLabel,
+	chipsFrom,
+	clauseable,
+	clauseText,
 	columnLabel,
 	formatMetric,
-	globalColumns,
 	metricValuesUrl,
-	metricsFor,
+	operatorsFor,
+	parseCall,
+	rankable,
 	rowValue,
 	sortRows,
 	tableHref,
-	validSort
+	whereText
 } from './table-utils';
-import type { MetricDecl, TableRow } from './tree-types';
+import type { MetricDecl, TableRow, WhereExpr } from './tree-types';
 
 const registry: MetricDecl[] = [
-	{ id: 'citations', label: 'Citations', meaning: 'c', kinds: { authors: 'global' }, params: [] },
+	{
+		id: 'citations',
+		label: 'Citations',
+		meaning: 'c',
+		value: { type: 'count' },
+		cost: 'read',
+		kinds: { authors: 'global', institutions: 'global' }
+	},
+	{
+		id: 'impact_score',
+		label: 'Impact score',
+		meaning: 'i',
+		value: { type: 'score' },
+		cost: 'read',
+		kinds: { authors: 'global', institutions: 'global' }
+	},
 	{
 		id: 'field_score',
 		label: 'Field score',
+		header: '{subfield} score',
 		meaning: 'f',
-		kinds: { authors: 'intricate', institutions: 'global' },
-		params: ['subfield']
+		value: { type: 'score' },
+		param: 'subfield',
+		cost: 'read',
+		kinds: { authors: 'intricate', institutions: 'global' }
 	},
 	{
 		id: 'window_papers',
 		label: 'Papers in a year window',
-		header: 'Papers {year_from}–{year_to}',
+		header: 'Papers {window}',
 		meaning: 'w',
-		kinds: { authors: 'intricate', institutions: 'intricate' },
-		params: ['year_from', 'year_to']
+		value: { type: 'count' },
+		param: 'window',
+		cost: 'read',
+		kinds: { authors: 'global', institutions: 'global' }
 	},
 	{
-		id: 'citing_country_share',
+		id: 'cited_from',
 		label: 'Share cited from a country',
 		header: 'Cited from {country}',
 		meaning: 's',
-		kinds: { authors: 'intricate' },
-		params: ['country']
+		value: { type: 'share' },
+		param: 'country',
+		cost: 'walk',
+		kinds: { authors: 'intricate' }
+	},
+	{
+		id: 'country',
+		label: 'Country',
+		meaning: 'k',
+		value: { type: 'entities', entity: 'countries' },
+		cost: 'read',
+		kinds: { authors: 'global', institutions: 'global' }
 	}
 ];
+const ids = (ms: MetricDecl[]) => ms.map((m) => m.id);
+const names = { oncology: 'Oncology', hun: 'Hungary', can: 'Canada' };
 
 describe('table column model', () => {
-	it('splits the registry by kind per root type', () => {
-		expect(metricsFor(registry, 'authors', 'global').map((m) => m.id)).toEqual(['citations']);
-		expect(metricsFor(registry, 'authors', 'intricate').map((m) => m.id)).toEqual([
+	it('ranks by every numeric column read, never by a walk or an entity', () => {
+		expect(ids(rankable(registry, 'institutions'))).toEqual([
+			'citations',
+			'impact_score',
+			'field_score',
+			'window_papers'
+		]);
+		expect(ids(rankable(registry, 'authors'))).toEqual([
+			'citations',
+			'impact_score',
+			'field_score',
+			'window_papers'
+		]);
+	});
+
+	it('offers as page-local columns what the rows do not carry by themselves', () => {
+		expect(ids(annotatable(registry, 'institutions'))).toEqual(['field_score', 'window_papers']);
+		expect(ids(annotatable(registry, 'authors'))).toEqual([
 			'field_score',
 			'window_papers',
-			'citing_country_share'
-		]);
-		expect(metricsFor(registry, 'institutions', 'global').map((m) => m.id)).toEqual([
-			'field_score'
+			'cited_from'
 		]);
 	});
 
-	it('shows field columns only once a subfield narrows the cohort', () => {
-		expect(globalColumns(registry, 'institutions', false)).toEqual([]);
-		expect(globalColumns(registry, 'institutions', true).map((m) => m.id)).toEqual(['field_score']);
+	it('narrows by every column read, entities included, never by a walk', () => {
+		expect(ids(clauseable(registry, 'authors'))).toEqual([
+			'citations',
+			'impact_score',
+			'field_score',
+			'window_papers',
+			'country'
+		]);
+		expect(operatorsFor(registry[0])).toEqual(['ge', 'le', 'gt', 'lt', 'eq', 'ne']);
+		expect(operatorsFor(registry[5])).toEqual(['eq', 'ne']);
 	});
 
-	it('names a column by its parameters, the chosen entity by name where known', () => {
+	it('names a column by its argument, the chosen entity by name where known', () => {
 		expect(columnLabel(registry[0])).toBe('Citations');
-		expect(columnLabel(registry[2], { year_from: 2020, year_to: 2024 })).toBe('Papers 2020–2024');
-		expect(columnLabel(registry[3], { country: 'canada' }, { country: 'Canada' })).toBe(
-			'Cited from Canada'
-		);
-		expect(columnLabel(registry[3], { country: 'canada' })).toBe('Cited from canada');
+		expect(columnLabel(registry[3], [2020, 2024])).toBe('Papers 2020–2024');
+		expect(columnLabel(registry[4], ['can'], names)).toBe('Cited from Canada');
+		expect(columnLabel(registry[4], ['can'])).toBe('Cited from can');
+	});
+});
+
+describe('calls and clauses', () => {
+	it('spells a call the way the backend does and reads it back', () => {
+		expect(callText('papers', [])).toBe('papers');
+		expect(callText('field_score', ['oncology'])).toBe('field_score(oncology)');
+		expect(callText('window_papers', [2020, 2024])).toBe('window_papers(2020, 2024)');
+		expect(callText('city', ['new york'])).toBe('city("new york")');
+		expect(parseCall('window_papers(2020, 2024)')).toEqual({
+			metric: 'window_papers',
+			args: [2020, 2024]
+		});
+		expect(parseCall('field_score(oncology)')).toEqual({
+			metric: 'field_score',
+			args: ['oncology']
+		});
+		expect(parseCall('city("new york")')).toEqual({ metric: 'city', args: ['new york'] });
+		expect(parseCall('papers')).toEqual({ metric: 'papers', args: [] });
 	});
 
-	it('falls back to citations for a sort the server cannot serve', () => {
-		expect(validSort(registry, 'institutions', 'field_score', 'oncology')).toBe('field_score');
-		expect(validSort(registry, 'institutions', 'field_score', '')).toBe('citations');
-		expect(validSort(registry, 'authors', 'field_score', 'oncology')).toBe('citations');
-		expect(validSort(registry, 'authors', 'nonsense', '')).toBe('citations');
+	it('serializes chips into one conjunction and labels them by name', () => {
+		const chips = [
+			{ call: 'country', op: 'eq' as const, operand: 'hun' },
+			{ call: 'papers', op: 'ge' as const, operand: 500 },
+			{ call: 'city', op: 'ne' as const, operand: 'new york' },
+			{ call: 'country', op: 'in' as const, operand: ['hun', 'can'] }
+		];
+		expect(clauseText(chips[2])).toBe('city != "new york"');
+		expect(whereText(chips)).toBe(
+			'country = hun and papers >= 500 and city != "new york" and country in (hun, can)'
+		);
+		expect(chipLabel(chips[0], registry, names)).toBe('Country = Hungary');
+		expect(chipLabel(chips[1], registry, names)).toBe('papers ≥ 500');
+		expect(
+			chipLabel({ call: 'field_score(oncology)', op: 'gt', operand: 0 }, registry, names)
+		).toBe('Oncology score > 0');
+		expect(chipLabel(chips[3], registry, names)).toBe('Country in (Hungary, Canada)');
+	});
+
+	it('shows a flat conjunction as chips and anything else as text', () => {
+		const flat: WhereExpr = {
+			and: [
+				{ clause: { call: { metric: 'country', args: [] }, op: 'eq', operand: 'hun' } },
+				{ clause: { call: { metric: 'field_score', args: ['oncology'] }, op: 'gt', operand: 1 } }
+			]
+		};
+		expect(chipsFrom(flat)).toEqual([
+			{ call: 'country', op: 'eq', operand: 'hun' },
+			{ call: 'field_score(oncology)', op: 'gt', operand: 1 }
+		]);
+		const single: WhereExpr = {
+			clause: { call: { metric: 'papers', args: [] }, op: 'ge', operand: 5 }
+		};
+		expect(chipsFrom(single)).toEqual([{ call: 'papers', op: 'ge', operand: 5 }]);
+		expect(chipsFrom({ or: [single, single] })).toBeNull();
+		expect(chipsFrom({ and: [single, { not: single }] })).toBeNull();
+		expect(chipsFrom(null)).toEqual([]);
 	});
 });
 
@@ -84,25 +190,24 @@ describe('row values and formatting', () => {
 		oaId: 1,
 		dmId: 7,
 		rank: 2,
-		impactScore: 12.345,
-		fieldScore: 0.5
+		values: { impact_score: 12.345, 'field_score(oncology)': 0.5 }
 	};
 
-	it('maps metric ids onto row fields', () => {
+	it('reads a column by its call', () => {
 		expect(rowValue(row, 'impact_score')).toBe(12.345);
-		expect(rowValue(row, 'field_score')).toBe(0.5);
+		expect(rowValue(row, 'field_score(oncology)')).toBe(0.5);
 		expect(rowValue(row, 'h_index')).toBeUndefined();
-		expect(rowValue(row, 'window_papers')).toBeUndefined();
 	});
 
-	it('formats by metric', () => {
-		expect(formatMetric('impact_score', 12.345)).toBe('12.3');
-		expect(formatMetric('impact_score', 0.456)).toBe('0.46');
-		expect(formatMetric('impact_score', 1234.5)).toBe('1,235');
-		expect(formatMetric('citing_country_share', 0.1234)).toBe('12.3%');
-		expect(formatMetric('year_centroid', 2011.26)).toBe('2011.3');
-		expect(formatMetric('window_papers', 1500)).toBe('1,500');
-		expect(formatMetric('window_papers', null)).toBe('–');
+	it('formats by value type', () => {
+		expect(formatMetric(registry[1], 12.345)).toBe('12.3');
+		expect(formatMetric(registry[1], 0.456)).toBe('0.46');
+		expect(formatMetric(registry[1], 1234.5)).toBe('1,235');
+		expect(formatMetric(registry[4], 0.1234)).toBe('12.3%');
+		expect(formatMetric(registry[4], 0.0003)).toBe('0.03%');
+		expect(formatMetric(registry[0], 1500)).toBe('1,500');
+		expect(formatMetric(undefined, 1500.4)).toBe('1,500');
+		expect(formatMetric(registry[0], null)).toBe('–');
 	});
 });
 
@@ -120,29 +225,17 @@ describe('page-local sort', () => {
 });
 
 describe('urls', () => {
-	it('keys a column by metric and parameters', () => {
-		expect(columnKey('window_papers', { year_to: 2024, year_from: 2020 })).toBe(
-			'window_papers|year_from=2020|year_to=2024'
-		);
-		expect(columnKey('field_score', { subfield: '' })).toBe('field_score');
-	});
-
-	it('builds the table href without defaults', () => {
+	it('builds the table href without defaults, the query as the backend takes it', () => {
 		expect(tableHref('authors', { sort: 'citations', pin: [] })).toBe('/authors/table');
-		expect(tableHref('authors', { sort: 'impact_score', subfield: 'oncology', from: 100 })).toBe(
-			'/authors/table?sort=impact_score&subfield=oncology&from=100'
-		);
+		expect(
+			tableHref('authors', { sort: 'field_score(oncology)', where: 'country = hun', from: 100 })
+		).toBe('/authors/table?sort=field_score%28oncology%29&where=country+%3D+hun&from=100');
 		expect(tableHref('authors', { pin: ['a-1', 'b-2'] })).toBe('/authors/table?pin=a-1%2Cb-2');
 	});
 
-	it('carries every id of the page in one metric-values call', () => {
-		expect(
-			metricValuesUrl('http://be/v1', 'authors', [1, 2, 3], 'window_papers', {
-				year_from: 2020,
-				year_to: 2024
-			})
-		).toBe(
-			'http://be/v1/metrics/authors?ids=1%2C2%2C3&metrics=window_papers&year_from=2020&year_to=2024'
+	it('carries every id of the page and the call in one metric-values call', () => {
+		expect(metricValuesUrl('http://be/v1', 'authors', [1, 2, 3], 'window_papers(2020, 2024)')).toBe(
+			'http://be/v1/metrics/authors?ids=1%2C2%2C3&metrics=window_papers%282020%2C+2024%29'
 		);
 	});
 });

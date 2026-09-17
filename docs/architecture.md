@@ -216,7 +216,7 @@ the only viz dependency).
 | `lib/tree-events.ts` | Click/hover/selection handlers |
 | `lib/visual-util.ts` | `rescale()`, `getSankeyPath()`, `pinRange()` |
 | `lib/metric-calculation.ts` | Specialization scores, impact metrics |
-| `lib/table-utils.ts` | Browse-table column model over the metric registry (`globalColumns`/`metricsFor`/`validSort`), column names from the header templates (`columnLabel`), row value + formatting, page-local stable sort, and the `/slice` / `/metrics/:etype` fetchers (`fetchSlice`, `fetchColumnValues`) |
+| `lib/table-utils.ts` | Browse-table model over the `/columns` registry: which metrics rank (`rankable`), narrow (`clauseable`) or make page-local columns (`annotatable`), the call spelling shared with the backend (`callText`/`parseCall`), `where` chips ↔ text (`chipsFrom`/`whereText`/`chipLabel`), column names from header templates (`columnLabel`), formatting by value type, page-local stable sort, and the fetchers (`fetchSlice` with the `x-columns` and error text, `fetchWhere`, `fetchColumnValues`) |
 | `lib/network-util.ts` | Co-authorship graph utilities (light layouts) |
 | `lib/utils/author-timeline.ts` | Aggregates co-authors from the full loaded works into per-year, span-bounded rows (`buildCoauthors`/`sortCoauthors`/`yearDomain`/`makeTicks`) for `AuthorTimeline` |
 | `lib/network-force.ts` | Cytoscape/fcose force layout — lazily imported so the vendor chunk stays off initial load |
@@ -240,7 +240,7 @@ the only viz dependency).
 | --- | --- |
 | `(stat)/` | Home; top entity lists |
 | `(stat)/[rootType]/[...semanticId]/` | Entity hero page (tree + network + map; ledger panel for owners) |
-| `(stat)/[rootType]/table/` | Browse table: the cohort of a root type ranked by a global metric (sort and field filter are server round-trips through `/slice`, `#` = rank in the active ordering, standing tier from the cached ladder once a field is chosen), entities pinned by name (`pin=`; their rows come back in the active ordering, rank-less outside a narrowed cohort) ahead of the ranked rows, and a two-row header separating the cohort's columns from the page-local ones for intricate metrics fetched in one `/metrics/:etype` call per column and page; a root-type switcher heads the page. Composed of `ColumnAdder` and `EntityPins` |
+| `(stat)/[rootType]/table/` | Browse table: the cohort of a root type ranked by a metric call chosen in the Metrics block (a per-entity metric ranks the top 1000 by citations, the cohort note and group header saying so) and narrowed by a `where` expression built in the Filter block (`ClauseBuilder`: one clause at a time as chips; an expression the chips cannot show is edited as text; the backend's objection is shown under the note); the columns are what `x-columns` lists, `#` = rank in the narrowed cohort, the standing tier from the cached ladder when a field metric is in play; entities pinned by name (`pin=`) ahead of the ranked rows; a header click sorts the loaded rows only; page-local columns for further calls fetched in one `/metrics/:etype` call per column and page, cells reading "…" while in flight; a root-type switcher heads the page. Composed of `MetricPicker`, `ClauseBuilder`, `ParamInputs` and `EntityPins` |
 | `(stat)/about/`, `(stat)/survey/`, `(stat)/privacy/` | About / survey / privacy notice |
 | `(stat)/release/` | Data-release report (baked `release-report.json`; see [deploy.md](deploy.md)) |
 | `(stat)/login/`, `(stat)/logout/`, `callback/`, `dev-login/` | ORCID OAuth + dev bypass |
@@ -285,7 +285,9 @@ the only viz dependency).
 | `WorkElem.svelte`, `SearchResults.svelte` | Single paper / search autocomplete |
 | `ScrollyGraph.svelte` / `ScrollySank.svelte` / `TimelineViz.svelte` | Scrollytelling + timeline viz |
 | `PathLevelInfoBox.svelte` / `MidpathBar.svelte` | Path UI |
-| `ColumnAdder.svelte` | Browse-table page-local column picker: an intricate metric, its parameters (field, country, year window) and the named column they make |
+| `MetricPicker.svelte` | Browse-table metric picker, used for the ranking and for page-local columns: a metric and the argument its parameter takes (through `ParamInputs`), handed over as a call; applied at once when parameter-free, with the button otherwise |
+| `ParamInputs.svelte` | The inputs of a metric's parameter — a field, a country, a year window — bound to the call's arguments; shared by the picker and the clause builder |
+| `ClauseBuilder.svelte` | Browse-table narrowing: a metric call, an operator its value type allows and an operand (a number, a country, a typed name) make one clause of the `where` conjunction, each a chip; any other expression shape is edited as text and applied whole |
 | `EntityPins.svelte` | Browse-table pins: `PeerSearch` by name adds an entity, chips (named by the pinned rows) remove one; the page carries the pins in `pin=` |
 | `HeadControl.svelte`, `Toc.svelte`, `FlatOutFrame.svelte` | Header / sticky nav / flat-view frame (own `tree-loader`; hosts bind `treeId`, keyed on entity identity by the page) |
 | `FeatureShowcase.svelte` | Homepage "Latest features" section: per-feature cards (Login, Hit-papers, Co-author timeline, Peers, Co-authors; All works + export demoted to the text-only "And more" grid). Reads the baked `homepage-showcase.json` (zero backend calls on load); composes the four data previews below |
