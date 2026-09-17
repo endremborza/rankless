@@ -103,9 +103,12 @@
 		y: (-(headerRate + d1TopPadRate) * svgD1) / 100
 	};
 
+	// The size base is derived where it is consumed: a `$:` statement runs at most once per flush,
+	// so syncing it into `controlSpecs` in its own statement would leave the tree drawn with the
+	// previous breakdown's basis whenever a load lands the tree and the toggle in one batch.
 	$: visibleTreeInfo = tf.deriveVisibleTree(
 		completeTree,
-		controlSpecs,
+		{ ...controlSpecs, globalSizeBase: isGlobalSpecialization ? 'specialization' : 'volume' },
 		selectionState,
 		attributeLabels,
 		currentTreeSpec
@@ -114,7 +117,6 @@
 	$: updateTreeSpecId(selectedBreakdowns);
 
 	$: loadNewQc(conf);
-	$: controlSpecs.globalSizeBase = isGlobalSpecialization ? 'specialization' : 'volume';
 
 	$: updateUrl(conf, selectionState);
 
