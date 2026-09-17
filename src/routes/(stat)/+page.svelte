@@ -304,6 +304,7 @@
 					>🔍 Explore <TypeWriter {texts} /></a
 				>
 				<a class="button secondary" href="#spotlights">See examples</a>
+				<a class="button secondary" href="/institutions/table">Browse tables</a>
 			</div>
 		</div>
 		<div id="preview" class="marged hero-art">

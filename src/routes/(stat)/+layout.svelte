@@ -298,9 +298,9 @@
 		<div id="foot-r">
 			{#if MCP_FEATURE_ON}<a href="/mcp">Developers</a>{/if}{#if GAME_FEATURE_ON}<a href="/game"
 					>Games</a
-				>{/if}<a href="/release">Data</a><a href="/privacy">Privacy</a><a href="/#contact"
-				>Contact</a
-			>
+				>{/if}<a href="/institutions/table">Tables</a><a href="/release">Data</a><a href="/privacy"
+				>Privacy</a
+			><a href="/#contact">Contact</a>
 		</div>
 	</div>
 </div>
