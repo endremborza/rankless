@@ -62,6 +62,10 @@ resolution tools, never guessed):
 | `get_papers(etype, sem_id, offset?, limit?, sort?)` | `/v1/works/...` | `sort="citations"` for hit papers |
 | `get_peers(etype, sem_id)` | `/v1/peers/...` |  |
 | `lookup_orcid(orcid)` | `/v1/orcid/:id` |  |
+| `rank_entities(etype, sort?, where?, offset?, limit?)` | `/v1/slice/:etype/:from/:to` | a cohort ranked by a metric call (`field_score(oncology)`) and narrowed by a `where` expression (`country = hun and city != budapest and papers >= 500`); `total` = the narrowed cohort's size, `screened` = the ranked set when a per-entity metric ranks or narrows the top 1000 by citations only, `columns` = the metric columns the rows carry (flattened into each row); `rankless_url` = the browse table of the same query (the table page reads the `/slice` keys, so the query is re-encoded, never translated) |
+| `annotate_entities(etype, semantic_ids, metrics)` | `/v1/slice?pin=` then `/v1/metrics/:etype?ids=&metrics=` | metric calls answered for up to 24 named entities in one call, keyed by the call |
+
+The two table tools describe themselves from the backend's metric registry: `server.py` fetches `/v1/columns` before registering the tools (an unreachable backend fails the start, which the box unit retries) and `tools.describe()` fills their docstrings with the expression language and every metric's call signature, value type, meaning and the root types it ranks. The metric meanings exist once, in `rankless_trees/src/metrics.rs`.
 
 Every data-tool response is an envelope `{"receipt": {"id", "tool", "args"}, "data": ...}`
 (`mcp_server/receipts.py`): the receipt names the call that produced the data, ids run

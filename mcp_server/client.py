@@ -1,5 +1,7 @@
 """Async HTTP client for the rankless backend."""
 
+from typing import Any
+
 import httpx
 
 import mcp_server
@@ -23,10 +25,18 @@ def reset() -> None:
 
 
 async def get_json(path: str, params: dict | None = None):
+    return (await get_with_headers(path, params))[0]
+
+
+async def get_with_headers(
+    path: str, params: dict | None = None
+) -> tuple[Any, httpx.Headers]:
+    """The JSON body and the response headers, for the endpoints that carry
+    counts in headers (`/slice`)."""
     clean = {k: v for k, v in (params or {}).items() if v is not None}
     resp = await get_client().get(path, params=clean)
     resp.raise_for_status()
-    return resp.json()
+    return resp.json(), resp.headers
 
 
 async def aclose() -> None:

@@ -6,8 +6,14 @@ tool and the offline miners, and `server.py` registers them wrapped in the
 receipt envelope (`mcp_server.receipts`).
 """
 
-from mcp_server import ROOT_TYPES, SEARCH_TYPES, encode_semantic_id, entity_url
-from mcp_server.client import get_json
+from mcp_server import (
+    ROOT_TYPES,
+    SEARCH_TYPES,
+    encode_semantic_id,
+    entity_url,
+    table_url,
+)
+from mcp_server.client import get_json, get_with_headers
 from mcp_server.response_shaping import (
     add_url,
     coauthor_edges,
@@ -16,6 +22,48 @@ from mcp_server.response_shaping import (
 )
 
 _specs_cache: dict | None = None
+
+MAX_RANK_LIMIT = 100
+MAX_ANNOTATE_IDS = 24
+ROW_INTERNALS = ("oaId", "dmId", "values")
+
+# The two table tools' descriptions are built from the backend's metric registry (`/v1/columns`)
+# by `describe()` before the server registers them, so the metric ids, meanings, value types,
+# parameters and kinds exist in one place. The templates hold only what the registry does not:
+# the tool's purpose and the expression language.
+EXPRESSIONS = """\
+A metric is written as a call: `papers`, `field_score(oncology)`, `window_papers(2020, 2024)`,
+`cited_from(usa)`; the argument is a semantic_id (or a quoted name) of the parameter's entity
+type, or two years. A `where` expression combines clauses `metric op value` with `and`, `or`,
+`not` and parentheses (precedence: parentheses, not, and, or). Numbers take `= != < <= > >=`
+and `in (1, 2)`; entity-valued metrics (country, city) take `= != in not in` with a
+semantic_id or a quoted name, e.g. `country = hun and city != budapest and (papers >= 500 or
+impact_score >= 20)`. On a set-valued metric (an author's countries) `=` means any equals and
+`!=` none does."""
+
+RANK_DOC = """\
+Rank the entities of one type by a metric call, narrowed by a `where` expression; the way to
+answer "which {{entity_type}} are strongest / biggest in ...". `total` is the size of the
+narrowed cohort and `rank` is within it; `screened` is set when a per-entity metric ranks (or
+narrows) only the cohort's top 1000 by citations. Rows carry every metric column the ranking
+makes available (`columns` lists them) and `rankless_url` opens the same table on the site.
+
+{expressions}
+
+Metrics (global = ranks and narrows the whole cohort; per-entity = the top 1000 by citations;
+a walk = a page column for annotate_entities only, never a ranking or a clause):
+{metrics}
+"""
+
+ANNOTATE_DOC = """\
+Metric values for up to {max_ids} named entities of one type in one call: every metric call
+answered per entity, keyed by the call. Never call it once per entity.
+
+{expressions}
+
+Metrics and their parameters:
+{metrics}
+"""
 
 
 def _check_etype(entity_type: str, allowed: tuple[str, ...] = ROOT_TYPES) -> None:
@@ -168,6 +216,114 @@ async def lookup_orcid(orcid: str) -> dict:
     return add_url(res, "authors")
 
 
+def _row(row: dict, entity_type: str) -> dict:
+    flat = {k: v for k, v in row.items() if k not in ROW_INTERNALS}
+    return add_url({**flat, **row.get("values", {})}, entity_type)
+
+
+async def rank_entities(
+    entity_type: str,
+    sort: str = "citations",
+    where: str | None = None,
+    offset: int = 0,
+    limit: int = 20,
+) -> dict:
+    _check_etype(entity_type)
+    limit = max(1, min(limit, MAX_RANK_LIMIT))
+    params = {"sort": sort, "where": where}
+    rows, headers = await get_with_headers(
+        f"/slice/{entity_type}/{offset}/{offset + limit}", params
+    )
+    screened = headers.get("x-screened-k")
+    return {
+        "total": int(headers.get("x-cohort-total", 0)),
+        "screened": int(screened) if screened is not None else None,
+        "sort": sort,
+        "where": where,
+        "columns": [c for c in headers.get("x-columns", "").split(",") if c],
+        "rankless_url": table_url(
+            entity_type, {**params, "from": offset if offset else None}
+        ),
+        "rows": [_row(r, entity_type) for r in rows],
+    }
+
+
+async def annotate_entities(
+    entity_type: str,
+    semantic_ids: list[str],
+    metrics: list[str],
+) -> dict:
+    _check_etype(entity_type)
+    if not semantic_ids or not metrics:
+        raise ValueError("semantic_ids and metrics must both be non-empty")
+    pins = ",".join(semantic_ids[:MAX_ANNOTATE_IDS])
+    pinned = await get_json(f"/slice/{entity_type}/0/0", {"pin": pins})
+    values = await get_json(
+        f"/metrics/{entity_type}",
+        {
+            "ids": ",".join(str(r["dmId"]) for r in pinned),
+            "metrics": ",".join(metrics),
+        },
+    )
+    at = {dm: i for i, dm in enumerate(values["ids"])}
+    keys = list(values["values"])
+    entities = []
+    for r in pinned:
+        i = at.get(r["dmId"])
+        cols = {k: values["values"][k][i] if i is not None else None for k in keys}
+        entities.append(
+            add_url(
+                {"name": r["name"], "semanticId": r["semanticId"], **cols}, entity_type
+            )
+        )
+    return {"metrics": keys, "entities": entities}
+
+
+def _roots(m: dict, kind: str) -> list[str]:
+    return [root for root, k in m["kinds"].items() if k == kind]
+
+
+def _signature(m: dict) -> str:
+    param = m.get("param")
+    return (
+        f"{m['id']}({'from, to' if param == 'window' else param})" if param else m["id"]
+    )
+
+
+def describe(registry: dict) -> None:
+    """Fill the table tools' docstrings from the backend's metric registry."""
+    rank_lines, annotate_lines = [], []
+    for m in registry["metrics"]:
+        vtype = m["value"]["type"]
+        entity = m["value"].get("entity")
+        typed = f"[{vtype} of {entity}]" if entity else f"[{vtype}]"
+        line = f"- {_signature(m)} {typed}: {m['meaning']}"
+        if m["cost"] == "walk":
+            annotate_lines.append(f"{line} For {', '.join(m['kinds'])}.")
+            rank_lines.append(f"{line} A walk, for {', '.join(m['kinds'])}.")
+            continue
+        glob, per = _roots(m, "global"), _roots(m, "intricate")
+        where = "; ".join(
+            s
+            for s in (
+                f"global for {', '.join(glob)}" if glob else "",
+                f"per-entity for {', '.join(per)}" if per else "",
+            )
+            if s
+        )
+        rank_lines.append(f"{line} {where}.")
+        if per:
+            annotate_lines.append(f"{line} For {', '.join(per)}.")
+    rank_entities.__doc__ = RANK_DOC.format(
+        expressions=EXPRESSIONS, metrics="\n".join(rank_lines)
+    )
+    annotate_entities.__doc__ = ANNOTATE_DOC.format(
+        max_ids=MAX_ANNOTATE_IDS,
+        expressions=EXPRESSIONS,
+        metrics="\n".join(annotate_lines),
+    )
+
+
 TOOLS = (
     search_entities,
     get_top_entities,
@@ -177,6 +333,8 @@ TOOLS = (
     get_papers,
     get_peers,
     lookup_orcid,
+    rank_entities,
+    annotate_entities,
 )
 
 TOOL_FNS = {fn.__name__: fn for fn in TOOLS}

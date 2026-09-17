@@ -9,7 +9,7 @@ Run over stdio with `uv run -m mcp_server`.
 """
 
 import os
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 BACKENDS = {
     "local": "http://127.0.0.1:3038/v1",
@@ -47,6 +47,14 @@ def encode_semantic_id(semantic_id: str) -> str:
 def entity_url(entity_type: str, semantic_id: str) -> str:
     # The site route is a rest param: '/' stays a separator, the segments are encoded.
     return f"{SITE_URL}/{entity_type}/{quote(semantic_id, safe=_SEM_SAFE + '/')}"
+
+
+def table_url(entity_type: str, query: dict) -> str:
+    """The browse table showing one `/slice` query: the table page reads the same keys
+    the backend takes, so the query is re-encoded as sent, never translated."""
+    clean = {k: v for k, v in query.items() if v is not None}
+    qs = urlencode(clean)
+    return f"{SITE_URL}/{entity_type}/table" + (f"?{qs}" if qs else "")
 
 
 def set_backend(url: str) -> None:
