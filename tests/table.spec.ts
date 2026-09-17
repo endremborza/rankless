@@ -14,7 +14,7 @@ async function ranks(page: Page): Promise<number[]> {
 
 async function column(page: Page, header: string): Promise<number[]> {
 	const idx = await page.$$eval(
-		'thead th',
+		'thead tr:last-child th',
 		(ths, h) => ths.findIndex((th) => (th.textContent ?? '').trim().startsWith(h)),
 		header
 	);
@@ -107,8 +107,8 @@ test('a page-local column costs one call and never reorders the cohort', async (
 
 	await page.getByLabel('Add a page-local column').selectOption('window_papers');
 	await page.getByRole('button', { name: 'Add', exact: true }).click();
-	await page.waitForSelector('th.local');
-	await expect(page.locator('th.local')).toContainText('this page');
+	await page.waitForSelector('th.sortable.local');
+	await expect(page.locator('th.group.local')).toContainText('loaded rows');
 	await page.waitForFunction(
 		() => !Array.from(document.querySelectorAll('td.local')).some((td) => td.textContent === '–')
 	);
@@ -116,7 +116,7 @@ test('a page-local column costs one call and never reorders the cohort', async (
 	expect(new URL(metricCalls[0]).searchParams.get('ids')!.split(',').length).toBe(100);
 	expect(await ranks(page)).toEqual(before);
 
-	await page.locator('th.local').click();
-	expect(nonIncreasing(await column(page, 'Papers in window'))).toBeTruthy();
+	await page.locator('th.sortable.local').click();
+	expect(nonIncreasing(await column(page, 'Papers 20'))).toBeTruthy();
 	expect([...(await ranks(page))].sort((a, b) => a - b)).toEqual(before);
 });

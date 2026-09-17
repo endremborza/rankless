@@ -1,4 +1,11 @@
-import type { MetricDecl, MetricKind, RootType, SearchResult, TableRow } from './tree-types';
+import type {
+	MetricDecl,
+	MetricKind,
+	MetricValuesResp,
+	RootType,
+	SearchResult,
+	TableRow
+} from './tree-types';
 
 export const TABLE_PAGE_SIZE = 100;
 export const DEFAULT_SORT = 'citations';
@@ -144,4 +151,22 @@ export function metricValuesUrl(
 		if (isSet(v)) p.set(k, String(v));
 	}
 	return `${base}/metrics/${rootType}?${p.toString()}`;
+}
+
+// A column's values for the given rows, keyed by dm id; a row the server did not answer is absent.
+export async function fetchColumnValues(
+	base: string,
+	rootType: RootType,
+	rows: TableRow[],
+	col: IntricateColumn
+): Promise<MetricValues> {
+	const ids = rows.map((r) => r.dmId);
+	const resp: MetricValuesResp | null = await fetch(
+		metricValuesUrl(base, rootType, ids, col.metric.id, col.params)
+	)
+		.then((r) => (r.ok ? r.json() : null))
+		.catch(() => null);
+	const got: MetricValues = {};
+	resp?.ids.forEach((id, i) => (got[id] = resp.values[col.metric.id]?.[i] ?? null));
+	return got;
 }

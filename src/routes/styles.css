@@ -207,6 +207,25 @@ g {
 	cursor: pointer;
 }
 
+.control {
+	padding: 6px 10px;
+	font-size: var(--text-base);
+	font-family: inherit;
+	border: 1px solid rgba(var(--color-range-15), 0.2);
+	background: transparent;
+	color: var(--color-text);
+	max-width: 100%;
+}
+
+.control:focus {
+	outline: none;
+	border-color: rgba(var(--color-range-15), 0.4);
+}
+
+button.control {
+	cursor: pointer;
+}
+
 .vw-sm {
 	font-size: var(--text-sm-vw);
 }

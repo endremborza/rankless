@@ -216,7 +216,7 @@ the only viz dependency).
 | `lib/tree-events.ts` | Click/hover/selection handlers |
 | `lib/visual-util.ts` | `rescale()`, `getSankeyPath()`, `pinRange()` |
 | `lib/metric-calculation.ts` | Specialization scores, impact metrics |
-| `lib/table-utils.ts` | Browse-table column model over the metric registry (`globalColumns`/`metricsFor`/`validSort`), row value + formatting, page-local stable sort, and the `/slice` / `/metrics/:etype` URL builders |
+| `lib/table-utils.ts` | Browse-table column model over the metric registry (`globalColumns`/`metricsFor`/`validSort`), column names from the header templates (`columnLabel`), row value + formatting, page-local stable sort, and the `/slice` / `/metrics/:etype` fetchers (`fetchSlice`, `fetchColumnValues`) |
 | `lib/network-util.ts` | Co-authorship graph utilities (light layouts) |
 | `lib/utils/author-timeline.ts` | Aggregates co-authors from the full loaded works into per-year, span-bounded rows (`buildCoauthors`/`sortCoauthors`/`yearDomain`/`makeTicks`) for `AuthorTimeline` |
 | `lib/network-force.ts` | Cytoscape/fcose force layout — lazily imported so the vendor chunk stays off initial load |
@@ -240,7 +240,7 @@ the only viz dependency).
 | --- | --- |
 | `(stat)/` | Home; top entity lists |
 | `(stat)/[rootType]/[...semanticId]/` | Entity hero page (tree + network + map; ledger panel for owners) |
-| `(stat)/[rootType]/table/` | Browse table: the cohort of a root type ranked by a global metric (sort, subfield filter and name search are server round-trips through `/slice`, `#` = rank in the active ordering, standing tier from the cached ladder once a field is chosen), plus page-local columns for intricate metrics fetched in one `/metrics/:etype` call per column and page |
+| `(stat)/[rootType]/table/` | Browse table: the cohort of a root type ranked by a global metric (sort and field filter are server round-trips through `/slice`, `#` = rank in the active ordering, standing tier from the cached ladder once a field is chosen), entities pinned by name (`pin=`; their rows come back in the active ordering, rank-less outside a narrowed cohort) ahead of the ranked rows, and a two-row header separating the cohort's columns from the page-local ones for intricate metrics fetched in one `/metrics/:etype` call per column and page; a root-type switcher heads the page. Composed of `ColumnAdder` and `EntityPins` |
 | `(stat)/about/`, `(stat)/survey/`, `(stat)/privacy/` | About / survey / privacy notice |
 | `(stat)/release/` | Data-release report (baked `release-report.json`; see [deploy.md](deploy.md)) |
 | `(stat)/login/`, `(stat)/logout/`, `callback/`, `dev-login/` | ORCID OAuth + dev bypass |
@@ -278,13 +278,15 @@ the only viz dependency).
 | `AuthorOwnerTools.svelte` | Legacy owner action UI (slated for removal) |
 | `ExportControls.svelte` | Sort/filter/citation-style/BibTeX controls |
 | `EntityHero.svelte` | Hero-page header, config-driven per root type (`$lib/hero-config.ts`): per-entity stat, specialization field chips (standing badge except countries) that nest each field's top topics, tailored leader rows, decade chart |
-| `InfoTip.svelte` | Unified "what is this?" tooltip: small `i` badge (or inline-text) trigger, opens on hover/focus/tap, solid background positioned at the trigger and clamped to the viewport. Used by `IndexedCitationLink`, `HeadControl` (Specialization / since-year), `HeroFieldBlocks` (papers-in note), `AxesOfFocusReach` |
+| `InfoTip.svelte` | Unified "what is this?" tooltip: small `i` badge (or inline-text) trigger, opens on hover/focus/tap, solid background positioned at the trigger and clamped to the viewport. Used by `IndexedCitationLink`, `HeadControl` (Specialization / since-year), `HeroFieldBlocks` (papers-in note), `AxesOfFocusReach`, the browse table's column headers |
 | `IndexedCitationLink.svelte` | "indexed" citation explainer (wraps `InfoTip`; shared across stat-line variants) |
 | `Peers.svelte` / `BarChart.svelte` | Peer comparison bars + shared span-bar chart |
 | `DominatedTopics.svelte` | "Topic Leadership" list (entity's dominated topics) |
 | `WorkElem.svelte`, `SearchResults.svelte` | Single paper / search autocomplete |
 | `ScrollyGraph.svelte` / `ScrollySank.svelte` / `TimelineViz.svelte` | Scrollytelling + timeline viz |
 | `PathLevelInfoBox.svelte` / `MidpathBar.svelte` | Path UI |
+| `ColumnAdder.svelte` | Browse-table page-local column picker: an intricate metric, its parameters (field, country, year window) and the named column they make |
+| `EntityPins.svelte` | Browse-table pins: `PeerSearch` by name adds an entity, chips (named by the pinned rows) remove one; the page carries the pins in `pin=` |
 | `HeadControl.svelte`, `Toc.svelte`, `FlatOutFrame.svelte` | Header / sticky nav / flat-view frame (own `tree-loader`; hosts bind `treeId`, keyed on entity identity by the page) |
 | `FeatureShowcase.svelte` | Homepage "Latest features" section: per-feature cards (Login, Hit-papers, Co-author timeline, Peers, Co-authors; All works + export demoted to the text-only "And more" grid). Reads the baked `homepage-showcase.json` (zero backend calls on load); composes the four data previews below |
 | `ShowcaseRainbow.svelte` / `ShowcaseTimeline.svelte` / `ShowcasePeers.svelte` / `ShowcaseCoauthors.svelte` | Static, real-data previews for the showcase: a mini hit-paper rainbow (arcs by citations); a compact co-author timeline (spans + per-year marks, hit-flagged); a hero-vs-peer comparative bar pair (by field + by year); a ring-layout co-author mini network (no Cytoscape) |
