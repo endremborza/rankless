@@ -21,7 +21,7 @@
 <div class="pins">
 	<PeerSearch {rootType} placeholder="Pin {prettifyRoot(rootType)} by name…" on:select={add} />
 	{#each pins as sem, i (i)}
-		<span class="pin">
+		<span class="chip">
 			{@html nameOf(sem)}
 			<button
 				type="button"
@@ -40,22 +40,5 @@
 		align-items: center;
 		flex: 1;
 		min-width: 240px;
-	}
-
-	.pin {
-		font-size: var(--text-sm);
-		padding: 2px 4px 2px 8px;
-		border: 1px solid rgba(var(--color-range-15), 0.3);
-		border-radius: 3px;
-		white-space: nowrap;
-	}
-
-	.pin button {
-		border: none;
-		background: none;
-		color: inherit;
-		cursor: pointer;
-		font-size: var(--text-base);
-		padding: 0 4px;
 	}
 </style>

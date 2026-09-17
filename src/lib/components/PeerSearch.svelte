@@ -52,6 +52,7 @@
 <div class="peer-search">
 	<input
 		type="text"
+		class="control"
 		bind:value={term}
 		on:input={onInput}
 		on:focus={() => (open = results.length > 0)}
@@ -83,17 +84,6 @@
 
 	input {
 		width: 100%;
-		box-sizing: border-box;
-		padding: 5px 8px;
-		font-size: var(--text-sm);
-		color: inherit;
-		background: var(--text-bg, #fff);
-		border: 1px solid rgba(var(--color-range-30), 0.35);
-	}
-
-	input:focus {
-		outline: none;
-		border-color: rgba(var(--color-range-15), 0.8);
 	}
 
 	.ps-results {
