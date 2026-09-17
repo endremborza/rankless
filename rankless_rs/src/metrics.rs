@@ -27,13 +27,16 @@ const I: MetricKind = MetricKind::Intricate;
 // One declaration per metric, the single source of its label, meaning text, parameters and kind per
 // root type. `kinds` names the root types the metric exists for; a global metric is one number per
 // entity held for the whole cohort (the server orders and narrows by it), an intricate one is
-// computed for a page of ids on request and never orders the cohort. A metric read off a tree's
-// first level names that level in `profile`, and exists only for the roots whose trees yield it.
+// computed for a page of ids on request and never orders the cohort. A metric with parameters
+// names its column by them in `header`, `{param}` standing for the chosen value. A metric read off
+// a tree's first level names that level in `profile`, and exists only for the roots whose trees
+// yield it.
 pub const METRICS: &[MetricDecl] = &[
     MetricDecl {
         id: CITATIONS,
         label: "Citations",
-        meaning: "Citation links to the entity's indexed papers.",
+        header: None,
+        meaning: "Citations received by the entity's indexed papers.",
         kinds: MetricKinds::all(G),
         params: &[],
         profile: None,
@@ -41,6 +44,7 @@ pub const METRICS: &[MetricDecl] = &[
     MetricDecl {
         id: PAPERS,
         label: "Papers",
+        header: None,
         meaning: "Indexed papers produced by the entity.",
         kinds: MetricKinds::all(G),
         params: &[],
@@ -49,7 +53,8 @@ pub const METRICS: &[MetricDecl] = &[
     MetricDecl {
         id: IMPACT_SCORE,
         label: "Impact score",
-        meaning: "Citations over the entity's dampened size: citations ÷ (papers + the root type's mean papers)^0.75. Impact beyond what size alone predicts; a small entity needs high per-paper impact to outrank a large one.",
+        header: None,
+        meaning: "Citations relative to size, with a floor under the size so that a few papers cannot outrank a large body of work: citations ÷ (papers + the average paper count of the entity's kind)^0.75. A high score means more impact than size alone predicts.",
         kinds: MetricKinds::all(G),
         params: &[],
         profile: None,
@@ -57,6 +62,7 @@ pub const METRICS: &[MetricDecl] = &[
     MetricDecl {
         id: H_INDEX,
         label: "h-index",
+        header: None,
         meaning: "Largest h such that h of the author's papers have at least h citations each.",
         kinds: MetricKinds::authors_only(G),
         params: &[],
@@ -65,7 +71,8 @@ pub const METRICS: &[MetricDecl] = &[
     MetricDecl {
         id: YEAR_CENTROID,
         label: "Career centroid",
-        meaning: "Paper-count-weighted mean publication year of the author's papers.",
+        header: None,
+        meaning: "Mean publication year of the author's papers: where in time the career's output sits.",
         kinds: MetricKinds::authors_only(G),
         params: &[],
         profile: None,
@@ -73,7 +80,8 @@ pub const METRICS: &[MetricDecl] = &[
     MetricDecl {
         id: FIELD_CITATIONS,
         label: "Field citations",
-        meaning: "Citation links to the entity from papers in the chosen field.",
+        header: Some("{subfield} citations"),
+        meaning: "Citations from papers in the chosen field.",
         kinds: MetricKinds::profiled(G, I),
         params: &[PARAM_SUBFIELD],
         profile: None,
@@ -81,31 +89,35 @@ pub const METRICS: &[MetricDecl] = &[
     MetricDecl {
         id: FIELD_SCORE,
         label: "Field score",
-        meaning: "Citations from papers in the chosen field over the entity's dampened size: field citations ÷ (papers + the root type's mean papers)^0.75. Ranks entities within one field, size-adjusted; distinct from the hero's field ranking, which divides by the field's size to rank one entity's fields.",
+        header: Some("{subfield} score"),
+        meaning: "Citations from papers in the chosen field, over the same size term as the impact score. Ranks the entities of one field by the attention they draw from it for their size. An entity's own page ranks its fields the other way round, by the field's size.",
         kinds: MetricKinds::profiled(G, I),
         params: &[PARAM_SUBFIELD],
         profile: None,
     },
     MetricDecl {
         id: WINDOW_PAPERS,
-        label: "Papers in window",
-        meaning: "Indexed papers published in the year window. Per-year resolution exists only for the recent era, so the window is clamped to it.",
+        label: "Papers in a year window",
+        header: Some("Papers {year_from}–{year_to}"),
+        meaning: "Indexed papers published in the year window. Yearly counts exist for recent years only, so an earlier start is moved up to the first counted year.",
         kinds: MetricKinds::all(I),
         params: &[PARAM_YEAR_FROM, PARAM_YEAR_TO],
         profile: None,
     },
     MetricDecl {
         id: WINDOW_CITATIONS,
-        label: "Citations in window",
-        meaning: "Citation links from papers published in the year window. Per-year resolution exists only for the recent era, so the window is clamped to it.",
+        label: "Citations in a year window",
+        header: Some("Citations {year_from}–{year_to}"),
+        meaning: "Citations from papers published in the year window. Yearly counts exist for recent years only, so an earlier start is moved up to the first counted year.",
         kinds: MetricKinds::all(I),
         params: &[PARAM_YEAR_FROM, PARAM_YEAR_TO],
         profile: None,
     },
     MetricDecl {
         id: CITING_COUNTRY_SHARE,
-        label: "Citing-country share",
-        meaning: "Share of the entity's citation links that come from papers with an author affiliated in the chosen country; a paper with authors in several countries counts once per country.",
+        label: "Share cited from a country",
+        header: Some("Cited from {country}"),
+        meaning: "Share of the entity's citations that come from papers with an author in the chosen country; a paper with authors in several countries counts once for each of them.",
         kinds: MetricKinds::all(I),
         params: &[PARAM_COUNTRY],
         profile: Some(Level::citing(Countries::NAME)),
@@ -116,6 +128,8 @@ pub const METRICS: &[MetricDecl] = &[
 pub struct MetricDecl {
     pub id: &'static str,
     pub label: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub header: Option<&'static str>,
     pub meaning: &'static str,
     pub kinds: MetricKinds,
     pub params: &'static [&'static str],
@@ -369,6 +383,17 @@ mod tests {
         assert_eq!(metric_kind(CITATIONS, "works"), None);
         for m in METRICS {
             assert!(!m.meaning.is_empty(), "{} has no meaning text", m.id);
+        }
+    }
+
+    #[test]
+    fn a_header_template_names_only_the_metric_s_parameters() {
+        for m in METRICS {
+            assert_eq!(m.header.is_some(), !m.params.is_empty(), "{}", m.id);
+            for part in m.header.unwrap_or("").split('{').skip(1) {
+                let (param, _) = part.split_once('}').expect("unclosed placeholder");
+                assert!(m.params.contains(&param), "{}: {param}", m.id);
+            }
         }
     }
 

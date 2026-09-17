@@ -18,11 +18,23 @@ export type MetricParams = {
 	country?: string;
 };
 
+// Display names of the entities a column's parameters point at.
+export type ParamNames = { subfield?: string; country?: string };
+
 // One page-local column: an intricate metric bound to the parameters it was added with. Two
 // windows of the same metric are two columns, so the key carries the parameters.
-export type IntricateColumn = { key: string; metric: MetricDecl; params: MetricParams };
+export type IntricateColumn = {
+	key: string;
+	label: string;
+	metric: MetricDecl;
+	params: MetricParams;
+};
 
-export type TableQuery = { sort?: string; subfield?: string; q?: string; from?: number };
+export type TableQuery = { sort?: string; subfield?: string; pin?: string[]; from?: number };
+
+export type MetricValues = Record<number, number | null>;
+
+export type Slice = { rows: TableRow[]; total: number };
 
 const ROW_FIELD: Record<string, keyof TableRow> = {
 	papers: 'papers',
@@ -59,6 +71,14 @@ export function validSort(
 ) {
 	const ok = globalColumns(registry, rootType, subfield !== '').some((m) => m.id === sort);
 	return ok ? sort : DEFAULT_SORT;
+}
+
+// The column name: the header template with each `{param}` replaced by the chosen entity's name,
+// or the raw parameter where no name is known; a parameter-free metric is named by its label.
+export function columnLabel(decl: MetricDecl, params: MetricParams = {}, names: ParamNames = {}) {
+	return (decl.header ?? decl.label).replace(/\{(\w+)\}/g, (_, p: string) =>
+		String(names[p as keyof ParamNames] ?? params[p as keyof MetricParams] ?? '')
+	);
 }
 
 export function isSet(v: string | number | null | undefined): v is string | number {

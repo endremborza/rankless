@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	columnKey,
+	columnLabel,
 	formatMetric,
 	globalColumns,
 	metricValuesUrl,
@@ -23,10 +24,19 @@ const registry: MetricDecl[] = [
 	},
 	{
 		id: 'window_papers',
-		label: 'Papers in window',
+		label: 'Papers in a year window',
+		header: 'Papers {year_from}–{year_to}',
 		meaning: 'w',
 		kinds: { authors: 'intricate', institutions: 'intricate' },
 		params: ['year_from', 'year_to']
+	},
+	{
+		id: 'citing_country_share',
+		label: 'Share cited from a country',
+		header: 'Cited from {country}',
+		meaning: 's',
+		kinds: { authors: 'intricate' },
+		params: ['country']
 	}
 ];
 
@@ -35,7 +45,8 @@ describe('table column model', () => {
 		expect(metricsFor(registry, 'authors', 'global').map((m) => m.id)).toEqual(['citations']);
 		expect(metricsFor(registry, 'authors', 'intricate').map((m) => m.id)).toEqual([
 			'field_score',
-			'window_papers'
+			'window_papers',
+			'citing_country_share'
 		]);
 		expect(metricsFor(registry, 'institutions', 'global').map((m) => m.id)).toEqual([
 			'field_score'
@@ -45,6 +56,15 @@ describe('table column model', () => {
 	it('shows field columns only once a subfield narrows the cohort', () => {
 		expect(globalColumns(registry, 'institutions', false)).toEqual([]);
 		expect(globalColumns(registry, 'institutions', true).map((m) => m.id)).toEqual(['field_score']);
+	});
+
+	it('names a column by its parameters, the chosen entity by name where known', () => {
+		expect(columnLabel(registry[0])).toBe('Citations');
+		expect(columnLabel(registry[2], { year_from: 2020, year_to: 2024 })).toBe('Papers 2020–2024');
+		expect(columnLabel(registry[3], { country: 'canada' }, { country: 'Canada' })).toBe(
+			'Cited from Canada'
+		);
+		expect(columnLabel(registry[3], { country: 'canada' })).toBe('Cited from canada');
 	});
 
 	it('falls back to citations for a sort the server cannot serve', () => {

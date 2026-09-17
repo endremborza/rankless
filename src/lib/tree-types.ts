@@ -159,6 +159,8 @@ export type MetricKind = 'global' | 'intricate';
 export type MetricDecl = {
 	id: string;
 	label: string;
+	// A parameterized metric's column name, `{param}` standing for the chosen value.
+	header?: string;
 	meaning: string;
 	kinds: Partial<Record<RootType, MetricKind>>;
 	params: string[];
