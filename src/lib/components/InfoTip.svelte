@@ -152,8 +152,12 @@
 		padding: 7px 10px;
 		font-size: var(--text-xs);
 		font-weight: 400;
+		font-style: normal;
 		line-height: 1.4;
 		text-align: left;
+		text-transform: none;
+		letter-spacing: normal;
+		white-space: normal;
 		color: var(--text-bg);
 		background: var(--color-text);
 		box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
