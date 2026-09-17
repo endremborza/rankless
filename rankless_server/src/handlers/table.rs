@@ -15,7 +15,7 @@ use rankless_rs::{
 };
 use rankless_trees::interfacing::RootColumns;
 
-use crate::consts::{CACHEABLE_FROM, COHORT_TOTAL_HEADER, MAX_METRIC_IDS, MAX_SLICE};
+use crate::consts::{CACHEABLE_FROM, COHORT_TOTAL_HEADER, MAX_METRIC_IDS, MAX_PINS, MAX_SLICE};
 use crate::responses::{MetricValuesQ, MetricValuesResp, SliceQ, TableRow};
 use crate::state::{order_by, InstTrm, NameState, StatesT};
 use crate::util::{bad_request, cache_header, get_empty, resolve_dm};
@@ -180,7 +180,7 @@ impl<'a> Cohort<'a> {
         }
     }
 
-    fn row(&self, rank: u32, rid: u32) -> TableRow {
+    fn row(&self, rank: Option<u32>, rid: u32) -> TableRow {
         let rid = rid as usize;
         TableRow {
             sr: self.root.state.responses[rid].clone(),
@@ -237,22 +237,15 @@ pub(crate) async fn slice_get(
         return bad_request("sort needs subfield=");
     }
     let cohort = Cohort::new(root, field, sort.id);
-    let rows: Vec<TableRow> = match q.q.as_deref().filter(|s| !s.trim().is_empty()) {
-        Some(name_q) => {
-            let mut hits: Vec<(u32, u32)> = root
-                .state
-                .engine
-                .query(name_q)
-                .into_iter()
-                .map(|e| e as u32)
-                .filter(|&rid| (rid as usize) < root.state.responses.len())
-                .filter_map(|rid| cohort.rank_of(rid).map(|rank| (rank, rid)))
-                .collect();
-            hits.sort_unstable();
-            hits.into_iter()
-                .map(|(rank, rid)| cohort.row(rank, rid))
-                .collect()
-        }
+    // Pinned rows are the named entities in the active ordering, whatever the page bounds.
+    let rows: Vec<TableRow> = match q.pin.as_deref() {
+        Some(pins) => pins
+            .split(',')
+            .filter_map(|sem| resolve_dm(&states.0 .0, &etype, sem.trim()))
+            .filter_map(|(_, dm)| root.state.response_id_from_dm(dm))
+            .take(MAX_PINS)
+            .map(|rid| cohort.row(cohort.rank_of(rid as u32), rid as u32))
+            .collect(),
         None => {
             let n = cohort.len();
             let start = min(pstart, n.saturating_sub(1));
@@ -260,7 +253,7 @@ pub(crate) async fn slice_get(
             (start..end)
                 .map(|pos| {
                     let rid = cohort.rids.at(pos);
-                    cohort.row(cohort.rank(rid), rid)
+                    cohort.row(Some(cohort.rank(rid)), rid)
                 })
                 .collect()
         }

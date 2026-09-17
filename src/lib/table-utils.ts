@@ -107,14 +107,40 @@ export function columnKey(metricId: string, params: MetricParams) {
 	return [metricId, ...parts].join('|');
 }
 
-export function tableHref(rootType: RootType, q: TableQuery) {
+function queryString(q: TableQuery, withDefaults: boolean) {
 	const p = new URLSearchParams();
-	if (q.sort && q.sort !== DEFAULT_SORT) p.set('sort', q.sort);
+	if (q.sort && (withDefaults || q.sort !== DEFAULT_SORT)) p.set('sort', q.sort);
 	if (q.subfield) p.set('subfield', q.subfield);
-	if (q.q) p.set('q', q.q);
+	if (q.pin?.length) p.set('pin', q.pin.join(','));
 	if (q.from) p.set('from', String(q.from));
 	const qs = p.toString();
-	return `/${rootType}/table${qs ? `?${qs}` : ''}`;
+	return qs ? `?${qs}` : '';
+}
+
+export function tableHref(rootType: RootType, q: TableQuery) {
+	return `/${rootType}/table${queryString(q, false)}`;
+}
+
+export function sliceUrl(base: string, rootType: RootType, from: number, q: TableQuery) {
+	const qs = queryString({ ...q, from: undefined }, true);
+	return `${base}/slice/${rootType}/${from}/${from + TABLE_PAGE_SIZE}${qs}`;
+}
+
+// One page of the cohort in the active ordering and the cohort's size; with `pin`, the pinned
+// entities' rows instead.
+export function fetchSlice(
+	base: string,
+	rootType: RootType,
+	from: number,
+	q: TableQuery,
+	fetchFn: typeof fetch = fetch
+): Promise<Slice> {
+	return fetchFn(sliceUrl(base, rootType, from, q))
+		.then(async (r) => ({
+			rows: r.ok ? ((await r.json()) as TableRow[]) : [],
+			total: parseInt(r.headers.get('x-cohort-total') ?? '0') || 0
+		}))
+		.catch(() => ({ rows: [], total: 0 }));
 }
 
 // The first `n` entities of a root type by citations, for the field and country pickers.
@@ -127,15 +153,6 @@ export function sliceList(
 	return fetchFn(`${base}/slice/${rootType}/0/${n}`)
 		.then((r) => (r.ok ? r.json() : []))
 		.catch(() => []);
-}
-
-export function sliceUrl(base: string, rootType: RootType, from: number, q: TableQuery) {
-	const p = new URLSearchParams();
-	if (q.sort) p.set('sort', q.sort);
-	if (q.subfield) p.set('subfield', q.subfield);
-	if (q.q) p.set('q', q.q);
-	const qs = p.toString();
-	return `${base}/slice/${rootType}/${from}/${from + TABLE_PAGE_SIZE}${qs ? `?${qs}` : ''}`;
 }
 
 // One call for a page: every id on screen, the column's metric and its parameters.

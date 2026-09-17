@@ -143,7 +143,8 @@ export type TableRow = {
 	distinctText?: string;
 	oaId: number;
 	dmId: number;
-	rank: number;
+	// null for a pinned entity outside the narrowed cohort.
+	rank: number | null;
 	impactScore: number;
 	hIndex?: number;
 	yearCentroid?: number;

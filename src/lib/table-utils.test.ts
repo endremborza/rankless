@@ -108,10 +108,11 @@ describe('urls', () => {
 	});
 
 	it('builds the table href without defaults', () => {
-		expect(tableHref('authors', { sort: 'citations' })).toBe('/authors/table');
+		expect(tableHref('authors', { sort: 'citations', pin: [] })).toBe('/authors/table');
 		expect(tableHref('authors', { sort: 'impact_score', subfield: 'oncology', from: 100 })).toBe(
 			'/authors/table?sort=impact_score&subfield=oncology&from=100'
 		);
+		expect(tableHref('authors', { pin: ['a-1', 'b-2'] })).toBe('/authors/table?pin=a-1%2Cb-2');
 	});
 
 	it('carries every id of the page in one metric-values call', () => {

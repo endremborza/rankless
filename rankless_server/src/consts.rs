@@ -7,6 +7,7 @@ pub const PORT: u16 = 3038;
 pub const SEARCH_SIZE: usize = 20;
 pub const MAX_SLICE: usize = 40_000;
 pub const MAX_METRIC_IDS: usize = 100;
+pub const MAX_PINS: usize = 24;
 // Size of the cohort a `/slice` page is ranked in; the body stays a bare row array.
 pub const COHORT_TOTAL_HEADER: &str = "x-cohort-total";
 pub const CACHEABLE_FROM: u32 = 10_000;

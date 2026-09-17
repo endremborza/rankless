@@ -38,7 +38,8 @@ pub(crate) struct SearchResult {
 pub(crate) struct TableRow {
     #[serde(flatten)]
     pub sr: SearchResult,
-    pub rank: u32,
+    // None for a pinned entity outside the narrowed cohort.
+    pub rank: Option<u32>,
     #[serde(rename = "impactScore")]
     pub impact_score: f32,
     #[serde(rename = "hIndex", skip_serializing_if = "Option::is_none")]
@@ -372,7 +373,7 @@ pub(crate) struct WorksQ {
 pub(crate) struct SliceQ {
     pub sort: Option<String>,
     pub subfield: Option<String>,
-    pub q: Option<String>,
+    pub pin: Option<String>,
 }
 
 // `ids` and `metrics` are comma-separated; the parameters serve every metric that takes them.

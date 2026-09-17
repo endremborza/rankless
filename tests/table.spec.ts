@@ -73,27 +73,39 @@ test('sorts the whole cohort by a global metric and pages past the first 100', a
 test('narrows the cohort to a field with score and standing columns', async ({ page }) => {
 	await page.goto('/institutions/table');
 	const select = page.getByLabel('Narrow to a field');
-	const first = await select.locator('option').nth(1).getAttribute('value');
-	await select.selectOption(first!);
+	const first = select.locator('option').nth(1);
+	const fieldName = (await first.textContent())!.trim();
+	await select.selectOption((await first.getAttribute('value'))!);
 	await page.waitForURL(/subfield=/);
 	await page.waitForSelector('tbody tr');
-	await expect(page.locator('thead th', { hasText: 'Field score' })).toBeVisible();
+	await expect(page.locator('thead th', { hasText: `${fieldName} score` })).toBeVisible();
 	await expect(page.locator('thead th', { hasText: 'Standing' })).toBeVisible();
 	expect(nonIncreasing(await column(page, 'Citations'))).toBeTruthy();
-	expect((await column(page, 'Field citations')).every((v) => v > 0)).toBeTruthy();
+	expect((await column(page, `${fieldName} citations`)).every((v) => v > 0)).toBeTruthy();
 });
 
-test('name search returns matches with their cohort rank', async ({ page }) => {
+test('a pinned entity stays on the table through every ordering', async ({ page }) => {
 	await page.goto('/institutions/table');
-	const name = (await page.locator('tbody td.col-name a').nth(5).textContent())!.trim();
-	await page.getByLabel('Search by name').fill(name.split(' ')[0]);
-	await page.getByLabel('Search by name').press('Enter');
-	await page.waitForURL(/q=/);
 	await page.waitForSelector('tbody tr');
-	const r = await ranks(page);
-	expect(r.length).toBeGreaterThan(0);
-	expect(r.length).toBeLessThan(100);
-	expect(r).toEqual([...r].sort((a, b) => a - b));
+	const name = (await page.locator('tbody td.col-name a').nth(30).textContent())!.trim();
+	await page.getByPlaceholder(/^Pin /).fill(name);
+	await page.locator('.ps-results button').first().click();
+	await page.waitForURL(/pin=/);
+	const pinned = page.locator('tbody tr.pinned');
+	await expect(pinned).toHaveCount(1);
+	const rank = parseInt((await pinned.locator('td.col-rank').textContent())!.replace(/,/g, ''));
+	expect(rank).toBeGreaterThan(1);
+	// The pinned row is not repeated in the ranked list.
+	expect((await ranks(page)).filter((r) => r === rank).length).toBe(1);
+
+	await page.locator('thead th', { hasText: 'Impact score' }).click();
+	await page.waitForURL(/sort=impact_score/);
+	expect(page.url()).toMatch(/pin=/);
+	await expect(page.locator('tbody tr.pinned')).toHaveCount(1);
+
+	await page.getByRole('button', { name: /^Unpin / }).click();
+	await page.waitForURL((u) => !u.searchParams.has('pin'));
+	await expect(page.locator('tbody tr.pinned')).toHaveCount(0);
 });
 
 test('a page-local column costs one call and never reorders the cohort', async ({ page }) => {
