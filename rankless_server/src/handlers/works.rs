@@ -103,26 +103,26 @@ pub(crate) async fn intersect_get(
 
     let clause_strs: Vec<&str> = spec.split('/').filter(|s| !s.is_empty()).collect();
     if clause_strs.is_empty() || clause_strs.len() > INTERSECT_MAX_CLAUSES {
-        return bad_request("bad clause count");
+        return bad_text("bad clause count");
     }
 
     let mut clauses: Vec<Vec<&[WT]>> = Vec::with_capacity(clause_strs.len());
     let mut total_operands = 0;
     for cs in clause_strs {
         let Some((etype, ids)) = cs.split_once(':') else {
-            return bad_request("clause missing etype");
+            return bad_text("clause missing etype");
         };
         if !INTERSECTABLE.contains(&etype) {
-            return bad_request("etype not intersectable");
+            return bad_text("etype not intersectable");
         }
         let Some(ns) = nstates.get(etype) else {
-            return bad_request("unknown etype");
+            return bad_text("unknown etype");
         };
         let mut operands: Vec<&[WT]> = Vec::new();
         for raw_id in ids.split(',').filter(|s| !s.is_empty()) {
             total_operands += 1;
             if total_operands > INTERSECT_MAX_OPERANDS {
-                return bad_request("too many operands");
+                return bad_text("too many operands");
             }
             // Unresolved ids drop out; a clause left with no operand makes the AND empty.
             if let Some(&dm_id) = ns.sem_to_dm.get(raw_id) {
@@ -146,7 +146,7 @@ pub(crate) async fn intersect_get(
             };
             (cache_header(60), Json(out).into_response())
         }
-        Err(_) => bad_request("couldn't intersect query, too broad"),
+        Err(_) => bad_text("couldn't intersect query, too broad"),
     }
 }
 

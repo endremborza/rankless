@@ -83,10 +83,10 @@ pub(crate) fn get_empty() -> (HeaderMap, Response) {
     )
 }
 
-pub(crate) fn bad_request(msg: &'static str) -> (HeaderMap, Response) {
+pub(crate) fn bad_text(msg: impl Into<String>) -> (HeaderMap, Response) {
     (
         HeaderMap::new(),
-        (StatusCode::BAD_REQUEST, msg).into_response(),
+        (StatusCode::BAD_REQUEST, msg.into()).into_response(),
     )
 }
 
