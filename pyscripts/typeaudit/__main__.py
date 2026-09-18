@@ -52,13 +52,15 @@ RESPONSE_PAIRS = (
     ("TreeSpec", "TreeSpec"),
     ("BreakdownSpec", "BreakdownSpec"),
     ("AttributeLabelOut", "AttributeLabel"),
+    ("ColumnDecl", "MetricDecl"),
     ("ResolveWorkResp", "WorkResolveResp"),
     ("ResolveAuthorResp", "AuthorResolveResp"),
     ("CountsResponse", "CountsResponse"),
     ("StatsResp", "StatsResp"),
     ("StatsSubfield", "StatsSubfield"),
     ("TableRow", "TableRow"),
-    ("MetricDecl", "MetricDecl"),
+    ("SliceMeta", "SliceMeta"),
+    ("SliceResp", "SliceResp"),
     ("MetricValuesResp", "MetricValuesResp"),
 )
 # Rust response structs with deliberately no TS mirror (only mcp_server reads them).
