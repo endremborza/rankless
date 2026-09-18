@@ -452,19 +452,21 @@ impl NameState {
     }
 }
 
-pub(crate) fn era_bounds() -> (RawYear, RawYear) {
-    (
-        YearInterface::reverse(MIN_YEAR as ET<Years>),
-        YearInterface::reverse(MAX_YEAR as ET<Years>),
-    )
-}
-
 // Descending, stable argsort of the given response ids by a metric value, so ties keep their input
 // (citation) order.
 pub(crate) fn order_by(rids: impl Iterator<Item = u32>, value: impl Fn(u32) -> f64) -> Box<[u32]> {
-    let mut rids: Vec<u32> = rids.collect();
-    rids.sort_by(|&a, &b| value(b).total_cmp(&value(a)));
-    rids.into_boxed_slice()
+    order_keyed(rids, value).0
+}
+
+// The ordering and, aligned with it, the value each id was ordered by; each value is read once.
+pub(crate) fn order_keyed(
+    rids: impl Iterator<Item = u32>,
+    value: impl Fn(u32) -> f64,
+) -> (Box<[u32]>, Box<[f64]>) {
+    let mut keyed: Vec<(f64, u32)> = rids.map(|rid| (value(rid), rid)).collect();
+    keyed.sort_by(|a, b| b.0.total_cmp(&a.0));
+    let (values, rids): (Vec<f64>, Vec<u32>) = keyed.into_iter().unzip();
+    (rids.into_boxed_slice(), values.into_boxed_slice())
 }
 
 fn dedup_search_text(name: &str, ext: &str) -> String {
