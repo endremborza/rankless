@@ -207,7 +207,9 @@ def _json_key(f: RawField, rename_all: str | None) -> str:
 
 
 def _type_name(type_str: str) -> str:
-    return re.sub(r"<.*", "", type_str).strip().rsplit("::", 1)[-1]
+    # A flattened field may be borrowed (`&\'static MetricDecl`); the struct it names is the same.
+    bare = re.sub(r"^(?:&\s*(?:\'\w+\s*)?(?:mut\s+)?)+", "", type_str.strip())
+    return re.sub(r"<.*", "", bare).strip().rsplit("::", 1)[-1]
 
 
 def _apply_case(ident: str, style: str) -> str:
