@@ -44,8 +44,8 @@ impact_score >= 20)`. On a set-valued metric (an author's countries) `=` means a
 RANK_DOC = """\
 Rank the entities of one type by a metric call, narrowed by a `where` expression; the way to
 answer "which {{entity_type}} are strongest / biggest in ...". `total` is the size of the
-narrowed cohort and `rank` is within it; `screened` is set when a per-entity metric ranks (or
-narrows) only the cohort's top 1000 by citations. Rows carry every metric column the ranking
+narrowed cohort; `screened` is set when a per-entity metric ranks (or narrows) only the cohort's
+top 1000 by citations, and then `rank` is within those 1000, not within `total`. Rows carry every metric column the ranking
 makes available (`columns` lists them) and `rankless_url` opens the same table on the site.
 
 {expressions}
