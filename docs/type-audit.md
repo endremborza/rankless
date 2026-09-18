@@ -56,3 +56,4 @@ These are surfaced as warnings, not bugs to auto-fix — review before acting:
 - TS `TreeSpec` omits `allowSpec` and `defaultYear`, which the backend sends and
   `mcp_server` relies on.
 - `StatsResp` / `StatsSubfield` have no TS mirror (consumed only by `mcp_server`).
+- `ViewResult` flattens `SearchResult`, so `/v1/views` also sends `oaId` and `semanticId`, which TS `View` models neither of: the entity page takes the semantic id from the route (`data.conf.semanticId`) and never reads the OpenAlex id off the view. The same flatten carries the optional `distinctText` and `rawCites` past the TS type, reported as info rather than a warning.
