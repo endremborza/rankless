@@ -11,13 +11,13 @@ use rankless_rs::{
     peers::SPEC_BETA,
 };
 use rankless_trees::{
-    interfacing::{RootColumns, SubfieldProfiles},
+    interfacing::{Getters, RootColumns, SubfieldProfiles},
     AttributeLabelUnion,
 };
 
 use crate::consts::N_SUBFIELDS;
 use crate::responses::{EntityPeersResp, PeerEntry, PeerSubfieldInfo, RefSubfieldInfo};
-use crate::state::{NameState, StatesT};
+use crate::state::{start_year, yearly_papers, NameState, StatesT};
 use crate::util::{cache_header, get_empty, resolve_entity};
 
 pub(crate) async fn peers_get(
@@ -77,16 +77,19 @@ fn peers_inner(etype: &str, sem_id: &str, states: &StatesT) -> (HeaderMap, Respo
         })
         .collect();
 
-    let hero = build_peer_entry(hero_rid, hero_dm, astates, cols, sfs, satts, &sf_indices);
+    let entry = |rid: usize, dm: usize| {
+        build_peer_entry(etype, rid, dm, astates, cols, gets, sfs, satts, &sf_indices)
+    };
+    let hero = entry(hero_rid, hero_dm);
 
-    let peers: Vec<PeerEntry> = astates.peers[hero_dm]
+    let peers: Vec<PeerEntry> = cols.peers[hero_dm]
         .iter()
         .filter(|&&pid| pid != 0)
         .filter_map(|&pid| {
             let peer_dm = pid as usize;
             astates
                 .response_id_from_dm(peer_dm)
-                .map(|rid| build_peer_entry(rid, peer_dm, astates, cols, sfs, satts, &sf_indices))
+                .map(|rid| entry(rid, peer_dm))
         })
         .collect();
 
@@ -99,17 +102,19 @@ fn peers_inner(etype: &str, sem_id: &str, states: &StatesT) -> (HeaderMap, Respo
     (cache_header(60), Json(resp).into_response())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_peer_entry(
+    etype: &str,
     rid: usize,
     dm_id: usize,
     astates: &NameState,
     cols: &RootColumns,
+    gets: &Getters,
     sfs: &SubfieldProfiles,
     satts: &AttributeLabelUnion,
     sf_indices: &[usize],
 ) -> PeerEntry {
     let sr = &astates.responses[rid];
-    let ext = &astates.exts[rid];
     let sf_cits: Vec<u32> = sf_indices
         .iter()
         .map(|&si| sfs.citing.elem(dm_id, si))
@@ -132,9 +137,9 @@ fn build_peer_entry(
         papers: sr.papers,
         citations: sr.citations,
         subfield_citations: sf_cits,
-        yearly_papers: ext.yearly_papers,
-        yearly_cites: ext.yearly_cites,
-        start_year: ext.start_year,
+        yearly_papers: yearly_papers(cols, dm_id),
+        yearly_cites: cols.yearly_cites[dm_id],
+        start_year: start_year(etype, dm_id, cols, gets),
         h_index: cols.h_indices.as_ref().and_then(|h| h.get(dm_id).copied()),
         year_centroid: cols
             .year_centroids

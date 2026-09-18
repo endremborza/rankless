@@ -10,8 +10,10 @@ use axum::{
 };
 use serde::Serialize;
 
+use rankless_trees::interfacing::RootColumns;
+
 use crate::consts::STAMP_FNAME;
-use crate::state::{NameState, NameStateMap};
+use crate::state::{NameState, NameStateMap, StatesT};
 
 pub(crate) fn cache_header(mins: usize) -> HeaderMap {
     let mut headers = HeaderMap::new();
@@ -51,6 +53,16 @@ pub(crate) fn resolve_dm<'a>(
 ) -> Option<(&'a NameState, usize)> {
     let nstate = ns_map.get(etype)?;
     Some((nstate, *nstate.sem_to_dm.get(sem_id)? as usize))
+}
+
+/// The columns of a root type the search state knows; every root with a name state has them.
+pub(crate) fn root_cols<'a>(states: &'a StatesT, etype: &str) -> &'a RootColumns {
+    states
+        .2
+        .state
+        .gets
+        .columns_for(etype)
+        .expect("a root type with a name state has columns")
 }
 
 /// As `resolve_dm`, plus the response id — `None` for an entity that has a

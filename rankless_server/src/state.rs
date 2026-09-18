@@ -11,13 +11,10 @@ use rankless_rs::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
         derive_links3::HitPapers,
     },
-    ladder::LADDER_LEN,
-    metrics::{mean_of, size_adjusted_score},
     steps::{
         a1_entity_mapping::{RawYear, YearInterface, Years},
-        derive_links2::{EraRec, MAX_YEAR, MIN_YEAR},
+        derive_links2::EraRec,
     },
-    N_PEERS,
 };
 use rankless_trees::{
     extensions::DistinctionText,
@@ -43,20 +40,16 @@ pub(crate) type InstTrm = TreeRunManager<(
 pub(crate) type NameStateMap = HashMap<&'static str, NameState>;
 pub(crate) type StatesT = State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>, Arc<InstTrm>)>;
 
+// The search side of a root type: the engine, the responses it answers with, the id maps between
+// semantic, OpenAlex, dm and response ids, and the cohort orderings. Every per-entity number is a
+// column of the root's `RootColumns`.
 pub(crate) struct NameState {
     pub engine: SearchEngine<SEARCH_SIZE>,
     // Ordered by citations descending: response id == citation rank - 1.
     pub responses: Box<[SearchResult]>,
-    pub exts: Box<[EntityExt]>,
     pub sem_to_dm: HashMap<Arc<str>, u32>,
     pub oa_to_rid: HashMap<u64, u32>,
     dm_to_rid: Box<[u32]>,
-    pub peers: Box<[[u32; N_PEERS]]>,
-    pub cit_rank_ladder: Box<[[u32; LADDER_LEN]]>,
-    // Cohort mean of `papers`, the dampening constant of every size-adjusted score of this root type.
-    pub mean_papers: f64,
-    // By response id.
-    pub impact_scores: Box<[f32]>,
     pub orderings: Orderings,
 }
 
@@ -67,13 +60,6 @@ pub(crate) struct Orderings {
     pub impact_score: Box<[u32]>,
     pub h_index: Option<Box<[u32]>>,
     pub year_centroid: Option<Box<[u32]>>,
-}
-
-pub(crate) struct EntityExt {
-    pub start_year: RawYear,
-    pub yearly_papers: EraRec,
-    pub yearly_cites: EraRec,
-    pub hit_papers: Box<[ET<HitPapers>]>,
 }
 
 pub(crate) trait IsTop: RootInterfaceable + Sized {
@@ -110,96 +96,63 @@ impl IsTop for Sources {
     }
 }
 
-impl EntityExt {
-    pub fn window(&self, year_from: Option<RawYear>, year_to: Option<RawYear>) -> YearWindow {
-        let (era_from, era_to) = era_bounds();
-        let from = year_from.unwrap_or(era_from).max(era_from);
-        let to = year_to.unwrap_or(era_to).min(era_to);
-        let (yearly_papers, yearly_cites) = if from <= to {
-            let cf = (from - era_from) as usize;
-            let ct = (to - era_from) as usize;
-            (
-                self.yearly_papers[cf..=ct].to_vec(),
-                self.yearly_cites[cf..=ct].to_vec(),
-            )
-        } else {
-            (Vec::new(), Vec::new())
-        };
-        YearWindow {
-            from,
-            to,
-            papers: yearly_papers.iter().sum(),
-            citations: yearly_cites.iter().sum(),
-            yearly_papers,
-            yearly_cites,
-        }
-    }
+// The entity's hit papers, capped for the profile.
+pub(crate) fn hit_papers(cols: &RootColumns, dm_id: usize) -> &[ET<HitPapers>] {
+    let hits = cols.hit_works.0.get(dm_id).map_or(&[][..], |h| &h[..]);
+    &hits[..hits.len().min(MAX_HITS)]
+}
 
-    fn from_resps<E>(
-        responses: &Box<[SearchResult]>,
-        entif: &RootInterfaces<E>,
-        gets: &Getters,
-    ) -> Box<[Self]>
-    where
-        E: RootInterfaceable,
-    {
-        responses
+pub(crate) fn yearly_papers(cols: &RootColumns, dm_id: usize) -> EraRec {
+    cols.yearly_papers.get(dm_id).copied().unwrap_or_default()
+}
+
+// The first year with a paper; a hit paper's is its own publication year.
+pub(crate) fn start_year(etype: &str, dm_id: usize, cols: &RootColumns, gets: &Getters) -> RawYear {
+    let idx = if etype == HitPapers::NAME {
+        gets.year(&gets.hit_papers[dm_id].to_usize()).to_usize()
+    } else {
+        yearly_papers(cols, dm_id)
             .iter()
-            .map(|res| {
-                let i = res.dm_id;
+            .position(|&c| c > 0)
+            .unwrap_or(0)
+    };
+    YearInterface::reverse(idx as ET<Years>)
+}
 
-                let mut sy_ind = 0;
-                let mut yearly_papers = EraRec::default();
-                if let Some(ypi) = entif.yearly_papers.get(i) {
-                    yearly_papers = ypi.clone();
-                    for (yi, ycount) in ypi.into_iter().enumerate() {
-                        if (sy_ind == 0) & (*ycount > 0) {
-                            sy_ind = yi;
-                            break;
-                        }
-                    }
-                }
-                if E::NAME == HitPapers::NAME {
-                    //TODO: this shows the crazy indexing of gets
-                    let wid = gets.hit_papers[i];
-                    sy_ind = gets.year(&wid.to_usize()).to_usize();
-                }
-
-                let mut hit_papers = Vec::new();
-                if E::NAME != HitPapers::NAME {
-                    if let Some(hits) = entif.hit_works.0.get(i) {
-                        hits.iter().take(MAX_HITS).for_each(|e| hit_papers.push(*e));
-                    }
-                }
-
-                Self {
-                    start_year: YearInterface::reverse(sy_ind as ET<Years>),
-                    yearly_cites: entif.yearly_cites[i].clone(),
-                    yearly_papers,
-                    hit_papers: hit_papers.into(),
-                }
-            })
-            .collect()
+pub(crate) fn year_window(
+    cols: &RootColumns,
+    dm_id: usize,
+    year_from: Option<RawYear>,
+    year_to: Option<RawYear>,
+) -> YearWindow {
+    let (from, to, papers, cites) = cols.era_slices(dm_id, year_from, year_to);
+    YearWindow {
+        from,
+        to,
+        papers: papers.iter().sum(),
+        citations: cites.iter().sum(),
+        yearly_papers: papers.to_vec(),
+        yearly_cites: cites.to_vec(),
     }
+}
 
-    // Relations + co-author network are rebuilt on demand from the mmapped top-N tables rather than
-    // held resident: each entity view reads only its own rows. `dm_id` is the raw entity dm id.
-    pub fn to_serializable(
-        &self,
-        etype: &str,
-        dm_id: usize,
-        satts: &AttributeLabelUnion,
-        nstates: &NameStateMap,
-        gets: &Getters,
-    ) -> SerializableExt {
-        let (relations, author_network) = build_relations(etype, dm_id, satts, nstates, gets);
-        SerializableExt {
-            start_year: self.start_year,
-            yearly_papers: self.yearly_papers,
-            yearly_cites: self.yearly_cites,
-            relations,
-            author_network,
-        }
+// Relations + co-author network are rebuilt on demand from the mmapped top-N tables rather than
+// held resident: each entity view reads only its own rows.
+pub(crate) fn serializable_ext(
+    etype: &str,
+    dm_id: usize,
+    cols: &RootColumns,
+    satts: &AttributeLabelUnion,
+    nstates: &NameStateMap,
+    gets: &Getters,
+) -> SerializableExt {
+    let (relations, author_network) = build_relations(etype, dm_id, satts, nstates, gets);
+    SerializableExt {
+        start_year: start_year(etype, dm_id, cols, gets),
+        yearly_papers: yearly_papers(cols, dm_id),
+        yearly_cites: cols.yearly_cites[dm_id],
+        relations,
+        author_network,
     }
 }
 
@@ -366,18 +319,20 @@ where
 }
 
 impl Orderings {
-    fn new(responses: &[SearchResult], impact_scores: &[f32], cols: Option<&RootColumns>) -> Self {
+    fn new(responses: &[SearchResult], cols: &RootColumns) -> Self {
         let n = responses.len() as u32;
-        let by_dm = |col: &[u32], rid: u32| col[responses[rid as usize].dm_id] as f64;
+        let dm = |rid: u32| responses[rid as usize].dm_id;
         Self {
             papers: order_by(0..n, |rid| responses[rid as usize].papers as f64),
-            impact_score: order_by(0..n, |rid| impact_scores[rid as usize] as f64),
+            impact_score: order_by(0..n, |rid| cols.impact_scores[dm(rid)] as f64),
             h_index: cols
-                .and_then(|a| a.h_indices.as_deref())
-                .map(|h| order_by(0..n, |rid| by_dm(h, rid))),
+                .h_indices
+                .as_deref()
+                .map(|h| order_by(0..n, |rid| h[dm(rid)] as f64)),
             year_centroid: cols
-                .and_then(|a| a.year_centroids.as_deref())
-                .map(|y| order_by(0..n, |rid| y[responses[rid as usize].dm_id] as f64)),
+                .year_centroids
+                .as_deref()
+                .map(|y| order_by(0..n, |rid| y[dm(rid)] as f64)),
         }
     }
 }
@@ -385,6 +340,7 @@ impl Orderings {
 impl NameState {
     pub fn new<E>(
         entif: &RootInterfaces<E>,
+        cols: &RootColumns,
         gets: &Getters,
         names_arc: &[Arc<str>],
         sem_ids_arc: &[Arc<str>],
@@ -392,7 +348,7 @@ impl NameState {
     where
         E: RootInterfaceable + IsTop + DistinctionText,
     {
-        let (responses, engine_strs) = Self::get_resps(entif, gets, names_arc, sem_ids_arc);
+        let (responses, engine_strs) = Self::get_resps(entif, cols, gets, names_arc, sem_ids_arc);
         let cache_dir = gets.stowage.path_from_ns("search-cache");
         let stem = format!("{}-s{SEARCH_SIZE}", E::NAME);
         let bin_path = cache_dir.join(format!("{stem}.bin"));
@@ -420,27 +376,15 @@ impl NameState {
         let mut dm_to_rid: Box<[u32]> = vec![u32::MAX; names_arc.len()].into_boxed_slice();
         for (i, res) in responses.iter().enumerate() {
             let dm_id = res.dm_id;
-            let oa_id = entif.oa_id[dm_id];
-            oa_to_rid.insert(oa_id, i as u32);
+            oa_to_rid.insert(res.oa_id, i as u32);
             sem_to_dm.insert(res.semantic_id.clone(), dm_id as u32);
             if dm_id < dm_to_rid.len() {
                 dm_to_rid[dm_id] = i as u32;
             }
         }
 
-        let peers: Box<[[u32; N_PEERS]]> = entif
-            .peers
-            .iter()
-            .map(|arr| arr.map(|e| e.to_usize() as u32).try_into().unwrap())
-            .collect();
-
         let now = std::time::Instant::now();
-        let mean_papers = mean_of(responses.iter().map(|r| r.papers));
-        let impact_scores: Box<[f32]> = responses
-            .iter()
-            .map(|r| size_adjusted_score(r.citations, r.papers, mean_papers))
-            .collect();
-        let orderings = Orderings::new(&responses, &impact_scores, gets.columns_for(E::NAME));
+        let orderings = Orderings::new(&responses, cols);
         println!(
             "orderings for {} (n={}) in {:.2?}",
             E::NAME,
@@ -450,21 +394,17 @@ impl NameState {
 
         Self {
             engine: engine.into(),
-            exts: EntityExt::from_resps(&responses, entif, gets),
             responses,
             sem_to_dm,
             oa_to_rid,
             dm_to_rid,
-            peers,
-            cit_rank_ladder: entif.cit_rank_ladder.clone(),
-            mean_papers,
-            impact_scores,
             orderings,
         }
     }
 
     fn get_resps<E>(
         entif: &RootInterfaces<E>,
+        cols: &RootColumns,
         gets: &Getters,
         names_arc: &[Arc<str>],
         sem_ids_arc: &[Arc<str>],
@@ -485,8 +425,15 @@ impl NameState {
                 let ext = ext_txt.get(i).map(|s| s.as_str()).unwrap_or("");
                 let full_name = dedup_search_text(name, ext);
                 let raw_c = raw_cites.get(i).copied().flatten();
-                let sr =
-                    SearchResult::new(i, name.clone(), semantic_id.clone(), dist_txt, raw_c, entif);
+                let sr = SearchResult::new(
+                    i,
+                    name.clone(),
+                    semantic_id.clone(),
+                    dist_txt,
+                    raw_c,
+                    entif.oa_id[i],
+                    cols,
+                );
                 (sr, full_name)
             })
             .collect();

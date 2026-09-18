@@ -39,8 +39,8 @@ use crate::responses::{
     PaginatedPaperSetResp, PaperAuthorMeta, PaperAuthorship, PaperOut, PaperProfileResp,
     PaperSetResp,
 };
-use crate::state::{InstTrm, StatesT};
-use crate::util::{bad_request, cache_header, get_empty, resolve_dm, resolve_entity};
+use crate::state::{hit_papers, InstTrm, StatesT};
+use crate::util::{bad_text, cache_header, get_empty, resolve_dm, root_cols};
 
 // Entity types whose work-lists may be intersected. Restricted to the five "stat" facets: their
 // semantic IDs are slugs containing none of the path separators (`/ , :`), so the catch-all CNF
@@ -154,13 +154,11 @@ pub(crate) async fn paper_profile(
     Path(author_sem_id): Path<String>,
     states: StatesT,
 ) -> (HeaderMap, Response) {
-    let Some((astates, aid, aid_rid)) = resolve_entity(&states.0 .0, Authors::NAME, &author_sem_id)
-    else {
+    let Some((_, aid)) = resolve_dm(&states.0 .0, Authors::NAME, &author_sem_id) else {
         return get_empty();
     };
     let gets = &states.0 .2.state.gets;
-    let hw_set: HashSet<WT> = astates.exts[aid_rid]
-        .hit_papers
+    let hw_set: HashSet<WT> = hit_papers(root_cols(&states, Authors::NAME), aid)
         .iter()
         .map(|hwid| gets.hit_papers[hwid.to_usize()])
         .collect();

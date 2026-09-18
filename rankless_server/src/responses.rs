@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use dmove::{Entity, UnsignedNumber, ET};
+use dmove::{Entity, ET};
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 
@@ -416,31 +416,24 @@ pub(crate) struct AuthoredQ {
 }
 
 impl SearchResult {
-    pub fn new<E>(
-        i: usize,
+    pub fn new(
+        dm_id: usize,
         name: Arc<str>,
         semantic_id: Arc<str>,
         distinct_text: Option<String>,
         raw_cites: Option<u32>,
-        entif: &RootInterfaces<E>,
-    ) -> Self
-    where
-        E: RootInterfaceable,
-    {
-        let papers = if entif.wcounts.len() > i {
-            entif.wcounts[i].to_usize()
-        } else {
-            1
-        } as u32;
+        oa_id: u64,
+        cols: &RootColumns,
+    ) -> Self {
         Self {
             name,
             semantic_id,
             distinct_text,
-            papers,
-            citations: entif.ccounts[i].to_usize() as u32,
+            papers: cols.papers[dm_id],
+            citations: cols.citations[dm_id],
             raw_cites,
-            oa_id: entif.oa_id[i],
-            dm_id: i,
+            oa_id,
+            dm_id,
         }
     }
 }

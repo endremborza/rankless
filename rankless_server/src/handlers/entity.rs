@@ -21,13 +21,14 @@ use rankless_rs::{
 use rankless_trees::{
     interfacing::Getters,
     io::{TreeQ, TreeResponse},
+    metrics::era_bounds,
     AttributeLabelUnion,
 };
 
 use crate::consts::{CACHEABLE_FROM, N_SUBFIELDS};
 use crate::responses::{LadderResp, StatsQ, StatsResp, StatsSubfield, TopResult, ViewResult};
-use crate::state::{era_bounds, EntityExt, StatesT};
-use crate::util::{cache_header, get_empty, resolve_dm, resolve_entity};
+use crate::state::{hit_papers, serializable_ext, year_window, StatesT};
+use crate::util::{cache_header, get_empty, resolve_dm, resolve_entity, root_cols};
 
 pub(crate) async fn tree_get(
     Path((root_type, semantic_id)): Path<(String, String)>,
@@ -80,7 +81,8 @@ pub(crate) async fn view_get(
     let Some((state, dm_id, rid)) = resolve_entity(&states.0 .0, &etype, &semantic_id) else {
         return Json(None);
     };
-    let similars = state.peers[dm_id]
+    let cols = root_cols(&states, &etype);
+    let similars = cols.peers[dm_id]
         .iter()
         .filter(|&&pid| pid != 0)
         .filter_map(|&pid| {
@@ -92,9 +94,9 @@ pub(crate) async fn view_get(
     let gets = &states.0 .2.state.gets;
     Json(Some(ViewResult {
         similars,
-        ext: state.exts[rid].to_serializable(etype.as_str(), dm_id, satts, &states.0 .0, gets),
+        ext: serializable_ext(etype.as_str(), dm_id, cols, satts, &states.0 .0, gets),
         sr: state.responses[rid].clone(),
-        meta: compute_meta(etype.as_str(), dm_id, gets, &state.exts[rid]),
+        meta: compute_meta(etype.as_str(), dm_id, gets, hit_papers(cols, dm_id)),
     }))
 }
 
@@ -109,7 +111,7 @@ pub(crate) async fn stats_get(
     };
     let sr = &state.responses[rid];
     let (era_from, era_to) = era_bounds();
-    let window = state.exts[rid].window(q.year_from, q.year_to);
+    let window = year_window(root_cols(&states, &etype), dm_id, q.year_from, q.year_to);
 
     // Per-subfield citing profile only exists for root types carrying the subfield profiles.
     let mut top_subfields = Vec::new();
@@ -182,10 +184,10 @@ pub(crate) async fn ladder_get(
     Path(etype): Path<String>,
     states: StatesT,
 ) -> (HeaderMap, Response) {
-    let Some(nstate) = states.0 .0.get(etype.as_str()) else {
+    let Some(cols) = states.2.state.gets.columns_for(etype.as_str()) else {
         return get_empty();
     };
-    let ladder = nstate
+    let ladder = cols
         .cit_rank_ladder
         .iter()
         .map(|row| row.iter().map(|&t| (t != u32::MAX).then_some(t)).collect())
@@ -201,10 +203,10 @@ fn compute_meta(
     etype: &str,
     dm_id: usize,
     gets: &Getters,
-    ext: &EntityExt,
+    hits: &[ET<HitPapers>],
 ) -> Option<HashMap<&'static str, String>> {
     if etype == Authors::NAME {
-        author_meta(dm_id, gets, ext)
+        author_meta(dm_id, gets, hits)
     } else if etype == Institutions::NAME {
         inst_meta(dm_id, gets)
     } else {
@@ -215,12 +217,12 @@ fn compute_meta(
 fn author_meta(
     dm_id: usize,
     gets: &Getters,
-    ext: &EntityExt,
+    hits: &[ET<HitPapers>],
 ) -> Option<HashMap<&'static str, String>> {
     let slug = String::from_utf8(gets.aslugs(dm_id).to_vec()).unwrap_or_default();
     let any_hits = if (gets.author_citing_once(dm_id).len() > 0)
         || (gets.author_citing_direct(dm_id).len() > 0)
-        || (ext.hit_papers.len() > 0)
+        || !hits.is_empty()
     {
         "1"
     } else {

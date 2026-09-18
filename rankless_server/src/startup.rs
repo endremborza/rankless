@@ -141,7 +141,8 @@ where
     } else {
         (&ent_intf.sem_ids).into()
     };
-    let nstate = NameState::new::<E>(&ent_intf, &gets_clone, &names_arc, &sem_ids_arc);
+    let cols = gets_clone.columns_for(E::NAME).expect("root columns");
+    let nstate = NameState::new::<E>(&ent_intf, cols, &gets_clone, &names_arc, &sem_ids_arc);
     let ccount = wait_for_data_copy(shared_cvp);
     let (k, v) = make_stats_entry_arc::<E>(&names_arc, &sem_ids_arc, &ent_intf.ccounts, ccount);
     au_clone.lock().unwrap().insert(k, v);

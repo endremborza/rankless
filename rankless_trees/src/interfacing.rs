@@ -31,6 +31,7 @@ use rankless_rs::{
         derive_links5::HitPaperYearlyCitations,
     },
     ladder::LADDER_LEN,
+    metrics::{mean_of, size_adjusted_score},
     steps::{
         a1_entity_mapping::YearInterface,
         a2_init_atts::OrcidType,
@@ -86,12 +87,27 @@ type TopCountryRec = ET<MAA<Countries, Top3AffCountryMarker>>;
 type TopTopicRec = ET<MAA<Topics, TopNPaperTopicMarker>>;
 
 // Everything one root type keeps loaded for the whole run, indexed by `dm_id` and reached by etype
-// string. The top-N relation tables are memory-mapped, read per entity view and never resident in
-// full; they replace the eager `RootInterfaces` load + startup `prime_relations` materialization.
-// Which columns a type has is a ladder: hit papers hold the four core tables alone, subfields add
-// the affiliation-country and topic tables, the four peer types add the subfield profiles, and
-// authors alone add the h-index and the career centroid (a calendar year).
+// string: the columns. The counting columns are resident for every root — papers, citations, the
+// yearly era records, the hit papers, the peers, the citation-rank ladder, and the impact score
+// derived at load from the counts. The top-N relation tables are memory-mapped, read per entity
+// view and never resident in full. Which relation tables a type has is a ladder: hit papers hold
+// the four core tables alone, subfields add the affiliation-country and topic tables, the four
+// peer types add the subfield profiles, and authors alone add the h-index and the career centroid
+// (a calendar year).
 pub struct RootColumns {
+    pub papers: Box<[u32]>,
+    pub citations: Box<[u32]>,
+    pub yearly_papers: Box<[EraRec]>,
+    pub yearly_cites: Box<[EraRec]>,
+    pub hit_works: VarBox<Box<[ET<HitPapers>]>>,
+    pub peers: Box<[[u32; N_PEERS]]>,
+    pub cit_rank_ladder: Box<[[u32; LADDER_LEN]]>,
+    // Cohort mean of `papers`, the dampening constant of every size-adjusted score of the root.
+    pub mean_papers: f64,
+    pub impact_scores: Box<[f32]>,
+    // Whether the entities have a place: institutions, whose country and city are `Getters` fixed
+    // attributes.
+    pub located: bool,
     pub paper_sfc: MmapSlice<TopSfRec>,
     pub citing_sfc: MmapSlice<TopSfRec>,
     pub journals: MmapSlice<TopJournalRec>,
@@ -199,9 +215,6 @@ macro_rules! make_ent_interfaces {
         $T:ident,
         $($f_key:ident => $f_mark:ty),*;
         $($r_key:ident -> $r_mark:ty),*;
-        $($var_key:ident - $var_mark:ty = $var_t:ty),*;
-        $($fix_key:ident - $fix_mark:ty | $fix_t:ty),*;
-        $($float_key:ident : $float_mark:ty),*;
         $($oa_key:ident),*;
         $($p_trait:ident),*
 
@@ -210,9 +223,6 @@ macro_rules! make_ent_interfaces {
         {
             $(pub $f_key: VarBox<String>),*,
             $(pub $r_key: Box<[<T as NumAtt<$r_mark>>::Num]>),*
-            $(, pub $var_key: VarBox<<T as VarAtt<$var_mark>>::VT>)*
-            $(, pub $fix_key: Box<[<T as FixAtt<$fix_mark>>::FT]>)*
-            $(, pub $float_key: Box<[f64]>),*
             $(, pub $oa_key: Box<[u64]>)*
         }
 
@@ -222,9 +232,6 @@ macro_rules! make_ent_interfaces {
                 Self {
                     $($f_key: <E as VarAtt<$f_mark>>::load(stowage)),*,
                     $($r_key: <E as FixAtt<$r_mark>>::load(stowage)),*
-                    $(, $fix_key:  <E as FixAtt<$fix_mark>>::load(stowage))*
-                    $(, $var_key:  <E as VarAtt<$var_mark>>::load(stowage))*
-                    $(, $float_key:  <E as FloatAtt<$float_mark>>::load(stowage))*
                     $(, $oa_key: reverse_id::<E>(stowage))*
                 }
             }
@@ -233,17 +240,11 @@ macro_rules! make_ent_interfaces {
         pub trait $T: Entity $(+ $p_trait)*
             $( + StringAtt<$f_mark>)*
             $( + NumAtt<$r_mark>)*
-            $( + VarAtt<$var_mark, VT=$var_t>)*
-            $( + FixAtt<$fix_mark, FT=$fix_t>)*
-            $( + FloatAtt<$float_mark>)*
         {}
 
         impl <T> $T for T where T: Entity $(+ $p_trait)*
             $( + StringAtt<$f_mark>)*
             $( + NumAtt<$r_mark>)*
-            $( + VarAtt<$var_mark, VT=$var_t>)*
-            $( + FixAtt<$fix_mark, FT=$fix_t>)*
-            $( + FloatAtt<$float_mark>)*
         {}
 
     };
@@ -298,28 +299,21 @@ make_interfaces!(
     sqy >> SourceYearQs
 );
 
+// The search side of a root type: names, semantic ids and OpenAlex ids, loaded at startup and
+// dropped once the search state is built; every counting column lives in `RootColumns`.
 make_ent_interfaces!(
     RootInterfaces,
     RootInterfaceable,
     names => NameMarker, name_exts => NameExtensionMarker, sem_ids => SemanticIdMarker;
-    wcounts -> WorkCountMarker, ccounts -> CiteCountMarker;
-    hit_works - HitWorkMarker = Box<[ET<HitPapers>]>;
-    yearly_papers - YearlyPapersMarker | EraRec,
-    yearly_cites - YearlyCitationsMarker | EraRec,
-    cit_rank_ladder - CitRankLadderMarker | [u32; LADDER_LEN],
-    peers - PeerMarker | [NET<Self>; N_PEERS];;
+    ccounts -> CiteCountMarker;
     oa_id; MainEntity, NamespacedEntity
-    // inst_rels - InstRelMarker | [InstRelation; N_RELS];;
-    // ref_sfc : RefSubfieldsConcentrationMarker,
-    // cit_sfc : CitSubfieldsConcentrationMarker
-
 );
 
 make_ent_interfaces!(
     NodeInterfaces,
     NodeInterfaceable,
     names => NameMarker;
-    ccounts -> CiteCountMarker;;;;;
+    ccounts -> CiteCountMarker;;
 );
 
 // The pipeline stores the career centroid as an index on the year axis; served as a calendar year.
@@ -330,12 +324,52 @@ fn centroid_years(mut centroids: Box<[f32]>) -> Box<[f32]> {
     centroids
 }
 
+// Paper and citation counts as u32 by dm id; a root without work counts (hit papers) counts one
+// paper per entity.
+fn counts<E>(stow: &Stowage) -> (Box<[u32]>, Box<[u32]>)
+where
+    E: NumAtt<WorkCountMarker> + NumAtt<CiteCountMarker>,
+{
+    let ccounts = <E as FixAtt<CiteCountMarker>>::load(stow);
+    let wcounts = <E as FixAtt<WorkCountMarker>>::load(stow);
+    let citations: Box<[u32]> = ccounts.iter().map(|c| c.to_usize() as u32).collect();
+    let papers = (0..citations.len())
+        .map(|i| wcounts.get(i).map_or(1, |w| w.to_usize() as u32))
+        .collect();
+    (papers, citations)
+}
+
 fn load_root_columns(stow: &Stowage) -> RootColumnMap {
     // One rung per tier of the ladder, each built on the one below it, so a root type is declared
     // by naming how far up it goes.
     macro_rules! cols {
-        ($E:ty) => {
+        ($E:ty) => {{
+            let (papers, citations) = counts::<$E>(stow);
+            // Every dm id but 0, the padding entity — which is not the set the score is shown
+            // for: the page filter (`derive_links3::entity_sem_ids`) keeps a smaller cohort, and
+            // for sources it keeps a third of this one, so the two means differ by 2.4x. The
+            // dampener's population is an open question, tracked in `.cril/plans/impact-score.md`
+            // together with the exponent; whatever it settles on, it is decided here.
+            let mean_papers = mean_of(papers.iter().skip(1).copied());
+            let impact_scores = papers
+                .iter()
+                .zip(citations.iter())
+                .map(|(&p, &c)| size_adjusted_score(c, p, mean_papers))
+                .collect();
             RootColumns {
+                papers,
+                citations,
+                yearly_papers: <$E as FixAtt<YearlyPapersMarker>>::load(stow),
+                yearly_cites: <$E as FixAtt<YearlyCitationsMarker>>::load(stow),
+                hit_works: <$E as VarAtt<HitWorkMarker>>::load(stow),
+                peers: <$E as FixAtt<PeerMarker>>::load(stow)
+                    .iter()
+                    .map(|row| row.map(|e| e.to_usize() as u32))
+                    .collect(),
+                cit_rank_ladder: <$E as FixAtt<CitRankLadderMarker>>::load(stow),
+                mean_papers,
+                impact_scores,
+                located: <$E as Entity>::NAME == Institutions::NAME,
                 paper_sfc: stow.get_marked_interface::<$E, TopNPaperSfMarker, MmapBox>(),
                 citing_sfc: stow.get_marked_interface::<$E, TopNCitingSfMarker, MmapBox>(),
                 journals: stow.get_marked_interface::<$E, TopJournalMarker, MmapBox>(),
@@ -347,7 +381,7 @@ fn load_root_columns(stow: &Stowage) -> RootColumnMap {
                 h_indices: None,
                 year_centroids: None,
             }
-        };
+        }};
         ($E:ty, topics) => {{
             let mut c = cols!($E);
             c.aff_countries =
@@ -374,14 +408,19 @@ fn load_root_columns(stow: &Stowage) -> RootColumnMap {
             c
         }};
     }
-    let mut m: RootColumnMap = HashMap::new();
-    m.insert(Authors::NAME, cols!(Authors, author_only));
-    m.insert(Institutions::NAME, cols!(Institutions, profiles));
-    m.insert(Countries::NAME, cols!(Countries, profiles));
-    m.insert(Sources::NAME, cols!(Sources, profiles));
-    m.insert(Subfields::NAME, cols!(Subfields, topics));
-    m.insert(HitPapers::NAME, cols!(HitPapers));
-    m
+    std::thread::scope(|sc| {
+        [
+            sc.spawn(|| (Authors::NAME, cols!(Authors, author_only))),
+            sc.spawn(|| (Institutions::NAME, cols!(Institutions, profiles))),
+            sc.spawn(|| (Countries::NAME, cols!(Countries, profiles))),
+            sc.spawn(|| (Sources::NAME, cols!(Sources, profiles))),
+            sc.spawn(|| (Subfields::NAME, cols!(Subfields, topics))),
+            sc.spawn(|| (HitPapers::NAME, cols!(HitPapers))),
+        ]
+        .into_iter()
+        .map(|h| h.join().expect("root columns"))
+        .collect()
+    })
 }
 
 pub trait StringAtt<Mark>: MarkedAttribute<Mark> + VarAtt<Mark, VT = String> {}
@@ -389,8 +428,6 @@ pub trait StringAtt<Mark>: MarkedAttribute<Mark> + VarAtt<Mark, VT = String> {}
 pub trait NumAtt<Mark>: MarkedAttribute<Mark> + FixAtt<Mark, FT = Self::Num> {
     type Num: UnsignedNumber;
 }
-
-pub trait FloatAtt<Mark>: FixAtt<Mark, FT = f64> + MarkedAttribute<Mark> {}
 
 pub trait FixAtt<Mark>: MarkedAttribute<Mark> {
     type FT: ByteFixArrayInterface;
@@ -512,7 +549,6 @@ impl Getters {
 }
 
 impl<T, Mark> StringAtt<Mark> for T where T: VarAtt<Mark, VT = String> {}
-impl<T, Mark> FloatAtt<Mark> for T where T: FixAtt<Mark, FT = f64> {}
 
 impl<T, Mark> NumAtt<Mark> for T
 where
