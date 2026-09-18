@@ -492,11 +492,24 @@ fn tokenize(s: &str) -> Result<Vec<(usize, Token)>, ParseError> {
     Ok(out)
 }
 
-fn flatten(mut items: Vec<Expr>, make: fn(Vec<Expr>) -> Expr) -> Expr {
-    if items.len() == 1 {
-        items.pop().unwrap()
+// `and`/`or` are associative, so a parenthesized child of the same kind is absorbed: `(a and b)
+// and c` is one conjunction of three, not a conjunction holding a conjunction. Readers downstream
+// get a normal form — the chip list is flat, `Display` needs no parentheses, and `Bound::split`
+// sees every top-level clause.
+fn flatten(items: Vec<Expr>, make: fn(Vec<Expr>) -> Expr) -> Expr {
+    let is_and = matches!(make(Vec::new()), Expr::And(_));
+    let mut out: Vec<Expr> = Vec::with_capacity(items.len());
+    for item in items {
+        match item {
+            Expr::And(inner) if is_and => out.extend(inner),
+            Expr::Or(inner) if !is_and => out.extend(inner),
+            other => out.push(other),
+        }
+    }
+    if out.len() == 1 {
+        out.pop().unwrap()
     } else {
-        make(items)
+        make(out)
     }
 }
 
@@ -545,6 +558,22 @@ fn write_name(f: &mut fmt::Formatter<'_>, s: &str) -> fmt::Result {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_parenthesized_conjunction_is_one_conjunction() {
+        use super::*;
+        let flat = parse_where("a > 1 and b > 2 and c > 3").unwrap();
+        for text in [
+            "(a > 1 and b > 2) and c > 3",
+            "a > 1 and (b > 2 and c > 3)",
+            "((a > 1 and b > 2) and c > 3)",
+        ] {
+            assert_eq!(parse_where(text).unwrap(), flat, "{text}");
+        }
+        assert!(
+            matches!(parse_where("(a > 1 or b > 2) and c > 3").unwrap(), Expr::And(i) if i.len() == 2)
+        );
+    }
+
     use super::*;
 
     fn roundtrip(s: &str) -> String {
