@@ -13,7 +13,7 @@ from mcp_server import (
     entity_url,
     table_url,
 )
-from mcp_server.client import get_json, get_with_headers
+from mcp_server.client import get_json
 from mcp_server.response_shaping import (
     add_url,
     coauthor_edges,
@@ -231,20 +231,18 @@ async def rank_entities(
     _check_etype(entity_type)
     limit = max(1, min(limit, MAX_RANK_LIMIT))
     params = {"sort": sort, "where": where}
-    rows, headers = await get_with_headers(
-        f"/slice/{entity_type}/{offset}/{offset + limit}", params
-    )
-    screened = headers.get("x-screened-k")
+    page = await get_json(f"/slice/{entity_type}/{offset}/{offset + limit}", params)
+    meta = page["meta"]
     return {
-        "total": int(headers.get("x-cohort-total", 0)),
-        "screened": int(screened) if screened is not None else None,
+        "total": meta["total"],
+        "screened": meta["screened"],
         "sort": sort,
         "where": where,
-        "columns": [c for c in headers.get("x-columns", "").split(",") if c],
+        "columns": meta["columns"],
         "rankless_url": table_url(
             entity_type, {**params, "from": offset if offset else None}
         ),
-        "rows": [_row(r, entity_type) for r in rows],
+        "rows": [_row(r, entity_type) for r in page["rows"]],
     }
 
 
@@ -257,7 +255,7 @@ async def annotate_entities(
     if not semantic_ids or not metrics:
         raise ValueError("semantic_ids and metrics must both be non-empty")
     pins = ",".join(semantic_ids[:MAX_ANNOTATE_IDS])
-    pinned = await get_json(f"/slice/{entity_type}/0/0", {"pin": pins})
+    pinned = (await get_json(f"/slice/{entity_type}/0/0", {"pin": pins}))["rows"]
     values = await get_json(
         f"/metrics/{entity_type}",
         {

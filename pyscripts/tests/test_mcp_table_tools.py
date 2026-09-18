@@ -1,6 +1,5 @@
 import asyncio
 
-import httpx
 import pytest
 
 from mcp_server import tools
@@ -59,51 +58,42 @@ REGISTRY = {
 CALLS: list[tuple[str, dict]] = []
 
 
-async def fake_get_with_headers(path: str, params: dict | None = None):
-    CALLS.append((path, {k: v for k, v in (params or {}).items() if v is not None}))
-    rows = [
-        {
-            "name": "A",
-            "semanticId": "a",
-            "dmId": 5,
-            "oaId": 1,
-            "rank": 1,
-            "papers": 3,
-            "values": {"impact_score": 1.5, "field_score(oncology)": 2.5},
-        },
-        {
-            "name": "B",
-            "semanticId": "b",
-            "dmId": 9,
-            "oaId": 2,
-            "rank": 2,
-            "papers": 2,
-            "values": {},
-        },
-    ]
-    return rows, httpx.Headers(
-        {
-            "x-cohort-total": "42",
-            "x-screened-k": "2",
-            "x-columns": "impact_score,field_score(oncology)",
-        }
-    )
-
-
 async def fake_get_json(path: str, params: dict | None = None):
     CALLS.append((path, {k: v for k, v in (params or {}).items() if v is not None}))
-    if path.startswith("/slice/"):
-        return [
-            {"name": "A", "semanticId": "a", "dmId": 5, "oaId": 1},
-            {"name": "B", "semanticId": "b", "dmId": 9, "oaId": 2},
-        ]
-    return {"ids": [9], "values": {"field_score(oncology)": [1.5]}}
+    if not path.startswith("/slice/"):
+        return {"ids": [9], "values": {"field_score(oncology)": [1.5]}}
+    return {
+        "rows": [
+            {
+                "name": "A",
+                "semanticId": "a",
+                "dmId": 5,
+                "oaId": 1,
+                "rank": 1,
+                "papers": 3,
+                "values": {"impact_score": 1.5, "field_score(oncology)": 2.5},
+            },
+            {
+                "name": "B",
+                "semanticId": "b",
+                "dmId": 9,
+                "oaId": 2,
+                "rank": 2,
+                "papers": 2,
+                "values": {},
+            },
+        ],
+        "meta": {
+            "total": 42,
+            "screened": 2,
+            "columns": ["impact_score", "field_score(oncology)"],
+        },
+    }
 
 
 @pytest.fixture(autouse=True)
 def _fake_backend(monkeypatch: pytest.MonkeyPatch):
     CALLS.clear()
-    monkeypatch.setattr(tools, "get_with_headers", fake_get_with_headers)
     monkeypatch.setattr(tools, "get_json", fake_get_json)
 
 
