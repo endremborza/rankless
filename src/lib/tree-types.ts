@@ -153,6 +153,22 @@ export type TableRow = {
 	values: Record<string, number>;
 };
 
+// What a `/slice` page carries beside its rows: the size of the cohort the rows are ranked in,
+// the size of the ranked set when the ranking is screened, and the metric columns the rows carry
+// in display order, keyed the same way as `TableRow.values`.
+export type SliceMeta = {
+	total: number;
+	// null unless the ranking is screened, when it is the size of the ranked set.
+	screened: number | null;
+	columns: string[];
+};
+
+// One `/slice` page: the rows and the meta they are read against.
+export type SliceResp = {
+	rows: TableRow[];
+	meta: SliceMeta;
+};
+
 export type MetricKind = 'global' | 'intricate';
 export type MetricParam = 'subfield' | 'country' | 'window';
 export type MetricValue =

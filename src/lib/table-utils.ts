@@ -2,8 +2,10 @@ import type {
 	MetricDecl,
 	MetricKind,
 	MetricValuesResp,
+	NamedEntity,
 	RootType,
-	SearchResult,
+	SliceMeta,
+	SliceResp,
 	TableRow,
 	WhereArg,
 	WhereClause,
@@ -28,15 +30,11 @@ export type TableQuery = { sort?: string; where?: string; pin?: string[]; from?:
 
 export type MetricValues = Record<number, number | null>;
 
-// A page of rows, the size of the cohort they are ranked in, for a screened ranking the size of
-// the ranked set, the metric columns the rows carry, and the backend's objection if any.
-export type Slice = {
-	rows: TableRow[];
-	total: number;
-	screened: number | null;
-	columns: string[];
-	error: string | null;
-};
+// A `/slice` page as the client holds it: the response shape plus the backend's objection if any.
+export type Slice = SliceResp & { error: string | null };
+
+export const EMPTY_META: SliceMeta = { total: 0, screened: null, columns: [] };
+export const EMPTY_SLICE: Slice = { rows: [], meta: EMPTY_META, error: null };
 
 // One clause of a flat `where` conjunction, as the chips show it.
 export type Chip = { call: string; op: WhereOp; operand: WhereArg | WhereArg[] };
@@ -248,8 +246,8 @@ export function sliceUrl(base: string, rootType: RootType, from: number, q: Tabl
 	return `${base}/slice/${rootType}/${from}/${from + TABLE_PAGE_SIZE}${qs}`;
 }
 
-// One page of the cohort in the active ordering, the cohort's size and the columns its rows
-// carry; with `pin`, the pinned entities' rows instead. A rejected query yields its message.
+// One page of the cohort in the active ordering and the meta it is read against; with `pin`, the
+// pinned entities' rows instead. A rejected query yields its message.
 export function fetchSlice(
 	base: string,
 	rootType: RootType,
@@ -257,20 +255,12 @@ export function fetchSlice(
 	q: TableQuery,
 	fetchFn: typeof fetch = fetch
 ): Promise<Slice> {
-	const count = (h: string | null) => parseInt(h ?? '0') || 0;
-	const none: Slice = { rows: [], total: 0, screened: null, columns: [], error: null };
 	return fetchFn(sliceUrl(base, rootType, from, q))
 		.then(async (r) => {
-			if (!r.ok) return { ...none, error: (await r.text()) || r.statusText };
-			return {
-				rows: (await r.json()) as TableRow[],
-				total: count(r.headers.get('x-cohort-total')),
-				screened: r.headers.has('x-screened-k') ? count(r.headers.get('x-screened-k')) : null,
-				columns: (r.headers.get('x-columns') ?? '').split(',').filter(Boolean),
-				error: null
-			};
+			if (!r.ok) return { ...EMPTY_SLICE, error: (await r.text()) || r.statusText };
+			return { ...((await r.json()) as SliceResp), error: null };
 		})
-		.catch(() => none);
+		.catch(() => EMPTY_SLICE);
 }
 
 // The backend's parse of a `where` expression, null when it is empty or refused.
@@ -291,9 +281,10 @@ export function sliceList(
 	rootType: RootType,
 	n: number,
 	fetchFn: typeof fetch = fetch
-): Promise<SearchResult[]> {
+): Promise<NamedEntity[]> {
 	return fetchFn(`${base}/slice/${rootType}/0/${n}`)
-		.then((r) => (r.ok ? r.json() : []))
+		.then((r) => (r.ok ? (r.json() as Promise<SliceResp>) : EMPTY_SLICE))
+		.then((s) => s.rows)
 		.catch(() => []);
 }
 

@@ -1,21 +1,22 @@
 import { isAsciiOnly } from './text-format-util';
-import type { RootType, SearchResult } from '$lib/tree-types';
+import type { RootType, SearchResult, SliceResp, TableRow } from '$lib/tree-types';
 import { BE_URL } from './constants';
+
+// The rows of one `/slice` page that can carry a sitemap URL: a semantic id outside ASCII has no
+// place in one.
+export async function sitemapRows(url: string): Promise<TableRow[]> {
+	const { rows }: SliceResp = await fetch(url).then((r) => r.json());
+	return rows.filter((e) => isAsciiOnly(e.semanticId));
+}
 
 export async function respsFromLinks(
 	links: { url: string; name: RootType }[]
 ): Promise<SearchResult[]> {
 	const resps: SearchResult[] = [];
-	for (let i = 0; i < links.length; i++) {
-		await fetch(links[i].url).then((r) =>
-			r.json().then((l) => {
-				l.forEach((e: SearchResult) => {
-					if (isAsciiOnly(e.semanticId)) {
-						resps.push({ ...e, rootType: links[i].name });
-					}
-				});
-			})
-		);
+	for (const link of links) {
+		for (const e of await sitemapRows(link.url)) {
+			resps.push({ ...e, rootType: link.name });
+		}
 	}
 	return resps;
 }
