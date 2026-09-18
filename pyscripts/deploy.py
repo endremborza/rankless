@@ -1620,7 +1620,7 @@ def smoke(live: bool) -> None:
     documented_release(specs_resp.get("version", ""))
     specs = specs_resp["specs"]
     rt = next(iter(specs))
-    rows = _check_json(f"https://{be}/v1/slice/{rt}/0/2", f"slice {rt}")
+    rows = _check_json(f"https://{be}/v1/slice/{rt}/0/2", f"slice {rt}")["rows"]
     sid = quote_plus(rows[0]["semanticId"])
     tree = _check_json(
         f"https://{be}/v1/trees/{rt}/{sid}?tid=0&year=1950", f"tree {rt}/{sid}"

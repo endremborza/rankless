@@ -282,7 +282,7 @@ async def _pick_targets(
     spec: GeneratorSpec, cfg: GenConfig, have: dict[str, str]
 ) -> list[dict]:
     try:
-        ranked = await be_client.get_json(f"/slice/{cfg.etype}/0/{cfg.pool}")
+        ranked = (await be_client.get_json(f"/slice/{cfg.etype}/0/{cfg.pool}"))["rows"]
         if cfg.sem_ids:
             wanted = [s.strip() for s in cfg.sem_ids.split(",") if s.strip()]
             by_sem = {e["semanticId"]: e for e in ranked}

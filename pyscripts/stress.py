@@ -386,7 +386,7 @@ def build_meltdown_corpus(base: str, n_slugs: int = 50000) -> Path:
     for start in range(0, 5_000_000, step):
         rows = httpx.get(
             f"{base}/v1/slice/authors/{start}/{start + step}", timeout=30
-        ).json()
+        ).json()["rows"]
         if not rows:
             break
         slugs += [r["semanticId"] for r in rows if r.get("semanticId")]

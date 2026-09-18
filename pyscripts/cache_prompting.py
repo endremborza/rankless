@@ -189,7 +189,9 @@ def get_resdf(specs, addr: str = DEFAULT_ADDR, step_size=100, max_n=25_000):
     resdfs = []
     for r in specs.keys():
         for ss in range(0, max_n, step_size):
-            rjs = requests.get(f"{addr}/v1/slice/{r}/{ss}/{ss + step_size}").json()
+            rjs = requests.get(f"{addr}/v1/slice/{r}/{ss}/{ss + step_size}").json()[
+                "rows"
+            ]
             if len(rjs) == 0:
                 break
             resdfs.append(
