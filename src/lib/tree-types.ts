@@ -132,6 +132,10 @@ export type SearchResult = {
 	dmId?: number;
 };
 
+// An entity as a list names it — what a picker, a chip label or a ladder lookup needs of it. A
+// single-type list (`/slice`) carries no `rootType`, so it is not a `SearchResult`.
+export type NamedEntity = Pick<SearchResult, 'name' | 'semanticId' | 'dmId'>;
+
 // One `/slice` row: a search result, its 1-based rank in the active cohort ordering, and the
 // metric columns the cohort carries, keyed by the metric call (`impact_score`,
 // `field_score(oncology)`).

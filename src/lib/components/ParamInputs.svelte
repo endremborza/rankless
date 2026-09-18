@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { LATEST_YEAR } from '$lib/constants';
-	import type { MetricDecl, SearchResult } from '$lib/tree-types';
+	import type { MetricDecl, NamedEntity } from '$lib/tree-types';
 
 	// The inputs of a metric's parameter: a field, a country, or a year window; `args` is what the
 	// call is made with.
@@ -11,8 +11,8 @@
 		args = $bindable()
 	}: {
 		decl: MetricDecl;
-		subfields: SearchResult[];
-		countries: SearchResult[];
+		subfields: NamedEntity[];
+		countries: NamedEntity[];
 		args: (string | number)[];
 	} = $props();
 

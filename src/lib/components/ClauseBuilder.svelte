@@ -13,7 +13,7 @@
 		type MetricArgs,
 		type Names
 	} from '$lib/table-utils';
-	import type { MetricDecl, SearchResult, WhereOp } from '$lib/tree-types';
+	import type { MetricDecl, NamedEntity, WhereOp } from '$lib/tree-types';
 
 	// Narrows the cohort with one clause at a time: a metric call, an operator its value type
 	// allows, and an operand, each active clause a chip. A `where` the chips cannot show (anything
@@ -30,8 +30,8 @@
 	}: {
 		metrics: MetricDecl[];
 		registry: MetricDecl[];
-		subfields: SearchResult[];
-		countries: SearchResult[];
+		subfields: NamedEntity[];
+		countries: NamedEntity[];
 		chips: Chip[] | null;
 		where: string;
 		names: Names;

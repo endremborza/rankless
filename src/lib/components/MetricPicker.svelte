@@ -2,7 +2,7 @@
 	import { LATEST_YEAR } from '$lib/constants';
 	import ParamInputs from './ParamInputs.svelte';
 	import { callText, isSet, parseCall, type MetricArgs } from '$lib/table-utils';
-	import type { MetricDecl, SearchResult } from '$lib/tree-types';
+	import type { MetricDecl, NamedEntity } from '$lib/tree-types';
 
 	// Picks a metric and the argument its parameter takes, and hands over the call. A pick that
 	// asks for nothing applies at once, one with a parameter applies with the button. `selected`
@@ -16,8 +16,8 @@
 		onpick
 	}: {
 		metrics: MetricDecl[];
-		subfields: SearchResult[];
-		countries: SearchResult[];
+		subfields: NamedEntity[];
+		countries: NamedEntity[];
 		selected?: string;
 		action: string;
 		onpick: (metric: MetricDecl, args: MetricArgs) => void;
