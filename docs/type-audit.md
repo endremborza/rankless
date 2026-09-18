@@ -30,7 +30,7 @@ expects a field the producer never sends.
 
 | Family | Producer → consumer | Source of truth | Hard errors on |
 | --- | --- | --- | --- |
-| `responses` | Rust `/v1` structs (`rankless_server/responses.rs`, `rankless_trees/io.rs`, `rankless_rs/metrics.rs`) → TS mirrors (`src/lib/tree-types.ts`, `id_resolver.ts`) | Rust | — (TS legitimately augments server data with client-derived fields, so all response drift is a **warning**) |
+| `responses` | Rust `/v1` structs (`rankless_server/responses.rs`, `rankless_trees/io.rs`, `rankless_trees/metrics.rs`, `rankless_rs/metrics.rs`) → TS mirrors (`src/lib/tree-types.ts`, `id_resolver.ts`) | Rust | — (TS legitimately augments server data with client-derived fields, so all response drift is a **warning**) |
 | `ledger` | TS `LedgerPayload` (`src/lib/types/ledger.ts`) → Rust `EventPayload` (`rankless_rs/user_ledger.rs`) | TS writer | a field Rust deserializes that TS no longer sends |
 | `gen` | generated Rust (`rankless_rs/src/gen/`) → ccl-science-data reader | Rust | the ccl regex parser silently matching almost nothing (the cargo-fmt `& str`→`&str` reflow drift) |
 

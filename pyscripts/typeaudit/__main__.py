@@ -23,6 +23,8 @@ REPORT_PATH = Path("logs/type-audit.md")
 RUST_RESPONSE_FILES = (
     "rankless_server/src/responses.rs",
     "rankless_trees/src/io.rs",
+    "rankless_trees/src/metrics.rs",
+    # `Level` lives here and `BreakdownSpec` flattens it.
     "rankless_rs/src/metrics.rs",
 )
 TS_RESPONSE_FILES = ("src/lib/tree-types.ts", "src/lib/server/id_resolver.ts")
