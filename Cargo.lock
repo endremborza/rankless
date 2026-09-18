@@ -1002,6 +1002,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rankless-expr"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "rankless-rs"
 version = "0.1.0"
 dependencies = [
@@ -1034,6 +1042,7 @@ dependencies = [
  "mimalloc",
  "muwo-search",
  "rand",
+ "rankless-expr",
  "rankless-rs",
  "rankless-trees",
  "serde",

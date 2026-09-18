@@ -9,8 +9,9 @@ use rankless_rs::{
     steps::{a1_entity_mapping::RawYear, derive_links2::EraRec},
 };
 use rankless_trees::{
-    interfacing::{RootInterfaceable, RootInterfaces},
+    interfacing::RootColumns,
     io::EntityAttsForLinks,
+    metrics::{Kind, MetricDecl},
     path_finder::RefDAG,
 };
 
@@ -32,31 +33,57 @@ pub(crate) struct SearchResult {
     pub raw_cites: Option<u32>,
 }
 
-// One browse-table row: the search result plus its 1-based rank in the active cohort ordering and
-// the global metric columns. Field columns appear only when the cohort is narrowed to a subfield.
+// One browse-table row: the search result, its 1-based rank in the active cohort ordering, and
+// the metric columns the cohort carries, keyed by the metric call (`impact_score`,
+// `field_score(oncology)`); a value the root cannot read is absent.
 #[derive(Serialize)]
 pub(crate) struct TableRow {
     #[serde(flatten)]
     pub sr: SearchResult,
-    // None for a pinned entity outside the narrowed cohort.
+    // None for a pinned entity outside the ranked cohort.
     pub rank: Option<u32>,
-    #[serde(rename = "impactScore")]
-    pub impact_score: f32,
-    #[serde(rename = "hIndex", skip_serializing_if = "Option::is_none")]
-    pub h_index: Option<u32>,
-    #[serde(rename = "yearCentroid", skip_serializing_if = "Option::is_none")]
-    pub year_centroid: Option<f32>,
-    #[serde(rename = "fieldCitations", skip_serializing_if = "Option::is_none")]
-    pub field_citations: Option<u32>,
-    #[serde(rename = "fieldScore", skip_serializing_if = "Option::is_none")]
-    pub field_score: Option<f32>,
+    pub values: HashMap<Arc<str>, f64>,
 }
 
-// Page-local metric values, one column per requested metric, each aligned with `ids`.
+// What a `/slice` page carries beside its rows: the size of the cohort the rows are ranked in,
+// the size of the ranked set when the ranking is screened, and the metric columns the rows carry
+// in display order, keyed the same way as `TableRow.values`.
+#[derive(Serialize)]
+pub(crate) struct SliceMeta {
+    pub total: usize,
+    // null unless the ranking is screened, when it is the size of the ranked set.
+    pub screened: Option<usize>,
+    pub columns: Vec<Arc<str>>,
+}
+
+// One `/slice` page: the rows and the meta they are read against.
+#[derive(Serialize)]
+pub(crate) struct SliceResp {
+    pub rows: Vec<TableRow>,
+    pub meta: SliceMeta,
+}
+
+// One entry of `/v1/columns`: a metric declaration plus the kind it has for each root type that
+// has it at all. The kinds are derived per request from the columns each root loaded, so they sit
+// beside the declaration rather than in it.
+#[derive(Serialize)]
+pub(crate) struct ColumnDecl {
+    #[serde(flatten)]
+    pub decl: &'static MetricDecl,
+    pub kinds: HashMap<&'static str, Kind>,
+}
+
+#[derive(Serialize)]
+pub(crate) struct ColumnRegistry {
+    pub metrics: Vec<ColumnDecl>,
+}
+
+// Page-local metric values, one column per requested call keyed by its canonical text, each
+// aligned with `ids`.
 #[derive(Serialize)]
 pub(crate) struct MetricValuesResp {
     pub ids: Vec<usize>,
-    pub values: HashMap<&'static str, Vec<Option<f64>>>,
+    pub values: HashMap<Arc<str>, Vec<Option<f64>>>,
 }
 
 #[derive(Serialize)]
@@ -369,22 +396,24 @@ pub(crate) struct WorksQ {
     pub sort: Option<String>,
 }
 
+// The cohort's ordering (a metric call) and its narrowing (a `where` expression), plus the pins.
 #[derive(Deserialize)]
 pub(crate) struct SliceQ {
     pub sort: Option<String>,
-    pub subfield: Option<String>,
+    pub r#where: Option<String>,
     pub pin: Option<String>,
 }
 
-// `ids` and `metrics` are comma-separated; the parameters serve every metric that takes them.
+// `ids` is comma-separated, `metrics` a comma-separated list of metric calls.
 #[derive(Deserialize)]
 pub(crate) struct MetricValuesQ {
     pub ids: String,
     pub metrics: String,
-    pub subfield: Option<String>,
-    pub year_from: Option<u16>,
-    pub year_to: Option<u16>,
-    pub country: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct WhereQ {
+    pub q: String,
 }
 
 #[derive(Deserialize)]

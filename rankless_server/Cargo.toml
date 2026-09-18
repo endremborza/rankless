@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 dmove = {path = "../dmove"}
+rankless-expr = {path = "../rankless_expr"}
 rankless-rs = {path = "../rankless_rs"}
 rankless-trees = {path = "../rankless_trees"}
 muwo-search = {path = "../muwo_search"}

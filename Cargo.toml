@@ -4,6 +4,7 @@ members = [
     "dmove_macro",
     "dmove_util",
     "muwo_search",
+    "rankless_expr",
     "rankless_rs",
     "rankless_server",
     "rankless_trees",

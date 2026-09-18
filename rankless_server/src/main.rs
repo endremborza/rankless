@@ -1,6 +1,7 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+mod cohort;
 mod consts;
 mod handlers;
 mod responses;
@@ -19,9 +20,9 @@ use rankless_rs::Stowage;
 
 use crate::consts::{DEFAULT_N_THREADS, PORT};
 use crate::handlers::{
-    authored_get, intersect_get, ladder_get, metric_values_get, metrics_get, name_get, orcid_get,
+    authored_get, columns_get, intersect_get, ladder_get, metric_values_get, name_get, orcid_get,
     paper_profile, peers_get, resolve_author_get, resolve_work_get, sem_id_get, slice_get,
-    stats_get, tops_get, tree_get, view_get, works_get,
+    stats_get, tops_get, tree_get, view_get, where_get, works_get,
 };
 use crate::startup::get_rest;
 use crate::state::NameStateMap;
@@ -59,7 +60,8 @@ async fn async_main(n_threads: usize) {
     let response_api = Router::new()
         .route("/names/:etype", get(name_get))
         .route("/slice/:etype/:from/:to", get(slice_get))
-        .route("/metrics", get(metrics_get))
+        .route("/columns", get(columns_get))
+        .route("/where", get(where_get))
         .route("/metrics/:etype", get(metric_values_get))
         .route("/views/:etype/:semantic_id", get(view_get))
         .route("/stats/:etype/:semantic_id", get(stats_get))

@@ -7,9 +7,12 @@ pub const PORT: u16 = 3038;
 pub const SEARCH_SIZE: usize = 20;
 pub const MAX_SLICE: usize = 40_000;
 pub const MAX_METRIC_IDS: usize = 100;
+// Calls one `/metrics/:etype` request may ask for; a walk metric costs one tree query per id, so
+// the two caps multiply.
+pub const MAX_METRIC_CALLS: usize = 16;
 pub const MAX_PINS: usize = 24;
-// Size of the cohort a `/slice` page is ranked in; the body stays a bare row array.
-pub const COHORT_TOTAL_HEADER: &str = "x-cohort-total";
+// A screened ranking: the cohort's top `SCREEN_K` by citations, ranked by the sort metric.
+pub const SCREEN_K: usize = 1000;
 pub const CACHEABLE_FROM: u32 = 10_000;
 pub const DEFAULT_N_THREADS: usize = 16;
 pub const N_SUBFIELDS: usize = Subfields::N;
