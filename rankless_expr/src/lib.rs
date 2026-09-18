@@ -3,10 +3,22 @@
 //! `sort=` names one call, `metrics=` a list of calls. Parsing is syntactic only; what a metric
 //! is, whether an operator fits its value type and what a name resolves to is settled by the
 //! binder against the registry.
+//!
+//! A name is a bare slug or a quoted string, in which `\X` is the character `X` — the only escape
+//! there is, and what `Display` emits for a quote or a backslash. The limits below bound every
+//! input before and during parsing, so nothing a request carries can drive the recursion deep
+//! enough to overflow the stack.
 
 use std::fmt;
 
 use serde::Serialize;
+
+// Every input is bounded. Depth is the one that matters for safety: the parser descends one level
+// per nested parenthesis or `not`, and a stack overflow is not a catchable panic.
+pub const MAX_INPUT_BYTES: usize = 2048;
+pub const MAX_DEPTH: u8 = 16;
+pub const MAX_CLAUSES: usize = 32;
+pub const MAX_LIST_ITEMS: usize = 64;
 
 // Externally tagged on purpose: an internal tag wraps the serializer per level, which a recursive
 // tree turns into an unbounded type.
@@ -64,6 +76,7 @@ pub enum Operand {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParseError {
+    // A character position, not a byte offset: the tokens carry byte offsets, the error converts.
     pub at: usize,
     pub msg: &'static str,
 }
@@ -83,10 +96,11 @@ enum Token {
     In,
 }
 
-struct Parser {
+struct Parser<'a> {
+    src: &'a str,
     tokens: Vec<(usize, Token)>,
     pos: usize,
-    end: usize,
+    clauses: usize,
 }
 
 impl Op {
@@ -182,13 +196,29 @@ impl fmt::Display for ParseError {
     }
 }
 
-impl Parser {
+impl<'a> Parser<'a> {
+    fn new(s: &'a str) -> Result<Self, ParseError> {
+        if s.len() > MAX_INPUT_BYTES {
+            return Err(err_at(s, MAX_INPUT_BYTES, "expression too long"));
+        }
+        Ok(Self {
+            src: s,
+            tokens: tokenize(s)?,
+            pos: 0,
+            clauses: 0,
+        })
+    }
+
     fn peek(&self) -> Option<&Token> {
         self.tokens.get(self.pos).map(|(_, t)| t)
     }
 
     fn at(&self) -> usize {
-        self.tokens.get(self.pos).map_or(self.end, |(i, _)| *i)
+        let byte = self
+            .tokens
+            .get(self.pos)
+            .map_or(self.src.len(), |(i, _)| *i);
+        char_pos(self.src, byte)
     }
 
     fn next(&mut self) -> Option<Token> {
@@ -210,36 +240,41 @@ impl Parser {
         ParseError { at: self.at(), msg }
     }
 
-    fn expr(&mut self) -> Result<Expr, ParseError> {
-        let mut items = vec![self.and_expr()?];
+    fn expr(&mut self, depth: u8) -> Result<Expr, ParseError> {
+        let mut items = vec![self.and_expr(depth)?];
         while self.peek() == Some(&Token::Or) {
             self.pos += 1;
-            items.push(self.and_expr()?);
+            items.push(self.and_expr(depth)?);
         }
         Ok(flatten(items, Expr::Or))
     }
 
-    fn and_expr(&mut self) -> Result<Expr, ParseError> {
-        let mut items = vec![self.not_expr()?];
+    fn and_expr(&mut self, depth: u8) -> Result<Expr, ParseError> {
+        let mut items = vec![self.not_expr(depth)?];
         while self.peek() == Some(&Token::And) {
             self.pos += 1;
-            items.push(self.not_expr()?);
+            items.push(self.not_expr(depth)?);
         }
         Ok(flatten(items, Expr::And))
     }
 
-    fn not_expr(&mut self) -> Result<Expr, ParseError> {
+    // Every nesting level — a parenthesis or a `not` — descends through here, so one check bounds
+    // the whole recursion, and with it the depth of the tree anything downstream walks.
+    fn not_expr(&mut self, depth: u8) -> Result<Expr, ParseError> {
+        if depth > MAX_DEPTH {
+            return Err(self.err("nested too deeply"));
+        }
         if self.peek() == Some(&Token::Not) {
             self.pos += 1;
-            return Ok(Expr::Not(Box::new(self.not_expr()?)));
+            return Ok(Expr::Not(Box::new(self.not_expr(depth + 1)?)));
         }
-        self.primary()
+        self.primary(depth)
     }
 
-    fn primary(&mut self) -> Result<Expr, ParseError> {
+    fn primary(&mut self, depth: u8) -> Result<Expr, ParseError> {
         if self.peek() == Some(&Token::LParen) {
             self.pos += 1;
-            let e = self.expr()?;
+            let e = self.expr(depth + 1)?;
             self.expect(Token::RParen, "expected )")?;
             return Ok(e);
         }
@@ -247,6 +282,10 @@ impl Parser {
     }
 
     fn clause(&mut self) -> Result<Clause, ParseError> {
+        self.clauses += 1;
+        if self.clauses > MAX_CLAUSES {
+            return Err(self.err("too many clauses"));
+        }
         let call = self.call()?;
         let op = match self.next() {
             Some(Token::Op(op)) => op,
@@ -304,6 +343,9 @@ impl Parser {
                     return Err(self.err("expected a value"));
                 }
             }
+            if items.len() > MAX_LIST_ITEMS {
+                return Err(self.err("too many values"));
+            }
             match self.next() {
                 Some(Token::Comma) => continue,
                 Some(Token::RParen) => return Ok(items),
@@ -325,7 +367,7 @@ impl Parser {
 
 pub fn parse_where(s: &str) -> Result<Expr, ParseError> {
     let mut p = Parser::new(s)?;
-    let e = p.expr()?;
+    let e = p.expr(0)?;
     p.done()?;
     Ok(e)
 }
@@ -347,16 +389,6 @@ pub fn parse_calls(s: &str) -> Result<Vec<Call>, ParseError> {
     }
     p.done()?;
     Ok(calls)
-}
-
-impl Parser {
-    fn new(s: &str) -> Result<Self, ParseError> {
-        Ok(Self {
-            tokens: tokenize(s)?,
-            pos: 0,
-            end: s.len(),
-        })
-    }
 }
 
 fn tokenize(s: &str) -> Result<Vec<(usize, Token)>, ParseError> {
@@ -406,64 +438,37 @@ fn tokenize(s: &str) -> Result<Vec<(usize, Token)>, ParseError> {
                 i += 1;
                 let mut text = String::new();
                 loop {
-                    match b.get(i) {
-                        None => {
-                            return Err(ParseError {
-                                at: start,
-                                msg: "unterminated string",
-                            })
-                        }
-                        Some(&ch) if ch == quote => {
-                            i += 1;
-                            break;
-                        }
-                        Some(&b'\\') => {
-                            i += 1;
-                            if let Some(&ch) = b.get(i) {
-                                text.push(ch as char);
-                                i += 1;
-                            }
-                        }
-                        Some(_) => {
-                            let ch = s[i..].chars().next().unwrap();
-                            text.push(ch);
-                            i += ch.len_utf8();
-                        }
+                    let Some(&byte) = b.get(i) else {
+                        return Err(err_at(s, start, "unterminated string"));
+                    };
+                    if byte == quote {
+                        i += 1;
+                        break;
                     }
+                    // A backslash names the character after it, whatever that character is. The
+                    // unit is a character and not a byte: stepping one byte on would leave the
+                    // next read inside a UTF-8 sequence.
+                    if byte == b'\\' {
+                        i += 1;
+                    }
+                    let Some(ch) = s[i..].chars().next() else {
+                        return Err(err_at(s, start, "unterminated string"));
+                    };
+                    text.push(ch);
+                    i += ch.len_utf8();
                 }
                 Token::Str(text)
             }
-            b'0'..=b'9' | b'.' => {
-                while i < b.len() && (b[i].is_ascii_digit() || b[i] == b'.') {
-                    i += 1;
+            _ if is_number_start(b, i) => {
+                i = scan_number(b, i);
+                let n: f64 = s[start..i]
+                    .parse()
+                    .map_err(|_| err_at(s, start, "bad number"))?;
+                // An overflowing literal reads as an infinity, which no clause can mean and no
+                // printing round-trips.
+                if !n.is_finite() {
+                    return Err(err_at(s, start, "bad number"));
                 }
-                if i < b.len() && (b[i] == b'e' || b[i] == b'E') {
-                    let mut j = i + 1;
-                    if j < b.len() && (b[j] == b'-' || b[j] == b'+') {
-                        j += 1;
-                    }
-                    if j < b.len() && b[j].is_ascii_digit() {
-                        i = j;
-                        while i < b.len() && b[i].is_ascii_digit() {
-                            i += 1;
-                        }
-                    }
-                }
-                let n: f64 = s[start..i].parse().map_err(|_| ParseError {
-                    at: start,
-                    msg: "bad number",
-                })?;
-                Token::Num(n)
-            }
-            b'-' if b.get(i + 1).is_some_and(u8::is_ascii_digit) => {
-                i += 1;
-                while i < b.len() && (b[i].is_ascii_digit() || b[i] == b'.') {
-                    i += 1;
-                }
-                let n: f64 = s[start..i].parse().map_err(|_| ParseError {
-                    at: start,
-                    msg: "bad number",
-                })?;
                 Token::Num(n)
             }
             _ if c.is_ascii_alphabetic() || c == b'_' => {
@@ -480,12 +485,7 @@ fn tokenize(s: &str) -> Result<Vec<(usize, Token)>, ParseError> {
                     _ => Token::Ident(word.to_string()),
                 }
             }
-            _ => {
-                return Err(ParseError {
-                    at: start,
-                    msg: "unexpected character",
-                })
-            }
+            _ => return Err(err_at(s, start, "unexpected character")),
         };
         out.push((start, tok));
     }
@@ -554,6 +554,52 @@ fn write_name(f: &mut fmt::Formatter<'_>, s: &str) -> fmt::Result {
     } else {
         write!(f, "\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
     }
+}
+
+fn is_number_start(b: &[u8], i: usize) -> bool {
+    match b[i] {
+        b'0'..=b'9' | b'.' => true,
+        b'-' => b
+            .get(i + 1)
+            .is_some_and(|c| c.is_ascii_digit() || *c == b'.'),
+        _ => false,
+    }
+}
+
+// One grammar for every number: an optional sign, digits and dots, an optional exponent. What it
+// spans is what `f64` is asked to read, so `1.2.3` is one bad number rather than three tokens.
+fn scan_number(b: &[u8], mut i: usize) -> usize {
+    if b[i] == b'-' {
+        i += 1;
+    }
+    while i < b.len() && (b[i].is_ascii_digit() || b[i] == b'.') {
+        i += 1;
+    }
+    if i < b.len() && b[i].eq_ignore_ascii_case(&b'e') {
+        let mut j = i + 1;
+        if j < b.len() && (b[j] == b'-' || b[j] == b'+') {
+            j += 1;
+        }
+        if j < b.len() && b[j].is_ascii_digit() {
+            i = j;
+            while i < b.len() && b[i].is_ascii_digit() {
+                i += 1;
+            }
+        }
+    }
+    i
+}
+
+fn err_at(s: &str, byte: usize, msg: &'static str) -> ParseError {
+    ParseError {
+        at: char_pos(s, byte),
+        msg,
+    }
+}
+
+// Counting rather than slicing: a position that is not a character boundary still answers.
+fn char_pos(s: &str, byte: usize) -> usize {
+    s.char_indices().take_while(|(i, _)| *i < byte).count()
 }
 
 #[cfg(test)]
@@ -679,5 +725,174 @@ mod tests {
         );
         assert!(json.contains("\"op\":\"not_in\"") || json.contains("\"op\":\"in\""));
         assert!(json.contains("\"metric\":\"country\""));
+    }
+
+    #[test]
+    fn an_escape_names_a_character_not_a_byte() {
+        assert_eq!(
+            operand_of(r#"city = "Budap\ést""#),
+            Operand::Name("Budapést".into())
+        );
+        assert_eq!(
+            operand_of(r#"city = "a\"b\\c""#),
+            Operand::Name(r#"a"b\c"#.into())
+        );
+        assert_eq!(roundtrip(r#"city = "a\"b\\c""#), r#"city = "a\"b\\c""#);
+        assert_eq!(
+            parse_where(r#"city = "a\"#).unwrap_err().msg,
+            "unterminated string"
+        );
+        // A position counts characters, not the bytes a name before it happened to need.
+        assert_eq!(
+            parse_where("x = \"á\" & 1").unwrap_err().to_string(),
+            "unexpected character at character 9"
+        );
+    }
+
+    #[test]
+    fn one_numeric_grammar_covers_sign_and_exponent() {
+        assert_eq!(operand_of("x = -1e3"), Operand::Num(-1000.0));
+        assert_eq!(operand_of("x = -.5"), operand_of("x = -0.5"));
+        assert_eq!(operand_of("x = 1E-2"), Operand::Num(0.01));
+        for bad in ["x = 1.2.3", "x = 1e400", "x = -1e400", "x = ."] {
+            assert_eq!(parse_where(bad).unwrap_err().msg, "bad number", "{bad}");
+        }
+    }
+
+    #[test]
+    fn every_input_is_bounded_before_it_is_parsed() {
+        let depth = MAX_DEPTH as usize;
+        let nested = |n: usize| format!("{}a=1{}", "(".repeat(n), ")".repeat(n));
+        let nots = |n: usize| format!("{}a=1", "not ".repeat(n));
+        let clauses = |n: usize| vec!["a=1"; n].join(" and ");
+        let list = |n: usize| format!("a in ({})", vec!["1"; n].join(", "));
+        for ok in [
+            nested(depth),
+            nots(depth),
+            clauses(MAX_CLAUSES),
+            list(MAX_LIST_ITEMS),
+        ] {
+            assert!(parse_where(&ok).is_ok(), "{ok}");
+        }
+        for (s, msg) in [
+            (nested(depth + 1), "nested too deeply"),
+            (nots(depth + 1), "nested too deeply"),
+            (clauses(MAX_CLAUSES + 1), "too many clauses"),
+            (list(MAX_LIST_ITEMS + 1), "too many values"),
+            ("(".repeat(3000), "expression too long"),
+            ("a".repeat(MAX_INPUT_BYTES + 1), "expression too long"),
+        ] {
+            assert_eq!(
+                parse_where(&s).unwrap_err().msg,
+                msg,
+                "{}",
+                &s[..8.min(s.len())]
+            );
+        }
+    }
+
+    // Nothing the language cannot name may panic, and everything it prints it reads back as the
+    // same tree: token soup and arbitrary characters for the first, printed random trees for the
+    // second.
+    #[test]
+    fn no_input_panics_and_whatever_prints_parses_as_itself() {
+        let mut seed = 0x2545_f491_4f6c_dd1d;
+        for _ in 0..5_000 {
+            let printed = rand_expr(&mut seed, 3).to_string();
+            let e = parse_where(&printed).unwrap_or_else(|e| panic!("{printed:?}: {e}"));
+            assert_eq!(parse_where(&e.to_string()).as_ref(), Ok(&e), "{printed:?}");
+        }
+        const PIECES: [&str; 26] = [
+            "a", "(", ")", ",", "=", "!=", ">=", "and", "or", "not", "in", "1", "-2.5", "1e3",
+            "\"", "'", "\\", "é", "😊", "\\é", " ", "_x-y", ".", "e", "\t", "\u{0}",
+        ];
+        for _ in 0..20_000 {
+            let mut s = String::new();
+            for _ in 0..(1 + roll(&mut seed) % 12) {
+                s.push_str(PIECES[roll(&mut seed) as usize % PIECES.len()]);
+            }
+            let _ = parse_where(&s);
+            let _ = parse_calls(&s);
+        }
+        for _ in 0..20_000 {
+            let mut s = String::new();
+            for _ in 0..(1 + roll(&mut seed) % 8) {
+                s.push(char::from_u32(roll(&mut seed) as u32 % 0x11_000).unwrap_or('x'));
+            }
+            let _ = parse_where(&s);
+            let _ = parse_calls(&s);
+        }
+    }
+
+    fn operand_of(s: &str) -> Operand {
+        match parse_where(s).unwrap() {
+            Expr::Clause(c) => c.operand,
+            other => panic!("{other} is not one clause"),
+        }
+    }
+
+    fn roll(seed: &mut u64) -> u64 {
+        *seed ^= *seed << 13;
+        *seed ^= *seed >> 7;
+        *seed ^= *seed << 17;
+        *seed
+    }
+
+    // A tree of every shape the printer has to handle: names that must be quoted, keywords and an
+    // empty string among them, numbers, argument lists and each operator.
+    fn rand_expr(seed: &mut u64, depth: u8) -> Expr {
+        const NAMES: [&str; 8] = [
+            "hun",
+            "new york",
+            "a\"b",
+            "c\\d",
+            "büdapest",
+            "and",
+            "",
+            "x-1",
+        ];
+        const OPS: [Op; 8] = [
+            Op::Eq,
+            Op::Ne,
+            Op::Lt,
+            Op::Le,
+            Op::Gt,
+            Op::Ge,
+            Op::In,
+            Op::NotIn,
+        ];
+        const NUMS: [f64; 5] = [0.0, -1.5, 1e3, 2024.0, 0.125];
+        let name = |seed: &mut u64| NAMES[roll(seed) as usize % NAMES.len()].to_string();
+        if depth == 0 || roll(seed) % 3 == 0 {
+            let op = OPS[roll(seed) as usize % OPS.len()];
+            let args = match roll(seed) % 3 {
+                0 => Vec::new(),
+                1 => vec![Arg::Name(name(seed))],
+                _ => vec![
+                    Arg::Num(NUMS[roll(seed) as usize % NUMS.len()]),
+                    Arg::Name(name(seed)),
+                ],
+            };
+            let operand = if op.is_membership() {
+                Operand::List(vec![Arg::Name(name(seed)), Arg::Num(2024.0)])
+            } else if roll(seed) % 2 == 0 {
+                Operand::Num(NUMS[roll(seed) as usize % NUMS.len()])
+            } else {
+                Operand::Name(name(seed))
+            };
+            let metric = ["papers", "field_score", "_x-y"][roll(seed) as usize % 3].to_string();
+            return Expr::Clause(Clause {
+                call: Call { metric, args },
+                op,
+                operand,
+            });
+        }
+        let kids = 2 + roll(seed) % 2;
+        let items = (0..kids).map(|_| rand_expr(seed, depth - 1)).collect();
+        match roll(seed) % 3 {
+            0 => Expr::And(items),
+            1 => Expr::Or(items),
+            _ => Expr::Not(Box::new(rand_expr(seed, depth - 1))),
+        }
     }
 }
