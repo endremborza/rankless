@@ -208,6 +208,7 @@
 		hitPaperCount={authoredHitPapers.length}
 		abstract={hitPaperAbstract}
 		{abstractLoading}
+		screen={data.methodology?.workScreen ?? null}
 	/>
 </section>
 

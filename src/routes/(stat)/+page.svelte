@@ -23,11 +23,11 @@
 	import SpecConcrete2 from '$lib/components/SpecConcrete2.svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
-	import { APP_NAME, BRAND_TAGLINE, COHORT_ROOT_TYPES, COMPLETE_YEAR } from '$lib/constants';
+	import { APP_NAME, BRAND_TAGLINE, COHORT_ROOT_TYPES } from '$lib/constants';
 	import { getExternalUrl } from '$lib/route-functions';
 	import TreeSvg from '$lib/components/TreeSvg.svelte';
 	import { resultsHidden } from '$lib/stores';
-	import { prettifyRoot } from '$lib/text-format-util.js';
+	import { listPhrase, pluralize, prettifyRoot } from '$lib/text-format-util.js';
 	import TypeWriter from '$lib/components/TypeWriter.svelte';
 	import FeatureShowcase from '$lib/components/FeatureShowcase.svelte';
 
@@ -99,7 +99,11 @@
 		}
 	];
 
-	const faQuestions = [
+	// The definitions the backend publishes. An entry that needs them and has none drops out
+	// below, rather than answering a question about the data with prose nothing checked.
+	$: screen = data.methodology?.workScreen ?? null;
+
+	$: faQuestions = [
 		{
 			question: 'What are your data-sources?',
 			id: 'data',
@@ -114,9 +118,13 @@
 		{
 			question: 'What are indexed citations?',
 			id: 'indexed-citation',
-			answer: `
-			Indexed citations are citations from papers that are pre-filtered to appear in our database. Currently these are works categorized as 'article' by OpenAlex, non-retracted, and noted to have at least 1 citation from any source.
+			answer: screen
+				? `
+			Indexed citations are citations made by papers that passed the screen below, so a citation counts
+			exactly when the citing paper is itself in the data. Everything else — a retracted paper, a
+			work type we do not carry, a paper nothing has cited — sends no citation.
 		`
+				: ''
 		},
 		{
 			question: 'Can I download/export Rankless data?',
@@ -144,11 +152,19 @@
 		{
 			question: 'Do you filter the data?',
 			id: 'data-filter',
-			answer: `
-			We consider only non-retracted publications with no more than 20 authors that were published
-			after ${COMPLETE_YEAR}, and have been cited at least once. Additionally, we only consider
-			publication sources and institutions with at least 200 and 500 of such papers respectively.
+			answer: screen
+				? `
+			A paper enters the data if it is not retracted, is categorized by OpenAlex as
+			${listPhrase(screen.kinds)}, was published after ${screen.startYear}, has been cited at least
+			${pluralize('time', screen.minCitations)}, and has no more than
+			${pluralize('author', screen.maxAuthors)}. On top of that we only carry publication sources
+			with at least ${screen.minPapersForSource} and institutions with at least
+			${pluralize('paper', screen.minPapersForInstitution)} of their own, and authors with at least
+			${pluralize('paper', screen.minAuthorPapers)} and
+			${pluralize('citation', screen.minAuthorCitations)} to their name. A researcher who claims
+			their profile keeps their own works through the type and citation screens.
 		`
+				: ''
 		},
 		{
 			question: 'How do you assign papers and journals to subject categories?',
@@ -178,9 +194,9 @@
 				href="https://svelte.dev/" target="_blank">svelte</a>.
 		`
 		}
-	];
+	].filter((q) => q.answer.trim());
 
-	const ldInnards = faQuestions.map((e) => {
+	$: ldInnards = faQuestions.map((e) => {
 		return {
 			'@type': 'Question',
 			name: e.question,
@@ -191,14 +207,14 @@
 		};
 	});
 
-	const jsonLd = {
+	$: jsonLd = {
 		'@context': 'https://schema.org',
 		'@type': 'FAQPage',
 		name: 'Rankless FAQ',
 		mainEntity: ldInnards
 	};
 
-	const fullLd = '<script type="application/ld+json">' + JSON.stringify(jsonLd) + '</' + 'script>';
+	$: fullLd = '<script type="application/ld+json">' + JSON.stringify(jsonLd) + '</' + 'script>';
 
 	const metaDescription =
 		'Explore academic impact beyond rankings. Rankless offers a fresh perspective on how universities influence each geography and topic, emphasizing diverse forms of impact and providing a richer understanding of academic influence.';

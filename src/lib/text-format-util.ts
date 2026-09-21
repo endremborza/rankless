@@ -11,6 +11,13 @@ export function pluralize(word: string, num: number, maxFix = 2) {
 	return `${formatNumber(num, maxFix)} ${word}s`;
 }
 
+// "a, b or c" — for a served list that prose has to read out rather than name.
+export function listPhrase(items: string[], conjunction = 'or'): string {
+	if (items.length === 0) return '';
+	if (items.length === 1) return items[0];
+	return `${items.slice(0, -1).join(', ')} ${conjunction} ${items[items.length - 1]}`;
+}
+
 export function singularize(word: string) {
 	return SING_MAP[word] || word.substring(0, word.length - 1);
 }
