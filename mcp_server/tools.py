@@ -103,6 +103,20 @@ async def get_top_entities() -> list[dict]:
     ]
 
 
+async def get_methodology() -> dict:
+    """The definitions every number is built on, as the data was built with them.
+
+    `workScreen` decides which papers are in the data at all, and so what an
+    indexed paper and an indexed citation are: work kinds, year window, citation
+    floor, author cap, and the per-entity minimums. `hitRule` decides which papers
+    are hit papers: the benchmark percentile and its blend weights, the
+    thresholds, the topic and topic-creator paths, the Nobel multiplier. Explain
+    what a number counts from this, never from memory; its values verify like any
+    other data.
+    """
+    return await get_json("/methodology")
+
+
 async def get_entity_profile(entity_type: str, semantic_id: str) -> dict:
     """Full profile of one entity: totals, yearly series, top relations, similars.
 
@@ -325,6 +339,7 @@ def describe(registry: dict) -> None:
 TOOLS = (
     search_entities,
     get_top_entities,
+    get_methodology,
     get_entity_profile,
     get_entity_stats,
     get_citation_tree,

@@ -56,6 +56,7 @@ resolution tools, never guessed):
 | --- | --- | --- |
 | `search_entities(query, entity_type)` | `/v1/names/:etype?q=` | tier-1 resolution; `entity_type` ∈ root types or `all` |
 | `get_top_entities()` | `/v1/tops` | seed entities per type |
+| `get_methodology()` | `/v1/methodology` | the work screen (what an indexed paper and citation are) and the hit-paper rule, as `rankless_rs/src/metrics.rs` states them and the site renders them |
 | `get_entity_profile(etype, sem_id)` | `/v1/views/:etype/:sem` | truncates long lists; `coauthorEdges` = strongest ties among the entity's top authors |
 | `get_entity_stats(etype, sem_id, year_from?, year_to?, subfield?)` | `/v1/stats/...` | recent-era window clamped to `[eraFrom, eraTo]` |
 | `get_citation_tree(etype, sem_id, tree_index?, since_year?, top_n?, depth?)` | `/v1/trees/...` | flattened top-N per level; level meaning from `/v1/specs` breakdowns |

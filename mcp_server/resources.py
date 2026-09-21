@@ -30,6 +30,8 @@ Every answer follows one loop: resolve, call, cite, verify, answer.
    call (a ranking metric plus narrowing clauses; `total` and `screened`
    state the cohort the rank is within); annotate_entities reads the
    page-local metrics for a list of named entities in one call.
+   get_methodology states what the numbers count (an indexed citation, a
+   hit paper) with the values the data was built with.
 3. Every data-tool response is {"receipt": {"id", "tool", "args"}, "data": ...}.
    The receipt names the call that produced the data; keep its id with every
    number you take from it.

@@ -62,6 +62,7 @@ DEFAULT_SAMPLE = 8
 _CURL_MAP = {
     "search_entities": ("/names/{entity_type}", ["query"]),
     "get_top_entities": ("/tops", []),
+    "get_methodology": ("/methodology", []),
     "get_entity_profile": ("/views/{entity_type}/{semantic_id}", []),
     "get_entity_stats": (
         "/stats/{entity_type}/{semantic_id}",
