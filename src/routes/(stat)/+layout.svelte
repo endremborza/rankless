@@ -9,7 +9,7 @@
 	import { slide } from 'svelte/transition';
 
 	import { page } from '$app/state';
-	import type { RootType } from '$lib/tree-types';
+	import type { Methodology, RootType } from '$lib/tree-types';
 	import {
 		EMAIL_FEATURE_ON,
 		GAME_FEATURE_ON,
@@ -21,6 +21,7 @@
 	import { resultsHidden } from '$lib/stores';
 
 	export let data: {
+		methodology: Methodology | null;
 		surveyShouldPrompt: boolean;
 		user: { orcid: string; name: string; semanticId?: string } | null;
 		isAdmin: boolean;
@@ -280,6 +281,7 @@
 		bind:this={searchComp}
 		bind:activeIndex
 		listboxId={SEARCH_LISTBOX_ID}
+		rule={data.methodology?.hitRule ?? null}
 		{searchTerm}
 		{cat}
 	/>

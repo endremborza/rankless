@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { LATEST_YEAR } from '$lib/constants';
 	import { getColor, getColorArr } from '$lib/style-util';
-	import { formatNumber } from '$lib/text-format-util';
+	import { formatNumber, formatShare } from '$lib/text-format-util';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 	import { overperf, resolveSourceName, htmlToText } from '$lib/utils/paper-helpers';
@@ -14,6 +14,7 @@
 	export let entityAtts: tt.EntityAttsForLinks = {};
 	export let discAuthorNames: Record<string, string> = {};
 	export let treeSpecs: tt.TreeSpecs | undefined = undefined;
+	export let rule: tt.HitRule | null;
 
 	const xPad = 2;
 	const yPad = 2.5;
@@ -21,7 +22,6 @@
 	const yBase = 12;
 	const fontSize = 0.5;
 	const bmThreshold = 5;
-	const globalMinCites = 500;
 
 	type PubMark = { x: number; color: string };
 	type YTick = { label: string; y: number };
@@ -507,7 +507,7 @@
 	{/if}
 
 	<div class="sidebar">
-		<HitPaperExplainer />
+		<HitPaperExplainer {rule} />
 
 		<ol id="paper-list" bind:this={listContainer}>
 			{#each chartPapers as paper, i (i)}
@@ -591,14 +591,16 @@
 										<div class="detail-row selection-basis">
 											<span class="detail-label">Performance:</span>
 											<span
-												>{overperf(paper).toFixed(1)}× {formatNumber(paper.hitBm)} citations - what a
-												same-subfield, same-year paper needs to reach the top 1%</span
+												>{overperf(paper).toFixed(1)}× {formatNumber(paper.hitBm)} citations{#if rule}
+													— what a same-subfield, same-year paper needs to reach the top {formatShare(
+														rule.topPctile
+													)}{/if}</span
 											>
 										</div>
-									{:else if paper.citations >= globalMinCites}
+									{:else if rule && paper.citations >= rule.minUniversal}
 										<div class="detail-row selection-basis">
 											<span class="detail-label">Selection:</span>
-											<span>Universal threshold (≥{globalMinCites} citations)</span>
+											<span>Universal threshold (≥{rule.minUniversal} citations)</span>
 										</div>
 									{/if}
 								</div>

@@ -191,6 +191,41 @@ export type MetricDecl = {
 
 export type MetricRegistry = { metrics: MetricDecl[] };
 
+// The hit-paper rule as `/methodology` states it: the thresholds the pipeline ran with. The site's
+// explainer renders these rather than restating them, so the prose cannot drift from the data.
+export type HitRule = {
+	minNeeded: number;
+	minUniversal: number;
+	topTopic: number;
+	topPctile: number;
+	scoreThreshold: number;
+	nobelMultiplier: number;
+	wSf: number;
+	wYear: number;
+	wSfYear: number;
+};
+
+// The screen that decides which papers exist in the data at all. A citation is indexed exactly
+// when the citing paper is, so this one object answers both phrasings. The year window and the
+// per-entity minimums vary by build environment, which is why they are read and never written.
+export type WorkScreen = {
+	kinds: string[];
+	minCitations: number;
+	maxAuthors: number;
+	startYear: number;
+	finalYear: number;
+	minPapersForInstitution: number;
+	minPapersForSource: number;
+	minAuthorPapers: number;
+	minAuthorCitations: number;
+};
+
+// Everything `/methodology` publishes about how the numbers are made.
+export type Methodology = {
+	workScreen: WorkScreen;
+	hitRule: HitRule;
+};
+
 // Page-local metric values from `/metrics/:etype`: one column per call, keyed by the call.
 export type MetricValuesResp = {
 	ids: number[];

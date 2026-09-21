@@ -42,7 +42,7 @@
 	<div class="card">
 		<span class="feature-name">Hit-papers</span>
 		<h4>Some papers don't just get cited — they reshape a field.</h4>
-		<p>Rankless flags a scholar's highest-impact works and shows where that influence landed.</p>
+		<p>Rankless flags a scholar's hit papers and shows where that influence landed.</p>
 		{#if hitPapers.length}
 			<ShowcaseRainbow papers={hitPapers} />
 		{/if}

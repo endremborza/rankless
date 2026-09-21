@@ -55,6 +55,7 @@ RESPONSE_PAIRS = (
     ("BreakdownSpec", "BreakdownSpec"),
     ("AttributeLabelOut", "AttributeLabel"),
     ("ColumnDecl", "MetricDecl"),
+    ("HitRule", "HitRule"),
     ("ResolveWorkResp", "WorkResolveResp"),
     ("ResolveAuthorResp", "AuthorResolveResp"),
     ("CountsResponse", "CountsResponse"),

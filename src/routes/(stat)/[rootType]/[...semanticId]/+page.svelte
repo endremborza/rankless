@@ -58,6 +58,7 @@
 		authorMergeRequests: tt.AuthorMergeRequest[];
 		ledgerEvents: LedgerEvent[];
 		ledgerManifest: AppliedManifest;
+		methodology: tt.Methodology | null;
 	};
 
 	$: isAuthor = data.conf.rootType === 'authors';
@@ -244,6 +245,7 @@
 			{entityAtts}
 			{discAuthorNames}
 			treeSpecs={data.treeSpecs}
+			rule={data.methodology?.hitRule ?? null}
 		/>
 	</section>
 {/if}

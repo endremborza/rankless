@@ -2,7 +2,7 @@
 	import { pluralize, rootEmoji, formatNumber } from '$lib/text-format-util';
 	import { fixName } from '$lib/name-overrides';
 	import { BE_REMOTE_URL } from '$lib/constants';
-	import type { RootType, SearchResult } from '$lib/tree-types';
+	import type { HitRule, RootType, SearchResult } from '$lib/tree-types';
 	import { entToLink } from '$lib/tree-functions';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -11,6 +11,7 @@
 
 	export let searchTerm: string;
 	export let cat: RootType | 'all';
+	export let rule: HitRule | null;
 	export let disclaimerPosition: 'top' | 'bottom' = 'bottom';
 	// Overlay (default) floats over the page as a slightly-opaque panel toggled by `resultsHidden`;
 	// inline mode (e.g. the /search page) renders the same list in normal document flow.
@@ -80,9 +81,9 @@
 </script>
 
 <div class="search-results" class:overlay class:hidden>
-	{#if cat === 'hit-papers' && disclaimerPosition === 'top'}
+	{#if rule && cat === 'hit-papers' && disclaimerPosition === 'top'}
 		<div class="disclaimer-wrap">
-			<HitPaperExplainer />
+			<HitPaperExplainer {rule} />
 		</div>
 	{/if}
 	{#if results.length > 0}
@@ -117,9 +118,9 @@
 	{:else if delayedTerm.trim() !== ''}
 		<p class="search-status">No matches for “{delayedTerm}”.</p>
 	{/if}
-	{#if cat === 'hit-papers' && disclaimerPosition === 'bottom'}
+	{#if rule && cat === 'hit-papers' && disclaimerPosition === 'bottom'}
 		<div class="disclaimer-wrap">
-			<HitPaperExplainer />
+			<HitPaperExplainer {rule} />
 		</div>
 	{/if}
 </div>
