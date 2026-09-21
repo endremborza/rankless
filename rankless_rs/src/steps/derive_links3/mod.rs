@@ -15,7 +15,9 @@ use crate::{
         derive_links1::WorkSubfields,
         derive_links2::{AuthorWorks, SourceStats},
     },
-    ladder, peers,
+    ladder,
+    metrics::HIT_RULE,
+    peers,
     steps::a1_entity_mapping::YearInterface,
     CiteCountMarker, QuickestBox, QuickestVBox, ReadIter, Stowage, WorkCountMarker,
 };
@@ -57,7 +59,7 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     let nobeled_works = get_nobeled_works(&starc, &w_years);
 
     let topic_limits = hit_papers::get_limits::<Topics, _, _, _>(
-        hit_papers::TOP_TOPIC,
+        HIT_RULE.top_topic,
         w_topics.0.iter().map(|e| e.iter().map(|se| *se)),
         &cc_interface,
     );
@@ -94,7 +96,7 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
             .iter()
             .any(|e| topic_limits[e.to_usize()] <= wcc);
         let multiplier = if nobeled_works.contains(&widt) {
-            hit_papers::NOBEL_MULTIPLIER
+            HIT_RULE.nobel_multiplier
         } else {
             1.0
         };
@@ -106,10 +108,10 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         };
 
         let created = creates_topic.get(&widt).copied();
-        let qualifies = (cc_n >= hit_papers::MIN_NEEDED)
-            & (cc_n >= hit_papers::MIN_UNIVERSAL
+        let qualifies = (cc_n >= HIT_RULE.min_needed)
+            & (cc_n >= HIT_RULE.min_universal
                 || reaches_any_topic_limit
-                || score >= hit_papers::SCORE_THRESHOLD
+                || score >= HIT_RULE.score_threshold
                 || created.is_some());
 
         if qualifies {

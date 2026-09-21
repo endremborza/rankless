@@ -13,8 +13,8 @@ entities by their relationship to a **topic** (the finest discipline level, 4516
 ### Topic creator
 
 For each topic, the earliest-published paper **assigned that topic** (tiebroken by citations) that
-clears an impact floor, restricted to topics whose first paper is published in
-`CREATOR_CUTOFF_YEAR` or later. Such a paper qualifies as a hit paper even if its citations alone
+clears a citation floor, restricted to topics whose first paper is published in
+`creator_cutoff_year` or later. Such a paper qualifies as a hit paper even if its citations alone
 would not.
 
 - Topic membership uses **any** assignment (not the primary topic — see [extensions](#future-extensions)).
@@ -41,12 +41,12 @@ entity type**. Subfields and topics-as-entity are excluded.
 
 ## Tuning constants
 
-All in `topic_tags.rs` (env-independent for now):
+The creator constants are part of the hit-paper rule, so they are fields of `HIT_RULE` in `rankless_rs/src/metrics.rs` and served with it at `/v1/methodology`; the rest are in `topic_tags.rs` (env-independent for now):
 
 | Constant | Value | Meaning |
 | --- | --- | --- |
-| `CREATOR_CUTOFF_YEAR` | 2000 | Min first-paper year for a topic to be eligible |
-| `MIN_CREATOR_CITATIONS` | 50 | Impact floor for a creator paper (≥ `MIN_NEEDED`) |
+| `HIT_RULE.creator_cutoff_year` | 2000 | Min first-paper year for a topic to be eligible |
+| `HIT_RULE.min_creator_citations` | 50 | Citation floor for a creator paper (≥ `HIT_RULE.min_needed`) |
 | `MIN_DOM_TOPIC_PAPERS` | 50 | Skip topics too small for a share to be meaningful |
 | `DOM_PCT_AUTHORS` | 0.02 | Cited-share threshold, authors |
 | `DOM_PCT_INSTITUTIONS` | 0.10 | Cited-share threshold, institutions |

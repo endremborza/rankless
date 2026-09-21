@@ -8,20 +8,10 @@ use crate::{
     gen::{
         a1_entity_mapping::Works, a2_init_atts::AuthorNobels, derive_links1::WorkFilteredAuthors,
     },
+    metrics::HIT_RULE,
     steps::a1_entity_mapping::Years,
     CiteCountMarker, QuickestBox, ReadIter, Stowage,
 };
-
-pub(super) const MIN_UNIVERSAL: usize = 500;
-pub(super) const MIN_NEEDED: usize = 10;
-pub(super) const TOP_TOPIC: usize = 3;
-pub(super) const TOP_PCTILE: f64 = 0.01;
-pub(super) const SF_YEAR_MIN_PAPERS: usize = 400;
-pub(super) const W_SF: f64 = 0.005;
-pub(super) const W_YEAR: f64 = 0.12;
-pub(super) const W_SF_YEAR: f64 = 1.0 - W_SF - W_YEAR;
-pub(super) const SCORE_THRESHOLD: f64 = 1.5;
-pub(super) const NOBEL_MULTIPLIER: f64 = 2.0;
 
 pub(super) type CCUI = ET<MAA<Works, CiteCountMarker>>;
 
@@ -72,7 +62,7 @@ pub(super) fn compute_sf_year_bms(
     groups
         .into_iter()
         .map(|((sf, yr), mut v)| {
-            let bm = if v.len() >= SF_YEAR_MIN_PAPERS {
+            let bm = if v.len() >= HIT_RULE.sf_year_min_papers {
                 top_pctile(&mut v)
             } else {
                 year_bms[yr]
@@ -120,7 +110,7 @@ pub(super) fn paper_bm(
         .map(|sf| *sf_bms.get(&sf.to_usize()).unwrap_or(&yr_bm))
         .sum::<f64>()
         / n;
-    W_SF_YEAR * sf_year_avg + W_SF * sf_avg + W_YEAR * yr_bm
+    HIT_RULE.w_sf_year * sf_year_avg + HIT_RULE.w_sf * sf_avg + HIT_RULE.w_year * yr_bm
 }
 
 pub(super) fn get_limits<E, I, I2, U>(n: usize, it: I, ccs: &Box<[CCUI]>) -> Box<[CCUI]>
@@ -158,7 +148,7 @@ pub(super) fn top_pctile(ccs: &mut Vec<CCUI>) -> f64 {
         return 0.0;
     }
     ccs.sort_unstable_by(|a, b| b.cmp(a));
-    let top_n = ((ccs.len() as f64 * TOP_PCTILE).ceil() as usize)
+    let top_n = ((ccs.len() as f64 * HIT_RULE.top_pctile).ceil() as usize)
         .max(1)
         .min(ccs.len());
     ccs[top_n - 1].to_usize() as f64

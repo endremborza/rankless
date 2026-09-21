@@ -13,10 +13,7 @@ use crate::{
     common::{oa_id_parse_opt, ParsedId, Stowage, MAIN_NAME},
     csv_iter::par_reduce,
     csv_writers::{authors, institutions, sources, works},
-    env_consts::{
-        FINAL_YEAR, MIN_AUTHOR_CITE_COUNT, MIN_AUTHOR_WORK_COUNT, MIN_PAPERS_FOR_INST,
-        MIN_PAPERS_FOR_SOURCE, START_YEAR,
-    },
+    metrics::WORK_SCREEN,
     oa_structs::{
         post::{Author, Institution, Location},
         ReferencedWork, Work,
@@ -25,17 +22,6 @@ use crate::{
 };
 
 use dmove::BigId;
-
-const MAX_AUTHORS: usize = 20;
-const MIN_CITATIONS: usize = 1;
-// Proceedings series carry both labels, depending on snapshot vintage (docs/architecture.md).
-const WORK_KINDS: [&str; 5] = [
-    "article",
-    "book",
-    "review",
-    "book-chapter",
-    "conference-paper",
-];
 
 const FORCE_DROP_INSTS: [BigId; 2] = [4210095297, 4210109586];
 
@@ -79,7 +65,7 @@ trait FilterBase {
 
 impl FilterBase for ReferencedWork {
     const ENTITY_ATT: &'static str = works::atts::referenced_works;
-    const MIN: usize = MIN_CITATIONS;
+    const MIN: usize = WORK_SCREEN.min_citations;
     const FILTER_TARGETS: bool = false;
 
     fn iter_edges(&self) -> Vec<[String; 2]> {
@@ -90,7 +76,7 @@ impl FilterBase for ReferencedWork {
 
 impl FilterBase for Location {
     const ENTITY_ATT: &'static str = works::atts::locations;
-    const MIN: usize = MIN_PAPERS_FOR_SOURCE as usize;
+    const MIN: usize = WORK_SCREEN.min_papers_for_source as usize;
     const FILTER_TARGETS: bool = false;
 
     fn iter_edges(&self) -> Vec<[String; 2]> {
@@ -181,10 +167,8 @@ fn work_filter_with_forced(
         move |acc, o| {
             let Some(id) = o.get_parsed_id() else { return };
             let year = o.publication_year.unwrap_or(0);
-            let screened = !o.is_retracted.unwrap_or(false)
-                & (year > START_YEAR) // > because 0 is "unknown"
-                & (year <= FINAL_YEAR);
-            let standard = screened & WORK_KINDS.contains(&o.work_type.as_deref().unwrap_or(""));
+            let screened = WORK_SCREEN.admits_publication(o.is_retracted.unwrap_or(false), year);
+            let standard = screened & WORK_SCREEN.admits_kind(o.work_type.as_deref());
             let forced = screened & oeuvre.contains(&id);
             if forced {
                 acc.forced.push(id);
@@ -240,7 +224,7 @@ fn authorship_filter(
                 for inst_str in insts.split(';') {
                     if let Some(inst_oa) = oa_id_parse_opt(inst_str) {
                         let entry = inst_map.entry(inst_oa).or_default();
-                        if entry.len() < MIN_PAPERS_FOR_INST as usize {
+                        if entry.len() < WORK_SCREEN.min_papers_for_institution as usize {
                             entry.insert(work_oa);
                         }
                     }
@@ -267,7 +251,7 @@ fn authorship_filter(
 
     let inst_ids = inst_map
         .into_iter()
-        .filter(|(_, works)| works.len() >= MIN_PAPERS_FOR_INST as usize)
+        .filter(|(_, works)| works.len() >= WORK_SCREEN.min_papers_for_institution as usize)
         .map(|(inst, _)| inst);
     stowage.write_filter(inst_step_id, institutions::C, inst_ids)?;
 
@@ -275,7 +259,7 @@ fn authorship_filter(
     let mut taken_works = Vec::new();
     let mut taken_authors: HashSet<BigId> = HashSet::new();
     for (work, authors_set) in &work_author_map {
-        if authors_set.len() <= MAX_AUTHORS || forced.set.contains(work) {
+        if WORK_SCREEN.admits_authorship(authors_set.len()) || forced.set.contains(work) {
             taken_works.push(*work);
             taken_authors.extend(authors_set.iter().copied());
         }
@@ -296,8 +280,8 @@ fn author_filter_with_pins(
     filter_write::<Author, _>(stowage, step_id, authors::C, move |o| {
         if let Some(aid) = o.get_parsed_id() {
             let standard = pre_filter.contains(&aid)
-                & (o.cited_by_count.unwrap_or(0) >= MIN_AUTHOR_CITE_COUNT.into())
-                & (o.works_count.unwrap_or(0) >= MIN_AUTHOR_WORK_COUNT.into());
+                & (o.cited_by_count.unwrap_or(0) >= WORK_SCREEN.min_author_citations.into())
+                & (o.works_count.unwrap_or(0) >= WORK_SCREEN.min_author_papers.into());
             let pinned = pins.contains(&aid);
             if pinned & !standard {
                 rescue_count.fetch_add(1, Ordering::Relaxed);

@@ -2,7 +2,121 @@ use std::fmt::Display;
 
 use serde::Serialize;
 
-use crate::peers::SPEC_BETA;
+use crate::env_consts::{
+    FINAL_YEAR, MIN_AUTHOR_CITE_COUNT, MIN_AUTHOR_WORK_COUNT, MIN_PAPERS_FOR_INST,
+    MIN_PAPERS_FOR_SOURCE, START_YEAR,
+};
+
+// Exponent of the paper-count divisor under the impact score. The score is a weighted geometric
+// mean of an entity's hit-paper count and its hit rate, three parts the count to one part the
+// rate; the exponent is the rate's weight.
+pub const IMPACT_BETA: f64 = 0.25;
+
+// Exponent of the entity-size divisor under the field score. Equal to `peers::SPEC_BETA` today and
+// free to move without it: that one divides by a field's size, this one by an entity's.
+pub const FIELD_SCORE_BETA: f64 = 0.75;
+
+// The hit-paper rule and the work screen, stated once: `steps::derive_links3` and `filter` read
+// these values, `/v1/methodology` serves them, and the site and the MCP render what is served.
+pub const HIT_RULE: HitRule = {
+    let w_sf = 0.005;
+    let w_year = 0.12;
+    HitRule {
+        min_needed: 10,
+        min_universal: 500,
+        top_topic: 3,
+        top_pctile: 0.01,
+        score_threshold: 1.5,
+        nobel_multiplier: 2.0,
+        w_sf,
+        w_year,
+        w_sf_year: 1.0 - w_sf - w_year,
+        sf_year_min_papers: 400,
+        creator_cutoff_year: 2000,
+        min_creator_citations: 50,
+    }
+};
+
+pub const WORK_SCREEN: WorkScreen = WorkScreen {
+    kinds: &[
+        "article",
+        "book",
+        "review",
+        // Proceedings series carry both labels, depending on snapshot vintage.
+        "book-chapter",
+        "conference-paper",
+    ],
+    min_citations: 1,
+    max_authors: 20,
+    start_year: START_YEAR,
+    final_year: FINAL_YEAR,
+    min_papers_for_institution: MIN_PAPERS_FOR_INST,
+    min_papers_for_source: MIN_PAPERS_FOR_SOURCE,
+    min_author_papers: MIN_AUTHOR_WORK_COUNT,
+    min_author_citations: MIN_AUTHOR_CITE_COUNT,
+};
+
+pub const METHODOLOGY: Methodology = Methodology {
+    work_screen: WORK_SCREEN,
+    hit_rule: HIT_RULE,
+};
+
+// What admits one of an entity's papers as a hit paper, and so the definition behind the
+// hit-paper count, the hit rate and the impact score.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HitRule {
+    // Citations every hit paper has, whichever way it qualifies.
+    pub min_needed: usize,
+    // Citations that qualify a paper on their own.
+    pub min_universal: usize,
+    // A paper among this many most cited of one of its topics qualifies.
+    pub top_topic: usize,
+    // The benchmark is the citation count that enters this top share of a group.
+    pub top_pctile: f64,
+    // Multiple of its benchmark that qualifies a paper.
+    pub score_threshold: f64,
+    // Applied to a paper's multiple when it is no later than a Nobel year of one of its authors.
+    pub nobel_multiplier: f64,
+    // Weights of the subfield, the year and the subfield-year benchmarks blended into a paper's.
+    pub w_sf: f64,
+    pub w_year: f64,
+    pub w_sf_year: f64,
+    // A subfield-year group smaller than this has no benchmark of its own and takes the year's.
+    pub sf_year_min_papers: usize,
+    // A topic's earliest paper qualifies as its creator only for a topic first seen in this year
+    // or later: the start of the data would otherwise manufacture originators for old topics.
+    pub creator_cutoff_year: u16,
+    // Citations a creator needs: below the benchmark bar so genuine originators are admitted,
+    // above `min_needed`.
+    pub min_creator_citations: usize,
+}
+
+// The screen that decides which papers enter the data at all. A citation is indexed exactly when
+// the citing paper is, so one object answers both. The year window and the per-entity minimums are
+// `env_consts`, generated per build environment, which is why no text can state them without
+// reading them.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkScreen {
+    pub kinds: &'static [&'static str],
+    pub min_citations: usize,
+    pub max_authors: usize,
+    pub start_year: u16,
+    pub final_year: u16,
+    pub min_papers_for_institution: u16,
+    pub min_papers_for_source: u16,
+    pub min_author_papers: u16,
+    pub min_author_citations: u16,
+}
+
+// Every definition the site publishes about how its numbers are made, in one payload.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Methodology {
+    pub work_screen: WorkScreen,
+    pub hit_rule: HitRule,
+}
 
 // One breakdown level of a tree: the attribute entity and the side of the citation link it sits
 // on. A tree's first level is a profile of the root entity, identified by this alone.
@@ -12,6 +126,22 @@ pub struct Level {
     pub entity: &'static str,
     #[serde(rename = "sourceSide")]
     pub source_side: bool,
+}
+
+impl WorkScreen {
+    // The year and retraction screen. A pinned owner's œuvre rides through the kind screen below
+    // but not through this one. `>` on the start year because 0 is "unknown".
+    pub fn admits_publication(&self, retracted: bool, year: u16) -> bool {
+        !retracted && year > self.start_year && year <= self.final_year
+    }
+
+    pub fn admits_kind(&self, kind: Option<&str>) -> bool {
+        self.kinds.contains(&kind.unwrap_or(""))
+    }
+
+    pub fn admits_authorship(&self, authors: usize) -> bool {
+        authors <= self.max_authors
+    }
 }
 
 impl Level {
