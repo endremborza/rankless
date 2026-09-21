@@ -105,12 +105,12 @@ test('a header click sorts the loaded rows only and leaves the ranking alone', a
 	await page.goto('/institutions/table');
 	await page.waitForSelector('tbody tr');
 	const before = await ranks(page);
-	await page.locator('thead th', { hasText: 'Papers' }).click();
+	await page.locator('thead th', { hasText: /^Papers/ }).click();
 	expect(nonIncreasing(await column(page, 'Papers'))).toBeTruthy();
 	expect(sorted(await ranks(page))).toEqual(before);
 	expect(page.url()).not.toMatch(/sort=/);
 	await expect(page.locator('th.ranked')).toContainText('Citations');
-	await page.locator('thead th', { hasText: 'Papers' }).click();
+	await page.locator('thead th', { hasText: /^Papers/ }).click();
 	expect(nonDecreasing(await column(page, 'Papers'))).toBeTruthy();
 	expect(sorted(await ranks(page))).toEqual(before);
 });

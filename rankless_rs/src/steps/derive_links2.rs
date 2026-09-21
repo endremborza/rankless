@@ -607,7 +607,9 @@ fn compute_sf_spec_denoms(
     let mean_size = mean_of((0..Subfields::N).map(|s| sf_works[s].len() as u32));
     (
         Arc::new(core::array::from_fn(|s| size(s).powf(SPEC_BETA))),
-        Arc::new(core::array::from_fn(|s| dampened_size(size(s), mean_size))),
+        Arc::new(core::array::from_fn(|s| {
+            dampened_size(size(s), mean_size, SPEC_BETA)
+        })),
     )
 }
 

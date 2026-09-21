@@ -7,7 +7,7 @@
 use dmove::UnsignedNumber;
 use rankless_rs::{
     gen::a1_entity_mapping::{Cities, Countries, Institutions, Subfields},
-    metrics::{size_adjusted_score, Level},
+    metrics::{field_score, Level},
     steps::{
         a1_entity_mapping::{RawYear, YearInterface, Years},
         derive_links2::{EraRec, MAX_YEAR, MIN_YEAR},
@@ -26,6 +26,8 @@ pub const N_AFF_COUNTRIES: usize = 3;
 pub const CITATIONS: &str = "citations";
 pub const PAPERS: &str = "papers";
 pub const IMPACT_SCORE: &str = "impact_score";
+pub const HIT_PAPERS: &str = "hit_papers";
+pub const HIT_RATE: &str = "hit_rate";
 pub const H_INDEX: &str = "h_index";
 pub const YEAR_CENTROID: &str = "year_centroid";
 pub const FIELD_CITATIONS: &str = "field_citations";
@@ -66,10 +68,32 @@ pub const METRICS: &[MetricDecl] = &[
         profile: None,
     },
     MetricDecl {
+        id: HIT_PAPERS,
+        label: "Hit papers",
+        header: None,
+        meaning: "Papers of the entity that clear the citation benchmark for their field and year.",
+        value: ValueType::Count,
+        param: None,
+        reads: &[Column::HitPapers],
+        cost: Cost::Read,
+        profile: None,
+    },
+    MetricDecl {
+        id: HIT_RATE,
+        label: "Hit rate",
+        header: None,
+        meaning: "Share of the entity's papers that are hit papers. It reads the rate alone, so a small specialist can top it; the impact score is the reading that also counts how many.",
+        value: ValueType::Share,
+        param: None,
+        reads: &[Column::HitPapers, Column::Papers],
+        cost: Cost::Read,
+        profile: None,
+    },
+    MetricDecl {
         id: IMPACT_SCORE,
         label: "Impact score",
         header: None,
-        meaning: "Citations relative to size, with a floor under the size so that a few papers cannot outrank a large body of work: citations ÷ (papers + the average paper count of the entity's kind)^0.75. A high score means more impact than size alone predicts.",
+        meaning: "Hit papers weighed against output: hit papers ÷ papers^0.25, which is three parts how many hit papers the entity has and one part what share of its papers they are. Neither sheer volume nor a handful of strong papers carries it alone, and a hit paper is one of the entity's own, so no small entity can win on a lucky paper.",
         value: ValueType::Score,
         param: None,
         reads: &[Column::ImpactScore],
@@ -113,7 +137,7 @@ pub const METRICS: &[MetricDecl] = &[
         id: FIELD_SCORE,
         label: "Field score",
         header: Some("{subfield} score"),
-        meaning: "Citations from papers in the chosen field, over the same size term as the impact score. Ranks the entities of one field by the attention they draw from it for their size. An entity's own page ranks its fields the other way round, by the field's size.",
+        meaning: "Citations from papers in the chosen field, over the entity's paper count dampened by the average paper count of its kind. Ranks the entities of one field by the attention they draw from it for their size. An entity's own page ranks its fields the other way round, by the field's size.",
         value: ValueType::Score,
         param: Some(Param::Subfield),
         reads: &[Column::SubfieldCiting, Column::Papers],
@@ -264,6 +288,7 @@ pub enum Param {
 pub enum Column {
     Papers,
     Citations,
+    HitPapers,
     ImpactScore,
     HIndex,
     YearCentroid,
@@ -303,11 +328,16 @@ impl MetricDecl {
         match (self.id, arg) {
             (CITATIONS, _) => num(cols.citations[dm] as f64),
             (PAPERS, _) => num(cols.papers[dm] as f64),
+            (HIT_PAPERS, _) => num(cols.hit_counts[dm] as f64),
+            (HIT_RATE, _) => num(match cols.papers[dm] {
+                0 => 0.0,
+                p => cols.hit_counts[dm] as f64 / p as f64,
+            }),
             (IMPACT_SCORE, _) => num(cols.impact_scores[dm] as f64),
             (H_INDEX, _) => num(cols.h_indices.as_ref()?[dm] as f64),
             (YEAR_CENTROID, _) => num(cols.year_centroids.as_ref()?[dm] as f64),
             (FIELD_CITATIONS, Arg::Subfield(sf)) => num(cols.field_citations(dm, sf)? as f64),
-            (FIELD_SCORE, Arg::Subfield(sf)) => num(size_adjusted_score(
+            (FIELD_SCORE, Arg::Subfield(sf)) => num(field_score(
                 cols.field_citations(dm, sf)?,
                 cols.papers[dm],
                 cols.mean_papers,
@@ -390,7 +420,7 @@ impl RootColumns {
     pub fn column_bytes(&self, c: Column) -> Option<usize> {
         let n = self.papers.len();
         Some(match c {
-            Column::Papers | Column::Citations | Column::ImpactScore => n * 4,
+            Column::Papers | Column::Citations | Column::HitPapers | Column::ImpactScore => n * 4,
             Column::HIndex => self.h_indices.as_ref()?.len() * 4,
             Column::YearCentroid => self.year_centroids.as_ref()?.len() * 4,
             Column::SubfieldCiting => {
@@ -444,6 +474,8 @@ pub fn era_span(from: RawYear, to: RawYear) -> Option<(usize, usize)> {
 
 #[cfg(test)]
 mod tests {
+    use rankless_rs::metrics::IMPACT_BETA;
+
     use super::*;
 
     #[test]
@@ -457,6 +489,18 @@ mod tests {
         assert!(METRICS
             .iter()
             .all(|m| METRICS.iter().filter(|o| o.id == m.id).count() == 1));
+    }
+
+    // The exponent is stated in prose exactly once, in the meaning the site and the MCP both
+    // read; this keeps that prose honest about the constant it describes.
+    #[test]
+    fn the_impact_meaning_states_the_live_exponent() {
+        let decl = metric(IMPACT_SCORE).unwrap();
+        assert!(
+            decl.meaning.contains(&format!("papers^{IMPACT_BETA}")),
+            "{}",
+            decl.meaning
+        );
     }
 
     #[test]

@@ -31,7 +31,7 @@ use rankless_rs::{
         derive_links5::HitPaperYearlyCitations,
     },
     ladder::LADDER_LEN,
-    metrics::{mean_of, size_adjusted_score},
+    metrics::{impact_score, mean_of},
     steps::{
         a1_entity_mapping::YearInterface,
         a2_init_atts::OrcidType,
@@ -88,22 +88,27 @@ type TopTopicRec = ET<MAA<Topics, TopNPaperTopicMarker>>;
 
 // Everything one root type keeps loaded for the whole run, indexed by `dm_id` and reached by etype
 // string: the columns. The counting columns are resident for every root — papers, citations, the
-// yearly era records, the hit papers, the peers, the citation-rank ladder, and the impact score
-// derived at load from the counts. The top-N relation tables are memory-mapped, read per entity
-// view and never resident in full. Which relation tables a type has is a ladder: hit papers hold
-// the four core tables alone, subfields add the affiliation-country and topic tables, the four
-// peer types add the subfield profiles, and authors alone add the h-index and the career centroid
-// (a calendar year).
+// yearly era records, the hit papers, the peers, the citation-rank ladder, and the two columns
+// derived at load. The top-N relation tables are memory-mapped, read per entity view and never
+// resident in full. Which relation tables a type has is a ladder: hit papers hold the four core
+// tables alone, subfields add the affiliation-country and topic tables, the four peer types add
+// the subfield profiles, and authors alone add the h-index and the career centroid (a calendar
+// year).
 pub struct RootColumns {
     pub papers: Box<[u32]>,
     pub citations: Box<[u32]>,
     pub yearly_papers: Box<[EraRec]>,
     pub yearly_cites: Box<[EraRec]>,
     pub hit_works: VarBox<Box<[ET<HitPapers>]>>,
+    // The length of each `hit_works` row, held flat. Redundant with the rows themselves, and kept
+    // anyway: `hit_papers` and `hit_rate` are both scannable metrics, and a scan over 4-byte
+    // counts reads a quarter of what a scan over the rows' fat pointers would.
+    pub hit_counts: Box<[u32]>,
     pub peers: Box<[[u32; N_PEERS]]>,
     pub cit_rank_ladder: Box<[[u32; LADDER_LEN]]>,
-    // Cohort mean of `papers`, the dampening constant of every size-adjusted score of the root.
+    // Cohort mean of `papers`, the dampening constant under the root's field score.
     pub mean_papers: f64,
+    // `impact_score` over the two columns above, held flat so a scan of it costs no `powf`.
     pub impact_scores: Box<[f32]>,
     // Whether the entities have a place: institutions, whose country and city are `Getters` fixed
     // attributes.
@@ -345,23 +350,26 @@ fn load_root_columns(stow: &Stowage) -> RootColumnMap {
     macro_rules! cols {
         ($E:ty) => {{
             let (papers, citations) = counts::<$E>(stow);
-            // Every dm id but 0, the padding entity — which is not the set the score is shown
-            // for: the page filter (`derive_links3::entity_sem_ids`) keeps a smaller cohort, and
-            // for sources it keeps a third of this one, so the two means differ by 2.4x. The
-            // dampener's population is an open question, tracked in `.cril/plans/impact-score.md`
-            // together with the exponent; whatever it settles on, it is decided here.
-            let mean_papers = mean_of(papers.iter().skip(1).copied());
-            let impact_scores = papers
-                .iter()
-                .zip(citations.iter())
-                .map(|(&p, &c)| size_adjusted_score(c, p, mean_papers))
+            let hit_works = <$E as VarAtt<HitWorkMarker>>::load(stow);
+            let hit_counts: Box<[u32]> = (0..papers.len())
+                .map(|dm| hit_works.0.get(dm).map_or(0, |h| h.len() as u32))
                 .collect();
+            let impact_scores = hit_counts
+                .iter()
+                .zip(papers.iter())
+                .map(|(&h, &p)| impact_score(h, p))
+                .collect();
+            // The field score's dampener, over every dm id but 0, the padding entity. That is a
+            // wider population than the page filter (`derive_links3::entity_sem_ids`) keeps, so
+            // the constant describes more entities than the score is ever shown for.
+            let mean_papers = mean_of(papers.iter().skip(1).copied());
             RootColumns {
                 papers,
                 citations,
                 yearly_papers: <$E as FixAtt<YearlyPapersMarker>>::load(stow),
                 yearly_cites: <$E as FixAtt<YearlyCitationsMarker>>::load(stow),
-                hit_works: <$E as VarAtt<HitWorkMarker>>::load(stow),
+                hit_works,
+                hit_counts,
                 peers: <$E as FixAtt<PeerMarker>>::load(stow)
                     .iter()
                     .map(|row| row.map(|e| e.to_usize() as u32))
