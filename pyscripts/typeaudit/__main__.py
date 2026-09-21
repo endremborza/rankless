@@ -5,7 +5,8 @@
 Parses each side's serialized shape, diffs the declared pairs directionally
 (producer → consumer), writes logs/type-audit.md, and prints a summary. Exits
 nonzero when an ERROR-level divergence exists (a consumer expects a field its
-producer does not send), so it can gate CI; `--strict` also fails on warnings.
+producer does not send, or reads a value of another JSON kind), so it can gate CI;
+`--strict` also fails on warnings.
 """
 
 import argparse
@@ -16,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pyscripts.typeaudit import FieldInfo, rustparse, tsparse
-from pyscripts.typeaudit.rustparse import serialized_keys, variant_tag
+from pyscripts.typeaudit.rustparse import serialized_keys, value_kind, variant_tag
 
 REPORT_PATH = Path("logs/type-audit.md")
 
@@ -33,41 +34,27 @@ LEDGER_TS = "src/lib/types/ledger.ts"
 GEN_DIR = "rankless_rs/src/gen"
 GEN_READER = "libs/ccl-science-data/scripts/gen_reader.py"
 
-# The one hand-maintained mapping: there is no way to infer that Rust `ViewResult`
-# is the TS `View`. Rust struct (producer) -> TS type (consumer).
-RESPONSE_PAIRS = (
-    ("SearchResult", "SearchResult"),
+# A Rust `Serialize` struct and a TS type of the same name pair on their own. These
+# are the pairs whose names differ, the one mapping no parser can infer (Rust
+# `ViewResult` is the TS `View`); a TS name claimed here is never auto-paired, since
+# the same-named Rust struct is then not the one on the wire. Rust struct
+# (producer) -> TS type (consumer).
+RENAMED_PAIRS = (
     ("ViewResult", "View"),
     ("PostAttRelatedEntity", "RelatedEntity"),
-    ("EntityPeersResp", "EntityPeersResp"),
     ("PeerSubfieldInfo", "PeerSubfield"),
-    ("PeerEntry", "PeerEntry"),
     ("RefSubfieldInfo", "RefSubfield"),
     ("LadderResp", "LadderData"),
     ("PaperOut", "Paper"),
-    ("PaperAuthorship", "PaperAuthorship"),
     ("PaperAuthorMeta", "AuthorMeta"),
-    ("PaperSetResp", "PaperSetResp"),
-    ("PaginatedPaperSetResp", "PaginatedPaperSetResp"),
-    ("PaperProfileResp", "PaperProfileResp"),
-    ("TreeResponse", "TreeResponse"),
-    ("TreeSpec", "TreeSpec"),
-    ("BreakdownSpec", "BreakdownSpec"),
     ("AttributeLabelOut", "AttributeLabel"),
     ("ColumnDecl", "MetricDecl"),
-    ("HitRule", "HitRule"),
+    ("ColumnRegistry", "MetricRegistry"),
     ("ResolveWorkResp", "WorkResolveResp"),
     ("ResolveAuthorResp", "AuthorResolveResp"),
-    ("CountsResponse", "CountsResponse"),
-    ("StatsResp", "StatsResp"),
-    ("StatsSubfield", "StatsSubfield"),
-    ("TableRow", "TableRow"),
-    ("SliceMeta", "SliceMeta"),
-    ("SliceResp", "SliceResp"),
-    ("MetricValuesResp", "MetricValuesResp"),
 )
 # Rust response structs with deliberately no TS mirror (only mcp_server reads them).
-NO_MIRROR_OK = {"StatsResp", "StatsSubfield"}
+NO_MIRROR_OK = ("StatsResp", "StatsSubfield")
 
 # Ledger subject structs (Rust consumes; direction is reversed vs responses).
 LEDGER_SUBJECTS = (("WorkSubject", "WorkSubject"), ("AuthorSubject", "AuthorSubject"))
@@ -95,9 +82,11 @@ def main() -> int:
     ap.add_argument("--strict", action="store_true", help="also fail on warnings.")
     args = ap.parse_args()
 
-    divs = _audit_responses() + _audit_ledger() + _audit_gen()
+    rust, ts = _load(RUST_RESPONSE_FILES), _load_ts(TS_RESPONSE_FILES)
+    pairs = response_pairs(rust, ts)
+    divs = _audit_responses(rust, ts, pairs) + _audit_ledger() + _audit_gen()
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    REPORT_PATH.write_text(_render(divs))
+    REPORT_PATH.write_text(_render(divs, pairs))
 
     n_err = sum(d.severity == "error" for d in divs)
     n_warn = sum(d.severity == "warn" for d in divs)
@@ -123,11 +112,23 @@ def _load_ts(files) -> dict:
     return reg
 
 
-def _audit_responses() -> list[Divergence]:
-    rust = _load(RUST_RESPONSE_FILES)
-    ts = _load_ts(TS_RESPONSE_FILES)
+def response_pairs(rust: dict, ts: dict) -> list[tuple[str, str]]:
+    """The renamed pairs, the unmirrored structs, and every `Serialize` struct with a
+    same-named TS type whose name no renamed pair claims."""
+    claimed = {t for _, t in RENAMED_PAIRS} | set(NO_MIRROR_OK)
+    same = sorted(
+        n
+        for n, st in rust.items()
+        if st.serialize and not st.is_enum and n in ts and n not in claimed
+    )
+    return [*RENAMED_PAIRS, *((n, n) for n in (*NO_MIRROR_OK, *same))]
+
+
+def _audit_responses(
+    rust: dict, ts: dict, pairs: list[tuple[str, str]]
+) -> list[Divergence]:
     out: list[Divergence] = []
-    for rust_name, ts_name in RESPONSE_PAIRS:
+    for rust_name, ts_name in pairs:
         produced = serialized_keys(rust_name, rust)
         if produced is None:
             out.append(
@@ -154,7 +155,10 @@ def _audit_ledger() -> list[Divergence]:
     lp = ts.get("LedgerPayload")
     if ep and lp and lp.variants is not None:
         rust_variants = {
-            variant_tag(v, ep.rename_all): {f.ident: FieldInfo(f.optional) for f in fs}
+            variant_tag(v, ep.rename_all): {
+                f.ident: FieldInfo(f.optional, f.type_str, value_kind(f.type_str))
+                for f in fs
+            }
             for v, fs in ep.variants.items()
         }
         for tag in sorted(set(rust_variants) | set(lp.variants)):
@@ -246,6 +250,16 @@ def _diff_pair(
         out.append(
             Divergence(family, pair, sev, f"{consumer} expects `{key}`{opt}, not sent")
         )
+    for key in sorted(k for k in produced if k in consumed):
+        # Both sides model the key: a value of a different JSON kind is a contract
+        # break however the consumer augments the shape.
+        p, c = produced[key].kind, consumed[key].kind
+        if p and c and p != c:
+            out.append(
+                Divergence(
+                    family, pair, "error", f"`{key}` sent as {p}, {consumer} reads {c}"
+                )
+            )
     for key in sorted(k for k in produced if k not in consumed):
         # Producer sends a field the consumer does not model.
         optional = produced[key].optional
@@ -268,15 +282,18 @@ def _import_ccl_parser():
     return mod._parse_entities
 
 
-def _render(divs: list[Divergence]) -> str:
+def _render(divs: list[Divergence], pairs: list[tuple[str, str]]) -> str:
     order = {"error": 0, "warn": 1, "info": 2}
     n = {s: sum(d.severity == s for d in divs) for s in order}
+    audited = ", ".join(r if r == t else f"{r} → {t}" for r, t in pairs)
     out = [
         "# Type-system coherence audit",
         "",
         f"_{n['error']} error · {n['warn']} warn · {n['info']} info. "
         "Producer → consumer; ERROR = consumer expects a field the producer never "
-        "sends. Generated by `make type-audit`._",
+        "sends, or reads a value of another JSON kind. Generated by `make type-audit`._",
+        "",
+        f"Response pairs audited ({len(pairs)}): {audited}.",
         "",
     ]
     for family in ("responses", "ledger", "gen"):

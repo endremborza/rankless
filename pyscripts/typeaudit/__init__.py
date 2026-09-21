@@ -7,8 +7,9 @@ This package statically parses each side's *serialized* shape and reports where
 they diverge.
 
 Families audited (`uv run -m pyscripts.typeaudit`, `make type-audit`):
-- responses -> Rust `/v1` response structs (rankless_server responses.rs +
-  rankless_trees io.rs) vs their TS mirrors (src/lib/tree-types.ts, ...).
+- responses -> Rust `/v1` response structs (rankless_server responses.rs,
+  rankless_trees io.rs + metrics.rs, rankless_rs metrics.rs) vs their TS mirrors
+  (src/lib/tree-types.ts, ...), same-named types paired automatically.
 - ledger    -> TS LedgerPayload (src/lib/types/ledger.ts) vs Rust EventPayload
   (rankless_rs user_ledger.rs).
 - gen       -> the generated Rust in rankless_rs/src/gen/ vs the ccl-science-data
@@ -16,7 +17,9 @@ Families audited (`uv run -m pyscripts.typeaudit`, `make type-audit`):
 
 The Rust side is serde-aware: `rename` / `rename_all` / `flatten` are applied and
 `skip` / `skip_serializing` fields are dropped, so keys are compared as the actual
-JSON emits them, not as the Rust identifiers read.
+JSON emits them, not as the Rust identifiers read. A key both sides model is also
+compared by the JSON kind of its value (number, string, boolean, array, object)
+wherever both declared types name one.
 """
 
 from dataclasses import dataclass, field
@@ -28,6 +31,9 @@ class FieldInfo:
 
     optional: bool = False  # may be absent (skip_serializing_if / `?` / default)
     type_str: str = ""  # raw declared type, kept for flatten resolution
+    # JSON kind of the value (number/string/boolean/array/object); None where the
+    # declared type is a name the parser does not resolve.
+    kind: str | None = None
 
 
 @dataclass

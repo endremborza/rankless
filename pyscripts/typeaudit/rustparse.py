@@ -19,6 +19,12 @@ _ITEM_RE = re.compile(
 _FIELD_RE = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?(\w+)\s*:\s*(.+?),?\s*$")
 _RENAME_RE = re.compile(r'rename\s*=\s*"([^"]*)"')
 _RENAME_ALL_RE = re.compile(r'rename_all\s*=\s*"([^"]*)"')
+_NUMBER_RE = re.compile(r"^(?:[ui](?:8|16|32|64|128|size)|f32|f64)$")
+_REF_RE = re.compile(r"^(?:&\s*(?:'\w+\s*)?(?:mut\s+)?)+")
+# Wrappers serde serializes as their content.
+_TRANSPARENT = {"Option", "Box", "Arc", "Rc"}
+_SEQUENCES = {"Vec", "VecDeque", "HashSet", "BTreeSet"}
+_MAPS = {"HashMap", "BTreeMap"}
 
 
 @dataclass
@@ -87,8 +93,31 @@ def serialized_keys(
             if inner is not None:
                 keys.update(inner)
             continue
-        keys[_json_key(f, struct.rename_all)] = FieldInfo(f.optional, f.type_str)
+        keys[_json_key(f, struct.rename_all)] = FieldInfo(
+            f.optional, f.type_str, value_kind(f.type_str)
+        )
     return keys
+
+
+def value_kind(type_str: str) -> str | None:
+    """JSON kind a Rust field type serializes to; None for a named type (a struct,
+    an enum, an alias), which would need resolving."""
+    t = _REF_RE.sub("", type_str.strip())
+    if t.startswith(("[", "(")):
+        return "array"  # slices, fixed-size arrays, tuples
+    head, _, inner = t.partition("<")
+    head = head.strip().rsplit("::", 1)[-1]
+    if head in _TRANSPARENT and inner:
+        return value_kind(inner.rsplit(">", 1)[0])
+    if head in _SEQUENCES:
+        return "array"
+    if head in _MAPS:
+        return "object"
+    if head in ("String", "str"):
+        return "string"
+    if head == "bool":
+        return "boolean"
+    return "number" if _NUMBER_RE.match(head) else None
 
 
 def shape_of(name: str, registry: dict[str, RawStruct]) -> Shape | None:
@@ -208,7 +237,7 @@ def _json_key(f: RawField, rename_all: str | None) -> str:
 
 def _type_name(type_str: str) -> str:
     # A flattened field may be borrowed (`&\'static MetricDecl`); the struct it names is the same.
-    bare = re.sub(r"^(?:&\s*(?:\'\w+\s*)?(?:mut\s+)?)+", "", type_str.strip())
+    bare = _REF_RE.sub("", type_str.strip())
     return re.sub(r"<.*", "", bare).strip().rsplit("::", 1)[-1]
 
 

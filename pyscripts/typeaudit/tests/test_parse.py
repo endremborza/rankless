@@ -71,3 +71,34 @@ def test_ts_object_union_optional_and_local():
     variants = reg["Ev"].variants
     assert set(variants["merge_authors"]) == {"keep", "drop", "note"}  # `kind` dropped
     assert variants["merge_authors"]["note"].optional
+
+
+def test_value_kinds_agree_across_languages():
+    pairs = (
+        ("u16", "number"),
+        ("&'static [&'static str]", "string[]"),
+        ("Option<Vec<u32>>", "number[] | null"),
+        ("HashMap<Arc<str>, Vec<f64>>", "Record<string, number[]>"),
+        ("Arc<str>", "'a' | 'b'"),
+        ("bool", "boolean"),
+    )
+    for rust, ts in pairs:
+        assert rustparse.value_kind(rust) == tsparse.value_kind(ts) is not None
+    assert rustparse.value_kind("RawYear") is None  # an alias is not resolved
+    assert tsparse.value_kind("number | string") is None
+
+
+def test_same_named_structs_pair_unless_a_rename_claims_the_ts_name():
+    from pyscripts.typeaudit.__main__ import RENAMED_PAIRS, response_pairs
+
+    rust = rustparse.parse_rust(
+        "#[derive(Serialize)]\nstruct MetricDecl {\n    id: String,\n}\n"
+        "#[derive(Serialize)]\nstruct HitRule {\n    min_needed: usize,\n}\n"
+    )
+    ts = tsparse.parse_ts(
+        "type MetricDecl = { id: string };\ntype HitRule = { a: number };"
+    )
+    pairs = response_pairs(rust, ts)
+    assert ("HitRule", "HitRule") in pairs
+    assert ("MetricDecl", "MetricDecl") not in pairs
+    assert ("ColumnDecl", "MetricDecl") in RENAMED_PAIRS

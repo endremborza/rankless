@@ -18,7 +18,9 @@ Exit code is nonzero when an ERROR-level divergence exists (or on any warning un
 
 The Rust side is **serde-aware** (`pyscripts/typeaudit/rustparse.py`): it applies
 `rename` / `rename_all` / `flatten` and drops `skip` / `skip_serializing` fields, so it
-compares the actual JSON keys, not the Rust identifiers. The TS side
+compares the actual JSON keys, not the Rust identifiers. A key both sides model is also
+compared by the JSON kind of its value (number, string, boolean, array, object) wherever
+both declared types name one; a named type (a struct, an enum, an alias) is not resolved. The TS side
 (`tsparse.py`) handles `export`/local `type` and `interface` declarations and
 `kind`-discriminated unions. Both are targeted at the codebase's rustfmt/prettier
 style (one field per line), not general grammars.
@@ -26,17 +28,15 @@ style (one field per line), not general grammars.
 ## Families
 
 Each family has a producer → consumer direction; an **ERROR** means the consumer
-expects a field the producer never sends.
+expects a field the producer never sends, or reads a value of another JSON kind.
 
 | Family | Producer → consumer | Source of truth | Hard errors on |
 | --- | --- | --- | --- |
-| `responses` | Rust `/v1` structs (`rankless_server/responses.rs`, `rankless_trees/io.rs`, `rankless_trees/metrics.rs`, `rankless_rs/metrics.rs`) → TS mirrors (`src/lib/tree-types.ts`, `id_resolver.ts`) | Rust | — (TS legitimately augments server data with client-derived fields, so all response drift is a **warning**) |
-| `ledger` | TS `LedgerPayload` (`src/lib/types/ledger.ts`) → Rust `EventPayload` (`rankless_rs/user_ledger.rs`) | TS writer | a field Rust deserializes that TS no longer sends |
+| `responses` | Rust `/v1` structs (`rankless_server/responses.rs`, `rankless_trees/io.rs`, `rankless_trees/metrics.rs`, `rankless_rs/metrics.rs`) → TS mirrors (`src/lib/tree-types.ts`, `id_resolver.ts`) | Rust | a shared key whose value kind differs (TS legitimately augments server data with client-derived fields, so key drift is only a **warning**) |
+| `ledger` | TS `LedgerPayload` (`src/lib/types/ledger.ts`) → Rust `EventPayload` (`rankless_rs/user_ledger.rs`) | TS writer | a field Rust deserializes that TS no longer sends, or a value kind that differs |
 | `gen` | generated Rust (`rankless_rs/src/gen/`) → ccl-science-data reader | Rust | the ccl regex parser silently matching almost nothing (the cargo-fmt `& str`→`&str` reflow drift) |
 
-The Rust-struct ↔ TS-type pairing (`RESPONSE_PAIRS` in `__main__.py`) is the one
-hand-maintained mapping — there is no way to infer that Rust `ViewResult` is the TS
-`View`. Add a pair when a new response type gains a TS mirror.
+A Rust `Serialize` struct in the response files and a TS type of the same name are paired automatically, so a new wire type is audited the moment its TS mirror exists. The one hand-maintained mapping is `RENAMED_PAIRS` in `__main__.py`, for pairs whose names differ — there is no way to infer that Rust `ViewResult` is the TS `View`. A TS name claimed there is never auto-paired (Rust `MetricDecl` is the registry entry, `ColumnDecl` the wire shape of TS `MetricDecl`). The report lists every pair it audited, so a type missing from that line is not audited at all.
 
 ## The gen family reuses the ccl parser
 

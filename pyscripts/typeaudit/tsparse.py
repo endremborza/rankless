@@ -67,10 +67,36 @@ def _object_fields(body: str) -> dict[str, FieldInfo]:
         if not member:
             continue
         if fm := _MEMBER_RE.match(member):
+            type_str = member[fm.end() :].strip()
             keys[fm.group(1)] = FieldInfo(
-                optional=bool(fm.group(2)), type_str=member[fm.end() :].strip()
+                optional=bool(fm.group(2)), type_str=type_str, kind=value_kind(type_str)
             )
     return keys
+
+
+def value_kind(type_str: str) -> str | None:
+    """JSON kind a TS member type admits, `null` aside; None for a named type or a
+    union of kinds."""
+    kinds = {
+        _single_kind(alt.strip())
+        for alt in _split_top_level(type_str, "|")
+        if alt.strip() not in ("", "null", "undefined")
+    }
+    return kinds.pop() if len(kinds) == 1 else None
+
+
+def _single_kind(t: str) -> str | None:
+    if t.endswith("[]") or t.startswith(("[", "Array<", "readonly ")):
+        return "array"
+    if t.startswith(("{", "Record<")):
+        return "object"
+    if t == "string" or t[:1] in "'\"`":
+        return "string"
+    if t in ("boolean", "true", "false"):
+        return "boolean"
+    if t == "number" or re.fullmatch(r"-?\d+(\.\d+)?", t):
+        return "number"
+    return None
 
 
 def _brace_block(text: str, open_idx: int) -> tuple[str, int]:
@@ -115,15 +141,15 @@ def _top_level_blocks(rhs: str) -> list[str]:
     return blocks
 
 
-def _split_top_level(body: str) -> list[str]:
-    """Split object members on `;`/newline at bracket depth 0."""
+def _split_top_level(body: str, seps: str = ";\n") -> list[str]:
+    """Split on `seps` at bracket depth 0: object members by default."""
     out, stack, start = [], [], 0
     for i, ch in enumerate(body):
         if ch in _OPEN:
             stack.append(_OPEN[ch])
         elif stack and ch == stack[-1]:
             stack.pop()
-        elif ch in ";\n" and not stack:
+        elif ch in seps and not stack:
             out.append(body[start:i])
             start = i + 1
     out.append(body[start:])
