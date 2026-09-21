@@ -20,9 +20,11 @@ use rankless_trees::{
     extensions::DistinctionText,
     interfacing::{Getters, RootColumns, RootInterfaceable, RootInterfaces},
     io::TreeRunManager,
+    metrics::{self, Arg, Kind, MetricDecl, Value, METRICS},
     AttributeLabelUnion,
 };
 
+use crate::cohort::BoundCall;
 use crate::consts::{MAX_HITS, SEARCH_SIZE};
 use crate::responses::{
     PostAttRelatedEntity, RelationGroups, SearchResult, SerializableExt, YearWindow,
@@ -53,14 +55,9 @@ pub(crate) struct NameState {
     pub orderings: Orderings,
 }
 
-// Response ids sorted descending by one global metric each (stable, so ties keep citation order);
-// the citation ordering is the response array itself. Author-only columns are absent elsewhere.
-pub(crate) struct Orderings {
-    pub papers: Box<[u32]>,
-    pub impact_score: Box<[u32]>,
-    pub h_index: Option<Box<[u32]>>,
-    pub year_centroid: Option<Box<[u32]>>,
-}
+// Response ids in descending order of every parameter-free global number but citations (the
+// response array itself), keyed by metric id; ties keep citation order.
+pub(crate) struct Orderings(HashMap<&'static str, Box<[u32]>>);
 
 pub(crate) trait IsTop: RootInterfaceable + Sized {
     fn is_top(_sr: &SearchResult) -> bool {
@@ -319,20 +316,35 @@ where
 }
 
 impl Orderings {
-    fn new(responses: &[SearchResult], cols: &RootColumns) -> Self {
+    fn new(responses: &[SearchResult], cols: &RootColumns, gets: &Getters) -> Self {
         let n = responses.len() as u32;
         let dm = |rid: u32| responses[rid as usize].dm_id;
-        Self {
-            papers: order_by(0..n, |rid| responses[rid as usize].papers as f64),
-            impact_score: order_by(0..n, |rid| cols.impact_scores[dm(rid)] as f64),
-            h_index: cols
-                .h_indices
-                .as_deref()
-                .map(|h| order_by(0..n, |rid| h[dm(rid)] as f64)),
-            year_centroid: cols
-                .year_centroids
-                .as_deref()
-                .map(|y| order_by(0..n, |rid| y[dm(rid)] as f64)),
+        Self(
+            METRICS
+                .iter()
+                .filter(|m| Self::precomputed(m, cols))
+                .map(|m| {
+                    let read = |rid: u32| match m.read(cols, gets, dm(rid), Arg::None) {
+                        Some(Value::Num(v)) => v,
+                        _ => 0.0,
+                    };
+                    (m.id, order_by(0..n, read))
+                })
+                .collect(),
+        )
+    }
+
+    fn precomputed(m: &MetricDecl, cols: &RootColumns) -> bool {
+        m.id != metrics::CITATIONS
+            && m.param.is_none()
+            && !m.is_entity_valued()
+            && m.kind(cols, |_| false) == Some(Kind::Global)
+    }
+
+    pub fn get(&self, call: &BoundCall) -> Option<&[u32]> {
+        match call.arg {
+            Arg::None => self.0.get(call.decl.id).map(Box::as_ref),
+            _ => None,
         }
     }
 }
@@ -384,7 +396,7 @@ impl NameState {
         }
 
         let now = std::time::Instant::now();
-        let orderings = Orderings::new(&responses, cols);
+        let orderings = Orderings::new(&responses, cols, gets);
         println!(
             "orderings for {} (n={}) in {:.2?}",
             E::NAME,
@@ -452,10 +464,29 @@ impl NameState {
     }
 }
 
-// Descending, stable argsort of the given response ids by a metric value, so ties keep their input
-// (citation) order.
-pub(crate) fn order_by(rids: impl Iterator<Item = u32>, value: impl Fn(u32) -> f64) -> Box<[u32]> {
-    order_keyed(rids, value).0
+// Descending by value, ties keeping arrival order. Zeros skip the sort: most entities score zero
+// on the hit columns, and no ordered metric goes below it.
+fn order_by(rids: impl Iterator<Item = u32>, value: impl Fn(u32) -> f64) -> Box<[u32]> {
+    let mut scored: Vec<(f64, u32)> = Vec::new();
+    let mut zeros: Vec<u32> = Vec::new();
+    for rid in rids {
+        let v = value(rid);
+        debug_assert!(
+            v >= 0.0,
+            "a precomputed ordering reads a negative value: {v}"
+        );
+        if v > 0.0 {
+            scored.push((v, rid));
+        } else {
+            zeros.push(rid);
+        }
+    }
+    scored.sort_by(|a, b| b.0.total_cmp(&a.0));
+    scored
+        .into_iter()
+        .map(|(_, rid)| rid)
+        .chain(zeros)
+        .collect()
 }
 
 // The ordering and, aligned with it, the value each id was ordered by; each value is read once.

@@ -69,9 +69,9 @@ pub(crate) struct Cohort<'a> {
     sort: BoundCall,
     filter: Option<Bound>,
     rids: Rids<'a>,
-    // Entities passing the clauses, before any screening.
+    // Entities passing the global clauses.
     pub total: usize,
-    // A screened ranking: the ranked set is the cohort's top SCREEN_K by citations.
+    // An intricate sort or clause: only the top SCREEN_K of `total` by citations are ranked.
     pub screened: bool,
     // The metric columns the rows carry.
     pub columns: Vec<BoundCall>,
@@ -424,14 +424,9 @@ impl<'a> Cohort<'a> {
             columns,
         };
         if global.is_none() && !screened {
-            let o = &ctx.state.orderings;
-            let fixed = match (cohort.sort.decl.id, cohort.sort.arg) {
-                (metrics::CITATIONS, _) => Some(Rids::Identity(n)),
-                (metrics::PAPERS, _) => Some(Rids::Fixed(&o.papers)),
-                (metrics::IMPACT_SCORE, _) => Some(Rids::Fixed(&o.impact_score)),
-                (metrics::H_INDEX, _) => o.h_index.as_deref().map(Rids::Fixed),
-                (metrics::YEAR_CENTROID, _) => o.year_centroid.as_deref().map(Rids::Fixed),
-                _ => None,
+            let fixed = match cohort.sort.decl.id {
+                metrics::CITATIONS => Some(Rids::Identity(n)),
+                _ => ctx.state.orderings.get(&cohort.sort).map(Rids::Fixed),
             };
             if let Some(rids) = fixed {
                 cohort.rids = rids;
