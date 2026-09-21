@@ -8,7 +8,10 @@ declare global {
 			surveyShouldPrompt: boolean;
 		}
 		// interface Locals {}
-		// interface PageData {}
+		interface PageData {
+			// Served by the (stat) layout for everything under it; see `loadMethodology`.
+			methodology?: import('./lib/tree-types').Methodology | null;
+		}
 		// interface Platform {}
 	}
 }

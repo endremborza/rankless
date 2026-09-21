@@ -22,8 +22,6 @@
 	export let hitPaperCount = 0;
 	export let abstract: string | null = null;
 	export let abstractLoading = false;
-	// The work screen the indexed-citation tip reads; null hides the tip, not the number.
-	export let screen: tt.WorkScreen | null = null;
 
 	const MAX_CHIPS = 5;
 	const MAX_TOPICS = 8;
@@ -80,7 +78,7 @@
 				<div class="stat-big">{formatNumber(rawCites)} citations</div>
 				<div class="stat-sub">
 					{pluralize('paper', view.papers)} · {formatNumber(view.citations)}
-					<IndexedCitationLink {screen} />
+					<IndexedCitationLink />
 					{#if cfg.showHitPapers && hitPaperCount > 0}
 						· <a href="#papers">{pluralize('hit paper', hitPaperCount)}</a>
 					{/if}
@@ -92,7 +90,7 @@
 				<div class="stat-big">{formatNumber(view.citations)} citations</div>
 				<div class="stat-sub">
 					{pluralize('paper', view.papers)} ·
-					<IndexedCitationLink {screen} />
+					<IndexedCitationLink />
 					{#if cfg.sinceNote === 'complete'}
 						· since {COMPLETE_YEAR}
 					{:else if cfg.sinceNote === 'startYear'}

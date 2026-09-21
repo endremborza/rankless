@@ -18,19 +18,17 @@ export async function loadSpecs(fetchFn: typeof fetch = fetch): Promise<tt.TreeS
 		});
 }
 
-// The methodology is compile-time constant in the backend binary, so one good read serves the
-// process. An unreachable backend answers null rather than throwing: this loads in the layout
-// every page renders under, and it only decorates explanatory copy — the copy hides, the site
-// stays up.
+// The one methodology object, read on every load so a backend redeploy is served on the next one.
+// A failed read answers the last good copy (null before the first): this loads in the layout every
+// page renders under, and a backend blip must neither 500 those pages nor hide their explanations.
 let methodology: tt.Methodology | null = null;
 
 export async function loadMethodology(
 	fetchFn: typeof fetch = fetch
 ): Promise<tt.Methodology | null> {
-	if (methodology) return methodology;
 	methodology = await fetchFn(`${BE_URL}/methodology`)
-		.then((res) => (res.ok ? res.json() : null))
-		.catch(() => null);
+		.then((res) => (res.ok ? res.json() : methodology))
+		.catch(() => methodology);
 	return methodology;
 }
 

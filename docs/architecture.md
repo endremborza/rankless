@@ -224,7 +224,7 @@ the only viz dependency).
 | `lib/utils/author-timeline.ts` | Aggregates co-authors from the full loaded works into per-year, span-bounded rows (`buildCoauthors`/`sortCoauthors`/`yearDomain`/`makeTicks`) for `AuthorTimeline` |
 | `lib/network-force.ts` | Cytoscape/fcose force layout — lazily imported so the vendor chunk stays off initial load |
 | `lib/route-functions.ts` | URL builders |
-| `lib/loading-functions.ts` | Data fetching orchestration |
+| `lib/loading-functions.ts` | Data fetching orchestration; `loadMethodology` reads `/v1/methodology` on every `(stat)` layout load (the last good copy on a failed read), and components read that one object from `page.data.methodology` (typed in `app.d.ts`) |
 | `lib/text-format-util.ts` | Number/text formatting; `semantify` + `SEM_MAP` (see [breakdown selection](#breakdown-selection)) |
 | `lib/style-util.ts` | CSS/SVG styling |
 | `lib/stores.ts` | Svelte reactive stores; the localStorage-backed top-paper cache (`prefetchPaper`, which settles every waiter even when the OpenAlex load fails) |
@@ -282,7 +282,7 @@ the only viz dependency).
 | `ExportControls.svelte` | Sort/filter/citation-style/BibTeX controls |
 | `EntityHero.svelte` | Hero-page header, config-driven per root type (`$lib/hero-config.ts`): per-entity stat, specialization field chips (standing badge except countries) that nest each field's top topics, tailored leader rows, decade chart |
 | `InfoTip.svelte` | Unified "what is this?" tooltip: small `i` badge (or inline-text) trigger, opens on hover/focus/tap, solid background positioned at the trigger and clamped to the viewport. Used by `IndexedCitationLink`, `HeadControl` (Specialization / since-year), `HeroFieldBlocks` (papers-in note), `AxesOfFocusReach`, the browse table's column headers |
-| `IndexedCitationLink.svelte` | "indexed" citation explainer (wraps `InfoTip`; shared across stat-line variants) |
+| `IndexedCitationLink.svelte` | "indexed" citation explainer (wraps `InfoTip`; shared across stat-line variants), rendered from the served work screen |
 | `Peers.svelte` / `BarChart.svelte` | Peer comparison bars + shared span-bar chart |
 | `DominatedTopics.svelte` | "Topic Leadership" list (entity's dominated topics) |
 | `WorkElem.svelte`, `SearchResults.svelte` | Single paper / search autocomplete |

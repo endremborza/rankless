@@ -1,15 +1,14 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import InfoTip from '$lib/components/InfoTip.svelte';
-	import type { WorkScreen } from '$lib/tree-types';
 	import { listPhrase, pluralize } from '$lib/text-format-util';
-
-	// The screen the pipeline actually ran, from `/methodology` via the (stat) layout load. The
-	// kinds are rendered from it rather than named here, so this copy cannot fall behind the
-	// data. With no screen to read the word stands on its own, unlinked.
-	export let screen: WorkScreen | null;
 </script>
 
-{#if screen}
+<!-- The kinds and limits are read from the methodology the backend serves rather than named here,
+	so this copy cannot fall behind the data. With none to read the word stands on its own, unlinked. -->
+
+{#if page.data.methodology}
+	{@const screen = page.data.methodology.workScreen}
 	<InfoTip kind="inline" label="What counts as an indexed citation">
 		indexed
 		<span slot="text"

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { LATEST_YEAR } from '$lib/constants';
 	import { getColor, getColorArr } from '$lib/style-util';
 	import { formatNumber, formatShare } from '$lib/text-format-util';
@@ -14,7 +15,6 @@
 	export let entityAtts: tt.EntityAttsForLinks = {};
 	export let discAuthorNames: Record<string, string> = {};
 	export let treeSpecs: tt.TreeSpecs | undefined = undefined;
-	export let rule: tt.HitRule | null;
 
 	const xPad = 2;
 	const yPad = 2.5;
@@ -507,10 +507,11 @@
 	{/if}
 
 	<div class="sidebar">
-		<HitPaperExplainer {rule} />
+		<HitPaperExplainer />
 
 		<ol id="paper-list" bind:this={listContainer}>
 			{#each chartPapers as paper, i (i)}
+				{@const rule = page.data.methodology?.hitRule}
 				{@const source = resolveSourceName(paper.source, entityAtts)}
 				{@const expanded = expandedSet.has(i)}
 				<li

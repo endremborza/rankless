@@ -1,15 +1,15 @@
 <script lang="ts">
-	import type { HitRule } from '$lib/tree-types';
+	import { page } from '$app/state';
 	import { formatNumber, formatShare, trimZeros } from '$lib/text-format-util';
 
-	// The rule the pipeline actually ran with, from `/methodology` via the (stat) layout load. Every
-	// number below is read from it, so this text cannot drift from the data behind it — and with no
-	// rule to read there is nothing to say, so the component renders nothing.
-	export let rule: HitRule | null;
+	// Every number below is read from the methodology the backend serves, so this text cannot drift
+	// from the data behind it; with none to read there is nothing to say and nothing renders.
+
 	export let summaryLabel = 'What are hit papers?';
 </script>
 
-{#if rule}
+{#if page.data.methodology}
+	{@const { hitRule: rule, workScreen: screen } = page.data.methodology}
 	<details class="hit-paper-explainer">
 		<summary>{summaryLabel}</summary>
 		<p>
