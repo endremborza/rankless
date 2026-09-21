@@ -592,7 +592,7 @@
 											<span class="detail-label">Performance:</span>
 											<span
 												>{overperf(paper).toFixed(1)}× {formatNumber(paper.hitBm)} citations{#if rule}
-													— what a same-subfield, same-year paper needs to reach the top {formatShare(
+													— what a paper of its subfields and year needs to reach the top {formatShare(
 														rule.topPctile
 													)}{/if}</span
 											>

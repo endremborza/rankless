@@ -162,7 +162,7 @@
 			${pluralize('paper', screen.minPapersForInstitution)} of their own, and authors with at least
 			${pluralize('paper', screen.minAuthorPapers)} and
 			${pluralize('citation', screen.minAuthorCitations)} to their name. A researcher who claims
-			their profile keeps their own works through the type and citation screens.
+			their profile keeps their own works through the type, citation and author-count screens.
 		`
 				: ''
 		},

@@ -203,6 +203,9 @@ export type HitRule = {
 	wSf: number;
 	wYear: number;
 	wSfYear: number;
+	sfYearMinPapers: number;
+	creatorCutoffYear: number;
+	minCreatorCitations: number;
 };
 
 // The screen that decides which papers exist in the data at all. A citation is indexed exactly
