@@ -576,9 +576,10 @@ impl Getters {
             .zip(cols.citations.iter())
             .map(|(wid, &c)| paper_score(c, *self.wbar(wid)).unwrap_or(0.0) as f32)
             .collect();
-        if let Some(cols) = self.root_columns.get_mut(HitPapers::NAME) {
-            cols.paper_scores = Some(scores);
-        }
+        self.root_columns
+            .get_mut(HitPapers::NAME)
+            .unwrap()
+            .paper_scores = Some(scores);
     }
 
     pub fn fake() -> Self {
