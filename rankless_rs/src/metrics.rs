@@ -7,35 +7,38 @@ use crate::env_consts::{
     MIN_PAPERS_FOR_SOURCE, START_YEAR,
 };
 
-// Exponent of the paper-count divisor under the impact score. The score is a weighted geometric
-// mean of an entity's hit-paper count and its hit rate, three parts the count to one part the
-// rate; the exponent is the rate's weight.
-pub const IMPACT_BETA: f64 = 0.25;
-
 // Exponent of the entity-size divisor under the field score. Equal to `peers::SPEC_BETA` today and
 // free to move without it: that one divides by a field's size, this one by an entity's.
 pub const FIELD_SCORE_BETA: f64 = 0.75;
 
-// The hit-paper rule and the work screen, stated once: `steps::derive_links3` and `filter` read
-// these values, `/v1/methodology` serves them, and the site and the MCP render what is served.
-pub const HIT_RULE: HitRule = {
+// The paper score and the work screen, stated once: the pipeline steps and `filter` read these
+// values, `/v1/methodology` serves them, and every text about them is a template `fill` completes
+// from them, so no text restates a number.
+pub const PAPER_SCORE: PaperScore = {
     let w_sf = 0.005;
-    let w_year = 0.12;
-    HitRule {
-        min_needed: 10,
-        min_universal: 500,
-        top_topic: 3,
-        top_pctile: 0.01,
-        score_threshold: 1.5,
-        nobel_multiplier: 2.0,
+    let w_year = 0.1;
+    PaperScore {
+        top_share: 0.01,
         w_sf,
         w_year,
         w_sf_year: 1.0 - w_sf - w_year,
         sf_year_min_papers: 400,
-        creator_cutoff_year: 2000,
-        min_creator_citations: 50,
+        hit_multiple: 1.5,
+        bar_scale: 4,
     }
 };
+
+// Papers a root type's Top-N mean averages over, keyed by entity name: this module compiles with
+// every pipeline step, before the entity types are generated.
+pub const TOP_N: &[(&str, usize)] = &[
+    ("sources", 1000),
+    ("institutions", 2000),
+    ("countries", 2000),
+    ("authors", 20),
+];
+
+// Publication years the recent h-indices count from.
+pub const H_SINCE: [u16; 2] = [2010, 2020];
 
 pub const WORK_SCREEN: WorkScreen = WorkScreen {
     kinds: &[
@@ -56,40 +59,46 @@ pub const WORK_SCREEN: WorkScreen = WorkScreen {
     min_author_citations: MIN_AUTHOR_CITE_COUNT,
 };
 
-pub const METHODOLOGY: Methodology = Methodology {
-    work_screen: WORK_SCREEN,
-    hit_rule: HIT_RULE,
+pub const PAPER_SCORE_TEXTS: Texts = Texts {
+    id: "paper_score",
+    label: "Paper score",
+    meaning: "A paper's citations measured against the top-{top_share} bar of its own field and year: the square root of citations ÷ bar, so 1 means right at the bar and 2 means four times its citations. The bar blends the citation counts that enter the top {top_share} of the paper's subfields in its year (weighted {w_sf_year}), of those subfields over all years ({w_sf}) and of its year across all fields ({w_year}); a subfield and year with fewer than {sf_year_min_papers} papers takes its year's bar. Papers from {final_year} are not scored yet: in an unfinished year, when a paper appeared matters more than how it is cited.",
+    rationale: Some("Citation counts differ by field and grow with a paper's age, so a paper is read against papers of its own field and year. {w_year} of the bar comes from the year across all fields, which keeps some of the difference between fields on purpose."),
 };
 
-// What admits one of an entity's papers as a hit paper, and so the definition behind the
-// hit-paper count, the hit rate and the impact score.
+pub const HIT_PAPER_TEXTS: Texts = Texts {
+    id: "hit_paper",
+    label: "Hit paper",
+    meaning: "A paper cited at least {hit_multiple}× the top-{top_share} bar of its field and year: a paper score of at least √{hit_multiple}.",
+    rationale: Some("A threshold on the paper score alone, so a hit paper means the same in every field and year."),
+};
+
+pub const METHODOLOGY: Methodology = Methodology {
+    work_screen: WORK_SCREEN,
+    paper_score: PAPER_SCORE,
+    top_n: TOP_N,
+    h_since: H_SINCE,
+};
+
+// A bar as stored: whole units of `1 / bar_scale` citations, 0 for a paper without a score.
+pub type EncodedBar = u16;
+
+// What a paper's score measures it against, and the score that makes it a hit paper.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct HitRule {
-    // Citations every hit paper has, whichever way it qualifies.
-    pub min_needed: usize,
-    // Citations that qualify a paper on their own.
-    pub min_universal: usize,
-    // A paper among this many most cited of one of its topics qualifies.
-    pub top_topic: usize,
-    // The benchmark is the citation count that enters this top share of a group.
-    pub top_pctile: f64,
-    // Multiple of its benchmark that qualifies a paper.
-    pub score_threshold: f64,
-    // Applied to a paper's multiple when it is no later than a Nobel year of one of its authors.
-    pub nobel_multiplier: f64,
-    // Weights of the subfield, the year and the subfield-year benchmarks blended into a paper's.
+pub struct PaperScore {
+    // The bar is the citation count that enters this top share of a group.
+    pub top_share: f64,
+    // Weights of the subfield, the year and the subfield-year bars blended into a paper's.
     pub w_sf: f64,
     pub w_year: f64,
     pub w_sf_year: f64,
-    // A subfield-year group smaller than this has no benchmark of its own and takes the year's.
+    // A subfield-year group smaller than this has no bar of its own and takes the year's.
     pub sf_year_min_papers: usize,
-    // A topic's earliest paper qualifies as its creator only for a topic first seen in this year
-    // or later: the start of the data would otherwise manufacture originators for old topics.
-    pub creator_cutoff_year: u16,
-    // Citations a creator needs: below the benchmark bar so genuine originators are admitted,
-    // above `min_needed`.
-    pub min_creator_citations: usize,
+    // Multiple of its bar a paper's citations reach to make it a hit paper.
+    pub hit_multiple: f64,
+    // A stored bar counts citations in units of 1 / this.
+    pub bar_scale: u16,
 }
 
 // The screen that decides which papers enter the data at all. A citation is indexed exactly when
@@ -115,7 +124,18 @@ pub struct WorkScreen {
 #[serde(rename_all = "camelCase")]
 pub struct Methodology {
     pub work_screen: WorkScreen,
-    pub hit_rule: HitRule,
+    pub paper_score: PaperScore,
+    pub top_n: &'static [(&'static str, usize)],
+    pub h_since: [u16; H_SINCE.len()],
+}
+
+// What one published item means and why it is defined that way, as templates over the constants.
+#[derive(Clone, Copy)]
+pub struct Texts {
+    pub id: &'static str,
+    pub label: &'static str,
+    pub meaning: &'static str,
+    pub rationale: Option<&'static str>,
 }
 
 // One breakdown level of a tree: the attribute entity and the side of the citation link it sits
@@ -126,6 +146,27 @@ pub struct Level {
     pub entity: &'static str,
     #[serde(rename = "sourceSide")]
     pub source_side: bool,
+}
+
+// One paper as the score-based metrics read it. `team` counts the paper's members of the kind
+// being scored: its authors, institutions or countries.
+#[derive(Clone, Copy)]
+pub struct Paper {
+    pub citations: u32,
+    pub bar: EncodedBar,
+    pub year: u16,
+    pub team: usize,
+}
+
+// What the score-based metrics read from a set of papers.
+#[derive(Debug, PartialEq)]
+pub struct PaperSetSummary {
+    pub scored: u32,
+    pub hits: u32,
+    pub weighted: f64,
+    pub top_mean: f64,
+    pub h_index: u32,
+    pub h_since: [u32; H_SINCE.len()],
 }
 
 impl WorkScreen {
@@ -167,12 +208,151 @@ impl Display for Level {
     }
 }
 
-/// The impact score: hit papers over the paper count raised to `IMPACT_BETA`. A hit paper is one
-/// of the entity's own, so the score is bounded by `papers^(1 - IMPACT_BETA)` — an entity cannot
-/// outrank one many times its size on a single lucky paper, which is why this score needs no
-/// cohort constant and no floor under the divisor.
-pub fn impact_score(hit_papers: u32, papers: u32) -> f32 {
-    (hit_papers as f64 / (papers.max(1) as f64).powf(IMPACT_BETA)) as f32
+/// A paper has a score when its year is inside the screen and finished: in the final year, when a
+/// paper appeared would weigh more than how it is cited.
+pub fn is_scored(year: u16) -> bool {
+    year > WORK_SCREEN.start_year && year < WORK_SCREEN.final_year
+}
+
+/// Fails the build on a bar the encoding cannot hold rather than clipping it.
+pub fn encode_bar(bar: f64) -> EncodedBar {
+    let units = (bar * PAPER_SCORE.bar_scale as f64).round();
+    assert!(
+        units >= 0.0 && units <= EncodedBar::MAX as f64,
+        "bar {bar} outside the encoding"
+    );
+    units as EncodedBar
+}
+
+pub fn decode_bar(bar: EncodedBar) -> f64 {
+    bar as f64 / PAPER_SCORE.bar_scale as f64
+}
+
+/// `√(citations / bar)`, None for an unscored paper.
+pub fn paper_score(citations: u32, bar: EncodedBar) -> Option<f64> {
+    (bar != 0).then(|| (citations as f64 / decode_bar(bar)).sqrt())
+}
+
+pub fn is_hit(score: f64) -> bool {
+    score >= PAPER_SCORE.hit_multiple.sqrt()
+}
+
+/// The part of a paper's score each of its `n` members is credited with: shared, but on a softened
+/// scale so large collaborations are not divided away.
+pub fn team_share(n: usize) -> f64 {
+    1.0 / (1.0 + (n.max(1) as f64).ln())
+}
+
+pub fn top_n(root: &str) -> Option<usize> {
+    TOP_N.iter().find(|(r, _)| *r == root).map(|(_, n)| *n)
+}
+
+/// Mean of the `n` best scores, missing papers counting as zero.
+pub fn top_n_mean(scores: &mut [f64], n: usize) -> f64 {
+    if n == 0 {
+        return 0.0;
+    }
+    let k = n.min(scores.len());
+    if k < scores.len() {
+        scores.select_nth_unstable_by(k, |a, b| b.total_cmp(a));
+    }
+    scores[..k].iter().sum::<f64>() / n as f64
+}
+
+/// Largest h such that h of the papers have at least h citations each.
+pub fn h_index(citations: &mut [u32]) -> u32 {
+    citations.sort_unstable_by(|a, b| b.cmp(a));
+    citations
+        .iter()
+        .enumerate()
+        .take_while(|&(i, &c)| c as usize > i)
+        .count() as u32
+}
+
+/// One pass over a set of papers for every score-based metric; `n` is the Top-N mean's N (0 for a
+/// root without one).
+pub fn summarize(papers: impl Iterator<Item = Paper>, n: usize) -> PaperSetSummary {
+    let (mut scored, mut hits, mut weighted) = (0, 0, 0.0);
+    let mut scores = Vec::new();
+    let mut cites = Vec::new();
+    for p in papers {
+        cites.push((p.year, p.citations));
+        if let Some(s) = paper_score(p.citations, p.bar) {
+            scored += 1;
+            hits += is_hit(s) as u32;
+            weighted += s * team_share(p.team);
+            scores.push(s);
+        }
+    }
+    let since = |from: u16| {
+        let mut c: Vec<u32> = cites
+            .iter()
+            .filter(|(y, _)| *y >= from)
+            .map(|(_, c)| *c)
+            .collect();
+        h_index(&mut c)
+    };
+    PaperSetSummary {
+        scored,
+        hits,
+        weighted,
+        top_mean: top_n_mean(&mut scores, n),
+        h_index: since(0),
+        h_since: H_SINCE.map(since),
+    }
+}
+
+/// The values a text template names as `{name}`, formatted as the texts show them.
+pub fn text_vars() -> Vec<(&'static str, String)> {
+    let (p, s) = (&PAPER_SCORE, &WORK_SCREEN);
+    vec![
+        ("top_share", percent(p.top_share)),
+        ("w_sf_year", percent(p.w_sf_year)),
+        ("w_sf", percent(p.w_sf)),
+        ("w_year", percent(p.w_year)),
+        ("sf_year_min_papers", p.sf_year_min_papers.to_string()),
+        ("hit_multiple", decimal(p.hit_multiple)),
+        ("start_year", s.start_year.to_string()),
+        ("final_year", s.final_year.to_string()),
+    ]
+}
+
+/// The template with every `{name}` it has a value for replaced; any other brace is left for the
+/// client, which fills a parameterized header's argument.
+pub fn fill(template: &str, vars: &[(&str, String)]) -> String {
+    let mut out = String::with_capacity(template.len());
+    let mut rest = template;
+    while let Some(open) = rest.find('{') {
+        out.push_str(&rest[..open]);
+        let tail = &rest[open + 1..];
+        let value = tail.find('}').and_then(|close| {
+            let name = &tail[..close];
+            vars.iter()
+                .find(|(k, _)| *k == name)
+                .map(|(_, v)| (v, close))
+        });
+        match value {
+            Some((v, close)) => {
+                out.push_str(v);
+                rest = &tail[close + 1..];
+            }
+            None => {
+                out.push('{');
+                rest = tail;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+fn decimal(x: f64) -> String {
+    let s = format!("{:.4}", x);
+    s.trim_end_matches('0').trim_end_matches('.').to_string()
+}
+
+fn percent(x: f64) -> String {
+    format!("{}%", decimal(x * 100.0))
 }
 
 /// The one size divisor behind every specialization score: `(size + mean_size)^beta`. Adding the
@@ -185,7 +365,7 @@ pub fn dampened_size(size: f64, mean_size: f64, beta: f64) -> f64 {
 
 /// Entity-in-field score: the citations one field sends, over the entity's dampened paper count.
 /// Ranks the entities of a cohort inside that field. A citation count is unbounded by the
-/// entity's own size, so unlike the impact score this one needs the dampener.
+/// entity's own size, so this score needs the dampener.
 pub fn field_score(field_citations: u32, papers: u32, mean_papers: f64) -> f32 {
     (field_citations as f64 / dampened_size(papers as f64, mean_papers, FIELD_SCORE_BETA)) as f32
 }
@@ -203,135 +383,144 @@ pub fn mean_of(counts: impl Iterator<Item = u32>) -> f64 {
 mod tests {
     use super::*;
 
-    // (name, papers, hit papers) as the production root held them, so the anchors below are the
-    // real thing and not an illustration. An entity whose standing is not in dispute has to come
-    // out where it belongs, and the two ways a size-adjusted score goes wrong each have their own
-    // anchors: mega-journals and umbrella organisations pull the exponent down, review venues and
-    // tiny elite institutes pull it up.
-    const SOURCE_ANCHORS: &[(&str, u32, u32)] = &[
-        ("Nature", 158_633, 11_033),
-        ("Science", 115_327, 10_019),
-        ("Cell", 20_401, 4_200),
-        ("New England Journal of Medicine", 42_063, 4_743),
-        ("PNAS", 146_995, 6_245),
-        ("Chemical Reviews", 7_738, 2_645),
-        ("The Lancet", 76_706, 3_243),
-        ("Journal of the American Chemical Society", 172_960, 3_853),
-        ("Physiological Reviews", 2_096, 645),
-        ("Annual Review of Immunology", 1_385, 346),
-        ("Lecture notes in computer science", 466_699, 1_259),
-        ("PLoS ONE", 304_585, 1_078),
-        ("Scientific Reports", 250_792, 846),
-        ("IEEE Access", 95_474, 662),
-    ];
-
-    const INSTITUTION_ANCHORS: &[(&str, u32, u32)] = &[
-        ("Harvard University", 496_227, 12_487),
-        ("Stanford University", 330_892, 8_252),
-        ("Howard Hughes Medical Institute", 75_477, 5_421),
-        ("Massachusetts Institute of Technology", 228_538, 6_373),
-        ("Chinese Academy of Sciences", 743_610, 6_527),
-        ("University of Oxford", 282_010, 4_608),
-        (
-            "Centre National de la Recherche Scientifique",
-            966_536,
-            6_115,
-        ),
-        ("Whitehead Institute for Biomedical Research", 5_488, 595),
-        ("American Cancer Society", 5_017, 248),
-        ("Cochrane", 371, 7),
-    ];
-
-    // Of the assertions below only two can fail for a non-negative exponent, and together they pin
-    // it to [0.20, 0.44]: Cell above PNAS from 0.20 (the `order[..3]` check) and Harvard above
-    // HHMI up to 0.44 (the `order[0]` check). The trap groups never bind — a mega-journal's
-    // crossover with Nature is negative, a review annual's is above 0.65, a small specialist's
-    // above 0.63 — and that inertness is the point: it is the hit-paper numerator, not the choice
-    // of anchors, that removed both traps. They are kept as the record of what was checked.
-    const APEX: &[&str] = &["Nature", "Science", "Cell"];
-    const MEGA_JOURNALS: &[&str] = &[
-        "Lecture notes in computer science",
-        "PLoS ONE",
-        "Scientific Reports",
-        "IEEE Access",
-    ];
-    const REVIEW_VENUES: &[&str] = &["Physiological Reviews", "Annual Review of Immunology"];
-    const ELITE_INSTITUTIONS: &[&str] = &[
-        "Harvard University",
-        "Stanford University",
-        "Howard Hughes Medical Institute",
-        "Massachusetts Institute of Technology",
-    ];
-    const UMBRELLA_ORGS: &[&str] = &[
-        "Chinese Academy of Sciences",
-        "Centre National de la Recherche Scientifique",
-    ];
-    const SMALL_SPECIALISTS: &[&str] = &[
-        "Whitehead Institute for Biomedical Research",
-        "American Cancer Society",
-        "Cochrane",
-    ];
-
-    fn ranked(anchors: &[(&'static str, u32, u32)]) -> Vec<&'static str> {
-        let mut v: Vec<_> = anchors
-            .iter()
-            .map(|&(name, p, h)| (impact_score(h, p), name))
-            .collect();
-        v.sort_by(|a, b| b.0.total_cmp(&a.0));
-        v.into_iter().map(|(_, name)| name).collect()
-    }
-
-    fn position(order: &[&str], name: &str) -> usize {
-        order.iter().position(|n| *n == name).unwrap()
+    fn bar_of(units: f64) -> EncodedBar {
+        encode_bar(units)
     }
 
     #[test]
-    fn the_apex_journals_win() {
-        let order = ranked(SOURCE_ANCHORS);
-        assert_eq!(&order[..3], APEX);
-        for lower in MEGA_JOURNALS.iter().chain(REVIEW_VENUES) {
-            for apex in APEX {
-                assert!(
-                    position(&order, apex) < position(&order, lower),
-                    "{apex} must outrank {lower}"
-                );
+    fn the_bar_round_trips_to_its_unit_and_overflow_fails() {
+        assert_eq!(decode_bar(encode_bar(6.6)), 6.5);
+        assert_eq!(decode_bar(encode_bar(6.7)), 6.75);
+        assert_eq!(decode_bar(encode_bar(1788.0)), 1788.0);
+        let max = EncodedBar::MAX as f64 / PAPER_SCORE.bar_scale as f64;
+        assert_eq!(decode_bar(encode_bar(max)), max);
+        assert!(std::panic::catch_unwind(|| encode_bar(max + 1.0)).is_err());
+    }
+
+    #[test]
+    fn only_finished_years_inside_the_screen_are_scored() {
+        assert!(!is_scored(WORK_SCREEN.start_year));
+        assert!(is_scored(WORK_SCREEN.start_year + 1));
+        assert!(is_scored(WORK_SCREEN.final_year - 1));
+        assert!(!is_scored(WORK_SCREEN.final_year));
+    }
+
+    #[test]
+    fn the_score_is_the_root_of_citations_over_the_bar() {
+        assert_eq!(paper_score(400, bar_of(100.0)), Some(2.0));
+        assert_eq!(paper_score(100, bar_of(100.0)), Some(1.0));
+        assert_eq!(paper_score(0, bar_of(100.0)), Some(0.0));
+        assert_eq!(paper_score(100, 0), None);
+    }
+
+    #[test]
+    fn a_hit_is_at_least_the_multiple_of_the_bar() {
+        let bar = bar_of(4.0);
+        assert!(is_hit(paper_score(6, bar).unwrap()));
+        assert!(!is_hit(paper_score(5, bar).unwrap()));
+        let quarter = bar_of(6.75);
+        let at = (6.75 * PAPER_SCORE.hit_multiple).ceil() as u32;
+        assert!(is_hit(paper_score(at, quarter).unwrap()));
+        assert!(!is_hit(paper_score(at - 1, quarter).unwrap()));
+    }
+
+    #[test]
+    fn a_single_member_keeps_the_whole_score() {
+        assert_eq!(team_share(1), 1.0);
+        assert_eq!(team_share(0), 1.0);
+        assert!((team_share(3) - 1.0 / (1.0 + 3f64.ln())).abs() < 1e-12);
+    }
+
+    #[test]
+    fn missing_papers_count_as_zero_in_the_top_mean() {
+        assert_eq!(top_n_mean(&mut [4.0, 2.0], 4), 1.5);
+        assert_eq!(top_n_mean(&mut [1.0, 5.0, 3.0, 2.0], 2), 4.0);
+        assert_eq!(top_n_mean(&mut [], 20), 0.0);
+        assert_eq!(top_n_mean(&mut [3.0], 0), 0.0);
+    }
+
+    #[test]
+    fn h_counts_papers_cited_at_least_their_rank() {
+        assert_eq!(h_index(&mut [3, 3, 2]), 2);
+        assert_eq!(h_index(&mut [0]), 0);
+        assert_eq!(h_index(&mut []), 0);
+        assert_eq!(h_index(&mut [1]), 1);
+        assert_eq!(h_index(&mut [10, 8, 5, 4, 3]), 4);
+        assert_eq!(h_index(&mut [25, 8, 5, 3, 3]), 3);
+    }
+
+    #[test]
+    fn a_summary_reads_every_metric_in_one_pass() {
+        let bar = bar_of(100.0);
+        let papers = [
+            Paper {
+                citations: 400,
+                bar,
+                year: 2015,
+                team: 1,
+            },
+            Paper {
+                citations: 100,
+                bar,
+                year: 2005,
+                team: 3,
+            },
+            Paper {
+                citations: 150,
+                bar,
+                year: 2021,
+                team: 1,
+            },
+            Paper {
+                citations: 9,
+                bar: 0,
+                year: WORK_SCREEN.final_year,
+                team: 1,
+            },
+        ];
+        let s = summarize(papers.into_iter(), 2);
+        let s150 = 1.5f64.sqrt();
+        assert_eq!(s.scored, 3);
+        assert_eq!(s.hits, 2);
+        assert!((s.weighted - (2.0 + team_share(3) + s150)).abs() < 1e-12);
+        assert!((s.top_mean - (2.0 + s150) / 2.0).abs() < 1e-12);
+        assert_eq!(s.h_index, 4);
+        assert_eq!(s.h_since, [3, 2]);
+    }
+
+    #[test]
+    fn a_template_takes_the_constants_and_leaves_a_parameter() {
+        let vars = text_vars();
+        assert_eq!(
+            fill("{hit_multiple}× the top {top_share}", &vars),
+            "1.5× the top 1%"
+        );
+        assert_eq!(fill("{subfield} score", &vars), "{subfield} score");
+        assert_eq!(fill("{w_sf_year} {w_year}", &vars), "89.5% 10%");
+        assert_eq!(fill("a { b", &vars), "a { b");
+    }
+
+    #[test]
+    fn the_methodology_texts_resolve_every_placeholder() {
+        let vars = text_vars();
+        for t in [PAPER_SCORE_TEXTS, HIT_PAPER_TEXTS] {
+            for text in [t.label, t.meaning, t.rationale.unwrap_or("")] {
+                assert!(!fill(text, &vars).contains('{'), "{}: {text}", t.id);
             }
         }
     }
 
     #[test]
-    fn neither_volume_nor_rate_alone_carries_an_institution() {
-        let order = ranked(INSTITUTION_ANCHORS);
-        assert_eq!(order[0], "Harvard University");
-        for elite in ELITE_INSTITUTIONS {
-            for lower in UMBRELLA_ORGS.iter().chain(SMALL_SPECIALISTS) {
-                assert!(
-                    position(&order, elite) < position(&order, lower),
-                    "{elite} must outrank {lower}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn a_small_entity_cannot_outrank_a_large_one_on_one_paper() {
-        // Every paper a hit is the best an entity of its size can do, and that ceiling grows with
-        // size: no floor under the divisor is needed to keep a three-paper entity out of the top.
-        let perfect_but_tiny = impact_score(3, 3);
-        assert!(perfect_but_tiny < impact_score(4_200, 20_401));
-        assert!(impact_score(10, 10) < impact_score(100, 100));
-        assert_eq!(impact_score(0, 500), 0.0);
-        // Papers below one would divide by zero; an entity with a hit has at least one paper.
-        assert_eq!(impact_score(1, 0), 1.0);
-    }
-
-    #[test]
-    fn the_impact_score_is_a_weighted_geometric_mean_of_count_and_rate() {
-        let (hits, papers) = (4_200u32, 20_401u32);
-        let rate = hits as f64 / papers as f64;
-        let blended = (hits as f64).powf(1.0 - IMPACT_BETA) * rate.powf(IMPACT_BETA);
-        // The score is an f32, so the identity holds to that precision, not to f64's.
-        assert!((impact_score(hits, papers) as f64 / blended - 1.0).abs() < 1e-6);
+    fn field_score_is_size_adjusted_but_not_fooled_by_a_tiny_entity() {
+        let mean = 20.0;
+        let big_uni = field_score(50_000, 100_000, mean);
+        let institute = field_score(20_000, 2_000, mean);
+        assert!(institute > big_uni);
+        let one_hit = field_score(300, 3, mean);
+        let productive = field_score(3_000, 300, mean);
+        assert!(productive > one_hit);
+        let mega_hit = field_score(30_000, 3, mean);
+        assert!(mega_hit > productive);
     }
 
     fn rank_fields(counts: &[(usize, u32)], sizes: &[f64], mean: f64) -> Vec<usize> {
@@ -361,19 +550,6 @@ mod tests {
             rank_fields(&[(0, 3_000), (1, 300)], &sizes, mean),
             vec![0, 1]
         );
-    }
-
-    #[test]
-    fn field_score_is_size_adjusted_but_not_fooled_by_a_tiny_entity() {
-        let mean = 20.0;
-        let big_uni = field_score(50_000, 100_000, mean);
-        let institute = field_score(20_000, 2_000, mean);
-        assert!(institute > big_uni);
-        let one_hit = field_score(300, 3, mean);
-        let productive = field_score(3_000, 300, mean);
-        assert!(productive > one_hit);
-        let mega_hit = field_score(30_000, 3, mean);
-        assert!(mega_hit > productive);
     }
 
     #[test]
