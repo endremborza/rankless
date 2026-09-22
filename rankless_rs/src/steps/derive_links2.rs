@@ -14,11 +14,11 @@ use tqdm::{Iter, Tqdm};
 
 use crate::{
     common::{
-        init_empty_slice, BeS, CitSubfieldsArrayMarker, HIndexMarker, InstRelMarker,
-        MainWorkMarker, NumberedEntity, QuickAttPair, QuickMap, RefSubfieldsArrayMarker,
-        Top15AuthorMarker, Top3AffCountryMarker, TopJournalMarker, TopNCitingSfMarker,
-        TopNCitingTopicMarker, TopNPaperSfMarker, TopNPaperTopicMarker, WorkLoader,
-        YearCentroidMarker, YearlyCitationsMarker, YearlyPapersMarker, NET,
+        init_empty_slice, BeS, CitSubfieldsArrayMarker, InstRelMarker, MainWorkMarker,
+        NumberedEntity, QuickAttPair, QuickMap, RefSubfieldsArrayMarker, Top15AuthorMarker,
+        Top3AffCountryMarker, TopJournalMarker, TopNCitingSfMarker, TopNCitingTopicMarker,
+        TopNPaperSfMarker, TopNPaperTopicMarker, WorkLoader, YearCentroidMarker,
+        YearlyCitationsMarker, YearlyPapersMarker, NET,
     },
     env_consts::{FINAL_YEAR, START_YEAR},
     gen::{
@@ -482,7 +482,6 @@ impl CiteDeriver {
         let mut ext = ExtensionContainer::<Authors>::new();
         let mut source_paths = HashMap::<[ET<Sources>; 2], u32>::new();
         let mut sf_paths = HashMap::<[ET<Subfields>; 2], u32>::new();
-        let mut h_indices: Vec<u32> = Vec::new();
         let mut year_centroids: Vec<f32> = Vec::new();
 
         let iter = aworks.iter().enumerate().map(|(i, ws)| {
@@ -490,7 +489,7 @@ impl CiteDeriver {
             let mut path_base = HashSet::<ET<Sources>>::new();
             let mut sf_path_base = HashSet::<ET<Subfields>>::new();
             let mut yearly_papers = [0usize; MAX_YEAR + 1];
-            let mut cite_counts: Vec<usize> = ws
+            let citations = ws
                 .iter()
                 .map(|wid| {
                     let wu = wid.to_usize();
@@ -517,13 +516,12 @@ impl CiteDeriver {
                     }
                     ext.extend_get_ccount(eid, wid, &self, year)
                 })
-                .collect();
+                .sum();
             ext.push(eid, self);
             add_paths(path_base, &mut source_paths);
             add_paths(sf_path_base, &mut sf_paths);
-            h_indices.push(get_h_index_and_sort(&mut cite_counts));
             year_centroids.push(compute_career_centroid(&yearly_papers).unwrap_or(0.0));
-            cite_counts.iter().sum()
+            citations
         });
 
         add_iter_cc::<Authors, _>(&self.stowage, iter);
@@ -535,8 +533,6 @@ impl CiteDeriver {
         self.stowage
             .add_iter_owned::<FixAttBuilder, _, _>(sf_paths.into_iter(), "subfield-pairs-by-path");
         self.stowage
-            .ditf::<HIndexMarker, Authors, u32>(h_indices, "h-index");
-        self.stowage
             .ditf::<YearCentroidMarker, Authors, f32>(year_centroids, "year-centroid");
     }
 
@@ -545,7 +541,7 @@ impl CiteDeriver {
         let qy_map = self
             .stowage
             .get_entity_interface::<SourceYearQs, QuickMap>();
-        let mut source_stats = init_empty_slice::<Sources, ([u32; 2], u8)>();
+        let mut source_stats = init_empty_slice::<Sources, (u32, u8)>();
 
         let mut source_ext = ExtensionContainer::<Sources>::new();
         let iter = self.witer::<Sources>().map(|(i, ws)| {
@@ -566,9 +562,9 @@ impl CiteDeriver {
                 })
                 .collect();
             source_ext.push(sid, self);
-            let h = get_h_index_and_sort(&mut counts);
+            counts.sort_unstable();
             let median = *counts.get(counts.len() / 2).unwrap_or(&0) as u32;
-            source_stats[i] = ([h, median], best_q);
+            source_stats[i] = (median, best_q);
             counts.into_iter().sum()
         });
 
@@ -811,19 +807,6 @@ fn journal_quality(best_q: u8) -> u32 {
         4 => 1,
         _ => 0,
     }
-}
-
-fn get_h_index_and_sort<T>(counts: &mut Vec<T>) -> u32
-where
-    T: UnsignedNumber,
-{
-    counts.sort();
-    for (i, cc) in counts.iter().rev().enumerate() {
-        if i > cc.to_usize() {
-            return i as u32;
-        }
-    }
-    counts.len() as u32
 }
 
 fn add_iter_cc<E, I>(stowage: &Stowage, it: I)

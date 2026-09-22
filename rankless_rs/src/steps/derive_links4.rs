@@ -9,21 +9,23 @@ use dmove::{
 
 use crate::{
     common::{
-        init_empty_slice, reverse_id, CitRankLadderMarker, EmptyAttributeEntity, HitWorkMarker,
-        MainWorkMarker,
+        init_empty_slice, reverse_id, CitRankLadderMarker, EmptyAttributeEntity, HIndexMarker,
+        HIndexSinceMarker, HitWorkMarker, MainWorkMarker, ScoredPaperCountMarker,
+        TopMeanPaperScoreMarker, WeightedPaperScoreMarker,
     },
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
-        a2_init_atts::{WorkReferences, WorkYears},
-        derive_links1::WorkFilteredAuthors,
-        derive_links2::{SourceStats, WorkCitingCounts, WorkTopSource},
+        a2_init_atts::{AuthorNobels, WorkAnyAuthorships, WorkReferences, WorkYears},
+        derive_links1::{WorkFilteredAuthors, WorkInstitutions},
+        derive_links2::{SourceStats, WorkCitingCounts, WorkCountries, WorkTopSource},
         derive_links3::{
-            HitPapers, HitPapersCiteCounts, HitPapersDois, HitPapersNames, HitPapersWids,
+            HitPapers, HitPapersCiteCounts, HitPapersDois, HitPapersNames, HitPapersWids, WorkBars,
         },
     },
     ladder,
+    metrics::{summarize, top_n, Paper, PaperSetSummary, H_SINCE},
     peers::{self, PeerCalculator},
-    steps::derive_links3::get_nobeled_works,
+    steps::a1_entity_mapping::{YearInterface, Years},
     CiteCountMarker, NameExtensionMarker, NameMarker, QuickestBox, QuickestNumbered, QuickestVBox,
     ReadIter, Stowage,
 };
@@ -40,8 +42,8 @@ const DIRECT_MULTIPLIER: u64 = 3;
 const NOBEL_MULTIPLIER: u64 = 2;
 const TOP_HIT_PAPERS: usize = 50;
 
-fn citing_score(cite_count: ET<WorkCitingCounts>, stats: ([u32; 2], u8)) -> u64 {
-    let ([h, median], q) = stats;
+fn citing_score(cite_count: ET<WorkCitingCounts>, h: u32, stats: (u32, u8)) -> u64 {
+    let (median, q) = stats;
     let prestige = (5u32.saturating_sub(q as u32)) * h * 2 + median * 3;
     cite_count as u64 * CITE_COUNT_WEIGHT + prestige as u64 * SOURCE_PRESTIGE_WEIGHT + 1
 }
@@ -93,9 +95,27 @@ impl MarkedAttribute<NameExtensionMarker> for HitPapers {
     type AttributeEntity = EmptyAttributeEntity<String>;
 }
 
+// The per-work columns a paper is scored from.
+struct ScoreCols<'a> {
+    bars: &'a [ET<WorkBars>],
+    citations: &'a [ET<WorkCitingCounts>],
+    years: &'a [ET<Years>],
+}
+
 struct HitPaperPeerCtx {
     pub filter: Vec<bool>,
     cit_counts: Box<[ET<HitPapersCiteCounts>]>,
+}
+
+impl ScoreCols<'_> {
+    fn paper(&self, wid: usize, team: Option<&[u16]>) -> Paper {
+        Paper {
+            citations: self.citations[wid].to_usize() as u32,
+            bar: self.bars[wid],
+            year: YearInterface::reverse(self.years[wid]),
+            team: team.map_or(1, |t| t[wid] as usize),
+        }
+    }
 }
 
 impl HitPaperPeerCtx {
@@ -137,6 +157,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let w_years = stowage.get_entity_interface::<WorkYears, QuickestBox>();
     let ss = stowage.get_entity_interface::<SourceStats, QuickestBox>();
     let nobeled_works = get_nobeled_works(&stowage, &w_years);
+    let source_h = score_roots(&stowage, &wcc, &w_years);
 
     let parc = Arc::new((stowage, hit_map, wcc));
     para_multi_gen_run!(sorted_hit_papers, Institutions, Authors, Countries, Sources, Subfields, Topics; parc).last();
@@ -153,6 +174,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         let wref = &wor_refs;
         let wa = &w2a;
         let ss_r = &ss;
+        let sh_r = &source_h;
         let wts_r = &wts;
         let nb = &nobeled_works;
         let par = &parc;
@@ -165,8 +187,8 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
                 for &(hp_wid_big, hp_id) in hp {
                     let hp_widu = hp_wid_big.to_usize();
                     let hp_authors: HashSet<ET<Authors>> = wa.0[hp_widu].iter().copied().collect();
-                    let mut base_score =
-                        citing_score(par.2[hp_widu], ss_r[wts_r[hp_widu] as usize]);
+                    let src = wts_r[hp_widu] as usize;
+                    let mut base_score = citing_score(par.2[hp_widu], sh_r[src], ss_r[src]);
                     if nb.contains(&ET::<Works>::from_usize(hp_widu)) {
                         base_score *= NOBEL_MULTIPLIER;
                     }
@@ -272,4 +294,96 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
 
     parc.0.write_code()?;
     Ok(())
+}
+
+// Every score-based column of every peer root, one `summarize` per entity; returns the sources'
+// h-indices, which weigh a hit paper's journal.
+fn score_roots(
+    stowage: &Stowage,
+    citations: &[ET<WorkCitingCounts>],
+    years: &[ET<Years>],
+) -> Box<[u32]> {
+    let bars = stowage.get_entity_interface::<WorkBars, QuickestBox>();
+    let cols = ScoreCols {
+        bars: &bars,
+        citations,
+        years,
+    };
+    let author_teams = team_sizes(stowage.get_entity_interface::<WorkAnyAuthorships, ReadIter>());
+    let inst_teams = team_sizes(stowage.get_entity_interface::<WorkInstitutions, ReadIter>());
+    let country_teams = team_sizes(stowage.get_entity_interface::<WorkCountries, ReadIter>());
+    let cols = &cols;
+    std::thread::scope(|s| {
+        s.spawn(|| score_root::<Authors>(stowage, cols, Some(&author_teams), false));
+        s.spawn(|| score_root::<Institutions>(stowage, cols, Some(&inst_teams), true));
+        s.spawn(|| score_root::<Countries>(stowage, cols, Some(&country_teams), true));
+        s.spawn(|| score_root::<Subfields>(stowage, cols, None, true));
+        score_root::<Sources>(stowage, cols, None, true)
+    })
+}
+
+// `team` holds each work's member count of the root's kind, None for a root without a weighted
+// total; `since` adds the recent h-indices; a root without a Top-N gets no top mean.
+fn score_root<E>(
+    stowage: &Stowage,
+    cols: &ScoreCols,
+    team: Option<&[u16]>,
+    since: bool,
+) -> Box<[u32]>
+where
+    E: Entity + MarkedAttribute<MainWorkMarker>,
+    MAA<E, MainWorkMarker>: Entity<T = Box<[ET<Works>]>> + NamespacedEntity + VariableSizeAttribute,
+{
+    let n = top_n(E::NAME).unwrap_or(0);
+    let sums: Vec<PaperSetSummary> = stowage
+        .get_entity_interface::<MAA<E, MainWorkMarker>, ReadIter>()
+        .map(|ws| summarize(ws.iter().map(|w| cols.paper(w.to_usize(), team)), n))
+        .collect();
+    let h: Box<[u32]> = sums.iter().map(|s| s.h_index).collect();
+    stowage.ditf::<ScoredPaperCountMarker, E, u32>(
+        sums.iter().map(|s| s.scored).collect(),
+        "scored-paper-count",
+    );
+    stowage.ditf::<HIndexMarker, E, u32>(h.to_vec(), "h-index");
+    if since {
+        stowage.ditf::<HIndexSinceMarker, E, [u32; H_SINCE.len()]>(
+            sums.iter().map(|s| s.h_since).collect(),
+            "h-index-since",
+        );
+    }
+    if team.is_some() {
+        stowage.ditf::<WeightedPaperScoreMarker, E, f32>(
+            sums.iter().map(|s| s.weighted as f32).collect(),
+            "weighted-paper-score",
+        );
+    }
+    if n > 0 {
+        stowage.ditf::<TopMeanPaperScoreMarker, E, f32>(
+            sums.iter().map(|s| s.top_mean as f32).collect(),
+            "top-mean-paper-score",
+        );
+    }
+    h
+}
+
+fn team_sizes<T>(rows: impl Iterator<Item = Box<[T]>>) -> Box<[u16]> {
+    rows.map(|r| r.len() as u16).collect()
+}
+
+fn get_nobeled_works(stowage: &Stowage, w_years: &[ET<Years>]) -> HashSet<ET<Works>> {
+    let author_nobels = stowage.get_entity_interface::<AuthorNobels, QuickestBox>();
+    let mut nobeled_works = HashSet::new();
+    for (wid, w_aids) in stowage
+        .get_entity_interface::<WorkFilteredAuthors, ReadIter>()
+        .enumerate()
+    {
+        let wyear = w_years[wid];
+        for aid in w_aids {
+            let anobely = author_nobels[aid.to_usize()].1;
+            if anobely >= wyear {
+                nobeled_works.insert(ET::<Works>::from_usize(wid));
+            }
+        }
+    }
+    nobeled_works
 }
