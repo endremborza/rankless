@@ -1,37 +1,12 @@
-use std::collections::BinaryHeap;
-
-use dmove::{Entity, UnsignedNumber, ET, MAA};
-use hashbrown::{HashMap, HashSet};
+use dmove::{UnsignedNumber, ET, MAA};
+use hashbrown::HashMap;
 
 use crate::{
-    common::init_empty_slice,
-    gen::{
-        a1_entity_mapping::Works, a2_init_atts::AuthorNobels, derive_links1::WorkFilteredAuthors,
-    },
-    metrics::HIT_RULE,
-    steps::a1_entity_mapping::Years,
-    CiteCountMarker, QuickestBox, ReadIter, Stowage,
+    common::init_empty_slice, gen::a1_entity_mapping::Works, metrics::PAPER_SCORE,
+    steps::a1_entity_mapping::Years, CiteCountMarker,
 };
 
 pub(super) type CCUI = ET<MAA<Works, CiteCountMarker>>;
-
-pub fn get_nobeled_works(stowage: &Stowage, w_years: &[ET<Years>]) -> HashSet<ET<Works>> {
-    let author_nobels = stowage.get_entity_interface::<AuthorNobels, QuickestBox>();
-    let mut nobeled_works = HashSet::new();
-    for (wid, w_aids) in stowage
-        .get_entity_interface::<WorkFilteredAuthors, ReadIter>()
-        .enumerate()
-    {
-        let wyear = w_years[wid];
-        for aid in w_aids {
-            let anobely = author_nobels[aid.to_usize()].1;
-            if anobely >= wyear {
-                nobeled_works.insert(ET::<Works>::from_usize(wid));
-            }
-        }
-    }
-    nobeled_works
-}
 
 pub(super) fn compute_year_bms(w_years: &[ET<Years>], ccs: &[CCUI]) -> Box<[f64]> {
     let mut groups = init_empty_slice::<Years, Vec<CCUI>>();
@@ -62,7 +37,7 @@ pub(super) fn compute_sf_year_bms(
     groups
         .into_iter()
         .map(|((sf, yr), mut v)| {
-            let bm = if v.len() >= HIT_RULE.sf_year_min_papers {
+            let bm = if v.len() >= PAPER_SCORE.sf_year_min_papers {
                 top_pctile(&mut v)
             } else {
                 year_bms[yr]
@@ -110,37 +85,7 @@ pub(super) fn paper_bm(
         .map(|sf| *sf_bms.get(&sf.to_usize()).unwrap_or(&yr_bm))
         .sum::<f64>()
         / n;
-    HIT_RULE.w_sf_year * sf_year_avg + HIT_RULE.w_sf * sf_avg + HIT_RULE.w_year * yr_bm
-}
-
-pub(super) fn get_limits<E, I, I2, U>(n: usize, it: I, ccs: &Box<[CCUI]>) -> Box<[CCUI]>
-where
-    E: Entity,
-    I: Iterator<Item = I2>,
-    I2: Iterator<Item = U>,
-    U: UnsignedNumber,
-{
-    let mut count_heaps = init_empty_slice::<E, BinaryHeap<CCUI>>();
-    it.enumerate().for_each(|(wid, atts)| {
-        atts.for_each(|a| count_heaps[a.to_usize()].push(ccs[wid]));
-    });
-    count_heaps
-        .to_vec()
-        .into_iter()
-        .map(|e| topn(e, n))
-        .collect::<Vec<CCUI>>()
-        .into()
-}
-
-fn topn(mut h: BinaryHeap<CCUI>, n: usize) -> CCUI {
-    let mut out = CCUI::MAX;
-    for _ in 0..n {
-        match h.pop() {
-            Some(e) => out = e,
-            None => break,
-        }
-    }
-    out
+    PAPER_SCORE.w_sf_year * sf_year_avg + PAPER_SCORE.w_sf * sf_avg + PAPER_SCORE.w_year * yr_bm
 }
 
 pub(super) fn top_pctile(ccs: &mut Vec<CCUI>) -> f64 {
@@ -148,7 +93,7 @@ pub(super) fn top_pctile(ccs: &mut Vec<CCUI>) -> f64 {
         return 0.0;
     }
     ccs.sort_unstable_by(|a, b| b.cmp(a));
-    let top_n = ((ccs.len() as f64 * HIT_RULE.top_pctile).ceil() as usize)
+    let top_n = ((ccs.len() as f64 * PAPER_SCORE.top_share).ceil() as usize)
         .max(1)
         .min(ccs.len());
     ccs[top_n - 1].to_usize() as f64

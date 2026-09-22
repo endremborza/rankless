@@ -7,12 +7,17 @@ use hashbrown::HashMap;
 use crate::{
     common::{MainWorkMarker, TopicDominatorMarker},
     gen::a1_entity_mapping::{Topics, Works},
-    metrics::HIT_RULE,
     steps::a1_entity_mapping::{YearInterface, Years},
     ReadIter, Stowage,
 };
 
 use super::hit_papers::CCUI;
+
+// A topic's earliest paper counts as its creator only for a topic first seen in this year or later:
+// the start of the data would otherwise manufacture originators for old topics.
+const CREATOR_CUTOFF_YEAR: u16 = 2000;
+// Citations a creator needs to be named one.
+const MIN_CREATOR_CITATIONS: usize = 50;
 
 // Dominator: a topic is too small for a citation share to be meaningful below this many papers.
 const _MIN_DOM_TOPIC_PAPERS: u32 = 50;
@@ -34,7 +39,7 @@ pub(super) fn compute_creators(
     w_years: &[ET<Years>],
     cc: &[CCUI],
 ) -> (HashMap<ET<Works>, ET<Topics>>, Box<[u32]>) {
-    let cutoff = YearInterface::parse(HIT_RULE.creator_cutoff_year);
+    let cutoff = YearInterface::parse(CREATOR_CUTOFF_YEAR);
     let mut rec: Vec<Option<(ET<Years>, CCUI, ET<Works>)>> = vec![None; Topics::N + 1];
     let mut papers_in_t = vec![0u32; Topics::N + 1];
     for (wid, topics) in w_topics.iter().enumerate() {
@@ -58,7 +63,7 @@ pub(super) fn compute_creators(
             continue;
         }
         if let Some((y, c, wid)) = r {
-            if y >= cutoff && c.to_usize() >= HIT_RULE.min_creator_citations {
+            if y >= cutoff && c.to_usize() >= MIN_CREATOR_CITATIONS {
                 creates.entry(wid).or_insert(ET::<Topics>::from_usize(ti));
             }
         }

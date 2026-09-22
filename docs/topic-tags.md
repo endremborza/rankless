@@ -3,8 +3,8 @@
 Two tags derived in `derive_links3` (`steps/derive_links3/topic_tags.rs`) that mark papers and
 entities by their relationship to a **topic** (the finest discipline level, 4516 of them).
 
-- **Topic creator** — a _paper_ tag: the earliest impactful paper of a topic. Forces the paper into
-  the hit-paper set and renders a badge.
+- **Topic creator** — a _paper_ tag: the earliest impactful paper of a topic. Annotates a hit paper
+  with a badge; it admits no paper into the hit-paper set.
 - **Topic dominator** — an _entity_ tag (authors / institutions / countries / sources): the entity
   captures a large share of a topic's incoming citations. Renders a "Topic Leadership" section.
 
@@ -14,8 +14,8 @@ entities by their relationship to a **topic** (the finest discipline level, 4516
 
 For each topic, the earliest-published paper **assigned that topic** (tiebroken by citations) that
 clears a citation floor, restricted to topics whose first paper is published in
-`creator_cutoff_year` or later. Such a paper qualifies as a hit paper even if its citations alone
-would not.
+`CREATOR_CUTOFF_YEAR` or later. The tag is recorded for hit papers only; whether a paper is a hit
+is the paper score's alone.
 
 - Topic membership uses **any** assignment (not the primary topic — see [extensions](#future-extensions)).
 - Stored as the `HitPapersCreatedTopic` attribute next to the other `hit-papers-*` data; surfaced on
@@ -41,12 +41,12 @@ entity type**. Subfields and topics-as-entity are excluded.
 
 ## Tuning constants
 
-The creator constants are part of the hit-paper rule, so they are fields of `HIT_RULE` in `rankless_rs/src/metrics.rs` and served with it at `/v1/methodology`; the rest are in `topic_tags.rs` (env-independent for now):
+All constants are in `topic_tags.rs` (env-independent for now):
 
 | Constant | Value | Meaning |
 | --- | --- | --- |
-| `HIT_RULE.creator_cutoff_year` | 2000 | Min first-paper year for a topic to be eligible |
-| `HIT_RULE.min_creator_citations` | 50 | Citation floor for a creator paper (≥ `HIT_RULE.min_needed`) |
+| `CREATOR_CUTOFF_YEAR` | 2000 | Min first-paper year for a topic to be eligible |
+| `MIN_CREATOR_CITATIONS` | 50 | Citation floor for a creator paper |
 | `MIN_DOM_TOPIC_PAPERS` | 50 | Skip topics too small for a share to be meaningful |
 | `DOM_PCT_AUTHORS` | 0.02 | Cited-share threshold, authors |
 | `DOM_PCT_INSTITUTIONS` | 0.10 | Cited-share threshold, institutions |

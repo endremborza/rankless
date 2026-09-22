@@ -1,14 +1,13 @@
 use std::{ops::AddAssign, sync::Arc};
 
 use dmove::{
-    BigId, Data64MappedEntityBuilder, DowncastingBuilder, Entity, MarkedAttribute,
+    BigId, Data64MappedEntityBuilder, DowncastingBuilder, Entity, FixAttBuilder, MarkedAttribute,
     NamespacedEntity, UnsignedNumber, VarAttBuilder, VariableSizeAttribute, ET, MAA,
 };
 use hashbrown::HashMap;
 
 use crate::{
     common::{CitRankLadderMarker, MainWorkMarker, YearlyPapersMarker},
-    env_consts::FINAL_YEAR,
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{WorkDois, WorkTopics, WorkYears, WorksNames},
@@ -16,7 +15,7 @@ use crate::{
         derive_links2::{AuthorWorks, SourceStats},
     },
     ladder,
-    metrics::HIT_RULE,
+    metrics::{encode_bar, is_hit, is_scored, paper_score, EncodedBar},
     peers,
     steps::a1_entity_mapping::YearInterface,
     CiteCountMarker, QuickestBox, QuickestVBox, ReadIter, Stowage, WorkCountMarker,
@@ -27,7 +26,6 @@ mod hit_papers;
 mod peer_ctx;
 mod topic_tags;
 
-pub use hit_papers::get_nobeled_works;
 pub use peer_ctx::AuthorPeerCtx;
 
 pub(super) fn dec_work_count<E: Entity, I: Iterator<Item = usize>>(stowage: &Stowage, it: I) {
@@ -56,20 +54,29 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
             h_doi.join().unwrap(),
         )
     });
-    let nobeled_works = get_nobeled_works(&starc, &w_years);
-
-    let topic_limits = hit_papers::get_limits::<Topics, _, _, _>(
-        HIT_RULE.top_topic,
-        w_topics.0.iter().map(|e| e.iter().map(|se| *se)),
-        &cc_interface,
-    );
-
     let (year_bms, sf_bms) = std::thread::scope(|s| {
         let h1 = s.spawn(|| hit_papers::compute_year_bms(&w_years, &cc_interface));
         let h2 = s.spawn(|| hit_papers::compute_sf_bms(&w_sfs.0, &cc_interface));
         (h1.join().unwrap(), h2.join().unwrap())
     });
     let sf_year_bms = hit_papers::compute_sf_year_bms(&w_sfs.0, &w_years, &cc_interface, &year_bms);
+    let work_bars: Box<[EncodedBar]> = w_years
+        .iter()
+        .enumerate()
+        .map(|(wid, year)| {
+            if !is_scored(YearInterface::reverse(*year)) {
+                return 0;
+            }
+            let yi = year.to_usize();
+            encode_bar(hit_papers::paper_bm(
+                &w_sfs.0[wid],
+                yi,
+                &sf_year_bms,
+                &sf_bms,
+                &year_bms,
+            ))
+        })
+        .collect();
 
     let (creates_topic, _topic_paper_counts) =
         topic_tags::compute_creators(&w_topics.0, &w_years, &cc_interface);
@@ -78,53 +85,21 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
     let mut hit_names = vec!["Unknown".to_string()];
     let mut hit_dois = vec!["".to_string()];
     let mut hit_ccounts = vec![0];
-    let mut hit_bms = vec![0usize];
     let mut hit_wids = vec![vec![].into_boxed_slice()];
     let mut hit_created_topics = vec![0usize];
-    let this_year = YearInterface::parse(FINAL_YEAR);
 
     let hit_papers = name_interface.enumerate().filter_map(|(wid, name)| {
-        if w_years[wid] >= this_year {
+        let cc_n = cc_interface[wid].to_usize();
+        if !paper_score(cc_n as u32, work_bars[wid]).is_some_and(is_hit) {
             return None;
         }
-        let widt = ET::<Works>::from_usize(wid);
-        let wcc = cc_interface[wid];
-        let cc_n = wcc.to_usize();
-        let year = w_years[wid].to_usize();
-
-        let reaches_any_topic_limit = w_topics.0[wid]
-            .iter()
-            .any(|e| topic_limits[e.to_usize()] <= wcc);
-        let multiplier = if nobeled_works.contains(&widt) {
-            HIT_RULE.nobel_multiplier
-        } else {
-            1.0
-        };
-        let bm = hit_papers::paper_bm(&w_sfs.0[wid], year, &sf_year_bms, &sf_bms, &year_bms);
-        let score = if bm > 0.0 {
-            cc_n as f64 / bm * multiplier
-        } else {
-            0.0
-        };
-
-        let created = creates_topic.get(&widt).copied();
-        let qualifies = (cc_n >= HIT_RULE.min_needed)
-            & (cc_n >= HIT_RULE.min_universal
-                || reaches_any_topic_limit
-                || score >= HIT_RULE.score_threshold
-                || created.is_some());
-
-        if qualifies {
-            hit_names.push(name);
-            hit_dois.push(doi_interface.0[wid].to_string());
-            hit_ccounts.push(cc_n);
-            hit_bms.push(bm.round() as usize);
-            hit_wids.push(vec![wid as ET<Works>].into_boxed_slice());
-            hit_created_topics.push(created.map(|t| t.to_usize()).unwrap_or(0));
-            Some(wid as BigId)
-        } else {
-            None
-        }
+        let created = creates_topic.get(&ET::<Works>::from_usize(wid)).copied();
+        hit_names.push(name);
+        hit_dois.push(doi_interface.0[wid].to_string());
+        hit_ccounts.push(cc_n);
+        hit_wids.push(vec![wid as ET<Works>].into_boxed_slice());
+        hit_created_topics.push(created.map(|t| t.to_usize()).unwrap_or(0));
+        Some(wid as BigId)
     });
 
     let w2amap = starc
@@ -160,7 +135,7 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
         hit_ccounts.into_iter(),
         "hit-papers-cite-counts",
     );
-    starc.add_iter_owned::<DowncastingBuilder, _, _>(hit_bms.into_iter(), "hit-papers-benchmarks");
+    starc.add_barr::<FixAttBuilder, _>(work_bars, "work-bars");
     starc.add_iter_owned::<DowncastingBuilder, _, _>(
         hit_created_topics.into_iter(),
         "hit-papers-created-topic",
