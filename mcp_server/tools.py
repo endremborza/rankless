@@ -22,6 +22,8 @@ from mcp_server.response_shaping import (
 )
 
 _specs_cache: dict | None = None
+# Each root type's default ordering, from the registry `describe()` reads.
+_default_sorts: dict[str, str] = {}
 
 MAX_RANK_LIMIT = 100
 MAX_ANNOTATE_IDS = 24
@@ -38,20 +40,21 @@ type, or two years. A `where` expression combines clauses `metric op value` with
 `not` and parentheses (precedence: parentheses, not, and, or). Numbers take `= != < <= > >=`
 and `in (1, 2)`; entity-valued metrics (country, city) take `= != in not in` with a
 semantic_id or a quoted name, e.g. `country = hun and city != budapest and (papers >= 500 or
-impact_score >= 20)`. On a set-valued metric (an author's countries) `=` means any equals and
+weighted_paper_score >= 20)`. On a set-valued metric (an author's countries) `=` means any equals and
 `!=` none does."""
 
 RANK_DOC = """\
 Rank the entities of one type by a metric call, narrowed by a `where` expression; the way to
-answer "which {{entity_type}} are strongest / biggest in ...". `total` is the size of the
+answer "which {{entity_type}} are strongest / biggest in ...". Without `sort` a type is ranked by
+its default ({defaults}). `total` is the size of the
 narrowed cohort; `screened` is set when a per-entity metric ranks (or narrows) only the cohort's
 top 1000 by citations, and then `rank` is within those 1000, not within `total`. Rows carry every metric column the ranking
 makes available (`columns` lists them) and `rankless_url` opens the same table on the site.
 
 {expressions}
 
-Metrics (global = ranks and narrows the whole cohort; per-entity = the top 1000 by citations;
-a walk = a page column for annotate_entities only, never a ranking or a clause):
+Metrics per type (global = ranks and narrows the whole cohort; per-entity = the top 1000 by
+citations; a walk = a page column for annotate_entities only, never a ranking or a clause):
 {metrics}
 """
 
@@ -238,12 +241,13 @@ def _row(row: dict, entity_type: str) -> dict:
 
 async def rank_entities(
     entity_type: str,
-    sort: str = "citations",
+    sort: str | None = None,
     where: str | None = None,
     offset: int = 0,
     limit: int = 20,
 ) -> dict:
     _check_etype(entity_type)
+    sort = sort or _default_sorts[entity_type]
     limit = max(1, min(limit, MAX_RANK_LIMIT))
     params = {"sort": sort, "where": where}
     page = await get_json(f"/slice/{entity_type}/{offset}/{offset + limit}", params)
@@ -292,10 +296,6 @@ async def annotate_entities(
     return {"metrics": keys, "entities": entities}
 
 
-def _roots(m: dict, kind: str) -> list[str]:
-    return [root for root, k in m["kinds"].items() if k == kind]
-
-
 def _signature(m: dict) -> str:
     param = m.get("param")
     return (
@@ -304,31 +304,32 @@ def _signature(m: dict) -> str:
 
 
 def describe(registry: dict) -> None:
-    """Fill the table tools' docstrings from the backend's metric registry."""
+    """Fill the table tools' docstrings from the backend's metric registry, one block per
+    root type since a metric's texts and kind are the root's."""
     rank_lines, annotate_lines = [], []
-    for m in registry["metrics"]:
-        vtype = m["value"]["type"]
-        entity = m["value"].get("entity")
-        typed = f"[{vtype} of {entity}]" if entity else f"[{vtype}]"
-        line = f"- {_signature(m)} {typed}: {m['meaning']}"
-        if m["cost"] == "walk":
-            annotate_lines.append(f"{line} For {', '.join(m['kinds'])}.")
-            rank_lines.append(f"{line} A walk, for {', '.join(m['kinds'])}.")
+    for root, reg in registry["roots"].items():
+        if root not in ROOT_TYPES:
             continue
-        glob, per = _roots(m, "global"), _roots(m, "intricate")
-        where = "; ".join(
-            s
-            for s in (
-                f"global for {', '.join(glob)}" if glob else "",
-                f"per-entity for {', '.join(per)}" if per else "",
-            )
-            if s
-        )
-        rank_lines.append(f"{line} {where}.")
-        if per:
-            annotate_lines.append(f"{line} For {', '.join(per)}.")
+        _default_sorts[root] = reg["defaultSort"]
+        rank_lines.append(f"{root}:")
+        annotate_lines.append(f"{root}:")
+        for m in reg["metrics"]:
+            vtype = m["value"]["type"]
+            entity = m["value"].get("entity")
+            typed = f"[{vtype} of {entity}]" if entity else f"[{vtype}]"
+            line = f"- {_signature(m)} {typed}: {m['meaning']}"
+            if m["cost"] == "walk":
+                annotate_lines.append(line)
+                rank_lines.append(f"{line} A walk.")
+                continue
+            per = m["kind"] == "intricate"
+            rank_lines.append(f"{line} {'Per-entity' if per else 'Global'}.")
+            if per:
+                annotate_lines.append(line)
     rank_entities.__doc__ = RANK_DOC.format(
-        expressions=EXPRESSIONS, metrics="\n".join(rank_lines)
+        expressions=EXPRESSIONS,
+        defaults=", ".join(f"{r} by {s}" for r, s in _default_sorts.items()),
+        metrics="\n".join(rank_lines),
     )
     annotate_entities.__doc__ = ANNOTATE_DOC.format(
         max_ids=MAX_ANNOTATE_IDS,

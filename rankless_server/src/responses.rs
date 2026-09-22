@@ -6,12 +6,13 @@ use serde::{Deserialize, Serialize};
 
 use rankless_rs::{
     gen::a2_init_atts::WorkBiblios,
+    metrics::Methodology,
     steps::{a1_entity_mapping::RawYear, derive_links2::EraRec},
 };
 use rankless_trees::{
     interfacing::RootColumns,
     io::EntityAttsForLinks,
-    metrics::{Kind, MetricDecl},
+    metrics::{Cost, ItemTexts, Kind, MetricTexts, Param, ValueType},
     path_finder::RefDAG,
 };
 
@@ -68,14 +69,36 @@ pub(crate) struct SliceResp {
 // beside the declaration rather than in it.
 #[derive(Serialize)]
 pub(crate) struct ColumnDecl {
+    pub id: &'static str,
     #[serde(flatten)]
-    pub decl: &'static MetricDecl,
-    pub kinds: HashMap<&'static str, Kind>,
+    pub texts: MetricTexts,
+    pub value: ValueType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub param: Option<Param>,
+    pub cost: Cost,
+    pub kind: Kind,
+}
+
+// One root type's registry: the metrics it has, their texts as it shows them, and the metric its
+// table is ordered by by default.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RootRegistry {
+    pub default_sort: &'static str,
+    pub metrics: Vec<ColumnDecl>,
 }
 
 #[derive(Serialize)]
 pub(crate) struct ColumnRegistry {
-    pub metrics: Vec<ColumnDecl>,
+    pub roots: HashMap<&'static str, RootRegistry>,
+}
+
+// The methodology constants and the texts filled from them.
+#[derive(Serialize)]
+pub(crate) struct MethodologyOut {
+    #[serde(flatten)]
+    pub constants: &'static Methodology,
+    pub texts: Vec<ItemTexts>,
 }
 
 // Page-local metric values, one column per requested call keyed by its canonical text, each

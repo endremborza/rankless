@@ -3,6 +3,7 @@ import type {
 	MetricKind,
 	MetricValuesResp,
 	NamedEntity,
+	RootRegistry,
 	RootType,
 	SliceMeta,
 	SliceResp,
@@ -14,7 +15,6 @@ import type {
 } from './tree-types';
 
 export const TABLE_PAGE_SIZE = 100;
-export const DEFAULT_SORT = 'citations';
 
 export type MetricArgs = WhereArg[];
 
@@ -32,6 +32,8 @@ export type MetricValues = Record<number, number | null>;
 
 // A `/slice` page as the client holds it: the response shape plus the backend's objection if any.
 export type Slice = SliceResp & { error: string | null };
+
+export const EMPTY_REGISTRY: RootRegistry = { defaultSort: 'citations', metrics: [] };
 
 export const EMPTY_META: SliceMeta = { total: 0, screened: null, columns: [] };
 export const EMPTY_SLICE: Slice = { rows: [], meta: EMPTY_META, error: null };
@@ -64,8 +66,8 @@ const OP_LABEL: Record<WhereOp, string> = {
 export const NUMERIC_OPS: WhereOp[] = ['ge', 'le', 'gt', 'lt', 'eq', 'ne'];
 export const ENTITY_OPS: WhereOp[] = ['eq', 'ne'];
 
-export function metricsFor(registry: MetricDecl[], rootType: RootType, kind: MetricKind) {
-	return registry.filter((m) => m.kinds[rootType] === kind);
+export function metricsFor(registry: MetricDecl[], kind: MetricKind) {
+	return registry.filter((m) => m.kind === kind);
 }
 
 export function isNumeric(m: MetricDecl) {
@@ -74,24 +76,21 @@ export function isNumeric(m: MetricDecl) {
 
 // Metrics that may rank the cohort: every numeric column-read metric of the root; a per-entity
 // one ranks the top 1000 by citations.
-export function rankable(registry: MetricDecl[], rootType: RootType) {
-	return registry.filter((m) => m.kinds[rootType] && isNumeric(m) && m.cost === 'read');
+export function rankable(registry: MetricDecl[]) {
+	return registry.filter((m) => isNumeric(m) && m.cost === 'read');
 }
 
 // Metrics the column adder offers: whatever the cohort's rows do not carry by themselves — every
 // parameterized or per-entity metric, and the tree walks.
-export function annotatable(registry: MetricDecl[], rootType: RootType) {
+export function annotatable(registry: MetricDecl[]) {
 	return registry.filter(
-		(m) =>
-			m.kinds[rootType] &&
-			isNumeric(m) &&
-			(m.param !== undefined || m.kinds[rootType] === 'intricate' || m.cost === 'walk')
+		(m) => isNumeric(m) && (m.param !== undefined || m.kind === 'intricate' || m.cost === 'walk')
 	);
 }
 
 // Metrics a clause may test: every column read of the root.
-export function clauseable(registry: MetricDecl[], rootType: RootType) {
-	return registry.filter((m) => m.kinds[rootType] && m.cost === 'read');
+export function clauseable(registry: MetricDecl[]) {
+	return registry.filter((m) => m.cost === 'read');
 }
 
 export function operatorsFor(m: MetricDecl) {
@@ -227,9 +226,11 @@ export function sortRows<T>(rows: T[], value: (r: T) => number | null | undefine
 		.map((x) => x.r);
 }
 
-function queryString(q: TableQuery, withDefaults: boolean) {
+// `defaultSort` is left out of a page link, which the root's default restores; a slice request
+// always names its sort.
+function queryString(q: TableQuery, defaultSort?: string) {
 	const p = new URLSearchParams();
-	if (q.sort && (withDefaults || q.sort !== DEFAULT_SORT)) p.set('sort', q.sort);
+	if (q.sort && q.sort !== defaultSort) p.set('sort', q.sort);
 	if (q.where) p.set('where', q.where);
 	if (q.pin?.length) p.set('pin', q.pin.join(','));
 	if (q.from) p.set('from', String(q.from));
@@ -237,12 +238,12 @@ function queryString(q: TableQuery, withDefaults: boolean) {
 	return qs ? `?${qs}` : '';
 }
 
-export function tableHref(rootType: RootType, q: TableQuery) {
-	return `/${rootType}/table${queryString(q, false)}`;
+export function tableHref(rootType: RootType, q: TableQuery, defaultSort?: string) {
+	return `/${rootType}/table${queryString(q, defaultSort)}`;
 }
 
 export function sliceUrl(base: string, rootType: RootType, from: number, q: TableQuery) {
-	const qs = queryString({ ...q, from: undefined }, true);
+	const qs = queryString({ ...q, from: undefined });
 	return `${base}/slice/${rootType}/${from}/${from + TABLE_PAGE_SIZE}${qs}`;
 }
 

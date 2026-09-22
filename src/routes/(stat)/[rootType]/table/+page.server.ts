@@ -5,7 +5,7 @@ import { BE_URL, COHORT_ROOT_TYPES } from '$lib/constants';
 import {
 	byName,
 	chipsFrom,
-	DEFAULT_SORT,
+	EMPTY_REGISTRY,
 	EMPTY_SLICE,
 	fetchSlice,
 	fetchWhere,
@@ -17,21 +17,20 @@ import {
 
 export const ssr = true;
 
-const EMPTY: MetricRegistry = { metrics: [] };
-
 export const load: PageServerLoad = async ({ params, url, fetch }) => {
 	const rootType = params.rootType as RootType;
 	if (!COHORT_ROOT_TYPES.includes(rootType)) {
 		error(404, 'Not found');
 	}
-	const { metrics: registry } = await fetch(`${BE_URL}/columns`)
-		.then((r) => (r.ok ? (r.json() as Promise<MetricRegistry>) : EMPTY))
-		.catch(() => EMPTY);
+	const { defaultSort, metrics: registry } = await fetch(`${BE_URL}/columns`)
+		.then((r) => (r.ok ? (r.json() as Promise<MetricRegistry>) : null))
+		.then((reg) => reg?.roots[rootType] ?? EMPTY_REGISTRY)
+		.catch(() => EMPTY_REGISTRY);
 	const sp = url.searchParams;
 	// The query is handed to the backend as typed: it is the one parser, and its objection is
 	// shown on the page.
 	const query: TableQuery = {
-		sort: sp.get('sort') || DEFAULT_SORT,
+		sort: sp.get('sort') || defaultSort,
 		where: sp.get('where') ?? ''
 	};
 	const from = Math.max(0, parseInt(sp.get('from') ?? '0') || 0);
@@ -68,6 +67,7 @@ export const load: PageServerLoad = async ({ params, url, fetch }) => {
 		chips: query.where && !parsed ? null : chipsFrom(parsed),
 		field,
 		registry,
+		defaultSort,
 		subfields,
 		countries,
 		ladder

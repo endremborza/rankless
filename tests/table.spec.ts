@@ -109,7 +109,7 @@ test('a header click sorts the loaded rows only and leaves the ranking alone', a
 	expect(nonIncreasing(await column(page, 'Papers'))).toBeTruthy();
 	expect(sorted(await ranks(page))).toEqual(before);
 	expect(page.url()).not.toMatch(/sort=/);
-	await expect(page.locator('th.ranked')).toContainText('Citations');
+	await expect(page.locator('th.ranked')).toContainText('Weighted total paper score');
 	await page.locator('thead th', { hasText: /^Papers/ }).click();
 	expect(nonDecreasing(await column(page, 'Papers'))).toBeTruthy();
 	expect(sorted(await ranks(page))).toEqual(before);

@@ -17,9 +17,13 @@ import {
 	tableHref,
 	whereText
 } from './table-utils';
-import type { MetricDecl, TableRow, WhereExpr } from './tree-types';
+import type { MetricDecl, MetricKind, TableRow, WhereExpr } from './tree-types';
 
-const registry: MetricDecl[] = [
+type Root = 'authors' | 'institutions';
+type Decl = Omit<MetricDecl, 'kind'> & { kinds: Partial<Record<Root, MetricKind>> };
+
+// One declaration per metric with its kind per root, served as each root's registry.
+const decls: Decl[] = [
 	{
 		id: 'citations',
 		label: 'Citations',
@@ -75,38 +79,39 @@ const registry: MetricDecl[] = [
 		kinds: { authors: 'global', institutions: 'global' }
 	}
 ];
+const registryOf = (root: Root): MetricDecl[] =>
+	decls.flatMap(({ kinds, ...d }) => (kinds[root] ? [{ ...d, kind: kinds[root] }] : []));
+const registry = registryOf('authors');
+const institutions = registryOf('institutions');
+
 const ids = (ms: MetricDecl[]) => ms.map((m) => m.id);
 const names = { oncology: 'Oncology', hun: 'Hungary', can: 'Canada' };
 
 describe('table column model', () => {
 	it('ranks by every numeric column read, never by a walk or an entity', () => {
-		expect(ids(rankable(registry, 'institutions'))).toEqual([
+		expect(ids(rankable(institutions))).toEqual([
 			'citations',
-			'impact_score',
+			'top_mean',
 			'field_score',
 			'window_papers'
 		]);
-		expect(ids(rankable(registry, 'authors'))).toEqual([
+		expect(ids(rankable(registry))).toEqual([
 			'citations',
-			'impact_score',
+			'top_mean',
 			'field_score',
 			'window_papers'
 		]);
 	});
 
 	it('offers as page-local columns what the rows do not carry by themselves', () => {
-		expect(ids(annotatable(registry, 'institutions'))).toEqual(['field_score', 'window_papers']);
-		expect(ids(annotatable(registry, 'authors'))).toEqual([
-			'field_score',
-			'window_papers',
-			'cited_from'
-		]);
+		expect(ids(annotatable(institutions))).toEqual(['field_score', 'window_papers']);
+		expect(ids(annotatable(registry))).toEqual(['field_score', 'window_papers', 'cited_from']);
 	});
 
 	it('narrows by every column read, entities included, never by a walk', () => {
-		expect(ids(clauseable(registry, 'authors'))).toEqual([
+		expect(ids(clauseable(registry))).toEqual([
 			'citations',
-			'impact_score',
+			'top_mean',
 			'field_score',
 			'window_papers',
 			'country'
@@ -226,7 +231,11 @@ describe('page-local sort', () => {
 
 describe('urls', () => {
 	it('builds the table href without defaults, the query as the backend takes it', () => {
-		expect(tableHref('authors', { sort: 'citations', pin: [] })).toBe('/authors/table');
+		const byDefault = 'weighted_paper_score';
+		expect(tableHref('authors', { sort: byDefault, pin: [] }, byDefault)).toBe('/authors/table');
+		expect(tableHref('authors', { sort: 'citations' }, byDefault)).toBe(
+			'/authors/table?sort=citations'
+		);
 		expect(
 			tableHref('authors', { sort: 'field_score(oncology)', where: 'country = hun', from: 100 })
 		).toBe('/authors/table?sort=field_score%28oncology%29&where=country+%3D+hun&from=100');

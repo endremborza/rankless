@@ -10,13 +10,13 @@ use axum::{
 use hashbrown::HashMap;
 
 use rankless_expr::{parse_call, parse_calls, parse_where};
-use rankless_trees::metrics::{Cost, METRICS};
+use rankless_trees::metrics::{default_sort, Cost, METRICS};
 
 use crate::cohort::{BoundCall, Cohort, Ctx};
 use crate::consts::{CACHEABLE_FROM, MAX_METRIC_CALLS, MAX_METRIC_IDS, MAX_PINS, MAX_SLICE};
 use crate::responses::{
-    ColumnDecl, ColumnRegistry, MetricValuesQ, MetricValuesResp, SliceMeta, SliceQ, SliceResp,
-    TableRow, WhereQ,
+    ColumnDecl, ColumnRegistry, MetricValuesQ, MetricValuesResp, RootRegistry, SliceMeta, SliceQ,
+    SliceResp, TableRow, WhereQ,
 };
 use crate::state::InstTrm;
 use crate::state::StatesT;
@@ -24,28 +24,38 @@ use crate::util::{bad_text, cache_header, get_empty, resolve_dm};
 
 type Reply = (HeaderMap, Response);
 
-// The registry as the clients read it: every metric with its kind per root type, derived from the
-// columns each root loaded.
+// The registry as the clients read it: per root type, the metrics its loaded columns support, with
+// their kind and their texts as that root shows them.
 pub(crate) async fn columns_get(states: StatesT) -> Reply {
-    let roots: Vec<(&str, Ctx)> = states
+    let roots = states
         .0
          .0
         .keys()
-        .filter_map(|root| Ctx::new(&states, root).map(|ctx| (*root, ctx)))
-        .collect();
-    let metrics = METRICS
-        .iter()
-        .map(|decl| ColumnDecl {
-            decl,
-            kinds: roots
+        .filter_map(|root| {
+            let ctx = Ctx::new(&states, root)?;
+            let metrics = METRICS
                 .iter()
-                .filter_map(|(root, ctx)| ctx.kind(decl).map(|k| (*root, k)))
-                .collect(),
+                .filter_map(|decl| {
+                    Some(ColumnDecl {
+                        id: decl.id,
+                        texts: decl.texts(root),
+                        value: decl.value,
+                        param: decl.param,
+                        cost: decl.cost,
+                        kind: ctx.kind(decl)?,
+                    })
+                })
+                .collect();
+            let registry = RootRegistry {
+                default_sort: default_sort(root),
+                metrics,
+            };
+            Some((*root, registry))
         })
         .collect();
     (
         cache_header(1440),
-        Json(ColumnRegistry { metrics }).into_response(),
+        Json(ColumnRegistry { roots }).into_response(),
     )
 }
 
@@ -68,8 +78,8 @@ pub(crate) async fn slice_get(
     let Some(ctx) = Ctx::new(&states, &etype) else {
         return get_empty();
     };
-    let sort = match parse_call(q.sort.as_deref().unwrap_or("citations")).map_err(|e| e.to_string())
-    {
+    let sort_text = q.sort.as_deref().unwrap_or(default_sort(&etype));
+    let sort = match parse_call(sort_text).map_err(|e| e.to_string()) {
         Ok(call) => match ctx.bind_call(&call) {
             Ok(b) => b,
             Err(r) => return bad_text(r.0),

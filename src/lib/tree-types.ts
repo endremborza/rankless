@@ -175,37 +175,44 @@ export type MetricValue =
 	| { type: 'count' | 'score' | 'share' | 'year' }
 	| { type: 'entity' | 'entities'; entity: string };
 
-// One entry of the backend's metric registry (`/columns`): the single source for a metric's
-// label, meaning, value type, parameter, per-entity cost and its kind per root type.
+// A methodology item — what it means and why it is defined that way — as the backend fills it in:
+// the site renders these texts and never restates a constant.
+export type ItemTexts = {
+	id: string;
+	label: string;
+	meaning: string;
+	rationale?: string;
+};
+
+// One metric of a root type's registry (`/columns`): the single source for its texts, value type,
+// parameter, per-entity cost and kind on that root.
 export type MetricDecl = {
 	id: string;
 	label: string;
 	// A parameterized metric's column name, `{param}` standing for the argument's name.
 	header?: string;
 	meaning: string;
+	rationale?: string;
 	value: MetricValue;
 	param?: MetricParam;
 	cost: 'read' | 'walk';
-	kinds: Partial<Record<RootType, MetricKind>>;
+	kind: MetricKind;
 };
 
-export type MetricRegistry = { metrics: MetricDecl[] };
+// A root type's registry: its metrics and the one its table is ordered by by default.
+export type RootRegistry = { defaultSort: string; metrics: MetricDecl[] };
 
-// The hit-paper rule as `/methodology` states it: the thresholds the pipeline ran with. The site's
-// explainer renders these rather than restating them, so the prose cannot drift from the data.
-export type HitRule = {
-	minNeeded: number;
-	minUniversal: number;
-	topTopic: number;
-	topPctile: number;
-	scoreThreshold: number;
-	nobelMultiplier: number;
+export type MetricRegistry = { roots: Partial<Record<RootType, RootRegistry>> };
+
+// What a paper's score measures it against, as the pipeline ran with it.
+export type PaperScore = {
+	topShare: number;
 	wSf: number;
 	wYear: number;
 	wSfYear: number;
 	sfYearMinPapers: number;
-	creatorCutoffYear: number;
-	minCreatorCitations: number;
+	hitMultiple: number;
+	barScale: number;
 };
 
 // The screen that decides which papers exist in the data at all. A citation is indexed exactly

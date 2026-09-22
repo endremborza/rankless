@@ -78,9 +78,9 @@
 			return decl ? [{ key, decl, args }] : [];
 		})
 	);
-	const rankings = $derived(rankable(data.registry, data.rootType));
-	const addable = $derived(annotatable(data.registry, data.rootType));
-	const narrowers = $derived(clauseable(data.registry, data.rootType));
+	const rankings = $derived(rankable(data.registry));
+	const addable = $derived(annotatable(data.registry));
+	const narrowers = $derived(clauseable(data.registry));
 	const fieldName = $derived(names[data.field] ?? data.field);
 	const hasStanding = $derived(data.field !== '' && data.ladder !== null);
 	const tierNames = $derived(data.ladder ? tierLabels(data.ladder.pctBands) : []);
@@ -123,7 +123,7 @@
 	}
 
 	function go(patch: TableQuery) {
-		goto(tableHref(data.rootType, { ...q, pin: data.pin, ...patch }));
+		goto(tableHref(data.rootType, { ...q, pin: data.pin, ...patch }, data.defaultSort));
 	}
 
 	function rank(metric: MetricDecl, args: MetricArgs) {
