@@ -851,9 +851,11 @@ def _audit(pool: int) -> None:
 
 async def _load_pool(skip: int, pool: int) -> tuple[dict[str, Place], World]:
     try:
-        ranked = (await be_client.get_json(f"/slice/{ETYPE}/{skip}/{skip + pool}"))[
-            "rows"
-        ]
+        ranked = (
+            await be_client.get_json(
+                f"/slice/{ETYPE}/{skip}/{skip + pool}", {"sort": "citations"}
+            )
+        )["rows"]
         countries = (await be_client.get_json("/slice/countries/0/400"))["rows"]
     finally:
         await be_client.aclose()
