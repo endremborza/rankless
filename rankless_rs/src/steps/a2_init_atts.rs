@@ -46,6 +46,8 @@ const MIN_LEN: usize = 10;
 const EXT_STOP_WORDS: &[&str] = &[
     "a", "an", "and", "at", "by", "for", "in", "of", "or", "the", "to", "with",
 ];
+// Inhabitants per ISO-2 country code, each row naming its source and year.
+const COUNTRY_POPULATION: &str = include_str!("../../static/country-population.csv");
 
 pub type OrcidType = [u8; 19];
 
@@ -267,6 +269,10 @@ impl Stowage {
         add_name_box::<Countries>(self, pick_best(coname_counts));
         add_name_box::<Cities>(self, pick_best(ciname_counts));
         add_name_box::<Institutions>(self, inames);
+        self.add_iter_owned::<FixAttBuilder, _, _>(
+            country_populations(&ccs).into_iter(),
+            "country-populations",
+        );
         self.add_barr::<FixAttBuilder, _>(ccs, "country-codes");
         self.add_iter_owned::<FixAttBuilder, _, _>(cc3s.into_iter(), "country-codes-three");
         self.add_barr::<FixAttBuilder, _>(locs, "inst-locs");
@@ -1195,6 +1201,27 @@ fn post_ext_name(arrs: &[&Option<String>]) -> Option<String> {
         })
         .collect();
     Some(entries.join(EXT_SEP))
+}
+
+// Every country with a code gets a page, so one without a population row fails the build.
+fn country_populations(ccs: &[[u8; 2]]) -> Vec<u32> {
+    let table: HashMap<&[u8], u32> = COUNTRY_POPULATION
+        .lines()
+        .skip(1)
+        .map(|line| {
+            let mut fields = line.split(',');
+            let code = fields.next().unwrap().as_bytes();
+            (code, fields.nth(1).unwrap().parse().unwrap())
+        })
+        .collect();
+    ccs.iter()
+        .map(|cc| match cc {
+            [0, 0] => 0,
+            _ => *table
+                .get(&cc[..])
+                .unwrap_or_else(|| panic!("no population row for {}", String::from_utf8_lossy(cc))),
+        })
+        .collect()
 }
 
 fn add_name_box<E: Entity>(stowage: &Stowage, names: Box<[String]>) {

@@ -88,6 +88,9 @@ py-build:
 include rankless_rs/Makefile
 include Makefile.test
 
+# A step's static input, beside the step source the generated rule already lists.
+rankless_rs/src/gen/a2_init_atts.rs: rankless_rs/static/country-population.csv
+
 download-snapshot:
 	aws s3 sync "s3://openalex" $(OA_SNAPSHOT) --no-sign-request
 
