@@ -137,7 +137,7 @@ export type SearchResult = {
 export type NamedEntity = Pick<SearchResult, 'name' | 'semanticId' | 'dmId'>;
 
 // One `/slice` row: a search result, its 1-based rank in the active cohort ordering, and the
-// metric columns the cohort carries, keyed by the metric call (`impact_score`,
+// metric columns the cohort carries, keyed by the metric call (`top_mean`,
 // `field_score(oncology)`).
 export type TableRow = {
 	name: string;

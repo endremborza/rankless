@@ -645,8 +645,10 @@ mod tests {
     #[test]
     fn clauses_carry_calls_operators_and_typed_operands() {
         assert_eq!(
-            roundtrip("country=hun and city!=budapest and (papers>=500 or impact_score>=20)"),
-            "country = hun and city != budapest and (papers >= 500 or impact_score >= 20)"
+            roundtrip(
+                "country=hun and city!=budapest and (papers>=500 or weighted_paper_score>=20)"
+            ),
+            "country = hun and city != budapest and (papers >= 500 or weighted_paper_score >= 20)"
         );
         assert_eq!(
             roundtrip("field_citations(oncology) > 0 and window_papers(2020, 2024) >= 10"),

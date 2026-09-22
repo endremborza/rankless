@@ -33,9 +33,9 @@ const decls: Decl[] = [
 		kinds: { authors: 'global', institutions: 'global' }
 	},
 	{
-		id: 'impact_score',
-		label: 'Impact score',
-		meaning: 'i',
+		id: 'top_mean',
+		label: 'Top-20 mean',
+		meaning: 't',
 		value: { type: 'score' },
 		cost: 'read',
 		kinds: { authors: 'global', institutions: 'global' }
@@ -195,11 +195,11 @@ describe('row values and formatting', () => {
 		oaId: 1,
 		dmId: 7,
 		rank: 2,
-		values: { impact_score: 12.345, 'field_score(oncology)': 0.5 }
+		values: { top_mean: 12.345, 'field_score(oncology)': 0.5 }
 	};
 
 	it('reads a column by its call', () => {
-		expect(rowValue(row, 'impact_score')).toBe(12.345);
+		expect(rowValue(row, 'top_mean')).toBe(12.345);
 		expect(rowValue(row, 'field_score(oncology)')).toBe(0.5);
 		expect(rowValue(row, 'h_index')).toBeUndefined();
 	});

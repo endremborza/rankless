@@ -82,7 +82,7 @@ async def fake_get_json(path: str, params: dict | None = None):
                 "oaId": 1,
                 "rank": 1,
                 "papers": 3,
-                "values": {"impact_score": 1.5, "field_score(oncology)": 2.5},
+                "values": {"top_mean": 1.5, "field_score(oncology)": 2.5},
             },
             {
                 "name": "B",
@@ -97,7 +97,7 @@ async def fake_get_json(path: str, params: dict | None = None):
         "meta": {
             "total": 42,
             "screened": 2,
-            "columns": ["impact_score", "field_score(oncology)"],
+            "columns": ["top_mean", "field_score(oncology)"],
         },
     }
 
@@ -123,7 +123,7 @@ def test_rank_entities_passes_the_expressions_and_reads_the_counts() -> None:
         2,
         "field_score(oncology)",
     )
-    assert out["columns"] == ["impact_score", "field_score(oncology)"]
+    assert out["columns"] == ["top_mean", "field_score(oncology)"]
     assert [r["semanticId"] for r in out["rows"]] == ["a", "b"]
     row = out["rows"][0]
     assert (

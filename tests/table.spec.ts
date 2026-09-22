@@ -72,16 +72,16 @@ test('ranks the whole cohort from the picker and pages past the first 100', asyn
 	expect(r.length).toBe(100);
 	expect(r[0]).toBe(1);
 	expect(ranksValid(r)).toBeTruthy();
-	expect(nonIncreasing(await column(page, 'Citations'))).toBeTruthy();
+	expect(nonIncreasing(await column(page, 'Weighted total paper score'))).toBeTruthy();
 
-	await page.getByLabel('Rank', { exact: true }).selectOption('impact_score');
-	await page.waitForURL(/sort=impact_score/);
+	await page.getByLabel('Rank', { exact: true }).selectOption('top_mean');
+	await page.waitForURL(/sort=top_mean/);
 	await page.waitForSelector('tbody tr');
 	r = await ranks(page);
 	expect(r.length).toBe(100);
 	expect(ranksValid(r)).toBeTruthy();
-	expect(nonIncreasing(await column(page, 'Impact score'))).toBeTruthy();
-	await expect(page.locator('th.ranked')).toContainText('Impact score');
+	expect(nonIncreasing(await column(page, 'Top-2000 mean'))).toBeTruthy();
+	await expect(page.locator('th.ranked')).toContainText('Top-2000 mean');
 
 	await page.getByRole('button', { name: /Load more/ }).click();
 	await page.waitForFunction(() => document.querySelectorAll('tbody tr').length >= 200);
@@ -89,7 +89,7 @@ test('ranks the whole cohort from the picker and pages past the first 100', asyn
 	expect(r.length).toBe(200);
 	expect(r[100]).toBeGreaterThanOrEqual(100);
 	expect(ranksValid(r)).toBeTruthy();
-	expect(nonIncreasing(await column(page, 'Impact score'))).toBeTruthy();
+	expect(nonIncreasing(await column(page, 'Top-2000 mean'))).toBeTruthy();
 
 	// A ranking change after paging re-seeds the page: no rows of the previous ordering linger.
 	await page.getByLabel('Rank', { exact: true }).selectOption('papers');
@@ -235,8 +235,8 @@ test('a pinned entity stays on the table through every ranking', async ({ page }
 	// The pinned row is not repeated in the ranked list.
 	expect((await ranks(page)).filter((r) => r === rank).length).toBe(1);
 
-	await page.getByLabel('Rank', { exact: true }).selectOption('impact_score');
-	await page.waitForURL(/sort=impact_score/);
+	await page.getByLabel('Rank', { exact: true }).selectOption('top_mean');
+	await page.waitForURL(/sort=top_mean/);
 	expect(page.url()).toMatch(/pin=/);
 	await expect(page.locator('tbody tr.pinned')).toHaveCount(1);
 

@@ -6,11 +6,12 @@ use crate::{
 };
 use rankless_rs::{
     common::{
-        reverse_id, BeS, CitRankLadderMarker, CitSubfieldsArrayMarker, HIndexMarker, HitWorkMarker,
-        MainEntity, MainWorkMarker, MarkedBackendLoader, MmapBox, NumberedEntity, QuickAttPair,
-        QuickMap, QuickestBox, QuickestVBox, RefSubfieldsArrayMarker, Stowage, Top15AuthorMarker,
-        Top3AffCountryMarker, TopJournalMarker, TopNCitingSfMarker, TopNCitingTopicMarker,
-        TopNPaperSfMarker, TopNPaperTopicMarker, WorkLoader, YearCentroidMarker,
+        reverse_id, BeS, CitRankLadderMarker, CitSubfieldsArrayMarker, HIndexMarker,
+        HIndexSinceMarker, HitWorkMarker, MainEntity, MainWorkMarker, MarkedBackendLoader, MmapBox,
+        NumberedEntity, QuickAttPair, QuickMap, QuickestBox, QuickestVBox, RefSubfieldsArrayMarker,
+        ScoredPaperCountMarker, Stowage, Top15AuthorMarker, Top3AffCountryMarker, TopJournalMarker,
+        TopMeanPaperScoreMarker, TopNCitingSfMarker, TopNCitingTopicMarker, TopNPaperSfMarker,
+        TopNPaperTopicMarker, WeightedPaperScoreMarker, WorkLoader, YearCentroidMarker,
         YearlyCitationsMarker, YearlyPapersMarker, NET,
     },
     env_consts::START_YEAR,
@@ -19,19 +20,20 @@ use rankless_rs::{
         a2_init_atts::{
             AuthorNobels, AuthorOrcids, AuthorRawCites, AuthorRawWorkCounts, AuthorWikiSlugs,
             AuthorshipDiscardedAuthor, AuthorshipFilteredAuthor, CitiesNames, CountryCodes,
-            DiscardedAuthorsNames, DiscardedAuthorshipInstitutions, DiscardedAuthorshipPosition,
-            FilteredAuthorshipInstitutions, FilteredAuthorshipPosition, InstCities, InstCountries,
-            InstLocs, SourceYearQs, TopicSubfields, WorkAnyAuthorships, WorkBiblios, WorkDois,
-            WorkReferences, WorkTopics, WorkYears, WorksNames,
+            CountryPopulations, DiscardedAuthorsNames, DiscardedAuthorshipInstitutions,
+            DiscardedAuthorshipPosition, FilteredAuthorshipInstitutions,
+            FilteredAuthorshipPosition, InstCities, InstCountries, InstLocs, SourceYearQs,
+            TopicSubfields, WorkAnyAuthorships, WorkBiblios, WorkDois, WorkReferences, WorkTopics,
+            WorkYears, WorksNames,
         },
         derive_links1::{WorkInstitutions, WorkSubfields},
         derive_links2::{SourceStats, WorkCountries, WorkTopSource},
-        derive_links3::{Coauthors, HitPapers, HitPapersBenchmarks, HitPapersCreatedTopic},
+        derive_links3::{Coauthors, HitPapers, HitPapersCreatedTopic, WorkBars},
         derive_links4::{AuthorCitingHitsDirect, AuthorCitingHitsOnce},
         derive_links5::HitPaperYearlyCitations,
     },
     ladder::LADDER_LEN,
-    metrics::{impact_score, mean_of},
+    metrics::{mean_of, paper_score, H_SINCE},
     steps::{
         a1_entity_mapping::YearInterface,
         a2_init_atts::OrcidType,
@@ -88,12 +90,13 @@ type TopTopicRec = ET<MAA<Topics, TopNPaperTopicMarker>>;
 
 // Everything one root type keeps loaded for the whole run, indexed by `dm_id` and reached by etype
 // string: the columns. The counting columns are resident for every root — papers, citations, the
-// yearly era records, the hit papers, the peers, the citation-rank ladder, and the two columns
-// derived at load. The top-N relation tables are memory-mapped, read per entity view and never
-// resident in full. Which relation tables a type has is a ladder: hit papers hold the four core
-// tables alone, subfields add the affiliation-country and topic tables, the four peer types add
-// the subfield profiles, and authors alone add the h-index and the career centroid (a calendar
-// year).
+// yearly era records, the hit papers, the peers, the citation-rank ladder, and the columns derived
+// at load. The top-N relation tables are memory-mapped, read per entity view and never resident in
+// full. Which relation tables a type has is a ladder: hit papers hold the four core tables alone,
+// subfields add the affiliation-country and topic tables and the scored-paper count and h-index
+// every peer type has, the four other peer types add the subfield profiles, and authors alone add
+// the career centroid (a calendar year). Which score columns a type has beyond those follows the
+// metric portfolio rather than the ladder, so each type's are loaded by name.
 pub struct RootColumns {
     pub papers: Box<[u32]>,
     pub citations: Box<[u32]>,
@@ -108,8 +111,8 @@ pub struct RootColumns {
     pub cit_rank_ladder: Box<[[u32; LADDER_LEN]]>,
     // Cohort mean of `papers`, the dampening constant under the root's field score.
     pub mean_papers: f64,
-    // `impact_score` over the two columns above, held flat so a scan of it costs no `powf`.
-    pub impact_scores: Box<[f32]>,
+    // Papers with a paper score, the hit rate's denominator; a hit paper is one.
+    pub scored_papers: Box<[u32]>,
     // Whether the entities have a place: institutions, whose country and city are `Getters` fixed
     // attributes.
     pub located: bool,
@@ -122,6 +125,11 @@ pub struct RootColumns {
     pub citing_topic: Option<MmapSlice<TopTopicRec>>,
     pub subfields: Option<SubfieldProfiles>,
     pub h_indices: Option<Box<[u32]>>,
+    pub h_since: Option<Box<[[u32; H_SINCE.len()]]>>,
+    pub weighted_paper_scores: Option<Box<[f32]>>,
+    pub top_means: Option<Box<[f32]>>,
+    pub population: Option<Box<[u32]>>,
+    pub paper_scores: Option<Box<[f32]>>,
     pub year_centroids: Option<Box<[f32]>>,
 }
 
@@ -345,6 +353,11 @@ where
 }
 
 fn load_root_columns(stow: &Stowage) -> RootColumnMap {
+    macro_rules! load {
+        ($E:ty, $M:ty) => {
+            stow.get_marked_interface::<$E, $M, QuickestBox>()
+        };
+    }
     // One rung per tier of the ladder, each built on the one below it, so a root type is declared
     // by naming how far up it goes.
     macro_rules! cols {
@@ -354,16 +367,12 @@ fn load_root_columns(stow: &Stowage) -> RootColumnMap {
             let hit_counts: Box<[u32]> = (0..papers.len())
                 .map(|dm| hit_works.0.get(dm).map_or(0, |h| h.len() as u32))
                 .collect();
-            let impact_scores = hit_counts
-                .iter()
-                .zip(papers.iter())
-                .map(|(&h, &p)| impact_score(h, p))
-                .collect();
             // The field score's dampener, over every dm id but 0, the padding entity. That is a
             // wider population than the page filter (`derive_links3::entity_sem_ids`) keeps, so
             // the constant describes more entities than the score is ever shown for.
             let mean_papers = mean_of(papers.iter().skip(1).copied());
             RootColumns {
+                scored_papers: papers.clone(),
                 papers,
                 citations,
                 yearly_papers: <$E as FixAtt<YearlyPapersMarker>>::load(stow),
@@ -376,7 +385,6 @@ fn load_root_columns(stow: &Stowage) -> RootColumnMap {
                     .collect(),
                 cit_rank_ladder: <$E as FixAtt<CitRankLadderMarker>>::load(stow),
                 mean_papers,
-                impact_scores,
                 located: <$E as Entity>::NAME == Institutions::NAME,
                 paper_sfc: stow.get_marked_interface::<$E, TopNPaperSfMarker, MmapBox>(),
                 citing_sfc: stow.get_marked_interface::<$E, TopNCitingSfMarker, MmapBox>(),
@@ -387,6 +395,11 @@ fn load_root_columns(stow: &Stowage) -> RootColumnMap {
                 citing_topic: None,
                 subfields: None,
                 h_indices: None,
+                h_since: None,
+                weighted_paper_scores: None,
+                top_means: None,
+                population: None,
+                paper_scores: None,
                 year_centroids: None,
             }
         }};
@@ -397,6 +410,8 @@ fn load_root_columns(stow: &Stowage) -> RootColumnMap {
             c.paper_topic = Some(stow.get_marked_interface::<$E, TopNPaperTopicMarker, MmapBox>());
             c.citing_topic =
                 Some(stow.get_marked_interface::<$E, TopNCitingTopicMarker, MmapBox>());
+            c.scored_papers = load!($E, ScoredPaperCountMarker);
+            c.h_indices = Some(load!($E, HIndexMarker));
             c
         }};
         ($E:ty, profiles) => {{
@@ -409,7 +424,6 @@ fn load_root_columns(stow: &Stowage) -> RootColumnMap {
         }};
         ($E:ty, author_only) => {{
             let mut c = cols!($E, profiles);
-            c.h_indices = Some(stow.get_marked_interface::<$E, HIndexMarker, QuickestBox>());
             c.year_centroids = Some(centroid_years(
                 stow.get_marked_interface::<$E, YearCentroidMarker, QuickestBox>(),
             ));
@@ -418,11 +432,38 @@ fn load_root_columns(stow: &Stowage) -> RootColumnMap {
     }
     std::thread::scope(|sc| {
         [
-            sc.spawn(|| (Authors::NAME, cols!(Authors, author_only))),
-            sc.spawn(|| (Institutions::NAME, cols!(Institutions, profiles))),
-            sc.spawn(|| (Countries::NAME, cols!(Countries, profiles))),
-            sc.spawn(|| (Sources::NAME, cols!(Sources, profiles))),
-            sc.spawn(|| (Subfields::NAME, cols!(Subfields, topics))),
+            sc.spawn(|| {
+                let mut c = cols!(Authors, author_only);
+                c.weighted_paper_scores = Some(load!(Authors, WeightedPaperScoreMarker));
+                c.top_means = Some(load!(Authors, TopMeanPaperScoreMarker));
+                (Authors::NAME, c)
+            }),
+            sc.spawn(|| {
+                let mut c = cols!(Institutions, profiles);
+                c.h_since = Some(load!(Institutions, HIndexSinceMarker));
+                c.weighted_paper_scores = Some(load!(Institutions, WeightedPaperScoreMarker));
+                c.top_means = Some(load!(Institutions, TopMeanPaperScoreMarker));
+                (Institutions::NAME, c)
+            }),
+            sc.spawn(|| {
+                let mut c = cols!(Countries, profiles);
+                c.h_since = Some(load!(Countries, HIndexSinceMarker));
+                c.weighted_paper_scores = Some(load!(Countries, WeightedPaperScoreMarker));
+                c.top_means = Some(load!(Countries, TopMeanPaperScoreMarker));
+                c.population = Some(stow.get_entity_interface::<CountryPopulations, QuickestBox>());
+                (Countries::NAME, c)
+            }),
+            sc.spawn(|| {
+                let mut c = cols!(Sources, profiles);
+                c.h_since = Some(load!(Sources, HIndexSinceMarker));
+                c.top_means = Some(load!(Sources, TopMeanPaperScoreMarker));
+                (Sources::NAME, c)
+            }),
+            sc.spawn(|| {
+                let mut c = cols!(Subfields, topics);
+                c.h_since = Some(load!(Subfields, HIndexSinceMarker));
+                (Subfields::NAME, c)
+            }),
             sc.spawn(|| (HitPapers::NAME, cols!(HitPapers))),
         ]
         .into_iter()
@@ -511,8 +552,7 @@ impl Getters {
                 }
             });
         let root_columns = load_root_columns(&stowage);
-        println!("loaded full Getters");
-        Self {
+        let mut gets = Self {
             ifs,
             stowage,
             inst_oa,
@@ -521,6 +561,23 @@ impl Getters {
             hit_wid_map,
             orcid_map,
             root_columns,
+        };
+        gets.score_hit_papers();
+        println!("loaded full Getters");
+        gets
+    }
+
+    // The hit-paper root's paper scores, from each hit's stored bar and its citations.
+    fn score_hit_papers(&mut self) {
+        let cols = &self.root_columns[HitPapers::NAME];
+        let scores = self
+            .hit_papers
+            .iter()
+            .zip(cols.citations.iter())
+            .map(|(wid, &c)| paper_score(c, *self.wbar(wid)).unwrap_or(0.0) as f32)
+            .collect();
+        if let Some(cols) = self.root_columns.get_mut(HitPapers::NAME) {
+            cols.paper_scores = Some(scores);
         }
     }
 

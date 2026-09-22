@@ -35,7 +35,7 @@ pub(crate) struct SearchResult {
 }
 
 // One browse-table row: the search result, its 1-based rank in the active cohort ordering, and
-// the metric columns the cohort carries, keyed by the metric call (`impact_score`,
+// the metric columns the cohort carries, keyed by the metric call (`top_mean`,
 // `field_score(oncology)`); a value the root cannot read is absent.
 #[derive(Serialize)]
 pub(crate) struct TableRow {

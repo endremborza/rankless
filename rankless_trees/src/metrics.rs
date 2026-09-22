@@ -6,8 +6,14 @@
 
 use dmove::UnsignedNumber;
 use rankless_rs::{
-    gen::a1_entity_mapping::{Cities, Countries, Institutions, Subfields},
-    metrics::{field_score, Level},
+    gen::{
+        a1_entity_mapping::{Authors, Cities, Countries, Institutions, Sources, Subfields},
+        derive_links3::HitPapers,
+    },
+    metrics::{
+        field_score, fill, text_vars, top_n, Level, Texts, HIT_PAPER_TEXTS, H_SINCE,
+        PAPER_SCORE_TEXTS,
+    },
     steps::{
         a1_entity_mapping::{RawYear, YearInterface, Years},
         derive_links2::{EraRec, MAX_YEAR, MIN_YEAR},
@@ -25,10 +31,16 @@ pub const N_AFF_COUNTRIES: usize = 3;
 
 pub const CITATIONS: &str = "citations";
 pub const PAPERS: &str = "papers";
-pub const IMPACT_SCORE: &str = "impact_score";
 pub const HIT_PAPERS: &str = "hit_papers";
 pub const HIT_RATE: &str = "hit_rate";
+pub const WEIGHTED_PAPER_SCORE: &str = "weighted_paper_score";
+pub const TOP_MEAN: &str = "top_mean";
 pub const H_INDEX: &str = "h_index";
+pub const H_INDEX_SINCE: [&str; H_SINCE.len()] = ["h_index_since_2010", "h_index_since_2020"];
+pub const POPULATION: &str = "population";
+pub const WEIGHTED_PAPER_SCORE_PER_CAPITA: &str = "weighted_paper_score_per_capita";
+pub const HIT_PAPERS_PER_CAPITA: &str = "hit_papers_per_capita";
+pub const PAPER_SCORE: &str = "paper_score";
 pub const YEAR_CENTROID: &str = "year_centroid";
 pub const FIELD_CITATIONS: &str = "field_citations";
 pub const FIELD_SCORE: &str = "field_score";
@@ -41,15 +53,32 @@ pub const CITY: &str = "city";
 
 const READ: &[Column] = &[];
 
-// One declaration per metric, the single source of its label, meaning, value type, parameter and
-// the columns behind it. `header` names a parameterized metric's column, `{param}` standing for
-// the argument's name.
+const H_INDEX_SINCE_DECL: MetricDecl = MetricDecl {
+    id: H_INDEX_SINCE[0],
+    label: "h-index since {since}",
+    header: None,
+    meaning: "The h-index over the entity's papers published since {since}.",
+    rationale: Some(
+        "The all-time h-index leans toward older output; a recent window shows who leads now.",
+    ),
+    value: ValueType::Count,
+    param: None,
+    reads: &[Column::HIndexSince(0)],
+    cost: Cost::Read,
+    profile: None,
+};
+
+// One declaration per metric, the single source of its label, meaning, rationale, value type,
+// parameter and the columns behind it. The texts are templates `texts` fills per root from the
+// constants they name; `header` names a parameterized metric's column, `{param}` standing for the
+// argument's name, which the client fills.
 pub const METRICS: &[MetricDecl] = &[
     MetricDecl {
         id: CITATIONS,
         label: "Citations",
         header: None,
         meaning: "Citations received by the entity's indexed papers.",
+        rationale: None,
         value: ValueType::Count,
         param: None,
         reads: &[Column::Citations],
@@ -61,6 +90,7 @@ pub const METRICS: &[MetricDecl] = &[
         label: "Papers",
         header: None,
         meaning: "Indexed papers produced by the entity.",
+        rationale: None,
         value: ValueType::Count,
         param: None,
         reads: &[Column::Papers],
@@ -71,7 +101,8 @@ pub const METRICS: &[MetricDecl] = &[
         id: HIT_PAPERS,
         label: "Hit papers",
         header: None,
-        meaning: "Papers of the entity that clear the citation benchmark for their field and year.",
+        meaning: "Papers of the entity with a paper score of at least √{hit_multiple}: cited at least {hit_multiple}× the top-{top_share} bar of their field and year.",
+        rationale: Some("How much top work the entity has, on a bar that means the same in every field and year."),
         value: ValueType::Count,
         param: None,
         reads: &[Column::HitPapers],
@@ -82,21 +113,35 @@ pub const METRICS: &[MetricDecl] = &[
         id: HIT_RATE,
         label: "Hit rate",
         header: None,
-        meaning: "Share of the entity's papers that are hit papers. It reads the rate alone, so a small specialist can top it; the impact score is the reading that also counts how many.",
+        meaning: "Share of the entity's scored papers (those published before {final_year}) that are hit papers.",
+        rationale: Some("How often the entity's work reaches the top. It reads the rate alone, so a small specialist can top it: read it beside the paper count."),
         value: ValueType::Share,
         param: None,
-        reads: &[Column::HitPapers, Column::Papers],
+        reads: &[Column::HitPapers, Column::ScoredPapers],
         cost: Cost::Read,
         profile: None,
     },
     MetricDecl {
-        id: IMPACT_SCORE,
-        label: "Impact score",
+        id: WEIGHTED_PAPER_SCORE,
+        label: "Weighted total paper score",
         header: None,
-        meaning: "Hit papers weighed against output: hit papers ÷ papers^0.25, which is three parts how many hit papers the entity has and one part what share of its papers they are. Neither sheer volume nor a handful of strong papers carries it alone, and a hit paper is one of the entity's own, so no small entity can win on a lucky paper.",
+        meaning: "Sum of the paper scores of the entity's papers. A paper with several {members} counts for each of them on a softened scale: with n of them, each is credited 1 / (1 + ln n) of its score.",
+        rationale: Some("Everything the entity amassed. A shared paper is divided on a softened scale, so large collaborations still count rather than being divided away."),
         value: ValueType::Score,
         param: None,
-        reads: &[Column::ImpactScore],
+        reads: &[Column::WeightedPaperScore],
+        cost: Cost::Read,
+        profile: None,
+    },
+    MetricDecl {
+        id: TOP_MEAN,
+        label: "Top-{n} mean",
+        header: None,
+        meaning: "Mean paper score of the entity's {n} best papers; with fewer than {n} papers the missing ones count as zero.",
+        rationale: Some("How good the entity's best work is. The rest of its output neither helps nor hurts, and a small entity cannot rank on a handful of papers."),
+        value: ValueType::Score,
+        param: None,
+        reads: &[Column::TopMean],
         cost: Cost::Read,
         profile: None,
     },
@@ -104,10 +149,68 @@ pub const METRICS: &[MetricDecl] = &[
         id: H_INDEX,
         label: "h-index",
         header: None,
-        meaning: "Largest h such that h of the author's papers have at least h citations each.",
+        meaning: "Largest h such that h of the entity's papers have at least h citations each. It counts raw citations, with no field or year adjustment.",
+        rationale: Some("The familiar reading of citation depth. Raw citations favour older output and citation-dense fields; the paper-score metrics are the readings adjusted for field and year."),
         value: ValueType::Count,
         param: None,
         reads: &[Column::HIndex],
+        cost: Cost::Read,
+        profile: None,
+    },
+    MetricDecl {
+        id: H_INDEX_SINCE[0],
+        ..H_INDEX_SINCE_DECL
+    },
+    MetricDecl {
+        id: H_INDEX_SINCE[1],
+        reads: &[Column::HIndexSince(1)],
+        ..H_INDEX_SINCE_DECL
+    },
+    MetricDecl {
+        id: POPULATION,
+        label: "Population",
+        header: None,
+        meaning: "Inhabitants of the country, from the latest year with data.",
+        rationale: None,
+        value: ValueType::Count,
+        param: None,
+        reads: &[Column::Population],
+        cost: Cost::Read,
+        profile: None,
+    },
+    MetricDecl {
+        id: WEIGHTED_PAPER_SCORE_PER_CAPITA,
+        label: "Weighted total paper score per capita",
+        header: None,
+        meaning: "The weighted total paper score per million inhabitants.",
+        rationale: Some("Output for the size of the population."),
+        value: ValueType::Score,
+        param: None,
+        reads: &[Column::WeightedPaperScore, Column::Population],
+        cost: Cost::Read,
+        profile: None,
+    },
+    MetricDecl {
+        id: HIT_PAPERS_PER_CAPITA,
+        label: "Hit papers per capita",
+        header: None,
+        meaning: "Hit papers per million inhabitants.",
+        rationale: Some("Top work for the size of the population."),
+        value: ValueType::Score,
+        param: None,
+        reads: &[Column::HitPapers, Column::Population],
+        cost: Cost::Read,
+        profile: None,
+    },
+    MetricDecl {
+        id: PAPER_SCORE,
+        label: PAPER_SCORE_TEXTS.label,
+        header: None,
+        meaning: PAPER_SCORE_TEXTS.meaning,
+        rationale: PAPER_SCORE_TEXTS.rationale,
+        value: ValueType::Score,
+        param: None,
+        reads: &[Column::PaperScore],
         cost: Cost::Read,
         profile: None,
     },
@@ -116,6 +219,7 @@ pub const METRICS: &[MetricDecl] = &[
         label: "Career centroid",
         header: None,
         meaning: "Mean publication year of the author's papers: where in time the career's output sits.",
+        rationale: None,
         value: ValueType::Year,
         param: None,
         reads: &[Column::YearCentroid],
@@ -127,6 +231,7 @@ pub const METRICS: &[MetricDecl] = &[
         label: "Field citations",
         header: Some("{subfield} citations"),
         meaning: "Citations from papers in the chosen field.",
+        rationale: None,
         value: ValueType::Count,
         param: Some(Param::Subfield),
         reads: &[Column::SubfieldCiting],
@@ -138,6 +243,7 @@ pub const METRICS: &[MetricDecl] = &[
         label: "Field score",
         header: Some("{subfield} score"),
         meaning: "Citations from papers in the chosen field, over the entity's paper count dampened by the average paper count of its kind. Ranks the entities of one field by the attention they draw from it for their size. An entity's own page ranks its fields the other way round, by the field's size.",
+        rationale: None,
         value: ValueType::Score,
         param: Some(Param::Subfield),
         reads: &[Column::SubfieldCiting, Column::Papers],
@@ -149,6 +255,7 @@ pub const METRICS: &[MetricDecl] = &[
         label: "Field share",
         header: Some("{subfield} share"),
         meaning: "Share of the entity's citations that come from papers in the chosen field: how concentrated its impact is in the field, whatever its size.",
+        rationale: None,
         value: ValueType::Share,
         param: Some(Param::Subfield),
         reads: &[Column::SubfieldCiting, Column::Citations],
@@ -160,6 +267,7 @@ pub const METRICS: &[MetricDecl] = &[
         label: "Papers in a year window",
         header: Some("Papers {window}"),
         meaning: "Indexed papers published in the year window. Yearly counts exist for recent years only, so an earlier start is moved up to the first counted year.",
+        rationale: None,
         value: ValueType::Count,
         param: Some(Param::Window),
         reads: &[Column::YearlyPapers],
@@ -171,6 +279,7 @@ pub const METRICS: &[MetricDecl] = &[
         label: "Citations in a year window",
         header: Some("Citations {window}"),
         meaning: "Citations from papers published in the year window. Yearly counts exist for recent years only, so an earlier start is moved up to the first counted year.",
+        rationale: None,
         value: ValueType::Count,
         param: Some(Param::Window),
         reads: &[Column::YearlyCites],
@@ -182,6 +291,7 @@ pub const METRICS: &[MetricDecl] = &[
         label: "Share cited from a country",
         header: Some("Cited from {country}"),
         meaning: "Share of the entity's citations that come from papers with an author in the chosen country; a paper with authors in several countries counts once for each of them.",
+        rationale: None,
         value: ValueType::Share,
         param: Some(Param::Country),
         reads: READ,
@@ -193,6 +303,7 @@ pub const METRICS: &[MetricDecl] = &[
         label: "Country",
         header: None,
         meaning: "An institution's country; for any other entity, up to three countries of the institutions on its papers, the most frequent first.",
+        rationale: None,
         value: ValueType::Entities(Countries::NAME),
         param: None,
         reads: &[Column::Countries],
@@ -204,6 +315,7 @@ pub const METRICS: &[MetricDecl] = &[
         label: "City",
         header: None,
         meaning: "The city of an institution.",
+        rationale: None,
         value: ValueType::Entity(Cities::NAME),
         param: None,
         reads: &[Column::City],
@@ -212,21 +324,36 @@ pub const METRICS: &[MetricDecl] = &[
     },
 ];
 
-#[derive(Serialize)]
 pub struct MetricDecl {
     pub id: &'static str,
     pub label: &'static str,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub header: Option<&'static str>,
     pub meaning: &'static str,
+    pub rationale: Option<&'static str>,
     pub value: ValueType,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub param: Option<Param>,
-    #[serde(skip)]
     pub reads: &'static [Column],
     pub cost: Cost,
-    #[serde(skip)]
     pub profile: Option<Level>,
+}
+
+// A methodology item's texts, every constant filled in.
+#[derive(Serialize)]
+pub struct ItemTexts {
+    pub id: &'static str,
+    #[serde(flatten)]
+    pub texts: MetricTexts,
+}
+
+// A metric's texts as one root shows them, every constant filled in.
+#[derive(Serialize)]
+pub struct MetricTexts {
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub header: Option<String>,
+    pub meaning: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rationale: Option<String>,
 }
 
 // A bound argument: the parameter's value resolved to what the reader needs.
@@ -289,8 +416,13 @@ pub enum Column {
     Papers,
     Citations,
     HitPapers,
-    ImpactScore,
+    ScoredPapers,
+    WeightedPaperScore,
+    TopMean,
     HIndex,
+    HIndexSince(usize),
+    Population,
+    PaperScore,
     YearCentroid,
     SubfieldCiting,
     YearlyPapers,
@@ -329,12 +461,23 @@ impl MetricDecl {
             (CITATIONS, _) => num(cols.citations[dm] as f64),
             (PAPERS, _) => num(cols.papers[dm] as f64),
             (HIT_PAPERS, _) => num(cols.hit_counts[dm] as f64),
-            (HIT_RATE, _) => num(match cols.papers[dm] {
+            (HIT_RATE, _) => num(match cols.scored_papers[dm] {
                 0 => 0.0,
                 p => cols.hit_counts[dm] as f64 / p as f64,
             }),
-            (IMPACT_SCORE, _) => num(cols.impact_scores[dm] as f64),
+            (WEIGHTED_PAPER_SCORE, _) => num(cols.weighted_paper_scores.as_ref()?[dm] as f64),
+            (TOP_MEAN, _) => num(cols.top_means.as_ref()?[dm] as f64),
             (H_INDEX, _) => num(cols.h_indices.as_ref()?[dm] as f64),
+            (POPULATION, _) => num(cols.population.as_ref()?[dm] as f64),
+            (WEIGHTED_PAPER_SCORE_PER_CAPITA, _) => num(per_million(
+                cols.weighted_paper_scores.as_ref()?[dm] as f64,
+                cols.population.as_ref()?[dm],
+            )?),
+            (HIT_PAPERS_PER_CAPITA, _) => num(per_million(
+                cols.hit_counts[dm] as f64,
+                cols.population.as_ref()?[dm],
+            )?),
+            (PAPER_SCORE, _) => num(cols.paper_scores.as_ref()?[dm] as f64),
             (YEAR_CENTROID, _) => num(cols.year_centroids.as_ref()?[dm] as f64),
             (FIELD_CITATIONS, Arg::Subfield(sf)) => num(cols.field_citations(dm, sf)? as f64),
             (FIELD_SCORE, Arg::Subfield(sf)) => num(field_score(
@@ -367,7 +510,30 @@ impl MetricDecl {
                 Some(Value::Ids(ids))
             }
             (CITY, _) if cols.located => Some(Value::Id(gets.icity(&dm).to_usize() as u32)),
-            _ => None,
+            _ => match self.reads {
+                [Column::HIndexSince(i)] => num(cols.h_since.as_ref()?[dm][*i] as f64),
+                _ => None,
+            },
+        }
+    }
+
+    // The texts as `root` shows them: the constants filled in, a header's parameter left for the
+    // client.
+    pub fn texts(&self, root: &str) -> MetricTexts {
+        let mut vars = text_vars();
+        vars.push(("members", root.to_string()));
+        if let Some(n) = top_n(root) {
+            vars.push(("n", n.to_string()));
+        }
+        if let [Column::HIndexSince(i)] = self.reads {
+            vars.push(("since", H_SINCE[*i].to_string()));
+        }
+        let fill = |s: &str| fill(s, &vars);
+        MetricTexts {
+            label: fill(self.label),
+            header: self.header.map(fill),
+            meaning: fill(self.meaning),
+            rationale: self.rationale.map(fill),
         }
     }
 }
@@ -420,8 +586,15 @@ impl RootColumns {
     pub fn column_bytes(&self, c: Column) -> Option<usize> {
         let n = self.papers.len();
         Some(match c {
-            Column::Papers | Column::Citations | Column::HitPapers | Column::ImpactScore => n * 4,
+            Column::Papers | Column::Citations | Column::HitPapers | Column::ScoredPapers => n * 4,
+            Column::WeightedPaperScore => self.weighted_paper_scores.as_ref()?.len() * 4,
+            Column::TopMean => self.top_means.as_ref()?.len() * 4,
             Column::HIndex => self.h_indices.as_ref()?.len() * 4,
+            Column::HIndexSince(_) => {
+                self.h_since.as_ref()?.len() * std::mem::size_of::<[u32; H_SINCE.len()]>()
+            }
+            Column::Population => self.population.as_ref()?.len() * 4,
+            Column::PaperScore => self.paper_scores.as_ref()?.len() * 4,
             Column::YearCentroid => self.year_centroids.as_ref()?.len() * 4,
             Column::SubfieldCiting => {
                 let s = self.subfields.as_ref()?;
@@ -450,6 +623,39 @@ pub fn metric(id: &str) -> Option<&'static MetricDecl> {
     METRICS.iter().find(|m| m.id == id)
 }
 
+// The metric a root's table is ordered by until the reader picks another: the root's primary
+// performance reading, or its citations where the portfolio gives it none.
+pub fn default_sort(root: &str) -> &'static str {
+    match root {
+        r if r == Sources::NAME => TOP_MEAN,
+        r if r == Authors::NAME || r == Institutions::NAME || r == Countries::NAME => {
+            WEIGHTED_PAPER_SCORE
+        }
+        r if r == HitPapers::NAME => PAPER_SCORE,
+        _ => CITATIONS,
+    }
+}
+
+pub fn methodology_texts() -> Vec<ItemTexts> {
+    let vars = text_vars();
+    [PAPER_SCORE_TEXTS, HIT_PAPER_TEXTS]
+        .iter()
+        .map(|t: &Texts| ItemTexts {
+            id: t.id,
+            texts: MetricTexts {
+                label: fill(t.label, &vars),
+                header: None,
+                meaning: fill(t.meaning, &vars),
+                rationale: t.rationale.map(|r| fill(r, &vars)),
+            },
+        })
+        .collect()
+}
+
+fn per_million(value: f64, population: u32) -> Option<f64> {
+    (population > 0).then(|| value / (population as f64 / 1e6))
+}
+
 pub fn era_bounds() -> (RawYear, RawYear) {
     (
         YearInterface::reverse(MIN_YEAR as ET<Years>),
@@ -474,9 +680,18 @@ pub fn era_span(from: RawYear, to: RawYear) -> Option<(usize, usize)> {
 
 #[cfg(test)]
 mod tests {
-    use rankless_rs::metrics::IMPACT_BETA;
+    use rankless_rs::metrics::TOP_N;
 
     use super::*;
+
+    const ROOTS: &[&str] = &[
+        Authors::NAME,
+        Institutions::NAME,
+        Countries::NAME,
+        Sources::NAME,
+        Subfields::NAME,
+        HitPapers::NAME,
+    ];
 
     #[test]
     fn every_metric_names_its_reads_or_its_profile() {
@@ -491,16 +706,65 @@ mod tests {
             .all(|m| METRICS.iter().filter(|o| o.id == m.id).count() == 1));
     }
 
-    // The exponent is stated in prose exactly once, in the meaning the site and the MCP both
-    // read; this keeps that prose honest about the constant it describes.
+    // A text names constants, never states them, so every placeholder must resolve on every root
+    // the metric can exist on: a Top-N mean only where the root has an N.
     #[test]
-    fn the_impact_meaning_states_the_live_exponent() {
-        let decl = metric(IMPACT_SCORE).unwrap();
-        assert!(
-            decl.meaning.contains(&format!("papers^{IMPACT_BETA}")),
-            "{}",
-            decl.meaning
+    fn every_text_resolves_its_constants() {
+        for m in METRICS {
+            let roots = ROOTS
+                .iter()
+                .filter(|r| !m.reads.contains(&Column::TopMean) || top_n(r).is_some());
+            for root in roots {
+                let t = m.texts(root);
+                for text in [
+                    &t.label,
+                    &t.meaning,
+                    t.rationale.as_ref().unwrap_or(&t.label),
+                ] {
+                    assert!(!text.contains('{'), "{} on {root}: {text}", m.id);
+                }
+            }
+        }
+        for t in methodology_texts() {
+            assert!(!t.texts.meaning.contains('{'), "{}", t.texts.meaning);
+        }
+    }
+
+    #[test]
+    fn the_recent_h_indices_follow_their_years() {
+        for (i, id) in H_INDEX_SINCE.iter().enumerate() {
+            assert_eq!(*id, format!("h_index_since_{}", H_SINCE[i]));
+            let decl = metric(id).unwrap();
+            assert_eq!(decl.reads, &[Column::HIndexSince(i)]);
+            assert!(decl
+                .texts(Sources::NAME)
+                .label
+                .ends_with(&H_SINCE[i].to_string()));
+        }
+    }
+
+    #[test]
+    fn the_top_n_roots_are_entity_names() {
+        let named = [
+            Sources::NAME,
+            Institutions::NAME,
+            Countries::NAME,
+            Authors::NAME,
+        ];
+        for (root, _) in TOP_N {
+            assert!(named.contains(root), "{root}");
+        }
+        assert_eq!(
+            metric(TOP_MEAN).unwrap().texts(Authors::NAME).label,
+            "Top-20 mean"
         );
+    }
+
+    #[test]
+    fn every_default_sort_is_a_metric() {
+        for root in ROOTS {
+            assert!(metric(default_sort(root)).is_some(), "{root}");
+        }
     }
 
     #[test]
