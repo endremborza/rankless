@@ -12,7 +12,7 @@ mod util;
 
 use std::{net::SocketAddr, sync::Arc, thread::sleep, time};
 
-use axum::{routing::get, Router};
+use axum::{extract::State, routing::get, Router};
 use socket2::{Domain, Socket, Type};
 use tokio::{net::TcpListener, sync::Notify};
 
@@ -21,9 +21,9 @@ use rankless_trees::metrics::methodology_texts;
 
 use crate::consts::{DEFAULT_N_THREADS, PORT};
 use crate::handlers::{
-    authored_get, columns_get, intersect_get, ladder_get, metric_values_get, name_get, orcid_get,
-    paper_profile, peers_get, resolve_author_get, resolve_work_get, sem_id_get, slice_get,
-    stats_get, tops_get, tree_get, view_get, where_get, works_get,
+    authored_get, column_registry, intersect_get, ladder_get, metric_values_get, name_get,
+    orcid_get, paper_profile, peers_get, resolve_author_get, resolve_work_get, sem_id_get,
+    slice_get, stats_get, tops_get, tree_get, view_get, where_get, works_get,
 };
 use crate::responses::MethodologyOut;
 use crate::startup::get_rest;
@@ -58,11 +58,12 @@ async fn async_main(n_threads: usize) {
     let stowage = Stowage::new(&path);
     let (ns_map, satts, tree_manager, counts_response, tops) = get_rest(stowage, n_threads);
     let ns_map_arc: Arc<NameStateMap> = ns_map.into();
+    let states = State((ns_map_arc, satts, tree_manager.clone()));
+    let columns_api = static_router(&column_registry(&states));
 
     let response_api = Router::new()
         .route("/names/:etype", get(name_get))
         .route("/slice/:etype/:from/:to", get(slice_get))
-        .route("/columns", get(columns_get))
         .route("/where", get(where_get))
         .route("/metrics/:etype", get(metric_values_get))
         .route("/views/:etype/:semantic_id", get(view_get))
@@ -78,7 +79,7 @@ async fn async_main(n_threads: usize) {
         .route("/trees/:root_type/:semantic_id", get(tree_get))
         .route("/works/:etype/:semantic_id/:from", get(works_get))
         .route("/works-intersect/*spec", get(intersect_get))
-        .with_state((ns_map_arc, satts, tree_manager.clone()));
+        .with_state(states.0);
 
     let count_api = static_router(&counts_response);
     let mut specs_payload = serde_json::to_value(&tree_manager.specs).unwrap();
@@ -96,6 +97,7 @@ async fn async_main(n_threads: usize) {
     let api = Router::new()
         .nest("/", response_api)
         .nest("/counts", count_api)
+        .nest("/columns", columns_api)
         .nest("/tops", tops_api)
         .nest("/specs", specs_api)
         .nest("/methodology", methodology_api);

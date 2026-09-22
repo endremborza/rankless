@@ -10,7 +10,7 @@ use axum::{
 use hashbrown::HashMap;
 
 use rankless_expr::{parse_call, parse_calls, parse_where};
-use rankless_trees::metrics::{default_sort, Cost, METRICS};
+use rankless_trees::metrics::{default_sort, Cost};
 
 use crate::cohort::{BoundCall, Cohort, Ctx};
 use crate::consts::{CACHEABLE_FROM, MAX_METRIC_CALLS, MAX_METRIC_IDS, MAX_PINS, MAX_SLICE};
@@ -25,25 +25,24 @@ use crate::util::{bad_text, cache_header, get_empty, resolve_dm};
 type Reply = (HeaderMap, Response);
 
 // The registry as the clients read it: per root type, the metrics its loaded columns support, with
-// their kind and their texts as that root shows them.
-pub(crate) async fn columns_get(states: StatesT) -> Reply {
+// their kind and their texts as that root shows them. Nothing in it changes while the server runs,
+// so it is built once at startup.
+pub(crate) fn column_registry(states: &StatesT) -> ColumnRegistry {
     let roots = states
         .0
          .0
         .keys()
         .filter_map(|root| {
-            let ctx = Ctx::new(&states, root)?;
-            let metrics = METRICS
-                .iter()
-                .filter_map(|decl| {
-                    Some(ColumnDecl {
-                        id: decl.id,
-                        texts: decl.texts(root),
-                        value: decl.value,
-                        param: decl.param,
-                        cost: decl.cost,
-                        kind: ctx.kind(decl)?,
-                    })
+            let ctx = Ctx::new(states, root)?;
+            let metrics = ctx
+                .registry()
+                .map(|(decl, kind)| ColumnDecl {
+                    id: decl.id,
+                    texts: decl.texts(root),
+                    value: decl.value,
+                    param: decl.param,
+                    cost: decl.cost,
+                    kind,
                 })
                 .collect();
             let registry = RootRegistry {
@@ -53,10 +52,7 @@ pub(crate) async fn columns_get(states: StatesT) -> Reply {
             Some((*root, registry))
         })
         .collect();
-    (
-        cache_header(1440),
-        Json(ColumnRegistry { roots }).into_response(),
-    )
+    ColumnRegistry { roots }
 }
 
 // The parsed tree of a `where` expression, for a client that shows it as chips.
