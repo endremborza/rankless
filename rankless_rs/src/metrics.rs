@@ -383,10 +383,6 @@ pub fn mean_of(counts: impl Iterator<Item = u32>) -> f64 {
 mod tests {
     use super::*;
 
-    fn bar_of(units: f64) -> EncodedBar {
-        encode_bar(units)
-    }
-
     #[test]
     fn the_bar_round_trips_to_its_unit_and_overflow_fails() {
         assert_eq!(decode_bar(encode_bar(6.6)), 6.5);
@@ -407,18 +403,18 @@ mod tests {
 
     #[test]
     fn the_score_is_the_root_of_citations_over_the_bar() {
-        assert_eq!(paper_score(400, bar_of(100.0)), Some(2.0));
-        assert_eq!(paper_score(100, bar_of(100.0)), Some(1.0));
-        assert_eq!(paper_score(0, bar_of(100.0)), Some(0.0));
+        assert_eq!(paper_score(400, encode_bar(100.0)), Some(2.0));
+        assert_eq!(paper_score(100, encode_bar(100.0)), Some(1.0));
+        assert_eq!(paper_score(0, encode_bar(100.0)), Some(0.0));
         assert_eq!(paper_score(100, 0), None);
     }
 
     #[test]
     fn a_hit_is_at_least_the_multiple_of_the_bar() {
-        let bar = bar_of(4.0);
+        let bar = encode_bar(4.0);
         assert!(is_hit(paper_score(6, bar).unwrap()));
         assert!(!is_hit(paper_score(5, bar).unwrap()));
-        let quarter = bar_of(6.75);
+        let quarter = encode_bar(6.75);
         let at = (6.75 * PAPER_SCORE.hit_multiple).ceil() as u32;
         assert!(is_hit(paper_score(at, quarter).unwrap()));
         assert!(!is_hit(paper_score(at - 1, quarter).unwrap()));
@@ -451,7 +447,7 @@ mod tests {
 
     #[test]
     fn a_summary_reads_every_metric_in_one_pass() {
-        let bar = bar_of(100.0);
+        let bar = encode_bar(100.0);
         let papers = [
             Paper {
                 citations: 400,

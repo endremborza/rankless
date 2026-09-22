@@ -41,18 +41,6 @@ export function formatNumber(n: number, maxFix: number = 2) {
 	}
 }
 
-// A number with its trailing zeros off: 1.5 stays 1.5 and 2.0 reads 2.
-export function trimZeros(n: number): string {
-	return String(+n.toFixed(3));
-}
-
-// A fraction as a percentage, trailing zeros off: 0.01 → 1%, 0.875 → 87.5%, 0.005 → 0.5%. For the
-// served hit-paper-rule fractions, which read as round numbers; `formatMetric` renders share-valued
-// metrics to a fixed width instead, since those sit in a column.
-export function formatShare(v: number): string {
-	return `${trimZeros(v * 100)}%`;
-}
-
 // Two-digit year with a leading apostrophe, e.g. 2024 → '24. Keeps dense year axes legible.
 export function shortYear(y: number): string {
 	return "'" + String(((y % 100) + 100) % 100).padStart(2, '0');
