@@ -50,6 +50,7 @@ RENAMED_PAIRS = (
     ("AttributeLabelOut", "AttributeLabel"),
     ("ColumnDecl", "MetricDecl"),
     ("ColumnRegistry", "MetricRegistry"),
+    ("MethodologyOut", "Methodology"),
     ("ResolveWorkResp", "WorkResolveResp"),
     ("ResolveAuthorResp", "AuthorResolveResp"),
 )

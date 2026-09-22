@@ -223,10 +223,14 @@ export type WorkScreen = {
 	minAuthorCitations: number;
 };
 
-// Everything `/methodology` publishes about how the numbers are made.
+// Everything `/methodology` publishes about how the numbers are made: the constants and the
+// texts filled from them (the paper score, then the hit paper).
 export type Methodology = {
 	workScreen: WorkScreen;
-	hitRule: HitRule;
+	paperScore: PaperScore;
+	topN: [string, number][];
+	hSince: number[];
+	texts: ItemTexts[];
 };
 
 // Page-local metric values from `/metrics/:etype`: one column per call, keyed by the call.

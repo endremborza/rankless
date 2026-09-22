@@ -108,11 +108,12 @@ async def get_methodology() -> dict:
 
     `workScreen` decides which papers are in the data at all, and so what an
     indexed paper and an indexed citation are: work kinds, year window, citation
-    floor, author cap, and the per-entity minimums. `hitRule` decides which papers
-    are hit papers: the benchmark percentile and its blend weights, the
-    thresholds, the topic and topic-creator paths, the Nobel multiplier. Explain
-    what a number counts from this, never from memory; its values verify like any
-    other data.
+    floor, author cap, and the per-entity minimums. `paperScore` holds what a
+    paper's score measures it against (the bar's top share and blend weights) and
+    the multiple that makes it a hit paper; `topN` and `hSince` parametrize the
+    Top-N means and the recent h-indices. `texts` states the paper score and the
+    hit paper in words, filled from those values. Explain what a number counts
+    from this, never from memory; its values verify like any other data.
     """
     return await get_json("/methodology")
 

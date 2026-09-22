@@ -17,6 +17,7 @@ use socket2::{Domain, Socket, Type};
 use tokio::{net::TcpListener, sync::Notify};
 
 use rankless_rs::{metrics::METHODOLOGY, Stowage};
+use rankless_trees::metrics::methodology_texts;
 
 use crate::consts::{DEFAULT_N_THREADS, PORT};
 use crate::handlers::{
@@ -24,6 +25,7 @@ use crate::handlers::{
     paper_profile, peers_get, resolve_author_get, resolve_work_get, sem_id_get, slice_get,
     stats_get, tops_get, tree_get, view_get, where_get, works_get,
 };
+use crate::responses::MethodologyOut;
 use crate::startup::get_rest;
 use crate::state::NameStateMap;
 use crate::util::static_router;
@@ -82,7 +84,10 @@ async fn async_main(n_threads: usize) {
     let mut specs_payload = serde_json::to_value(&tree_manager.specs).unwrap();
     specs_payload["version"] = serde_json::Value::String(util::version_stamp(&path));
     let specs_api = static_router(&specs_payload);
-    let methodology_api = static_router(&METHODOLOGY);
+    let methodology_api = static_router(&MethodologyOut {
+        constants: &METHODOLOGY,
+        texts: methodology_texts(),
+    });
 
     let tops_api = Router::new()
         .route("/", get(tops_get))
