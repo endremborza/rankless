@@ -1,4 +1,5 @@
 import asyncio
+import copy
 
 import pytest
 
@@ -165,18 +166,33 @@ def test_annotate_entities_resolves_names_then_aligns_values() -> None:
 def test_descriptions_are_built_from_the_registry() -> None:
     tools.describe(REGISTRY)
     rank = tools.rank_entities.__doc__ or ""
-    authors, institutions = rank.split("\ninstitutions:\n")
-    field = "field_score(subfield) [score]: Citations from the field over size."
-    assert f"{field} Per-entity." in authors and f"{field} Global." in institutions
-    assert "window_papers(from, to) [count]" in authors
-    assert "window_papers" not in institutions
+    assert rank.count("citations [count]: Citations received.") == 1
+    assert "Citations received. global for authors, institutions." in rank
     assert (
-        "cited_from(country) [share]: Share of citations from the country. A walk."
-        in authors
+        "field_score(subfield) [score]: Citations from the field over size. "
+        "per-entity for authors; global for institutions." in rank
+    )
+    assert (
+        "window_papers(from, to) [count]: Papers in the window. global for authors."
+        in rank
+    )
+    assert (
+        "cited_from(country) [share]: Share of citations from the country. "
+        "a walk for authors." in rank
     )
     assert "authors by weighted_paper_score, institutions by citations" in rank
     assert "country [entities of countries]" in rank
     assert "`where` expression" in rank
     annotate = tools.annotate_entities.__doc__ or ""
-    assert "cited_from(country)" in annotate
+    assert "Share of citations from the country. For authors." in annotate
+    assert "Citations from the field over size. For authors." in annotate
     assert "citations [count]" not in annotate
+
+
+def test_a_wording_one_type_states_differently_gets_its_own_line() -> None:
+    registry = copy.deepcopy(REGISTRY)
+    registry["roots"]["institutions"]["metrics"][0]["meaning"] = "Citations to it."
+    tools.describe(registry)
+    rank = tools.rank_entities.__doc__ or ""
+    assert "citations [count]: Citations received. global for authors." in rank
+    assert "citations [count]: Citations to it. global for institutions." in rank

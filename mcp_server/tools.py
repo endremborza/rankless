@@ -53,8 +53,8 @@ makes available (`columns` lists them) and `rankless_url` opens the same table o
 
 {expressions}
 
-Metrics per type (global = ranks and narrows the whole cohort; per-entity = the top 1000 by
-citations; a walk = a page column for annotate_entities only, never a ranking or a clause):
+Metrics (global = ranks and narrows the whole cohort; per-entity = the top 1000 by citations;
+a walk = a page column for annotate_entities only, never a ranking or a clause):
 {metrics}
 """
 
@@ -304,28 +304,35 @@ def _signature(m: dict) -> str:
 
 
 def describe(registry: dict) -> None:
-    """Fill the table tools' docstrings from the backend's metric registry, one block per
-    root type since a metric's texts and kind are the root's."""
-    rank_lines, annotate_lines = [], []
-    for root, reg in registry["roots"].items():
-        if root not in ROOT_TYPES:
-            continue
+    """Fill the table tools' docstrings from the backend's metric registry. A metric's texts
+    are per root type, so each wording is listed once, with the types it holds for grouped by
+    the metric's kind on each."""
+    kinds: dict[str, dict[str, list[str]]] = {}
+    for root in (r for r in ROOT_TYPES if r in registry["roots"]):
+        reg = registry["roots"][root]
         _default_sorts[root] = reg["defaultSort"]
-        rank_lines.append(f"{root}:")
-        annotate_lines.append(f"{root}:")
         for m in reg["metrics"]:
             vtype = m["value"]["type"]
             entity = m["value"].get("entity")
             typed = f"[{vtype} of {entity}]" if entity else f"[{vtype}]"
             line = f"- {_signature(m)} {typed}: {m['meaning']}"
             if m["cost"] == "walk":
-                annotate_lines.append(line)
-                rank_lines.append(f"{line} A walk.")
-                continue
-            per = m["kind"] == "intricate"
-            rank_lines.append(f"{line} {'Per-entity' if per else 'Global'}.")
-            if per:
-                annotate_lines.append(line)
+                kind = "a walk"
+            else:
+                kind = "per-entity" if m["kind"] == "intricate" else "global"
+            kinds.setdefault(line, {}).setdefault(kind, []).append(root)
+    rank_lines = [
+        line
+        + " "
+        + "; ".join(f"{k} for {', '.join(rs)}" for k, rs in by_kind.items())
+        + "."
+        for line, by_kind in kinds.items()
+    ]
+    annotate_lines = [
+        f"{line} For {', '.join(rs)}."
+        for line, by_kind in kinds.items()
+        if (rs := by_kind.get("a walk", []) + by_kind.get("per-entity", []))
+    ]
     rank_entities.__doc__ = RANK_DOC.format(
         expressions=EXPRESSIONS,
         defaults=", ".join(f"{r} by {s}" for r, s in _default_sorts.items()),
