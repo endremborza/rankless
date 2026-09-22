@@ -304,7 +304,7 @@ pub fn summarize(papers: impl Iterator<Item = Paper>, n: usize) -> PaperSetSumma
 
 /// The values a text template names as `{name}`, formatted as the texts show them.
 pub fn text_vars() -> Vec<(&'static str, String)> {
-    let (p, s) = (&PAPER_SCORE, &WORK_SCREEN);
+    let p = &PAPER_SCORE;
     vec![
         ("top_share", percent(p.top_share)),
         ("w_sf_year", percent(p.w_sf_year)),
@@ -312,8 +312,7 @@ pub fn text_vars() -> Vec<(&'static str, String)> {
         ("w_year", percent(p.w_year)),
         ("sf_year_min_papers", p.sf_year_min_papers.to_string()),
         ("hit_multiple", decimal(p.hit_multiple)),
-        ("start_year", s.start_year.to_string()),
-        ("final_year", s.final_year.to_string()),
+        ("final_year", WORK_SCREEN.final_year.to_string()),
     ]
 }
 

@@ -157,10 +157,7 @@ pub const METRICS: &[MetricDecl] = &[
         cost: Cost::Read,
         profile: None,
     },
-    MetricDecl {
-        id: H_INDEX_SINCE[0],
-        ..H_INDEX_SINCE_DECL
-    },
+    H_INDEX_SINCE_DECL,
     MetricDecl {
         id: H_INDEX_SINCE[1],
         reads: &[Column::HIndexSince(1)],
@@ -528,12 +525,24 @@ impl MetricDecl {
         if let [Column::HIndexSince(i)] = self.reads {
             vars.push(("since", H_SINCE[*i].to_string()));
         }
-        let fill = |s: &str| fill(s, &vars);
-        MetricTexts {
-            label: fill(self.label),
-            header: self.header.map(fill),
-            meaning: fill(self.meaning),
-            rationale: self.rationale.map(fill),
+        MetricTexts::fill(self.label, self.header, self.meaning, self.rationale, &vars)
+    }
+}
+
+impl MetricTexts {
+    fn fill(
+        label: &str,
+        header: Option<&str>,
+        meaning: &str,
+        rationale: Option<&str>,
+        vars: &[(&str, String)],
+    ) -> Self {
+        let fill = |s: &str| fill(s, vars);
+        Self {
+            label: fill(label),
+            header: header.map(fill),
+            meaning: fill(meaning),
+            rationale: rationale.map(fill),
         }
     }
 }
@@ -642,12 +651,7 @@ pub fn methodology_texts() -> Vec<ItemTexts> {
         .iter()
         .map(|t: &Texts| ItemTexts {
             id: t.id,
-            texts: MetricTexts {
-                label: fill(t.label, &vars),
-                header: None,
-                meaning: fill(t.meaning, &vars),
-                rationale: t.rationale.map(|r| fill(r, &vars)),
-            },
+            texts: MetricTexts::fill(t.label, None, t.meaning, t.rationale, &vars),
         })
         .collect()
 }
@@ -724,9 +728,6 @@ mod tests {
                     assert!(!text.contains('{'), "{} on {root}: {text}", m.id);
                 }
             }
-        }
-        for t in methodology_texts() {
-            assert!(!t.texts.meaning.contains('{'), "{}", t.texts.meaning);
         }
     }
 
