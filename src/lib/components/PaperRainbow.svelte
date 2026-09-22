@@ -1,11 +1,10 @@
 <script lang="ts">
-	import { page } from '$app/state';
 	import { LATEST_YEAR } from '$lib/constants';
 	import { getColor, getColorArr } from '$lib/style-util';
-	import { formatNumber, formatShare } from '$lib/text-format-util';
+	import { formatNumber } from '$lib/text-format-util';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
-	import { overperf, resolveSourceName, htmlToText } from '$lib/utils/paper-helpers';
+	import { resolveSourceName, htmlToText } from '$lib/utils/paper-helpers';
 	import AuthorList from './AuthorList.svelte';
 	import HitPaperBreakdown from './HitPaperBreakdown.svelte';
 	import HitPaperExplainer from './HitPaperExplainer.svelte';
@@ -21,7 +20,6 @@
 	const xBase = 26;
 	const yBase = 12;
 	const fontSize = 0.5;
-	const bmThreshold = 5;
 
 	type PubMark = { x: number; color: string };
 	type YTick = { label: string; y: number };
@@ -43,7 +41,7 @@
 	let highlighted = 0;
 	let alignTrajectories = true;
 	let logScale = false;
-	let sortBy: 'citations' | 'overperf' | 'year' = 'year';
+	let sortBy: 'citations' | 'score' | 'year' = 'year';
 	let viewMode: 'lines' | 'breakdown' = 'lines';
 
 	let breakdownTreeId = 0;
@@ -296,7 +294,7 @@
 	$: chartPapers = papers
 		.filter((p) => p.yearlyCites && p.yearlyCites.length > 0)
 		.toSorted((a, b) => {
-			if (sortBy === 'overperf') return overperf(b) - overperf(a);
+			if (sortBy === 'score') return (b.score ?? -1) - (a.score ?? -1);
 			if (sortBy === 'year') return b.year - a.year;
 			return b.citations - a.citations;
 		});
@@ -343,7 +341,7 @@
 					</label>
 					<select bind:value={sortBy} class="breakdown-select" aria-label="Sort by">
 						<option value="citations">sort: citations</option>
-						<option value="overperf">sort: overperformance</option>
+						<option value="score">sort: paper score</option>
 						<option value="year">sort: publication year</option>
 					</select>
 				{:else if breakdownOptions.length > 0}
@@ -511,7 +509,6 @@
 
 		<ol id="paper-list" bind:this={listContainer}>
 			{#each chartPapers as paper, i (i)}
-				{@const rule = page.data.methodology?.hitRule}
 				{@const source = resolveSourceName(paper.source, entityAtts)}
 				{@const expanded = expandedSet.has(i)}
 				<li
@@ -588,20 +585,12 @@
 											</span>
 										</div>
 									{/if}
-									{#if paper.hitBm && paper.hitBm >= bmThreshold}
+									{#if paper.score !== undefined && paper.bar !== undefined}
 										<div class="detail-row selection-basis">
-											<span class="detail-label">Performance:</span>
+											<span class="detail-label">Paper score:</span>
 											<span
-												>{overperf(paper).toFixed(1)}× {formatNumber(paper.hitBm)} citations{#if rule}
-													— what a paper of its subfields and year needs to reach the top {formatShare(
-														rule.topPctile
-													)}{/if}</span
+												>{paper.score.toFixed(2)} (bar: {formatNumber(paper.bar)} citations)</span
 											>
-										</div>
-									{:else if rule && paper.citations >= rule.minUniversal}
-										<div class="detail-row selection-basis">
-											<span class="detail-label">Selection:</span>
-											<span>Universal threshold (≥{rule.minUniversal} citations)</span>
 										</div>
 									{/if}
 								</div>

@@ -21,6 +21,7 @@ use rankless_rs::{
         a2_init_atts::{DiscardedAuthorsNames, WorkBiblios, WorkDois},
         derive_links3::HitPapers,
     },
+    metrics::{decode_bar, paper_score},
     steps::a1_entity_mapping::YearInterface,
 };
 use rankless_trees::{
@@ -239,7 +240,6 @@ fn paper_out(
 ) -> PaperOut {
     let mut yearly_cites = None;
     let mut is_hit = false;
-    let mut hit_bm = None;
     let mut hit_sem_id = None;
     let mut created_topic = None;
     let (name, doi) = if let (Some(hwid), Some(hit_attlu)) = (
@@ -262,7 +262,6 @@ fn paper_out(
             String::new()
         };
         yearly_cites = Some(gets.hit_yearlies(*hwid).into());
-        hit_bm = Some(gets.hit_bms(hwid).to_usize() as u32);
         is_hit = true;
         (name, doi)
     } else {
@@ -333,6 +332,9 @@ fn paper_out(
     let authorships: Vec<PaperAuthorship> = positioned_ships.into_iter().map(|(_, a)| a).collect();
     let source = gets.top_source(&wid).to_usize();
     add_to_eatts(Sources::NAME, source);
+    let citations = gets.wccount(wid) as u32;
+    let bar = *gets.wbar(&wid);
+    let score = paper_score(citations, bar);
 
     PaperOut {
         wid,
@@ -341,13 +343,14 @@ fn paper_out(
         name,
         hit_sem_id,
         doi,
-        citations: gets.wccount(wid) as u32,
+        citations,
         yearly_cites,
         biblio,
         source,
         authorships,
         is_hit,
-        hit_bm,
+        bar: score.map(|_| decode_bar(bar)),
+        score,
         created_topic,
     }
 }

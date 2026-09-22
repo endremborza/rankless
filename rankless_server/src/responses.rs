@@ -366,8 +366,11 @@ pub(crate) struct PaperOut {
     pub biblio: Option<ET<WorkBiblios>>,
     #[serde(rename = "isHit")]
     pub is_hit: bool,
-    #[serde(rename = "hitBm", skip_serializing_if = "Option::is_none")]
-    pub hit_bm: Option<u32>,
+    // The paper's bar and its paper score; absent for a paper without a score.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bar: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub score: Option<f64>,
     #[serde(rename = "hitSemId", skip_serializing_if = "Option::is_none")]
     pub hit_sem_id: Option<String>,
     #[serde(rename = "createdTopic", skip_serializing_if = "Option::is_none")]

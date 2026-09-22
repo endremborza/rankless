@@ -288,7 +288,7 @@ make_interfaces!(
     author_orcids => AuthorOrcids,
     raw_cites => AuthorRawCites,
     raw_works => AuthorRawWorkCounts,
-    hit_bms => HitPapersBenchmarks,
+    wbar => WorkBars,
     hit_created_topic => HitPapersCreatedTopic;
     wrefs -> WorkReferences,
     wtopics -> WorkTopics,

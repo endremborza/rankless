@@ -83,7 +83,9 @@ export type Paper = {
 	yearlyCites?: number[];
 	biblio?: PaperBiblio;
 	isHit: boolean;
-	hitBm?: number;
+	// The paper's bar and paper score; absent for a paper without a score.
+	bar?: number;
+	score?: number;
 	hitSemId?: string;
 	createdTopic?: string;
 };

@@ -156,11 +156,6 @@ export function resolveInstName(instId: number, entityAtts: EntityAttsForLinks):
 	return entityAtts.institutions?.[String(instId)]?.name ?? '';
 }
 
-export function overperf(paper: Paper): number {
-	if (!paper.hitBm || paper.hitBm < 5) return 0;
-	return paper.citations / paper.hitBm;
-}
-
 export type Author = {
 	name: string;
 	url?: string;
