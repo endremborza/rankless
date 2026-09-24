@@ -300,20 +300,24 @@
 								: undefined}
 							onclick={() => toggleLocalSort(c.key)}
 						>
-							{columnLabel(c.decl, c.args, names)}{arrow(c.key)}
-							{#if q.sort === c.key}
-								<span class="rank-mark">rank</span>
-							{/if}
-							<InfoTip text={c.decl.meaning} label={c.decl.label} />
+							<span class="head">
+								{columnLabel(c.decl, c.args, names)}{arrow(c.key)}
+								{#if q.sort === c.key}
+									<span class="rank-mark">rank</span>
+								{/if}
+								<InfoTip text={c.decl.meaning} label={c.decl.label} />
+							</span>
 						</th>
 					{/each}
 					{#if hasStanding}
 						<th class="num">
-							Standing
-							<InfoTip
-								text="The most selective percentile band the entity's {fieldName} citations reach among all {noun} active in the field."
-								label="Standing"
-							/>
+							<span class="head">
+								Standing
+								<InfoTip
+									text="The most selective percentile band the entity's {fieldName} citations reach among all {noun} active in the field."
+									label="Standing"
+								/>
+							</span>
 						</th>
 					{/if}
 					{#each columns as col (col.key)}
@@ -322,20 +326,22 @@
 							class:active={localSort?.key === col.key}
 							onclick={() => toggleLocalSort(col.key)}
 						>
-							{col.label}{arrow(col.key)}
-							<InfoTip
-								text="{col.metric.meaning} Computed for the loaded rows only."
-								label={col.label}
-							/>
-							<button
-								class="remove"
-								type="button"
-								aria-label="Remove column {col.label}"
-								onclick={(e) => {
-									e.stopPropagation();
-									removeColumn(col.key);
-								}}>×</button
-							>
+							<span class="head">
+								{col.label}{arrow(col.key)}
+								<InfoTip
+									text="{col.metric.meaning} Computed for the loaded rows only."
+									label={col.label}
+								/>
+								<button
+									class="remove"
+									type="button"
+									aria-label="Remove column {col.label}"
+									onclick={(e) => {
+										e.stopPropagation();
+										removeColumn(col.key);
+									}}>×</button
+								>
+							</span>
 						</th>
 					{/each}
 				</tr>
@@ -450,26 +456,50 @@
 		margin: 0;
 	}
 
+	/* The rows scroll in this box, so the header sticks to its top edge. The reserve is the site
+	   header plus the page's own content below the table: it keeps the box short enough that its top
+	   edge is still on screen once the page is scrolled to its end, and with it the stuck header. */
 	.table-wrap {
-		overflow-x: auto;
+		overflow: auto;
+		max-height: calc(100dvh - var(--header-height) - 9rem);
 		margin-top: 12px;
 	}
 
+	/* Separate borders so the header's own borders travel with it while it is stuck; collapsed
+	   borders belong to the table and scroll out from under a sticky row. */
 	table {
 		width: 100%;
-		border-collapse: collapse;
+		border-collapse: separate;
+		border-spacing: 0;
 		font-size: var(--text-base);
+	}
+
+	thead {
+		position: sticky;
+		top: 0;
+		z-index: 2;
 	}
 
 	thead th {
 		text-align: left;
+		vertical-align: bottom;
 		padding: 6px 8px;
+		background: var(--text-bg);
 		border-bottom: 2px solid rgba(var(--color-range-15), 0.15);
-		white-space: nowrap;
 		font-size: var(--text-sm);
-		opacity: 0.6;
+		/* Dimmed through the text color, not opacity: a stuck header has to stay opaque over the rows
+		   passing under it. */
+		color: color-mix(in srgb, var(--color-text) 60%, var(--text-bg));
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
+	}
+
+	/* Capped so a long label wraps onto a second line instead of stretching its column far past the
+	   numbers under it. */
+	.head {
+		display: inline-block;
+		max-width: 13em;
+		white-space: normal;
 	}
 
 	th.group {
@@ -494,7 +524,7 @@
 	thead th.sortable:hover,
 	thead th.active,
 	thead th.ranked {
-		opacity: 1;
+		color: var(--color-text);
 	}
 
 	.rank-mark {
@@ -517,7 +547,7 @@
 		padding: 0 2px;
 	}
 
-	tbody tr {
+	tbody td {
 		border-bottom: 1px solid rgba(var(--color-range-15), 0.06);
 	}
 
@@ -538,8 +568,11 @@
 		width: 48px;
 		text-align: right;
 		font-size: var(--text-xs);
-		opacity: 0.35;
 		font-variant-numeric: tabular-nums;
+	}
+
+	td.col-rank {
+		opacity: 0.35;
 	}
 
 	.col-name a {
