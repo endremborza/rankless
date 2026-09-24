@@ -302,7 +302,9 @@ pub struct Authorship {
     #[serde(deserialize_with = "deserialize_hash_fields")]
     pub institutions: Option<String>,
     author_position: Option<String>,
-    raw_affiliation_string: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_json_array")]
+    raw_affiliation_strings: Option<String>,
+    is_corresponding: Option<bool>,
     #[serde(default)]
     pub position: u16,
 }
