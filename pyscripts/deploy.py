@@ -1368,6 +1368,7 @@ def sync_data_to_live():
 def _sync_ops(live: bool, only: str | None, explain: bool, pull=True):
     tpr = get_running_tpr(live)
     spec = tpr.box_spec()
+    ops_plan(spec, only)  # an unknown step name fails before the box is touched
     if pull and not explain:
         tpr.sync_code()
     apply_ops(tpr, spec, only=only, explain=explain)
