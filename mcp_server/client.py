@@ -23,8 +23,12 @@ def reset() -> None:
 
 
 async def get_json(path: str, params: dict | None = None):
+    """A 4xx raises `ValueError` carrying the backend's body, the refusal text the
+    model reads (the MCP SDK reports a tool's exception as its message)."""
     clean = {k: v for k, v in (params or {}).items() if v is not None}
     resp = await get_client().get(path, params=clean)
+    if resp.is_client_error:
+        raise ValueError(f"{resp.status_code} {path}: {resp.text}")
     resp.raise_for_status()
     return resp.json()
 
