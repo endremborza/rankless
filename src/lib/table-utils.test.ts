@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
 	annotatable,
+	argsReady,
 	callText,
 	chipLabel,
 	chipsFrom,
+	defaultArgs,
 	clauseable,
 	clauseText,
 	columnLabel,
@@ -144,6 +146,31 @@ describe('calls and clauses', () => {
 		});
 		expect(parseCall('city("new york")')).toEqual({ metric: 'city', args: ['new york'] });
 		expect(parseCall('papers')).toEqual({ metric: 'papers', args: [] });
+	});
+
+	it('a call is ready when every argument its parameter takes is given', () => {
+		const window = registry.find((d) => d.id === 'window_papers')!;
+		const field = registry.find((d) => d.id === 'field_score')!;
+		const papers = registry.find((d) => d.id === 'citations')!;
+		expect(argsReady(window, [2016, 2026])).toBe(true);
+		expect(argsReady(window, [2020, ''])).toBe(false);
+		expect(argsReady(window, [2020])).toBe(false);
+		expect(argsReady(window, [])).toBe(false);
+		expect(argsReady(field, ['oncology'])).toBe(true);
+		expect(argsReady(field, [])).toBe(false);
+		expect(argsReady(papers, [])).toBe(true);
+	});
+
+	it('a window starts on the last five counted years unless one is given', () => {
+		const window = registry.find((d) => d.id === 'window_papers')!;
+		const field = registry.find((d) => d.id === 'field_score')!;
+		expect(defaultArgs(window, [], [2016, 2026])).toEqual([2021, 2026]);
+		expect(defaultArgs(window, [], [2024, 2026])).toEqual([2024, 2026]);
+		expect(defaultArgs(window, [2018, 2020], [2016, 2026])).toEqual([2018, 2020]);
+		expect(defaultArgs(window, ['oncology'], [2016, 2026])).toEqual([2021, 2026]);
+		expect(defaultArgs(window, [])).toEqual([]);
+		expect(defaultArgs(field, [2018, 2020])).toEqual([]);
+		expect(defaultArgs(field, ['oncology'])).toEqual(['oncology']);
 	});
 
 	it('serializes chips into one conjunction and labels them by name', () => {

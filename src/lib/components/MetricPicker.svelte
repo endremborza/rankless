@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { LATEST_YEAR } from '$lib/constants';
+	import { page } from '$app/state';
 	import ParamInputs from './ParamInputs.svelte';
-	import { callText, isSet, parseCall, type MetricArgs } from '$lib/table-utils';
+	import { argsReady, callText, defaultArgs, parseCall, type MetricArgs } from '$lib/table-utils';
 	import type { MetricDecl, NamedEntity } from '$lib/tree-types';
 
 	// Picks a metric and the argument its parameter takes, and hands over the call. A pick that
@@ -30,17 +30,12 @@
 	const metricId = $derived(picked ?? current.metric);
 	const decl = $derived(metrics.find((m) => m.id === metricId));
 
-	function defaults(d: MetricDecl | undefined, base: MetricArgs): MetricArgs {
-		if (d?.param === 'window') return base.length === 2 ? base : [LATEST_YEAR - 5, LATEST_YEAR];
-		return d?.param ? base.slice(0, 1) : [];
-	}
-
-	// The metric is read before the choice is reset: the reset moves `decl` back to `selected`.
+	// The metric and its arguments are read before the choice is reset: the reset moves `decl`
+	// back to `selected`.
 	function pick() {
 		const d = decl;
-		if (!d) return;
-		const chosen = defaults(d, args);
-		if (d.param && !chosen.every(isSet)) return;
+		const chosen = args;
+		if (!d || !argsReady(d, chosen)) return;
 		picked = null;
 		if (callText(d.id, chosen) !== selected) onpick(d, chosen);
 	}
@@ -48,8 +43,9 @@
 	function choose(id: string) {
 		picked = id;
 		const d = metrics.find((m) => m.id === id);
-		args = defaults(d, id === current.metric ? current.args : []);
-		if (id && !d?.param) pick();
+		const base = id === current.metric ? current.args : [];
+		args = d ? defaultArgs(d, base, page.data.methodology?.yearlyCounts) : [];
+		if (d && !d.param) pick();
 	}
 </script>
 

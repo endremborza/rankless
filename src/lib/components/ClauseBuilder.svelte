@@ -1,9 +1,12 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import ParamInputs from './ParamInputs.svelte';
 	import {
+		argsReady,
 		callText,
 		chipLabel,
 		clauseText,
+		defaultArgs,
 		isNumeric,
 		isSet,
 		opLabel,
@@ -49,14 +52,13 @@
 	function choose(id: string) {
 		metricId = id;
 		const d = metrics.find((m) => m.id === id);
-		args = [];
+		args = d ? defaultArgs(d, [], page.data.methodology?.yearlyCounts) : [];
 		operand = null;
 		op = d && isNumeric(d) ? 'ge' : 'eq';
 	}
 
 	function add() {
-		if (!decl || !isSet(operand)) return;
-		if (decl.param && !args.every(isSet)) return;
+		if (!decl || !isSet(operand) || !argsReady(decl, args)) return;
 		const chip: Chip = { call: callText(decl.id, args), op, operand };
 		const rest = chips ?? [];
 		onchange(whereText([...rest, chip]));

@@ -220,7 +220,7 @@ the only viz dependency).
 | `lib/tree-events.ts` | Click/hover/selection handlers |
 | `lib/visual-util.ts` | `rescale()`, `getSankeyPath()`, `pinRange()` |
 | `lib/metric-calculation.ts` | Specialization scores, impact metrics |
-| `lib/table-utils.ts` | Browse-table model over the `/columns` registry: which metrics rank (`rankable`), narrow (`clauseable`) or make page-local columns (`annotatable`), the call spelling shared with the backend (`callText`/`parseCall`), `where` chips ↔ text (`chipsFrom`/`whereText`/`chipLabel`), column names from header templates (`columnLabel`), formatting by value type, page-local stable sort, and the fetchers (`fetchSlice` returning the page's `rows` and `meta` plus the backend's error text, `fetchWhere`, `fetchColumnValues`) |
+| `lib/table-utils.ts` | Browse-table model over the `/columns` registry: which metrics rank (`rankable`), narrow (`clauseable`) or make page-local columns (`annotatable`), the call spelling shared with the backend (`callText`/`parseCall`), `where` chips ↔ text (`chipsFrom`/`whereText`/`chipLabel`), column names from header templates (`columnLabel`), formatting by value type, page-local stable sort, `argsReady` (every argument the parameter takes is given; what they say is the backend's to check) and `defaultArgs` (a window starts on the last five served yearly-count years), and the fetchers (`fetchSlice` and `fetchColumnValues` returning the backend's error text beside the data, `fetchWhere`) |
 | `lib/network-util.ts` | Co-authorship graph utilities (light layouts) |
 | `lib/utils/author-timeline.ts` | Aggregates co-authors from the full loaded works into per-year, span-bounded rows (`buildCoauthors`/`sortCoauthors`/`yearDomain`/`makeTicks`) for `AuthorTimeline` |
 | `lib/network-force.ts` | Cytoscape/fcose force layout — lazily imported so the vendor chunk stays off initial load |
@@ -290,7 +290,7 @@ the only viz dependency).
 | `ScrollyGraph.svelte` / `ScrollySank.svelte` / `TimelineViz.svelte` | Scrollytelling + timeline viz |
 | `PathLevelInfoBox.svelte` / `MidpathBar.svelte` | Path UI |
 | `MetricPicker.svelte` | Browse-table metric picker, used for the ranking and for page-local columns: a metric and the argument its parameter takes (through `ParamInputs`), handed over as a call; applied at once when parameter-free, with the button otherwise |
-| `ParamInputs.svelte` | The inputs of a metric's parameter — a field, a country, a year window — bound to the call's arguments; shared by the picker and the clause builder |
+| `ParamInputs.svelte` | The inputs of a metric's parameter — a field, a country, a year window — bound to the call's arguments, the year inputs bounded by the served yearly counts and each other (`:invalid` marks a year outside them); shared by the picker and the clause builder |
 | `ClauseBuilder.svelte` | Browse-table narrowing: a metric call, an operator its value type allows and an operand (a number, a country, a typed name) make one clause of the `where` conjunction, each a chip; any other expression shape is edited as text and applied whole |
 | `EntityPins.svelte` | Browse-table pins: `PeerSearch` by name adds an entity, chips (named by the pinned rows) remove one; the page carries the pins in `pin=` |
 | `HeadControl.svelte`, `Toc.svelte`, `FlatOutFrame.svelte` | Header / sticky nav / flat-view frame (own `tree-loader`; hosts bind `treeId`, keyed on entity identity by the page) |

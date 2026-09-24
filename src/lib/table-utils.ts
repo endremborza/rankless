@@ -184,6 +184,28 @@ export function isSet(v: string | number | null | undefined): v is string | numb
 	return v != null && v !== '';
 }
 
+// The arguments a metric's parameter takes.
+export function arity(decl: MetricDecl): number {
+	return decl.param === 'window' ? 2 : decl.param ? 1 : 0;
+}
+
+// A call's arguments are all given; what they say is the backend's to check.
+export function argsReady(decl: MetricDecl, args: MetricArgs): boolean {
+	return args.length === arity(decl) && args.every(isSet);
+}
+
+// The arguments a metric starts with: `base` where it fits the parameter, else the last five years
+// with yearly counts for a window, else nothing chosen yet.
+export function defaultArgs(
+	decl: MetricDecl,
+	base: MetricArgs,
+	yearly?: [number, number]
+): MetricArgs {
+	if (base.length === arity(decl)) return base;
+	if (decl.param === 'window' && yearly) return [Math.max(yearly[0], yearly[1] - 5), yearly[1]];
+	return [];
+}
+
 export function byName<T extends { name: string }>(list: T[]): T[] {
 	return [...list].sort((a, b) => a.name.localeCompare(b.name));
 }

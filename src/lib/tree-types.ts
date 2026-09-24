@@ -232,13 +232,15 @@ export type WorkScreen = {
 	minAuthorCitations: number;
 };
 
-// Everything `/methodology` publishes about how the numbers are made: the constants and the
-// texts filled from them (the paper score, then the hit paper).
+// Everything `/methodology` publishes about how the numbers are made: the constants, the first
+// and last year with yearly counts (the bounds of a year window) and the texts filled from them
+// (the paper score, then the hit paper).
 export type Methodology = {
 	workScreen: WorkScreen;
 	paperScore: PaperScore;
 	topN: [string, number][];
 	hSince: number[];
+	yearlyCounts: [number, number];
 	texts: ItemTexts[];
 };
 

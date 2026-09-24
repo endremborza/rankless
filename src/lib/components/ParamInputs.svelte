@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { LATEST_YEAR } from '$lib/constants';
+	import { page } from '$app/state';
 	import type { MetricDecl, NamedEntity } from '$lib/tree-types';
 
 	// The inputs of a metric's parameter: a field, a country, or a year window; `args` is what the
@@ -16,9 +16,12 @@
 		args: (string | number)[];
 	} = $props();
 
-	function setYear(i: number, v: number | null) {
+	// The years a window can name; the backend refuses any other, so the inputs bound and flag them.
+	const yearly = $derived(page.data.methodology?.yearlyCounts);
+
+	function setYear(i: number, v: number) {
 		const next = [...args];
-		next[i] = v ?? '';
+		next[i] = Number.isNaN(v) ? '' : v;
 		args = next;
 	}
 </script>
@@ -54,14 +57,18 @@
 		class="control year"
 		type="number"
 		aria-label="From year"
-		value={args[0] ?? LATEST_YEAR - 5}
+		min={yearly?.[0]}
+		max={args[1] || yearly?.[1]}
+		value={args[0] ?? ''}
 		onchange={(e) => setYear(0, e.currentTarget.valueAsNumber)}
 	/>
 	<input
 		class="control year"
 		type="number"
 		aria-label="To year"
-		value={args[1] ?? LATEST_YEAR}
+		min={args[0] || yearly?.[0]}
+		max={yearly?.[1]}
+		value={args[1] ?? ''}
 		onchange={(e) => setYear(1, e.currentTarget.valueAsNumber)}
 	/>
 {/if}
@@ -69,5 +76,9 @@
 <style>
 	.year {
 		width: 6em;
+	}
+
+	.year:invalid {
+		outline: 1px solid var(--color-err);
 	}
 </style>
