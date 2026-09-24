@@ -15,7 +15,7 @@ make mcp-server            # = uv run -m mcp_server (stdio transport)
 Environment:
 
 - `RANKLESS_BE_URL` — backend base URL (default `http://127.0.0.1:3038/v1`)
-- `RANKLESS_SITE_URL` — base for `rankless_url` backlinks (default `https://rankless.org`)
+- `RANKLESS_SITE_URL` — base for `rankless_url` backlinks (default `https://rankless.org`; a serving box's `.env` sets it to the box's own site)
 - `MCP_PUBLIC_HOSTS` — comma-separated `Host` header values the hosted endpoint accepts
   (the SDK's DNS-rebinding guard admits localhost only without it; nginx forwards the
   public domain, and the ops definition renders both backend domains into the unit)
@@ -337,8 +337,9 @@ make setup-services ARGS="--profile dev --mcp-backend local"    # re-point the M
 Profiles pick the service set: `dev` = backend + mcp-server + mcp-worker, `small-alpha` =
 frontend (blue+green) + mcp-server + mcp-worker + status, `live` = all five. The MCP server's backend
 is a parameter (`--mcp-backend local|alpha|live|<url>`) with per-profile defaults (dev → alpha
-API, small-alpha → live API, live → local backend). Cloud instances get the same templates via
-`pyscripts/deploy.py` (`Transper.setup_mcp_services`, the `mcp_units` step of the ops definition in `docs/deploy.md`),
+API, small-alpha and live → the box's own backend port, the one nginx serves as its `/v1`). Cloud
+instances get the same templates via `pyscripts/deploy.py` (`Transper.setup_mcp_services`, the
+`mcp_units` step of the ops definition in `docs/deploy.md`),
 which also injects the `deploy/nginx-mcp-location.conf` proxy into the backend server block,
 exposing `https://alpha-api.rankless.org/mcp`. Set `MCP_PUBLIC_URL` to that when baking the
 manifest.

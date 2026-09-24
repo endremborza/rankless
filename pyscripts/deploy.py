@@ -19,7 +19,7 @@ import requests
 from dotenv import load_dotenv
 from protocli import Dispatcher
 
-from mcp_server import resolve_backend
+from mcp_server import BACKENDS
 from pyscripts import gitutil, migration_scripts, paths, services, userdb
 from pyscripts.fleet import manifest
 
@@ -98,6 +98,7 @@ CARD_CACHE_MAX_AGE = "7d"
 
 BE_URL_VAR = "PUBLIC_BACKEND_URL"
 PUB_URL_VAR = "PUBLIC_ORIGIN"
+MCP_SITE_VAR = "RANKLESS_SITE_URL"
 OA_ROOT_VAR = "OA_ROOT"
 # ORCID login creds + the admin allowlist — read from the deploy host's env and written into
 # the deployed frontend's .env so `$env/dynamic/private` can see them at runtime.
@@ -125,6 +126,7 @@ NGINX_AVDIR, NGINX_ENDIR = [f"/etc/nginx/sites-{s}" for s in ["available", "enab
 UPSTREAM_ETC_FNAME = "app_upstreams"
 
 be_service_name = services.BACKEND_UNIT
+MCP_UNITS = (services.MCP_SERVER_UNIT, services.MCP_WORKER_UNIT)
 tunnel_service_name = "rankless-tunnel.service"
 fe_service_template_frame = services.FE_UNIT_FRAME
 
@@ -225,11 +227,7 @@ class BoxSpec:
 
     domain: str
     fe_procs: int
-    backend: bool  # runs its own rankless-server (a small alpha proxies live)
-
-    @property
-    def mcp_backend(self) -> str:
-        return "local" if self.backend else "live"
+    backend: bool  # runs its own rankless-server
 
 
 @dataclass(frozen=True)
@@ -682,14 +680,14 @@ class Transper:
             self.ssh.remote_exists(f"{self.systemd_dir}/{be_service_name}"),
         )
 
-    def setup_mcp_services(self, mcp_backend: str = "local"):
-        """MCP server + worker units on the instance (venv must be synced)."""
-        be_url, _ = resolve_backend(mcp_backend)
+    def setup_mcp_services(self):
+        """MCP server + worker units on the instance (venv must be synced); the
+        server reads the box's own backend port, what nginx serves as its `/v1`."""
         self.sync_service(
             services.render_mcp_server(
                 self.deploy_dir,
                 self.venv_python,
-                be_url,
+                BACKENDS["local"],
                 public_hosts=MCP_PUBLIC_HOSTS,
             ),
             services.MCP_SERVER_UNIT,
@@ -699,10 +697,13 @@ class Transper:
             services.MCP_WORKER_UNIT,
         )
         self.reload_systemctl()
-        for name in (services.MCP_SERVER_UNIT, services.MCP_WORKER_UNIT):
-            man = ServiceMan(name, self.ssh)
-            man.enable()
-            man.restart()
+        for name in MCP_UNITS:
+            ServiceMan(name, self.ssh).enable()
+        self.restart_mcp()
+
+    def restart_mcp(self):
+        for name in MCP_UNITS:
+            ServiceMan(name, self.ssh).restart()
 
     def setup_status_service(self):
         self.sync_service(services.render_status(self.deploy_dir), services.STATUS_UNIT)
@@ -1035,7 +1036,8 @@ upstream {BE_UPSTREAM} {{
         # takes it from the caller.
         domain = domain or self.get_domain()
         be_url = "https://" + self.get_backend_domain(domain)
-        txt = f"{PUB_URL_VAR}=https://{domain}\n{BE_URL_VAR}={be_url}\n{OA_ROOT_VAR}={self.data_dir}\n"
+        origin = f"https://{domain}"
+        txt = f"{PUB_URL_VAR}={origin}\n{MCP_SITE_VAR}={origin}\n{BE_URL_VAR}={be_url}\n{OA_ROOT_VAR}={self.data_dir}\n"
         txt += "\n".join(f"{k}={v}" for k, v in ORCID_VARS.items() if v is not None)
         self.sync_txt(txt, ".env", self.deploy_dir)
 
@@ -1065,12 +1067,17 @@ upstream {BE_UPSTREAM} {{
         time.sleep(10)
         for service in self._iter_conf_services(live_conf):
             service.stop()
+        self.sync_py()
+        self.restart_mcp()
 
     def update_data(self):
         self.sync_code()
         self.build_rs()
         self.sync_data_to()
         self.be_service.restart()
+        # after the backend: the MCP describes its tools from the backend's registry
+        self.sync_py()
+        self.restart_mcp()
 
     def rolling_restart_live_fe(self):
         # Sickest first: an at-cap worker is the pressure source and must
@@ -1283,7 +1290,7 @@ OPS_STEPS: list[BoxStep] = [
     BoxStep(
         "mcp_units",
         "MCP server + worker units, restarted",
-        lambda tpr, spec: tpr.setup_mcp_services(spec.mcp_backend),
+        lambda tpr, spec: tpr.setup_mcp_services(),
     ),
     BoxStep(
         "status_unit",

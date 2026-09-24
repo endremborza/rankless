@@ -53,9 +53,8 @@ PROFILES = {
     "worker": ("backend",),  # cache-warm fleet box: backend unit only
 }
 # Where the MCP server points by default: a dev box mines real data from the
-# alpha API; a small alpha (no local backend) uses the live API; a full box
-# uses its own backend.
-DEFAULT_MCP_BACKEND = {"dev": "alpha", "small-alpha": "live", "live": "local"}
+# alpha API; a serving box uses its own backend port, the one nginx serves as `/v1`.
+DEFAULT_MCP_BACKEND = {"dev": "alpha", "small-alpha": "local", "live": "local"}
 
 # Per-FE-process memory backstop (cgroup v2). A healthy SvelteKit SSR bun worker
 # sits ~150-300 MB, so this only bites a runaway/leak. Hard wall ONLY — no

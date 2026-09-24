@@ -183,7 +183,6 @@ def test_ops_plan_is_ordered_and_gated_on_the_spec() -> None:
     small = deploy.BoxSpec("alpha.x", 2, backend=False)
     assert dict((s.name, ok) for s, ok in deploy.ops_plan(full))["backend_unit"]
     assert not dict((s.name, ok) for s, ok in deploy.ops_plan(small))["backend_unit"]
-    assert small.mcp_backend == "live" and full.mcp_backend == "local"
     assert [s.name for s, _ in deploy.ops_plan(full, "site")] == ["site"]
     with pytest.raises(SystemExit, match="unknown ops step"):
         deploy.ops_plan(full, "nope")
