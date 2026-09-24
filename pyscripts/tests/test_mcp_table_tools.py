@@ -139,11 +139,17 @@ def test_rank_entities_passes_the_expressions_and_reads_the_counts() -> None:
     )
 
 
-def test_rank_entities_without_a_sort_takes_the_types_default() -> None:
+def test_rank_entities_without_a_sort_leaves_the_default_to_the_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     tools.describe(REGISTRY)
     out = asyncio.run(tools.rank_entities("authors"))
-    assert CALLS[0][1] == {"sort": "weighted_paper_score"}
+    assert CALLS[0][1] == {}
     assert out["sort"] == "weighted_paper_score"
+    monkeypatch.setattr(tools, "_default_sorts", {})
+    out = asyncio.run(tools.rank_entities("authors"))
+    assert CALLS[1][1] == {}
+    assert out["sort"] is None and out["total"] == 42
 
 
 def test_annotate_entities_resolves_names_then_aligns_values() -> None:

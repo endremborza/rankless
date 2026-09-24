@@ -22,7 +22,8 @@ from mcp_server.response_shaping import (
 )
 
 _specs_cache: dict | None = None
-# Each root type's default ordering, from the registry `describe()` reads.
+# Each root type's default ordering, from the registry `describe()` reads; the backend
+# applies it to a sortless `/slice`, so this only names it.
 _default_sorts: dict[str, str] = {}
 
 MAX_RANK_LIMIT = 100
@@ -247,7 +248,6 @@ async def rank_entities(
     limit: int = 20,
 ) -> dict:
     _check_etype(entity_type)
-    sort = sort or _default_sorts[entity_type]
     limit = max(1, min(limit, MAX_RANK_LIMIT))
     params = {"sort": sort, "where": where}
     page = await get_json(f"/slice/{entity_type}/{offset}/{offset + limit}", params)
@@ -255,7 +255,7 @@ async def rank_entities(
     return {
         "total": meta["total"],
         "screened": meta["screened"],
-        "sort": sort,
+        "sort": sort or _default_sorts.get(entity_type),
         "where": where,
         "columns": meta["columns"],
         "rankless_url": table_url(
