@@ -159,10 +159,8 @@ pub struct Paper {
 }
 
 // What the score-based metrics read from a set of papers.
-#[derive(Debug, PartialEq)]
 pub struct PaperSetSummary {
     pub scored: u32,
-    pub hits: u32,
     pub weighted: f64,
     pub top_mean: f64,
     pub h_index: u32,
@@ -262,42 +260,30 @@ pub fn top_n_mean(scores: &mut [f64], n: usize) -> f64 {
 /// Largest h such that h of the papers have at least h citations each.
 pub fn h_index(citations: &mut [u32]) -> u32 {
     citations.sort_unstable_by(|a, b| b.cmp(a));
-    citations
-        .iter()
-        .enumerate()
-        .take_while(|&(i, &c)| c as usize > i)
-        .count() as u32
+    h_of_sorted(citations.iter().copied())
 }
 
 /// One pass over a set of papers for every score-based metric; `n` is the Top-N mean's N (0 for a
 /// root without one).
 pub fn summarize(papers: impl Iterator<Item = Paper>, n: usize) -> PaperSetSummary {
-    let (mut scored, mut hits, mut weighted) = (0, 0, 0.0);
+    let (mut scored, mut weighted) = (0, 0.0);
     let mut scores = Vec::new();
     let mut cites = Vec::new();
     for p in papers {
         cites.push((p.year, p.citations));
         if let Some(s) = paper_score(p.citations, p.bar) {
             scored += 1;
-            hits += is_hit(s) as u32;
             weighted += s * team_share(p.team);
             scores.push(s);
         }
     }
-    let since = |from: u16| {
-        let mut c: Vec<u32> = cites
-            .iter()
-            .filter(|(y, _)| *y >= from)
-            .map(|(_, c)| *c)
-            .collect();
-        h_index(&mut c)
-    };
+    cites.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+    let since = |from: u16| h_of_sorted(cites.iter().filter(|(y, _)| *y >= from).map(|(_, c)| *c));
     PaperSetSummary {
         scored,
-        hits,
         weighted,
         top_mean: top_n_mean(&mut scores, n),
-        h_index: since(0),
+        h_index: h_of_sorted(cites.iter().map(|(_, c)| *c)),
         h_since: H_SINCE.map(since),
     }
 }
@@ -343,6 +329,14 @@ pub fn fill(template: &str, vars: &[(&str, String)]) -> String {
     }
     out.push_str(rest);
     out
+}
+
+// The h-index of citations already in descending order; a filtered prefix stays descending.
+fn h_of_sorted(descending: impl Iterator<Item = u32>) -> u32 {
+    descending
+        .enumerate()
+        .take_while(|&(i, c)| c as usize > i)
+        .count() as u32
 }
 
 fn decimal(x: f64) -> String {
@@ -476,7 +470,6 @@ mod tests {
         let s = summarize(papers.into_iter(), 2);
         let s150 = 1.5f64.sqrt();
         assert_eq!(s.scored, 3);
-        assert_eq!(s.hits, 2);
         assert!((s.weighted - (2.0 + team_share(3) + s150)).abs() < 1e-12);
         assert!((s.top_mean - (2.0 + s150) / 2.0).abs() < 1e-12);
         assert_eq!(s.h_index, 4);
