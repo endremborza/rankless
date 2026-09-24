@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import type * as tt from '$lib/tree-types';
 	import { COMPLETE_YEAR, LATEST_YEAR } from '$lib/constants';
 	import { pluralize, formatNumber } from '$lib/text-format-util';
@@ -92,7 +93,7 @@
 					{pluralize('paper', view.papers)} ·
 					<IndexedCitationLink />
 					{#if cfg.sinceNote === 'complete'}
-						· since {COMPLETE_YEAR}
+						· since {page.data.methodology?.workScreen.firstYear ?? COMPLETE_YEAR}
 					{:else if cfg.sinceNote === 'startYear'}
 						· active since {view.startYear}
 					{/if}

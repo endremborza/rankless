@@ -224,7 +224,7 @@ export type WorkScreen = {
 	kinds: string[];
 	minCitations: number;
 	maxAuthors: number;
-	startYear: number;
+	firstYear: number;
 	finalYear: number;
 	minPapersForInstitution: number;
 	minPapersForSource: number;

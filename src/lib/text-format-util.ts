@@ -1,4 +1,4 @@
-import type { RootType } from './tree-types';
+import type { RootType, WorkScreen } from './tree-types';
 
 export function isAsciiOnly(str: string) {
 	return str.length > 0 && !/[\u0080-\uffff]/.test(str);
@@ -12,10 +12,15 @@ export function pluralize(word: string, num: number, maxFix = 2) {
 }
 
 // "a, b or c" — for a served list that prose has to read out rather than name.
-export function listPhrase(items: string[], conjunction = 'or'): string {
+function listPhrase(items: string[], conjunction = 'or'): string {
 	if (items.length === 0) return '';
 	if (items.length === 1) return items[0];
 	return `${items.slice(0, -1).join(', ')} ${conjunction} ${items[items.length - 1]}`;
+}
+
+// Which papers are in the data at all, read out from the served work screen.
+export function workScreenPhrase(screen: WorkScreen): string {
+	return `published ${screen.firstYear}–${screen.finalYear}, not retracted, categorized by OpenAlex as ${listPhrase(screen.kinds)}, cited at least ${pluralize('time', screen.minCitations)}, and written by no more than ${pluralize('author', screen.maxAuthors)}`;
 }
 
 export function singularize(word: string) {

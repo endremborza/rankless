@@ -27,7 +27,7 @@
 	import { getExternalUrl } from '$lib/route-functions';
 	import TreeSvg from '$lib/components/TreeSvg.svelte';
 	import { resultsHidden } from '$lib/stores';
-	import { listPhrase, pluralize, prettifyRoot } from '$lib/text-format-util.js';
+	import { pluralize, prettifyRoot, workScreenPhrase } from '$lib/text-format-util.js';
 	import TypeWriter from '$lib/components/TypeWriter.svelte';
 	import FeatureShowcase from '$lib/components/FeatureShowcase.svelte';
 
@@ -154,11 +154,8 @@
 			id: 'data-filter',
 			answer: screen
 				? `
-			A paper enters the data if it is not retracted, is categorized by OpenAlex as
-			${listPhrase(screen.kinds)}, was published after ${screen.startYear}, has been cited at least
-			${pluralize('time', screen.minCitations)}, and has no more than
-			${pluralize('author', screen.maxAuthors)}. On top of that we only carry publication sources
-			with at least ${screen.minPapersForSource} and institutions with at least
+			A paper enters the data if it is ${workScreenPhrase(screen)}. On top of that we only carry
+			publication sources with at least ${screen.minPapersForSource} and institutions with at least
 			${pluralize('paper', screen.minPapersForInstitution)} of their own, and authors with at least
 			${pluralize('paper', screen.minAuthorPapers)} and
 			${pluralize('citation', screen.minAuthorCitations)} to their name. A researcher who claims

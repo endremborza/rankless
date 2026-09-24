@@ -40,6 +40,10 @@ pub const TOP_N: &[(&str, usize)] = &[
 // Publication years the recent h-indices count from.
 pub const H_SINCE: [u16; 2] = [2010, 2020];
 
+// The last publication year with paper scores: in the final year, when a paper appeared would
+// weigh more than how it is cited.
+pub const LAST_SCORED_YEAR: u16 = FINAL_YEAR - 1;
+
 pub const WORK_SCREEN: WorkScreen = WorkScreen {
     kinds: &[
         "article",
@@ -51,7 +55,8 @@ pub const WORK_SCREEN: WorkScreen = WorkScreen {
     ],
     min_citations: 1,
     max_authors: 20,
-    start_year: START_YEAR,
+    // Year index 0 is START_YEAR and stands for an unknown year, so the screen opens after it.
+    first_year: START_YEAR + 1,
     final_year: FINAL_YEAR,
     min_papers_for_institution: MIN_PAPERS_FOR_INST,
     min_papers_for_source: MIN_PAPERS_FOR_SOURCE,
@@ -111,7 +116,7 @@ pub struct WorkScreen {
     pub kinds: &'static [&'static str],
     pub min_citations: usize,
     pub max_authors: usize,
-    pub start_year: u16,
+    pub first_year: u16,
     pub final_year: u16,
     pub min_papers_for_institution: u16,
     pub min_papers_for_source: u16,
@@ -169,9 +174,9 @@ pub struct PaperSetSummary {
 
 impl WorkScreen {
     // The year and retraction screen. A pinned owner's œuvre rides through the kind screen below
-    // but not through this one. `>` on the start year because 0 is "unknown".
+    // but not through this one.
     pub fn admits_publication(&self, retracted: bool, year: u16) -> bool {
-        !retracted && year > self.start_year && year <= self.final_year
+        !retracted && (self.first_year..=self.final_year).contains(&year)
     }
 
     pub fn admits_kind(&self, kind: Option<&str>) -> bool {
@@ -206,10 +211,8 @@ impl Display for Level {
     }
 }
 
-/// A paper has a score when its year is inside the screen and finished: in the final year, when a
-/// paper appeared would weigh more than how it is cited.
 pub fn is_scored(year: u16) -> bool {
-    year > WORK_SCREEN.start_year && year < WORK_SCREEN.final_year
+    (WORK_SCREEN.first_year..=LAST_SCORED_YEAR).contains(&year)
 }
 
 /// Fails the build on a bar the encoding cannot hold rather than clipping it.
@@ -298,7 +301,9 @@ pub fn text_vars() -> Vec<(&'static str, String)> {
         ("w_year", percent(p.w_year)),
         ("sf_year_min_papers", p.sf_year_min_papers.to_string()),
         ("hit_multiple", decimal(p.hit_multiple)),
+        ("first_year", WORK_SCREEN.first_year.to_string()),
         ("final_year", WORK_SCREEN.final_year.to_string()),
+        ("last_scored_year", LAST_SCORED_YEAR.to_string()),
     ]
 }
 
@@ -388,8 +393,8 @@ mod tests {
 
     #[test]
     fn only_finished_years_inside_the_screen_are_scored() {
-        assert!(!is_scored(WORK_SCREEN.start_year));
-        assert!(is_scored(WORK_SCREEN.start_year + 1));
+        assert!(!is_scored(WORK_SCREEN.first_year - 1));
+        assert!(is_scored(WORK_SCREEN.first_year));
         assert!(is_scored(WORK_SCREEN.final_year - 1));
         assert!(!is_scored(WORK_SCREEN.final_year));
     }

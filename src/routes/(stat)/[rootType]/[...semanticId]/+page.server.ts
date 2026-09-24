@@ -16,7 +16,7 @@ export const ssr = true;
 const INITIAL_WORKS_N = 20;
 const PEER_ROOT_TYPES: tt.RootType[] = ['authors', 'institutions', 'countries', 'sources'];
 
-export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
+export const load: PageServerLoad = async ({ params, url, locals, fetch, parent }) => {
 	const { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(
 		params,
 		url,
@@ -51,12 +51,14 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 
 	const paperText = pluralize('paper', view.papers);
 	const citeText = pluralize('indexed citation', view.citations);
+	const firstYear = (await parent()).methodology?.workScreen.firstYear ?? COMPLETE_YEAR;
 	const aboutParagraph = getSemanticRels(
 		view,
 		view.name,
 		rootType,
 		paperText,
 		citeText,
+		firstYear,
 		semanticId
 	);
 
@@ -421,6 +423,7 @@ function getSemanticRels(
 	rootType: tt.RootType,
 	paperText: string,
 	citeText: string,
+	firstYear: number,
 	semanticId: string
 ): tt.AboutPara {
 	const semantifyers = getSemantifyers(rootName, rootType);
@@ -442,7 +445,7 @@ function getSemanticRels(
 		authors: authorPrefix,
 		institutions: `In recent decades, authors affiliated with ${rootName} have published ${paperText}, which have received a total of ${citeText} `,
 		countries: `In recent decades scholars affiliated with institutions in ${rootName} have published ${paperText}, which have received a total of ${citeText} `,
-		subfields: `${paperText} covering ${rootName} have received a total of ${citeText} since ${COMPLETE_YEAR} `,
+		subfields: `${paperText} covering ${rootName} have received a total of ${citeText} since ${firstYear} `,
 		sources: `The ${paperText} published in ${rootName} in the last decades have received a total of ${citeText} `,
 		'hit-papers': `This paper, published in ${view.startYear}, received ${citeText} `
 	};
