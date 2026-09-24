@@ -309,9 +309,22 @@ fn score_roots(
         citations,
         years,
     };
-    let author_teams = team_sizes(stowage.get_entity_interface::<WorkAnyAuthorships, ReadIter>());
-    let inst_teams = team_sizes(stowage.get_entity_interface::<WorkInstitutions, ReadIter>());
-    let country_teams = team_sizes(stowage.get_entity_interface::<WorkCountries, ReadIter>());
+    let author_teams = team_sizes(
+        stowage
+            .get_entity_interface::<WorkAnyAuthorships, ReadIter>()
+            .map(|r| r.len()),
+    );
+    let inst_teams = team_sizes(
+        stowage
+            .get_entity_interface::<WorkInstitutions, ReadIter>()
+            .map(|r| r.len()),
+    );
+    // A work's country list keeps a 0 for an institution without a country, which is no member.
+    let country_teams = team_sizes(
+        stowage
+            .get_entity_interface::<WorkCountries, ReadIter>()
+            .map(|r| r.iter().filter(|c| c.to_usize() != 0).count()),
+    );
     let cols = &cols;
     std::thread::scope(|s| {
         s.spawn(|| score_root::<Authors>(stowage, cols, Some(&author_teams), false));
@@ -366,8 +379,10 @@ where
     h
 }
 
-fn team_sizes<T>(rows: impl Iterator<Item = Box<[T]>>) -> Box<[u16]> {
-    rows.map(|r| r.len() as u16).collect()
+fn team_sizes(counts: impl Iterator<Item = usize>) -> Box<[u16]> {
+    counts
+        .map(|n| u16::try_from(n).expect("a work's team fits u16"))
+        .collect()
 }
 
 fn get_nobeled_works(stowage: &Stowage, w_years: &[ET<Years>]) -> HashSet<ET<Works>> {
