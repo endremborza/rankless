@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
 	import { APP_NAME, BE_REMOTE_URL, COHORT_ROOT_TYPES } from '$lib/constants';
-	import { prettifyRoot } from '$lib/text-format-util';
+	import { prettifyRoot, workScreenPhrase } from '$lib/text-format-util';
 	import { entToLink } from '$lib/tree-functions';
 	import { citStandingTier, standingLabel, tierLabels } from '$lib/peers-utils';
 	import {
@@ -206,9 +206,15 @@
 		{/each}
 	</nav>
 	<h1>{noun}</h1>
-	<p class="cohort-note">{cohortNote}</p>
-	{#if data.error}
-		<p class="error">{data.error}</p>
+	<p class="cohort-note">
+		{cohortNote}
+		{#if data.methodology}
+			Metrics count papers {workScreenPhrase(data.methodology.workScreen)}. A column's info gives
+			the years it covers.
+		{/if}
+	</p>
+	{#if data.error || columnError}
+		<p class="error">{data.error ?? columnError}</p>
 	{/if}
 
 	<div class="blocks">

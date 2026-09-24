@@ -113,7 +113,7 @@ pub const METRICS: &[MetricDecl] = &[
         id: HIT_RATE,
         label: "Hit rate",
         header: None,
-        meaning: "Share of the entity's scored papers (those published before {final_year}) that are hit papers.",
+        meaning: "Share of the entity's scored papers that are hit papers.",
         rationale: Some("How often the entity's work reaches the top. It reads the rate alone, so a small specialist can top it: read it beside the paper count."),
         value: ValueType::Share,
         param: None,
@@ -263,7 +263,7 @@ pub const METRICS: &[MetricDecl] = &[
         id: WINDOW_PAPERS,
         label: "Papers in a year window",
         header: Some("Papers {window}"),
-        meaning: "Indexed papers published in the year window. Yearly counts exist for recent years only, so an earlier start is moved up to the first counted year.",
+        meaning: "Indexed papers published in the year window.",
         rationale: None,
         value: ValueType::Count,
         param: Some(Param::Window),
@@ -275,7 +275,7 @@ pub const METRICS: &[MetricDecl] = &[
         id: WINDOW_CITATIONS,
         label: "Citations in a year window",
         header: Some("Citations {window}"),
-        meaning: "Citations from papers published in the year window. Yearly counts exist for recent years only, so an earlier start is moved up to the first counted year.",
+        meaning: "Citations from papers published in the year window.",
         rationale: None,
         value: ValueType::Count,
         param: Some(Param::Window),
@@ -397,6 +397,18 @@ pub enum ValueType {
     Entities(&'static str),
 }
 
+// The papers a column reads, by publication year, which a metric's meaning ends by stating.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Coverage {
+    Indexed,
+    // The indexed papers that have a paper score.
+    Scored,
+    // The indexed papers since the metric's recent h-index year.
+    Since,
+    // The years with yearly counts, which a window stays inside.
+    Era,
+}
+
 // The argument a parameterized metric takes.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -514,10 +526,19 @@ impl MetricDecl {
         }
     }
 
+    // The papers the metric reads: those of its first column that is a reading over papers, every
+    // indexed paper for a walk; None for a metric that reads no paper set.
+    pub fn covers(&self) -> Option<Coverage> {
+        self.reads
+            .iter()
+            .find_map(|c| c.covers())
+            .or(self.profile.map(|_| Coverage::Indexed))
+    }
+
     // The texts as `root` shows them: the constants filled in, a header's parameter left for the
     // client.
     pub fn texts(&self, root: &str) -> MetricTexts {
-        let mut vars = text_vars();
+        let mut vars = vars();
         vars.push(("members", root.to_string()));
         if let Some(n) = top_n(root) {
             vars.push(("n", n.to_string()));
@@ -525,7 +546,11 @@ impl MetricDecl {
         if let [Column::HIndexSince(i)] = self.reads {
             vars.push(("since", H_SINCE[*i].to_string()));
         }
-        MetricTexts::fill(self.label, self.header, self.meaning, self.rationale, &vars)
+        let meaning = match self.covers() {
+            Some(c) => format!("{} {}", self.meaning, c.text()),
+            None => self.meaning.to_string(),
+        };
+        MetricTexts::fill(self.label, self.header, &meaning, self.rationale, &vars)
     }
 }
 
@@ -544,6 +569,34 @@ impl MetricTexts {
             meaning: fill(meaning),
             rationale: rationale.map(fill),
         }
+    }
+}
+
+impl Coverage {
+    fn text(self) -> &'static str {
+        match self {
+            Self::Indexed => "Covers papers published {first_year}–{final_year}.",
+            Self::Scored => {
+                "Covers papers published {first_year}–{last_scored_year}, the years with paper scores."
+            }
+            Self::Since => "Covers papers published {since}–{final_year}.",
+            Self::Era => "Yearly counts cover {era_from}–{final_year}.",
+        }
+    }
+}
+
+impl Column {
+    fn covers(self) -> Option<Coverage> {
+        Some(match self {
+            Self::Papers | Self::Citations | Self::HIndex | Self::YearCentroid => Coverage::Indexed,
+            Self::SubfieldCiting => Coverage::Indexed,
+            Self::HitPapers | Self::ScoredPapers | Self::WeightedPaperScore | Self::TopMean => {
+                Coverage::Scored
+            }
+            Self::HIndexSince(_) => Coverage::Since,
+            Self::YearlyPapers | Self::YearlyCites => Coverage::Era,
+            Self::Population | Self::PaperScore | Self::Countries | Self::City => return None,
+        })
     }
 }
 
@@ -759,6 +812,22 @@ mod tests {
             metric(TOP_MEAN).unwrap().texts(Authors::NAME).label,
             "Top-20 mean"
         );
+    }
+
+    #[test]
+    fn coverage_follows_the_columns_read() {
+        let covers = |id: &str| metric(id).unwrap().covers();
+        assert_eq!(covers(PAPERS), Some(Coverage::Indexed));
+        assert_eq!(covers(HIT_RATE), Some(Coverage::Scored));
+        assert_eq!(
+            covers(WEIGHTED_PAPER_SCORE_PER_CAPITA),
+            Some(Coverage::Scored)
+        );
+        assert_eq!(covers(H_INDEX_SINCE[0]), Some(Coverage::Since));
+        assert_eq!(covers(WINDOW_PAPERS), Some(Coverage::Era));
+        assert_eq!(covers(CITED_FROM), Some(Coverage::Indexed));
+        assert_eq!(covers(POPULATION), None);
+        assert_eq!(covers(COUNTRY), None);
     }
 
     #[test]
