@@ -92,11 +92,13 @@ pub(crate) struct ColumnRegistry {
     pub roots: HashMap<&'static str, RootRegistry>,
 }
 
-// The methodology constants and the texts filled from them.
+// The methodology constants, the years with yearly counts and the texts filled from them.
 #[derive(Serialize)]
 pub(crate) struct MethodologyOut {
     #[serde(flatten)]
     pub constants: &'static Methodology,
+    #[serde(rename = "yearlyCounts")]
+    pub yearly_counts: (RawYear, RawYear),
     pub texts: Vec<ItemTexts>,
 }
 

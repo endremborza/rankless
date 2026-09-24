@@ -51,13 +51,19 @@ pub const CITED_FROM: &str = "cited_from";
 pub const COUNTRY: &str = "country";
 pub const CITY: &str = "city";
 
+// The first and last year with yearly counts: the years a window can name.
+pub const ERA: (RawYear, RawYear) = (
+    YearInterface::reverse(MIN_YEAR as ET<Years>),
+    YearInterface::reverse(MAX_YEAR as ET<Years>),
+);
+
 const READ: &[Column] = &[];
 
 const H_INDEX_SINCE_DECL: MetricDecl = MetricDecl {
     id: H_INDEX_SINCE[0],
     label: "h-index since {since}",
     header: None,
-    meaning: "The h-index over the entity's papers published since {since}.",
+    meaning: "The h-index over the entity's recent papers.",
     rationale: Some(
         "The all-time h-index leans toward older output; a recent window shows who leads now.",
     ),
@@ -359,7 +365,7 @@ pub enum Arg {
     None,
     Subfield(usize),
     Country(usize),
-    Window(Option<RawYear>, Option<RawYear>),
+    Window(RawYear, RawYear),
 }
 
 // What a read yields: a number, one entity id, or up to three entity ids (0 = absent).
@@ -616,31 +622,24 @@ impl RootColumns {
         Some(self.subfields.as_ref()?.citing.elem(dm, sf))
     }
 
-    // The clamped window and the era records inside it. Hit papers declare their yearly papers
-    // empty (`mark_empty!` in derive_links5) while their yearly citations are written in full, so
-    // the paper side is looked up and the citation side indexed.
-    pub fn era_slices(
-        &self,
-        dm: usize,
-        from: Option<RawYear>,
-        to: Option<RawYear>,
-    ) -> (RawYear, RawYear, &[u32], &[u32]) {
+    // The era records of a window inside `ERA`, empty when it ends before it starts. Hit papers
+    // declare their yearly papers empty (`mark_empty!` in derive_links5) while their yearly
+    // citations are written in full, so the paper side is looked up and the citation side indexed.
+    pub fn era_slices(&self, dm: usize, from: RawYear, to: RawYear) -> (&[u32], &[u32]) {
         const EMPTY: &[u32] = &[];
-        let (from, to) = clamp_window(from, to);
-        match era_span(from, to) {
-            Some((cf, ct)) => (
-                from,
-                to,
-                self.yearly_papers.get(dm).map_or(EMPTY, |y| &y[cf..=ct]),
-                &self.yearly_cites[dm][cf..=ct],
-            ),
-            None => (from, to, EMPTY, EMPTY),
+        if from > to {
+            return (EMPTY, EMPTY);
         }
+        let (cf, ct) = ((from - ERA.0) as usize, (to - ERA.0) as usize);
+        (
+            self.yearly_papers.get(dm).map_or(EMPTY, |y| &y[cf..=ct]),
+            &self.yearly_cites[dm][cf..=ct],
+        )
     }
 
     // (papers, citations) in the window, without the yearly series.
-    pub fn window_sums(&self, dm: usize, from: Option<RawYear>, to: Option<RawYear>) -> (u32, u32) {
-        let (_, _, papers, cites) = self.era_slices(dm, from, to);
+    pub fn window_sums(&self, dm: usize, from: RawYear, to: RawYear) -> (u32, u32) {
+        let (papers, cites) = self.era_slices(dm, from, to);
         (papers.iter().sum(), cites.iter().sum())
     }
 
@@ -699,7 +698,7 @@ pub fn default_sort(root: &str) -> &'static str {
 }
 
 pub fn methodology_texts() -> Vec<ItemTexts> {
-    let vars = text_vars();
+    let vars = vars();
     [PAPER_SCORE_TEXTS, HIT_PAPER_TEXTS]
         .iter()
         .map(|t: &Texts| ItemTexts {

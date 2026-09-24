@@ -21,7 +21,7 @@ use rankless_rs::{
 use rankless_trees::{
     interfacing::Getters,
     io::{TreeQ, TreeResponse},
-    metrics::era_bounds,
+    metrics::ERA,
     AttributeLabelUnion,
 };
 
@@ -110,7 +110,7 @@ pub(crate) async fn stats_get(
         return get_empty();
     };
     let sr = &state.responses[rid];
-    let (era_from, era_to) = era_bounds();
+    let (era_from, era_to) = ERA;
     let window = year_window(root_cols(&states, &etype), dm_id, q.year_from, q.year_to);
 
     // Per-subfield citing profile only exists for root types carrying the subfield profiles.

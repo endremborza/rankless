@@ -65,7 +65,7 @@ impl SourceArea {
 }
 
 impl YearInterface {
-    pub fn reverse(y: ET<Years>) -> RawYear {
+    pub const fn reverse(y: ET<Years>) -> RawYear {
         y as RawYear + START_YEAR
     }
 

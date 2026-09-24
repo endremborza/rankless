@@ -115,9 +115,11 @@ async def get_methodology() -> dict:
     floor, author cap, and the per-entity minimums. `paperScore` holds what a
     paper's score measures it against (the bar's top share and blend weights) and
     the multiple that makes it a hit paper; `topN` and `hSince` parametrize the
-    Top-N means and the recent h-indices. `texts` states the paper score and the
-    hit paper in words, filled from those values. Explain what a number counts
-    from this, never from memory; its values verify like any other data.
+    Top-N means and the recent h-indices; `yearlyCounts` is the first and last
+    year with yearly counts, the bounds of a year window. `texts` states the
+    paper score and the hit paper in words, filled from those values. Explain
+    what a number counts from this, never from memory; its values verify like any
+    other data.
     """
     return await get_json("/methodology")
 

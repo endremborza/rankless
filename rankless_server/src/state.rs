@@ -12,7 +12,7 @@ use rankless_rs::{
         derive_links3::HitPapers,
     },
     steps::{
-        a1_entity_mapping::{RawYear, YearInterface, Years},
+        a1_entity_mapping::{RawYear, YearInterface},
         derive_links2::EraRec,
     },
 };
@@ -20,7 +20,7 @@ use rankless_trees::{
     extensions::DistinctionText,
     interfacing::{Getters, RootColumns, RootInterfaceable, RootInterfaces},
     io::TreeRunManager,
-    metrics::{self, Arg, Kind, MetricDecl, Value, METRICS},
+    metrics::{self, Arg, Kind, MetricDecl, Value, ERA, METRICS},
     AttributeLabelUnion,
 };
 
@@ -103,26 +103,29 @@ pub(crate) fn yearly_papers(cols: &RootColumns, dm_id: usize) -> EraRec {
     cols.yearly_papers.get(dm_id).copied().unwrap_or_default()
 }
 
-// The first year with a paper; a hit paper's is its own publication year.
+// The first era year with a paper, the era's first for anything older; a hit paper's is its own
+// publication year.
 pub(crate) fn start_year(etype: &str, dm_id: usize, cols: &RootColumns, gets: &Getters) -> RawYear {
-    let idx = if etype == HitPapers::NAME {
-        gets.year(&gets.hit_papers[dm_id].to_usize()).to_usize()
-    } else {
-        yearly_papers(cols, dm_id)
-            .iter()
-            .position(|&c| c > 0)
-            .unwrap_or(0)
-    };
-    YearInterface::reverse(idx as ET<Years>)
+    if etype == HitPapers::NAME {
+        return YearInterface::reverse(*gets.year(&gets.hit_papers[dm_id].to_usize()));
+    }
+    let first = yearly_papers(cols, dm_id)
+        .iter()
+        .position(|&c| c > 0)
+        .unwrap_or(0);
+    ERA.0 + first as RawYear
 }
 
+// The window moved into the era, an absent bound being the era's, and its yearly records.
 pub(crate) fn year_window(
     cols: &RootColumns,
     dm_id: usize,
     year_from: Option<RawYear>,
     year_to: Option<RawYear>,
 ) -> YearWindow {
-    let (from, to, papers, cites) = cols.era_slices(dm_id, year_from, year_to);
+    let from = year_from.unwrap_or(ERA.0).max(ERA.0);
+    let to = year_to.unwrap_or(ERA.1).min(ERA.1);
+    let (papers, cites) = cols.era_slices(dm_id, from, to);
     YearWindow {
         from,
         to,

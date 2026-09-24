@@ -159,10 +159,8 @@ impl<'a> Ctx<'a> {
         let args = match arg {
             Arg::Subfield(dm) => vec![sem(Param::Subfield, dm)],
             Arg::Country(dm) => vec![sem(Param::Country, dm)],
-            Arg::Window(Some(from), Some(to)) => {
-                vec![Word::Num(from as f64), Word::Num(to as f64)]
-            }
-            Arg::None | Arg::Window(..) => Vec::new(),
+            Arg::Window(from, to) => vec![Word::Num(from as f64), Word::Num(to as f64)],
+            Arg::None => Vec::new(),
         };
         Call {
             metric: decl.id.to_string(),
@@ -181,9 +179,7 @@ impl<'a> Ctx<'a> {
         let arg = match (decl.param, call.args.as_slice()) {
             (None, []) => Arg::None,
             (None, _) => return Err(format!("{} takes no argument", decl.id).into()),
-            (Some(Param::Window), [Word::Num(from), Word::Num(to)]) => {
-                Arg::Window(Some(year(*from)?), Some(year(*to)?))
-            }
+            (Some(Param::Window), [Word::Num(from), Word::Num(to)]) => window(decl.id, *from, *to)?,
             (Some(Param::Window), _) => {
                 return Err(format!("{} takes a year window: (from, to)", decl.id).into())
             }
@@ -573,11 +569,17 @@ fn unknown(entity: &str, name: &str) -> Reject {
     Reject(format!("no {entity} found for {name:?}"))
 }
 
-fn year(v: f64) -> Result<u16, Reject> {
-    if v.fract() == 0.0 && (1000.0..=3000.0).contains(&v) {
-        Ok(v as u16)
-    } else {
-        Err(format!("{v} is not a year").into())
+// A window inside the years with yearly counts, its first year first: any other would be answered
+// over years other than the ones it names.
+fn window(metric: &str, from: f64, to: f64) -> Result<Arg, Reject> {
+    let (first, last) = metrics::ERA;
+    let year =
+        |v: f64| (v.fract() == 0.0 && (first as f64..=last as f64).contains(&v)).then(|| v as u16);
+    match (year(from), year(to)) {
+        (Some(from), Some(to)) if from <= to => Ok(Arg::Window(from, to)),
+        _ => Err(
+            format!("{metric} takes a window within {first}–{last}, its first year first").into(),
+        ),
     }
 }
 
@@ -585,5 +587,24 @@ fn word_name(w: &Word) -> Result<&str, Reject> {
     match w {
         Word::Name(n) => Ok(n.as_str()),
         Word::Num(_) => Err("expected a name".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_window_binds_only_inside_the_yearly_counts() {
+        let (first, last) = metrics::ERA;
+        let bind = |from: f64, to: f64| window("window_papers", from, to).ok();
+        assert_eq!(
+            bind(first as f64, last as f64),
+            Some(Arg::Window(first, last))
+        );
+        assert_eq!(bind(first as f64 - 1.0, last as f64), None);
+        assert_eq!(bind(first as f64, last as f64 + 1.0), None);
+        assert_eq!(bind(last as f64, first as f64), None);
+        assert_eq!(bind(first as f64 + 0.5, last as f64), None);
     }
 }

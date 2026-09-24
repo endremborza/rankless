@@ -17,7 +17,7 @@ use socket2::{Domain, Socket, Type};
 use tokio::{net::TcpListener, sync::Notify};
 
 use rankless_rs::{metrics::METHODOLOGY, Stowage};
-use rankless_trees::metrics::methodology_texts;
+use rankless_trees::metrics::{methodology_texts, ERA};
 
 use crate::consts::{DEFAULT_N_THREADS, PORT};
 use crate::handlers::{
@@ -87,6 +87,7 @@ async fn async_main(n_threads: usize) {
     let specs_api = static_router(&specs_payload);
     let methodology_api = static_router(&MethodologyOut {
         constants: &METHODOLOGY,
+        yearly_counts: ERA,
         texts: methodology_texts(),
     });
 
