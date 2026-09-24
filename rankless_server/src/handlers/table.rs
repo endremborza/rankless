@@ -49,6 +49,14 @@ pub(crate) fn column_registry(states: &StatesT) -> ColumnRegistry {
                 default_sort: default_sort(root),
                 metrics,
             };
+            assert!(
+                registry
+                    .metrics
+                    .iter()
+                    .any(|m| m.id == registry.default_sort),
+                "{root} does not load its default sort {}",
+                registry.default_sort
+            );
             Some((*root, registry))
         })
         .collect();

@@ -64,9 +64,8 @@ pub(crate) struct SliceResp {
     pub meta: SliceMeta,
 }
 
-// One entry of `/v1/columns`: a metric declaration plus the kind it has for each root type that
-// has it at all. The kinds are derived per request from the columns each root loaded, so they sit
-// beside the declaration rather than in it.
+// One entry of a root's `/v1/columns` registry: a metric declaration with the kind the root gives
+// it, derived from the columns the root loaded, so it sits beside the declaration rather than in it.
 #[derive(Serialize)]
 pub(crate) struct ColumnDecl {
     pub id: &'static str,

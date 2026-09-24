@@ -2,7 +2,7 @@
 //! value type, its parameter, the columns it reads and the cost of one read. A root's registry —
 //! which metrics exist for it and which are global — is derived from what its `RootColumns`
 //! loaded: a metric exists where its columns do, and is global where those columns fit a
-//! cohort-wide scan. Nothing about a root is typed here.
+//! cohort-wide scan. Nothing about a root is typed here but its default ordering.
 
 use dmove::UnsignedNumber;
 use rankless_rs::{
@@ -40,7 +40,7 @@ pub const H_INDEX_SINCE: [&str; H_SINCE.len()] = ["h_index_since_2010", "h_index
 pub const POPULATION: &str = "population";
 pub const WEIGHTED_PAPER_SCORE_PER_CAPITA: &str = "weighted_paper_score_per_capita";
 pub const HIT_PAPERS_PER_CAPITA: &str = "hit_papers_per_capita";
-pub const PAPER_SCORE: &str = "paper_score";
+pub const PAPER_SCORE: &str = PAPER_SCORE_TEXTS.id;
 pub const YEAR_CENTROID: &str = "year_centroid";
 pub const FIELD_CITATIONS: &str = "field_citations";
 pub const FIELD_SCORE: &str = "field_score";

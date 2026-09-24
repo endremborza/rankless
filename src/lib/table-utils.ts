@@ -276,7 +276,7 @@ export function fetchWhere(
 		.catch(() => null);
 }
 
-// The first `n` entities of a root type by citations, for the field and country pickers.
+// The first `n` entities of a root type in its default ordering, for the field and country pickers.
 export function sliceList(
 	base: string,
 	rootType: RootType,
