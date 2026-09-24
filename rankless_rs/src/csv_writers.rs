@@ -226,7 +226,7 @@ where
     let n = std::thread::available_parallelism()
         .unwrap()
         .get()
-        .min(gz_files.len().max(1));
+        .min(gz_files.len());
     let counter = Arc::new(AtomicU32::new(0));
 
     std::thread::scope(|s| {
