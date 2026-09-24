@@ -708,30 +708,15 @@ pub fn methodology_texts() -> Vec<ItemTexts> {
         .collect()
 }
 
+// The definitions' text variables plus the era's first year, which only the columns know.
+fn vars() -> Vec<(&'static str, String)> {
+    let mut vars = text_vars();
+    vars.push(("era_from", ERA.0.to_string()));
+    vars
+}
+
 fn per_million(value: f64, population: u32) -> Option<f64> {
     (population > 0).then(|| value / (population as f64 / 1e6))
-}
-
-pub fn era_bounds() -> (RawYear, RawYear) {
-    (
-        YearInterface::reverse(MIN_YEAR as ET<Years>),
-        YearInterface::reverse(MAX_YEAR as ET<Years>),
-    )
-}
-
-// A year window moved into the recorded era; an absent bound is the era's.
-pub fn clamp_window(year_from: Option<RawYear>, year_to: Option<RawYear>) -> (RawYear, RawYear) {
-    let (era_from, era_to) = era_bounds();
-    (
-        year_from.unwrap_or(era_from).max(era_from),
-        year_to.unwrap_or(era_to).min(era_to),
-    )
-}
-
-// Inclusive era-record indices of a clamped window; None once the window is empty.
-pub fn era_span(from: RawYear, to: RawYear) -> Option<(usize, usize)> {
-    let (era_from, _) = era_bounds();
-    (from <= to).then(|| ((from - era_from) as usize, (to - era_from) as usize))
 }
 
 #[cfg(test)]
