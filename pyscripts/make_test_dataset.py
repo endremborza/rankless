@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 import pandas as pd
-from ccl_science_data.common import DN, PUBY, iter_snap_items, snap_dir
+from ccl_science_data.common import DN, PUBY, snap_dir
 from ccl_science_data.gen import EntC
 from dotenv import load_dotenv
 from tqdm import tqdm
@@ -30,11 +30,20 @@ inst_names = [
 ]
 
 
+def entity_files(e: str, src_dir: Path) -> list[Path]:
+    rdir = src_dir / "data" / "jsonl" / e
+    return [f for subd in rdir.iterdir() if subd.is_dir() for f in subd.iterdir()]
+
+
 def get_inst_ids(inst_names):
     insts = []
-    for _, isnap in iter_snap_items(EntC.INSTITUTIONS, snap_dir):
-        if any(e.encode() in isnap for e in inst_names):
-            insts.append(json.loads(isnap))
+    for jsf in tqdm(entity_files(EntC.INSTITUTIONS, snap_dir), EntC.INSTITUTIONS):
+        with gzip.open(jsf) as gzp:
+            insts.extend(
+                json.loads(gl)
+                for gl in gzp
+                if any(n.encode() in gl for n in inst_names)
+            )
     return (
         pd.DataFrame([{k: i[k] for k in ["id", DN]} for i in insts])
         .drop_duplicates(subset=DN)
@@ -58,13 +67,7 @@ rest_ents = [
 
 
 def entity_filter(e: str, src_dir, target_dir, filter_fun=lambda x: True):
-    rdir = src_dir / "data" / e
-    jsfiles = []
-    for subd in rdir.iterdir():
-        if not subd.is_dir():
-            continue
-        jsfiles.extend(subd.iterdir())
-    for jsf in tqdm(jsfiles, e):
+    for jsf in tqdm(entity_files(e, src_dir), e):
         olines = []
         with gzip.open(jsf) as gzp:
             for gl in gzp:

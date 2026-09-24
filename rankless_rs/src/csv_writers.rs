@@ -9,9 +9,9 @@ use std::sync::Arc;
 
 use crate::common::Stowage;
 use crate::oa_structs::{
-    Ancestor, AssociatedInstitution, Author, Authorship, Biblio, Concept, Field, FieldLike, Geo,
-    IdCountDecorated, IdTrait, Institution, Location, OpenAccess, Positioned, Publisher,
-    RelatedConcept, Source, SubField, SummaryStats, Topic, Work, WorkTopic,
+    AssociatedInstitution, Author, Authorship, Biblio, Field, FieldLike, Geo, IdCountDecorated,
+    IdTrait, Institution, Location, OpenAccess, Positioned, Publisher, Source, SubField,
+    SummaryStats, Topic, Work, WorkTopic,
 };
 
 const MAX_PARTITION_ROWS: usize = 2_000_000;
@@ -164,7 +164,6 @@ create_complex_writers!(
     Field - fields;;;,
     FieldLike - domains;;;,
     SubField - subfields;;;,
-    Concept - concepts; ancestors => Ancestor & related_concepts => RelatedConcept;;,
     Institution - institutions; associated_institution => AssociatedInstitution; geo -> Geo;,
     Work - works;
     topics => WorkTopic &
@@ -214,8 +213,15 @@ where
     W: LineWriter,
     F: Fn(Arc<AtomicU32>) -> W + Sync,
 {
+    let entity_dir = in_root.join(slug);
     let mut gz_files: Vec<PathBuf> = vec![];
-    fill_with_files(&in_root.join(slug), &mut gz_files, "gz")?;
+    fill_with_files(&entity_dir, &mut gz_files, "gz")?;
+    if gz_files.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("no .gz input under {}", entity_dir.display()),
+        ));
+    }
 
     let n = std::thread::available_parallelism()
         .unwrap()
@@ -263,7 +269,6 @@ pub fn write_csvs(in_root_str: &str, stowage: &Stowage) -> io::Result<()> {
         subfields,
         topics,
         institutions,
-        concepts,
         works,
         authors,
         publishers,

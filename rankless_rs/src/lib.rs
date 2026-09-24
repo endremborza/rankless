@@ -50,7 +50,10 @@ pub fn run_step(comm: &str, stowage: Stowage, in_root: Option<&str>) -> io::Resu
     match comm {
         "to-csv" => match in_root {
             Some(in_root) => csv_writers::write_csvs(in_root, &stowage),
-            None => Ok(()),
+            None => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "to-csv needs the snapshot's data/jsonl dir",
+            )),
         },
         "filter" => filter::main(stowage),
         _ => subrun(comm, stowage.with_ledger()?),

@@ -40,7 +40,6 @@ pub trait Positioned {
 
 add_id_traits!(
     Author,
-    Concept,
     Institution,
     Publisher,
     Source,
@@ -117,20 +116,6 @@ pub struct Author {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct Concept {
-    id: String,
-    wikidata: Option<String>,
-    display_name: Option<String>,
-    level: Option<u8>,
-    description: Option<String>,
-    works_count: Option<u32>,
-    cited_by_count: Option<u64>,
-    image_url: Option<String>,
-    image_thumbnail_url: Option<String>,
-    updated_date: Option<String>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 pub struct Topic {
     pub id: String,
     pub display_name: String,
@@ -162,23 +147,6 @@ pub struct Field {
     pub display_name: String,
     #[serde(default, deserialize_with = "deserialize_strict_hash_field")]
     pub domain: String,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct Ancestor {
-    #[serde(rename = "concept_id")]
-    pub parent_id: Option<String>,
-    #[serde(rename = "id")]
-    pub ancestor_id: String,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct RelatedConcept {
-    #[serde(rename = "concept_id")]
-    pub parent_id: Option<String>,
-    #[serde(rename = "id")]
-    related_concept_id: String,
-    score: f32,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -409,8 +377,6 @@ macro_rules! impl_positioned_noop {
 impl_positioned_noop!(
     WorkTopic,
     Location,
-    Ancestor,
-    RelatedConcept,
     AssociatedInstitution,
     CountByYear,
     ReferencedWork

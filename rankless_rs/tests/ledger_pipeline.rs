@@ -584,3 +584,10 @@ fn unresolvable_subjects_are_skipped_never_applied() {
     assert!(dm_of(&run.id_map("works"), s.not_mine).is_some());
     assert!(dm_of(&run.id_map("discarded-authors"), s.outsider.oa_id).is_some());
 }
+
+#[test]
+fn to_csv_fails_on_a_dir_without_entity_input() {
+    let fixture = Fixture::new("to-csv-no-input");
+    let snapshot = fixture.root.0.join("snapshot");
+    assert!(run_step("to-csv", fixture.stowage(), snapshot.to_str()).is_err());
+}

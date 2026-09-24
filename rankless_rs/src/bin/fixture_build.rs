@@ -1,5 +1,5 @@
 //! `fixture-build <dir>`: the synthetic minimal OpenAlex snapshot under `<dir>/snapshot`
-//! (`to-csv` reads `<dir>/snapshot/data`) plus `<dir>/scenario.json` naming every id the
+//! (`to-csv` reads `<dir>/snapshot/data/jsonl`) plus `<dir>/scenario.json` naming every id the
 //! ledger flow can act on. The generator is the integration tests' own; see
 //! `tests/common/synthetic_oa.rs`.
 

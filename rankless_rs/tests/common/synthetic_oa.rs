@@ -1,5 +1,5 @@
 //! Synthetic minimal OpenAlex snapshot in the layout `pyscripts/make_test_dataset.py` emits
-//! (`data/<entity>/updated_date=…/part_000.gz`, gzipped JSON lines), sized from the compiled
+//! (`data/jsonl/<entity>/updated_date=…/part_000.gz`, gzipped JSON lines), sized from the compiled
 //! `env_consts` thresholds so the bulk entities pass every filter screen. One part per entity
 //! keeps `to-csv` single-threaded per entity, so CSV row order — and with it every dm id the
 //! pipeline assigns — is a pure function of the scenario.
@@ -307,7 +307,7 @@ impl Scenario {
 
     /// The `to-csv` input directory.
     pub fn data_dir(snapshot_dir: &Path) -> PathBuf {
-        snapshot_dir.join("data")
+        snapshot_dir.join("data").join("jsonl")
     }
 
     pub fn write_snapshot(&self, snapshot_dir: &Path) -> io::Result<()> {
