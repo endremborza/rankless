@@ -11,7 +11,7 @@ use crate::{
     ReadIter, Stowage,
 };
 
-use super::hit_papers::CCUI;
+use super::bars::CCUI;
 
 // A topic's earliest paper counts as its creator only for a topic first seen in this year or later:
 // the start of the data would otherwise manufacture originators for old topics.

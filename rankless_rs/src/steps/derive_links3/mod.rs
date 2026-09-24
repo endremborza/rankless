@@ -21,8 +21,8 @@ use crate::{
     CiteCountMarker, QuickestBox, QuickestVBox, ReadIter, Stowage, WorkCountMarker,
 };
 
+mod bars;
 mod entity_sem_ids;
-mod hit_papers;
 mod peer_ctx;
 mod topic_tags;
 
@@ -54,12 +54,12 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
             h_doi.join().unwrap(),
         )
     });
-    let (year_bms, sf_bms) = std::thread::scope(|s| {
-        let h1 = s.spawn(|| hit_papers::compute_year_bms(&w_years, &cc_interface));
-        let h2 = s.spawn(|| hit_papers::compute_sf_bms(&w_sfs.0, &cc_interface));
+    let (year_bars, sf_bars) = std::thread::scope(|s| {
+        let h1 = s.spawn(|| bars::year_bars(&w_years, &cc_interface));
+        let h2 = s.spawn(|| bars::sf_bars(&w_sfs.0, &cc_interface));
         (h1.join().unwrap(), h2.join().unwrap())
     });
-    let sf_year_bms = hit_papers::compute_sf_year_bms(&w_sfs.0, &w_years, &cc_interface, &year_bms);
+    let sf_year_bars = bars::sf_year_bars(&w_sfs.0, &w_years, &cc_interface, &year_bars);
     let work_bars: Box<[EncodedBar]> = w_years
         .iter()
         .enumerate()
@@ -68,12 +68,12 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
                 return 0;
             }
             let yi = year.to_usize();
-            encode_bar(hit_papers::paper_bm(
+            encode_bar(bars::paper_bar(
                 &w_sfs.0[wid],
                 yi,
-                &sf_year_bms,
-                &sf_bms,
-                &year_bms,
+                &sf_year_bars,
+                &sf_bars,
+                &year_bars,
             ))
         })
         .collect();
