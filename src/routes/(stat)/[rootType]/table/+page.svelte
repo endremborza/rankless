@@ -47,6 +47,8 @@
 	let columns = $state<Column[]>([]);
 	let values = $state<Record<string, MetricValues>>({});
 	let inflight = $state<Record<string, number>>({});
+	// The backend's objection to the last page-local column fetched, shown beside the page's own.
+	let columnError = $state<string | null>(null);
 	// Reorders the loaded rows only, by a cohort column's key or a page-local column's key.
 	let localSort = $state<{ key: string; asc: boolean } | null>(null);
 
@@ -138,7 +140,8 @@
 		if (rows.length === 0) return;
 		inflight[col.key] = (inflight[col.key] ?? 0) + 1;
 		const got = await fetchColumnValues(BE_REMOTE_URL, data.rootType, rows, col);
-		values = { ...values, [col.key]: { ...values[col.key], ...got } };
+		values = { ...values, [col.key]: { ...values[col.key], ...got.values } };
+		columnError = got.error;
 		inflight[col.key] -= 1;
 	}
 

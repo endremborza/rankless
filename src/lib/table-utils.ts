@@ -296,18 +296,20 @@ export function metricValuesUrl(base: string, rootType: RootType, ids: number[],
 }
 
 // A column's values for the given rows, keyed by dm id; a row the server did not answer is absent.
+// One column's values for a page of rows, keyed by dm id, with the backend's objection if any.
 export async function fetchColumnValues(
 	base: string,
 	rootType: RootType,
 	rows: TableRow[],
 	col: Column
-): Promise<MetricValues> {
+): Promise<{ values: MetricValues; error: string | null }> {
 	const ids = rows.map((r) => r.dmId);
-	const resp: MetricValuesResp | null = await fetch(metricValuesUrl(base, rootType, ids, col.key))
-		.then((r) => (r.ok ? r.json() : null))
-		.catch(() => null);
-	const got: MetricValues = {};
-	const column = resp?.values[col.key] ?? Object.values(resp?.values ?? {})[0];
-	resp?.ids.forEach((id, i) => (got[id] = column?.[i] ?? null));
-	return got;
+	const values: MetricValues = {};
+	const r = await fetch(metricValuesUrl(base, rootType, ids, col.key)).catch(() => null);
+	if (!r) return { values, error: 'unreachable' };
+	if (!r.ok) return { values, error: (await r.text()) || r.statusText };
+	const resp = (await r.json()) as MetricValuesResp;
+	const column = resp.values[col.key] ?? Object.values(resp.values)[0];
+	resp.ids.forEach((id, i) => (values[id] = column?.[i] ?? null));
+	return { values, error: null };
 }
