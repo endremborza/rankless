@@ -92,7 +92,7 @@ include Makefile.test
 rankless_rs/src/gen/a2_init_atts.rs: rankless_rs/static/country-population.csv
 
 download-snapshot:
-	aws s3 sync "s3://openalex" $(OA_SNAPSHOT) --no-sign-request
+	aws s3 sync "s3://openalex" $(OA_SNAPSHOT) --no-sign-request --exclude "legacy-data/*" --exclude "data/parquet/*"
 
 get-release-notes:
 	curl -s https://openalex.s3.amazonaws.com/RELEASE_NOTES.txt | head -50
