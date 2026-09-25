@@ -181,18 +181,26 @@ fn get_writer(root: &Path, fname: &str, part: u32) -> io::Result<ZstWriter> {
     Ok(Writer::from_writer(enc))
 }
 
-fn fill_with_files(path: &Path, v: &mut Vec<PathBuf>, extension: &str) -> io::Result<()> {
-    if path.is_dir() {
-        for entry in read_dir(path)? {
-            let sub_path = entry?.path();
-            fill_with_files(&sub_path, v, extension)?;
+/// The gz parts inside the entity's `updated_date=…` partition dirs; files beside the partitions
+/// (`manifest.json`, the `deleted_ids.csv.gz` CSV) are not records.
+fn partition_parts(entity_dir: &Path) -> io::Result<Vec<PathBuf>> {
+    let mut parts = vec![];
+    if !entity_dir.is_dir() {
+        return Ok(parts);
+    }
+    for partition in read_dir(entity_dir)? {
+        let partition = partition?.path();
+        if !partition.is_dir() {
+            continue;
         }
-    } else if let Some(ext) = path.extension() {
-        if ext == extension {
-            v.push(path.to_path_buf());
+        for part in read_dir(&partition)? {
+            let part = part?.path();
+            if part.extension().is_some_and(|ext| ext == "gz") {
+                parts.push(part);
+            }
         }
     }
-    Ok(())
+    Ok(parts)
 }
 
 fn deserialize_verbose<T: DeserializeOwned>(s: &str) -> T {
@@ -214,8 +222,7 @@ where
     F: Fn(Arc<AtomicU32>) -> W + Sync,
 {
     let entity_dir = in_root.join(slug);
-    let mut gz_files: Vec<PathBuf> = vec![];
-    fill_with_files(&entity_dir, &mut gz_files, "gz")?;
+    let gz_files = partition_parts(&entity_dir)?;
     if gz_files.is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,

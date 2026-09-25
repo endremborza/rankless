@@ -1,5 +1,6 @@
 //! Synthetic minimal OpenAlex snapshot in the layout `pyscripts/make_test_dataset.py` emits
-//! (`data/jsonl/<entity>/updated_date=…/part_000.gz`, gzipped JSON lines), sized from the compiled
+//! (`data/jsonl/<entity>/updated_date=…/part_000.gz`, gzipped JSON lines, plus the CSV
+//! `works/deleted_ids.csv.gz` beside the partitions as in a real snapshot), sized from the compiled
 //! `env_consts` thresholds so the bulk entities pass every filter screen. One part per entity
 //! keeps `to-csv` single-threaded per entity, so CSV row order — and with it every dm id the
 //! pipeline assigns — is a pure function of the scenario.
@@ -320,6 +321,7 @@ impl Scenario {
                 .iter()
                 .map(|w| self.work_json(w, cited_by(w.oa_id))),
         )?;
+        write_deleted_ids(&data.join("works"))?;
         write_entity(&data, "authors", self.persons().map(author_json))?;
         write_entity(
             &data,
@@ -591,6 +593,15 @@ fn domain_json() -> Value {
         "cited_by_count": 10000,
         "updated_date": "2026-01-01",
     })
+}
+
+fn write_deleted_ids(entity_dir: &Path) -> io::Result<()> {
+    let mut gz = GzEncoder::new(
+        File::create(entity_dir.join("deleted_ids.csv.gz"))?,
+        Compression::fast(),
+    );
+    gz.write_all(b"work_id,deleted_date\nhttps://openalex.org/W8999999,2026-08-14\n")?;
+    gz.finish().map(drop)
 }
 
 fn write_entity(data: &Path, entity: &str, lines: impl Iterator<Item = Value>) -> io::Result<()> {
