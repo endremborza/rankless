@@ -195,11 +195,9 @@ def get_resdf(specs, addr: str = DEFAULT_ADDR, step_size=100, max_n=25_000):
             ).json()["rows"]
             if len(rjs) == 0:
                 break
-            resdfs.append(
-                pd.DataFrame(rjs).assign(rt=r).drop("meta", axis=1, errors="ignore")
-            )
+            resdfs.append(pd.DataFrame(rjs).assign(rt=r))
 
-    return pd.concat(resdfs).drop_duplicates()
+    return pd.concat(resdfs).drop_duplicates([RTC, DMIC])
 
 
 def get_specs_and_ys(addr: str = DEFAULT_ADDR):
