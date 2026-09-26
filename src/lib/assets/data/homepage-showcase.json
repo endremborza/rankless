@@ -2,54 +2,54 @@
   "scholar": {
     "name": "Richard H. Thaler",
     "semanticId": "richard-h-thaler",
-    "papers": 212,
-    "citations": 72656
+    "papers": 179,
+    "citations": 58802
   },
   "hitPapers": [
     {
       "year": 1985,
-      "citations": 4817,
+      "citations": 3879,
       "name": "Does the Stock Market Overreact?"
     },
     {
       "year": 1980,
-      "citations": 3881,
+      "citations": 3459,
       "name": "Toward a positive theory of consumer choice"
     },
     {
       "year": 1985,
-      "citations": 3550,
+      "citations": 3299,
       "name": "Mental Accounting and Consumer Choice"
     },
     {
       "year": 1991,
-      "citations": 3464,
+      "citations": 3200,
       "name": "Anomalies: The Endowment Effect, Loss Aversion, and Status Quo Bias"
     },
     {
       "year": 1990,
-      "citations": 2324,
+      "citations": 2104,
       "name": "Experimental Tests of the Endowment Effect and the Coase Theorem"
     },
     {
       "year": 1999,
-      "citations": 2196,
+      "citations": 1958,
       "name": "Mental accounting matters"
     },
     {
       "year": 2000,
-      "citations": 2109,
+      "citations": 1766,
       "name": "Fairness as a Constraint on Profit Seeking: Entitlements in the Market"
     },
     {
-      "year": 2000,
-      "citations": 1888,
-      "name": "Experimental Tests of the Endowment Effect and the Coase Theorem"
+      "year": 2008,
+      "citations": 1752,
+      "name": "Mental Accounting and Consumer Choice"
     },
     {
-      "year": 2008,
-      "citations": 1885,
-      "name": "Mental Accounting and Consumer Choice"
+      "year": 2000,
+      "citations": 1640,
+      "name": "Experimental Tests of the Endowment Effect and the Coase Theorem"
     }
   ],
   "coauthorTimeline": {
@@ -69,7 +69,7 @@
           {
             "year": 1997,
             "n": 2,
-            "hit": true
+            "hit": false
           },
           {
             "year": 1999,
@@ -83,7 +83,7 @@
           },
           {
             "year": 2001,
-            "n": 2,
+            "n": 1,
             "hit": true
           },
           {
@@ -92,13 +92,8 @@
             "hit": false
           },
           {
-            "year": 2003,
-            "n": 1,
-            "hit": false
-          },
-          {
             "year": 2004,
-            "n": 3,
+            "n": 2,
             "hit": true
           },
           {
@@ -108,27 +103,27 @@
           },
           {
             "year": 2007,
-            "n": 5,
+            "n": 3,
             "hit": false
           },
           {
             "year": 2009,
-            "n": 2,
+            "n": 1,
             "hit": false
           },
           {
             "year": 2011,
-            "n": 2,
-            "hit": true
+            "n": 1,
+            "hit": false
           },
           {
             "year": 2013,
             "n": 2,
-            "hit": true
+            "hit": false
           },
           {
             "year": 2017,
-            "n": 2,
+            "n": 1,
             "hit": true
           },
           {
@@ -139,14 +134,14 @@
         ]
       },
       {
-        "name": "Cass R. Sunstein",
+        "name": "Cass Robert Sunstein",
         "firstYear": 1998,
         "lastYear": 2023,
         "marks": [
           {
             "year": 1998,
             "n": 2,
-            "hit": true
+            "hit": false
           },
           {
             "year": 2000,
@@ -155,12 +150,12 @@
           },
           {
             "year": 2003,
-            "n": 4,
+            "n": 3,
             "hit": true
           },
           {
             "year": 2004,
-            "n": 3,
+            "n": 2,
             "hit": false
           },
           {
@@ -179,17 +174,12 @@
             "hit": false
           },
           {
-            "year": 2010,
-            "n": 1,
-            "hit": false
-          },
-          {
             "year": 2012,
             "n": 1,
             "hit": false
           },
           {
-            "year": 2014,
+            "year": 2013,
             "n": 1,
             "hit": false
           },
@@ -200,7 +190,7 @@
           },
           {
             "year": 2017,
-            "n": 2,
+            "n": 1,
             "hit": true
           },
           {
@@ -221,15 +211,10 @@
         ]
       },
       {
-        "name": "Daniel Kahneman",
-        "firstYear": 1986,
+        "name": "Daniel J. Kahneman",
+        "firstYear": 1990,
         "lastYear": 2016,
         "marks": [
-          {
-            "year": 1986,
-            "n": 1,
-            "hit": true
-          },
           {
             "year": 1990,
             "n": 1,
@@ -243,7 +228,7 @@
           {
             "year": 1997,
             "n": 1,
-            "hit": true
+            "hit": false
           },
           {
             "year": 2000,
@@ -256,18 +241,13 @@
             "hit": false
           },
           {
-            "year": 2005,
+            "year": 2006,
             "n": 1,
             "hit": false
           },
           {
-            "year": 2006,
-            "n": 1,
-            "hit": true
-          },
-          {
             "year": 2008,
-            "n": 2,
+            "n": 1,
             "hit": false
           },
           {
@@ -284,14 +264,9 @@
       },
       {
         "name": "Jack L. Knetsch",
-        "firstYear": 1986,
+        "firstYear": 1990,
         "lastYear": 2016,
         "marks": [
-          {
-            "year": 1986,
-            "n": 1,
-            "hit": true
-          },
           {
             "year": 1990,
             "n": 1,
@@ -319,7 +294,7 @@
           },
           {
             "year": 2008,
-            "n": 2,
+            "n": 1,
             "hit": false
           },
           {
@@ -330,48 +305,6 @@
           {
             "year": 2016,
             "n": 1,
-            "hit": false
-          }
-        ]
-      },
-      {
-        "name": "Roni Michaely",
-        "firstYear": 1995,
-        "lastYear": 2009,
-        "marks": [
-          {
-            "year": 1995,
-            "n": 2,
-            "hit": true
-          },
-          {
-            "year": 1997,
-            "n": 2,
-            "hit": true
-          },
-          {
-            "year": 1998,
-            "n": 1,
-            "hit": false
-          },
-          {
-            "year": 2003,
-            "n": 1,
-            "hit": false
-          },
-          {
-            "year": 2005,
-            "n": 1,
-            "hit": false
-          },
-          {
-            "year": 2007,
-            "n": 1,
-            "hit": false
-          },
-          {
-            "year": 2009,
-            "n": 2,
             "hit": false
           }
         ]
@@ -399,7 +332,7 @@
           {
             "year": 1990,
             "n": 1,
-            "hit": true
+            "hit": false
           },
           {
             "year": 1995,
@@ -412,6 +345,28 @@
             "hit": false
           }
         ]
+      },
+      {
+        "name": "Charles M.C. Lee",
+        "firstYear": 1990,
+        "lastYear": 1993,
+        "marks": [
+          {
+            "year": 1990,
+            "n": 1,
+            "hit": false
+          },
+          {
+            "year": 1991,
+            "n": 3,
+            "hit": true
+          },
+          {
+            "year": 1993,
+            "n": 4,
+            "hit": false
+          }
+        ]
       }
     ]
   },
@@ -419,121 +374,116 @@
     "rootName": "Richard H. Thaler",
     "nodes": [
       {
-        "name": "Daniel Kahneman",
-        "semanticId": "daniel-kahneman",
-        "score": 4461
-      },
-      {
         "name": "Werner F. M. De Bondt",
         "semanticId": "werner-f-m-de-bondt",
-        "score": 4308
+        "score": 3532
+      },
+      {
+        "name": "Daniel J. Kahneman",
+        "semanticId": "daniel-j-kahneman",
+        "score": 3413
       },
       {
         "name": "Jack L. Knetsch",
         "semanticId": "jack-l-knetsch",
-        "score": 4025
+        "score": 3046
       },
       {
         "name": "Shlomo Benartzi",
         "semanticId": "shlomo-benartzi",
-        "score": 3404
+        "score": 2566
       },
       {
-        "name": "Cass R. Sunstein",
-        "semanticId": "cass-r-sunstein",
-        "score": 1861
+        "name": "Cass Robert Sunstein",
+        "semanticId": "cass-robert-sunstein",
+        "score": 1459
       },
       {
         "name": "Hersh Shefrin",
         "semanticId": "hersh-shefrin",
-        "score": 1370
+        "score": 1206
       }
     ],
     "edges": [
       [
-        0,
+        1,
         2,
-        14
+        12
       ],
       [
-        0,
+        1,
         4,
-        19
-      ],
-      [
-        2,
-        4,
-        1
+        15
       ],
       [
         3,
         4,
-        4
+        2
       ]
     ]
   },
   "peers": {
     "heroName": "Richard H. Thaler",
-    "peerName": "George Loewenstein",
+    "peerName": "George F. Loewenstein",
     "peerCountry": "United States",
     "subfields": [
       {
         "name": "Economics and Econometrics",
-        "hero": 33875,
-        "peer": 19626
+        "hero": 26871,
+        "peer": 16096
       },
       {
         "name": "Finance",
-        "hero": 21010,
-        "peer": 3555
+        "hero": 15914,
+        "peer": 2723
       },
       {
         "name": "General Decision Sciences",
-        "hero": 18555,
-        "peer": 21416
+        "hero": 15568,
+        "peer": 18366
       },
       {
         "name": "Accounting",
-        "hero": 18066,
-        "peer": 5153
+        "hero": 13667,
+        "peer": 4015
       },
       {
         "name": "Safety Research",
-        "hero": 10723,
-        "peer": 11550
+        "hero": 8381,
+        "peer": 9376
       },
       {
         "name": "Sociology and Political Science",
-        "hero": 9187,
-        "peer": 16948
+        "hero": 7670,
+        "peer": 15048
       }
     ],
     "yearFrom": 2016,
     "heroYearly": [
-      3224,
-      3315,
-      3801,
-      3936,
-      3896,
-      3943,
-      3112,
-      2698,
-      2179,
-      1309,
-      86
+      2655,
+      2692,
+      3176,
+      3316,
+      3258,
+      3378,
+      2663,
+      2376,
+      2004,
+      1441,
+      257
     ],
     "peerYearly": [
-      4024,
-      4028,
-      4196,
-      4467,
-      4725,
-      4868,
-      4172,
-      3813,
-      2998,
-      2068,
-      179
+      3585,
+      3576,
+      3888,
+      4188,
+      4369,
+      4472,
+      3836,
+      3430,
+      2905,
+      2323,
+      455
     ]
   }
 }
