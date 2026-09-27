@@ -27,8 +27,9 @@ pub(crate) fn try_load_engine<const S: usize>(
         let _ = fs::remove_file(stamp_path);
         return None;
     }
-    let mut file = fs::File::open(bin_path).ok()?;
-    SearchEngine::try_load(&mut file)
+    let file = fs::File::open(bin_path).ok()?;
+    let mut file_br = std::io::BufReader::new(file);
+    SearchEngine::try_load(&mut file_br)
 }
 
 pub(crate) fn save_engine<const S: usize>(
