@@ -357,4 +357,3 @@ Notes:
 - The worker's `claude-cli` runner **requires an authenticated `claude` CLI** in the service
   user's home; runs are sandboxed to `--allowedTools mcp__rankless` (read-only citation tools,
   no bash/fs). `ADMIN_ORCIDS` gates who can create sessions.
-- Keys/auth tiers for the public endpoint are still open (`.cril/ideas.md` §8 Phase 4).
