@@ -12,6 +12,8 @@ from ccl_science_data.common import (
 )
 from ccl_science_data.gen import ComC, EntC
 
+from pyscripts.external_data import fetched
+
 _EXTERN = Path(__file__).parent.parent / "extern"
 
 # Integer codes for Nobel categories — avoids repeating strings in the CSV.
@@ -28,8 +30,15 @@ NOBEL_CATEGORY_CODES = {
 link_frame = "https://tmp-borza-public-cyx.s3.amazonaws.com/{}.csv.gz"
 
 
+def external_table(source: str, name: str, key: str) -> Path:
+    """The bucket's `key` table, kept under $EXTERNAL_DATA_ROOT/<source>/ once fetched."""
+    return fetched(source, f"{name}.csv.gz", link_frame.format(key))
+
+
 def get_best_q_by_year():
-    return pl.read_csv(link_frame.format("metascience/q-by-year"))
+    return pl.read_csv(
+        external_table("metascience", "q-by-year", "metascience/q-by-year")
+    )
 
 
 def write_csv(df: pd.DataFrame, main: str, sub: str):
@@ -38,7 +47,9 @@ def write_csv(df: pd.DataFrame, main: str, sub: str):
 
 if __name__ == "__main__":
     source_filter = get_last_filter(EntC.SOURCES)
-    adf = pd.read_csv(link_frame.format("metascience/areas")).drop_duplicates()
+    adf = pd.read_csv(
+        external_table("metascience", "areas", "metascience/areas")
+    ).drop_duplicates()
     sodf = (
         read_full_df(EntC.SOURCES, "ids")
         .assign(id=lambda df: df["openalex"].pipe(parse_id))
@@ -70,9 +81,9 @@ if __name__ == "__main__":
         .unique()
     )
     q_matched_df.to_pandas().pipe(write_csv, EntC.SOURCES, EntC.QS)
-    oa_to_slug = pd.read_csv(link_frame.format("oa-to-wiki-authors")).drop(
-        "rl_i", axis=1
-    )
+    oa_to_slug = pd.read_csv(
+        external_table("wiki", "oa-to-wiki-authors", "oa-to-wiki-authors")
+    ).drop("rl_i", axis=1)
     oa_to_slug.pipe(write_csv, EntC.AUTHORS, "wiki-slug")
     nobel_out = (
         pd.read_csv(_EXTERN / "nobel-matches.csv")

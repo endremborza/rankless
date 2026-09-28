@@ -358,7 +358,7 @@ the only viz dependency).
 | `live_monitoring.py` | Health monitoring + email alerts |
 | `make_test_dataset.py`, `lib_data_generation.py` | nano/micro/mini subset generation |
 | `homepage_showcase.py` | Bakes `src/lib/assets/data/homepage-showcase.json` (one featured scholar's hit papers, co-author timeline, hero-vs-peer comparison, and co-author network) for the homepage showcase; run via `make homepage_showcase` against a live backend (`SHOWCASE_BE=…/v1` overrides the default `127.0.0.1:3038`) |
-| `extend_csvs.py` | CSV transforms: source area-fields, quartiles, author wiki-slugs, Nobel categories |
+| `extend_csvs.py` | CSV transforms: source area-fields, quartiles, author wiki-slugs, Nobel categories; the bucket tables it reads are fetched once into `$EXTERNAL_DATA_ROOT/{metascience,wiki}/` |
 | `sitemap_validation.py`, `survey_result_export.py`, `nobel.py`, `svg_export.py` | Sitemap / survey / Nobel / SVG export utilities |
 | `calibrate_map.py` | Fits the world-map asset's Robinson projection (scale + offset per axis) against coastline landmarks — an extreme vertex of a country's mainland polygon vs its known coordinates — and checks coastal cities land on their country; bakes `src/lib/assets/data/map-projection.json`, read by `lib/utils/geo.ts` for the quiz's reveal map |
 | `object_store.py` | Unified MCP object store: immutable per-run bundles (`data/mcp-objects/<run>.jsonl.zst`) + payload-free version index (`mcp_objects` in `data/rankless.sqlite`, keyed `(kind, obj_key, bundle)`, latest non-rejected wins); CLI `uv run -m pyscripts objects {list,ingest,export,set-status,fsck}` (`fsck` verifies every row's bundle address; exports compress to `.zst`); `gen_at` is stamped UTC ISO at write time; bundles ride the artifact-dir copy, index rows the user-DB handoff (see [mcp-server.md](mcp-server.md)) |
@@ -698,6 +698,10 @@ hooks), part of which the vitest unit suite already exercises.
 `data/nano-root/` (local pipeline output, gitignored), `libs/ccl-science-data` (symlink →
 `~/.cache/rankless/ccl-science-data`; override with `CCL_CLONE_DIR=<path>`),
 `target/release/rankless-server`, `.env` (gitignored, seeded from `.env.example`).
+External data the pipeline reads but does not produce (the ORCID registered-name table,
+the bucket tables `extend_csvs` joins) lives under `EXTERNAL_DATA_ROOT`, a directory per
+source outside both trees; unset it is `./data/external`, where the bucket tables land
+and, without the ORCID table, `derive-ledger` picks each ORCID's owner by works alone.
 
 **Troubleshooting:**
 
