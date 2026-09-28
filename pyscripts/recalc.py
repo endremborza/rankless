@@ -191,6 +191,8 @@ def build_release_manifest(root: Path) -> dict:
         "filter_counts": _filter_counts(root / "filter-steps"),
         "applied": dict(Counter(k.split("|")[1] for k in applied["applied_keys"])),
         "skipped": dict(Counter(s["reason"] for s in applied["skipped"])),
+        # The derived identity source: author records sharing an ORCID, by reason.
+        "derived": applied["derived"],
         # Public aggregates only — the private wid list stays in the sidecar.
         "forced_works": {k: forced[k] for k in FORCED_AGGREGATES},
         "claims_review": _claims_review(rdir, run_id),

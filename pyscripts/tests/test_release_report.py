@@ -40,6 +40,12 @@ CUR["forced_works"] = {
     "outside_citations": 5,
     "claimed": 1,
     "author_rescues": 1,
+    "over_bound_authors": 2,
+}
+CUR["derived"] = {
+    "merges": {"registered_name": 30, "most_works": 12},
+    "strips": {"name_mismatch": 4, "over_work_bound": 1},
+    "skipped": {"overridden_by_user": 1},
 }
 
 
@@ -47,8 +53,16 @@ def test_report_without_previous() -> None:
     report = rr.build_report(CUR)
     assert report["previous"] is None and report["deltas"] is None
     assert report["restored"] == CUR["forced_works"]
-    # a record predating forced-works sidecars renders without the section
+    assert report["identity"] == {
+        "merged": 42,
+        "merged_by": {"registered_name": 30, "most_works": 12},
+        "stripped": 5,
+        "stripped_by": {"name_mismatch": 4, "over_work_bound": 1},
+        "overridden": 1,
+    }
+    # a record predating forced-works sidecars renders without the sections
     assert rr.build_report(PREV)["restored"] is None
+    assert rr.build_report(PREV)["identity"] is None
 
     assert list(report["entities"]) == ["works", "authors"]
     works = report["entities"]["works"]
@@ -85,6 +99,7 @@ def test_render_md() -> None:
     assert "data release 2026-08-13" in md
     assert "90" in md and "7 correction(s) integrated" in md
     assert "Papers restored by their authors: 12" in md
+    assert "42 folded into the holder's profile, the iD removed from 5" in md
     assert "+3 newly integrated" in md
     assert "site" not in md
 

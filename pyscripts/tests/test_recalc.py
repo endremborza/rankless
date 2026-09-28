@@ -161,6 +161,11 @@ def _seed_sidecars(root: Path, run_id: str = "2026-08-12T10:00:00Z") -> None:
                         "reason": "oa_id_not_in_dataset",
                     },
                 ],
+                "derived": {
+                    "merges": {"registered_name": 30, "most_works": 12},
+                    "strips": {"name_mismatch": 4, "over_work_bound": 1},
+                    "skipped": {"overridden_by_user": 1},
+                },
             }
         )
     )
@@ -213,7 +218,8 @@ def test_release_manifest_assembly(
         "claimant_not_attributed": 1,
         "oa_id_not_in_dataset": 2,
     }
-    # aggregates only — the private wid list never enters the release record
+    assert m["derived"]["merges"] == {"registered_name": 30, "most_works": 12}
+    # aggregates only — the private id lists never enter the release record
     assert m["forced_works"] == {
         "cohort": 2,
         "forced_total": 40,

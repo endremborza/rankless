@@ -17,7 +17,15 @@
 		disown_paper: 'papers removed from a scholar profile',
 		merge_papers: 'duplicate papers merged',
 		merge_authors: 'duplicate scholar records merged',
+		strip_orcid: 'ORCID iDs removed from records that are not their holder’s',
 		claim_paper: 'papers claimed by their author'
+	};
+
+	const IDENTITY_REASONS: Record<string, string> = {
+		registered_name: 'the name registered with the ORCID iD picked the surviving record',
+		most_works: 'the record with the most works survived',
+		name_mismatch: 'a different name from the iD’s holder',
+		over_work_bound: 'an aggregate of many people’s works, not a scholar'
 	};
 
 	const fmt = (n: number) => n.toLocaleString('en-US');
@@ -104,6 +112,37 @@
 			</ul>
 		{:else if report.ledger.applied_total > 0}
 			<p>No recorded correction was left out.</p>
+		{/if}
+
+		{#if report.identity && report.identity.merged + report.identity.stripped > 0}
+			<h2>Scholar records sharing an ORCID iD</h2>
+			<p>
+				OpenAlex splits many scholars into several records that carry the same ORCID iD. This
+				release folds <strong>{fmt(report.identity.merged)}</strong>
+				such record{plural(report.identity.merged)} into the iD holder’s profile and removes the iD from
+				<strong>{fmt(report.identity.stripped)}</strong>
+				record{plural(report.identity.stripped)} that are not the holder’s:
+			</p>
+			<ul>
+				{#each Object.entries(report.identity.merged_by) as [reason, n], __i (__i)}
+					<li>
+						<span class="count">{fmt(n)}</span> merged — {IDENTITY_REASONS[reason] ??
+							prettify(reason)}
+					</li>
+				{/each}
+				{#each Object.entries(report.identity.stripped_by) as [reason, n], __i (__i)}
+					<li>
+						<span class="count">{fmt(n)}</span> iDs removed — {IDENTITY_REASONS[reason] ??
+							prettify(reason)}
+					</li>
+				{/each}
+			</ul>
+			{#if report.identity.overridden > 0}
+				<p>
+					{fmt(report.identity.overridden)} of these decision{plural(report.identity.overridden)}
+					{report.identity.overridden === 1 ? 'was' : 'were'} replaced by the scholar’s own correction.
+				</p>
+			{/if}
 		{/if}
 
 		{#if report.restored && report.restored.outside_standard > 0}

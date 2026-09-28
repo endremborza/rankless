@@ -37,9 +37,12 @@ accepted claim), then: `make filter extend_csvs` → forced gen-ladder rebuild �
   release, one machine-readable record: `run_id`/`stamp`/`git_commit`/`rankless_env`,
   the snapshot name+date, per-source ledger export counts (`export_user_ledger`
   stamps `source: "site"` on every event), applied-by-kind and skipped-by-reason
-  aggregates (from `applied_manifest.json`; event keys stay there), forced-works
-  aggregates (from `user-ledger/forced_works.json` — counts only, the wid list of
-  works served beyond the standard screens stays private), and per-step
+  aggregates (from `applied_manifest.json`; event keys stay there), the derived
+  identity records tallied by reason (`derived`: merges by how the ORCID's owner
+  was chosen, strips by why, and the derived decisions a user's event replaced),
+  forced-works aggregates (from `user-ledger/forced_works.json` — counts only, the
+  wid list of works served beyond the standard screens and the ids of the author
+  records over the work bound stay private), and per-step
   filter counts derived from the `filter-steps/` id files themselves (8-byte ids,
   so kept = size/8 — no pipeline instrumentation). A pure function over those
   sidecars: `uv run -m pyscripts recalc manifest` re-assembles it after manual
