@@ -4,7 +4,7 @@ export
 # Where the backend spills bigs parts during prep→read; .env overrides it.
 RANKLESS_PARTS_ROOT ?= /tmp/dmove-parts
 
-.PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest mcp-worker setup-services
+.PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest mcp-worker setup-services external-push external-pull
 .PHONY: check format check-rs check-py check-js format-rs format-py format-js
 .PHONY: refresh-data commit-artifacts warm-caches ship-alpha promote
 .PHONY: fleet-probe fleet-suggest fleet-preflight fleet-prepare fleet-stamp
@@ -105,15 +105,21 @@ build-prep:
 to-csv: 
 	cargo run --release -p rankless-rs -- $@ $(OA_ROOT) $(OA_SNAPSHOT)/data/jsonl
 
+# derive-ledger writes the identity records the shared ORCIDs imply, the second ledger source
+# the filter resolves (registered names from $(EXTERNAL_DATA_ROOT) when it is set).
 filter: export_user_ledger clean-filters clean-cache
-	cargo build --release -p rankless-rs 
+	cargo build --release -p rankless-rs
+	time ./target/release/rankless-rs derive-ledger $(OA_ROOT)
 	time ./target/release/rankless-rs $@ $(OA_ROOT)
 
 run-server:
 	cargo run --release -p rankless-server -- $(OA_ROOT) 
 
-extend_csvs lib_data_generation homepage_showcase live_monitoring reporting sitemap_validation survey_result_export nobel export_user_ledger:
+extend_csvs lib_data_generation homepage_showcase live_monitoring reporting sitemap_validation survey_result_export export_user_ledger:
 	uv run -m pyscripts.$@
+
+external-push external-pull:
+	uv run -m pyscripts.external_data $(subst external-,,$@)
 
 # Scrub all report history (local + gh-pages) before promoting a new live instance.
 # Pass ARGS="--local-only" to keep the published site, or ARGS="--yes" to skip the prompt.
