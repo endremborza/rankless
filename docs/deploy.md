@@ -24,7 +24,7 @@ Merges the live box's user DB into the local copy (so the ledger export sees eve
 accepted claim), then: `make filter extend_csvs` → forced gen-ladder rebuild →
 `make lib_data_generation restart-service homepage_showcase`.
 
-- `make filter` runs `export_user_ledger` (the site DB's events) and `rankless-rs derive-ledger` (the records the shared ORCIDs imply, merged into the holder's oldest record or stripped of the ORCID; `rankless_rs/src/derived_ledger.rs`) into `user-ledger/`, then the filter step resolves both, a user's event winning on a record. `derive-ledger` reads the registered-name table `$EXTERNAL_DATA_ROOT/orcid/names.tsv.zst` (`uv run -m pyscripts.orcid_summaries`, once per yearly ORCID file); with `EXTERNAL_DATA_ROOT` set the table must exist, unset (a dev box, `data/external`) a missing table means owners by works alone, which the release record shows as `most_works` merges only. `extend_csvs` reads the laureates from `$EXTERNAL_DATA_ROOT/enrichment/laureates.csv` under the same rule, so the primary data box must set `EXTERNAL_DATA_ROOT` in its `.env`: unset, its release has no laureates and ORCID owners by works alone. The root is built where its data is made and reaches the data box with `make external-push` (`$EXTERNAL_DATA_REMOTE`, `host:/path`; additive, it never deletes on the far side). A source's `raw/` (the ORCID tarball, the bucket tables) never syncs: a box fetches its own downloads, while a table built from one (`orcid/names.tsv.zst`) rides the push like any other.
+- `make filter` runs `export_user_ledger` (the site DB's events, and the curated ledger copied from the external root) and `rankless-rs derive-ledger` (the records the shared ORCIDs imply, merged into the holder's oldest record or stripped of the ORCID; `rankless_rs/src/derived_ledger.rs`) into `user-ledger/`. The filter step then resolves the derived records, the curated events and the site's, in that order: the last decision on a record wins. `derive-ledger` and `extend_csvs` read the external data root ([External data](#external-data)).
 - `ARGS="--from-snapshot"` prepends `make to-csv` (a new OpenAlex snapshot landed;
   `make download-snapshot` stays manual).
 - `ARGS="--no-db-pull"` skips the DB merge (box without AWS access).
@@ -86,6 +86,23 @@ accepted claim), then: `make filter extend_csvs` → forced gen-ladder rebuild �
   branch comparison, mega_test).
 
 - A snapshot refresh can add author records that are a country rather than a person; `uv run -m pyscripts country-authors scan` names the ones the blacklist does not decide yet and exits 1 on any, `… review` shows their papers and takes the verdict (see the `author_blacklist.txt` row in `docs/architecture.md`). A verdict is a code change, so it lands with the next code deploy, not with the data.
+
+## External data
+
+Tables the pipeline reads that OpenAlex does not provide live under one root per box, `EXTERNAL_DATA_ROOT` in the box's `.env`, outside the repo, the snapshot and `OA_ROOT`: nothing under it is checked in or published, and a snapshot update or `make nuke` never touches it. Unset, the root is `./data/external` (a dev box).
+
+| under the root | read by | made by | missing, root set | missing, root unset |
+| --- | --- | --- | --- | --- |
+| `orcid/names.tsv.zst` | `derive-ledger` (in `make filter`) | `make orcid_summaries`, from `orcid/raw/ORCID_<year>_<month>_summaries.tar.gz` (downloaded if absent) | `make filter` fails | ORCID owners by works alone |
+| `enrichment/laureates.csv` | `make extend_csvs` | by hand | `extend_csvs` fails | no laureates |
+| `ledger/curated.jsonl` | `export_user_ledger` (in `make filter`), copied to `user-ledger/curated.jsonl` | by hand, lines in the `active.jsonl` shape (`pyscripts/ledger_ids.py`) | `make filter` fails | no curated events |
+| `metascience/raw/{areas,q-by-year}.csv.gz`, `wiki/raw/oa-to-wiki-authors.csv.gz` | `make extend_csvs` | downloaded from the public bucket on first use | downloaded | downloaded |
+
+The pipeline reads nothing else there (`orcid/public_emails.tsv` and the audit files in `enrichment/` are kept, not read). So the primary data box sets `EXTERNAL_DATA_ROOT` and holds the first three tables: unset, its release has no laureates, no curated events and ORCID owners by works alone.
+
+A script sees `.env` only through make (`-include .env` + `export`): run these as make targets. A bare `uv run -m pyscripts.<script>` falls back to `./data/external`.
+
+The root is built where its data is made and reaches the data box with `make external-push` (`make external-pull` the other way): rsync to `EXTERNAL_DATA_REMOTE` (`host:/path`), additive, never deleting on the far side, and never carrying a `raw/`. A box keeps its own downloads; a table built from one (the names table) rides the push like any other.
 
 ## commit-artifacts
 

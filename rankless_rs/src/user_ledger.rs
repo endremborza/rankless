@@ -20,6 +20,8 @@ pub const ORCID_PREF: &str = "https://orcid.org/";
 /// The derived source's records and manifest, written by `derive-ledger` beside the export.
 pub const DERIVED_JSONL: &str = "derived.jsonl";
 pub const DERIVED_MANIFEST: &str = "derived_manifest.json";
+/// The team's curated events, copied beside the site's by `export_user_ledger.py`.
+pub const CURATED_JSONL: &str = "curated.jsonl";
 
 const ACTIVE_JSONL: &str = "active.jsonl";
 const APPLIED_MANIFEST: &str = "applied_manifest.json";
@@ -45,8 +47,8 @@ type Key = Option<String>;
 // Mirror types below — keep in sync when TS types change.
 // ---------------------------------------------------------------------------
 
-/// The ledger before resolution: the derived source's records and the users' events keyed by
-/// their subjects, plus the pinned owners. `resolve` is the one decision site; it needs only
+/// The ledger before resolution: the derived source's records, the curated and the site's
+/// events keyed by their subjects, plus the pinned owners. `resolve` is the one decision site; it needs only
 /// the id facts `SnapshotIds` gathers from the raw CSVs.
 #[derive(Default)]
 pub struct UserLedger {
@@ -58,8 +60,8 @@ pub struct UserLedger {
     claims: Vec<(String, String, String)>,
     /// (key, orcid, work oa_id)
     disowns: Vec<(String, String, BigId)>,
-    /// (key, author oa_id, fate) in source order, the derived records before the users'
-    /// events, so the last entry on a record decides
+    /// (key, author oa_id, fate) in source order, the derived records, then the curated events,
+    /// then the site's, so the last entry on a record decides
     author_fates: Vec<(Key, BigId, Fate)>,
     /// (key, drop oa_id, keep oa_id)
     work_merges: Vec<(String, BigId, BigId)>,
@@ -235,6 +237,9 @@ impl UserLedger {
                 serde_json::from_str(&fs::read_to_string(ul_dir.join(DERIVED_MANIFEST))?)
                     .map_err(invalid)?;
             ul.derived_rows = Some(manifest.author_rows);
+        }
+        for line in read_lines(&ul_dir.join(CURATED_JSONL))? {
+            ul.apply_event(serde_json::from_str(&line).map_err(invalid)?);
         }
         for line in read_lines(&ul_dir.join(ACTIVE_JSONL))? {
             match serde_json::from_str::<LedgerEventLine>(&line) {
@@ -907,6 +912,55 @@ mod tests {
         assert_eq!(outcomes.pins, [1].into_iter().collect());
         assert_eq!(outcomes.applied.len(), 2);
         assert!(outcomes.skipped.is_empty());
+    }
+
+    #[test]
+    fn load_reads_the_derived_then_the_curated_then_the_site_records() {
+        let dir = std::env::temp_dir().join(format!("user-ledger-load-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let merge = |key: &str, keep: BigId, drop: BigId| {
+            format!(
+                r#"{{"key":"{key}","orcid":"o","payload":{{"kind":"merge_authors","keep":{{"oa_id":{keep}}},"drop":{{"oa_id":{drop}}}}}}}"#
+            ) + "\n"
+        };
+        fs::write(dir.join(DERIVED_JSONL), merge("o|merge_authors|2", 1, 2)).unwrap();
+        fs::write(dir.join(DERIVED_MANIFEST), r#"{"author_rows": 5}"#).unwrap();
+        // a same-name record without an ORCID folded into a record the derived source merges
+        fs::write(
+            dir.join(CURATED_JSONL),
+            merge("o|merge_authors|c7", 2, 7) + &merge("o|merge_authors|c8", 1, 8),
+        )
+        .unwrap();
+        fs::write(dir.join(ACTIVE_JSONL), merge("o|merge_authors|s9", 1, 9)).unwrap();
+        let ul = UserLedger::load(&dir).unwrap();
+        fs::remove_dir_all(&dir).unwrap();
+
+        let order: Vec<(Option<&str>, BigId)> = ul
+            .author_fates
+            .iter()
+            .map(|(key, id, _)| (key.as_deref(), *id))
+            .collect();
+        assert_eq!(
+            order,
+            vec![
+                (None, 2),
+                (Some("o|merge_authors|c7"), 7),
+                (Some("o|merge_authors|c8"), 8),
+                (Some("o|merge_authors|s9"), 9)
+            ]
+        );
+        let ids = SnapshotIds {
+            orcid_carriers: carriers(&[("o", &[1, 2])]),
+            authors: counts(&[1, 2, 7, 8, 9]),
+            author_rows: 5,
+            ..Default::default()
+        };
+        let (resolved, outcomes) = ul.resolve(&ids).unwrap();
+        assert_eq!(
+            resolved.author_aliases,
+            [(2, 1), (7, 1), (8, 1), (9, 1)].into_iter().collect()
+        );
+        assert_eq!(outcomes.applied.len(), 3);
     }
 
     #[test]

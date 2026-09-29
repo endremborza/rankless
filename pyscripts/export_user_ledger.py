@@ -2,6 +2,8 @@
 
 Reads ledger_events and owner_pins from SQLite, writes:
   user-ledger/active.jsonl           — active events ready for the pipeline
+  user-ledger/curated.jsonl          — the team's curated ledger ($EXTERNAL_DATA_ROOT/ledger/),
+                                       copied as it is; absent when the default root has none
   user-ledger/snapshot_manifest.json — run_id (ISO ts) + exported event_ids + per-source counts
   user-ledger/owner_pins.txt         — one ORCID per line
 
@@ -31,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from pyscripts import paths
+from pyscripts.external_data import table
 from pyscripts.ledger_ids import logical_key
 
 from .deploy import OA_ROOT_VAR
@@ -49,6 +52,8 @@ if DEFAULT_DATA_ROOT is None:
 DEFAULT_DB = paths.DB_REL
 OK_MODERATION = ("auto_ok", "accepted")
 SOURCE = "site"
+CURATED_SOURCE = "curated"
+CURATED_NAME = "curated.jsonl"
 
 
 def _fetch_active_events(conn: sqlite3.Connection) -> list[dict[str, Any]]:
@@ -120,23 +125,34 @@ def export(data_root: Path, db_path: str) -> None:
         for event in active:
             f.write(json.dumps(event, separators=(",", ":")) + "\n")
 
+    sources = {SOURCE: len(active)}
+    curated = _export_curated(out_dir)
+    if curated is not None:
+        sources[CURATED_SOURCE] = curated
+
     with open(out_dir / "snapshot_manifest.json", "w") as f:
-        json.dump(
-            {
-                "run_id": run_id,
-                "event_ids": exported_ids,
-                "sources": {SOURCE: len(active)},
-            },
-            f,
-        )
+        json.dump({"run_id": run_id, "event_ids": exported_ids, "sources": sources}, f)
 
     with open(out_dir / "owner_pins.txt", "w") as f:
         f.write("\n".join(pins))
         if pins:
             f.write("\n")
 
-    print(f"exported {len(active)} event(s), {len(pins)} owner pin(s) → {out_dir}")
+    print(f"exported {sources} event(s), {len(pins)} owner pin(s) → {out_dir}")
     print(f"run_id: {run_id}")
+
+
+def _export_curated(out_dir: Path) -> int | None:
+    """The curated ledger's events beside the site's; None, and no stale copy left, when
+    the default root holds none."""
+    dest = out_dir / CURATED_NAME
+    src = table("ledger", CURATED_NAME)
+    if src is None:
+        dest.unlink(missing_ok=True)
+        return None
+    lines = [line for line in src.read_text().splitlines() if line.strip()]
+    dest.write_text("".join(line + "\n" for line in lines))
+    return len(lines)
 
 
 def main() -> None:
