@@ -32,7 +32,10 @@ STEP_LABELS = {
     ("13", "institutions"): "institutions with enough indexed works",
     ("14", "works"): "authorship resolved, user corrections applied",
     ("14", "authors"): "credited on an indexed work",
-    ("20", "authors"): "above the activity threshold, or a registered owner",
+    (
+        "20",
+        "authors",
+    ): "above the activity threshold and under the aggregate-record bound, or a registered owner",
     ("21", "institutions"): "affiliated with indexed works after all screens",
 }
 

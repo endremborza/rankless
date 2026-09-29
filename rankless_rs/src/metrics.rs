@@ -62,6 +62,9 @@ pub const WORK_SCREEN: WorkScreen = WorkScreen {
     min_papers_for_source: MIN_PAPERS_FOR_SOURCE,
     min_author_papers: MIN_AUTHOR_WORK_COUNT,
     min_author_citations: MIN_AUTHOR_CITE_COUNT,
+    // Real careers reach the low thousands of works; a record above this is an aggregate of many
+    // people's, not an author.
+    max_author_papers: 10_000,
 };
 
 pub const PAPER_SCORE_TEXTS: Texts = Texts {
@@ -122,6 +125,7 @@ pub struct WorkScreen {
     pub min_papers_for_source: u16,
     pub min_author_papers: u16,
     pub min_author_citations: u16,
+    pub max_author_papers: u32,
 }
 
 // Every definition the site publishes about how its numbers are made, in one payload.

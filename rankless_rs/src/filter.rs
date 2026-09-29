@@ -268,6 +268,8 @@ fn authorship_filter(
     stowage.write_filter(person_step_id, works::C, taken_works.into_iter())
 }
 
+/// Step 20: an author passes between the activity minimums and the work bound, or is pinned;
+/// returns the pinned rescues.
 fn author_filter_with_pins(
     stowage: &Stowage,
     step_id: u8,
@@ -278,18 +280,19 @@ fn author_filter_with_pins(
     let rescued = Arc::new(AtomicUsize::new(0));
     let rescue_count = Arc::clone(&rescued);
     filter_write::<Author, _>(stowage, step_id, authors::C, move |o| {
-        if let Some(aid) = o.get_parsed_id() {
-            let standard = pre_filter.contains(&aid)
-                & (o.cited_by_count.unwrap_or(0) >= WORK_SCREEN.min_author_citations.into())
-                & (o.works_count.unwrap_or(0) >= WORK_SCREEN.min_author_papers.into());
-            let pinned = pins.contains(&aid);
-            if pinned & !standard {
-                rescue_count.fetch_add(1, Ordering::Relaxed);
-            }
-            pinned | standard
-        } else {
-            false
+        let Some(aid) = o.get_parsed_id() else {
+            return false;
+        };
+        let works = o.works_count.unwrap_or(0);
+        let standard = pre_filter.contains(&aid)
+            & (works >= WORK_SCREEN.min_author_papers.into())
+            & (works <= WORK_SCREEN.max_author_papers)
+            & (o.cited_by_count.unwrap_or(0) >= WORK_SCREEN.min_author_citations.into());
+        let pinned = pins.contains(&aid);
+        if pinned & !standard {
+            rescue_count.fetch_add(1, Ordering::Relaxed);
         }
+        pinned | standard
     })?;
     Ok(rescued.load(Ordering::Relaxed))
 }

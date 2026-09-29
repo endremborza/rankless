@@ -24,7 +24,6 @@ export type RestoredAggregates = {
 	outside_citations: number;
 	claimed: number;
 	author_rescues: number;
-	over_bound_authors: number;
 };
 
 // The derived identity records (author records sharing an ORCID) counted by reason.
