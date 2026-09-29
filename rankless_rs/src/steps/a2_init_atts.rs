@@ -576,6 +576,18 @@ impl ShipRelWriter {
             .unwrap_or((false, 0));
 
         if is_filtered && !self.seen_filtered_ships.insert((w_ind, aid)) {
+            // The author's later row on the work (an OpenAlex duplicate, or a merged record's
+            // beside its keep's): its institutions join the first row's.
+            let first = self.w2combined_ships[w_ind]
+                .iter()
+                .find(|&&(filtered, i)| filtered && self.fship2a[i] == aid)
+                .map(|&(_, i)| i)
+                .unwrap();
+            for inst in ivec {
+                if !self.fship2is[first].contains(&inst) {
+                    self.fship2is[first].push(inst);
+                }
+            }
             return;
         }
 
@@ -1246,4 +1258,64 @@ fn get_wind<T: ParsedId, U: UnsignedNumber>(obj: &T, inf: &LoadedIdMap<U>) -> Op
     obj.get_parsed_id()
         .and_then(|id| inf.0.get(&id))
         .map(|i| i.to_usize())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::common::ID_PREFIX;
+
+    fn id_map<T: UnsignedNumber>(ids: &[BigId]) -> LoadedIdMap<T> {
+        LoadedIdMap(
+            ids.iter()
+                .enumerate()
+                .map(|(i, &oa)| (oa, T::from_usize(i + 1)))
+                .collect(),
+        )
+    }
+
+    fn ship(work: u64, author: u64, insts: &[u64], position: u16) -> Authorship {
+        let insts: Vec<String> = insts.iter().map(|i| format!("{ID_PREFIX}I{i}")).collect();
+        Authorship {
+            parent_id: Some(format!("{ID_PREFIX}W{work}")),
+            author_id: Some(format!("{ID_PREFIX}A{author}")),
+            institutions: Some(insts.join(";")),
+            position,
+        }
+    }
+
+    #[test]
+    fn an_authors_repeated_rows_on_a_work_join_their_institutions() {
+        let mut w = ShipRelWriter {
+            fship2a: vec![0],
+            fship2is: vec![Vec::new()],
+            fship2pos: vec![0],
+            dship2a: vec![0],
+            dship2is: vec![Vec::new()],
+            dship2pos: vec![0],
+            w2combined_ships: vec![Vec::new(); 2].into_boxed_slice(),
+            winf: Arc::new(id_map(&[10])),
+            fainf: id_map(&[1]),
+            dainf: id_map(&[2]),
+            iinf: id_map(&[100, 200]),
+            seen_filtered_ships: HashSet::new(),
+        };
+        w.proc_next(ship(10, 1, &[100], 0));
+        w.proc_next(ship(10, 2, &[200], 1));
+        w.proc_next(ship(10, 1, &[100, 200], 2));
+        w.proc_next(ship(10, 2, &[100], 3));
+        let inst = |i| <ET<Institutions> as UnsignedNumber>::from_usize(i);
+        assert_eq!(w.fship2a, vec![0, 1]);
+        assert_eq!(w.fship2is[1], vec![inst(1), inst(2)]);
+        assert_eq!(w.fship2pos, vec![0, 0], "the first row's position stays");
+        assert_eq!(
+            w.dship2a,
+            vec![0, 1, 1],
+            "a discarded author's rows pass as they are"
+        );
+        assert_eq!(
+            w.w2combined_ships[1],
+            vec![(true, 1), (false, 1), (false, 2)]
+        );
+    }
 }

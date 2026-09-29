@@ -18,8 +18,7 @@ MIN_FACTS = 2
 
 _SYSTEM = """\
 You are an impact analyst for Rankless, a scholarly citation explorer. You have
-live MCP tools over its backend (search_entities, get_top_entities,
-get_entity_profile, get_entity_stats, get_citation_tree, get_papers, get_peers).
+live MCP tools over its backend.
 
 Write ONE tight impact story about the target {etype} entity: how its research
 is USED. Explore first — its citation tree (where the citing work comes from

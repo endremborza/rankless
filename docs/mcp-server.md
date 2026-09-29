@@ -57,10 +57,11 @@ resolution tools, never guessed):
 | `search_entities(query, entity_type)` | `/v1/names/:etype?q=` | tier-1 resolution; `entity_type` ∈ root types or `all` |
 | `get_top_entities()` | `/v1/tops` | seed entities per type |
 | `get_methodology()` | `/v1/methodology` | the work screen (what an indexed paper and citation are), the paper-score constants (the bar, the hit multiple, the Top-N sizes, the recent h-index years), the first and last year with yearly counts (the bounds of a year window) and the texts about the paper score and hit papers filled from them, as `rankless_rs/src/metrics.rs` states them and the site renders them |
-| `get_entity_profile(etype, sem_id)` | `/v1/views/:etype/:sem` | truncates long lists; `coauthorEdges` = strongest ties among the entity's top authors |
+| `get_entity_profile(etype, sem_id)` | `/v1/views/:etype/:sem` | truncates long lists; `coauthorEdges` = strongest ties among the entity's top authors; `image_url` = the entity's share card; also takes `hit-papers` |
 | `get_entity_stats(etype, sem_id, year_from?, year_to?, subfield?)` | `/v1/stats/...` | recent-era window clamped to `[eraFrom, eraTo]` |
-| `get_citation_tree(etype, sem_id, tree_index?, since_year?, top_n?, depth?)` | `/v1/trees/...` | flattened top-N per level; level meaning from `/v1/specs` breakdowns |
-| `get_papers(etype, sem_id, offset?, limit?, sort?)` | `/v1/works/...` | `sort="citations"` for hit papers |
+| `get_citation_tree(etype, sem_id, tree_index?, since_year?, top_n?, depth?)` | `/v1/trees/...` | flattened top-N per level; level meaning from `/v1/specs` breakdowns; `since_year` keeps the entity's papers published from that year (a hit paper defaults to the first year break, since a later one drops its one paper); `rankless_url` and `image_url` carry the same `?tree=&since=` the page and its share card read; also takes `hit-papers` |
+| `get_papers(etype, sem_id, offset?, limit?, sort?)` | `/v1/works/...` | `sort="citations"` for hit papers; each paper carries its `score` and `isHit`, a hit its page (`rankless_url`, `semanticId`), any other paper its OpenAlex page |
+| `get_impact_dag(sem_id)` | `/v1/paper-profile/:author` | the author's citing hit papers (the pipeline's top 50) with their laureate authors and the author's papers each cites (`cites` indexes `authorPapers`) |
 | `get_peers(etype, sem_id)` | `/v1/peers/...` |  |
 | `lookup_orcid(orcid)` | `/v1/orcid/:id` |  |
 | `rank_entities(etype, sort?, where?, offset?, limit?)` | `/v1/slice/:etype/:from/:to` | a cohort ranked by a metric call (`field_score(oncology)`; without one, the type's default ordering from the registry) and narrowed by a `where` expression (`country = hun and city != budapest and papers >= 500`); `total` = the narrowed cohort's size, `screened` = the ranked set when a per-entity metric ranks or narrows the top 1000 by citations only, `columns` = the metric columns the rows carry (flattened into each row); `rankless_url` = the browse table of the same query (the table page reads the `/slice` keys, so the query is re-encoded, never translated) |
@@ -142,6 +143,15 @@ Parameters:
 
 `mcp_server/verify.py` re-issues the cited calls through `TOOL_FNS`, the same code the
 `verify_claims` tool runs for a live session.
+
+Findings list the pages they rest on (`entities`) and the share cards that show them
+(`images`). `uv run -m pyscripts.explore.posts <run-dir> [--context "..."]` turns a run's
+fully reproduced findings into an X thread, LinkedIn, Facebook and Reddit posts and an
+HTML-post draft (`posts.json`, `posts.md`), with no tools and no material but those
+findings; findings about gaps in rankless's own data stay out of the posts. Every number
+in the posts that no reproduced value accounts for (within the rounding it is written
+with, a percentage also read as a share) is listed for the reviewer, and X posts are
+measured with URLs counted as 23 characters.
 
 The mining engine is pluggable: `pyscripts/explore/runner.py` holds a `RUNNERS` registry
 (selected with `--runner`, default `claude-cli`), so the Claude Code CLI can be swapped for
@@ -357,4 +367,3 @@ Notes:
 - The worker's `claude-cli` runner **requires an authenticated `claude` CLI** in the service
   user's home; runs are sandboxed to `--allowedTools mcp__rankless` (read-only citation tools,
   no bash/fs). `ADMIN_ORCIDS` gates who can create sessions.
-- Keys/auth tiers for the public endpoint are still open (`.cril/ideas.md` §8 Phase 4).

@@ -164,6 +164,19 @@ def _seed_sidecars(root: Path, run_id: str = "2026-08-12T10:00:00Z") -> None:
             }
         )
     )
+    (ul / "derived_manifest.json").write_text(
+        json.dumps(
+            {
+                "author_rows": 500,
+                "orcids": 20,
+                "records": 47,
+                "registered_names": True,
+                "owner_by": {"registered_name": 18, "most_works": 2},
+                "merges": {"registered_name": 30, "most_works": 12},
+                "strips": {"name_mismatch": 4, "over_work_bound": 1},
+            }
+        )
+    )
     (ul / "forced_works.json").write_text(
         json.dumps(
             {
@@ -212,6 +225,10 @@ def test_release_manifest_assembly(
     assert m["skipped"] == {
         "claimant_not_attributed": 1,
         "oa_id_not_in_dataset": 2,
+    }
+    assert m["derived"] == {
+        "merges": {"registered_name": 30, "most_works": 12},
+        "strips": {"name_mismatch": 4, "over_work_bound": 1},
     }
     # aggregates only — the private wid list never enters the release record
     assert m["forced_works"] == {

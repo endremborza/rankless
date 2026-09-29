@@ -18,6 +18,10 @@ use crate::{
     user_ledger::ResolvedLedger,
 };
 
+/// The author column of the enrichment tables `extend_csvs` writes beside an entity's own, a
+/// bare OpenAlex id.
+const ENRICHMENT_ID: &str = "oa_id";
+
 type StowInner = BufReader<zstd::Decoder<'static, BufReader<File>>>;
 
 pub struct ObjIter<T>
@@ -48,16 +52,34 @@ struct PartReader {
 }
 
 /// The ledger applied at the read point, so every consumer sees a snapshot in which a
-/// merged id is its keep id and drop-side main rows and disowned authorships do not
-/// exist. Column roles come from the table's header, resolved once per partition.
+/// merged id is its keep id, drop-side main rows and disowned authorships do not exist, a
+/// stripped author carries no ORCID and a keep author carries its merged records' counts.
+/// Column roles come from the table's header, resolved once per partition.
 struct Lens {
     ledger: Arc<ResolvedLedger>,
-    /// (column, alias table): merged ids read as their keep id
-    aliased: Vec<(usize, Ids)>,
-    /// main-table id column: a merge drop side has no row
-    dropped: Option<(usize, Ids)>,
-    /// (author column, work column) of the authorships table: a disowned edge has no row
-    edge: Option<(usize, usize)>,
+    /// main-table id column: a merge drop side has no row, an author row's cells may rewrite
+    main_id: Option<(usize, Ids)>,
+    /// authors/main: a stripped row's `orcid`, a keep row's counts
+    author_cells: Option<AuthorCells>,
+    /// work-id columns of a work attribute table, read as their keep id
+    work_cols: Vec<usize>,
+    /// the bare `oa_id` column of an author enrichment table (`extend_csvs`), read as its keep id
+    enrichment_author: Option<usize>,
+    ships: Option<Ships>,
+}
+
+struct AuthorCells {
+    orcid: usize,
+    works: usize,
+    cites: usize,
+}
+
+/// The authorships table: both ids read in keep space, a disowned edge has no row. An author's
+/// repeated rows on a work (a merged record's beside its keep's) all pass; a2 joins their
+/// institutions.
+struct Ships {
+    work: usize,
+    author: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -148,38 +170,57 @@ impl Lens {
             Ids::Authors => !ledger.author_aliases.is_empty(),
             Ids::Works => !ledger.work_aliases.is_empty(),
         };
-        let (mut aliased, mut dropped, mut edge) = (Vec::new(), None, None);
+        let (mut main_id, mut author_cells, mut work_cols, mut ships, mut enrichment_author) =
+            (None, None, Vec::new(), None, None);
         match (table.main.as_str(), table.sub.as_str()) {
-            (works::C, MAIN_NAME) => dropped = Some((col("id"), Ids::Works)),
-            (authors::C, MAIN_NAME) => dropped = Some((col("id"), Ids::Authors)),
-            (works::C, works::atts::authorships) => {
-                let (work, author) = (col("parent_id"), col("author"));
-                aliased = vec![(work, Ids::Works), (author, Ids::Authors)];
-                if !ledger.removed_edges.is_empty() {
-                    edge = Some((author, work));
+            (works::C, MAIN_NAME) if has(Ids::Works) => main_id = Some((col("id"), Ids::Works)),
+            (authors::C, MAIN_NAME) => {
+                if !(ledger.stripped_orcids.is_empty() && ledger.author_counts.is_empty()) {
+                    author_cells = Some(AuthorCells {
+                        orcid: col("orcid"),
+                        works: col("works_count"),
+                        cites: col("cited_by_count"),
+                    });
+                }
+                if has(Ids::Authors) || author_cells.is_some() {
+                    main_id = Some((col("id"), Ids::Authors));
                 }
             }
-            (works::C, works::atts::referenced_works) => {
-                aliased = vec![
-                    (col("parent_id"), Ids::Works),
-                    (col("referenced_work_id"), Ids::Works),
-                ]
+            (works::C, works::atts::authorships)
+                if has(Ids::Works) || has(Ids::Authors) || !ledger.removed_edges.is_empty() =>
+            {
+                ships = Some(Ships {
+                    work: col("parent_id"),
+                    author: col("author"),
+                })
             }
-            (works::C, works::atts::locations) | (works::C, works::atts::topics) => {
-                aliased = vec![(col("parent_id"), Ids::Works)]
+            (works::C, works::atts::referenced_works) if has(Ids::Works) => {
+                work_cols = vec![col("parent_id"), col("referenced_work_id")]
             }
-            _ => return None,
+            (works::C, works::atts::locations) | (works::C, works::atts::topics)
+                if has(Ids::Works) =>
+            {
+                work_cols = vec![col("parent_id")]
+            }
+            (authors::C, _) if has(Ids::Authors) => {
+                enrichment_author = headers.iter().position(|h| h == ENRICHMENT_ID)
+            }
+            _ => {}
         }
-        aliased.retain(|&(_, ids)| has(ids));
-        dropped = dropped.filter(|&(_, ids)| has(ids));
-        if aliased.is_empty() && dropped.is_none() && edge.is_none() {
+        if main_id.is_none()
+            && work_cols.is_empty()
+            && ships.is_none()
+            && enrichment_author.is_none()
+        {
             return None;
         }
         Some(Self {
             ledger: Arc::clone(ledger),
-            aliased,
-            dropped,
-            edge,
+            main_id,
+            author_cells,
+            work_cols,
+            ships,
+            enrichment_author,
         })
     }
 
@@ -192,34 +233,62 @@ impl Lens {
 
     /// Rewrites the row in place; false when the row does not exist under the ledger.
     fn keeps(&self, rec: &mut StringRecord) -> bool {
-        if let Some((c, ids)) = self.dropped {
+        let ledger = &self.ledger;
+        let mut rewritten: Vec<(usize, String)> = Vec::new();
+        if let Some((c, ids)) = self.main_id {
             if let Some(id) = oa_id_parse_opt(&rec[c]) {
                 if self.aliases(ids).contains_key(&id) {
                     return false;
                 }
+                if let Some(cells) = &self.author_cells {
+                    if ledger.stripped_orcids.contains(&id) {
+                        rewritten.push((cells.orcid, String::new()));
+                    }
+                    if let Some(&(works, cites)) = ledger.author_counts.get(&id) {
+                        rewritten.push((cells.works, works.to_string()));
+                        rewritten.push((cells.cites, cites.to_string()));
+                    }
+                }
             }
         }
-        let rewritten: Vec<(usize, String)> = self
-            .aliased
-            .iter()
-            .filter_map(|&(c, ids)| {
-                let root = self.aliases(ids).get(&oa_id_parse_opt(&rec[c])?)?;
-                Some((c, with_id(&rec[c], *root)))
-            })
-            .collect();
+        for &c in &self.work_cols {
+            if let Some(root) = oa_id_parse_opt(&rec[c]).and_then(|id| ledger.work_aliases.get(&id))
+            {
+                rewritten.push((c, with_id(&rec[c], *root)));
+            }
+        }
+        if let Some(c) = self.enrichment_author {
+            if let Some(keep) = rec[c]
+                .parse::<BigId>()
+                .ok()
+                .and_then(|id| ledger.author_aliases.get(&id))
+            {
+                rewritten.push((c, keep.to_string()));
+            }
+        }
+        if let Some(s) = &self.ships {
+            if let (Some(work), Some(author)) = (
+                oa_id_parse_opt(&rec[s.work]),
+                oa_id_parse_opt(&rec[s.author]),
+            ) {
+                let (work_root, author_root) = (ledger.work_root(work), ledger.author_root(author));
+                if ledger.removed_edges.contains(&(author_root, work_root)) {
+                    return false;
+                }
+                if work_root != work {
+                    rewritten.push((s.work, with_id(&rec[s.work], work_root)));
+                }
+                if author_root != author {
+                    rewritten.push((s.author, with_id(&rec[s.author], author_root)));
+                }
+            }
+        }
         if !rewritten.is_empty() {
             let mut fields: Vec<String> = rec.iter().map(str::to_owned).collect();
             for (c, s) in rewritten {
                 fields[c] = s;
             }
             *rec = StringRecord::from(fields);
-        }
-        if let Some((ac, wc)) = self.edge {
-            if let (Some(a), Some(w)) = (oa_id_parse_opt(&rec[ac]), oa_id_parse_opt(&rec[wc])) {
-                if self.ledger.removed_edges.contains(&(a, w)) {
-                    return false;
-                }
-            }
         }
         true
     }
@@ -303,6 +372,116 @@ fn part_paths(root: &Path, table: &Table) -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::ID_PREFIX;
+
+    fn lens(table: &Table, header: &[&str], ledger: ResolvedLedger) -> Lens {
+        Lens::new(
+            &Arc::new(ledger),
+            table,
+            &StringRecord::from(header.to_vec()),
+        )
+        .unwrap()
+    }
+
+    /// A row whose id cells carry the OpenAlex prefix, as the CSVs do.
+    fn row(fields: &[&str]) -> StringRecord {
+        StringRecord::from(
+            fields
+                .iter()
+                .map(|f| match f.chars().next() {
+                    Some('A' | 'W') if f[1..].chars().all(|c| c.is_ascii_digit()) => {
+                        format!("{ID_PREFIX}{f}")
+                    }
+                    _ => f.to_string(),
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    #[test]
+    fn a_stripped_author_loses_its_orcid_and_a_keep_carries_the_summed_counts() {
+        let ledger = ResolvedLedger {
+            author_aliases: [(2, 1)].into_iter().collect(),
+            stripped_orcids: [3].into_iter().collect(),
+            author_counts: [(1, (12, 340))].into_iter().collect(),
+            ..Default::default()
+        };
+        let table = Table::new(authors::C, MAIN_NAME);
+        let header = [
+            "id",
+            "orcid",
+            "display_name",
+            "works_count",
+            "cited_by_count",
+        ];
+        let lens = lens(&table, &header, ledger);
+        let mut keep = row(&["A1", "0000-1", "Kim Keep", "7", "300"]);
+        assert!(lens.keeps(&mut keep));
+        assert_eq!(&keep[3], "12");
+        assert_eq!(&keep[4], "340");
+        assert_eq!(&keep[1], "0000-1");
+        let mut drop = row(&["A2", "0000-1", "K. Keep", "5", "40"]);
+        assert!(!lens.keeps(&mut drop));
+        let mut stripped = row(&["A3", "0000-1", "Ann Other", "9", "10"]);
+        assert!(lens.keeps(&mut stripped));
+        assert_eq!(&stripped[1], "");
+        assert_eq!(&stripped[3], "9");
+    }
+
+    #[test]
+    fn an_enrichment_row_on_a_merged_author_reads_as_the_keep() {
+        let ledger = ResolvedLedger {
+            author_aliases: [(2, 1)].into_iter().collect(),
+            ..Default::default()
+        };
+        let table = Table::new(authors::C, "nobel");
+        let lens = lens(&table, &["oa_id", "category", "year"], ledger);
+        let mut laureate = StringRecord::from(vec!["2", "1", "1990"]);
+        assert!(lens.keeps(&mut laureate));
+        assert_eq!(&laureate[0], "1");
+        let mut other = StringRecord::from(vec!["5", "2", "2001"]);
+        assert!(lens.keeps(&mut other));
+        assert_eq!(&other[0], "5");
+    }
+
+    #[test]
+    fn a_merged_authors_rows_read_as_the_keep() {
+        let ledger = ResolvedLedger {
+            author_aliases: [(2, 1)].into_iter().collect(),
+            ..Default::default()
+        };
+        let table = Table::new(works::C, works::atts::authorships);
+        let header = ["parent_id", "author", "institutions", "position"];
+        let lens = lens(&table, &header, ledger);
+        let mut twin = row(&["W10", "A2", "I7", "1"]);
+        assert!(lens.keeps(&mut twin), "the drop's row stays, as the keep's");
+        assert_eq!(&twin[1], format!("{ID_PREFIX}A1"));
+        assert_eq!(&twin[2], "I7");
+        let mut other = row(&["W10", "A5", "", "2"]);
+        assert!(lens.keeps(&mut other));
+        assert_eq!(&other[1], format!("{ID_PREFIX}A5"));
+    }
+
+    #[test]
+    fn a_disowned_edge_has_no_row_and_a_merged_work_reads_as_its_keep() {
+        let ledger = ResolvedLedger {
+            work_aliases: [(11, 10)].into_iter().collect(),
+            removed_edges: [(3, 10)].into_iter().collect(),
+            ..Default::default()
+        };
+        let table = Table::new(works::C, works::atts::authorships);
+        let header = ["parent_id", "author", "institutions", "position"];
+        let lens = lens(&table, &header, ledger);
+        let mut disowned = row(&["W11", "A3", "", "0"]);
+        assert!(
+            !lens.keeps(&mut disowned),
+            "the edge is removed in keep space"
+        );
+        let mut merged = row(&["W11", "A4", "", "1"]);
+        assert!(lens.keeps(&mut merged));
+        assert_eq!(&merged[0], format!("{ID_PREFIX}W10"));
+        assert_eq!(&merged[1], format!("{ID_PREFIX}A4"));
+    }
 
     #[test]
     fn with_id_keeps_the_prefix() {

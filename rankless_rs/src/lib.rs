@@ -8,6 +8,7 @@ pub mod common;
 mod csv_iter;
 mod csv_writers;
 mod data_consts;
+pub mod derived_ledger;
 pub mod env_consts;
 mod filter;
 pub mod gen;
@@ -45,7 +46,8 @@ pub fn runner(comm: &str, root_str: &str, in_root_o: Option<String>) -> io::Resu
 }
 
 /// One pipeline command on a prepared `Stowage`; `in_root` is the snapshot data dir `to-csv` reads.
-/// The filter step resolves the ledger from the raw tables; every step after it reads through it.
+/// `derive-ledger` writes the derived identity records from the raw author table; the filter step
+/// resolves the ledger from the raw tables; every step after it reads through it.
 pub fn run_step(comm: &str, stowage: Stowage, in_root: Option<&str>) -> io::Result<()> {
     match comm {
         "to-csv" => match in_root {
@@ -55,6 +57,7 @@ pub fn run_step(comm: &str, stowage: Stowage, in_root: Option<&str>) -> io::Resu
                 "to-csv needs the snapshot's data/jsonl dir",
             )),
         },
+        "derive-ledger" => derived_ledger::main(stowage),
         "filter" => filter::main(stowage),
         _ => subrun(comm, stowage.with_ledger()?),
     }

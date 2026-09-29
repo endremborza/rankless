@@ -230,6 +230,7 @@ export type WorkScreen = {
 	minPapersForSource: number;
 	minAuthorPapers: number;
 	minAuthorCitations: number;
+	maxAuthorPapers: number;
 };
 
 // Everything `/methodology` publishes about how the numbers are made: the constants, the first

@@ -32,6 +32,9 @@ SITE_URL = os.environ.get("RANKLESS_SITE_URL", "https://rankless.org")
 
 ROOT_TYPES = ("authors", "institutions", "sources", "countries", "subfields")
 SEARCH_TYPES = (*ROOT_TYPES, "all")
+VIEW_TYPES = (*ROOT_TYPES, "hit-papers")
+# A laureate's prize code is its category's position here, counted from 1.
+NOBEL_CATEGORIES = ("Physics", "Chemistry", "Physiology or Medicine", "Economics")
 
 
 # JS encodeURIComponent's unreserved set, so an id encodes to the same bytes here
@@ -44,17 +47,31 @@ def encode_semantic_id(semantic_id: str) -> str:
     return quote(semantic_id, safe=_SEM_SAFE)
 
 
-def entity_url(entity_type: str, semantic_id: str) -> str:
+def _sem_path(entity_type: str, semantic_id: str) -> str:
     # The site route is a rest param: '/' stays a separator, the segments are encoded.
-    return f"{SITE_URL}/{entity_type}/{quote(semantic_id, safe=_SEM_SAFE + '/')}"
+    return f"{entity_type}/{quote(semantic_id, safe=_SEM_SAFE + '/')}"
+
+
+def _with_query(url: str, query: dict | None) -> str:
+    return f"{url}?{urlencode(query)}" if query else url
+
+
+def entity_url(entity_type: str, semantic_id: str, query: dict | None = None) -> str:
+    """The entity's page; `query` is the page's view state (`tree`, `since`)."""
+    return _with_query(f"{SITE_URL}/{_sem_path(entity_type, semantic_id)}", query)
+
+
+def card_url(entity_type: str, semantic_id: str, query: dict | None = None) -> str:
+    """The share card of the breakdown the page shows for the same `query`."""
+    path = _sem_path(entity_type, semantic_id)
+    return _with_query(f"{SITE_URL}/pic/{path}/breakdown.png", query)
 
 
 def table_url(entity_type: str, query: dict) -> str:
     """The browse table showing one `/slice` query: the table page reads the same keys
     the backend takes, so the query is re-encoded as sent, never translated."""
     clean = {k: v for k, v in query.items() if v is not None}
-    qs = urlencode(clean)
-    return f"{SITE_URL}/{entity_type}/table" + (f"?{qs}" if qs else "")
+    return _with_query(f"{SITE_URL}/{entity_type}/table", clean)
 
 
 def set_backend(url: str) -> None:

@@ -24,6 +24,7 @@ Merges the live box's user DB into the local copy (so the ledger export sees eve
 accepted claim), then: `make filter extend_csvs` → forced gen-ladder rebuild →
 `make lib_data_generation restart-service homepage_showcase`.
 
+- `make filter` runs `export_user_ledger` (the site DB's events) and `rankless-rs derive-ledger` (the records the shared ORCIDs imply, merged into the holder's oldest record or stripped of the ORCID; `rankless_rs/src/derived_ledger.rs`) into `user-ledger/`, then the filter step resolves both, a user's event winning on a record. `derive-ledger` reads the registered-name table `$EXTERNAL_DATA_ROOT/orcid/names.tsv.zst` (`uv run -m pyscripts.orcid_summaries`, once per yearly ORCID file); with `EXTERNAL_DATA_ROOT` set the table must exist, unset (a dev box, `data/external`) a missing table means owners by works alone, which the release record shows as `most_works` merges only. `extend_csvs` reads the laureates from `$EXTERNAL_DATA_ROOT/enrichment/laureates.csv` under the same rule, so the primary data box must set `EXTERNAL_DATA_ROOT` in its `.env`: unset, its release has no laureates and ORCID owners by works alone. The root is built where its data is made and reaches the data box with `make external-push` (`$EXTERNAL_DATA_REMOTE`, `host:/path`; additive, it never deletes on the far side). A source's `raw/` (the ORCID tarball, the bucket tables) never syncs: a box fetches its own downloads, while a table built from one (`orcid/names.tsv.zst`) rides the push like any other.
 - `ARGS="--from-snapshot"` prepends `make to-csv` (a new OpenAlex snapshot landed;
   `make download-snapshot` stays manual).
 - `ARGS="--no-db-pull"` skips the DB merge (box without AWS access).
@@ -37,9 +38,12 @@ accepted claim), then: `make filter extend_csvs` → forced gen-ladder rebuild �
   release, one machine-readable record: `run_id`/`stamp`/`git_commit`/`rankless_env`,
   the snapshot name+date, per-source ledger export counts (`export_user_ledger`
   stamps `source: "site"` on every event), applied-by-kind and skipped-by-reason
-  aggregates (from `applied_manifest.json`; event keys stay there), forced-works
-  aggregates (from `user-ledger/forced_works.json` — counts only, the wid list of
-  works served beyond the standard screens stays private), and per-step
+  aggregates (from `applied_manifest.json`; event keys stay there), the derived
+  identity records by reason (from `derived_manifest.json`: merges by how the
+  ORCID's owner was chosen, or as a cluster its registered name does not
+  contradict, strips by why), forced-works aggregates (from
+  `user-ledger/forced_works.json` — counts only, the wid list of works served
+  beyond the standard screens stays private), and per-step
   filter counts derived from the `filter-steps/` id files themselves (8-byte ids,
   so kept = size/8 — no pipeline instrumentation). A pure function over those
   sidecars: `uv run -m pyscripts recalc manifest` re-assembles it after manual

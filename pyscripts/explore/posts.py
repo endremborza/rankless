@@ -1,0 +1,218 @@
+"""Social posts written from a verified deep run.
+
+    uv run -m pyscripts.explore.posts <run-dir> [--context "2025 Nobel Prize in ..."]
+
+The run's reproduced findings are the only material: the model (no tools) writes an X
+thread, LinkedIn, Facebook and Reddit posts and an HTML-post draft from them, and every
+number in the result that no reproduced value accounts for is listed for the reviewer.
+Numbers in `--context` (the occasion, e.g. the prize year) count as given. Writes
+`posts.json` and `posts.md` into the run dir.
+"""
+
+import argparse
+import json
+import math
+import re
+from pathlib import Path
+
+from pyscripts.explore import cli
+
+X_LIMIT = 280
+X_URL_WEIGHT = 23
+
+SYSTEM = """\
+You write social posts for Rankless (rankless.org), a scholarly citation explorer, from
+findings whose numbers were verified against its data. The posts must read as Rankless:
+they show what only Rankless shows (who a body of work reaches, by field and country;
+papers scored against the top-1% bar of their own field and year; the most-cited papers
+that build on someone's work) and link to the Rankless pages that show it.
+
+Rules:
+- Use only the facts and numbers in the findings below. Never add a number, a year, a
+  rank or a ratio that is not there, and never compute one. Write a number as given, or
+  rounded with its unit (6,897 or 6.9k); nothing else.
+- Every post links to at least one Rankless page from the findings; the thread and the
+  HTML post link the pages each claim rests on.
+- Attach cards only from the findings' `images`. Up to 4 per X post, 1-3 elsewhere.
+- A finding about a gap or error in Rankless's own data (a split profile, a missing
+  paper) is for the team, not the public: leave it out of every post.
+- Lead with what is specific to this person and hard to see elsewhere: a paper's score
+  against its field's bar, the hit papers and laureates that build on the work, the
+  fields and countries it reaches. Totals alone are not a story.
+- Plain, curious, precise. No hype words, no emoji walls, at most two hashtags per post.
+
+Formats:
+- x_thread: 4-7 posts, each at most 280 characters with every URL counted as 23. The
+  first post is the hook and carries the best card.
+- linkedin: one post, at most 1,300 characters, for researchers and research managers.
+- facebook: one post, at most 600 characters, for a general audience.
+- reddit: a title (at most 300 characters) and a markdown body for a science subreddit:
+  factual, sourced, no marketing tone, the Rankless links as sources.
+- html_post: a title and a markdown article of 500-800 words (without the title) with
+  sections, the cards as images and the Rankless links inline; the other posts can
+  link to it.
+
+Respond with ONLY a JSON object (no markdown fences):
+{"x_thread": [{"text": "...", "images": ["<image_url>"]}],
+ "linkedin": {"text": "...", "images": []},
+ "facebook": {"text": "...", "images": []},
+ "reddit": {"title": "...", "body": "...", "images": []},
+ "html_post": {"title": "...", "markdown": "..."}}"""
+
+_URL = re.compile(r"https?://\S+|!\[[^\]]*\]\([^)]*\)|\]\([^)]*\)")
+_THREAD_MARK = re.compile(r"\b\d+\s*/\s*\d+\b|^\s*\d+[.)]\s", re.MULTILINE)
+_NUM = re.compile(
+    r"(?<![\w.])(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?\s*"
+    r"(%|k\b|K\b|M\b|million\b|thousand\b|billion\b)?"
+)
+_QUERY_NUM = re.compile(r"[?&]\w+=(\d+)")
+_SCALE = {"k": 1e3, "K": 1e3, "thousand": 1e3, "M": 1e6, "million": 1e6, "billion": 1e9}
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description="Social posts from a verified deep run.")
+    p.add_argument("run_dir", type=Path)
+    p.add_argument("--context", default="", help="the occasion, e.g. the prize won.")
+    p.add_argument("--model", default=cli.DEFAULT_MODEL)
+    args = p.parse_args()
+
+    findings = json.loads((args.run_dir / "findings.json").read_text())["findings"]
+    brief = [_brief(f) for f in findings if f.get("_verified")]
+    if not brief:
+        raise SystemExit("no fully reproduced findings to write from")
+    stats: dict = {}
+    raw = cli.query_claude_cli(
+        SYSTEM,
+        _user(brief, args.context),
+        cli.resolve_model(args.model),
+        stats=stats,
+    )
+    path = args.run_dir / "posts.json"
+    # The paid reply is kept as sent until it parses into every format.
+    path.write_text(
+        json.dumps({"context": args.context, "stats": stats, "raw": raw}, indent=2)
+    )
+    posts = cli.parse_json(raw)
+    known = [n["value"] for f in brief for n in f["numbers"]] + _numbers(args.context)
+    # A view's own parameters (a `since` year) are given by the page it links to.
+    known += [
+        float(n) for f in brief for u in f["pages"] for n in _QUERY_NUM.findall(u)
+    ]
+    checks = {name: unverified(text, known) for name, text in _texts(posts)}
+    out = {
+        "context": args.context,
+        "stats": stats,
+        "posts": posts,
+        "unverified": checks,
+    }
+    path.write_text(json.dumps(out, indent=2))
+    (args.run_dir / "posts.md").write_text(render(posts, checks, stats))
+    flagged = sum(len(v) for v in checks.values())
+    print(f"[posts] {stats.get('seconds', 0):.0f}s; {flagged} unverified number(s)")
+    print(f"-> {args.run_dir / 'posts.md'}")
+    return 0
+
+
+def _brief(finding: dict) -> dict:
+    return {
+        "title": finding.get("title"),
+        "story": finding.get("description"),
+        "numbers": [
+            {"label": m.get("label") or m["key"], "value": m["reproduced"]}
+            for m in finding.get("metrics", [])
+            if m.get("ok") and isinstance(m.get("reproduced"), (int, float))
+        ],
+        "pages": finding.get("entities", []),
+        "images": finding.get("images", []),
+    }
+
+
+def _user(brief: list[dict], context: str) -> str:
+    head = f"Occasion: {context}\n\n" if context else ""
+    return head + "Findings:\n" + json.dumps(brief, indent=2, ensure_ascii=False)
+
+
+def _texts(posts: dict) -> list[tuple[str, str]]:
+    out = [(f"x_thread[{i}]", t["text"]) for i, t in enumerate(posts["x_thread"])]
+    out += [("linkedin", posts["linkedin"]["text"])]
+    out += [("facebook", posts["facebook"]["text"])]
+    out += [("reddit", posts["reddit"]["title"] + "\n" + posts["reddit"]["body"])]
+    out += [
+        (
+            "html_post",
+            posts["html_post"]["title"] + "\n" + posts["html_post"]["markdown"],
+        )
+    ]
+    return out
+
+
+def _numbers(text: str) -> list[float]:
+    return [value for _, readings in _parse_numbers(text) for value, _ in readings]
+
+
+def _parse_numbers(text: str) -> list[tuple[str, list[tuple[float, float]]]]:
+    """Each number in prose as written, with its readings as (value, half its last shown
+    unit); a percentage reads both as written and as a share."""
+    text = _THREAD_MARK.sub(" ", _URL.sub(" ", text))
+    out = []
+    for m in _NUM.finditer(text):
+        whole, frac, unit = m.group(1), m.group(2) or "", m.group(3)
+        scale = _SCALE.get(unit or "", 1.0)
+        value = float(whole.replace(",", "") + frac) * scale
+        half = 0.5 * 10 ** -(len(frac) - 1 if frac else 0) * scale
+        readings = [(value, half)]
+        if unit == "%":
+            readings.append((value / 100, half / 100))
+        out.append((m.group(0).strip(), readings))
+    return out
+
+
+def unverified(text: str, known: list[float]) -> list[str]:
+    """Numbers in `text` that no known value accounts for, within the rounding they are
+    written with."""
+    return [
+        written
+        for written, readings in _parse_numbers(text)
+        if not any(
+            math.isclose(value, k, abs_tol=half)
+            for value, half in readings
+            for k in known
+        )
+    ]
+
+
+def x_length(text: str) -> int:
+    return len(re.sub(r"https?://\S+", "x" * X_URL_WEIGHT, text))
+
+
+def render(posts: dict, checks: dict[str, list[str]], stats: dict) -> str:
+    def flag(name: str) -> str:
+        bad = checks.get(name)
+        return f"\n\n> unverified: {', '.join(bad)}" if bad else ""
+
+    def imgs(urls: list[str]) -> str:
+        return "".join(f"\n\n![card]({u})" for u in urls)
+
+    out = [f"# Posts\n\n_{stats.get('seconds', 0):.0f}s, ${stats.get('usd', 0):.2f}_"]
+    out.append("\n## X thread")
+    for i, t in enumerate(posts["x_thread"]):
+        n = x_length(t["text"])
+        over = " **over the limit**" if n > X_LIMIT else ""
+        out.append(f"\n### {i + 1} ({n}/{X_LIMIT}{over})\n\n{t['text']}")
+        out.append(imgs(t.get("images", [])) + flag(f"x_thread[{i}]"))
+    for name in ("linkedin", "facebook"):
+        post = posts[name]
+        out.append(f"\n## {name} ({len(post['text'])} chars)\n\n{post['text']}")
+        out.append(imgs(post.get("images", [])) + flag(name))
+    r = posts["reddit"]
+    out.append(f"\n## reddit\n\n**{r['title']}**\n\n{r['body']}")
+    out.append(imgs(r.get("images", [])) + flag("reddit"))
+    h = posts["html_post"]
+    out.append(
+        f"\n## html post\n\n# {h['title']}\n\n{h['markdown']}" + flag("html_post")
+    )
+    return "\n".join(out) + "\n"
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

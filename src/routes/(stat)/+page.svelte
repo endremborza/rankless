@@ -158,7 +158,9 @@
 			publication sources with at least ${screen.minPapersForSource} and institutions with at least
 			${pluralize('paper', screen.minPapersForInstitution)} of their own, and authors with at least
 			${pluralize('paper', screen.minAuthorPapers)} and
-			${pluralize('citation', screen.minAuthorCitations)} to their name. A researcher who claims
+			${pluralize('citation', screen.minAuthorCitations)} to their name, and no more than
+			${screen.maxAuthorPapers.toLocaleString('en-US')} papers, above which a record is an aggregate of
+			many people's works rather than one author. A researcher who claims
 			their profile keeps their own works through the type, citation and author-count screens.
 		`
 				: ''

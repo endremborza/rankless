@@ -32,7 +32,10 @@ STEP_LABELS = {
     ("13", "institutions"): "institutions with enough indexed works",
     ("14", "works"): "authorship resolved, user corrections applied",
     ("14", "authors"): "credited on an indexed work",
-    ("20", "authors"): "above the activity threshold, or a registered owner",
+    (
+        "20",
+        "authors",
+    ): "above the activity threshold and under the aggregate-record bound, or a registered owner",
     ("21", "institutions"): "affiliated with indexed works after all screens",
 }
 
@@ -45,6 +48,7 @@ def build_report(record: dict, previous: dict | None = None) -> dict:
         "snapshot": record["snapshot"],
         "entities": _entity_chains(record["filter_counts"]),
         "ledger": _ledger_aggregates(record),
+        "identity": _identity(record.get("derived")),
         "restored": record.get("forced_works"),
         "claims": record.get("claims_review"),
         "previous": None,
@@ -135,6 +139,13 @@ def render_md(report: dict) -> str:
         + (f" ({kinds})" if kinds else "")
         + f", {ledger['skipped_total']} skipped.",
     ]
+    identity = report.get("identity")
+    if identity and (identity["merged"] or identity["stripped"]):
+        lines += [
+            "",
+            f"Scholar records sharing an ORCID iD: {identity['merged']} folded into "
+            f"the holder's profile, the iD removed from {identity['stripped']}.",
+        ]
     restored = report.get("restored")
     if restored and restored["outside_standard"]:
         lines += [
@@ -190,6 +201,18 @@ def _entity_chains(filter_counts: dict) -> dict:
     for chain in ordered.values():
         chain["final"] = chain["steps"][-1]["kept"]
     return ordered
+
+
+def _identity(derived: dict | None) -> dict | None:
+    """The derived identity records by reason; None for a record predating them."""
+    if derived is None:
+        return None
+    return {
+        "merged": sum(derived["merges"].values()),
+        "merged_by": derived["merges"],
+        "stripped": sum(derived["strips"].values()),
+        "stripped_by": derived["strips"],
+    }
 
 
 def _ledger_aggregates(record: dict) -> dict:

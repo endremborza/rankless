@@ -26,6 +26,14 @@ export type RestoredAggregates = {
 	author_rescues: number;
 };
 
+// The derived identity records (author records sharing an ORCID) counted by reason.
+export type IdentityAggregates = {
+	merged: number;
+	merged_by: Record<string, number>;
+	stripped: number;
+	stripped_by: Record<string, number>;
+};
+
 // Aggregates of the claims-review sidecar; unresolved_by_cause is cause → count.
 export type ClaimsAggregates = {
 	submitted: number;
@@ -55,6 +63,7 @@ export type ReleaseReport = {
 	snapshot: ReleaseSnapshot;
 	entities: Record<string, EntityChain>;
 	ledger: LedgerAggregates;
+	identity: IdentityAggregates | null;
 	restored: RestoredAggregates | null;
 	claims: ClaimsAggregates | null;
 	previous: { run_id: string; snapshot: ReleaseSnapshot } | null;

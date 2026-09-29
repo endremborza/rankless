@@ -5,9 +5,10 @@
 //! keeps `to-csv` single-threaded per entity, so CSV row order — and with it every dm id the
 //! pipeline assigns — is a pure function of the scenario.
 //!
-//! The scenario is one pinned owner plus a keep/drop author pair and the works the ledger
-//! kinds act on; `Scenario` names every id so a test (or the TS side, via `fixture-build`)
-//! addresses them without parsing the snapshot.
+//! The scenario is one pinned owner plus a keep/drop author pair, an ORCID shared by four
+//! records (the split `derive-ledger` resolves) and the works the ledger kinds act on;
+//! `Scenario` names every id so a test (or the TS side, via `fixture-build`) addresses them
+//! without parsing the snapshot.
 
 use std::{
     fs::{create_dir_all, File},
@@ -16,9 +17,13 @@ use std::{
 };
 
 use flate2::{write::GzEncoder, Compression};
-use rankless_rs::env_consts::{
-    FINAL_YEAR, MIN_AUTHOR_CITE_COUNT, MIN_AUTHOR_WORK_COUNT, MIN_PAPERS_FOR_INST,
-    MIN_PAPERS_FOR_SOURCE,
+use rankless_rs::{
+    derived_ledger::NAMES_TABLE,
+    env_consts::{
+        FINAL_YEAR, MIN_AUTHOR_CITE_COUNT, MIN_AUTHOR_WORK_COUNT, MIN_PAPERS_FOR_INST,
+        MIN_PAPERS_FOR_SOURCE,
+    },
+    metrics::WORK_SCREEN,
 };
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -73,6 +78,14 @@ pub struct Scenario {
     pub drop: Person,
     /// Has an ORCID but no authorship anywhere; claims a work that is not theirs.
     pub outsider: Person,
+    /// Four records under one ORCID, the registered name "Sam Split": the aggregate record
+    /// (oldest id, over the work bound), the person's main record, a same-name split-off
+    /// below the author thresholds, and a different person with more works than the main
+    /// record — so only the registered name makes the main record the owner.
+    pub split_junk: Person,
+    pub split_keep: Person,
+    pub split_extra: Person,
+    pub split_alien: Person,
     pub bulk_authors: Vec<Person>,
     pub works: Vec<WorkSpec>,
     /// Owner's only-author article: disowning it leaves the work authorless.
@@ -94,6 +107,13 @@ pub struct Scenario {
     /// Article with a DOI that neither `keep` nor `outsider` is on; its last authorship
     /// carries no author record (`NO_AUTHOR`), as OpenAlex emits for unresolved names.
     pub not_mine: u64,
+    /// By `split_keep` and `split_extra` both: credited once after the merge.
+    pub split_shared: u64,
+    /// By `split_extra` alone, listed twice with different affiliations as OpenAlex does for
+    /// some authors, with a DOI: recovered onto the keep, so its claim applies.
+    pub split_only: u64,
+    pub alien_work: u64,
+    pub junk_work: u64,
     pub ghost_work: u64,
     pub ghost_author: u64,
     pub ghost_doi: &'static str,
@@ -139,6 +159,23 @@ impl Scenario {
             above_works,
             above_cites,
         );
+        let split_orcid = Some("0000-0001-0000-0005");
+        let split_junk = Person::new(
+            5100005,
+            split_orcid,
+            "Sam Split",
+            WORK_SCREEN.max_author_papers + 1,
+            above_cites,
+        );
+        let split_keep = Person::new(5100006, split_orcid, "Sam Split", above_works, above_cites);
+        let split_extra = Person::new(5100007, split_orcid, "Sam Split", 2, 3);
+        let split_alien = Person::new(
+            5100008,
+            split_orcid,
+            "Ann Other",
+            above_works + 50,
+            above_cites,
+        );
         let bulk_authors: Vec<Person> = (0..BULK_AUTHORS)
             .map(|k| {
                 Person::new(
@@ -174,7 +211,7 @@ impl Scenario {
             })
             .collect();
 
-        let [solo, shared, dataset, uncited, hyper, keep_work, drop_work, claim_auto, claim_merged, not_mine] =
+        let [solo, shared, dataset, uncited, hyper, keep_work, drop_work, claim_auto, claim_merged, not_mine, split_shared, split_only, alien_work, junk_work] =
             core::array::from_fn(|i| 7100001 + i as u64);
         let mut hyper_authors: Vec<(u64, u64)> =
             bulk_authors.iter().map(|p| (p.oa_id, INST_A)).collect();
@@ -203,6 +240,10 @@ impl Scenario {
                     claim_auto,
                     claim_merged,
                     not_mine,
+                    split_shared,
+                    split_only,
+                    alien_work,
+                    junk_work,
                 ],
             ),
             spec(
@@ -269,6 +310,46 @@ impl Scenario {
                 vec![(bulk(2), INST_A), (bulk(3), INST_A), (NO_AUTHOR, INST_B)],
                 vec![],
             ),
+            spec(
+                split_shared,
+                None,
+                "article",
+                "Article credited to both split records",
+                vec![
+                    (split_keep.oa_id, INST_A),
+                    (split_extra.oa_id, INST_A),
+                    (bulk(4), INST_B),
+                ],
+                vec![],
+            ),
+            spec(
+                split_only,
+                Some("10.5555/split.only"),
+                "article",
+                "Article under the split-off record",
+                vec![
+                    (split_extra.oa_id, INST_A),
+                    (bulk(5), INST_B),
+                    (split_extra.oa_id, INST_B),
+                ],
+                vec![],
+            ),
+            spec(
+                alien_work,
+                None,
+                "article",
+                "Article by the other person on the ORCID",
+                vec![(split_alien.oa_id, INST_B), (bulk(6), INST_B)],
+                vec![],
+            ),
+            spec(
+                junk_work,
+                None,
+                "article",
+                "Article credited to the aggregate record",
+                vec![(split_junk.oa_id, INST_A), (bulk(7), INST_A)],
+                vec![],
+            ),
         ]);
 
         Self {
@@ -277,6 +358,10 @@ impl Scenario {
             keep,
             drop,
             outsider,
+            split_junk,
+            split_keep,
+            split_extra,
+            split_alien,
             bulk_authors,
             works,
             solo,
@@ -289,6 +374,10 @@ impl Scenario {
             claim_auto,
             claim_merged,
             not_mine,
+            split_shared,
+            split_only,
+            alien_work,
+            junk_work,
             ghost_work: 7999999,
             ghost_author: 5999999,
             ghost_doi: "10.5555/ghost",
@@ -301,14 +390,35 @@ impl Scenario {
     }
 
     pub fn persons(&self) -> impl Iterator<Item = &Person> {
-        [&self.owner, &self.keep, &self.drop, &self.outsider]
-            .into_iter()
-            .chain(self.bulk_authors.iter())
+        [
+            &self.owner,
+            &self.keep,
+            &self.drop,
+            &self.outsider,
+            &self.split_junk,
+            &self.split_keep,
+            &self.split_extra,
+            &self.split_alien,
+        ]
+        .into_iter()
+        .chain(self.bulk_authors.iter())
     }
 
     /// The `to-csv` input directory.
     pub fn data_dir(snapshot_dir: &Path) -> PathBuf {
         snapshot_dir.join("data").join("jsonl")
+    }
+
+    /// The registered-name table `derive-ledger` reads, under `external_root` as
+    /// `$EXTERNAL_DATA_ROOT` lays it out: the split ORCID registered to "Sam Split".
+    pub fn write_names_table(&self, external_root: &Path) -> io::Result<PathBuf> {
+        let path = external_root.join(NAMES_TABLE);
+        create_dir_all(path.parent().unwrap())?;
+        let mut zst = zstd::Encoder::new(File::create(&path)?, 1)?;
+        zst.write_all(b"orcid\tgiven_names\tfamily_name\tcredit_name\tother_names\n")?;
+        writeln!(zst, "{}\tSam\tSplit\t\t", self.split_keep.orcid.unwrap())?;
+        zst.finish()?;
+        Ok(path)
     }
 
     pub fn write_snapshot(&self, snapshot_dir: &Path) -> io::Result<()> {

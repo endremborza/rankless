@@ -1,10 +1,11 @@
-//! Ledger pipeline gate on the synthetic snapshot: `to-csv → filter → a1_entity_mapping`
-//! in-process. The filter step resolves the ledger against the raw tables and writes
-//! `resolved_ledger.json` + `applied_manifest.json`; from there every CSV read applies the
-//! resolved tables, so the screens and a1 see merged ids as keep ids and disowned
-//! authorships as absent. Later steps compile against `gen/` for one dataset shape, so their
-//! link-level invariants ride `make mega_test`; here the filter sets, the dm space and the
-//! resolved tables are asserted instead.
+//! Ledger pipeline gate on the synthetic snapshot: `to-csv → derive-ledger → filter →
+//! a1_entity_mapping` in-process. `derive-ledger` writes the identity records the shared
+//! ORCID implies; the filter step resolves them with the users' events against the raw tables
+//! and writes `resolved_ledger.json` + `applied_manifest.json`; from there every CSV read
+//! applies the resolved tables, so the screens and a1 see merged ids as keep ids, disowned
+//! authorships as absent and stripped ORCIDs as blank. Later steps compile against `gen/` for
+//! one dataset shape, so their link-level invariants ride `make mega_test`; here the filter
+//! sets, the dm space and the resolved tables are asserted instead.
 
 #[allow(dead_code)]
 mod common;
@@ -21,7 +22,7 @@ use common::{
     TempRoot,
 };
 use dmove::LoadedIdMap;
-use rankless_rs::{common::Stowage, run_step, user_ledger::ResolvedLedger};
+use rankless_rs::{common::Stowage, derived_ledger, run_step, user_ledger::ResolvedLedger};
 use serde_json::{json, Value};
 
 const RUN_ID: &str = "2026-09-02T00:00:00Z";
@@ -37,6 +38,7 @@ struct Event {
 struct Fixture {
     root: TempRoot,
     scenario: Scenario,
+    names_table: PathBuf,
 }
 
 struct Run {
@@ -124,7 +126,14 @@ impl Fixture {
         let root = TempRoot::new(tag);
         let scenario = Scenario::new();
         scenario.write_snapshot(&root.0.join("snapshot")).unwrap();
-        let fixture = Self { root, scenario };
+        let names_table = scenario
+            .write_names_table(&root.0.join("external"))
+            .unwrap();
+        let fixture = Self {
+            root,
+            scenario,
+            names_table,
+        };
         let data = Scenario::data_dir(&fixture.root.0.join("snapshot"));
         run_step("to-csv", fixture.stowage(), data.to_str()).unwrap();
         fixture
@@ -142,11 +151,17 @@ impl Fixture {
         Stowage::new(self.data_root().to_str().unwrap()).with_code_dir(self.root.0.join("gen"))
     }
 
-    /// What `make filter` (export → clean-filters → filter) and the a1 step do to the ledger.
+    /// What `make filter` (export → derive-ledger → clean-filters → filter) and the a1 step
+    /// do to the ledger, the derivation reading the registered-name table.
     fn run(&self, events: &[Event], pins: &[&str]) -> Run {
+        self.run_with(events, pins, Some(&self.names_table))
+    }
+
+    fn run_with(&self, events: &[Event], pins: &[&str], names_table: Option<&Path>) -> Run {
         let root = self.data_root();
         fs::create_dir_all(self.root.0.join("gen")).unwrap();
         write_ledger(&self.ledger_dir(), events, pins);
+        derived_ledger::derive(&self.stowage(), names_table).unwrap();
         let _ = fs::remove_dir_all(root.join("filter-steps"));
         run_step("filter", self.stowage(), None).unwrap();
         run_step("a1_entity_mapping", self.stowage(), None).unwrap();
@@ -154,12 +169,14 @@ impl Fixture {
     }
 
     /// Every event kind once, from signed-in owners (every event author is pinned, as the
-    /// login flow guarantees) plus the subjects that cannot resolve.
+    /// login flow guarantees) plus the subjects that cannot resolve. The split ORCID's
+    /// holder signs in too and claims the work under their split-off record.
     fn full_ledger(&self) -> (Vec<Event>, Vec<&str>) {
         let s = &self.scenario;
         let owner = s.owner.orcid.unwrap();
         let keep = s.keep.orcid.unwrap();
         let outsider = s.outsider.orcid.unwrap();
+        let split = s.split_keep.orcid.unwrap();
         let events = vec![
             Event::disown(owner, s.solo, "solo"),
             Event::disown(owner, s.shared, "shared"),
@@ -171,8 +188,9 @@ impl Fixture {
             Event::claim(keep, s.ghost_doi, "ghost-doi"),
             Event::disown(owner, s.ghost_work, "ghost-work"),
             Event::disown(s.unknown_orcid, s.solo, "unknown-orcid"),
+            Event::claim(split, &doi(s, s.split_only), "split-claim"),
         ];
-        (events, vec![owner, keep, s.unknown_orcid])
+        (events, vec![owner, keep, s.unknown_orcid, split])
     }
 
     /// The works `authors` are credited on in keep-id space.
@@ -360,13 +378,50 @@ fn ledger_applies_through_filter_and_a1() {
     );
     assert_eq!(
         resolved.author_aliases,
-        [(s.drop.oa_id, s.keep.oa_id)].into_iter().collect()
+        [
+            (s.drop.oa_id, s.keep.oa_id),
+            (s.split_extra.oa_id, s.split_keep.oa_id)
+        ]
+        .into_iter()
+        .collect()
     );
     assert_eq!(
         resolved.removed_edges,
         [(s.owner.oa_id, s.solo), (s.owner.oa_id, s.shared)]
             .into_iter()
             .collect()
+    );
+    // The shared ORCID: the registered name picks the main record, the same-name split-off
+    // merges into it, the other person and the aggregate record lose the ORCID; every keep
+    // carries the counts of the records merged into it.
+    assert_eq!(
+        resolved.stripped_orcids,
+        [s.split_alien.oa_id, s.split_junk.oa_id]
+            .into_iter()
+            .collect()
+    );
+    let summed = |a: &common::synthetic_oa::Person, b: &common::synthetic_oa::Person| {
+        (
+            a.works_count + b.works_count,
+            a.cited_by_count + b.cited_by_count,
+        )
+    };
+    assert_eq!(
+        resolved.author_counts,
+        [
+            (s.keep.oa_id, summed(&s.keep, &s.drop)),
+            (s.split_keep.oa_id, summed(&s.split_keep, &s.split_extra))
+        ]
+        .into_iter()
+        .collect()
+    );
+    let derived = run.ledger_json("derived_manifest.json");
+    assert_eq!(derived["registered_names"], true);
+    assert_eq!(derived["owner_by"], json!({"registered_name": 1}));
+    assert_eq!(derived["merges"], json!({"registered_name": 1}));
+    assert_eq!(
+        derived["strips"],
+        json!({"name_mismatch": 1, "over_work_bound": 1})
     );
 
     // Step 10 (type screen): the owners' datasets and preprints ride through; the merged
@@ -393,7 +448,17 @@ fn ledger_applies_through_filter_and_a1() {
     let works14 = run.filter(14, "works");
     assert!(!works14.contains(&s.solo));
     assert!(!works14.contains(&s.drop_work));
-    for wid in [s.shared, s.hyper, s.dataset, s.uncited, s.keep_work] {
+    for wid in [
+        s.shared,
+        s.hyper,
+        s.dataset,
+        s.uncited,
+        s.keep_work,
+        s.split_shared,
+        s.split_only,
+        s.alien_work,
+        s.junk_work,
+    ] {
         assert!(works14.contains(&wid), "step 14 lacks {wid}");
     }
     let authors14 = run.filter(14, "authors");
@@ -402,11 +467,17 @@ fn ledger_applies_through_filter_and_a1() {
         !authors14.contains(&s.drop.oa_id),
         "drop side credited to keep"
     );
-    // Step 20 (author thresholds): the owner survives only through the pin.
+    assert!(authors14.contains(&s.split_keep.oa_id));
+    assert!(!authors14.contains(&s.split_extra.oa_id));
+    // Step 20 (author thresholds): the owner survives only through the pin; the aggregate
+    // record is over the work bound; the other person on the ORCID is an author of their own.
     let authors20 = run.filter(20, "authors");
     assert!(authors20.contains(&s.owner.oa_id));
     assert!(authors20.contains(&s.keep.oa_id));
     assert!(!authors20.contains(&s.outsider.oa_id));
+    assert!(authors20.contains(&s.split_keep.oa_id));
+    assert!(authors20.contains(&s.split_alien.oa_id));
+    assert!(!authors20.contains(&s.split_junk.oa_id));
     assert!(run
         .filter(21, "institutions")
         .is_superset(&[INST_A, INST_B].into()));
@@ -424,16 +495,30 @@ fn ledger_applies_through_filter_and_a1() {
     assert!(dm_of(&authors, s.drop.oa_id).is_none());
     assert!(dm_of(&discarded, s.drop.oa_id).is_none());
     assert!(dm_of(&discarded, s.outsider.oa_id).is_some());
+    assert!(dm_of(&authors, s.split_keep.oa_id).is_some());
+    assert!(dm_of(&authors, s.split_alien.oa_id).is_some());
+    assert!(dm_of(&authors, s.split_extra.oa_id).is_none());
+    assert!(dm_of(&discarded, s.split_extra.oa_id).is_none());
+    assert!(dm_of(&discarded, s.split_junk.oa_id).is_some());
 
-    // The manifest: exact applied and skipped sets; the merged claim is credited only
-    // because the authorship rows read under the keep author's id.
+    // The manifest: exact applied and skipped sets; the merged claims are credited only
+    // because the authorship rows read under the keep author's id — the split holder's
+    // claim through the derived merge, the other through the user's.
     let applied = run.manifest();
     assert_eq!(applied.run_id, RUN_ID);
     assert_eq!(
         applied.applied,
         keys(
             &events,
-            &["solo", "shared", "twins", "self", "auto", "merged"]
+            &[
+                "solo",
+                "shared",
+                "twins",
+                "self",
+                "auto",
+                "merged",
+                "split-claim"
+            ]
         )
     );
     assert_eq!(
@@ -449,13 +534,15 @@ fn ledger_applies_through_filter_and_a1() {
         )
     );
 
-    // The forced-set sidecar: the pinned owners' œuvres minus the disowns.
+    // The forced-set sidecar: the pinned owners' œuvres minus the disowns, the split
+    // holder's read under the keep record.
     let mut expected_forced = fx.credited_works(&[s.owner.oa_id]);
     expected_forced.remove(&s.solo);
     expected_forced.remove(&s.shared);
     expected_forced.extend(fx.credited_works(&[s.keep.oa_id, s.drop.oa_id]));
+    expected_forced.extend(fx.credited_works(&[s.split_keep.oa_id, s.split_extra.oa_id]));
     let forced = run.ledger_json("forced_works.json");
-    assert_eq!(forced["cohort"], 2);
+    assert_eq!(forced["cohort"], 3);
     assert_eq!(forced["forced_total"], expected_forced.len());
     assert_eq!(forced["outside_type"], 3);
     assert_eq!(forced["outside_citations"], 1);
@@ -473,7 +560,15 @@ fn empty_ledger_is_the_counterfactual() {
     let s = &fx.scenario;
     let run = fx.run(&[], &[]);
 
-    assert!(run.resolved().is_empty());
+    // Without user events only the derived records apply.
+    let resolved = run.resolved();
+    assert_eq!(
+        resolved.author_aliases,
+        [(s.split_extra.oa_id, s.split_keep.oa_id)]
+            .into_iter()
+            .collect()
+    );
+    assert!(resolved.work_aliases.is_empty() && resolved.removed_edges.is_empty());
     let typed = run.filter(10, "works");
     assert!(!typed.contains(&s.dataset));
     assert!(!typed.contains(&s.claim_auto));
@@ -529,7 +624,10 @@ fn revoked_events_revert_and_reapply_byte_equal() {
     // Without the author merge the claim under the dropped name has no claimant credit.
     let manifest = second.manifest();
     assert!(manifest.applied.is_disjoint(&revoked));
-    assert_eq!(manifest.applied, keys(&events, &["shared", "auto"]));
+    assert_eq!(
+        manifest.applied,
+        keys(&events, &["shared", "auto", "split-claim"])
+    );
     assert!(manifest
         .skipped
         .is_superset(&skips(&events, &[("merged", "claimant_not_attributed")])));
@@ -580,9 +678,49 @@ fn unresolvable_subjects_are_skipped_never_applied() {
         resolved.work_aliases,
         [(s.ghost_work, s.not_mine)].into_iter().collect()
     );
-    assert!(resolved.author_aliases.is_empty());
+    // only the derived merge remains
+    assert_eq!(
+        resolved.author_aliases,
+        [(s.split_extra.oa_id, s.split_keep.oa_id)]
+            .into_iter()
+            .collect()
+    );
     assert!(dm_of(&run.id_map("works"), s.not_mine).is_some());
     assert!(dm_of(&run.id_map("discarded-authors"), s.outsider.oa_id).is_some());
+}
+
+#[test]
+fn without_registered_names_the_most_works_cluster_owns_the_orcid() {
+    let fx = Fixture::new("ledger-no-names");
+    let s = &fx.scenario;
+    let split = s.split_keep.orcid.unwrap();
+    let run = fx.run_with(&[], &[split], None);
+
+    // The other person out-publishes the holder's records, so they keep the ORCID and the
+    // holder's records lose it; nothing merges into a one-record cluster.
+    let resolved = run.resolved();
+    assert!(resolved.author_aliases.is_empty());
+    assert_eq!(
+        resolved.stripped_orcids,
+        [s.split_junk.oa_id, s.split_keep.oa_id, s.split_extra.oa_id]
+            .into_iter()
+            .collect()
+    );
+    let derived = run.ledger_json("derived_manifest.json");
+    assert_eq!(derived["registered_names"], false);
+    assert_eq!(derived["owner_by"], json!({"most_works": 1}));
+    assert_eq!(derived["merges"], json!({}));
+    assert_eq!(
+        derived["strips"],
+        json!({"name_mismatch": 2, "over_work_bound": 1})
+    );
+    // The pin under that ORCID lands on the record that carries it after resolution.
+    let forced = run.ledger_json("forced_works.json");
+    assert_eq!(forced["cohort"], 1);
+    assert_eq!(
+        forced["forced_total"],
+        fx.credited_works(&[s.split_alien.oa_id]).len()
+    );
 }
 
 #[test]

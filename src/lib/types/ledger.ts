@@ -33,6 +33,7 @@ export type LedgerKind =
 	| 'claim_paper'
 	| 'merge_papers'
 	| 'merge_authors'
+	| 'strip_orcid'
 	| 'revoke'
 	| 'moderation_decision'
 	| 'add_paper_request';
@@ -44,6 +45,9 @@ export type LedgerPayload =
 	| { kind: 'claim_paper'; work: WorkSubject }
 	| { kind: 'merge_papers'; keep: WorkSubject; drop: WorkSubject }
 	| { kind: 'merge_authors'; keep: AuthorSubject; drop: AuthorSubject; note?: string }
+	// The record is not this ORCID's person: the pipeline reads its orcid cell as empty. The
+	// derived identity source (rankless_rs/src/derived_ledger.rs) writes this kind too.
+	| { kind: 'strip_orcid'; author: AuthorSubject }
 	// target_key = the revoked event's logical key (merge-stable), set server-side from the
 	// client's target_event_id at creation. Not the raw event_id, which renumbers on merge.
 	| { kind: 'revoke'; target_key: string; reason?: string }

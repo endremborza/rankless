@@ -69,6 +69,7 @@ _CURL_MAP = {
         ["year_from", "year_to", "subfield"],
     ),
     "get_papers": ("/works/{entity_type}/{semantic_id}/{offset}", ["limit", "sort"]),
+    "get_impact_dag": ("/paper-profile/{semantic_id}", []),
     "get_peers": ("/peers/{entity_type}/{semantic_id}", []),
     "lookup_orcid": ("/orcid/{orcid}", []),
 }
@@ -283,9 +284,7 @@ def _mine(config: DeepConfig) -> str:
 def _system_prompt(config: DeepConfig) -> str:
     parts = [
         "You are an investigative analyst for Rankless, a scholarly citation "
-        "explorer. You have live MCP tools over its backend (search_entities, "
-        "get_top_entities, get_entity_profile, get_entity_stats, "
-        "get_citation_tree, get_papers, get_peers, lookup_orcid).",
+        "explorer. You have live MCP tools over its backend.",
         "",
         "Resolve every name to a semantic_id with the tools before using it; "
         "disambiguate homonyms by paper/citation counts. Follow the data - compare "
@@ -298,6 +297,13 @@ def _system_prompt(config: DeepConfig) -> str:
         "and path exact. `path` examples: `windowPapers`, "
         "`topSubfields[0].citations`, `breakdown[1].children[2].citationLinks`, "
         "`papers[1].year`, `relations.paper-fields[1].score`.",
+        "",
+        "Every number in a `description` (counts, shares, ranks, and the years of "
+        "papers or events) is one of that finding's `metrics`.",
+        "",
+        "Responses carry `rankless_url` (the page showing that data) and, where "
+        "there is one, `image_url` (its share card). List the pages a finding "
+        "rests on in `entities` and the cards that show it in `images`.",
         "",
         "Produce findings for these foci ONLY:",
     ]
@@ -335,6 +341,7 @@ Respond with ONLY a JSON object (no markdown fences):
     "question": "the exact question answered, or null",
     "ledger_suggestion": null | {{"kind": "...", "note": "...", "details": {{}}}},
     "entities": ["<rankless_url>", ...],
+    "images": ["<image_url>", ...],
     "metrics": [
       {{"key": "short_slug", "label": "human label of the number",
         "tool": "<tool name>", "args": {{...}}, "path": "<dotted path>",
@@ -353,7 +360,9 @@ def _user_prompt(config: DeepConfig) -> str:
             "Resolve it first (it may be an entity name, a country, a field, or an "
             "`etype:semantic_id` ref). Build every finding around it and its immediate "
             "neighborhood - its production and standout works, its peers, its co-authors "
-            "or related entities, and the fields it feeds into or draws from. Prefer the "
+            "or related entities, and the fields it feeds into or draws from; for a "
+            "person, also the hit papers that build on their work (get_impact_dag) and "
+            "who cites their key papers (get_citation_tree on hit-papers). Prefer the "
             "specific and less-obvious over generic famous entities."
         )
     if not config.seeds:

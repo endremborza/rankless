@@ -163,6 +163,7 @@ def build_release_manifest(root: Path) -> dict:
     snap = json.loads((ul / "snapshot_manifest.json").read_text())
     applied = json.loads((ul / "applied_manifest.json").read_text())
     forced = json.loads((ul / "forced_works.json").read_text())
+    derived = json.loads((ul / "derived_manifest.json").read_text())
     stamp = (root / manifest.STAMP_NAME).read_text().strip()
 
     run_id = snap["run_id"]
@@ -191,6 +192,9 @@ def build_release_manifest(root: Path) -> dict:
         "filter_counts": _filter_counts(root / "filter-steps"),
         "applied": dict(Counter(k.split("|")[1] for k in applied["applied_keys"])),
         "skipped": dict(Counter(s["reason"] for s in applied["skipped"])),
+        # The derived identity source (author records sharing an ORCID) by reason;
+        # the row counts and owner choices stay in the sidecar.
+        "derived": {k: derived[k] for k in ("merges", "strips")},
         # Public aggregates only — the private wid list stays in the sidecar.
         "forced_works": {k: forced[k] for k in FORCED_AGGREGATES},
         "claims_review": _claims_review(rdir, run_id),

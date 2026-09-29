@@ -122,6 +122,8 @@ export function summarize(p: LedgerPayload): string {
 			return `keep “${p.keep.display_snapshot.title}” ⇐ drop “${p.drop.display_snapshot.title}”`;
 		case 'merge_authors':
 			return `keep “${p.keep.display_snapshot.display_name}” ⇐ drop “${p.drop.display_snapshot.display_name}”${p.note ? ` — note: ${p.note}` : ''}`;
+		case 'strip_orcid':
+			return `not this ORCID's: “${p.author.display_snapshot.display_name}”`;
 		case 'revoke':
 			return `revoke ${p.target_key}${p.reason ? ` — ${p.reason}` : ''}`;
 		case 'moderation_decision':
