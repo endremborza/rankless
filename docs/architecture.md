@@ -395,6 +395,7 @@ receipts on every response and a `verify_claims` tool; see [mcp-server.md](mcp-s
 | `verify.py` | Deterministic re-issue of model-cited tool calls (`verify_facts`, dotted-path walk); shared by the live tool and every offline miner |
 | `client.py` | Async httpx client for the backend (`RANKLESS_BE_URL`, default `127.0.0.1:3038/v1`) |
 | `response_shaping.py` | Tree flattening via `/v1/specs` breakdowns, list truncation, `rankless_url` backlinks, `coauthor_edges` (upper-triangle `authorNetwork` → named strongest ties) |
+| `__init__.py` | Backends, root/view types, the Nobel category list, and the site URLs a response links to: `entity_url` (a page, with its view state), `card_url` (the share card of the same view), `table_url` |
 | `resources.py` | Static schema/guide resources (`rankless://schema/entity-types`, `rankless://guide/agent` = the resolve → call → cite → verify → answer loop) |
 | `prompts.py` | Reusable prompts (`author_impact_report`) |
 
