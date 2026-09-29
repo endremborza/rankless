@@ -17,6 +17,7 @@
 		'disown_paper',
 		'merge_papers',
 		'merge_authors',
+		'strip_orcid',
 		'revoke',
 		'add_paper_request'
 	];

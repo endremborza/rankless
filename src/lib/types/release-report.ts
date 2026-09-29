@@ -32,7 +32,6 @@ export type IdentityAggregates = {
 	merged_by: Record<string, number>;
 	stripped: number;
 	stripped_by: Record<string, number>;
-	overridden: number;
 };
 
 // Aggregates of the claims-review sidecar; unresolved_by_cause is cause → count.

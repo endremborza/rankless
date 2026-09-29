@@ -23,6 +23,7 @@
 
 	const IDENTITY_REASONS: Record<string, string> = {
 		registered_name: 'the name registered with the ORCID iD picked the surviving record',
+		compatible_name: 'a spelling the registered name does not contradict',
 		most_works: 'the record with the most works survived',
 		name_mismatch: 'a different name from the iD’s holder',
 		over_work_bound: 'an aggregate of many people’s works, not a scholar'
@@ -137,12 +138,6 @@
 					</li>
 				{/each}
 			</ul>
-			{#if report.identity.overridden > 0}
-				<p>
-					{fmt(report.identity.overridden)} of these decision{plural(report.identity.overridden)}
-					{report.identity.overridden === 1 ? 'was' : 'were'} replaced by the scholar’s own correction.
-				</p>
-			{/if}
 		{/if}
 
 		{#if report.restored && report.restored.outside_standard > 0}

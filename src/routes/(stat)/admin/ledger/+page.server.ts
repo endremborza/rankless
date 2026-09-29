@@ -18,6 +18,7 @@ const KINDS = new Set<LedgerKind>([
 	'disown_paper',
 	'merge_papers',
 	'merge_authors',
+	'strip_orcid',
 	'revoke',
 	'moderation_decision',
 	'add_paper_request'

@@ -212,7 +212,6 @@ def _identity(derived: dict | None) -> dict | None:
         "merged_by": derived["merges"],
         "stripped": sum(derived["strips"].values()),
         "stripped_by": derived["strips"],
-        "overridden": derived["skipped"].get("overridden_by_user", 0),
     }
 
 

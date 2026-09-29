@@ -40,12 +40,10 @@ CUR["forced_works"] = {
     "outside_citations": 5,
     "claimed": 1,
     "author_rescues": 1,
-    "over_bound_authors": 2,
 }
 CUR["derived"] = {
     "merges": {"registered_name": 30, "most_works": 12},
     "strips": {"name_mismatch": 4, "over_work_bound": 1},
-    "skipped": {"overridden_by_user": 1},
 }
 
 
@@ -58,7 +56,6 @@ def test_report_without_previous() -> None:
         "merged_by": {"registered_name": 30, "most_works": 12},
         "stripped": 5,
         "stripped_by": {"name_mismatch": 4, "over_work_bound": 1},
-        "overridden": 1,
     }
     # a record predating forced-works sidecars renders without the sections
     assert rr.build_report(PREV)["restored"] is None

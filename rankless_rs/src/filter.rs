@@ -93,7 +93,7 @@ pub fn main(mut stowage: Stowage) -> io::Result<()> {
     let ul_dir = stowage.paths.user_ledger.clone();
     let ledger = UserLedger::load(&ul_dir)?;
     let ids = SnapshotIds::scan(&stowage, ledger.referenced());
-    let (resolved, outcomes) = ledger.resolve(&ids);
+    let (resolved, outcomes) = ledger.resolve(&ids)?;
     resolved.save(&ul_dir)?;
     stowage.set_ledger(resolved);
 

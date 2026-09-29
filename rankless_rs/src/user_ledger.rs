@@ -17,6 +17,9 @@ use crate::{
 use dmove::BigId;
 
 pub const ORCID_PREF: &str = "https://orcid.org/";
+/// The derived source's records and manifest, written by `derive-ledger` beside the export.
+pub const DERIVED_JSONL: &str = "derived.jsonl";
+pub const DERIVED_MANIFEST: &str = "derived_manifest.json";
 
 const ACTIVE_JSONL: &str = "active.jsonl";
 const APPLIED_MANIFEST: &str = "applied_manifest.json";
@@ -31,6 +34,10 @@ const DOI_PREFIXES: [&str; 4] = [
 ];
 
 type Edge = (BigId, BigId);
+/// (works_count, cited_by_count) of an author record
+type Counts = (u32, u32);
+/// A user's event is reported under its key; a derived record has none.
+type Key = Option<String>;
 
 // ---------------------------------------------------------------------------
 // Cross-language boundary: user-ledger/active.jsonl
@@ -38,20 +45,26 @@ type Edge = (BigId, BigId);
 // Mirror types below — keep in sync when TS types change.
 // ---------------------------------------------------------------------------
 
-/// The exported ledger before resolution: events keyed by their subjects, plus the pinned
-/// owners. `resolve` is the one decision site; it needs only the id facts `SnapshotIds`
-/// gathers from the raw CSVs.
+/// The ledger before resolution: the derived source's records and the users' events keyed by
+/// their subjects, plus the pinned owners. `resolve` is the one decision site; it needs only
+/// the id facts `SnapshotIds` gathers from the raw CSVs.
 #[derive(Default)]
 pub struct UserLedger {
     pub run_id: String,
     owner_pin_orcids: HashSet<String>,
+    /// every ORCID an event or record names
+    orcids: HashSet<String>,
     /// (key, orcid, canonical doi)
     claims: Vec<(String, String, String)>,
     /// (key, orcid, work oa_id)
     disowns: Vec<(String, String, BigId)>,
+    /// (key, author oa_id, fate) in source order, the derived records before the users'
+    /// events, so the last entry on a record decides
+    author_fates: Vec<(Key, BigId, Fate)>,
     /// (key, drop oa_id, keep oa_id)
-    author_merges: Vec<(String, BigId, BigId)>,
     work_merges: Vec<(String, BigId, BigId)>,
+    /// The author rows the derived records were read from; the CSVs must hold as many.
+    derived_rows: Option<u64>,
     skipped: Vec<SkippedEvent>,
 }
 
@@ -62,20 +75,25 @@ pub struct Referenced {
     pub authors: HashSet<BigId>,
     pub works: HashSet<BigId>,
     pub dois: HashSet<String>,
+    /// The author-table row count the derived records expect, when there are any.
+    pub derived_rows: Option<u64>,
 }
 
 /// What the raw snapshot holds of the referenced ids.
 #[derive(Default)]
 pub struct SnapshotIds {
-    pub orcid_to_oa: HashMap<String, BigId>,
-    pub authors: HashSet<BigId>,
+    /// every raw record carrying a referenced ORCID
+    pub orcid_carriers: HashMap<String, Vec<BigId>>,
+    pub authors: HashMap<BigId, Counts>,
+    pub author_rows: u64,
     pub works: HashSet<BigId>,
     pub doi_to_work: HashMap<String, BigId>,
 }
 
-/// The tables the CSV reader applies to every row it yields (`csv_iter`): merged ids read
-/// as their keep id, drop-side main rows and disowned authorships do not exist. Written by
-/// the filter step, loaded by every later one.
+/// The tables the CSV reader applies to every row it yields (`csv_iter`): merged ids read as
+/// their keep id, drop-side main rows and disowned authorships do not exist, a stripped author
+/// carries no ORCID, a keep author carries its merged records' counts. Written by the filter
+/// step, loaded by every later one.
 #[derive(Default)]
 pub struct ResolvedLedger {
     pub run_id: String,
@@ -84,6 +102,9 @@ pub struct ResolvedLedger {
     pub work_aliases: HashMap<BigId, BigId>,
     /// (author oa_id, work oa_id) in keep-id space
     pub removed_edges: HashSet<Edge>,
+    pub stripped_orcids: HashSet<BigId>,
+    /// keep oa_id -> its own counts plus every merged record's
+    pub author_counts: HashMap<BigId, Counts>,
 }
 
 /// Everything the filter step still needs after resolution: the pinned owners whose
@@ -130,6 +151,11 @@ struct LedgerEventLine {
     payload: EventPayload,
 }
 
+#[derive(Deserialize)]
+struct DerivedManifestFile {
+    author_rows: u64,
+}
+
 /// On-disk form of `ResolvedLedger`, pairs sorted for determinism.
 #[derive(Serialize, Deserialize)]
 struct ResolvedLedgerFile {
@@ -137,6 +163,8 @@ struct ResolvedLedgerFile {
     author_aliases: Vec<Edge>,
     work_aliases: Vec<Edge>,
     removed_edges: Vec<Edge>,
+    stripped_orcids: Vec<BigId>,
+    author_counts: Vec<(BigId, Counts)>,
 }
 
 // ---------------------------------------------------------------------------
@@ -170,12 +198,25 @@ enum EventPayload {
     ClaimPaper {
         work: WorkSubject,
     },
+    /// The record is not this ORCID's person: its `orcid` cell reads empty.
+    StripOrcid {
+        author: AuthorSubject,
+    },
     // Never reach the pipeline (revokes are resolved away in export_user_ledger.py; the
     // other two are never written to the ledger), but kept as variants so EventPayload
     // stays a faithful mirror of TS LedgerPayload (see make type-audit).
     Revoke,
     ModerationDecision,
     AddPaperRequest,
+}
+
+/// What the ledger does to an author record.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Fate {
+    /// merged into the keep
+    Merge(BigId),
+    /// its `orcid` cell reads empty
+    Strip,
 }
 
 impl UserLedger {
@@ -185,18 +226,20 @@ impl UserLedger {
             owner_pin_orcids: load_owner_pins(ul_dir)?,
             ..Self::default()
         };
-        let active_path = ul_dir.join(ACTIVE_JSONL);
-        if active_path.exists() {
-            for line in BufReader::new(File::open(&active_path)?).lines() {
-                let line = line?;
-                let line = line.trim();
-                if line.is_empty() {
-                    continue;
-                }
-                match serde_json::from_str::<LedgerEventLine>(line) {
-                    Ok(event) => ul.apply_event(event),
-                    Err(e) => eprintln!("user_ledger: skipping malformed event: {e}"),
-                }
+        let derived = ul_dir.join(DERIVED_JSONL);
+        if derived.exists() {
+            for line in read_lines(&derived)? {
+                ul.apply_derived(serde_json::from_str(&line).map_err(invalid)?)?;
+            }
+            let manifest: DerivedManifestFile =
+                serde_json::from_str(&fs::read_to_string(ul_dir.join(DERIVED_MANIFEST))?)
+                    .map_err(invalid)?;
+            ul.derived_rows = Some(manifest.author_rows);
+        }
+        for line in read_lines(&ul_dir.join(ACTIVE_JSONL))? {
+            match serde_json::from_str::<LedgerEventLine>(&line) {
+                Ok(event) => ul.apply_event(event),
+                Err(e) => eprintln!("user_ledger: skipping malformed event: {e}"),
             }
         }
         Ok(ul)
@@ -204,14 +247,15 @@ impl UserLedger {
 
     pub fn referenced(&self) -> Referenced {
         Referenced {
-            orcids: self
-                .owner_pin_orcids
+            orcids: self.owner_pin_orcids.union(&self.orcids).cloned().collect(),
+            authors: self
+                .author_fates
                 .iter()
-                .chain(self.claims.iter().map(|(_, o, _)| o))
-                .chain(self.disowns.iter().map(|(_, o, _)| o))
-                .cloned()
+                .flat_map(|&(_, id, fate)| match fate {
+                    Fate::Merge(keep) => vec![id, keep],
+                    Fate::Strip => vec![],
+                })
                 .collect(),
-            authors: self.author_merges.iter().map(|(_, _, k)| *k).collect(),
             works: self
                 .work_merges
                 .iter()
@@ -219,26 +263,56 @@ impl UserLedger {
                 .chain(self.disowns.iter().map(|(_, _, w)| *w))
                 .collect(),
             dois: self.claims.iter().map(|(_, _, d)| d.clone()).collect(),
+            derived_rows: self.derived_rows,
         }
     }
 
     /// A merge applies iff its keep id is in the snapshot: rewriting an absent drop id is
-    /// a no-op, while a merge into an absent keep would erase the drop side. A disown
-    /// applies iff its owner and work resolve; a claim is settled later, once the reader
-    /// shows who is credited on the work.
-    pub fn resolve(self, ids: &SnapshotIds) -> (ResolvedLedger, Outcomes) {
+    /// a no-op, while a merge into an absent keep would erase the drop side. The last fate
+    /// recorded on an author record decides, so a user's event replaces a derived record's.
+    /// A disown applies iff its owner and work resolve; a claim is settled later, once the
+    /// reader shows who is credited on the work. Fails on a stale derived file and when an
+    /// ORCID would still resolve to more than one author.
+    pub fn resolve(self, ids: &SnapshotIds) -> io::Result<(ResolvedLedger, Outcomes)> {
+        if let Some(rows) = self.derived_rows {
+            if rows != ids.author_rows {
+                return Err(invalid(format!(
+                    "{DERIVED_JSONL} was derived from {rows} author rows, the CSVs hold {} — rerun derive-ledger",
+                    ids.author_rows
+                )));
+            }
+        }
         let mut applied = Vec::new();
         let mut skipped = self.skipped;
         let mut skip = |key: String, reason: SkipReason| skipped.push(SkippedEvent { key, reason });
 
+        let mut fates: HashMap<BigId, (Fate, Key)> = HashMap::new();
+        for (key, id, fate) in self.author_fates {
+            fates.insert(id, (fate, key));
+        }
         let mut author_aliases = HashMap::new();
-        for (key, drop, keep) in self.author_merges {
-            match ids.authors.contains(&keep) {
-                true => {
-                    author_aliases.insert(drop, keep);
-                    applied.push(key);
+        let mut stripped_orcids = HashSet::new();
+        for (id, (fate, key)) in fates {
+            let ok = match fate {
+                Fate::Merge(keep) if ids.authors.contains_key(&keep) => {
+                    author_aliases.insert(id, keep);
+                    true
                 }
-                false => skip(key, SkipReason::OaIdNotInDataset),
+                Fate::Merge(_) => false,
+                Fate::Strip => {
+                    stripped_orcids.insert(id);
+                    true
+                }
+            };
+            match (key, ok) {
+                (Some(key), true) => applied.push(key),
+                (Some(key), false) => skip(key, SkipReason::OaIdNotInDataset),
+                (None, true) => {}
+                (None, false) => {
+                    return Err(invalid(format!(
+                        "{DERIVED_JSONL} merges {id} into an author the CSVs lack"
+                    )))
+                }
             }
         }
         path_compress(&mut author_aliases);
@@ -256,9 +330,43 @@ impl UserLedger {
         let author_root = |a: BigId| author_aliases.get(&a).copied().unwrap_or(a);
         let work_root = |w: BigId| work_aliases.get(&w).copied().unwrap_or(w);
 
+        let mut author_counts: HashMap<BigId, Counts> = HashMap::new();
+        for (&drop, &keep) in &author_aliases {
+            let total = author_counts
+                .entry(keep)
+                .or_insert_with(|| ids.authors.get(&keep).copied().unwrap_or_default());
+            if let Some(&(works, cites)) = ids.authors.get(&drop) {
+                total.0 = total.0.saturating_add(works);
+                total.1 = total.1.saturating_add(cites);
+            }
+        }
+
+        let mut orcid_to_oa = HashMap::new();
+        for (orcid, carriers) in &ids.orcid_carriers {
+            let mut owners: Vec<BigId> = carriers
+                .iter()
+                .filter(|&c| !stripped_orcids.contains(c))
+                .map(|&c| author_root(c))
+                .collect();
+            owners.sort_unstable();
+            owners.dedup();
+            match owners.as_slice() {
+                [] => {}
+                [one] => {
+                    orcid_to_oa.insert(orcid.clone(), *one);
+                }
+                many => {
+                    return Err(invalid(format!(
+                        "ORCID {orcid} still resolves to {} authors {many:?} — the derived records do not cover it, rerun derive-ledger",
+                        many.len()
+                    )))
+                }
+            }
+        }
+
         let mut removed_edges = HashSet::new();
         for (key, orcid, work) in self.disowns {
-            let Some(&owner) = ids.orcid_to_oa.get(&orcid) else {
+            let Some(&owner) = orcid_to_oa.get(&orcid) else {
                 skip(key, SkipReason::OrcidNotInDataset);
                 continue;
             };
@@ -266,7 +374,7 @@ impl UserLedger {
                 skip(key, SkipReason::OaIdNotInDataset);
                 continue;
             }
-            removed_edges.insert((author_root(owner), work_root(work)));
+            removed_edges.insert((owner, work_root(work)));
             applied.push(key);
         }
 
@@ -276,21 +384,21 @@ impl UserLedger {
                 skip(key, SkipReason::DoiNotInSnapshot);
                 continue;
             };
-            let Some(&claimant) = ids.orcid_to_oa.get(&orcid) else {
+            let Some(&claimant) = orcid_to_oa.get(&orcid) else {
                 skip(key, SkipReason::OrcidNotInDataset);
                 continue;
             };
             claims.push(PendingClaim {
                 key,
-                claimant: author_root(claimant),
+                claimant,
                 work: work_root(work),
             });
         }
         let pins = self
             .owner_pin_orcids
             .iter()
-            .filter_map(|orcid| ids.orcid_to_oa.get(orcid))
-            .map(|&a| author_root(a))
+            .filter_map(|orcid| orcid_to_oa.get(orcid))
+            .copied()
             .collect();
 
         let resolved = ResolvedLedger {
@@ -298,6 +406,8 @@ impl UserLedger {
             author_aliases,
             work_aliases,
             removed_edges,
+            stripped_orcids,
+            author_counts,
         };
         let outcomes = Outcomes {
             run_id: self.run_id,
@@ -306,7 +416,7 @@ impl UserLedger {
             applied,
             skipped,
         };
-        (resolved, outcomes)
+        Ok((resolved, outcomes))
     }
 
     fn apply_event(&mut self, event: LedgerEventLine) {
@@ -316,11 +426,16 @@ impl UserLedger {
             payload,
         } = event;
         let orcid = normalize_orcid(&orcid);
+        if !orcid.is_empty() {
+            self.orcids.insert(orcid.clone());
+        }
         let mut skip =
             |key: String, reason: SkipReason| self.skipped.push(SkippedEvent { key, reason });
         match payload {
             EventPayload::MergeAuthors { keep, drop } => match (keep.oa_id, drop.oa_id) {
-                (Some(k), Some(d)) if k != d => self.author_merges.push((key, d, k)),
+                (Some(k), Some(d)) if k != d => {
+                    self.author_fates.push((Some(key), d, Fate::Merge(k)))
+                }
                 _ => skip(key, SkipReason::MissingOaId),
             },
             EventPayload::MergePapers { keep, drop } => match (keep.oa_id, drop.oa_id) {
@@ -337,11 +452,37 @@ impl UserLedger {
                 }
                 _ => skip(key, SkipReason::MissingOaIdOrOrcid),
             },
+            EventPayload::StripOrcid { author } => match author.oa_id {
+                Some(a) => self.author_fates.push((Some(key), a, Fate::Strip)),
+                None => skip(key, SkipReason::MissingOaId),
+            },
             // Resolved in export or never emitted; never present in active.jsonl.
             EventPayload::Revoke
             | EventPayload::ModerationDecision
             | EventPayload::AddPaperRequest => {}
         }
+    }
+
+    /// A derived line is machine-written: anything but a complete merge or strip is an error.
+    fn apply_derived(&mut self, event: LedgerEventLine) -> io::Result<()> {
+        let (id, fate) = match event.payload {
+            EventPayload::MergeAuthors {
+                keep: AuthorSubject { oa_id: Some(k) },
+                drop: AuthorSubject { oa_id: Some(d) },
+            } if k != d => (d, Fate::Merge(k)),
+            EventPayload::StripOrcid {
+                author: AuthorSubject { oa_id: Some(a) },
+            } => (a, Fate::Strip),
+            _ => {
+                return Err(invalid(format!(
+                    "{DERIVED_JSONL}: {} is not a complete merge or strip",
+                    event.key
+                )))
+            }
+        };
+        self.author_fates.push((None, id, fate));
+        self.orcids.insert(normalize_orcid(&event.orcid));
+        Ok(())
     }
 }
 
@@ -351,23 +492,27 @@ impl SnapshotIds {
     pub fn scan(stowage: &Stowage, refs: Referenced) -> Self {
         let mut ids = Self::default();
         let refs = Arc::new(refs);
-        if !(refs.orcids.is_empty() && refs.authors.is_empty()) {
+        if !(refs.orcids.is_empty() && refs.authors.is_empty() && refs.derived_rows.is_none()) {
             let r = Arc::clone(&refs);
             let scanned = par_reduce::<Author, SnapshotIds, _, _>(
                 stowage,
                 authors::C,
                 MAIN_NAME,
                 move |acc, a| {
+                    acc.author_rows += 1;
                     let Some(oa_id) = a.get_parsed_id() else {
                         return;
                     };
                     if r.authors.contains(&oa_id) {
-                        acc.authors.insert(oa_id);
+                        acc.authors.insert(
+                            oa_id,
+                            (a.works_count.unwrap_or(0), a.cited_by_count.unwrap_or(0)),
+                        );
                     }
                     if let Some(orcid) = a.orcid {
                         let orcid = normalize_orcid(&orcid);
                         if r.orcids.contains(&orcid) {
-                            acc.orcid_to_oa.insert(orcid, oa_id);
+                            acc.orcid_carriers.entry(orcid).or_default().push(oa_id);
                         }
                     }
                 },
@@ -375,7 +520,11 @@ impl SnapshotIds {
                 Some(10),
             );
             ids.authors = scanned.authors;
-            ids.orcid_to_oa = scanned.orcid_to_oa;
+            ids.author_rows = scanned.author_rows;
+            ids.orcid_carriers = scanned.orcid_carriers;
+            for carriers in ids.orcid_carriers.values_mut() {
+                carriers.sort_unstable();
+            }
         }
         if !(refs.works.is_empty() && refs.dois.is_empty()) {
             let r = Arc::clone(&refs);
@@ -406,33 +555,52 @@ impl SnapshotIds {
     }
 
     fn merge(a: &mut Self, b: Self) {
-        a.orcid_to_oa.extend(b.orcid_to_oa);
+        for (orcid, carriers) in b.orcid_carriers {
+            a.orcid_carriers.entry(orcid).or_default().extend(carriers);
+        }
         a.authors.extend(b.authors);
+        a.author_rows += b.author_rows;
         a.works.extend(b.works);
         a.doi_to_work.extend(b.doi_to_work);
     }
 }
 
 impl ResolvedLedger {
+    pub fn author_root(&self, a: BigId) -> BigId {
+        self.author_aliases.get(&a).copied().unwrap_or(a)
+    }
+
+    pub fn work_root(&self, w: BigId) -> BigId {
+        self.work_aliases.get(&w).copied().unwrap_or(w)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.author_aliases.is_empty()
             && self.work_aliases.is_empty()
             && self.removed_edges.is_empty()
+            && self.stripped_orcids.is_empty()
+            && self.author_counts.is_empty()
     }
 
     pub fn save(&self, ul_dir: &Path) -> io::Result<()> {
-        let sorted = |it: Box<dyn Iterator<Item = Edge> + '_>| {
-            let mut v: Vec<Edge> = it.collect();
+        fn sorted<T: Ord>(it: impl Iterator<Item = T>) -> Vec<T> {
+            let mut v: Vec<T> = it.collect();
             v.sort_unstable();
             v
-        };
+        }
         let file = ResolvedLedgerFile {
             run_id: self.run_id.clone(),
-            author_aliases: sorted(Box::new(self.author_aliases.iter().map(|(&d, &k)| (d, k)))),
-            work_aliases: sorted(Box::new(self.work_aliases.iter().map(|(&d, &k)| (d, k)))),
-            removed_edges: sorted(Box::new(self.removed_edges.iter().copied())),
+            author_aliases: sorted(self.author_aliases.iter().map(|(&d, &k)| (d, k))),
+            work_aliases: sorted(self.work_aliases.iter().map(|(&d, &k)| (d, k))),
+            removed_edges: sorted(self.removed_edges.iter().copied()),
+            stripped_orcids: sorted(self.stripped_orcids.iter().copied()),
+            author_counts: sorted(self.author_counts.iter().map(|(&a, &c)| (a, c))),
         };
-        write_json(&ul_dir.join(RESOLVED_LEDGER), &file)
+        serde_json::to_writer(
+            BufWriter::new(File::create(ul_dir.join(RESOLVED_LEDGER))?),
+            &file,
+        )
+        .map_err(io::Error::other)
     }
 
     /// Refuses a missing or stale file: the filter step of the current snapshot export
@@ -444,23 +612,21 @@ impl ResolvedLedger {
                 format!("{RESOLVED_LEDGER} missing — the filter step must run first"),
             )
         })?;
-        let file: ResolvedLedgerFile = serde_json::from_str(&raw)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let file: ResolvedLedgerFile = serde_json::from_str(&raw).map_err(invalid)?;
         let snapshot_run = read_run_id(ul_dir);
         if file.run_id != snapshot_run {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "{RESOLVED_LEDGER} is from run {:?} but the snapshot manifest says {snapshot_run:?} — re-run the filter step",
-                    file.run_id
-                ),
-            ));
+            return Err(invalid(format!(
+                "{RESOLVED_LEDGER} is from run {:?} but the snapshot manifest says {snapshot_run:?} — re-run the filter step",
+                file.run_id
+            )));
         }
         Ok(Self {
             run_id: file.run_id,
             author_aliases: file.author_aliases.into_iter().collect(),
             work_aliases: file.work_aliases.into_iter().collect(),
             removed_edges: file.removed_edges.into_iter().collect(),
+            stripped_orcids: file.stripped_orcids.into_iter().collect(),
+            author_counts: file.author_counts.into_iter().collect(),
         })
     }
 }
@@ -521,6 +687,25 @@ pub fn canonical_doi(doi: &str) -> String {
     strip_doi_prefix(doi).to_lowercase()
 }
 
+pub fn normalize_orcid(orcid: &str) -> String {
+    orcid.strip_prefix(ORCID_PREF).unwrap_or(orcid).to_string()
+}
+
+fn invalid(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, e)
+}
+
+/// The non-empty lines of a file that may not exist.
+fn read_lines(path: &Path) -> io::Result<Vec<String>> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    BufReader::new(File::open(path)?)
+        .lines()
+        .filter(|l| l.as_ref().map_or(true, |l| !l.trim().is_empty()))
+        .collect()
+}
+
 fn read_run_id(ul_dir: &Path) -> String {
     let path = ul_dir.join(SNAPSHOT_MANIFEST);
     if !path.exists() {
@@ -534,20 +719,10 @@ fn read_run_id(ul_dir: &Path) -> String {
 }
 
 fn load_owner_pins(ul_dir: &Path) -> io::Result<HashSet<String>> {
-    let path = ul_dir.join(OWNER_PINS);
-    if !path.exists() {
-        return Ok(HashSet::new());
-    }
-    Ok(fs::read_to_string(&path)?
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .map(normalize_orcid)
+    Ok(read_lines(&ul_dir.join(OWNER_PINS))?
+        .iter()
+        .map(|l| normalize_orcid(l.trim()))
         .collect())
-}
-
-fn normalize_orcid(orcid: &str) -> String {
-    orcid.strip_prefix(ORCID_PREF).unwrap_or(orcid).to_string()
 }
 
 fn find_root(id: BigId, map: &HashMap<BigId, BigId>) -> BigId {
@@ -568,14 +743,28 @@ fn path_compress(map: &mut HashMap<BigId, BigId>) {
     }
 }
 
-fn write_json<T: serde::Serialize>(path: &Path, val: &T) -> io::Result<()> {
-    serde_json::to_writer_pretty(BufWriter::new(File::create(path)?), val)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+pub(crate) fn write_json<T: serde::Serialize>(path: &Path, val: &T) -> io::Result<()> {
+    serde_json::to_writer_pretty(BufWriter::new(File::create(path)?), val).map_err(io::Error::other)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn line(json: &str) -> LedgerEventLine {
+        serde_json::from_str(json).unwrap()
+    }
+
+    fn carriers(pairs: &[(&str, &[BigId])]) -> HashMap<String, Vec<BigId>> {
+        pairs
+            .iter()
+            .map(|(o, ids)| (o.to_string(), ids.to_vec()))
+            .collect()
+    }
+
+    fn counts(ids: &[BigId]) -> HashMap<BigId, Counts> {
+        ids.iter().map(|&i| (i, (1, 1))).collect()
+    }
 
     #[test]
     fn path_compress_chain() {
@@ -607,10 +796,9 @@ mod tests {
 
     #[test]
     fn apply_event_merge_authors() {
-        let event: LedgerEventLine = serde_json::from_str(
+        let event = line(
             r#"{"key":"x|merge_authors|h","orcid":"x","payload":{"kind":"merge_authors","keep":{"oa_id":10},"drop":{"oa_id":20}}}"#,
-        )
-        .unwrap();
+        );
         assert!(matches!(
             event.payload,
             EventPayload::MergeAuthors {
@@ -623,11 +811,9 @@ mod tests {
     #[test]
     fn claim_paper_collects_canonical_doi() {
         let mut ul = UserLedger::default();
-        let event: LedgerEventLine = serde_json::from_str(
+        ul.apply_event(line(
             r#"{"key":"0-1|claim_paper|h","orcid":"0-1","payload":{"kind":"claim_paper","work":{"oa_id":null,"doi":"https://doi.org/10.1000/XYZ"}}}"#,
-        )
-        .unwrap();
-        ul.apply_event(event);
+        ));
         assert_eq!(
             ul.claims,
             vec![(
@@ -636,12 +822,9 @@ mod tests {
                 "10.1000/xyz".to_string()
             )]
         );
-
-        let no_doi: LedgerEventLine = serde_json::from_str(
+        ul.apply_event(line(
             r#"{"key":"0-1|claim_paper|h2","orcid":"0-1","payload":{"kind":"claim_paper","work":{"oa_id":5,"doi":null}}}"#,
-        )
-        .unwrap();
-        ul.apply_event(no_doi);
+        ));
         assert_eq!(ul.skipped.len(), 1);
         assert_eq!(ul.skipped[0].reason, SkipReason::MissingOaIdOrOrcid);
     }
@@ -649,25 +832,28 @@ mod tests {
     #[test]
     fn resolve_requires_keep_and_settles_in_keep_space() {
         let mut ul = UserLedger::default();
-        for line in [
+        for l in [
             r#"{"key":"o|merge_authors|a","orcid":"o","payload":{"kind":"merge_authors","keep":{"oa_id":1},"drop":{"oa_id":2}}}"#,
             r#"{"key":"o|merge_authors|b","orcid":"o","payload":{"kind":"merge_authors","keep":{"oa_id":9},"drop":{"oa_id":3}}}"#,
             r#"{"key":"o|merge_papers|c","orcid":"o","payload":{"kind":"merge_papers","keep":{"oa_id":10,"doi":null},"drop":{"oa_id":11,"doi":null}}}"#,
             r#"{"key":"o|disown_paper|d","orcid":"o","payload":{"kind":"disown_paper","work":{"oa_id":11,"doi":null}}}"#,
             r#"{"key":"o|claim_paper|e","orcid":"o","payload":{"kind":"claim_paper","work":{"oa_id":null,"doi":"10.1/x"}}}"#,
         ] {
-            ul.apply_event(serde_json::from_str(line).unwrap());
+            ul.apply_event(line(l));
         }
         ul.owner_pin_orcids.insert("o".into());
         let ids = SnapshotIds {
-            orcid_to_oa: [("o".to_string(), 2u64)].into_iter().collect(),
-            authors: [1].into_iter().collect(),
+            orcid_carriers: carriers(&[("o", &[2])]),
+            authors: [(1, (4, 40)), (2, (3, 30))].into_iter().collect(),
+            author_rows: 5,
             works: [10, 11].into_iter().collect(),
             doi_to_work: [("10.1/x".to_string(), 11u64)].into_iter().collect(),
         };
-        let (resolved, outcomes) = ul.resolve(&ids);
+        let (resolved, outcomes) = ul.resolve(&ids).unwrap();
         assert_eq!(resolved.author_aliases, [(2, 1)].into_iter().collect());
         assert_eq!(resolved.work_aliases, [(11, 10)].into_iter().collect());
+        // the keep row carries both records' counts
+        assert_eq!(resolved.author_counts, [(1, (7, 70))].into_iter().collect());
         // the owner's own id and the disowned work both read in keep space
         assert_eq!(resolved.removed_edges, [(1, 10)].into_iter().collect());
         assert_eq!(outcomes.pins, [1].into_iter().collect());
@@ -679,6 +865,80 @@ mod tests {
         assert_eq!(outcomes.applied.len(), 3);
         assert_eq!(outcomes.skipped.len(), 1);
         assert_eq!(outcomes.skipped[0].key, "o|merge_authors|b");
+    }
+
+    #[test]
+    fn derived_records_decide_first_and_user_events_replace_them() {
+        let mut ul = UserLedger::default();
+        for l in [
+            r#"{"key":"2|merge_authors|1","orcid":"o","kind":"merge_authors","source":"derived","reason":"most_works","payload":{"kind":"merge_authors","keep":{"oa_id":1},"drop":{"oa_id":2}}}"#,
+            r#"{"key":"3|merge_authors|1","orcid":"o","kind":"merge_authors","source":"derived","reason":"most_works","payload":{"kind":"merge_authors","keep":{"oa_id":1},"drop":{"oa_id":3}}}"#,
+            r#"{"key":"4|strip_orcid|","orcid":"o","kind":"strip_orcid","source":"derived","reason":"name_mismatch","payload":{"kind":"strip_orcid","author":{"oa_id":4}}}"#,
+            r#"{"key":"5|strip_orcid|","orcid":"o","kind":"strip_orcid","source":"derived","reason":"over_work_bound","payload":{"kind":"strip_orcid","author":{"oa_id":5}}}"#,
+        ] {
+            ul.apply_derived(line(l)).unwrap();
+        }
+        ul.derived_rows = Some(6);
+        // the user says 3 is not their record after all, and 4 is
+        ul.apply_event(line(
+            r#"{"key":"o|strip_orcid|x","orcid":"o","payload":{"kind":"strip_orcid","author":{"oa_id":3}}}"#,
+        ));
+        ul.apply_event(line(
+            r#"{"key":"o|merge_authors|y","orcid":"o","payload":{"kind":"merge_authors","keep":{"oa_id":1},"drop":{"oa_id":4}}}"#,
+        ));
+        ul.owner_pin_orcids.insert("o".into());
+        let refs = ul.referenced();
+        assert_eq!(refs.derived_rows, Some(6));
+        assert!(refs.orcids.contains("o"));
+        assert_eq!(refs.authors, [1, 2, 3, 4].into_iter().collect());
+        let ids = SnapshotIds {
+            orcid_carriers: carriers(&[("o", &[1, 2, 3, 4, 5])]),
+            authors: counts(&[1, 2, 3, 4]),
+            author_rows: 6,
+            ..Default::default()
+        };
+        let (resolved, outcomes) = ul.resolve(&ids).unwrap();
+        assert_eq!(
+            resolved.author_aliases,
+            [(2, 1), (4, 1)].into_iter().collect()
+        );
+        assert_eq!(resolved.stripped_orcids, [3, 5].into_iter().collect());
+        assert_eq!(resolved.author_counts, [(1, (3, 3))].into_iter().collect());
+        assert_eq!(outcomes.pins, [1].into_iter().collect());
+        assert_eq!(outcomes.applied.len(), 2);
+        assert!(outcomes.skipped.is_empty());
+    }
+
+    #[test]
+    fn a_derived_line_is_a_complete_merge_or_strip() {
+        let mut ul = UserLedger::default();
+        for l in [
+            r#"{"key":"k","orcid":"o","payload":{"kind":"merge_authors","keep":{"oa_id":1},"drop":{"oa_id":null}}}"#,
+            r#"{"key":"k","orcid":"o","payload":{"kind":"disown_paper","work":{"oa_id":1,"doi":null}}}"#,
+        ] {
+            assert!(ul.apply_derived(line(l)).is_err());
+        }
+        assert!(ul.author_fates.is_empty());
+    }
+
+    #[test]
+    fn an_orcid_on_two_authors_after_resolution_is_an_error() {
+        let mut ul = UserLedger::default();
+        ul.owner_pin_orcids.insert("o".into());
+        let ids = SnapshotIds {
+            orcid_carriers: carriers(&[("o", &[1, 2])]),
+            authors: counts(&[1, 2]),
+            author_rows: 2,
+            ..Default::default()
+        };
+        assert!(ul.resolve(&ids).is_err());
+        let mut ul = UserLedger::default();
+        ul.derived_rows = Some(3);
+        let ids = SnapshotIds {
+            author_rows: 2,
+            ..Default::default()
+        };
+        assert!(ul.resolve(&ids).is_err());
     }
 
     #[test]
