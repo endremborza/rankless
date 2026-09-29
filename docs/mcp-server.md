@@ -143,6 +143,15 @@ Parameters:
 `mcp_server/verify.py` re-issues the cited calls through `TOOL_FNS`, the same code the
 `verify_claims` tool runs for a live session.
 
+Findings list the pages they rest on (`entities`) and the share cards that show them
+(`images`). `uv run -m pyscripts.explore.posts <run-dir> [--context "..."]` turns a run's
+fully reproduced findings into an X thread, LinkedIn, Facebook and Reddit posts and an
+HTML-post draft (`posts.json`, `posts.md`), with no tools and no material but those
+findings; findings about gaps in rankless's own data stay out of the posts. Every number
+in the posts that no reproduced value accounts for (within the rounding it is written
+with, a percentage also read as a share) is listed for the reviewer, and X posts are
+measured with URLs counted as 23 characters.
+
 The mining engine is pluggable: `pyscripts/explore/runner.py` holds a `RUNNERS` registry
 (selected with `--runner`, default `claude-cli`), so the Claude Code CLI can be swapped for
 an SDK/API engine without touching the mining or reproduction logic.

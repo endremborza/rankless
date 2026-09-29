@@ -299,6 +299,13 @@ def _system_prompt(config: DeepConfig) -> str:
         "`topSubfields[0].citations`, `breakdown[1].children[2].citationLinks`, "
         "`papers[1].year`, `relations.paper-fields[1].score`.",
         "",
+        "Every number in a `description` (counts, shares, ranks, and the years of "
+        "papers or events) is one of that finding's `metrics`.",
+        "",
+        "Responses carry `rankless_url` (the page showing that data) and, where "
+        "there is one, `image_url` (its share card). List the pages a finding "
+        "rests on in `entities` and the cards that show it in `images`.",
+        "",
         "Produce findings for these foci ONLY:",
     ]
     for focus in config.foci:
@@ -335,6 +342,7 @@ Respond with ONLY a JSON object (no markdown fences):
     "question": "the exact question answered, or null",
     "ledger_suggestion": null | {{"kind": "...", "note": "...", "details": {{}}}},
     "entities": ["<rankless_url>", ...],
+    "images": ["<image_url>", ...],
     "metrics": [
       {{"key": "short_slug", "label": "human label of the number",
         "tool": "<tool name>", "args": {{...}}, "path": "<dotted path>",
