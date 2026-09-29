@@ -10,8 +10,8 @@ md5-checked), streams it once and writes into `orcid/`:
                           public email — the author email lane joins its ORCIDs to it
     summaries.stats.json  record and row counts of the pass
 
-Usage:
-    uv run -m pyscripts.orcid_summaries [--root DIR]
+Usage (make passes `.env`'s EXTERNAL_DATA_ROOT; --root overrides it):
+    make orcid_summaries
 """
 
 import argparse

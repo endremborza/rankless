@@ -7,7 +7,7 @@ repo's `data/external` (a dev box). A table the pipeline reads is required once 
 variable names the root and optional under the default, the rule
 `rankless_rs/src/derived_ledger.rs` applies to the same root. A download a box can
 fetch again from its URL sits in its source's `raw/`. The root syncs with
-`$EXTERNAL_DATA_REMOTE` (`host:/path`): `python -m pyscripts.external_data push|pull`,
+`$EXTERNAL_DATA_REMOTE` (`host:/path`): `make external-push|external-pull`,
 additive, never deleting on the far side, and never carrying a `raw/`: each box
 fetches its own downloads. Stdlib-only.
 """

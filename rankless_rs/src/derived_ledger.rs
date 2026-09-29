@@ -463,10 +463,7 @@ fn names_table_path() -> io::Result<Option<PathBuf>> {
         (false, false) => Ok(None),
         (false, true) => Err(io::Error::new(
             io::ErrorKind::NotFound,
-            format!(
-                "{} missing — run `uv run -m pyscripts.orcid_summaries`",
-                path.display()
-            ),
+            format!("{} missing — run `make orcid_summaries`", path.display()),
         )),
     }
 }

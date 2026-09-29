@@ -115,7 +115,7 @@ filter: export_user_ledger clean-filters clean-cache
 run-server:
 	cargo run --release -p rankless-server -- $(OA_ROOT) 
 
-extend_csvs lib_data_generation homepage_showcase live_monitoring reporting sitemap_validation survey_result_export export_user_ledger:
+extend_csvs orcid_summaries lib_data_generation homepage_showcase live_monitoring reporting sitemap_validation survey_result_export export_user_ledger:
 	uv run -m pyscripts.$@
 
 external-push external-pull:
