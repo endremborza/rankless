@@ -3,12 +3,12 @@
     "name": "Richard H. Thaler",
     "semanticId": "richard-h-thaler",
     "papers": 179,
-    "citations": 58802
+    "citations": 58805
   },
   "hitPapers": [
     {
       "year": 1985,
-      "citations": 3879,
+      "citations": 3880,
       "name": "Does the Stock Market Overreact?"
     },
     {
@@ -376,7 +376,7 @@
       {
         "name": "Werner F. M. De Bondt",
         "semanticId": "werner-f-m-de-bondt",
-        "score": 3532
+        "score": 3533
       },
       {
         "name": "Daniel J. Kahneman",
@@ -424,38 +424,38 @@
   },
   "peers": {
     "heroName": "Richard H. Thaler",
-    "peerName": "George F. Loewenstein",
+    "peerName": "Colin F. Camerer",
     "peerCountry": "United States",
     "subfields": [
       {
         "name": "Economics and Econometrics",
-        "hero": 26871,
-        "peer": 16096
+        "hero": 26873,
+        "peer": 12131
       },
       {
         "name": "Finance",
-        "hero": 15914,
-        "peer": 2723
+        "hero": 15917,
+        "peer": 2903
       },
       {
         "name": "General Decision Sciences",
         "hero": 15568,
-        "peer": 18366
+        "peer": 12631
       },
       {
         "name": "Accounting",
         "hero": 13667,
-        "peer": 4015
+        "peer": 3290
       },
       {
         "name": "Safety Research",
         "hero": 8381,
-        "peer": 9376
+        "peer": 14415
       },
       {
         "name": "Sociology and Political Science",
         "hero": 7670,
-        "peer": 15048
+        "peer": 12048
       }
     ],
     "yearFrom": 2016,
@@ -469,21 +469,21 @@
       2663,
       2376,
       2004,
-      1441,
+      1442,
       257
     ],
     "peerYearly": [
-      3585,
-      3576,
-      3888,
-      4188,
-      4369,
-      4472,
-      3836,
-      3430,
-      2905,
-      2323,
-      455
+      3116,
+      2962,
+      3170,
+      3098,
+      2972,
+      3236,
+      2599,
+      2358,
+      2048,
+      1419,
+      290
     ]
   }
 }
