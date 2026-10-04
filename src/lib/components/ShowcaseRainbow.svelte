@@ -4,6 +4,7 @@
 	import { formatNumber } from '$lib/text-format-util';
 	import { getColor } from '$lib/style-util';
 	import { htmlToText } from '$lib/utils/paper-helpers';
+	import { computeYearRates } from '$lib/utils/paper-rainbow';
 
 	export let papers: ShowcaseHitPaper[];
 
@@ -22,23 +23,12 @@
 	$: rootMax = Math.sqrt(Math.max(1, ...papers.map((p) => p.citations)));
 	// Color by publication-year rank (oldest→0, newest→1) through the site's getColor scale, exactly
 	// like the real PaperRainbow — so the miniature shares the site palette instead of a raw spectrum.
-	$: rates = yearRates(papers);
+	$: rates = computeYearRates(papers);
 	// Tallest in back, so smaller arcs stay readable in front.
 	$: ordered = papers.map((p, i) => ({ ...p, i })).sort((a, b) => b.citations - a.citations);
 
 	const xOf = (yr: number) => padL + ((yr - minYear) / span) * (W - padL - padR);
 	const topOf = (cit: number) => padT + (1 - Math.sqrt(cit) / rootMax) * (baseY - padT);
-
-	function yearRates(ps: ShowcaseHitPaper[]): number[] {
-		const n = ps.length;
-		if (n <= 1) return ps.map(() => 0.5);
-		const byYear = [...ps.keys()].sort((a, b) => ps[a].year - ps[b].year);
-		const out = new Array<number>(n);
-		byYear.forEach((idx, rank) => {
-			out[idx] = rank / (n - 1);
-		});
-		return out;
-	}
 
 	function arc(p: ShowcaseHitPaper): string {
 		const x0 = xOf(p.year);
