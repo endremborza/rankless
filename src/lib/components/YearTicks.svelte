@@ -2,6 +2,7 @@
 	import { LATEST_YEAR, FONT_SIZE_PX } from '$lib/constants';
 	import { getColor } from '$lib/style-util';
 	import { formatNumber, shortYear } from '$lib/text-format-util';
+	import { niceTicks, seriesYears, tickCount } from '$lib/utils/year-ticks';
 	import TickBars from './TickBars.svelte';
 
 	export let bottomStacks: number[];
@@ -19,22 +20,10 @@
 	const TEXT_PX = FONT_SIZE_PX * 0.82; // target rendered text size
 	const LABEL_EVERY = 2;
 
-	// Round gridline values strictly inside (0, max) so bars can be gauged against them.
-	function niceTicks(max: number, target = 3): number[] {
-		if (max <= 0) return [];
-		const raw = max / (target + 1);
-		const mag = Math.pow(10, Math.floor(Math.log10(raw)));
-		const norm = raw / mag;
-		const step = (norm >= 5 ? 10 : norm >= 2.5 ? 5 : norm >= 2 ? 2.5 : norm >= 1 ? 2 : 1) * mag;
-		const out: number[] = [];
-		for (let v = step; v < max; v += step) out.push(v);
-		return out;
-	}
-
 	let hover: number | null = null;
 
 	$: n = topStacks.length || 1;
-	$: years = Array.from({ length: n }, (_, i) => end - (n - 1) + i);
+	$: years = seriesYears(n, end);
 	$: topMax = Math.max(...topStacks, 1);
 	$: botMax = Math.max(...bottomStacks, 1);
 
@@ -56,7 +45,7 @@
 
 	// Show only as many gridlines as fit without their labels colliding (one half's pixel height).
 	$: halfPx = fullHeight > 0 && fullH > 0 ? BAR_H * (fullHeight / fullH) : 0;
-	$: maxLabels = Math.min(3, Math.max(1, Math.floor(halfPx / (TEXT_PX * 1.7))));
+	$: maxLabels = tickCount(halfPx, TEXT_PX);
 
 	$: aspect = fullHeight > 0 ? fullWidth / fullHeight : 2.5;
 	$: fullW = aspect * fullH;
