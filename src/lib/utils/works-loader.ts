@@ -2,14 +2,21 @@ import { writable, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import { BE_REMOTE_URL } from '$lib/constants';
 import type { Paper, EntityAttsForLinks, PaginatedPaperSetResp } from '$lib/tree-types';
+import { encodeSemanticId } from '$lib/tree-functions';
 import { mergeEntityAtts } from '$lib/utils/paper-helpers';
 import { createStaleGuard, type IsCurrent } from '$lib/utils/stale-guard';
 
 const INITIAL_PAGE_SIZE = 20;
-const MORE_PAGE_SIZE = 200;
+export const WORKS_PAGE_SIZE = 200;
 // Pages arrive ranked by citation count so the first screen is the entity's most-cited works and
 // every appended page stays contiguous in that order (the backend re-sorts deterministically).
 const WORKS_SORT = 'citations';
+
+export type Works = {
+	papers: Paper[];
+	entityAtts: EntityAttsForLinks;
+	discAuthorNames: Record<string, string>;
+};
 
 export type WorksState = {
 	semanticId: string;
@@ -48,6 +55,20 @@ function emptyState(semanticId: string): WorksState {
 	};
 }
 
+// `n` of an author's works from rank `from` on.
+export function worksPageUrl(base: string, semanticId: string, from: number, n: number): string {
+	return `${base}/works/authors/${encodeSemanticId(semanticId)}/${from}?n=${n}&sort=${WORKS_SORT}`;
+}
+
+// Pages of works as one set, in the order given.
+export function mergeWorks(...pages: Works[]): Works {
+	return {
+		papers: pages.flatMap((p) => p.papers),
+		entityAtts: mergeEntityAtts(...pages.map((p) => p.entityAtts)),
+		discAuthorNames: Object.assign({}, ...pages.map((p) => p.discAuthorNames))
+	};
+}
+
 function reachedEnd(sliceEnd: number, totalPapers: number): boolean {
 	return totalPapers > 0 ? sliceEnd >= totalPapers : true;
 }
@@ -66,9 +87,7 @@ export function createWorksLoader() {
 		store.update((s) => ({ ...s, loading: true }));
 		let data: PaginatedPaperSetResp;
 		try {
-			const resp = await fetch(
-				`${BE_REMOTE_URL}/works/authors/${semanticId}/${from}?n=${pageSize}&sort=${WORKS_SORT}`
-			);
+			const resp = await fetch(worksPageUrl(BE_REMOTE_URL, semanticId, from, pageSize));
 			data = await resp.json();
 		} catch (e) {
 			if (stillCurrent()) store.update((s) => ({ ...s, loading: false }));
@@ -79,9 +98,7 @@ export function createWorksLoader() {
 			const sliceEnd = data.sliceStart + data.resp.papers.length;
 			return {
 				...s,
-				papers: [...s.papers, ...data.resp.papers],
-				entityAtts: mergeEntityAtts(s.entityAtts, data.resp.entityAtts),
-				discAuthorNames: { ...s.discAuthorNames, ...data.resp.discAuthorNames },
+				...mergeWorks(s, data.resp),
 				sliceEnd,
 				totalPapers: data.totalPapers,
 				loading: false,
@@ -117,7 +134,7 @@ export function createWorksLoader() {
 	async function loadMore() {
 		const s = get(store);
 		if (!s.loading && s.sliceEnd < s.totalPapers) {
-			await fetchPage(s.sliceEnd, MORE_PAGE_SIZE, s.semanticId);
+			await fetchPage(s.sliceEnd, WORKS_PAGE_SIZE, s.semanticId);
 		}
 	}
 
@@ -129,7 +146,7 @@ export function createWorksLoader() {
 			while (stillCurrent()) {
 				const s = get(store);
 				if (s.sliceEnd >= s.totalPapers) break;
-				await fetchPage(s.sliceEnd, MORE_PAGE_SIZE, s.semanticId);
+				await fetchPage(s.sliceEnd, WORKS_PAGE_SIZE, s.semanticId);
 			}
 		} finally {
 			if (stillCurrent()) store.update((s) => ({ ...s, loadingAll: false }));
