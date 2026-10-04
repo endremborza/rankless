@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { MAX_LEVEL_COUNT } from '$lib/constants';
+	import { CHAR_W, MONO } from '$lib/utils/cards';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 	import BrokenFittedText from './BrokenFittedText.svelte';
@@ -35,9 +36,10 @@
 	export let viewBox = `${x} ${y} ${width} ${height}`;
 	export let showText = true;
 
-	//raw svg can't have monospace text
+	// Text is fitted by character count in the monospace face the standalone SVG names.
 	export let heightMultiplier: number = 1.5;
-	export let widthMultiplier: number = 0.75;
+	export let widthMultiplier: number = CHAR_W.mono;
+	export let minLabelScale = 0;
 
 	let levelOutSpecs: tt.LevelOutSpec[] = tf.getDefaultLevelSpecs();
 	let visibleTreeInfo = tf.deriveVisibleTree(
@@ -68,19 +70,13 @@
 	$: updateLevelSpecs(visibleTreeInfo, height * 0.75);
 
 	let branchReachBack = (height * headerRate) / 10;
-	let treeD2Offset = 10;
-	let treeD2 = width * 0.8;
+	export let treeD2Offset = 10;
+	export let treeD2 = width * 0.8;
 
 	// on:ti={handleInteraction}
 </script>
 
-<svg {viewBox} xmlns="http://www.w3.org/2000/svg">
-	<style>
-		text {
-			font-family: 'Courier New', monospace;
-			font-size: 12px;
-		}
-	</style>
+<svg {viewBox} xmlns="http://www.w3.org/2000/svg" font-family={MONO} font-size="10">
 	<QuercusBranches
 		{branchReachBack}
 		{d2Offset}
@@ -94,6 +90,7 @@
 		{heightMultiplier}
 		{widthMultiplier}
 		{showText}
+		{minLabelScale}
 		childBaseSize={minimumChildWidth}
 	/>
 	{#if showText}

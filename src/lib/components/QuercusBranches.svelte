@@ -30,6 +30,7 @@
 	export let showText = true;
 	export let heightMultiplier: number = 1.2;
 	export let widthMultiplier: number = 0.6;
+	export let minLabelScale = 0;
 
 	export let hoverDelay: number = 800;
 
@@ -201,7 +202,13 @@
 	/>
 
 	{#if showText}
-		<BrokenFittedText text={childNode.name} {...textShape} {heightMultiplier} {widthMultiplier} />
+		<BrokenFittedText
+			text={childNode.name}
+			{...textShape}
+			{heightMultiplier}
+			{widthMultiplier}
+			minScale={minLabelScale}
+		/>
 	{/if}
 
 	<rect
@@ -228,6 +235,7 @@
 			{heightMultiplier}
 			{widthMultiplier}
 			{showText}
+			{minLabelScale}
 			{hoverDelay}
 			parentSideMargin={0}
 			on:ti

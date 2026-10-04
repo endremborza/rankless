@@ -15,6 +15,8 @@
 	//default for monospace
 	export let heightMultiplier: number = 1.2;
 	export let widthMultiplier: number = 0.6;
+	// Below this scale of the base font the text is left out rather than drawn unreadably small.
+	export let minScale = 0;
 
 	const baseFontSize = 10;
 
@@ -36,12 +38,14 @@
 </script>
 
 <g style="{gstyle}; transition: all {transMs}ms" transition:fade={{ duration: fadeMs }}>
-	{#each words as word, wordInd (wordInd)}
-		<text
-			style=" transform: {styles.translates[wordInd]}; transition: all {transMs}ms"
-			text-anchor="left">{word}</text
-		>
-	{/each}
+	{#if styles.scale >= minScale}
+		{#each words as word, wordInd (wordInd)}
+			<text
+				style=" transform: {styles.translates[wordInd]}; transition: all {transMs}ms"
+				text-anchor="left">{word}</text
+			>
+		{/each}
+	{/if}
 </g>
 
 <style>
