@@ -35,7 +35,6 @@
 		treeSpecs: tt.TreeSpecs;
 		tree: tt.ResponseNode;
 		atts: tt.AttributeLabels;
-		svgLink: string;
 		pngLink: string;
 		shallowed: boolean;
 		aboutParagraph: tt.AboutPara;

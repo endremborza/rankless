@@ -1,0 +1,89 @@
+{
+	"tree": {
+		"types": ["authors", "institutions", "sources", "countries", "subfields", "hit-papers"],
+		"params": {
+			"tree": { "is": "1-based breakdown index" },
+			"since": { "is": "year" },
+			"paths": {
+				"is": "level-1 node ids joined by `l`, opened and highlighted; one the breakdown lacks is ignored, as on the page"
+			},
+			"isSpec": { "is": "0/1: bands sized by specialization instead of citation count" }
+		}
+	},
+	"yearly": {
+		"types": ["authors", "institutions", "sources", "countries", "subfields", "hit-papers"],
+		"params": {
+			"from": { "is": "first year" },
+			"to": { "is": "last year" },
+			"hl": { "is": "years, highlighted" },
+			"papers": { "is": "0/1: the papers series" }
+		}
+	},
+	"map": {
+		"types": ["authors", "institutions", "sources", "countries", "subfields", "hit-papers"],
+		"params": {
+			"tree": { "is": "1-based index of a breakdown with countries at level 1" },
+			"since": { "is": "year" },
+			"isSpec": { "is": "0/1: shaded by specialization instead of citations", "default": 0 },
+			"hl": { "is": "level-1 country node ids, highlighted and labelled", "max": 5 }
+		}
+	},
+	"fields": {
+		"types": ["authors", "institutions", "sources", "countries", "subfields", "hit-papers"],
+		"params": {
+			"tree": { "is": "1-based index of a breakdown with fields at level 1" },
+			"since": { "is": "year" },
+			"isSpec": { "is": "0/1: sized by specialization instead of citations" },
+			"hl": { "is": "level-1 field node ids, highlighted and labelled", "max": 5 }
+		}
+	},
+	"timeline": {
+		"types": ["authors"],
+		"params": {
+			"with": { "is": "co-author semantic ids, always shown and highlighted", "max": 16 },
+			"min": { "is": "shared papers a row needs", "default": 2 },
+			"sort": { "is": "row order", "options": ["first", "recent", "count"], "default": "first" },
+			"n": { "is": "rows", "default": 12, "max": 16 }
+		}
+	},
+	"network": {
+		"types": ["authors"],
+		"params": {
+			"with": { "is": "co-author semantic ids among the nodes, highlighted with their ties" },
+			"n": { "is": "nodes", "default": 25, "max": 25 }
+		}
+	},
+	"papers": {
+		"types": ["authors"],
+		"params": {
+			"n": { "is": "hit papers drawn", "default": 10, "max": 20 },
+			"sort": { "is": "order", "options": ["citations", "score", "year"], "default": "year" },
+			"hl": { "is": "one hit paper's semantic id, highlighted", "max": 1 }
+		}
+	},
+	"impact": {
+		"types": ["authors"],
+		"params": {
+			"hits": { "is": "citing hit papers' semantic ids", "max": 3 }
+		}
+	},
+	"peers": {
+		"types": ["authors", "institutions", "sources", "countries"],
+		"params": {
+			"hl": { "is": "the peer's semantic id", "max": 1 },
+			"n": { "is": "fields", "default": 5, "max": 8 }
+		}
+	},
+	"table": {
+		"types": ["authors", "institutions", "sources", "countries", "subfields"],
+		"params": {
+			"sort": { "is": "the ranking call, as rank_entities takes it" },
+			"where": { "is": "the narrowing expression, as rank_entities takes it" },
+			"from": { "is": "ranks skipped before the first row", "default": 0 },
+			"pin": { "is": "semantic ids shown on top, the card's own entity among them", "max": 4 },
+			"hl": { "is": "semantic ids among the rows, highlighted", "max": 14 },
+			"cols": { "is": "numeric metric calls added as columns", "max": 4 },
+			"n": { "is": "ranked rows", "default": 10, "max": 14 }
+		}
+	}
+}

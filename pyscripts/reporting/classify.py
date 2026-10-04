@@ -145,7 +145,7 @@ ROUTE_HTML_PAGES = {
     "/login",
     "/survey",
 }
-ROUTE_BROWSER_ASSETS = {"/tiles/{...}", "/pic/{...}", "/pathlogo/{...}", "/_app/{...}"}
+ROUTE_BROWSER_ASSETS = {"/tiles/{...}", "/card/{...}", "/pathlogo/{...}", "/_app/{...}"}
 ROUTE_HARD_BOT = {"/robots.txt", "/sitemap*.xml"}
 ROUTE_SVELTEKIT_DATA = {
     "/__data.json",

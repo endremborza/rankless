@@ -38,7 +38,7 @@ def test_ledger_api():
 
 def test_assetlike():
     assert template("/tiles/foo/bar/baz.png") == "/tiles/{...}"
-    assert template("/pic/abc/def") == "/pic/{...}"
+    assert template("/card/abc/def") == "/card/{...}"
     assert template("/pathlogo/x") == "/pathlogo/{...}"
 
 

@@ -12,7 +12,7 @@ export function pluralize(word: string, num: number, maxFix = 2) {
 }
 
 // "a, b or c" — for a served list that prose has to read out rather than name.
-function listPhrase(items: string[], conjunction = 'or'): string {
+export function listPhrase(items: string[], conjunction = 'or'): string {
 	if (items.length === 0) return '';
 	if (items.length === 1) return items[0];
 	return `${items.slice(0, -1).join(', ')} ${conjunction} ${items[items.length - 1]}`;

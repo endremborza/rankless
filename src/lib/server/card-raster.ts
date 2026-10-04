@@ -3,12 +3,10 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { CARD_H, CARD_W } from '$lib/utils/cards';
 
-// Social platforms (X, LinkedIn, Facebook, Slack, …) don't render SVG OG images, so the breakdown
-// card is rasterized to a 1200×630 PNG. The breakdown SVG's intrinsic aspect (~1.9:1) matches the
-// card, so stretching to these exact dimensions introduces no visible distortion.
-export const CARD_W = 1200;
-export const CARD_H = 630;
+// Social platforms (X, LinkedIn, Facebook, Slack, …) don't render SVG OG images, so every card is
+// rasterized to a 1200×630 PNG.
 
 // Rendering on every crawler hit spawns a process; a best-effort disk cache keyed by entity+params
 // amortizes that for widely-shared cards. process.env (not $env) keeps this module free of

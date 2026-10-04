@@ -43,7 +43,7 @@ _RAW_RULES: list[tuple[str, str]] = [
     (r"^/api/survey$", "/api/survey"),
     # Asset-ish frontend routes
     (r"^/tiles/.+$", "/tiles/{...}"),
-    (r"^/pic/.+$", "/pic/{...}"),
+    (r"^/card/.+$", "/card/{...}"),
     (r"^/img/.+$", "/img/{...}"),
     (r"^/pathlogo/.+$", "/pathlogo/{...}"),
     (r"^/oa-id/.+$", "/oa-id/{...}"),

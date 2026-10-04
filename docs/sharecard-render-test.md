@@ -4,17 +4,13 @@ Goal: verify whether a Rankless entity page produces a working social **share ca
 this is automated by **`pyscripts/sharecard_test.py`**; the small residual that can't be — a human
 confirming a real platform renders the image — is at the end.
 
-## Background — current wiring
+## Background — the wiring
 
-- `src/routes/(stat)/[rootType]/[...semanticId]/+page.svelte` emits `og:image` = `data.svgLink`,
-  `twitter:card` = `summary`, `og:title`, `twitter:creator=@LearningCCL`, `description`.
-- `data.svgLink` (`…/+page.server.ts`) = absolute URL of `/pic/{rootType}/{…}/breakdown.svg`.
-- that route (`…/breakdown.svg/+server.ts`) serves **`Content-Type: image/svg+xml`**.
+- `src/routes/(stat)/[rootType]/[...semanticId]/+page.svelte` emits `og:image` and `twitter:image` = `data.pngLink`, `twitter:card` = `summary_large_image`, `og:title`, `twitter:creator=@LearningCCL`, `description`.
+- `data.pngLink` (`…/+page.server.ts`) = absolute URL of `/card/{rootType}/{…}/tree.png`.
+- that route serves **`Content-Type: image/png`**.
 
-**Hypothesis:** X, LinkedIn, Facebook, Slack, Discord, WhatsApp, iMessage **do not render SVG OG
-images** (they require PNG/JPEG), so the card is blank everywhere. Secondary: `summary` yields a
-tiny thumbnail even with a valid raster. Crawlers can't reach `localhost`, so all tests run against
-a **public URL** (the live site, or a tunnel: `cloudflared tunnel --url http://localhost:5173`).
+X, LinkedIn, Facebook, Slack, Discord, WhatsApp, iMessage **do not render SVG OG images** (they require PNG/JPEG), and `summary` yields a tiny thumbnail even with a valid raster, which is why the card is a PNG under `summary_large_image`. Crawlers can't reach `localhost`, so all tests run against a **public URL** (the live site, or a tunnel: `cloudflared tunnel --url http://localhost:5173`).
 
 ## Automated — `pyscripts/sharecard_test.py`
 
@@ -40,27 +36,13 @@ FAIL**, so it doubles as a pre-launch gate / CI check.
 **Flags:**
 
 - `--rasterize [--out card.png] [--width --height]` — fetches the `og:image` and, if it's SVG,
-  converts it to a 1200×630 PNG via `rsvg-convert` (same path as `pyscripts/svg_export.py`). Host
+  converts it to a 1200×630 PNG via `rsvg-convert`. Host
   that PNG and you can prove a raster card _does_ render. Needs `rsvg-convert`
   (`brew install librsvg` / `apt-get install librsvg2-bin`).
 - `--fb-token <token>` — runs the **live Facebook scrape** (`graph.facebook.com/?id=…&scrape=true`)
   and prints what their crawler resolves.
 
-Pre-fix output against production (the hypothesis the fix addresses):
-
-```
-✓ PASS  og:image present: …/pic/institutions/<slug>/breakdown.svg
-✓ PASS  og:image fetchable: 15 KiB in 0.16s
-✗ FAIL  og:image is raster: image/svg+xml — SVG is NOT rendered by X/LinkedIn/Facebook/Slack…
-! WARN  twitter:card: summary → small square; use summary_large_image for a banner
-! WARN  dimensions ~1200x630: 190x100
-✓ PASS  size < 5 MiB: 0.01 MiB
-✓ PASS  loads < 2s: 0.16s
-! WARN  recommended tags: missing: og:image:width, …, twitter:image
-```
-
-The fix below ships in the code; this run should exit 0 against a deploy that has it (the deploy host
-needs `librsvg2-bin`). Re-run after deploying and do the manual residual once.
+The run exits 0 against a deploy (the deploy host needs `librsvg2-bin`). Re-run after deploying and do the manual residual once.
 
 ## Manual residual (can't be automated)
 
@@ -73,38 +55,13 @@ needs `librsvg2-bin`). Re-run after deploying and do the manual residual once.
 3. **Cache busting after a fix.** LinkedIn Post Inspector "Inspect" again; FB Sharing Debugger
    "Scrape Again" — both cache hard and will keep showing the old blank card otherwise.
 4. **Legibility at thumbnail size.** Shrink the rendered card to ~30% and confirm the entity
-   **name**, one **headline number**, the **Rankless** wordmark, and `rankless.org` are all readable
+   **name**, the **caption**, the **Rankless** wordmark, and `rankless.org` are all readable
    — not a dense breakdown tree shrunk to mush.
 
-## The fix (as built)
+## The card (as built)
 
-Implemented as a sibling **`/pic/{rootType}/{…}/breakdown.png`** route:
+The entity page's `og:image`/`twitter:image` point at **`/card/{rootType}/{…}/tree.png`** (with the page's `?tree=&since=&paths=` view state), `twitter:card=summary_large_image`, and the `og:url`/`og:description`/`og:type`/`og:site_name` + `og:image:width/height/type` + `twitter:title/description` tags are set. The route is one of the share-card family described in `architecture.md` (`lib/server/cards/`): the kind's loader turns the URL's variant parameters into backend calls (a malformed parameter, an unknown root type or a backend failure is a clean **404, never a 500**, since crawlers hit stale and garbage URLs), `CardFrame.svelte` wraps the kind's pure-SVG component, `svelte/server` renders it, and `lib/server/card-raster.ts` shells `rsvg-convert` to a 1200×630 PNG (no npm dep) behind a best-effort disk cache (`CARD_CACHE_DIR`, default `$TMPDIR/rankless-cards`) so a widely shared card is not re-rendered per crawler hit.
 
-- `lib/server/share-card.ts` — `buildBreakdownSvg` (the SVG build, factored out of `breakdown.svg`
-  so both endpoints share one path) + `getBreakdownPng` (cache → build → rasterize).
-- `lib/server/card-raster.ts` — `rasterizeSvg` shells `rsvg-convert` to a 1200×630 PNG (same tool as
-  `pyscripts/svg_export.py`, no new npm dep) + a best-effort disk cache (`CARD_CACHE_DIR`, default
-  `$TMPDIR/rankless-cards`) so a widely-shared card isn't re-rendered per crawler hit. A cache
-  read/write failure never breaks serving; an arbitrary entity's card renders on first hit.
-- The entity-page `<svelte:head>` points `og:image`/`twitter:image` at the `.png`, sets
-  `twitter:card=summary_large_image`, and adds `og:url`/`og:description`/`og:type`/`og:site_name` +
-  `og:image:width/height/type` + `twitter:title/description`.
-- `buildBreakdownSvg` turns every failure into a clean **404, never a 500**: unknown root type (a bot
-  hitting `/pic/<garbage>/…` would otherwise index `undefined` in `parseLinkWithParams`), a non-OK
-  backend response, or a malformed/missing entity. Both endpoints inherit this via the shared helper.
+Every card, the homepage one included (`HomeCard.svelte` → `card/home.png`), is typeset in the brand faces — **Hedvig Letters Serif**, **Hedvig Letters Sans**, **Space Mono** (`lib/utils/cards.ts` names them with their generic fallbacks). `rsvg-convert` resolves fonts via **fontconfig, not browser web-fonts**, so the faces are vendored in `static/fonts/` (OFL) and `deploy.py` `install_fonts()` copies them into the runner's user font dir + `fc-cache` on every FE deploy. Two rasterizer facts shape every card component: it does not resolve CSS `var()` (a colour through a variable renders black), and a component `<style>` never reaches the server-rendered markup, so cards carry literal colours and inlined face attributes and estimate text widths from character counts.
 
-The homepage card (`HomeCard.svelte` → `pic/home.png`) is typeset in the revamp brand faces —
-**Hedvig Letters Serif** (wordmark), **Hedvig Letters Sans** (tagline), **Space Mono** (live `/counts`
-figures + URL). Because `rsvg-convert` resolves fonts via **fontconfig, not browser web-fonts**, the
-faces are vendored in `static/fonts/` (OFL) and `deploy.py` `install_fonts()` copies them into the
-runner's user font dir + `fc-cache` on every FE deploy; each `font-family` lists a generic fallback so a
-missing face degrades gracefully. (The entity breakdown card via `TreeSvg` is not yet aligned — that
-follows the broader app typography revamp.)
-
-`rasterizeSvg` + cache are unit-tested in `card-raster.test.ts` (PNG magic + 1200×630 dims, no
-backend). **Deploy dependency:** `rsvg-convert` (`librsvg2-bin`) + `fontconfig` are in `pyscripts/deploy.py` `APTS`
-(baked into fresh images); for the already-running box run `deploy.install_apts_live()` once. **Gate
-after deploy:** `sharecard_test.py` exits 0 + manual residual.
-
-If the full breakdown tree is too busy at card size (it renders at ~190×100 today), the follow-up is a
-purpose-built card layout rendered through the same SVG→PNG path.
+`rasterizeSvg` + cache are unit-tested in `card-raster.test.ts` (PNG magic + 1200×630 dims, no backend). **Deploy dependency:** `rsvg-convert` (`librsvg2-bin`) + `fontconfig` are in `pyscripts/deploy.py` `APTS`. **Gate after deploy:** `sharecard_test.py` exits 0 + manual residual.

@@ -218,7 +218,7 @@
 	const metaDescription =
 		'Explore academic impact beyond rankings. Rankless offers a fresh perspective on how universities influence each geography and topic, emphasizing diverse forms of impact and providing a richer understanding of academic influence.';
 	const ogTitle = `${APP_NAME} — ${BRAND_TAGLINE}`;
-	const ogImage = getExternalUrl('/pic/home.png');
+	const ogImage = getExternalUrl('/card/home.png');
 	const ogUrl = getExternalUrl('');
 
 	export let data;

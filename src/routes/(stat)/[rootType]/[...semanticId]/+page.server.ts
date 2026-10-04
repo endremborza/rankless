@@ -44,10 +44,10 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch, parent 
 
 	const cardQuery = url.searchParams.toString();
 	const cardSuffix = cardQuery.length > 0 ? `?${cardQuery}` : '';
-	const cardBase = `/pic/${rootType}/${semanticId}/breakdown`;
-	const svgLink = getExternalUrl(`${cardBase}.svg${cardSuffix}`);
 	// Social crawlers don't render SVG OG images, so the share card points at the rasterized PNG.
-	const pngLink = getExternalUrl(`${cardBase}.png${cardSuffix}`);
+	const pngLink = getExternalUrl(
+		`/card${tf.getEntityPath(rootType, semanticId)}/tree.png${cardSuffix}`
+	);
 
 	const paperText = pluralize('paper', view.papers);
 	const citeText = pluralize('indexed citation', view.citations);
@@ -195,7 +195,6 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch, parent 
 			selectionState: spec.selectionState,
 			tree,
 			atts,
-			svgLink,
 			pngLink,
 			shallowed,
 			aboutParagraph,
