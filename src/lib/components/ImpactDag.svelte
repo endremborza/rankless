@@ -3,7 +3,7 @@
 	import type { RefTree, Paper, EntityAttsForLinks } from '$lib/tree-types';
 	import { isAuthored } from '$lib/utils/paper-helpers';
 	import { computeSeen, buildSubgraphs, classifyComponentLayers } from '$lib/utils/dag-builder';
-	import { computeImpactSummary } from '$lib/utils/impact-summary';
+	import { computeImpactSummary, nobelPhrase, prestigiousPhrase } from '$lib/utils/impact-summary';
 	import { pluralize } from '$lib/text-format-util';
 	import DagChip from './DagChip.svelte';
 
@@ -26,8 +26,6 @@
 		}
 		return undefined;
 	})();
-
-	$: pageAuthorIsNobel = pageAuthorDmId != null && (authorsMeta[pageAuthorDmId]?.prize ?? 0) > 0;
 
 	$: seen = computeSeen(dag);
 	$: components = buildSubgraphs(seen, paperMap);
@@ -229,11 +227,11 @@
 	{#if summary.nobelCount > 0 || summary.prestigiousCount > 0 || summary.hitCount > 0}
 		<div class="summary-labels">
 			{#if summary.nobelCount > 0}
-				<span class="summary-badge hl-nobel">{summary.nobelCount} by Nobel laureates</span>
+				<span class="summary-badge hl-nobel">{nobelPhrase(summary.nobelCount)}</span>
 			{/if}
 			{#if summary.prestigiousCount > 0}
 				<span class="summary-badge hl-prestigious"
-					>{summary.prestigiousCount} from Science/Nature</span
+					>{prestigiousPhrase(summary.prestigiousCount)}</span
 				>
 			{/if}
 			{#if summary.hitCount > 0}
@@ -281,7 +279,6 @@
 							{discAuthorNames}
 							{authorsMeta}
 							{pageAuthorDmId}
-							{pageAuthorIsNobel}
 							isHovered={hovered === wid}
 							isRelated={relatedSet.has(wid)}
 							dimmed={hovered != undefined && hovered !== wid && !relatedSet.has(wid)}
@@ -343,7 +340,6 @@
 								{discAuthorNames}
 								{authorsMeta}
 								{pageAuthorDmId}
-								{pageAuthorIsNobel}
 								isHovered={hovered === wid}
 								isRelated={relatedSet.has(wid)}
 								dimmed={hovered != undefined && hovered !== wid && !relatedSet.has(wid)}
@@ -387,7 +383,6 @@
 							{discAuthorNames}
 							{authorsMeta}
 							{pageAuthorDmId}
-							{pageAuthorIsNobel}
 							isHovered={hovered === wid}
 							isRelated={relatedSet.has(wid)}
 							dimmed={hovered != undefined && hovered !== wid && !relatedSet.has(wid)}

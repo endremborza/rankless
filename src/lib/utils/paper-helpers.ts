@@ -1,4 +1,10 @@
-import type { Paper, PaperAuthorship, EntityAttsForLinks, OaPaperResp } from '$lib/tree-types';
+import type {
+	AuthorMeta,
+	Paper,
+	PaperAuthorship,
+	EntityAttsForLinks,
+	OaPaperResp
+} from '$lib/tree-types';
 import { fixName } from '$lib/name-overrides';
 
 export const PRESTIGIOUS_SOURCE_SEM_IDS = new Set(['science', 'nature']);
@@ -111,9 +117,21 @@ export async function fetchOaAbstract(semanticId: string): Promise<string | null
 }
 
 export type PaperHighlight = {
-	key: string; // 'authored' | 'hit' | 'prestigious'
+	key: string; // 'authored' | 'hit' | 'prestigious' | 'nobel'
 	label?: string; // for prestigious: actual source name
 };
+
+const HIGHLIGHT_LABELS: Record<string, string> = {
+	hit: 'Hit',
+	prestigious: 'Prestigious',
+	nobel: 'Nobel'
+};
+
+// A highlight's badge text; a prestigious journal is named.
+export function highlightLabel(hl: PaperHighlight): string {
+	if (hl.key === 'prestigious' && hl.label) return hl.label;
+	return HIGHLIGHT_LABELS[hl.key] ?? hl.key;
+}
 
 // Backend sentinel for a discarded author whose OpenAlex display_name is missing.
 const DISC_NAME_SENTINEL = 'Unknown';
@@ -209,6 +227,18 @@ export function isAuthored(
 	return paper.authorships.some((s) => {
 		if (s.author[0] !== 'F') return false;
 		return entityAtts.authors?.[s.author.slice(1)]?.semantic_id === authorSemId;
+	});
+}
+
+// A laureate among the paper's authors other than `exceptDmId` (the page's own author).
+export function hasNobelCoauthor(
+	paper: Paper,
+	authorsMeta: Record<string, AuthorMeta>,
+	exceptDmId?: string
+): boolean {
+	return paper.authorships.some((s) => {
+		const dmId = s.author.slice(1);
+		return s.author[0] === 'F' && dmId !== exceptDmId && (authorsMeta[dmId]?.prize ?? 0) > 0;
 	});
 }
 

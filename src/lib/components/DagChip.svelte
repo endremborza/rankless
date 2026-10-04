@@ -3,7 +3,8 @@
 	import {
 		resolveSourceName,
 		getPaperHighlights,
-		type PaperHighlight
+		hasNobelCoauthor,
+		highlightLabel
 	} from '$lib/utils/paper-helpers';
 	import { createEventDispatcher } from 'svelte';
 	import AuthorList from './AuthorList.svelte';
@@ -14,7 +15,6 @@
 	export let discAuthorNames: Record<string, string>;
 	export let authorsMeta: Record<string, { prize: number; year: number }> = {};
 	export let pageAuthorDmId: string | undefined = undefined;
-	export let pageAuthorIsNobel = false;
 	export let isHovered = false;
 	export let isRelated = false;
 	export let dimmed = false;
@@ -26,36 +26,21 @@
 		leave: void;
 	}>();
 
-	const HIGHLIGHT_DEFS: Record<string, { label: string; cls: string }> = {
-		hit: { label: 'Hit', cls: 'hl-hit' },
-		prestigious: { label: 'Prestigious', cls: 'hl-prestigious' },
-		nobel: { label: 'Nobel', cls: 'hl-nobel' }
+	const BADGE_CLASS: Record<string, string> = {
+		hit: 'hl-hit',
+		prestigious: 'hl-prestigious',
+		nobel: 'hl-nobel'
 	};
-
-	function badgeLabel(hl: PaperHighlight): string {
-		if (hl.key === 'prestigious' && hl.label) return hl.label;
-		return HIGHLIGHT_DEFS[hl.key]?.label ?? hl.key;
-	}
 
 	function chipMaxW(): number {
 		const len = paper?.name?.length ?? 50;
 		return Math.min(380, Math.max(200, 150 + Math.round(len * 2)));
 	}
 
-	function hasNobelCoauthor(p: Paper): boolean {
-		for (const ship of p.authorships) {
-			if (ship.author[0] !== 'F') continue;
-			const dmId = ship.author.slice(1);
-			if (pageAuthorIsNobel && dmId === pageAuthorDmId) continue;
-			if ((authorsMeta[dmId]?.prize ?? 0) > 0) return true;
-		}
-		return false;
-	}
-
 	$: highlights = (() => {
 		if (!paper) return [];
 		const hl = getPaperHighlights(paper, undefined, entityAtts);
-		if (hasNobelCoauthor(paper)) hl.push({ key: 'nobel' });
+		if (hasNobelCoauthor(paper, authorsMeta, pageAuthorDmId)) hl.push({ key: 'nobel' });
 		return hl;
 	})();
 </script>
@@ -85,8 +70,8 @@
 	<div class="chip-sub">
 		<span>{paper?.year}</span>
 		{#each highlights as hl, __i (__i)}
-			{#if HIGHLIGHT_DEFS[hl.key]}
-				<span class="badge {HIGHLIGHT_DEFS[hl.key].cls}">{badgeLabel(hl)}</span>
+			{#if BADGE_CLASS[hl.key]}
+				<span class="badge {BADGE_CLASS[hl.key]}">{highlightLabel(hl)}</span>
 			{/if}
 		{/each}
 	</div>

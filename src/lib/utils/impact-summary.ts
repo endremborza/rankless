@@ -1,5 +1,5 @@
 import type { Paper, EntityAttsForLinks, AuthorMeta } from '$lib/tree-types';
-import { PRESTIGIOUS_SOURCE_SEM_IDS } from '$lib/utils/paper-helpers';
+import { hasNobelCoauthor, PRESTIGIOUS_SOURCE_SEM_IDS } from '$lib/utils/paper-helpers';
 
 export type ImpactSummary = {
 	nobelCount: number;
@@ -28,15 +28,16 @@ export function computeImpactSummary(
 			prestigiousCount++;
 		}
 
-		for (const ship of paper.authorships) {
-			if (ship.author[0] !== 'F') continue;
-			const dmId = ship.author.slice(1);
-			if ((authorsMeta[dmId]?.prize ?? 0) > 0) {
-				nobelCount++;
-				break;
-			}
-		}
+		if (hasNobelCoauthor(paper, authorsMeta)) nobelCount++;
 	}
 
 	return { nobelCount, prestigiousCount, hitCount };
+}
+
+export function nobelPhrase(count: number): string {
+	return `${count} by Nobel laureates`;
+}
+
+export function prestigiousPhrase(count: number): string {
+	return `${count} from Science/Nature`;
 }
