@@ -302,8 +302,12 @@ def _system_prompt(config: DeepConfig) -> str:
         "papers or events) is one of that finding's `metrics`.",
         "",
         "Responses carry `rankless_url` (the page showing that data) and, where "
-        "there is one, `image_url` (its share card). List the pages a finding "
-        "rests on in `entities` and the cards that show it in `images`.",
+        "there is one, `image_url` (its share card); a profile's `cards` lists "
+        "the further card kinds it proves, and make_card renders a variant (a "
+        "highlighted country or field, an opened branch, a pinned peer, a "
+        "filtered table) when a finding is about one part of a picture. List "
+        "the pages a finding rests on in `entities` and the cards that show it "
+        "in `images`, preferring a card made for the finding over a default one.",
         "",
         "Produce findings for these foci ONLY:",
     ]

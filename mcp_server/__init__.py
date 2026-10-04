@@ -28,7 +28,12 @@ def resolve_backend(arg: str) -> tuple[str, str]:
     raise SystemExit(f"backend must be one of {list(BACKENDS)} or an http(s) URL.")
 
 
-SITE_URL = os.environ.get("RANKLESS_SITE_URL", "https://rankless.org")
+SITE_VAR = "RANKLESS_SITE_URL"
+RENDER_VAR = "RANKLESS_RENDER_URL"
+SITE_URL = os.environ.get(SITE_VAR, "https://rankless.org")
+# Where a card URL is fetched to render it: the site, or a frontend serving the same
+# cards from elsewhere (a local dev server over a tunnel) while the site does not.
+RENDER_URL = os.environ.get(RENDER_VAR, SITE_URL)
 
 ROOT_TYPES = ("authors", "institutions", "sources", "countries", "subfields")
 SEARCH_TYPES = (*ROOT_TYPES, "all")
@@ -53,7 +58,8 @@ def _sem_path(entity_type: str, semantic_id: str) -> str:
 
 
 def _with_query(url: str, query: dict | None) -> str:
-    return f"{url}?{urlencode(query)}" if query else url
+    clean = {k: v for k, v in (query or {}).items() if v is not None}
+    return f"{url}?{urlencode(clean)}" if clean else url
 
 
 def entity_url(entity_type: str, semantic_id: str, query: dict | None = None) -> str:
@@ -61,17 +67,26 @@ def entity_url(entity_type: str, semantic_id: str, query: dict | None = None) ->
     return _with_query(f"{SITE_URL}/{_sem_path(entity_type, semantic_id)}", query)
 
 
-def card_url(entity_type: str, semantic_id: str, query: dict | None = None) -> str:
-    """The share card of the breakdown the page shows for the same `query`."""
-    path = _sem_path(entity_type, semantic_id)
-    return _with_query(f"{SITE_URL}/pic/{path}/breakdown.png", query)
+def card_url(
+    kind: str, entity_type: str, semantic_id: str = "", query: dict | None = None
+) -> str:
+    """The share card `kind` of an entity, or of a type's cohort when `semantic_id`
+    is empty, with the variant `query` (the parameters `make_card` lists)."""
+    path = _sem_path(entity_type, semantic_id) if semantic_id else entity_type
+    return _with_query(f"{SITE_URL}/card/{path}/{kind}.png", query)
+
+
+def render_url(url: str) -> str:
+    """`url` on the host that renders the cards."""
+    if RENDER_URL != SITE_URL and url.startswith(SITE_URL):
+        return RENDER_URL + url[len(SITE_URL) :]
+    return url
 
 
 def table_url(entity_type: str, query: dict) -> str:
     """The browse table showing one `/slice` query: the table page reads the same keys
     the backend takes, so the query is re-encoded as sent, never translated."""
-    clean = {k: v for k, v in query.items() if v is not None}
-    return _with_query(f"{SITE_URL}/{entity_type}/table", clean)
+    return _with_query(f"{SITE_URL}/{entity_type}/table", query)
 
 
 def set_backend(url: str) -> None:

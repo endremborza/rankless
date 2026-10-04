@@ -75,6 +75,7 @@ def flatten_tree(
             att = named.get(str(node_id), {})
             row = {
                 "entityType": etype,
+                "nodeId": int(node_id),
                 "name": att.get("name", f"#{node_id}"),
                 "citationLinks": child.get("linkCount", 0),
                 "sourceWorks": child.get("sourceCount", 0),

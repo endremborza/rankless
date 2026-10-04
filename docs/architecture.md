@@ -405,14 +405,15 @@ receipts on every response and a `verify_claims` tool; see [mcp-server.md](mcp-s
 
 | File | Role |
 | --- | --- |
-| `server.py` | FastMCP wiring: data tools registered in the receipt envelope, grounding tools, resources/prompts, server `instructions`; stdio or streamable-http, `MCP_PUBLIC_HOSTS` host guard for the hosted endpoint |
+| `server.py` | FastMCP wiring: data tools registered in the receipt envelope, `PLAIN_TOOLS` (the grounding tools and `make_card`) as they are, resources/prompts, server `instructions`; stdio or streamable-http, `MCP_PUBLIC_HOSTS` host guard for the hosted endpoint |
 | `tools.py` | Data tool implementations as plain async functions (`TOOL_FNS` registry, re-issued by `verify.py`) |
 | `receipts.py` | `{receipt, data}` envelope + per-session receipt log (keyed by MCP session id, bounded) mirrored as daily JSONL under `MCP_LOG_DIR`; `with_receipt` wraps a plain tool for registration |
 | `grounding.py` | `verify_claims` (re-issue cited numbers by receipt id or tool+args, one fact-record format) and `suggest_endpoint` (log what the tools lacked) |
 | `verify.py` | Deterministic re-issue of model-cited tool calls (`verify_facts`, dotted-path walk); shared by the live tool and every offline miner |
 | `client.py` | Async httpx client for the backend (`RANKLESS_BE_URL`, default `127.0.0.1:3038/v1`) |
 | `response_shaping.py` | Tree flattening via `/v1/specs` breakdowns, list truncation, `rankless_url` backlinks, `coauthor_edges` (upper-triangle `authorNetwork` → named strongest ties) |
-| `__init__.py` | Backends, root/view types, the Nobel category list, and the site URLs a response links to: `entity_url` (a page, with its view state), `card_url` (the share card of the same view), `table_url` |
+| `__init__.py` | Backends, root/view types, the Nobel category list, and the site URLs a response links to: `entity_url` (a page, with its view state), `card_url` (a share card kind of an entity or a type's cohort, with its variant), `table_url`; `render_url` maps a card URL onto `RANKLESS_RENDER_URL` when the cards render elsewhere than the site |
+| `cards.py` | `KINDS`, the card contract read from `src/lib/assets/data/card-kinds.json` (the file the site's loaders parse by), `profile_cards` (the kinds an entity's `/views` profile proves it has), `fetch_card` (a card's PNG from the rendering host, also `explore/posts.py`'s fetch) and the `make_card` tool, which builds a variant's URL and fetches it once so a bad parameter fails in the session |
 | `resources.py` | Static schema/guide resources (`rankless://schema/entity-types`, `rankless://guide/agent` = the resolve → call → cite → verify → answer loop) |
 | `prompts.py` | Reusable prompts (`author_impact_report`) |
 

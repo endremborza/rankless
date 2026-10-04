@@ -81,9 +81,12 @@ def test_a_page_and_its_card_carry_the_same_view():
     assert entity_url("hit-papers", "10.1/2", view).endswith(
         "/hit-papers/10.1/2?tree=2&since=2010"
     )
-    assert card_url("hit-papers", "10.1/2", view).endswith(
-        "/pic/hit-papers/10.1/2/breakdown.png?tree=2&since=2010"
+    assert card_url("tree", "hit-papers", "10.1/2", view).endswith(
+        "/card/hit-papers/10.1/2/tree.png?tree=2&since=2010"
     )
+    assert card_url(
+        "table", "authors", "", {"sort": "h_index", "where": None}
+    ).endswith("/card/authors/table.png?sort=h_index")
 
 
 def test_unverified_allows_rounding_and_shares_but_not_new_numbers():

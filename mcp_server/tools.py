@@ -16,6 +16,7 @@ from mcp_server import (
     entity_url,
     table_url,
 )
+from mcp_server.cards import KINDS, profile_cards
 from mcp_server.client import get_json
 from mcp_server.response_shaping import (
     add_url,
@@ -28,6 +29,8 @@ _specs_cache: dict | None = None
 # Each root type's default ordering, from the registry `describe()` reads; the backend
 # applies it to a sortless `/slice`, so this only names it.
 _default_sorts: dict[str, str] = {}
+# Each root type's metrics whose values are numbers, from the same registry.
+_numeric: dict[str, set[str]] = {}
 
 MAX_RANK_LIMIT = 100
 MAX_ANNOTATE_IDS = 24
@@ -65,7 +68,9 @@ a walk = a page column for annotate_entities only, never a ranking or a clause):
 
 ANNOTATE_DOC = """\
 Metric values for up to {max_ids} named entities of one type in one call: every metric call
-answered per entity, keyed by the call. Never call it once per entity.
+answered per entity, keyed by the call. Never call it once per entity. `image_url` is the table
+card with the entities pinned and the metrics as columns, present when one card holds them: at
+most {card_pins} entities and {card_cols} metrics, all numbers.
 
 {expressions}
 
@@ -140,7 +145,11 @@ async def get_entity_profile(entity_type: str, semantic_id: str) -> dict:
     the strongest ties among the entity's top authors (an author's co-authors):
     the papers each pair wrote together anywhere, not only within this entity
     (counts cap at 255). `image_url` is the share card of the entity's default
-    breakdown, a picture a post can carry.
+    breakdown and `cards` the default card of every other kind this profile
+    shows the entity has (yearly citations, map, fields, and for an author with
+    co-authors their network and timeline); get_peers, get_papers and
+    get_impact_dag link the peers, hit-paper and impact cards, and make_card
+    renders a variant.
     """
     _check_etype(entity_type, VIEW_TYPES)
     res = await get_json(f"/views/{entity_type}/{encode_semantic_id(semantic_id)}")
@@ -148,7 +157,8 @@ async def get_entity_profile(entity_type: str, semantic_id: str) -> dict:
     if "authorNetwork" in res:
         shaped["coauthorEdges"] = coauthor_edges(res)
     shaped["rankless_url"] = entity_url(entity_type, semantic_id)
-    shaped["image_url"] = card_url(entity_type, semantic_id)
+    shaped["image_url"] = card_url("tree", entity_type, semantic_id)
+    shaped["cards"] = profile_cards(entity_type, semantic_id, res)
     return truncate_lists(shaped)
 
 
@@ -191,7 +201,11 @@ async def get_citation_tree(
     used is echoed as `sinceYear`.
     `citationLinks` counts citation links into a node, `sourceWorks` counts
     the entity's own works under it. `rankless_url` opens this same breakdown
-    on the site and `image_url` is its share card, a picture a post can carry.
+    on the site and `image_url` is its share card (bands sized by citation
+    count, as the rows are ranked); a top-level row's `image_url` is the card
+    with that branch opened (node 0 cannot be opened and has none), and its
+    `nodeId` is what make_card's `paths` and
+    `hl` take.
     """
     _check_etype(entity_type, VIEW_TYPES)
     specs = (await _specs())["specs"][entity_type]
@@ -206,15 +220,22 @@ async def get_citation_tree(
         {"year": year, "tid": tree_index},
     )
     view = {"tree": tree_index + 1, "since": year}
+    card = {**view, "isSpec": 0}
+    rows = flatten_tree(res, spec["breakdowns"], top_n, depth)
+    for row in rows:
+        if row["nodeId"]:
+            row["image_url"] = card_url(
+                "tree", entity_type, semantic_id, {**card, "paths": row["nodeId"]}
+            )
     return {
         "rankless_url": entity_url(entity_type, semantic_id, view),
-        "image_url": card_url(entity_type, semantic_id, view),
+        "image_url": card_url("tree", entity_type, semantic_id, card),
         "sinceYear": year,
         "levels": [
             {"entityType": b["attributeType"], "sourceSide": b["sourceSide"]}
             for b in spec["breakdowns"][:depth]
         ],
-        "breakdown": flatten_tree(res, spec["breakdowns"], top_n, depth),
+        "breakdown": rows,
     }
 
 
@@ -230,7 +251,9 @@ async def get_papers(
     Each paper has its title, year, citations, `score` (its paper score, see
     get_methodology) and `isHit`. A hit paper links to its rankless page
     (`rankless_url`, `semanticId` for the hit-papers tools); any other paper
-    links to OpenAlex (`openalex_url`).
+    links to OpenAlex (`openalex_url`). For an author with hit papers among
+    the rows `image_url` is the card of their hit papers, and a hit row's own
+    `image_url` the card with that paper highlighted.
     """
     _check_etype(entity_type)
     res = await get_json(
@@ -238,7 +261,15 @@ async def get_papers(
         {"n": limit, "sort": sort},
     )
     papers = [_paper(p) for p in res.get("resp", {}).get("papers", [])]
-    return {"rankless_url": entity_url(entity_type, semantic_id), "papers": papers}
+    out = {"rankless_url": entity_url(entity_type, semantic_id), "papers": papers}
+    hits = [p for p in papers if "semanticId" in p]
+    if hits and entity_type in KINDS["papers"]["types"]:
+        out["image_url"] = card_url("papers", entity_type, semantic_id)
+        for p in hits:
+            p["image_url"] = card_url(
+                "papers", entity_type, semantic_id, {"hl": p["semanticId"]}
+            )
+    return out
 
 
 async def get_impact_dag(semantic_id: str) -> dict:
@@ -257,16 +288,29 @@ async def get_impact_dag(semantic_id: str) -> dict:
     builds on: a laureate citing the author, a jump into another field, a long
     reach in years. Pass a hit's `semanticId` to get_citation_tree or
     get_entity_profile with entity_type="hit-papers" to follow it further.
+    `image_url` is the impact card of the top hits, absent when no hit cites
+    the author; a hit's own `image_url` is the card with that hit and the
+    author's papers it builds on.
     """
     res = await get_json(f"/paper-profile/{encode_semantic_id(semantic_id)}")
     return _impact_dag(res, semantic_id)
 
 
 async def get_peers(entity_type: str, semantic_id: str) -> dict:
-    """Peer entities (comparable size + field profile) and top subfields."""
+    """Peer entities (comparable size + field profile) and top subfields.
+
+    `image_url` is the peers card against the first peer, absent when there is
+    none; a peer's own `image_url` is the card comparing the entity with that peer.
+    """
     _check_etype(entity_type)
     res = await get_json(f"/peers/{entity_type}/{encode_semantic_id(semantic_id)}")
     res["rankless_url"] = entity_url(entity_type, semantic_id)
+    if res.get("peers"):
+        res["image_url"] = card_url("peers", entity_type, semantic_id)
+    for peer in res.get("peers", []):
+        peer["image_url"] = card_url(
+            "peers", entity_type, semantic_id, {"hl": peer["semanticId"]}
+        )
     return truncate_lists(res)
 
 
@@ -318,6 +362,9 @@ def _impact_dag(res: dict, semantic_id: str) -> dict:
         hits.append(
             {
                 **_paper(p),
+                "image_url": card_url(
+                    "impact", "authors", semantic_id, {"hits": p.get("hitSemId")}
+                ),
                 "journal": sources.get(str(p.get("source")), {}).get("name"),
                 "laureates": [
                     _laureate(authors[i], meta[i])
@@ -330,6 +377,7 @@ def _impact_dag(res: dict, semantic_id: str) -> dict:
     by_hits = {w: sum(w in ws for ws in cites.values()) for w in cited}
     return {
         "rankless_url": entity_url("authors", semantic_id),
+        **({"image_url": card_url("impact", "authors", semantic_id)} if hits else {}),
         "citingHits": hits,
         "authorPapers": [
             {**_paper(papers[w]), "citedByHits": by_hits[w]} for w in cited
@@ -367,15 +415,15 @@ async def rank_entities(
     params = {"sort": sort, "where": where}
     page = await get_json(f"/slice/{entity_type}/{offset}/{offset + limit}", params)
     meta = page["meta"]
+    view = {**params, "from": offset if offset else None}
     return {
         "total": meta["total"],
         "screened": meta["screened"],
         "sort": sort or _default_sorts.get(entity_type),
         "where": where,
         "columns": meta["columns"],
-        "rankless_url": table_url(
-            entity_type, {**params, "from": offset if offset else None}
-        ),
+        "rankless_url": table_url(entity_type, view),
+        "image_url": card_url("table", entity_type, "", view),
         "rows": [_row(r, entity_type) for r in page["rows"]],
     }
 
@@ -408,7 +456,23 @@ async def annotate_entities(
                 {"name": r["name"], "semanticId": r["semanticId"], **cols}, entity_type
             )
         )
-    return {"metrics": keys, "entities": entities}
+    out = {"metrics": keys, "entities": entities}
+    if _fits_table_card(entity_type, semantic_ids, metrics):
+        out["image_url"] = card_url(
+            "table", entity_type, "", {"pin": pins, "cols": ",".join(metrics)}
+        )
+    return out
+
+
+def _fits_table_card(entity_type: str, pins: list[str], metrics: list[str]) -> bool:
+    """Whether one table card holds these pinned entities with these metric columns."""
+    limits = KINDS["table"]["params"]
+    numeric = _numeric.get(entity_type, set())
+    return (
+        len(pins) <= limits["pin"]["max"]
+        and len(metrics) <= limits["cols"]["max"]
+        and all(m.split("(", 1)[0].strip() in numeric for m in metrics)
+    )
 
 
 def _signature(m: dict) -> str:
@@ -426,6 +490,11 @@ def describe(registry: dict) -> None:
     for root in (r for r in ROOT_TYPES if r in registry["roots"]):
         reg = registry["roots"][root]
         _default_sorts[root] = reg["defaultSort"]
+        _numeric[root] = {
+            m["id"]
+            for m in reg["metrics"]
+            if m["value"]["type"] not in ("entity", "entities")
+        }
         for m in reg["metrics"]:
             vtype = m["value"]["type"]
             entity = m["value"].get("entity")
@@ -455,6 +524,8 @@ def describe(registry: dict) -> None:
     )
     annotate_entities.__doc__ = ANNOTATE_DOC.format(
         max_ids=MAX_ANNOTATE_IDS,
+        card_pins=KINDS["table"]["params"]["pin"]["max"],
+        card_cols=KINDS["table"]["params"]["cols"]["max"],
         expressions=EXPRESSIONS,
         metrics="\n".join(annotate_lines),
     )

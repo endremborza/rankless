@@ -16,6 +16,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 import mcp_server
+from mcp_server.cards import make_card
 from mcp_server.grounding import GROUNDING_TOOLS
 from mcp_server.prompts import PROMPTS
 from mcp_server.receipts import with_receipt
@@ -23,6 +24,8 @@ from mcp_server.resources import AGENT_GUIDE, RESOURCES
 from mcp_server.tools import TOOLS, describe
 
 LOCAL_HOSTS = ["127.0.0.1:*", "localhost:*"]
+# Registered as they are: what they return is not backend data to re-issue, so no receipt.
+PLAIN_TOOLS = (*GROUNDING_TOOLS, make_card)
 REGISTRY_ATTEMPTS = 3
 REGISTRY_RETRY_S = 5
 
@@ -68,7 +71,7 @@ def build(registry: dict) -> FastMCP:
     )
     for fn in TOOLS:
         mcp.tool()(with_receipt(fn))
-    for fn in GROUNDING_TOOLS:
+    for fn in PLAIN_TOOLS:
         mcp.tool()(fn)
     for prompt_fn in PROMPTS:
         mcp.prompt()(prompt_fn)

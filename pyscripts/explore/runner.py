@@ -6,10 +6,12 @@ without touching the mining or reproduction logic.
 """
 
 import json
+import os
 import sys
 from dataclasses import dataclass
 from typing import Callable
 
+from mcp_server import RENDER_VAR, SITE_VAR
 from pyscripts.explore import cli
 
 DEFAULT_RUNNER = "claude-cli"
@@ -55,7 +57,14 @@ def _mcp_config(backend_url: str) -> str:
                 "rankless": {
                     "command": sys.executable,
                     "args": ["-m", "mcp_server"],
-                    "env": {"RANKLESS_BE_URL": backend_url},
+                    "env": {
+                        "RANKLESS_BE_URL": backend_url,
+                        **{
+                            k: v
+                            for k in (SITE_VAR, RENDER_VAR)
+                            if (v := os.environ.get(k))
+                        },
+                    },
                 }
             }
         }

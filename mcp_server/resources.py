@@ -42,8 +42,10 @@ Every answer follows one loop: resolve, call, cite, verify, answer.
    reproduced values; drop or re-derive a claim that fails.
 5. Answer with the numbers, their rankless_url links, and the receipt ids
    (e.g. "146,700 citations [r3]"), so a reader can reproduce each one. An
-   image_url is the share card of what its response shows; use it where the
-   answer carries pictures.
+   image_url is the share card of what its response shows and a profile's
+   `cards` the further kinds it proves; make_card renders a variant (a highlighted
+   country or field, an opened branch, a pinned peer, a filtered table) where
+   the answer carries pictures.
 
 When no tool can supply what the question needs, say so plainly, answer the
 part that is grounded, and call suggest_endpoint with what was missing.
