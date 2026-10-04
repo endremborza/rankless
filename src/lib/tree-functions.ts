@@ -515,7 +515,8 @@ export function getFlatRescaler(levels: tt.LevelT, nBreakPoints: number, pullerR
 		const qVal = scaleBpPrep[qInd];
 		newBreakPoints.push(pullerRate * puller + (1 - pullerRate) * qVal);
 	}
-	const linScaler = (w: number) => (w - (locMinw || 0)) / wspan;
+	// Equal weights have no span to place them on: each is the heaviest.
+	const linScaler = (w: number) => (wspan ? (w - (locMinw || 0)) / wspan : 1);
 	return { linScaler, newBreakPoints, locMinw, locMaxw };
 }
 

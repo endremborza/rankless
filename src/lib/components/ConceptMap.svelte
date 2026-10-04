@@ -1,11 +1,19 @@
 <script lang="ts">
 	import { nodes as nodesData, edges } from '$lib/assets/data/concept-map.json';
 	import { subfields, fields, domains } from '$lib/assets/data/field-hierarchy.json';
-	import { getColor, getColorArr } from '$lib/style-util';
-	import { getNetworkText, SPEC_BPS } from '$lib/text-format-util';
+	import { getColorArr } from '$lib/style-util';
+	import { getNetworkText } from '$lib/text-format-util';
+	import {
+		DOMAIN_ID_MAP,
+		SUBFIELD_NULL_R,
+		SUBFIELD_SEMANTICS,
+		domainRate,
+		subfieldColor,
+		subfieldHier,
+		subfieldStyles
+	} from '$lib/utils/flat-out-styles';
 
 	import type * as tt from '$lib/tree-types';
-	import * as tf from '$lib/tree-functions';
 	import { onMount } from 'svelte';
 	import FlatOutFrame from './FlatOutFrame.svelte';
 
@@ -15,23 +23,9 @@
 	export let conf: tt.FullTreeConfig;
 	export let treeSpecs: tt.TreeSpecs;
 
-	const minSize = 1;
-	const maxSize = 2.3;
-	const nullSize = 0.8;
-	const minSaturation = 0.95;
-	const maxSaturation = 0.05;
 	let defaultSat = 0.8;
 	let defaultOp = 1;
 	let defaultLineOp = 0.35;
-	let nBreakPoints = 2;
-
-	const ORDERED_DOMAINS = [
-		'Physical Sciences',
-		'Health Sciences',
-		'Life Sciences',
-		'Social Sciences'
-	]; //domains needs to remap to this to keep colors in conventional order
-	const DOMAIN_ID_MAP = getDomainIdMap();
 
 	type Hierarchy = Record<
 		number,
@@ -39,9 +33,6 @@
 	>;
 	type ParentSelect = [number | undefined, number | undefined];
 
-	const getSatFromRate = (x: number) =>
-		Math.pow(x, 0.35) * (maxSaturation - minSaturation) + minSaturation;
-	const getSizeFromRate = (x: number) => Math.pow(x, 0.65) * (maxSize - minSize) + minSize;
 	const nodes = nodesData as Record<number, number[]>;
 	const backupNames = getMap(subfields as [string, number][]);
 	const nodeKeys = Object.keys(backupNames);
@@ -63,9 +54,7 @@
 
 	let treeId: number;
 	$: sourceSide = getSourceSide(treeSpecs, conf.rootType, treeId);
-	$: styleTag = mounted
-		? `<style>${getClassStyles(flatOut, hovered, hoveredParent, 0.2)}</style>`
-		: '';
+	$: styleTag = mounted ? `<style>${getClassStyles(flatOut, hovered, hoveredParent)}</style>` : '';
 	$: updateTreeId(indsByEntityType);
 
 	function getSourceSide(treeSpecs: tt.TreeSpecs, rootType: tt.RootType, treeId: number) {
@@ -93,10 +82,6 @@
 		return `subfield-flash-${s}`;
 	}
 
-	function getDomainRate(domainId: number) {
-		return (domainId - 1) / (domains.length - 2);
-	}
-
 	function isParentHovered(sfi: string, hoveredParent: ParentSelect) {
 		if (hoveredParent[0] == undefined) return false;
 		let [_, field, domain] = getHier(sfi);
@@ -106,27 +91,15 @@
 
 	function getHier(sfi: string): [number, number, number] {
 		let sfin = parseInt(sfi);
-		let fieldId = subfields[sfin][1] as number;
-		let domainId = domainIdRemapper(fields[fieldId][1] as number);
-		return [sfin, fieldId, domainId];
+		return [sfin, ...subfieldHier(sfin)];
 	}
 
 	function getNodeColor(sfi: string) {
-		return getColor(getDomainRate(getHier(sfi)[2]));
+		return subfieldColor(parseInt(sfi));
 	}
 
 	function getParentColorArr(i: number) {
-		return getColorArr(getDomainRate(i));
-	}
-
-	function getDomainIdMap() {
-		let out: Record<number, number> = {};
-		for (let i = 0; i < domains.length; i++) {
-			let loadedName = domains[i];
-			let staticId = ORDERED_DOMAINS.indexOf(loadedName) + 1;
-			out[i] = staticId;
-		}
-		return out;
+		return getColorArr(domainRate(i));
 	}
 
 	function domainIdRemapper(loadedId: number) {
@@ -156,34 +129,18 @@
 		return out;
 	}
 
-	function getClassStyles(
-		levels: tt.LevelT,
-		highlighted: string,
-		highlightedParent: ParentSelect,
-		pullerRate: number
-	) {
+	function getClassStyles(levels: tt.LevelT, highlighted: string, highlightedParent: ParentSelect) {
 		if (Object.values(levels).length == 0) return '';
-		const { linScaler, newBreakPoints } = tf.getFlatRescaler(levels, nBreakPoints, pullerRate);
-		const dynBreakPoints = isSpec ? SPEC_BPS : newBreakPoints;
-		let scaler = (w: number) => {
-			let size = getSizeFromRate(linScaler(w));
-			let oI = 0;
-			for (const bp of dynBreakPoints) {
-				if (w >= bp) oI++;
-			}
-			let sat = getSatFromRate(oI / dynBreakPoints.length);
-			return { sat, size };
-		};
+		const styles = subfieldStyles(levels, isSpec);
 		const sLines = [];
 		for (const key of nodeKeys) {
 			let isHighlighted = key == highlighted || isParentHovered(key, highlightedParent);
 			let line = '';
 			let flashLine = '';
-			let wDic = levels[key];
-			if (wDic != undefined) {
-				let { sat, size } = scaler(wDic.w);
-				line += `r: ${size.toFixed(2)}px;`;
-				flashLine += `r: ${(size * 0.9).toFixed(2)}px; fill-opacity: ${sat};`;
+			const style = styles[key];
+			if (style != undefined) {
+				line += `r: ${style.r.toFixed(2)}px;`;
+				flashLine += `r: ${(style.r * 0.9).toFixed(2)}px; fill-opacity: ${style.sat};`;
 			}
 			if (isHighlighted) {
 				line += `stroke-width: 0.8px; stroke: var(--color-text);`;
@@ -198,26 +155,8 @@
 		mounted = true;
 	});
 
-	const SF_SEM_MAP: Record<tt.RootType, Record<string, string>> = {
-		countries: {
-			'subfields-true': 'of papers published by authors working in',
-			'subfields-false': 'of papers citing works of authors working in'
-		},
-		institutions: {
-			'subfields-true': 'of papers published by authors at',
-			'subfields-false': 'of papers citing works of authors at'
-		},
-		authors: {
-			'subfields-true': 'of papers published by',
-			'subfields-false': 'of papers citing papers by'
-		},
-		sources: { 'subfields-true': 'of papers published in' },
-		subfields: { 'subfields-false': 'of papers citing papers about' },
-		'hit-papers': { 'subfields-false': 'of papers citing' }
-	};
-
 	function subfieldSemantify(rootType: tt.RootType, bd: string) {
-		let oBase = SF_SEM_MAP[rootType];
+		let oBase = SUBFIELD_SEMANTICS[rootType];
 		if (oBase == undefined) return bd;
 		return oBase[bd] || bd;
 	}
@@ -291,7 +230,7 @@
 								infoPath = [parseInt(sfi)];
 								showPaper = true;
 							}}
-							r={nullSize}
+							r={SUBFIELD_NULL_R}
 							stroke-width="0.2"
 						/>
 						<circle
@@ -299,7 +238,7 @@
 							{cy}
 							class="{flashClassNamer(sfi)} nopointer"
 							stroke="none"
-							r={nullSize * 0.9}
+							r={SUBFIELD_NULL_R * 0.9}
 							fill="var(--text-bg)"
 						/>
 					{/each}

@@ -2,12 +2,16 @@
 	import { onMount } from 'svelte';
 
 	import type * as tt from '$lib/tree-types';
-	import * as tf from '$lib/tree-functions';
 
 	import countryPaths from '$lib/assets/data/country-svg-paths.json';
-	import { getColor, getColorArr } from '$lib/style-util';
 	import { formatNumber, getMapText } from '$lib/text-format-util';
-	import { HIGH_OP, LOW_OP } from '$lib/constants';
+	import {
+		COUNTRY_SEMANTICS,
+		countryLevels as toCountryLevels,
+		countryStyles,
+		mapWeightText,
+		type Bucket
+	} from '$lib/utils/flat-out-styles';
 	import FlatOutFrame from './FlatOutFrame.svelte';
 
 	export let rootName = '';
@@ -24,26 +28,16 @@
 	let resp: tt.TreeResponse | undefined;
 	let countryLevels: tt.LevelT = {};
 	let highlighted = '';
-	let highlightedRate: undefined | number;
 	let highlightedQ = -1;
 	let infoPath: number[] = [];
-
-	let minOp = LOW_OP * 0.65;
-	let maxOp = HIGH_OP * 1.2;
-	let minColorRate = 0.32;
-	let maxColorRate = 0.45;
 
 	let xMin = 0;
 	let yMin = -20;
 	let mapWidth = 2000;
 	let mapHeight = 950;
-	let maxw = 0;
-	let minw = 0;
 	let mounted = false;
 
-	let nBreakPoints = 3;
-	let pullerRate = 0.12;
-	let breakPoints: number[] = [];
+	let buckets: Bucket[] = [];
 
 	let clicked = false;
 	let isSpec = false;
@@ -51,19 +45,12 @@
 	let flatOut = {};
 
 	$: isRefSide = treeSpecs.specs[conf.rootType][treeId]?.breakdowns[0].sourceSide;
-	$: weightText = isSpec
-		? 'Specialization' //'Revealed comparative advantage'
-		: isRefSide
-			? 'Total citations of papers'
-			: 'Citations';
+	$: weightText = mapWeightText(isSpec, isRefSide);
 	$: updateL1(flatOut, resp);
 	$: styleTag = mounted
-		? `<style>${getClassStyles(countryLevels, highlighted, highlightedQ, nBreakPoints, pullerRate)}</style>`
+		? `<style>${getClassStyles(countryLevels, highlighted, highlightedQ, isSpec)}</style>`
 		: '';
 	$: updateTreeId(indsByEntityType);
-
-	const getColorRate = (r: number) => r * (maxColorRate - minColorRate) + minColorRate;
-	const getOpaRate = (r: number) => r * (maxOp - minOp) + minOp;
 
 	function updateTreeId(inds: tt.IndsByEntityType) {
 		treeId = inds.countries[0];
@@ -76,56 +63,27 @@
 		levels: tt.LevelT,
 		highlighted: string,
 		highlightedQ: number,
-		nBreakPoints: number,
-		pullerRate: number
+		ratio: boolean
 	) {
 		if (Object.values(levels).length == 0) return '';
-		const { linScaler, newBreakPoints, locMinw, locMaxw } = tf.getFlatRescaler(
-			levels,
-			nBreakPoints,
-			pullerRate
-		);
-		let scaler = (w: number) => {
-			return { op: getOpaRate(linScaler(w)), hl: false, color: getColorRate(linScaler(w)) };
-		};
-		if (nBreakPoints > 0) {
-			scaler = (w: number) => {
-				let oI = 0;
-				for (let i = 1; i <= nBreakPoints; i++) {
-					if (w >= newBreakPoints[i]) oI++;
-				}
-				let color = getColorRate(oI / nBreakPoints);
-				return { op: getOpaRate(oI / nBreakPoints), hl: oI == highlightedQ, color };
-			};
-		}
+		const styles = countryStyles(levels, ratio);
 		const sLines = [];
-		for (const [c, { w }] of Object.entries(levels)) {
-			let isHighlighted = c == highlighted;
-			let { op, hl, color } = scaler(w);
-			let lineColor = getColor(color);
-			isHighlighted = isHighlighted || hl;
-			sLines.push(`${varNamer(c, FILL_SF)}: ${lineColor};`);
-			sLines.push(`${varNamer(c, OPA_SF)}: ${op / 100};`);
-			if (isHighlighted) {
+		for (const [c, { fill, opacity, bucket }] of Object.entries(styles.byName)) {
+			sLines.push(`${varNamer(c, FILL_SF)}: ${fill};`);
+			sLines.push(`${varNamer(c, OPA_SF)}: ${opacity};`);
+			if (c == highlighted || bucket == highlightedQ) {
 				sLines.push(`${varNamer(c, PW_SF)}: 4.5;`);
 				sLines.push(`${varNamer(c, SC_SF)}: rgb(var(--color-range-20));`);
 			}
 		}
-		[minw, maxw, breakPoints] = [locMinw || 0, locMaxw || 1, newBreakPoints];
+		buckets = styles.buckets;
 		return `:root{ ${sLines.join('\n')} }`;
 	}
 
 	function updateL1(flatOut: undefined | tt.LevelT, resp: undefined | tt.TreeResponse) {
 		if (flatOut != undefined && resp != undefined) {
 			try {
-				let countryAtts = resp.atts.countries || {};
-				let l1Kv: [string, { w: number; id: number }][] = [];
-				Object.entries(flatOut).map(([k, { w }]) => {
-					if (countryAtts[k] != undefined) {
-						l1Kv.push([countryAtts[k].name, { w, id: Number(k) }]);
-					}
-				});
-				countryLevels = Object.fromEntries(l1Kv);
+				countryLevels = toCountryLevels(flatOut, resp.atts);
 			} catch (error) {
 				console.error('flatOutUpdateFailed', error);
 			}
@@ -138,57 +96,19 @@
 				highlighted = cc;
 				if (highlighted in countryLevels && highlighted != '') {
 					infoPath = [countryLevels[highlighted].id];
-					if (maxw != undefined && minw != undefined) {
-						highlightedRate = (countryLevels[highlighted].w - minw) / (maxw - minw);
-					}
 				} else {
 					infoPath = [];
-					highlightedRate = undefined;
 				}
 			}
 		};
-	}
-
-	function getGradient() {
-		let steps = [
-			`rgba(${getColorArr(minColorRate)}, ${minOp}%) 0%`,
-			`rgba(${getColorArr(maxColorRate)}, ${maxOp}%) 100%`
-		];
-		return `linear-gradient(to right, ${steps.join(', ')})`;
-	}
-
-	function bpEnd(bps: number[], i: number) {
-		let nBp = bps[i + 1] - 1 || maxw || 0;
-		if (nBp < bps[i]) {
-			return nBp + 1;
-		}
-		return nBp;
 	}
 
 	onMount(() => {
 		mounted = true;
 	});
 
-	const C_SEM_MAP: Record<tt.RootType, Record<string, string>> = {
-		countries: {
-			'countries-true': 'collaborating with authors based in',
-			'countries-false': 'citing scholars based in'
-		},
-		institutions: {
-			'countries-true': 'collaborating with scholars at',
-			'countries-false': 'citing scholars working at'
-		},
-		authors: { 'countries-false': 'citing papers authored by' },
-		sources: { 'countries-true': 'where authors publish in' },
-		subfields: {
-			'countries-true': 'where authors publish papers about',
-			'countries-false': 'where authors cite papers about'
-		},
-		'hit-papers': { 'countries-false': 'where authors are citing' }
-	};
-
 	function countrySemantify(rootType: tt.RootType, bd: string) {
-		let oBase = C_SEM_MAP[rootType];
+		let oBase = COUNTRY_SEMANTICS[rootType];
 		if (oBase == undefined) return '';
 		return oBase[bd] || '';
 	}
@@ -246,40 +166,29 @@
 						{/each}
 					{/each}
 				</svg>
-				<div class="world-map-labels" style="--grad: {getGradient()}">
-					{#if nBreakPoints > 0}
-						<!-- svelte-ignore a11y_mouse_events_have_key_events -->
-						<div class="label-bp-container">
-							{#each breakPoints as bp, i (i)}
-								<div
-									class="label-bp-box"
-									style="background-color: rgba({getColorArr(
-										getColorRate(i / nBreakPoints)
-									)}, {getOpaRate(i / nBreakPoints) / 100}); color: {getOpaRate(i / nBreakPoints) <
-									50
-										? 'var(--color-text)'
-										: 'var(--color-theme-white)'}"
-									role="region"
-									on:mouseover={() => {
-										highlightedQ = i;
-									}}
-									on:mouseleave={() => {
-										highlightedQ = -1;
-									}}
-								>
-									<span>{formatNumber(bp)}</span> <span>-</span>
-									<span>{formatNumber(bpEnd(breakPoints, i))}</span>
-								</div>
-							{/each}
-						</div>
-					{:else}
-						<div>{formatNumber(minw || 0)}</div>
-						<div class="label-gradient-box">
-							{#if highlightedRate != undefined}
-								<div id="w-tick" style="--loff: {highlightedRate * 100}%"></div>{/if}
-						</div>
-						<div>{formatNumber(maxw || 0)}</div>
-					{/if}
+				<div class="world-map-labels">
+					<!-- svelte-ignore a11y_mouse_events_have_key_events -->
+					<div class="label-bp-container">
+						{#each buckets as { lo, hi, shade }, i (i)}
+							<div
+								class="label-bp-box"
+								style="background-color: rgba({shade.rgb}, {shade.opacity}); color: {shade.opacity <
+								0.5
+									? 'var(--color-text)'
+									: 'var(--color-theme-white)'}"
+								role="region"
+								on:mouseover={() => {
+									highlightedQ = i;
+								}}
+								on:mouseleave={() => {
+									highlightedQ = -1;
+								}}
+							>
+								<span>{formatNumber(lo)}</span> <span>-</span>
+								<span>{formatNumber(hi)}</span>
+							</div>
+						{/each}
+					</div>
 					<div id="w-text">{weightText}</div>
 				</div>
 			</div>
@@ -342,23 +251,8 @@
 		gap: var(--unified-padding);
 	}
 
-	.label-gradient-box {
-		width: 80%;
-		height: 16px;
-		background: var(--grad);
-	}
-
 	#w-text {
 		width: 100%;
 		text-align: center;
-	}
-
-	#w-tick {
-		height: 100%;
-		width: 0.5%;
-		background: var(--color-text);
-		position: relative;
-		left: var(--loff);
-		z-index: 20;
 	}
 </style>
