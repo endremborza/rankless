@@ -1,6 +1,7 @@
 import type {
 	MetricDecl,
 	MetricKind,
+	MetricRegistry,
 	MetricValuesResp,
 	NamedEntity,
 	RootRegistry,
@@ -16,13 +17,19 @@ import type {
 
 export const TABLE_PAGE_SIZE = 100;
 
+// The root type whose entities a metric's parameter names.
+const PARAM_ROOT = { subfield: 'subfields', country: 'countries' } as const;
+const PARAM_LIST_SIZE = 400;
+
 export type MetricArgs = WhereArg[];
+
+export type EntityParam = keyof typeof PARAM_ROOT;
 
 // Display names of the entities an argument or operand points at, by semantic id.
 export type Names = Record<string, string>;
 
-// One page-local column: a metric call and the label it was added under.
-export type Column = { key: string; label: string; metric: MetricDecl; args: MetricArgs };
+// One metric call as a column: the key its values are read under, its metric and arguments.
+export type Column = { key: string; decl: MetricDecl; args: MetricArgs };
 
 // The page's query, one key per `/slice` parameter: the ranking call, the `where` expression,
 // the pins and the page offset.
@@ -132,6 +139,22 @@ export function parseCall(key: string): { metric: string; args: MetricArgs } {
 	return { metric: m[1], args };
 }
 
+// A call as a column of the root, null when its registry has no such metric.
+export function columnOf(key: string, registry: MetricDecl[]): Column | null {
+	const { metric, args } = parseCall(key);
+	const decl = registry.find((m) => m.id === metric);
+	return decl ? { key, decl, args } : null;
+}
+
+// The column the cohort is ranked by. The backend keys it by its own spelling of the call
+// (`field_score(Oncology)` is `field_score(oncology)`) and lists it before any column the filter
+// adds, so the first listed column of the ordering's metric is it.
+export function sortColumn(columns: string[], sort: string, registry: MetricDecl[]): Column | null {
+	const typed = columnOf(sort, registry);
+	const key = typed && columns.find((k) => parseCall(k).metric === typed.decl.id);
+	return key ? columnOf(key, registry) : typed;
+}
+
 export function clauseText(c: Chip) {
 	const operand = Array.isArray(c.operand)
 		? `(${c.operand.map(argText).join(', ')})`
@@ -218,6 +241,19 @@ export function rowValue(row: TableRow, key: string): number | undefined {
 	return row.values[key];
 }
 
+export function rankText(row: TableRow): string {
+	return row.rank?.toLocaleString() ?? '–';
+}
+
+// How many entities a per-entity ordering ranked, the most cited ones; null when it ranked all.
+export function screenedTop(meta: Pick<SliceMeta, 'total' | 'screened'>): number | null {
+	return meta.screened !== null && meta.screened < meta.total ? meta.screened : null;
+}
+
+export function screenedPhrase(top: number): string {
+	return `among the top ${top.toLocaleString()} by citations`;
+}
+
 export function formatMetric(decl: MetricDecl | undefined, v: number | null | undefined): string {
 	if (v == null) return '–';
 	switch (decl?.value.type) {
@@ -264,6 +300,12 @@ export function tableHref(rootType: RootType, q: TableQuery, defaultSort?: strin
 	return `/${rootType}/table${queryString(q, defaultSort)}`;
 }
 
+// The ranking call and the `where` expression a table URL names, as typed: the backend is the one
+// parser, and its objection is the caller's to show. A URL naming no ordering gets the root's.
+export function tableQuery(sp: URLSearchParams, defaultSort: string): TableQuery {
+	return { sort: sp.get('sort') || defaultSort, where: sp.get('where') ?? '' };
+}
+
 export function sliceUrl(base: string, rootType: RootType, from: number, q: TableQuery) {
 	const qs = queryString({ ...q, from: undefined });
 	return `${base}/slice/${rootType}/${from}/${from + TABLE_PAGE_SIZE}${qs}`;
@@ -286,6 +328,32 @@ export function fetchSlice(
 		.catch(() => EMPTY_SLICE);
 }
 
+// The cohort's page at `from` and the rows of the pinned entities, both in the query's ordering.
+export async function fetchCohort(
+	base: string,
+	rootType: RootType,
+	{ pin = [], from = 0, ...query }: TableQuery,
+	fetchFn: typeof fetch = fetch
+): Promise<{ page: Slice; pinned: Slice }> {
+	const [page, pinned] = await Promise.all([
+		fetchSlice(base, rootType, from, query, fetchFn),
+		pin.length ? fetchSlice(base, rootType, 0, { ...query, pin }, fetchFn) : EMPTY_SLICE
+	]);
+	return { page, pinned };
+}
+
+// The root's metrics and default ordering, null when the backend does not serve them.
+export function fetchRegistry(
+	base: string,
+	rootType: RootType,
+	fetchFn: typeof fetch = fetch
+): Promise<RootRegistry | null> {
+	return fetchFn(`${base}/columns`)
+		.then((r) => (r.ok ? (r.json() as Promise<MetricRegistry>) : null))
+		.then((reg) => reg?.roots[rootType] ?? null)
+		.catch(() => null);
+}
+
 // The backend's parse of a `where` expression, null when it is empty or refused.
 export function fetchWhere(
 	base: string,
@@ -298,14 +366,13 @@ export function fetchWhere(
 		.catch(() => null);
 }
 
-// The first `n` entities of a root type in its default ordering, for the field and country pickers.
-export function sliceList(
+// Every field or country a metric's argument may name, in the type's default ordering.
+export function fetchParamEntities(
 	base: string,
-	rootType: RootType,
-	n: number,
+	param: EntityParam,
 	fetchFn: typeof fetch = fetch
 ): Promise<NamedEntity[]> {
-	return fetchFn(`${base}/slice/${rootType}/0/${n}`)
+	return fetchFn(`${base}/slice/${PARAM_ROOT[param]}/0/${PARAM_LIST_SIZE}`)
 		.then((r) => (r.ok ? (r.json() as Promise<SliceResp>) : EMPTY_SLICE))
 		.then((s) => s.rows)
 		.catch(() => []);
@@ -317,21 +384,23 @@ export function metricValuesUrl(base: string, rootType: RootType, ids: number[],
 	return `${base}/metrics/${rootType}?${p.toString()}`;
 }
 
-// A column's values for the given rows, keyed by dm id; a row the server did not answer is absent.
-// One column's values for a page of rows, keyed by dm id, with the backend's objection if any.
+// One column's values for a page of rows, keyed by dm id, with the backend's objection if any. The
+// backend answers under its own spelling of the call: the one column it returns is the answer, and
+// `key` is that spelling.
 export async function fetchColumnValues(
 	base: string,
 	rootType: RootType,
 	rows: TableRow[],
-	col: Column
-): Promise<{ values: MetricValues; error: string | null }> {
+	col: Column,
+	fetchFn: typeof fetch = fetch
+): Promise<{ key: string; values: MetricValues; error: string | null }> {
 	const ids = rows.map((r) => r.dmId);
 	const values: MetricValues = {};
-	const r = await fetch(metricValuesUrl(base, rootType, ids, col.key)).catch(() => null);
-	if (!r) return { values, error: 'unreachable' };
-	if (!r.ok) return { values, error: (await r.text()) || r.statusText };
+	const r = await fetchFn(metricValuesUrl(base, rootType, ids, col.key)).catch(() => null);
+	if (!r) return { key: col.key, values, error: 'unreachable' };
+	if (!r.ok) return { key: col.key, values, error: (await r.text()) || r.statusText };
 	const resp = (await r.json()) as MetricValuesResp;
-	const column = resp.values[col.key] ?? Object.values(resp.values)[0];
+	const [[key, column] = [col.key, undefined]] = Object.entries(resp.values);
 	resp.ids.forEach((id, i) => (values[id] = column?.[i] ?? null));
-	return { values, error: null };
+	return { key, values, error: null };
 }

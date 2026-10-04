@@ -9,14 +9,22 @@ import {
 	clauseable,
 	clauseText,
 	columnLabel,
+	columnOf,
+	fetchCohort,
+	fetchColumnValues,
 	formatMetric,
 	metricValuesUrl,
 	operatorsFor,
 	parseCall,
 	rankable,
+	rankText,
 	rowValue,
+	screenedPhrase,
+	screenedTop,
+	sortColumn,
 	sortRows,
 	tableHref,
+	tableQuery,
 	whereText
 } from './table-utils';
 import type { MetricDecl, MetricKind, TableRow, WhereExpr } from './tree-types';
@@ -128,6 +136,24 @@ describe('table column model', () => {
 		expect(columnLabel(registry[4], ['can'], names)).toBe('Cited from Canada');
 		expect(columnLabel(registry[4], ['can'])).toBe('Cited from can');
 	});
+
+	it('reads a call as a column of the root, none for a metric the root lacks', () => {
+		expect(columnOf('field_score(oncology)', registry)).toEqual({
+			key: 'field_score(oncology)',
+			decl: registry[2],
+			args: ['oncology']
+		});
+		expect(columnOf('cited_from(can)', institutions)).toBeNull();
+	});
+
+	it('finds the ranked column under the backend spelling, ahead of any the filter adds', () => {
+		const columns = ['citations', 'field_score(oncology)', 'field_score(biology)'];
+		expect(sortColumn(columns, 'field_score(Oncology)', registry)?.key).toBe(
+			'field_score(oncology)'
+		);
+		expect(sortColumn(['citations'], 'top_mean', registry)?.key).toBe('top_mean');
+		expect(sortColumn(columns, 'nope', registry)).toBeNull();
+	});
 });
 
 describe('calls and clauses', () => {
@@ -231,6 +257,30 @@ describe('row values and formatting', () => {
 		expect(rowValue(row, 'h_index')).toBeUndefined();
 	});
 
+	it('reads a page-local column under the spelling the backend answers with', async () => {
+		const answer = { ids: [7, 9], values: { 'field_score(oncology)': [0.5, null] } };
+		const fetchFn = (async () => new Response(JSON.stringify(answer))) as typeof fetch;
+		const col = columnOf('field_score(Oncology)', registry)!;
+		const rows = [row, { ...row, dmId: 9 }];
+		expect(await fetchColumnValues('http://be/v1', 'authors', rows, col, fetchFn)).toEqual({
+			key: 'field_score(oncology)',
+			values: { 7: 0.5, 9: null },
+			error: null
+		});
+	});
+
+	it('shows a rank, a dash for a pinned entity outside the ranking', () => {
+		expect(rankText({ ...row, rank: 1234 })).toBe('1,234');
+		expect(rankText({ ...row, rank: null })).toBe('–');
+	});
+
+	it('names the top a screened ordering ranked', () => {
+		expect(screenedTop({ total: 5000, screened: 1000 })).toBe(1000);
+		expect(screenedTop({ total: 800, screened: 800 })).toBeNull();
+		expect(screenedTop({ total: 5000, screened: null })).toBeNull();
+		expect(screenedPhrase(1000)).toBe('among the top 1,000 by citations');
+	});
+
 	it('formats by value type', () => {
 		expect(formatMetric(registry[1], 12.345)).toBe('12.3');
 		expect(formatMetric(registry[1], 0.456)).toBe('0.46');
@@ -267,6 +317,35 @@ describe('urls', () => {
 			tableHref('authors', { sort: 'field_score(oncology)', where: 'country = hun', from: 100 })
 		).toBe('/authors/table?sort=field_score%28oncology%29&where=country+%3D+hun&from=100');
 		expect(tableHref('authors', { pin: ['a-1', 'b-2'] })).toBe('/authors/table?pin=a-1%2Cb-2');
+	});
+
+	it('reads a table URL as typed, the root default when it names no ordering', () => {
+		expect(tableQuery(new URLSearchParams('where=papers > 3'), 'top_mean')).toEqual({
+			sort: 'top_mean',
+			where: 'papers > 3'
+		});
+		expect(tableQuery(new URLSearchParams('sort=field_score(Oncology)'), 'top_mean')).toEqual({
+			sort: 'field_score(Oncology)',
+			where: ''
+		});
+	});
+
+	it('fetches the page without the pins and the pinned rows in the same ordering', async () => {
+		const urls: string[] = [];
+		const empty = { rows: [], meta: { total: 0, screened: null, columns: [] } };
+		const fetchFn = (async (url: string) => {
+			urls.push(url);
+			return new Response(JSON.stringify(empty));
+		}) as typeof fetch;
+		await fetchCohort('http://be/v1', 'authors', { sort: 'citations' }, fetchFn);
+		expect(urls).toEqual(['http://be/v1/slice/authors/0/100?sort=citations']);
+		urls.length = 0;
+		const q = { sort: 'citations', pin: ['a-1'], from: 200 };
+		await fetchCohort('http://be/v1', 'authors', q, fetchFn);
+		expect(urls).toEqual([
+			'http://be/v1/slice/authors/200/300?sort=citations',
+			'http://be/v1/slice/authors/0/100?sort=citations&pin=a-1'
+		]);
 	});
 
 	it('carries every id of the page and the call in one metric-values call', () => {

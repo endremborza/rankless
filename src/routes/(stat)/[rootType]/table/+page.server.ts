@@ -1,18 +1,18 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import type { LadderData, MetricRegistry, RootType } from '$lib/tree-types';
+import type { LadderData, RootType } from '$lib/tree-types';
 import { BE_URL, COHORT_ROOT_TYPES } from '$lib/constants';
 import {
 	byName,
 	chipsFrom,
 	EMPTY_REGISTRY,
-	EMPTY_SLICE,
-	fetchSlice,
+	fetchCohort,
+	fetchParamEntities,
+	fetchRegistry,
 	fetchWhere,
 	parseCall,
-	sliceList,
 	TABLE_PAGE_SIZE,
-	type TableQuery
+	tableQuery
 } from '$lib/table-utils';
 
 export const ssr = true;
@@ -22,26 +22,18 @@ export const load: PageServerLoad = async ({ params, url, fetch }) => {
 	if (!COHORT_ROOT_TYPES.includes(rootType)) {
 		error(404, 'Not found');
 	}
-	const { defaultSort, metrics: registry } = await fetch(`${BE_URL}/columns`)
-		.then((r) => (r.ok ? (r.json() as Promise<MetricRegistry>) : null))
-		.then((reg) => reg?.roots[rootType] ?? EMPTY_REGISTRY)
-		.catch(() => EMPTY_REGISTRY);
+	const { defaultSort, metrics: registry } =
+		(await fetchRegistry(BE_URL, rootType, fetch)) ?? EMPTY_REGISTRY;
 	const sp = url.searchParams;
-	// The query is handed to the backend as typed: it is the one parser, and its objection is
-	// shown on the page.
-	const query: TableQuery = {
-		sort: sp.get('sort') || defaultSort,
-		where: sp.get('where') ?? ''
-	};
+	const query = tableQuery(sp, defaultSort);
 	const from = Math.max(0, parseInt(sp.get('from') ?? '0') || 0);
 	const pin = sp.get('pin')?.split(',').filter(Boolean) ?? [];
 
-	const [page, pinned, parsed, subfields, countries] = await Promise.all([
-		fetchSlice(BE_URL, rootType, from, query, fetch),
-		pin.length ? fetchSlice(BE_URL, rootType, 0, { ...query, pin }, fetch) : EMPTY_SLICE,
+	const [{ page, pinned }, parsed, subfields, countries] = await Promise.all([
+		fetchCohort(BE_URL, rootType, { ...query, pin, from }, fetch),
 		fetchWhere(BE_URL, query.where ?? '', fetch),
-		sliceList(BE_URL, 'subfields', 400, fetch).then(byName),
-		sliceList(BE_URL, 'countries', 400, fetch).then(byName)
+		fetchParamEntities(BE_URL, 'subfield', fetch).then(byName),
+		fetchParamEntities(BE_URL, 'country', fetch).then(byName)
 	]);
 	// The standing column reads the ladder of the field the cohort's columns are about.
 	const fieldKey = page.meta.columns.find((c) => c.startsWith('field_citations('));

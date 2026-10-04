@@ -11,13 +11,17 @@
 		callText,
 		clauseable,
 		columnLabel,
+		columnOf,
 		fetchColumnValues,
 		fetchSlice,
 		formatMetric,
 		namesOf,
-		parseCall,
 		rankable,
+		rankText,
 		rowValue,
+		screenedPhrase,
+		screenedTop,
+		sortColumn,
 		sortRows,
 		tableHref,
 		type Column,
@@ -71,25 +75,17 @@
 	const loaded = $derived(data.rows.length + extension.rows.length);
 	const noMore = $derived(extension.done || data.rows.length < data.pageSize);
 	const names = $derived({ ...namesOf(data.subfields), ...namesOf(data.countries) });
-	const decls = $derived(new Map(data.registry.map((m) => [m.id, m])));
 	// The cohort's columns as the backend listed them, each with its metric and arguments.
-	const cohortCols = $derived(
-		data.columns.flatMap((key) => {
-			const { metric, args } = parseCall(key);
-			const decl = decls.get(metric);
-			return decl ? [{ key, decl, args }] : [];
-		})
-	);
+	const cohortCols = $derived(data.columns.flatMap((key) => columnOf(key, data.registry) ?? []));
 	const rankings = $derived(rankable(data.registry));
 	const addable = $derived(annotatable(data.registry));
 	const narrowers = $derived(clauseable(data.registry));
 	const fieldName = $derived(names[data.field] ?? data.field);
 	const hasStanding = $derived(data.field !== '' && data.ladder !== null);
 	const tierNames = $derived(data.ladder ? tierLabels(data.ladder.pctBands) : []);
-	const sortCall = $derived(parseCall(q.sort ?? ''));
-	const sortDecl = $derived(decls.get(sortCall.metric));
-	const sortLabel = $derived(sortDecl ? columnLabel(sortDecl, sortCall.args, names) : q.sort);
-	const screened = $derived(data.screened !== null && data.screened < data.total);
+	const sortCol = $derived(sortColumn(data.columns, q.sort ?? '', data.registry));
+	const sortLabel = $derived(sortCol ? label(sortCol) : q.sort);
+	const screened = $derived(screenedTop(data));
 	const noun = $derived(prettifyRoot(data.rootType));
 	const span = $derived(2 + cohortCols.length + (hasStanding ? 1 : 0) + columns.length);
 	const displayed = $derived.by(() => {
@@ -100,9 +96,13 @@
 	const cohortNote = $derived.by(() => {
 		const parts = [`${loaded.toLocaleString()} of ${data.total.toLocaleString()} ${noun}`];
 		if (q.where) parts.push(`where ${q.where}`);
-		const top = screened ? ` among the top ${data.screened?.toLocaleString()} by citations` : '';
+		const top = screened === null ? '' : ` ${screenedPhrase(screened)}`;
 		return `${parts.join(' ')}, ranked by ${sortLabel}${top}. Click a column to sort the loaded rows.`;
 	});
+
+	function label(col: Column) {
+		return columnLabel(col.decl, col.args, names);
+	}
 
 	function cellValue(row: TableRow, key: string) {
 		return columns.some((c) => c.key === key) ? values[key]?.[row.dmId] : rowValue(row, key);
@@ -148,7 +148,7 @@
 	function addColumn(metric: MetricDecl, args: MetricArgs) {
 		const key = callText(metric.id, args);
 		if (columns.some((c) => c.key === key) || data.columns.includes(key)) return;
-		const col = { key, label: columnLabel(metric, args, names), metric, args };
+		const col = { key, decl: metric, args };
 		columns = [...columns, col];
 		fillColumn(col, [...data.pinned, ...pageRows]);
 	}
@@ -176,7 +176,7 @@
 
 {#snippet tr(row: TableRow, pinned: boolean)}
 	<tr class:pinned>
-		<td class="col-rank">{row.rank?.toLocaleString() ?? '–'}</td>
+		<td class="col-rank">{rankText(row)}</td>
 		<td class="col-name">
 			<a href={entToLink({ rootType: data.rootType, semanticId: row.semanticId })}
 				>{@html row.name}</a
@@ -196,7 +196,7 @@
 		{/if}
 		{#each columns as col (col.key)}
 			<td class="num local" class:pending={pending(col, row)}>
-				{pending(col, row) ? '…' : formatMetric(col.metric, values[col.key]?.[row.dmId])}
+				{pending(col, row) ? '…' : formatMetric(col.decl, values[col.key]?.[row.dmId])}
 			</td>
 		{/each}
 	</tr>
@@ -257,10 +257,10 @@
 					onpick={rank}
 				/>
 			</div>
-			{#if screened}
+			{#if screened !== null}
 				<p class="note">
 					{sortLabel} is computed per entity, so it ranks the {noun} with the most citations only: the
-					top {data.screened?.toLocaleString()}.
+					top {screened.toLocaleString()}.
 				</p>
 			{/if}
 			<div class="controls">
@@ -282,8 +282,8 @@
 				<tr>
 					<th colspan="2"></th>
 					<th colspan={cohortCols.length + (hasStanding ? 1 : 0)} class="group">
-						{#if screened}
-							The top {data.screened?.toLocaleString()} of {data.total.toLocaleString()}
+						{#if screened !== null}
+							The top {screened.toLocaleString()} of {data.total.toLocaleString()}
 							{noun} by citations
 						{:else}
 							All {data.total.toLocaleString()}
@@ -300,7 +300,7 @@
 					{#each cohortCols as c (c.key)}
 						<th
 							class="num sortable"
-							class:ranked={q.sort === c.key}
+							class:ranked={sortCol?.key === c.key}
 							class:active={localSort?.key === c.key}
 							aria-sort={localSort?.key === c.key
 								? localSort.asc
@@ -310,8 +310,8 @@
 							onclick={() => toggleLocalSort(c.key)}
 						>
 							<span class="head">
-								{columnLabel(c.decl, c.args, names)}{arrow(c.key)}
-								{#if q.sort === c.key}
+								{label(c)}{arrow(c.key)}
+								{#if sortCol?.key === c.key}
 									<span class="rank-mark">rank</span>
 								{/if}
 								<InfoTip text={c.decl.meaning} label={c.decl.label} />
@@ -336,15 +336,15 @@
 							onclick={() => toggleLocalSort(col.key)}
 						>
 							<span class="head">
-								{col.label}{arrow(col.key)}
+								{label(col)}{arrow(col.key)}
 								<InfoTip
-									text="{col.metric.meaning} Computed for the loaded rows only."
-									label={col.label}
+									text="{col.decl.meaning} Computed for the loaded rows only."
+									label={label(col)}
 								/>
 								<button
 									class="remove"
 									type="button"
-									aria-label="Remove column {col.label}"
+									aria-label="Remove column {label(col)}"
 									onclick={(e) => {
 										e.stopPropagation();
 										removeColumn(col.key);
