@@ -5,6 +5,7 @@
 	import type { WorksLoader } from '$lib/utils/works-loader';
 	import { fetchWorkIntersection } from '$lib/utils/works-intersection';
 	import { isAuthored, resolveSourceName } from '$lib/utils/paper-helpers';
+	import { lastWord } from '$lib/text-format-util';
 	import { onMount } from 'svelte';
 	import { fade, slide } from 'svelte/transition';
 	import AuthorTimeline from './AuthorTimeline.svelte';
@@ -175,10 +176,6 @@
 		const idx = getIndex(i, j, n);
 		if (idx < 0 || idx >= edgeWeights.length) return 0;
 		return edgeWeights[idx] || 0;
-	}
-	function lastWord(word: string) {
-		const words = word.split(' ');
-		return words[words.length - 1];
 	}
 	function scaledNodeScalars(weights: number[]) {
 		if (weights.length === 0) return [];

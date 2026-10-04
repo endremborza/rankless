@@ -46,6 +46,12 @@ export function formatNumber(n: number, maxFix: number = 2) {
 	}
 }
 
+// A person's last name, the label a crowded co-author graph shows.
+export function lastWord(name: string): string {
+	const parts = name.split(' ');
+	return parts[parts.length - 1];
+}
+
 // Two-digit year with a leading apostrophe, e.g. 2024 → '24. Keeps dense year axes legible.
 export function shortYear(y: number): string {
 	return "'" + String(((y % 100) + 100) % 100).padStart(2, '0');

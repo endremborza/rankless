@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ShowcaseCoauthors } from '$lib/types/showcase';
+	import { lastWord } from '$lib/text-format-util';
 
 	export let data: ShowcaseCoauthors;
 
@@ -20,11 +21,6 @@
 	$: scoreMax = Math.max(1, ...data.nodes.map((d) => d.score));
 	$: radii = data.nodes.map((d) => MIN_R + (d.score / scoreMax) * (MAX_R - MIN_R));
 	$: weightMax = Math.max(1, ...data.edges.map((e) => e[2]));
-
-	function lastWord(name: string): string {
-		const parts = name.split(' ');
-		return parts[parts.length - 1];
-	}
 </script>
 
 <svg viewBox="0 0 {W} {H}" role="img" aria-label="Co-author network preview">
