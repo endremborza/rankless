@@ -396,7 +396,7 @@ impl MarkedAttribute<crate::common::TopMeanPaperScoreMarker>
 
 impl Entity for AuthorsScoredPaperCount {
     type T = u32;
-    const N: usize = 4321023;
+    const N: usize = 4306813;
     const NAME: &str = "authors-scored-paper-count";
 }
 
@@ -416,7 +416,7 @@ impl MarkedAttribute<crate::common::ScoredPaperCountMarker>
 
 impl Entity for AuthorsHIndex {
     type T = u32;
-    const N: usize = 4321023;
+    const N: usize = 4306813;
     const NAME: &str = "authors-h-index";
 }
 
@@ -434,7 +434,7 @@ impl MarkedAttribute<crate::common::HIndexMarker> for crate::gen::a1_entity_mapp
 
 impl Entity for AuthorsWeightedPaperScore {
     type T = f32;
-    const N: usize = 4321023;
+    const N: usize = 4306813;
     const NAME: &str = "authors-weighted-paper-score";
 }
 
@@ -454,7 +454,7 @@ impl MarkedAttribute<crate::common::WeightedPaperScoreMarker>
 
 impl Entity for AuthorsTopMeanPaperScore {
     type T = f32;
-    const N: usize = 4321023;
+    const N: usize = 4306813;
     const NAME: &str = "authors-top-mean-paper-score";
 }
 
@@ -589,7 +589,7 @@ impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_map
 
 impl Entity for AuthorsHits {
     type T = Box<[u32]>;
-    const N: usize = 4321023;
+    const N: usize = 4306813;
     const NAME: &str = "authors-hits";
 }
 
@@ -612,7 +612,7 @@ impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_map
 
 impl Entity for AuthorCitingHitsDirect {
     type T = Box<[u32]>;
-    const N: usize = 4321023;
+    const N: usize = 4306813;
     const NAME: &str = "author-citing-hits-direct";
 }
 
@@ -631,7 +631,7 @@ impl NamespacedEntity for AuthorCitingHitsDirect {
 
 impl Entity for AuthorCitingHitsOnce {
     type T = Box<[u32]>;
-    const N: usize = 4321023;
+    const N: usize = 4306813;
     const NAME: &str = "author-citing-hits-once";
 }
 
@@ -650,7 +650,7 @@ impl NamespacedEntity for AuthorCitingHitsOnce {
 
 impl Entity for HitPapersSemanticIds {
     type T = String;
-    const N: usize = 401744;
+    const N: usize = 401781;
     const NAME: &str = "hit-papers-semantic-ids";
 }
 
@@ -673,7 +673,7 @@ impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::derive_lin
 
 impl Entity for HitPapersPeers {
     type T = [u32; 10];
-    const N: usize = 401744;
+    const N: usize = 401781;
     const NAME: &str = "hit-papers-peers";
 }
 
