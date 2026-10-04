@@ -3,18 +3,25 @@
     uv run -m pyscripts.explore.posts <run-dir> [--context "2025 Nobel Prize in ..."]
 
 The run's reproduced findings are the only material: the model (no tools) writes an X
-thread, LinkedIn, Facebook and Reddit posts and an HTML-post draft from them, and every
+thread, LinkedIn, Facebook and Reddit posts and an article draft from them, and every
 number in the result that no reproduced value accounts for is listed for the reviewer.
-Numbers in `--context` (the occasion, e.g. the prize year) count as given. Writes
-`posts.json` and `posts.md` into the run dir.
+Numbers in `--context` (the occasion, e.g. the prize year) count as given. The run dir
+becomes the publishable unit: `posts.json` (the reply and the checks), every card a post
+uses fetched into `cards/` (through `RANKLESS_RENDER_URL` when the cards render
+elsewhere than the site), and `posts.md` plus `article.md` referencing them relatively.
 """
 
 import argparse
+import asyncio
+import hashlib
 import json
 import math
 import re
 from pathlib import Path
 
+import httpx
+
+from mcp_server.cards import CardError, fetch_card
 from pyscripts.explore import cli
 
 X_LIMIT = 280
@@ -60,6 +67,7 @@ Respond with ONLY a JSON object (no markdown fences):
  "html_post": {"title": "...", "markdown": "..."}}"""
 
 _URL = re.compile(r"https?://\S+|!\[[^\]]*\]\([^)]*\)|\]\([^)]*\)")
+_CARD = re.compile(r"https?://[^\s\"<>]+/card/[^\s\"<>]+")
 _THREAD_MARK = re.compile(r"\b\d+\s*/\s*\d+\b|^\s*\d+[.)]\s", re.MULTILINE)
 _NUM = re.compile(
     r"(?<![\w.])(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?\s*"
@@ -99,16 +107,22 @@ def main() -> int:
         float(n) for f in brief for u in f["pages"] for n in _QUERY_NUM.findall(u)
     ]
     checks = {name: unverified(text, known) for name, text in _texts(posts)}
+    cards = bundle_cards(args.run_dir, posts)
     out = {
         "context": args.context,
         "stats": stats,
         "posts": posts,
         "unverified": checks,
+        "cards": cards,
     }
     path.write_text(json.dumps(out, indent=2))
-    (args.run_dir / "posts.md").write_text(render(posts, checks, stats))
+    (args.run_dir / "posts.md").write_text(render(posts, checks, stats, cards))
+    (args.run_dir / "article.md").write_text(render_article(posts, cards))
     flagged = sum(len(v) for v in checks.values())
-    print(f"[posts] {stats.get('seconds', 0):.0f}s; {flagged} unverified number(s)")
+    print(
+        f"[posts] {stats.get('seconds', 0):.0f}s; {flagged} unverified number(s); "
+        f"{len(cards)} card(s) bundled"
+    )
     print(f"-> {args.run_dir / 'posts.md'}")
     return 0
 
@@ -185,13 +199,81 @@ def x_length(text: str) -> int:
     return len(re.sub(r"https?://\S+", "x" * X_URL_WEIGHT, text))
 
 
-def render(posts: dict, checks: dict[str, list[str]], stats: dict) -> str:
+def card_urls(posts: dict) -> list[str]:
+    """Every card a post carries, attached or inline in the article, in order."""
+    seen: dict[str, None] = {}
+    for post in (
+        *posts["x_thread"],
+        posts["linkedin"],
+        posts["facebook"],
+        posts["reddit"],
+    ):
+        for u in post.get("images", []):
+            seen[u] = None
+    for m in _CARD.finditer(posts["html_post"]["markdown"]):
+        seen[_card_in(m.group(0))] = None
+    return list(seen)
+
+
+def _card_in(matched: str) -> str:
+    """The card URL in a `_CARD` match: prose punctuation after it and the bracket of a
+    markdown link around it are not part of it, a bracket pair inside its path is."""
+    url = matched.rstrip(".,;:!?'")
+    while url.endswith(")") and url.count(")") > url.count("("):
+        url = url[:-1].rstrip(".,;:!?'")
+    return url
+
+
+def bundle_cards(run_dir: Path, posts: dict) -> dict[str, str]:
+    """The posts' cards fetched into `<run>/cards/`, as url -> path relative to the run;
+    a card that fails to render is reported and left as its URL."""
+    return asyncio.run(_bundle(run_dir, card_urls(posts)))
+
+
+async def _bundle(run_dir: Path, urls: list[str]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for url in urls:
+        rel = f"cards/{_card_name(url)}"
+        dest = run_dir / rel
+        if not dest.exists():
+            try:
+                png = await fetch_card(url)
+            except (CardError, httpx.HTTPError) as exc:
+                print(f"[posts] card failed: {url}: {exc}")
+                continue
+            dest.parent.mkdir(exist_ok=True)
+            dest.write_bytes(png)
+        out[url] = rel
+    return out
+
+
+def _card_name(url: str) -> str:
+    stem = re.sub(r"[^a-z0-9]+", "-", url.split("/card/", 1)[-1].lower()).strip("-")
+    return f"{stem[:60]}-{hashlib.sha1(url.encode()).hexdigest()[:6]}.png"
+
+
+def render_article(posts: dict, cards: dict[str, str]) -> str:
+    h = posts["html_post"]
+    return f"# {h['title']}\n\n{_localize(h['markdown'], cards)}\n"
+
+
+def _localize(text: str, cards: dict[str, str]) -> str:
+    def local(m: re.Match[str]) -> str:
+        url = _card_in(m.group(0))
+        return cards.get(url, url) + m.group(0)[len(url) :]
+
+    return _CARD.sub(local, text)
+
+
+def render(
+    posts: dict, checks: dict[str, list[str]], stats: dict, cards: dict[str, str]
+) -> str:
     def flag(name: str) -> str:
         bad = checks.get(name)
         return f"\n\n> unverified: {', '.join(bad)}" if bad else ""
 
     def imgs(urls: list[str]) -> str:
-        return "".join(f"\n\n![card]({u})" for u in urls)
+        return "".join(f"\n\n![card]({cards.get(u, u)})" for u in urls)
 
     out = [f"# Posts\n\n_{stats.get('seconds', 0):.0f}s, ${stats.get('usd', 0):.2f}_"]
     out.append("\n## X thread")
@@ -207,9 +289,10 @@ def render(posts: dict, checks: dict[str, list[str]], stats: dict) -> str:
     r = posts["reddit"]
     out.append(f"\n## reddit\n\n**{r['title']}**\n\n{r['body']}")
     out.append(imgs(r.get("images", [])) + flag("reddit"))
-    h = posts["html_post"]
     out.append(
-        f"\n## html post\n\n# {h['title']}\n\n{h['markdown']}" + flag("html_post")
+        "\n## article ([article.md](article.md))\n\n"
+        + render_article(posts, cards).rstrip("\n")
+        + flag("html_post")
     )
     return "\n".join(out) + "\n"
 
