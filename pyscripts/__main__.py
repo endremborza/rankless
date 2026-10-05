@@ -25,6 +25,7 @@ COMMANDS = {
     "review-ledger": "pyscripts.review_ledger",
     "calibrate-map": "pyscripts.calibrate_map",
     "country-authors": "pyscripts.country_authors",
+    "disclaimers": "pyscripts.disclaimers",
     "rankless-game-card-mining": "pyscripts.explore.game_card_mining",
     "impact-stories": "pyscripts.explore.impact_stories",
     "objects": "pyscripts.object_store",

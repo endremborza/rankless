@@ -8,6 +8,7 @@ import { getExternalUrl, semIdResolver } from '$lib/route-functions';
 import { fixViewNames, fixAttNames, fixPeerNames } from '$lib/name-overrides';
 import { LedgerDb } from '$lib/server/db';
 import { readManifest, EMPTY_MANIFEST } from '$lib/server/manifest';
+import { activeDisclaimer } from '$lib/server/disclaimers';
 import { computeEffective } from '$lib/utils/ledger-effective';
 import type { LedgerEvent, AppliedManifest } from '$lib/types/ledger';
 
@@ -64,6 +65,13 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch, parent 
 
 	const prefixText = SEMANTIC_CONF[rootType]?.start || '';
 	const metaDescriptions = `Breaking down the academic impact of ${prefixText.toLowerCase()} ${view.name} - ( ${paperText}, ${citeText} )`;
+
+	let disclaimer: string | null = null;
+	try {
+		disclaimer = activeDisclaimer(rootType, semanticId);
+	} catch {
+		// user DB unavailable — the profile renders without its note
+	}
 
 	// Author-specific data (null/empty defaults for all other entity types)
 	let profile: tt.PaperProfileResp | null = null;
@@ -202,6 +210,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch, parent 
 			paperText,
 			citeText,
 			prefixText,
+			disclaimer,
 			profile,
 			peersData,
 			ladder,

@@ -82,6 +82,7 @@ profile modifications (disown/claim/merge), plus its review layer: a
 `subject_enrichment` cache of external metadata (Crossref/OpenAlex/ORCID) and
 AI `review_verdicts`, both surfaced on the `/admin/ledger` moderation queue
 (see [ledger-review.md](ledger-review.md)).
+A profile page can also carry a **disclaimer** (`profile_disclaimers`, written by `pyscripts disclaimers`): a bordered data note at the bottom of its first card, shown while the data run it was written against is served.
 
 **Deployment (`pyscripts/recalc.py` → `deploy.py`):** staged recalc + deploy flow
 (`uv run -m pyscripts recalc <stage>` for the data, `uv run -m pyscripts deploy
@@ -290,6 +291,7 @@ the only viz dependency).
 | `AuthorOwnerTools.svelte` | Legacy owner action UI (slated for removal) |
 | `ExportControls.svelte` | Sort/filter/citation-style/BibTeX controls |
 | `EntityHero.svelte` | Hero-page header, config-driven per root type (`$lib/hero-config.ts`): per-entity stat, specialization field chips (standing badge except countries) that nest each field's top topics, tailored leader rows, decade chart |
+| `ProfileDisclaimer.svelte` | A profile's disclaimer: a bordered "Data note" across the bottom of an entity page's first card |
 | `InfoTip.svelte` | Unified "what is this?" tooltip: small `i` badge (or inline-text) trigger, opens on hover/focus/tap, solid background positioned at the trigger and clamped to the viewport. Used by `IndexedCitationLink`, `HeadControl` (Specialization / since-year), `HeroFieldBlocks` (papers-in note), `AxesOfFocusReach`, the browse table's column headers |
 | `IndexedCitationLink.svelte` | "indexed" citation explainer (wraps `InfoTip`; shared across stat-line variants), rendered from the served work screen |
 | `Peers.svelte` / `BarChart.svelte` | Peer comparison bars + shared span-bar chart |
@@ -330,6 +332,7 @@ the only viz dependency).
 | `lib/server/review-data.ts` | DB glue: `runEnrichment` (chunked cache fill + auto-accept), `loadReviewQueuePage` |
 | `lib/utils/reference-format.ts` | Academic reference formatting (APA/MLA/Chicago, BibTeX) |
 | `lib/utils/paper-helpers.ts` | Paper/author/source name resolution; highlight detection; OpenAlex work payloads (`fetchOaJson` bounds the wait and checks the status, `oaWorkToPaperResp` tolerates the nulls the API allows) |
+| `lib/server/disclaimers.ts` | `activeDisclaimer`: a profile's `profile_disclaimers` row, returned only while its `run_id` is the ledger manifest's, so a note lapses with the data run it was written against; the manifest is read only for a profile that has a row |
 | `lib/utils/dag-builder.ts` | DAG construction from RefTree |
 | `lib/utils/impact-summary.ts` | Summary counts (Nobel, Science/Nature, standout) for citing papers, and the phrases the page and the impact card word them with |
 | `lib/utils/clipboard-download.ts` | Clipboard copy + file download |
@@ -364,6 +367,7 @@ the only viz dependency).
 | `claims.py` | Paper-claim release lane (`uv run -m pyscripts claims <step>`): `review-merges` (y/n per name-matched candidate, decision written back into the plan), `apply-merges`, `accept` (only what the snapshot proves; stamped `auto:snapshot-authorship`), `record` (the release's `releases/<run_id>.claims.json` sidecar — publishable aggregates at the top level, per-claim detail under `detail`, which never leaves the box). Every case-specific decision lives in the per-release plan file, never in the repo |
 | `review_ledger.py` | AI review lane (`uv run -m pyscripts review-ledger`): per-claimant agentic sessions (explore/runner.py engines + rankless MCP) over the `subject_enrichment` evidence bundles → structured `review_verdicts` for `/admin/ledger`; see [ledger-review.md](ledger-review.md) |
 | `country_authors.py` | Country-vs-person verdicts for the author blacklist (`uv run -m pyscripts country-authors scan` / `review`): matches every author display name against the app's own country names, reports what the file leaves undecided, and shows an undecided record's papers before writing the verdict back |
+| `disclaimers.py` | Profile disclaimers (`uv run -m pyscripts disclaimers add`/`remove`/`list`), run on the serving box: `add` checks the profile against the box's backend, stamps the row with the run id of `user-ledger/applied_manifest.json` and replaces the profile's current note; `list` marks each row shown or lapsed. The table (`profile_disclaimers`, DDL mirrored in `lib/server/db.ts`) moves between boxes with the user DB (`userdb.py` `TABLES`) |
 | `external_data.py` | The external-data root (`$EXTERNAL_DATA_ROOT`, a directory per source, outside the repo, the snapshot and `OA_ROOT`, never published): `source_dir`; `raw_dir`, a source's `raw/`, where a download the box can fetch again from its URL sits (`fetched` downloads a table there once); `table` for a table the pipeline reads (required once the variable names the root, optional under the default); and `push`/`pull` of the root with `$EXTERNAL_DATA_REMOTE` (`make external-push` / `external-pull`, additive rsync that never carries a `raw/`); stdlib-only |
 | `orcid_summaries.py` | The ORCID Public Data File summaries reduced to the two tables Rankless reads (`make orcid_summaries`, once per yearly file): downloads the tarball into `$EXTERNAL_DATA_ROOT/orcid/raw/` (resumable, md5-checked), streams it once and writes `names.tsv.zst` (orcid, given names, family name, credit name, other names — the registered-name table `derive-ledger` reads), `public_emails.tsv` (every public email with primary/verified flags) and `summaries.stats.json` |
 | `deploy.py` | Application/box deploy: EC2 primitives (Nginx, systemd, SSL, code push, user-DB handoff) + ship_alpha/promote with smoke checks (`uv run -m pyscripts deploy <action>`); data pushes share the fleet's `manifest.push_data` definition, code deploys run `migration_scripts/` before the build, ship/promote refuse on a host whose DB holds no users or whose tree still holds a catch-up script, and on a backend port not owned by `rankless-server` (`listeners()` over `ss -lntp`) |

@@ -58,6 +58,7 @@ from protocli import Dispatcher
 from pyscripts import paths
 
 TABLES = (
+    "profile_disclaimers",
     "mcp_sessions",
     "mcp_objects",
     "geo_game_runs",

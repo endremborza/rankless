@@ -48,6 +48,16 @@ export function getDb(): Database {
 			orcid TEXT PRIMARY KEY,
 			first_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
 		);
+		-- A note shown on a profile while the data run it was written against is served
+		-- (disclaimers.ts). Written by pyscripts/disclaimers.py (mirrored DDL there).
+		CREATE TABLE IF NOT EXISTS profile_disclaimers (
+			root_type TEXT NOT NULL,
+			semantic_id TEXT NOT NULL,
+			run_id TEXT NOT NULL,
+			text TEXT NOT NULL,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			PRIMARY KEY (root_type, semantic_id)
+		);
 		CREATE TABLE IF NOT EXISTS sessions (
 			token TEXT PRIMARY KEY,
 			orcid TEXT NOT NULL,
@@ -610,6 +620,18 @@ function rowToConsent(r: ConsentRow): EmailConsent {
 		granted_at: r.granted_at
 	};
 }
+
+export type DisclaimerRow = { text: string; run_id: string };
+
+export const DisclaimerDb = {
+	get(rootType: string, semanticId: string): DisclaimerRow | null {
+		return getDb()
+			.prepare(
+				'SELECT text, run_id FROM profile_disclaimers WHERE root_type = ? AND semantic_id = ?'
+			)
+			.get(rootType, semanticId) as DisclaimerRow | null;
+	}
+};
 
 // Append-only, auditable consent log. The active consent for an ORCID is the latest row
 // with withdrawn_at IS NULL; granting again withdraws the prior row and inserts a new one,

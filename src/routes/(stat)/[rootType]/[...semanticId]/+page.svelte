@@ -14,6 +14,7 @@
 
 	import FullQc from '$lib/components/FullQc.svelte';
 	import EntityHero from '$lib/components/EntityHero.svelte';
+	import ProfileDisclaimer from '$lib/components/ProfileDisclaimer.svelte';
 	import RandTreeLink from '$lib/components/RandTreeLink.svelte';
 	import WorldMapSvg from '$lib/components/WorldMapSvg.svelte';
 	import ConceptMap from '$lib/components/ConceptMap.svelte';
@@ -42,6 +43,7 @@
 		paperText: string;
 		citeText: string;
 		prefixText: string;
+		disclaimer: string | null;
 		profile: tt.PaperProfileResp | null;
 		peersData: tt.EntityPeersResp | null;
 		ladder: tt.LadderData | null;
@@ -208,6 +210,7 @@
 		abstract={hitPaperAbstract}
 		{abstractLoading}
 	/>
+	<ProfileDisclaimer text={data.disclaimer} />
 </section>
 
 <Toc sections={tocSections} />
