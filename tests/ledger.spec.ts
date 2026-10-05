@@ -112,9 +112,11 @@ test.describe('pre-pipeline', () => {
 		});
 		expect(moderate.status, 'claim moderation should return 200').toBe(200);
 
-		// Ledger-status should have no applied events yet (pipeline hasn't run).
+		// The from-snapshot build already applies the curated ledger; only our events must be pending.
 		const status = await apiGet(page, '/api/ledger-status');
-		expect(status.applied_keys?.length ?? 0, 'no events applied before pipeline').toBe(0);
+		const applied: string[] = status.applied_keys ?? [];
+		for (const e of [disownEvent!, mergeEvent!, claimEvent!])
+			expect(applied, `${e.kind} must not be applied before pipeline`).not.toContain(e.key);
 
 		// Persist state for the post-pipeline phase. Events are matched by their merge-stable
 		// logical key, not event_id (which the deploy's DB merge renumbers).
