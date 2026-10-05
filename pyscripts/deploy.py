@@ -112,6 +112,10 @@ SMALL = "c6a.large"
 
 LARGE_INSTANCE_TYPE = BIG16
 LARGE_STORAGE_GB = 800
+# An uncached page reads its papers' names and DOIs from disk one by one, so under a
+# crawl page throughput is bounded by the root volume's IOPS (gp3 baseline: 3000).
+VOLUME_IOPS = 6000
+VOLUME_THROUGHPUT_MBS = 250
 SMOKE_BOOT_S = 300
 SMOKE_POLL_S = 10
 LARGE_FE_PROCS = 12
@@ -467,21 +471,21 @@ def get_dangling_instances():
     return list(filter(filt, all_insts))
 
 
-def get_block_device(size, upgraded: bool = False):
-    ext = {"Throughput": 500, "Iops": 16000} if upgraded else {}
+def get_block_device(size: int):
     return {
         "DeviceName": "/dev/sda1",
         "Ebs": {
             "VolumeSize": size,
             "VolumeType": "gp3",
-            **ext,
+            "Iops": VOLUME_IOPS,
+            "Throughput": VOLUME_THROUGHPUT_MBS,
             "DeleteOnTermination": True,
         },
     }
 
 
-def get_new_inst(vol_size: int, itype: str, img: str = ubuntu24_image_id, ext=False):
-    block_device = get_block_device(vol_size, ext)
+def get_new_inst(vol_size: int, itype: str, img: str = ubuntu24_image_id):
+    block_device = get_block_device(vol_size)
     inst = ec2().create_instances(  # pyright: ignore[reportAttributeAccessIssue]
         ImageId=img,
         InstanceType=itype,
