@@ -23,6 +23,7 @@ kd-tree = "0.6.0"
 ordered-float = "4"
 typenum = "1.17.0"
 nalgebra = "0.33"
+deunicode = "1.6.1"
 
 [[bin]]
 name = "fixture-build"

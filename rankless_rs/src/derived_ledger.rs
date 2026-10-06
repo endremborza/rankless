@@ -3,9 +3,13 @@
 //! ORCID are one person's unless their names say otherwise: each ORCID's records are clustered by
 //! name; the cluster the ORCID's registered name matches (else the one with the most works) owns
 //! it; the owner's oldest record keeps; every other record of the ORCID is merged into the keep or
-//! stripped of the ORCID. A record over the author screen's work bound never owns or keeps.
+//! stripped of the ORCID. A record over the author screen's work bound never owns or keeps. A
+//! person merged from several records is named by the registered name, else by their largest
+//! record, when that name is fuller than the keep's own.
 
 use std::{
+    borrow::Cow,
+    cmp::Reverse,
     collections::BTreeMap,
     env,
     fs::File,
@@ -14,9 +18,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use deunicode::deunicode;
 use dmove::BigId;
 use hashbrown::{HashMap, HashSet};
 use serde::Serialize;
+use serde_json::{json, Value};
 
 use crate::{
     common::{ParsedId, Stowage, MAIN_NAME},
@@ -42,6 +48,334 @@ const EXTRA_TOKEN_BITS: f64 = 8.0;
 const EXTRA_INITIAL_BITS: f64 = 4.0;
 /// An initial matched to a full token's first letter, or to the same initial.
 const INITIAL_MATCH_BITS: f64 = 5.0;
+/// What a variant match (two forms of one given name, or two tokens one edit apart) is credited
+/// below the exact match of its more common token: a variant is about a quarter as likely to
+/// be the same name, so it never outscores an exact match of either side.
+const VARIANT_DISCOUNT_BITS: f64 = 2.0;
+/// The shortest token a one-edit variant is read at; shorter names one edit apart are mostly
+/// different names ("li" ~ "lin", "wei" ~ "lei").
+const MIN_EDIT_LEN: usize = 6;
+/// The information the rarer of two tokens one edit apart needs to be a misspelling of the
+/// other ("kaniska" ~ "kanishka"); below it both are names of their own ("christian" ~
+/// "christina", "gerald" ~ "gerard", "akihiko" ~ "akihito").
+const TYPO_BITS: f64 = 20.0;
+/// Full tokens a registered name needs to vouch for a cluster the names alone keep apart:
+/// "X WU" or "G. LI" fits too many people.
+const MIN_VOUCHING_TOKENS: usize = 2;
+/// Capital blocks per name read both ways; a name with more reads them as initials only.
+const MAX_CAPS: usize = 3;
+/// Diminutives and spellings of a given name, each with the name it stands for, as folded
+/// tokens sorted by the first; one may stand for several names, and the spellings of one
+/// name all stand for the same one ("mohamed", "mohammed" → "muhammad").
+static NICKNAMES: &[(&str, &str)] = &[
+    ("abby", "abigail"),
+    ("achim", "joachim"),
+    ("alexandre", "alexander"),
+    ("andy", "andreas"),
+    ("andy", "andrew"),
+    ("angie", "angela"),
+    ("annie", "anna"),
+    ("annie", "anne"),
+    ("anya", "anna"),
+    ("bartek", "bartlomiej"),
+    ("bas", "sebastiaan"),
+    ("basia", "barbara"),
+    ("becky", "rebecca"),
+    ("beppe", "giuseppe"),
+    ("bernard", "bernhard"),
+    ("bernd", "bernhard"),
+    ("beth", "elisabeth"),
+    ("beth", "elizabeth"),
+    ("beto", "alberto"),
+    ("beto", "roberto"),
+    ("betta", "elisabetta"),
+    ("betty", "elizabeth"),
+    ("bice", "beatrice"),
+    ("bill", "william"),
+    ("billy", "william"),
+    ("bob", "robert"),
+    ("bobby", "robert"),
+    ("borya", "boris"),
+    ("bram", "abraham"),
+    ("cathy", "catherine"),
+    ("cees", "cornelis"),
+    ("charlie", "charles"),
+    ("charo", "rosario"),
+    ("checco", "francesco"),
+    ("chelo", "consulo"),
+    ("chema", "jose"),
+    ("chet", "chester"),
+    ("chucho", "jesus"),
+    ("chuck", "charles"),
+    ("chus", "jesus"),
+    ("chuy", "jesus"),
+    ("ciccio", "francesco"),
+    ("cindy", "cynthia"),
+    ("claus", "nikolaus"),
+    ("concha", "concepcion"),
+    ("conchi", "concepcion"),
+    ("curro", "francisco"),
+    ("danny", "daniel"),
+    ("dave", "david"),
+    ("davy", "david"),
+    ("debbie", "deborah"),
+    ("dick", "richard"),
+    ("dima", "dmitri"),
+    ("dima", "dmitriy"),
+    ("dima", "dmitry"),
+    ("dimitris", "dimitrios"),
+    ("dirk", "diederik"),
+    ("eddie", "edward"),
+    ("ellie", "eleanor"),
+    ("els", "elisabeth"),
+    ("enzo", "lorenzo"),
+    ("enzo", "vincenzo"),
+    ("evgenii", "evgeny"),
+    ("evgeniy", "evgeny"),
+    ("fedya", "fyodor"),
+    ("franco", "francesco"),
+    ("franek", "franciszek"),
+    ("frank", "francis"),
+    ("freddie", "frederick"),
+    ("fritz", "friedrich"),
+    ("gabi", "gabriele"),
+    ("galya", "galina"),
+    ("gene", "eugene"),
+    ("gerd", "gerhard"),
+    ("gerrit", "gerard"),
+    ("gerrit", "gerardus"),
+    ("gerry", "gerald"),
+    ("gerry", "gerard"),
+    ("gert", "gerardus"),
+    ("gert", "gerhard"),
+    ("gianni", "giovanni"),
+    ("gigi", "luigi"),
+    ("ginny", "virginia"),
+    ("gino", "luigi"),
+    ("giusi", "giuseppina"),
+    ("gosha", "georgy"),
+    ("gosia", "malgorzata"),
+    ("grisha", "grigory"),
+    ("guus", "augustus"),
+    ("hal", "harold"),
+    ("hal", "henry"),
+    ("hank", "henry"),
+    ("hanneke", "johanna"),
+    ("hannes", "johannes"),
+    ("hans", "johann"),
+    ("hans", "johannes"),
+    ("harm", "hermanus"),
+    ("harry", "harold"),
+    ("harry", "henry"),
+    ("hein", "hendrik"),
+    ("heinz", "heinrich"),
+    ("henk", "hendrik"),
+    ("honza", "jan"),
+    ("jaap", "jacob"),
+    ("jaap", "jacobus"),
+    ("jack", "john"),
+    ("jake", "jacob"),
+    ("jamie", "james"),
+    ("jan", "johannes"),
+    ("jaquline", "jacquline"),
+    ("jarek", "jaroslaw"),
+    ("jeff", "geoffrey"),
+    ("jeffery", "geoffrey"),
+    ("jeffrey", "geoffrey"),
+    ("jenny", "jennifer"),
+    ("jerry", "gerald"),
+    ("jim", "james"),
+    ("jimmy", "james"),
+    ("jirka", "jiri"),
+    ("jo", "joseph"),
+    ("jochen", "joachim"),
+    ("joke", "johanna"),
+    ("jon", "john"),
+    ("jonathon", "jonathan"),
+    ("joop", "johannes"),
+    ("joost", "justus"),
+    ("jorg", "georg"),
+    ("jupp", "josef"),
+    ("jurek", "jerzy"),
+    ("kasia", "katarzyna"),
+    ("kate", "catherine"),
+    ("kate", "katherine"),
+    ("kate", "kathryn"),
+    ("kathe", "katharina"),
+    ("katherine", "catherine"),
+    ("kathi", "katharina"),
+    ("kathryn", "catherine"),
+    ("kathy", "katherine"),
+    ("kathy", "kathryn"),
+    ("katie", "catherine"),
+    ("katie", "katherine"),
+    ("katya", "ekaterina"),
+    ("katya", "yekaterina"),
+    ("kees", "cornelis"),
+    ("kees", "cornelius"),
+    ("kenny", "kenneth"),
+    ("kike", "enriqu"),
+    ("klaas", "nicolaas"),
+    ("klaus", "nicolaus"),
+    ("klaus", "nikolaus"),
+    ("kolya", "nikolai"),
+    ("koos", "jacobus"),
+    ("kostya", "konstantin"),
+    ("kuba", "jakub"),
+    ("kurt", "konrad"),
+    ("larry", "laurence"),
+    ("larry", "lawrence"),
+    ("lele", "emanule"),
+    ("len", "leonard"),
+    ("lena", "elena"),
+    ("lena", "helena"),
+    ("lene", "helene"),
+    ("leni", "helene"),
+    ("lenny", "leonard"),
+    ("liam", "william"),
+    ("libby", "elizabeth"),
+    ("lies", "elisabeth"),
+    ("liesbeth", "elisabeth"),
+    ("liesel", "elisabeth"),
+    ("liz", "elisabeth"),
+    ("liz", "elizabeth"),
+    ("lizzie", "elizabeth"),
+    ("lola", "dolores"),
+    ("lucho", "luis"),
+    ("lupe", "guadalupe"),
+    ("lutz", "ludwig"),
+    ("maggie", "margaret"),
+    ("mandy", "amanda"),
+    ("manolo", "manul"),
+    ("masha", "maria"),
+    ("mathew", "matthew"),
+    ("meg", "margaret"),
+    ("memo", "guillermo"),
+    ("micheal", "michal"),
+    ("mick", "michal"),
+    ("mieke", "maria"),
+    ("mike", "michal"),
+    ("mikey", "michal"),
+    ("mimmo", "domenico"),
+    ("misha", "michal"),
+    ("misha", "mikhail"),
+    ("mohamed", "muhammad"),
+    ("mohammad", "muhammad"),
+    ("mohammed", "muhammad"),
+    ("molly", "mary"),
+    ("nacho", "ignacio"),
+    ("nadya", "nadezhda"),
+    ("nando", "ferdinando"),
+    ("nando", "fernando"),
+    ("nanni", "giovanni"),
+    ("natalya", "natalia"),
+    ("natasha", "natalia"),
+    ("natasha", "natalya"),
+    ("nate", "nathan"),
+    ("nate", "nathaniel"),
+    ("ned", "edward"),
+    ("nell", "eleanor"),
+    ("nick", "nicholas"),
+    ("nick", "nicolas"),
+    ("nick", "nikolaos"),
+    ("nicolas", "nicholas"),
+    ("olivier", "oliver"),
+    ("ollie", "oliver"),
+    ("olya", "olga"),
+    ("ondra", "ondrej"),
+    ("paco", "francisco"),
+    ("pancha", "francisca"),
+    ("pancho", "francisco"),
+    ("pasha", "pavel"),
+    ("patty", "patricia"),
+    ("peggy", "margaret"),
+    ("pepe", "jose"),
+    ("peppe", "giuseppe"),
+    ("petya", "pyotr"),
+    ("phillip", "philip"),
+    ("pili", "pilar"),
+    ("pina", "giuseppina"),
+    ("pino", "giuseppe"),
+    ("pippo", "filippo"),
+    ("polly", "mary"),
+    ("quiqu", "enriqu"),
+    ("rachal", "rachel"),
+    ("renzo", "lorenzo"),
+    ("resi", "theresia"),
+    ("rick", "richard"),
+    ("ricky", "richard"),
+    ("rien", "marinus"),
+    ("rike", "friederike"),
+    ("rinus", "marinus"),
+    ("robbie", "robert"),
+    ("ronnie", "ronald"),
+    ("rudi", "rudolf"),
+    ("rudy", "rudolph"),
+    ("ruud", "rudolf"),
+    ("ruud", "rudolph"),
+    ("sacha", "alexander"),
+    ("sally", "sarah"),
+    ("sander", "alexander"),
+    ("sandro", "alessandro"),
+    ("sandy", "sandra"),
+    ("sasha", "aleksandr"),
+    ("sasha", "alexander"),
+    ("sasha", "alexandra"),
+    ("sasha", "oleksandr"),
+    ("sebastien", "sebastian"),
+    ("sepp", "josef"),
+    ("slava", "vladislav"),
+    ("slava", "vyacheslav"),
+    ("staszek", "stanislaw"),
+    ("steffi", "stefanie"),
+    ("steve", "stephen"),
+    ("steven", "stephen"),
+    ("susie", "susan"),
+    ("tanya", "tatiana"),
+    ("tanya", "tatyana"),
+    ("ted", "edward"),
+    ("ted", "theodore"),
+    ("terry", "terence"),
+    ("terry", "terrence"),
+    ("tess", "theresa"),
+    ("tessa", "theresa"),
+    ("teun", "antonius"),
+    ("thijs", "matthijs"),
+    ("tolya", "anatoly"),
+    ("tom", "thomas"),
+    ("tomek", "tomasz"),
+    ("tommy", "thomas"),
+    ("ton", "antonius"),
+    ("toni", "anton"),
+    ("toni", "antonio"),
+    ("tono", "antonio"),
+    ("tony", "anthony"),
+    ("tony", "antonio"),
+    ("tony", "antonios"),
+    ("toon", "antonius"),
+    ("tori", "victoria"),
+    ("tricia", "patricia"),
+    ("trish", "patricia"),
+    ("uli", "ulrich"),
+    ("ulli", "ulrich"),
+    ("valya", "valentina"),
+    ("vanni", "giovanni"),
+    ("vanya", "ivan"),
+    ("vicki", "victoria"),
+    ("vicky", "victoria"),
+    ("volodya", "vladimir"),
+    ("vova", "vladimir"),
+    ("willi", "wilhelm"),
+    ("wim", "willem"),
+    ("wojtek", "wojciech"),
+    ("yura", "yuri"),
+    ("yura", "yuriy"),
+    ("zack", "zachary"),
+    ("zackary", "zachary"),
+    ("zhenya", "evgeny"),
+    ("zhenya", "yevgeny"),
+    ("zosia", "zofia"),
+];
 
 type OrcidCode = u64;
 
@@ -54,16 +388,19 @@ pub struct DerivedManifest {
     pub owner_by: BTreeMap<Reason, usize>,
     pub merges: BTreeMap<Reason, usize>,
     pub strips: BTreeMap<Reason, usize>,
+    pub names: BTreeMap<Reason, usize>,
 }
 
-/// A name as compared: full tokens folded to lowercase ASCII where a fold exists, in the order
-/// written, with their sorted hashes for the identity test; initials apart, sorted. A raw token
-/// of up to three capitals ("HG", "SP") is that many initials.
+/// A name as compared: full tokens transliterated to lowercase ASCII, in the order written,
+/// with their sorted hashes for the identity test; initials apart, sorted. A raw token of two
+/// or three capitals ("HG", "LI") is that many initials, and also kept in `caps` for the
+/// readings that take it as a name token.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Name {
     tokens: Vec<String>,
     sorted: Vec<u64>,
     initials: Vec<char>,
+    caps: Vec<String>,
 }
 
 /// Token frequencies over every author name, for the information content of a shared token.
@@ -73,10 +410,18 @@ pub struct Freq {
     total: u64,
 }
 
+/// An ORCID's registered names, and its given and family name as one display form.
+#[derive(Default)]
+struct Registered {
+    names: Vec<Name>,
+    display: String,
+}
+
 struct Rec {
     orcid: String,
     id: BigId,
     name: Name,
+    display: String,
     works: u32,
 }
 
@@ -107,7 +452,8 @@ struct Residue {
     b_initials: usize,
 }
 
-/// Why a record is merged (how its ORCID's owner cluster was chosen) or stripped.
+/// Why a record is merged (how its ORCID's owner cluster was chosen) or stripped, and where a
+/// keep's name comes from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Reason {
@@ -117,6 +463,8 @@ pub enum Reason {
     CompatibleName,
     NameMismatch,
     OverWorkBound,
+    /// The display name of the owner cluster's record with the most works.
+    LargestRecord,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -130,39 +478,97 @@ enum Decision {
         id: BigId,
         reason: Reason,
     },
+    Name {
+        keep: BigId,
+        name: String,
+        reason: Reason,
+    },
 }
 
 impl Name {
     pub fn parse(raw: &str) -> Self {
-        let (mut tokens, mut initials): (Vec<String>, Vec<char>) = (Vec::new(), Vec::new());
-        for raw_tok in raw
-            .split(|c: char| !c.is_alphanumeric())
+        let (mut tokens, mut initials, mut caps) = (Vec::new(), Vec::new(), Vec::new());
+        for raw_tok in deunicode(raw)
+            .split(|c: char| !c.is_ascii_alphanumeric())
             .filter(|t| !t.is_empty())
         {
-            if raw_tok.chars().all(|c| c.is_ascii_digit()) {
+            if raw_tok.bytes().all(|c| c.is_ascii_digit()) {
                 continue;
             }
-            let capitals =
-                raw_tok.chars().count() <= 3 && raw_tok.chars().all(|c| c.is_ascii_uppercase());
-            let tok = fold(raw_tok);
-            if capitals || tok.chars().count() == 1 {
+            let tok = squeeze(raw_tok);
+            if tok.len() == 1 {
                 initials.extend(tok.chars());
+            } else if raw_tok.len() <= 3 && raw_tok.bytes().all(|c| c.is_ascii_uppercase()) {
+                initials.extend(tok.chars());
+                caps.push(tok);
             } else {
                 tokens.push(tok);
             }
         }
+        initials.sort_unstable();
+        Self::new(tokens, initials, caps)
+    }
+
+    fn new(tokens: Vec<String>, initials: Vec<char>, caps: Vec<String>) -> Self {
         let mut sorted: Vec<u64> = tokens.iter().map(|t| token_hash(t)).collect();
         sorted.sort_unstable();
-        initials.sort_unstable();
         Self {
             tokens,
             sorted,
             initials,
+            caps,
         }
     }
 
     fn is_empty(&self) -> bool {
         self.tokens.is_empty() && self.initials.is_empty()
+    }
+
+    /// The name with each capital block as initials, then with every subset of them read as
+    /// name tokens instead ("Wei LI" is also "Wei Li"); each reading is unambiguous.
+    fn readings(&self) -> impl Iterator<Item = Cow<'_, Name>> {
+        let n = if self.caps.len() <= MAX_CAPS {
+            self.caps.len()
+        } else {
+            0
+        };
+        (0..1u32 << n).map(move |mask| match n {
+            0 => Cow::Borrowed(self),
+            _ => Cow::Owned(self.read_caps(mask)),
+        })
+    }
+
+    /// The reading with the capital blocks in `mask` as tokens.
+    fn read_caps(&self, mask: u32) -> Self {
+        let (mut tokens, mut initials) = (self.tokens.clone(), self.initials.clone());
+        for (i, block) in self.caps.iter().enumerate() {
+            if mask & (1 << i) != 0 {
+                for c in block.chars() {
+                    let at = initials.iter().position(|&x| x == c).unwrap();
+                    initials.remove(at);
+                }
+                tokens.push(block.clone());
+            }
+        }
+        Self::new(tokens, initials, Vec::new())
+    }
+
+    /// The reading closest to any of `names`, the base one on ties, with its affinity to the
+    /// closest: what the name means beside them ("ROY PARKER" beside "Roy Parker" is no set of
+    /// initials).
+    fn read_beside(&self, names: &[&Name], freq: &Freq) -> (Name, f64) {
+        let closest = |r: &Name| {
+            names
+                .iter()
+                .map(|n| affinity(n, r, freq))
+                .fold(f64::NEG_INFINITY, f64::max)
+        };
+        let (score, reading) = self
+            .readings()
+            .map(|r| (closest(&r), r))
+            .reduce(|best, r| if r.0 > best.0 { r } else { best })
+            .unwrap();
+        (reading.into_owned(), score)
     }
 
     /// The same tokens and initials in any order.
@@ -216,31 +622,88 @@ impl Open {
     }
 }
 
-/// Shared minus unshared name information in bits; identical names are infinitely alike. A
-/// token matches the same token, one written as two adjacent tokens ("xianglei" ~ "xiang
-/// lei") or one it begins ("ben" ~ "benjamin"); an initial matches the same initial or the
-/// first letter of an otherwise unmatched token.
-pub fn affinity(a: &Name, b: &Name, freq: &Freq) -> f64 {
-    if a.alike(b) {
-        return f64::INFINITY;
+impl Decision {
+    /// The decision as one `active.jsonl`-shaped line of the derived source.
+    fn line(&self, orcid: &str) -> Value {
+        let (key, kind, reason, mut payload) = match self {
+            Decision::Merge { drop, keep, reason } => (
+                format!("{orcid}|merge_authors|{drop}"),
+                "merge_authors",
+                reason,
+                json!({"keep": {"oa_id": keep}, "drop": {"oa_id": drop}}),
+            ),
+            Decision::Strip { id, reason } => (
+                format!("{orcid}|strip_orcid|{id}"),
+                "strip_orcid",
+                reason,
+                json!({"author": {"oa_id": id}}),
+            ),
+            Decision::Name { keep, name, reason } => (
+                format!("{keep}|name_author|"),
+                "name_author",
+                reason,
+                json!({"author": {"oa_id": keep}, "name": name}),
+            ),
+        };
+        payload["kind"] = kind.into();
+        json!({
+            "key": key,
+            "orcid": orcid,
+            "kind": kind,
+            "source": SOURCE,
+            "reason": reason,
+            "payload": payload,
+        })
     }
-    let r = residue(a, b, freq);
-    r.shared
-        - (r.a_tokens + r.b_tokens) as f64 * EXTRA_TOKEN_BITS
-        - (r.a_initials + r.b_initials) as f64 * EXTRA_INITIAL_BITS
 }
 
-/// Whether nothing in the two names contradicts: one side has nothing left once every match
-/// is made ("X. H. Wu" and "Xiaohua Wu" are compatible; "Jared Siegel" and "Jerome Siegel",
-/// or "R. Zhang" and "Bo Zhang", are not).
-pub fn compatible(a: &Name, b: &Name, freq: &Freq) -> bool {
-    let r = residue(a, b, freq);
-    r.a_tokens + r.a_initials == 0 || r.b_tokens + r.b_initials == 0
+/// Shared minus unshared name information in bits, over the best pairing of the two names'
+/// readings; identical names are infinitely alike. A token matches the same token, one
+/// written as two adjacent tokens ("xianglei" ~ "xiang lei"), one it begins ("ben" ~
+/// "benjamin") or a variant (`variant`); an initial matches the same initial or the first
+/// letter of an otherwise unmatched token.
+pub fn affinity(a: &Name, b: &Name, freq: &Freq) -> f64 {
+    over_readings(a, b, f64::NEG_INFINITY, |best, a, b| {
+        if a.alike(b) {
+            return f64::INFINITY;
+        }
+        let r = residue(a, b, freq);
+        best.max(
+            r.shared
+                - (r.a_tokens + r.b_tokens) as f64 * EXTRA_TOKEN_BITS
+                - (r.a_initials + r.b_initials) as f64 * EXTRA_INITIAL_BITS,
+        )
+    })
+}
+
+/// Whether the record name `rec` and the registered name `reg` do not contradict each other
+/// under some reading: once every match is made (tokens, initials, an initial against a token's
+/// first letter), one side has nothing left. What the other side still has is allowed, so
+/// "X. H. Wu" fits "Xiao-Hua Wu" and "Xiaohua Wu" fits "Xiaohua Q. Wu"; a record initial the
+/// registration does not explain is tolerated as long as the registration is used up.
+pub fn compatible(rec: &Name, reg: &Name, freq: &Freq) -> bool {
+    over_readings(rec, reg, false, |ok, rec, reg| {
+        ok || {
+            let r = residue(rec, reg, freq);
+            r.a_tokens + r.a_initials == 0 || r.b_tokens + r.b_initials == 0
+        }
+    })
+}
+
+/// `f` folded over every pairing of the two names' readings.
+fn over_readings<T>(a: &Name, b: &Name, init: T, mut f: impl FnMut(T, &Name, &Name) -> T) -> T {
+    let mut acc = init;
+    for ra in a.readings() {
+        for rb in b.readings() {
+            acc = f(acc, &ra, &rb);
+        }
+    }
+    acc
 }
 
 /// What two names share, in bits, and what each has left once every match is made: tokens
-/// (exact, joined, prefixed) and initials (the same initial, or an unmatched token's first
-/// letter).
+/// (exact, joined, prefixed, variant) and initials (the same initial, or an unmatched token's
+/// first letter).
 fn residue(a: &Name, b: &Name, freq: &Freq) -> Residue {
     let (mut shared, open) = matched(a, b, freq);
     let (mut a_init, mut b_init) = (a.initials.clone(), b.initials.clone());
@@ -259,8 +722,8 @@ fn residue(a: &Name, b: &Name, freq: &Freq) -> Residue {
     }
 }
 
-/// The token matches of two names — exact, joined, prefixed — as the shared information they
-/// carry and what is left unmatched on each side.
+/// The token matches of two names — exact, joined, prefixed, variant — as the shared
+/// information they carry and what is left unmatched on each side.
 fn matched(a: &Name, b: &Name, freq: &Freq) -> (f64, Open) {
     let mut open = Open {
         a: vec![true; a.tokens.len()],
@@ -278,6 +741,7 @@ fn matched(a: &Name, b: &Name, freq: &Freq) -> (f64, Open) {
     shared += joined(b, a, &mut open, freq);
     open.swap();
     shared += prefixed(a, b, &mut open, freq);
+    shared += variants(a, b, &mut open, freq);
     (shared, open)
 }
 
@@ -324,6 +788,58 @@ fn prefixed(a: &Name, b: &Name, open: &mut Open, freq: &Freq) -> f64 {
         }
     }
     shared
+}
+
+/// A token of one name that is a variant of a token of the other, credited with the more
+/// common one's information less `VARIANT_DISCOUNT_BITS`.
+fn variants(a: &Name, b: &Name, open: &mut Open, freq: &Freq) -> f64 {
+    let mut shared = 0.0;
+    for i in 0..a.tokens.len() {
+        if !open.a[i] {
+            continue;
+        }
+        let t = &a.tokens[i];
+        if let Some(j) = open.find_b(|j| variant(t, &b.tokens[j], freq)) {
+            open.take(i, j);
+            let ic = freq
+                .ic(token_hash(t))
+                .min(freq.ic(token_hash(&b.tokens[j])));
+            shared += (ic - VARIANT_DISCOUNT_BITS).max(0.0);
+        }
+    }
+    shared
+}
+
+/// Two forms of one given name ("andy" ~ "andrew", "kees" ~ "cees"), or two tokens of
+/// `MIN_EDIT_LEN` letters or more one substitution, insertion, deletion or adjacent
+/// transposition apart ("tinging" ~ "tingting"), the rarer of them `TYPO_BITS` or more.
+fn variant(x: &str, y: &str, freq: &Freq) -> bool {
+    forms(x).any(|f| forms(y).any(|g| f == g))
+        || (one_edit(x.as_bytes(), y.as_bytes())
+            && freq.ic(token_hash(x)).max(freq.ic(token_hash(y))) >= TYPO_BITS)
+}
+
+/// The token and the names it is a diminutive or a spelling of.
+fn forms(tok: &str) -> impl Iterator<Item = &str> {
+    let from = NICKNAMES.partition_point(|&(n, _)| n < tok);
+    let to = from + NICKNAMES[from..].partition_point(|&(n, _)| n == tok);
+    std::iter::once(tok).chain(NICKNAMES[from..to].iter().map(|&(_, full)| full))
+}
+
+fn one_edit(x: &[u8], y: &[u8]) -> bool {
+    let (short, long) = if x.len() <= y.len() { (x, y) } else { (y, x) };
+    if short.len() < MIN_EDIT_LEN || long.len() - short.len() > 1 {
+        return false;
+    }
+    let p = short.iter().zip(long).take_while(|(a, b)| a == b).count();
+    if p == short.len() {
+        return short.len() != long.len();
+    }
+    if short.len() < long.len() {
+        return short[p..] == long[p + 1..];
+    }
+    short[p + 1..] == long[p + 1..]
+        || (short[p] == long[p + 1] && short[p + 1] == long[p] && short[p + 2..] == long[p + 2..])
 }
 
 /// Whether the shorter of the two, at least three letters, begins the longer.
@@ -393,10 +909,12 @@ pub fn derive(stowage: &Stowage, names_table: Option<&Path>) -> io::Result<()> {
             if !orcid_code(orcid).is_some_and(|c| scan_wanted.contains(&c)) {
                 return;
             }
+            let display = a.display_name.clone().unwrap_or_default();
             acc.push(Rec {
                 orcid: normalize_orcid(orcid),
                 id,
-                name: Name::parse(a.display_name.as_deref().unwrap_or("")),
+                name: Name::parse(&display),
+                display,
                 works: a.works_count.unwrap_or(0),
             });
         },
@@ -417,12 +935,11 @@ pub fn derive(stowage: &Stowage, names_table: Option<&Path>) -> io::Result<()> {
     };
     let mut records = Vec::new();
     for group in recs.chunk_by(|a, b| a.orcid == b.orcid) {
-        let names = registered
+        let reg = registered
             .as_ref()
-            .and_then(|r| orcid_code(&group[0].orcid).and_then(|c| r.get(&c)))
-            .map(Vec::as_slice);
+            .and_then(|r| orcid_code(&group[0].orcid).and_then(|c| r.get(&c)));
         records.extend(
-            decide(group, names, &census.freq, &mut manifest)
+            decide(group, reg, &census.freq, &mut manifest)
                 .into_iter()
                 .map(|decision| Record {
                     orcid: group[0].orcid.clone(),
@@ -432,9 +949,10 @@ pub fn derive(stowage: &Stowage, names_table: Option<&Path>) -> io::Result<()> {
     }
     write_records(&stowage.paths.user_ledger, &records, &manifest)?;
     println!(
-        "derive-ledger: {} merges, {} strips → {DERIVED_JSONL}",
+        "derive-ledger: {} merges, {} strips, {} names → {DERIVED_JSONL}",
         manifest.merges.values().sum::<usize>(),
-        manifest.strips.values().sum::<usize>()
+        manifest.strips.values().sum::<usize>(),
+        manifest.names.values().sum::<usize>()
     );
     Ok(())
 }
@@ -469,10 +987,11 @@ fn names_table_path() -> io::Result<Option<PathBuf>> {
 }
 
 /// One ORCID's records: the over-bound ones stripped, the rest clustered by name, the owner
-/// cluster merged into its oldest record, the other clusters stripped.
+/// cluster merged into its oldest record, the other clusters stripped; a keep that absorbs
+/// records takes the name `keep_name` chooses.
 fn decide(
     group: &[Rec],
-    registered: Option<&[Name]>,
+    registered: Option<&Registered>,
     freq: &Freq,
     manifest: &mut DerivedManifest,
 ) -> Vec<Decision> {
@@ -490,14 +1009,31 @@ fn decide(
         return out;
     }
     let clusters = cluster(&eligible, freq);
-    let (owner, reason) = owner(&clusters, &eligible, registered, freq);
+    let names = registered.map(|r| r.names.as_slice());
+    let (owner, reason) = owner(&clusters, &eligible, names, freq);
     *manifest.owner_by.entry(reason).or_default() += 1;
     // Once the registered name has picked the owner, a cluster it does not contradict is the
-    // holder's too: the registration is the evidence the names alone lacked. The oldest id of
-    // everything merged keeps.
-    let names = registered
+    // holder's too: the registration, read as the owner's names read it, is the evidence the
+    // names alone lacked. Only a registered name of `MIN_VOUCHING_TOKENS` full tokens vouches,
+    // and none does unless one of them names the owner. The oldest id of everything merged
+    // keeps.
+    let owners: Vec<&Rec> = clusters[owner].iter().map(|&m| eligible[m]).collect();
+    let owner_names: Vec<&Name> = owners.iter().map(|r| &r.name).collect();
+    let read: Vec<(Name, f64)> = names
         .filter(|_| reason == Reason::RegisteredName)
-        .unwrap_or(&[]);
+        .unwrap_or(&[])
+        .iter()
+        .map(|n| n.read_beside(&owner_names, freq))
+        .collect();
+    let vouches = |n: &Name| n.tokens.len() >= MIN_VOUCHING_TOKENS;
+    let vouching = read
+        .iter()
+        .any(|(n, closeness)| *closeness >= MATCH_BITS && vouches(n));
+    let names: Vec<&Name> = read
+        .iter()
+        .map(|(n, _)| n)
+        .filter(|n| vouching && vouches(n))
+        .collect();
     let compatible_cluster = |members: &[usize]| {
         members
             .iter()
@@ -520,21 +1056,23 @@ fn decide(
         .iter()
         .zip(&reasons)
         .filter(|(_, r)| r.is_some())
-        .flat_map(|(members, _)| members.iter().map(|&m| eligible[m].id))
-        .min()
+        .flat_map(|(members, _)| members.iter().map(|&m| eligible[m]))
+        .min_by_key(|r| r.id)
         .unwrap();
+    let mut merged = false;
     for (members, merge_reason) in clusters.iter().zip(reasons) {
         for &m in members {
             let id = eligible[m].id;
             match merge_reason {
-                Some(_) if id == keep => {}
+                Some(_) if id == keep.id => {}
                 Some(reason) => {
                     out.push(Decision::Merge {
                         drop: id,
-                        keep,
+                        keep: keep.id,
                         reason,
                     });
                     *manifest.merges.entry(reason).or_default() += 1;
+                    merged = true;
                 }
                 None => {
                     out.push(Decision::Strip {
@@ -546,7 +1084,64 @@ fn decide(
             }
         }
     }
+    if !merged {
+        return out;
+    }
+    let display = registered.map(|r| r.display.as_str());
+    if let Some((name, reason)) = keep_name(&owners, keep, display, freq) {
+        out.push(Decision::Name {
+            keep: keep.id,
+            name,
+            reason,
+        });
+        *manifest.names.entry(reason).or_default() += 1;
+    }
     out
+}
+
+/// The name a person merged from several records shows: of the registered given and family
+/// name (when `presentable` and one of the owner's names) and the display name of the owner's
+/// record with the most works, the one with the most full tokens, ties in that order; None
+/// unless it has more than the keep's own, so a keep's initials and diacritics stay.
+fn keep_name(
+    owners: &[&Rec],
+    keep: &Rec,
+    registered: Option<&str>,
+    freq: &Freq,
+) -> Option<(String, Reason)> {
+    let largest = owners
+        .iter()
+        .max_by_key(|r| (r.works, Reverse(r.id)))
+        .unwrap();
+    let registered = registered
+        .filter(|d| presentable(d))
+        .map(|d| (d, Name::parse(d)))
+        .filter(|(_, n)| owners.iter().any(|r| same_person(&r.name, n, freq)))
+        .map(|(d, n)| (d, n.tokens.len(), Reason::RegisteredName));
+    let largest = (
+        largest.display.as_str(),
+        largest.name.tokens.len(),
+        Reason::LargestRecord,
+    );
+    let (name, full, reason) = registered
+        .into_iter()
+        .chain([largest])
+        .reduce(|best, c| if c.1 > best.1 { c } else { best })
+        .unwrap();
+    (full > keep.name.tokens.len()).then(|| (name.to_string(), reason))
+}
+
+/// Written in Latin script, in two tokens or more, and neither all lowercase nor all capitals.
+fn presentable(name: &str) -> bool {
+    let latin = |c: char| {
+        !c.is_alphabetic()
+            || c.is_ascii()
+            || matches!(c, '\u{c0}'..='\u{24f}' | '\u{1e00}'..='\u{1eff}')
+    };
+    name.chars().all(latin)
+        && name.split_whitespace().nth(1).is_some()
+        && name.chars().any(char::is_uppercase)
+        && name.chars().any(char::is_lowercase)
 }
 
 /// Single-linkage clusters over `same_person`, each as sorted member indices.
@@ -618,12 +1213,12 @@ fn owner(
 }
 
 /// The registered names of the wanted ORCIDs from the summaries table: given + family as one
-/// name, the credit name and every other name as more.
+/// name and the display form, the credit name and every other name as more.
 fn load_registered(
     path: &Path,
     wanted: &HashSet<OrcidCode>,
-) -> io::Result<HashMap<OrcidCode, Vec<Name>>> {
-    let mut out: HashMap<OrcidCode, Vec<Name>> = HashMap::new();
+) -> io::Result<HashMap<OrcidCode, Registered>> {
+    let mut out: HashMap<OrcidCode, Registered> = HashMap::new();
     let reader = BufReader::new(zstd::Decoder::new(File::open(path)?)?);
     for line in reader.lines().skip(1) {
         let line = line?;
@@ -638,14 +1233,15 @@ fn load_registered(
         let family = cells.next().unwrap_or("");
         let credit = cells.next().unwrap_or("");
         let others = cells.next().unwrap_or("");
-        let names = out.entry(code).or_default();
-        for raw in [format!("{given} {family}"), credit.to_string()]
-            .into_iter()
-            .chain(others.split('|').map(str::to_string))
-        {
-            let name = Name::parse(&raw);
-            if !name.is_empty() && !names.contains(&name) {
-                names.push(name);
+        let reg = out.entry(code).or_default();
+        let full = format!("{} {}", given.trim(), family.trim());
+        if reg.display.is_empty() {
+            reg.display = full.trim().to_string();
+        }
+        for raw in [full.as_str(), credit].into_iter().chain(others.split('|')) {
+            let name = Name::parse(raw);
+            if !name.is_empty() && !reg.names.contains(&name) {
+                reg.names.push(name);
             }
         }
     }
@@ -662,25 +1258,7 @@ fn write_records(ul_dir: &Path, records: &[Record], manifest: &DerivedManifest) 
     std::fs::create_dir_all(ul_dir)?;
     let mut out = BufWriter::new(File::create(ul_dir.join(DERIVED_JSONL))?);
     for Record { orcid, decision } in records {
-        let line = match decision {
-            Decision::Merge { drop, keep, reason } => serde_json::json!({
-                "key": format!("{orcid}|merge_authors|{drop}"),
-                "orcid": orcid,
-                "kind": "merge_authors",
-                "source": SOURCE,
-                "reason": reason,
-                "payload": {"kind": "merge_authors", "keep": {"oa_id": keep}, "drop": {"oa_id": drop}},
-            }),
-            Decision::Strip { id, reason } => serde_json::json!({
-                "key": format!("{orcid}|strip_orcid|{id}"),
-                "orcid": orcid,
-                "kind": "strip_orcid",
-                "source": SOURCE,
-                "reason": reason,
-                "payload": {"kind": "strip_orcid", "author": {"oa_id": id}},
-            }),
-        };
-        serde_json::to_writer(&mut out, &line)?;
+        serde_json::to_writer(&mut out, &decision.line(orcid))?;
         out.write_all(b"\n")?;
     }
     out.flush()?;
@@ -724,24 +1302,18 @@ fn token_hash(tok: &str) -> u64 {
     h.finish()
 }
 
-/// Lowercase, with the Latin letters carrying diacritics or ligatures folded to ASCII.
+/// Transliterated to ASCII (Latin diacritics and ligatures folded, other scripts romanized),
+/// then `squeeze`d.
 pub fn fold(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars().flat_map(char::to_lowercase) {
-        match fold_char(c) {
-            Some(ascii) => out.push_str(ascii),
-            None => out.push(c),
-        }
-    }
-    squeeze(&out)
+    squeeze(&deunicode(s))
 }
 
-/// Drops an `e` after `a`, `o` or `u`, so the umlaut conventions meet: "gänsicke", "gaensicke"
-/// and "gansicke" read alike, as do "müller", "mueller" and "muller".
-fn squeeze(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
+/// Lowercase ASCII with an `e` after `a`, `o` or `u` dropped, so the umlaut conventions meet:
+/// "gänsicke", "gaensicke" and "gansicke" read alike, as do "müller", "mueller" and "muller".
+fn squeeze(ascii: &str) -> String {
+    let mut out = String::with_capacity(ascii.len());
     let mut prev = ' ';
-    for c in s.chars() {
+    for c in ascii.chars().map(|c| c.to_ascii_lowercase()) {
         if !(c == 'e' && matches!(prev, 'a' | 'o' | 'u')) {
             out.push(c);
         }
@@ -750,50 +1322,18 @@ fn squeeze(s: &str) -> String {
     out
 }
 
-fn fold_char(c: char) -> Option<&'static str> {
-    Some(match c {
-        'à'..='å' | 'ā' | 'ă' | 'ą' => "a",
-        'æ' => "ae",
-        'ç' | 'ć' | 'ĉ' | 'ċ' | 'č' => "c",
-        'ď' | 'đ' | 'ð' => "d",
-        'è'..='ë' | 'ē' | 'ĕ' | 'ė' | 'ę' | 'ě' => "e",
-        'ĝ' | 'ğ' | 'ġ' | 'ģ' => "g",
-        'ĥ' | 'ħ' => "h",
-        'ì'..='ï' | 'ĩ' | 'ī' | 'ĭ' | 'į' | 'ı' => "i",
-        'ĳ' => "ij",
-        'ĵ' => "j",
-        'ķ' => "k",
-        'ĺ' | 'ļ' | 'ľ' | 'ŀ' | 'ł' => "l",
-        'ñ' | 'ń' | 'ņ' | 'ň' => "n",
-        'ò'..='ö' | 'ø' | 'ō' | 'ŏ' | 'ő' => "o",
-        'œ' => "oe",
-        'ŕ' | 'ŗ' | 'ř' => "r",
-        'ś' | 'ŝ' | 'ş' | 'š' | 'ș' | 'ſ' => "s",
-        'ß' => "ss",
-        'ţ' | 'ť' | 'ŧ' | 'ț' => "t",
-        'þ' => "th",
-        'ù'..='ü' | 'ũ' | 'ū' | 'ŭ' | 'ů' | 'ű' | 'ų' => "u",
-        'ŵ' => "w",
-        'ý' | 'ÿ' | 'ŷ' => "y",
-        'ź' | 'ż' | 'ž' => "z",
-        // combining marks, as a dotted capital I leaves behind when lowercased
-        '\u{0300}'..='\u{036f}' => "",
-        _ => return None,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     /// Token frequencies at the magnitudes of the full author table (some 3 × 10⁸ tokens):
-    /// the most common names near 7 bits, common ones near 9, mid ones near 13, a rare one
-    /// near 20 and an unseen one at 28.
+    /// the most common names near 7 bits, common ones near 9, 11 and 13, a rarer one at 16,
+    /// rare ones near 20 and 21 and an unseen one at 28.
     fn freq() -> Freq {
-        let bands: [(&[&str], u32); 4] = [
+        let bands: [(&[&str], u32); 7] = [
             (
                 &[
-                    "john", "wei", "wang", "wu", "li", "lin", "dai", "chen", "zhang",
+                    "john", "wei", "wang", "wu", "li", "lin", "dai", "chen", "zhang", "yang",
                 ],
                 2_000_000,
             ),
@@ -801,8 +1341,11 @@ mod tests {
                 &["smith", "maria", "kevin", "von", "king", "ben", "stephen"],
                 400_000,
             ),
+            (&["christian", "christina", "philip", "phillip"], 1 << 17),
             (&["watanabe", "kenji", "ranasinghe", "benjamin"], 40_000),
+            (&["kanishka"], 1 << 12),
             (&["korff"], 300),
+            (&["kaniska"], 1 << 7),
         ];
         Freq {
             counts: bands
@@ -815,6 +1358,125 @@ mod tests {
 
     fn same(a: &str, b: &str) -> bool {
         same_person(&Name::parse(a), &Name::parse(b), &freq())
+    }
+
+    fn rec(id: BigId, name: &str, works: u32) -> Rec {
+        Rec {
+            orcid: "0000-0001-0000-0001".into(),
+            id,
+            name: Name::parse(name),
+            display: name.into(),
+            works,
+        }
+    }
+
+    fn registered(names: &[&str]) -> Registered {
+        Registered {
+            names: names.iter().map(|n| Name::parse(n)).collect(),
+            display: names[0].into(),
+        }
+    }
+
+    fn names_given(group: &[Rec], reg: Option<&Registered>) -> Vec<(BigId, String, Reason)> {
+        decide(group, reg, &freq(), &mut DerivedManifest::default())
+            .into_iter()
+            .filter_map(|d| match d {
+                Decision::Name { keep, name, reason } => Some((keep, name, reason)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn other_scripts_transliterate() {
+        assert!(same("Олександр Войтко", "Oleksandr Voitko"));
+        assert!(same("Γιώργος Παπαδόπουλος", "Giorgos Papadopoulos"));
+        assert!(same("王伟", "Wei Wang"));
+        assert!(same("鹏 孙", "Peng Sun"));
+    }
+
+    #[test]
+    fn nicknames_and_rare_one_edit_typos_match_below_an_exact_token() {
+        assert!(same("Andy Spakowitz", "Andrew J. Spakowitz"));
+        assert!(same("Kees van Laarhoven", "Cees van Laarhoven"));
+        assert!(same("Dave Smith", "David Smith"));
+        assert!(same("Liam Cunningham", "William Cunningham"));
+        assert!(same("Tinging Wu", "Tingting Wu"));
+        assert!(same("Kaniska Ranasinghe", "Kanishka Ranasinghe"));
+        assert!(!same("Christian Smith", "Christina Smith"), "two names");
+        assert!(
+            same("Phillip Smith", "Philip Smith"),
+            "one name in two spellings"
+        );
+        assert!(same("Mohamed Kowalczyk", "Muhammad Kowalczyk"));
+        assert!(!same("Kevin Smith", "Kelvin Smith"), "under six letters");
+        let f = freq();
+        let aff = |a: &str, b: &str| affinity(&Name::parse(a), &Name::parse(b), &f);
+        assert!(aff("Andrew X. Smith", "Andy Smith") < aff("Andrew X. Smith", "Andrew Smith"));
+        assert!(aff("Tingting X. Wu", "Tinging Wu") < aff("Tingting X. Wu", "Tingting Wu"));
+        assert!(NICKNAMES.windows(2).all(|w| w[0] < w[1]));
+        assert!(NICKNAMES.iter().all(|&(n, f)| fold(n) == n && fold(f) == f));
+    }
+
+    #[test]
+    fn a_capital_block_reads_as_initials_or_as_a_name() {
+        assert!(same("Wei LI", "Wei Li"));
+        assert!(same("LI Wei", "Wei Li"));
+        assert!(same("JK Rowling", "J. K. Rowling"));
+        assert!(same("SP Hunger", "Stephen P. Hunger"));
+        assert!(!same("Wei LI", "Wei Lin"));
+        // Read beside its owner, "ROY SMITH" is Roy, so it does not take in a Ruth.
+        let group = [rec(1, "Roy Smith", 50), rec(2, "Ruth Smith", 5)];
+        let decisions = decide(
+            &group,
+            Some(&registered(&["ROY SMITH"])),
+            &freq(),
+            &mut DerivedManifest::default(),
+        );
+        assert_eq!(
+            decisions,
+            vec![Decision::Strip {
+                id: 2,
+                reason: Reason::NameMismatch
+            }]
+        );
+    }
+
+    #[test]
+    fn a_merged_keep_takes_the_fullest_name() {
+        let group = || vec![rec(1, "F. Halzen", 10), rec(2, "Francis Halzen", 20)];
+        let halzen = |name: &str, reason| vec![(1, name.to_string(), reason)];
+        assert_eq!(
+            names_given(&group(), Some(&registered(&["Francis L. Halzen"]))),
+            halzen("Francis L. Halzen", Reason::RegisteredName)
+        );
+        assert_eq!(
+            names_given(&group(), None),
+            halzen("Francis Halzen", Reason::LargestRecord)
+        );
+        for unusable in [
+            "FRANCIS HALZEN",
+            "francis halzen",
+            "Халзен",
+            "Halzen",
+            "Ann Other",
+        ] {
+            assert_eq!(
+                names_given(&group(), Some(&registered(&[unusable, "Francis Halzen"]))),
+                halzen("Francis Halzen", Reason::LargestRecord),
+                "{unusable}"
+            );
+        }
+        let fuller_keep = vec![rec(1, "Francis Halzen", 10), rec(2, "F. Halzen", 20)];
+        assert!(names_given(&fuller_keep, None).is_empty());
+        assert!(names_given(&[rec(1, "F. Halzen", 10)], None).is_empty());
+        let initialed = vec![
+            rec(1, "William H. Lipscomb", 10),
+            rec(2, "William Lipscomb", 20),
+        ];
+        assert!(names_given(&initialed, Some(&registered(&["William Lipscomb"]))).is_empty());
+        let accented = vec![rec(1, "Peter Pálenský", 10), rec(2, "Peter Palensky", 20)];
+        assert!(names_given(&accented, None).is_empty());
     }
 
     #[test]
@@ -853,7 +1515,8 @@ mod tests {
         let f = freq();
         let ok = |a: &str, b: &str| compatible(&Name::parse(a), &Name::parse(b), &f);
         assert!(ok("X. Wu", "Xiaohua Wu"));
-        assert!(ok("X. H. Wu", "Xiaohua Wu"));
+        assert!(ok("X. H. Wu", "Xiao-Hua Wu"));
+        assert!(ok("X. L. Ji", "Xiao-Lu Ji"));
         assert!(ok("S. Paredes", "Sandra R. Paredes Saenz"));
         assert!(ok("Split", "Sam Split"));
         assert!(ok("J. J. Chen", "Jing Chen"));
@@ -863,6 +1526,7 @@ mod tests {
         assert!(!ok("R. Zhang", "Bo Zhang"));
         assert!(!ok("D. W. Young", "David R. Young"));
         assert!(!same("X. Wu", "X. H. Wu"), "the names alone stay apart");
+        assert!(ok("L. L. Ma", "Lian-Liang MA"));
     }
 
     #[test]
@@ -873,18 +1537,11 @@ mod tests {
         assert!(same("Ben King", "Benjamin King"));
         assert!(same("Mohammadmahdi Asgari", "Mohammad Mahdi Asgari"));
         assert!(!same("Li Wang", "Lin Wang"));
-        assert!(!same("Andy Spakowitz", "Andrew J. Spakowitz"));
     }
 
     #[test]
     fn owner_by_registered_name_else_most_works() {
         let f = freq();
-        let rec = |id, name: &str, works| Rec {
-            orcid: "0000-0001-0000-0001".into(),
-            id,
-            name: Name::parse(name),
-            works,
-        };
         let recs = vec![
             rec(3, "Sam Split", 5),
             rec(1, "S. Split", 2),
@@ -908,12 +1565,6 @@ mod tests {
     #[test]
     fn a_group_decides_into_merges_and_strips() {
         let f = freq();
-        let rec = |id, name: &str, works| Rec {
-            orcid: "0000-0001-0000-0001".into(),
-            id,
-            name: Name::parse(name),
-            works,
-        };
         let group = vec![
             rec(10, "Sam Split", 5),
             rec(11, "S. Split", 2),
@@ -927,6 +1578,7 @@ mod tests {
             match d {
                 Decision::Merge { drop, keep, reason } => merges.push((drop, keep, reason)),
                 Decision::Strip { id, reason } => strips.push((id, reason)),
+                Decision::Name { .. } => panic!("the keep has the fullest name"),
             }
         }
         assert_eq!(merges, vec![(11, 10, Reason::MostWorks)]);
@@ -941,17 +1593,11 @@ mod tests {
     #[test]
     fn a_compatible_cluster_merges_only_under_a_registered_owner() {
         let f = freq();
-        let rec = |id, name: &str, works| Rec {
-            orcid: "0000-0001-0000-0001".into(),
-            id,
-            name: Name::parse(name),
-            works,
-        };
         // "Li" alone contradicts neither record but picks no owner, so the most works do;
         // the compatible cluster is then not the owner's and keeps out.
         let group = vec![rec(10, "Jun Li", 5), rec(11, "Ann Other", 50)];
         let mut manifest = DerivedManifest::default();
-        let decisions = decide(&group, Some(&[Name::parse("Li")]), &f, &mut manifest);
+        let decisions = decide(&group, Some(&registered(&["Li"])), &f, &mut manifest);
         assert_eq!(
             decisions,
             vec![Decision::Strip {
@@ -960,6 +1606,76 @@ mod tests {
             }]
         );
         assert_eq!(manifest.owner_by[&Reason::MostWorks], 1);
+    }
+
+    #[test]
+    fn a_registered_name_of_one_full_token_vouches_for_no_cluster() {
+        let f = freq();
+        let group = vec![
+            rec(1, "Xuemei Wu", 198),
+            rec(2, "Xingyu Wu", 126),
+            rec(3, "Xingyu Wu", 68),
+            rec(4, "Xingyu Wu", 6),
+        ];
+        // No name of two full tokens names the owner, so "Sam X. Wu" does not vouch; once
+        // "Xingyu Wu" does, "X WU" still does not.
+        for names in [["Sam X. Wu", "X WU"], ["Xingyu Wu", "X WU"]] {
+            assert_eq!(
+                decide(
+                    &group,
+                    Some(&registered(&names)),
+                    &f,
+                    &mut DerivedManifest::default()
+                ),
+                vec![
+                    Decision::Strip {
+                        id: 1,
+                        reason: Reason::NameMismatch
+                    },
+                    Decision::Merge {
+                        drop: 3,
+                        keep: 2,
+                        reason: Reason::RegisteredName
+                    },
+                    Decision::Merge {
+                        drop: 4,
+                        keep: 2,
+                        reason: Reason::RegisteredName
+                    },
+                ],
+                "{names:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_full_registered_name_vouches_beside_an_initialed_owner() {
+        let group = vec![
+            rec(1, "H. J. Yang", 50),
+            rec(2, "H. J. Yang", 30),
+            rec(3, "Haijun Yang", 20),
+        ];
+        let registered = registered(&["H.J. Yang", "Hai-Jun Yang", "Haijun Yang"]);
+        assert_eq!(
+            decide(
+                &group,
+                Some(&registered),
+                &freq(),
+                &mut DerivedManifest::default()
+            ),
+            vec![
+                Decision::Merge {
+                    drop: 2,
+                    keep: 1,
+                    reason: Reason::RegisteredName
+                },
+                Decision::Merge {
+                    drop: 3,
+                    keep: 1,
+                    reason: Reason::CompatibleName
+                },
+            ]
+        );
     }
 
     #[test]

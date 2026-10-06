@@ -1031,6 +1031,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "csv",
+ "deunicode",
  "dmove",
  "dmove-macro",
  "flate2",
