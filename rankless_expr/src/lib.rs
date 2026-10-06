@@ -12,6 +12,7 @@
 use std::fmt;
 
 use serde::Serialize;
+use wiretypes::wire;
 
 // Every input is bounded. Depth is the one that matters for safety: the parser descends one level
 // per nested parenthesis or `not`, and a stack overflow is not a catchable panic.
@@ -22,6 +23,7 @@ pub const MAX_LIST_ITEMS: usize = 64;
 
 // Externally tagged on purpose: an internal tag wraps the serializer per level, which a recursive
 // tree turns into an unbounded type.
+#[wire]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Expr {
@@ -31,6 +33,7 @@ pub enum Expr {
     Not(Box<Expr>),
 }
 
+#[wire]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Clause {
     pub call: Call,
@@ -39,6 +42,7 @@ pub struct Clause {
 }
 
 // A metric with its arguments: `papers`, `field_score(oncology)`, `window_papers(2020, 2024)`.
+#[wire]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Call {
     pub metric: String,
@@ -46,6 +50,7 @@ pub struct Call {
 }
 
 // A bare word is a slug (a semantic id), a quoted string a name that may carry spaces.
+#[wire]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum Arg {
@@ -53,6 +58,7 @@ pub enum Arg {
     Name(String),
 }
 
+#[wire]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Op {
@@ -66,6 +72,7 @@ pub enum Op {
     NotIn,
 }
 
+#[wire]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum Operand {
