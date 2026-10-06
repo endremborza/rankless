@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-10",
+  "generated": "2026-10-06",
   "connect": {
     "url": "https://alpha-api.rankless.org/mcp",
     "transport": "streamable-http",
@@ -36,10 +36,16 @@
       "description": "Top entities per type (institutions, authors, sources, countries, subfields).\n\nGood starting seeds when exploring without a specific target."
     },
     {
+      "name": "get_methodology",
+      "endpoint": "/v1/methodology",
+      "summary": "The definitions every number is built on, as the data was built with them.",
+      "description": "The definitions every number is built on, as the data was built with them.\n\n`workScreen` decides which papers are in the data at all, and so what an\nindexed paper and an indexed citation are: work kinds, year window, citation\nfloor, `teamLimit` (the most authors a paper has while they count as one\nteam), and the per-entity minimums. `paperScore` holds what a\npaper's score measures it against (the bar's top share and blend weights) and\nthe multiple that makes it a hit paper; `topN` and `hSince` parametrize the\nTop-N means and the recent h-indices; `yearlyCounts` is the first and last\nyear with yearly counts, the bounds of a year window. `texts` states the\npaper score and the hit paper in words, filled from those values. Explain\nwhat a number counts from this, never from memory; its values verify like any\nother data."
+    },
+    {
       "name": "get_entity_profile",
       "endpoint": "/v1/views/{entity_type}/{semantic_id}",
       "summary": "Full profile of one entity: totals, yearly series, top relations, similars.",
-      "description": "Full profile of one entity: totals, yearly series, top relations, similars.\n\n`yearlyPapers`/`yearlyCites` cover the recent era (2016..now). `relations`\nholds ranked related entities per relation type (paper-fields,\nciting-fields, paper-journals, paper-authors, ...). `coauthorEdges` lists\nthe strongest ties among the entity's top authors (an author's co-authors):\nthe papers each pair wrote together anywhere, not only within this entity\n(counts cap at 255)."
+      "description": "Full profile of one entity: totals, yearly series, top relations, similars.\n\nentity_type is a root type or hit-papers (a hit paper's semantic_id comes\nfrom get_papers or get_impact_dag). `yearlyPapers`/`yearlyCites` cover the\nrecent era (2016..now), and `startYear` is the first year of that era with a\npaper, not a career start (a hit paper's is its publication year).\n`relations` holds ranked related entities per relation type (paper-fields,\nciting-fields, paper-journals, paper-authors, ...). `coauthorEdges` lists\nthe strongest ties among the entity's top authors (an author's co-authors):\nthe papers each pair wrote together anywhere, not only within this entity\n(counts cap at 255). `image_url` is the share card of the entity's default\nbreakdown and `cards` the default card of every other kind this profile\nshows the entity has (yearly citations, map, fields, and for an author with\nco-authors their network and timeline); get_peers, get_papers and\nget_impact_dag link the peers, hit-paper and impact cards, and make_card\nrenders a variant."
     },
     {
       "name": "get_entity_stats",
@@ -51,25 +57,43 @@
       "name": "get_citation_tree",
       "endpoint": "/v1/trees/{entity_type}/{semantic_id}",
       "summary": "Hierarchical citation-impact breakdown of an entity, flattened to top-N.",
-      "description": "Hierarchical citation-impact breakdown of an entity, flattened to top-N.\n\n`tree_index` picks a breakdown config (see `levels` in the response for\nwhat each level means); `since_year` is a single lower cutoff.\n`citationLinks` counts citation links into a node, `sourceWorks` counts\nthe entity's own works under it."
+      "description": "Hierarchical citation-impact breakdown of an entity, flattened to top-N.\n\nentity_type is a root type or hit-papers (who cites one paper, by country or\nfield). `tree_index` picks a breakdown config (see `levels` in the response\nfor what each level means). `since_year` keeps only the entity's papers\npublished in or after that year, not citations made since then; the year\nused is echoed as `sinceYear`.\n`citationLinks` counts citation links into a node, `sourceWorks` counts\nthe entity's own works under it. `rankless_url` opens this same breakdown\non the site and `image_url` is its share card (bands sized by citation\ncount, as the rows are ranked); a top-level row's `image_url` is the card\nwith that branch opened (node 0 cannot be opened and has none), and its\n`nodeId` is what make_card's `paths` and\n`hl` take."
     },
     {
       "name": "get_papers",
       "endpoint": "/v1/works/{entity_type}/{semantic_id}/{offset}",
-      "summary": "Papers of an entity. sort=\"citations\" ranks by citation count first.",
-      "description": "Papers of an entity. sort=\"citations\" ranks by citation count first.\n\nReturns paper title, year, doi and citation count."
+      "summary": "Papers of an entity, at most 50 per call (`limit`); page with `offset`.",
+      "description": "Papers of an entity, at most 50 per call (`limit`); page with `offset`.\nsort=\"citations\" ranks by citation count first.\n\nEach paper has its title, year, citations, `score` (its paper score, see\nget_methodology) and `isHit`. A hit paper links to its rankless page\n(`rankless_url`, `semanticId` for the hit-papers tools); any other paper\nlinks to OpenAlex (`openalex_url`). For an author with hit papers among\nthe rows `image_url` is the card of their hit papers, and a hit row's own\n`image_url` the card with that paper highlighted."
+    },
+    {
+      "name": "get_impact_dag",
+      "endpoint": "/v1/paper-profile/{semantic_id}",
+      "summary": "The hit papers that build on an author's work: which of the most-cited",
+      "description": "The hit papers that build on an author's work: which of the most-cited\npapers of their fields and years cite the author's papers.\n\n`citingHits` are at most 50 hit papers citing the author, ordered by paper\nscore. They are a selection, not all of them: the data keeps the 50 with\nthe most citations and the strongest journals, favouring papers laureates\nwrote up to their prize year, and never a paper the author co-wrote; do not\nread a share of laureates or fields among them as a share of everything\nciting the author. Each names the laureates among its authors and the\nauthor's papers it cites (`cites`, indices into `authorPapers`).\n`authorPapers` are those cited papers, each with how many of the listed hits\ncite it (`citedByHits`). A story worth telling is one hit and the paper it\nbuilds on: a laureate citing the author, a jump into another field, a long\nreach in years. Pass a hit's `semanticId` to get_citation_tree or\nget_entity_profile with entity_type=\"hit-papers\" to follow it further.\n`image_url` is the impact card of the top hits, absent when no hit cites\nthe author; a hit's own `image_url` is the card with that hit and the\nauthor's papers it builds on."
     },
     {
       "name": "get_peers",
       "endpoint": "/v1/peers/{entity_type}/{semantic_id}",
       "summary": "Peer entities (comparable size + field profile) and top subfields.",
-      "description": "Peer entities (comparable size + field profile) and top subfields."
+      "description": "Peer entities (comparable size + field profile) and top subfields.\n\n`image_url` is the peers card against the first peer, absent when there is\nnone; a peer's own `image_url` is the card comparing the entity with that peer."
     },
     {
       "name": "lookup_orcid",
       "endpoint": "/v1/orcid/{orcid}",
       "summary": "Resolve an ORCID iD (e.g. 0000-0001-7896-6217) to a rankless author.",
       "description": "Resolve an ORCID iD (e.g. 0000-0001-7896-6217) to a rankless author."
+    },
+    {
+      "name": "rank_entities",
+      "endpoint": "",
+      "summary": "",
+      "description": ""
+    },
+    {
+      "name": "annotate_entities",
+      "endpoint": "",
+      "summary": "",
+      "description": ""
     },
     {
       "name": "verify_claims",
