@@ -47,8 +47,10 @@ def profile_cards(entity_type: str, semantic_id: str, view: dict) -> dict[str, s
 
 
 async def fetch_card(url: str) -> bytes:
-    """The card's PNG from the host that renders the cards."""
-    async with httpx.AsyncClient(timeout=RENDER_TIMEOUT_S) as client:
+    """The card's PNG from the host that renders the cards, wherever it redirects to."""
+    async with httpx.AsyncClient(
+        timeout=RENDER_TIMEOUT_S, follow_redirects=True
+    ) as client:
         resp = await client.get(render_url(url))
     if resp.status_code != 200:
         raise CardError(f"{resp.status_code} for {url}: {resp.text[:300]}")
