@@ -1,5 +1,5 @@
+import type { PaperOut, PaperProfileResp, PaperSetResp } from '$lib/wire/rankless_server/responses';
 import { error } from '@sveltejs/kit';
-import type * as tt from '$lib/tree-types';
 import { BE_URL } from '$lib/constants';
 import { pluralize } from '$lib/text-format-util';
 import { encodeSemanticId } from '$lib/tree-functions';
@@ -28,7 +28,7 @@ const BADGE_INKS: Record<string, { fill: string; ink: string }> = {
 	nobel: { fill: '#f5e9fb', ink: '#7d0082' }
 };
 
-type Profile = tt.PaperSetResp & { byWid: Record<number, tt.Paper>; authorDmId: string };
+type Profile = PaperSetResp & { byWid: Record<number, PaperOut>; authorDmId: string };
 
 // The hit papers that build on an author's work, as the page's impact DAG reads it: its roots are
 // the citing hits, the author's papers under them the ones they cite. `hits` picks up to three
@@ -39,7 +39,7 @@ export const impact: CardKind = {
 	async load({ semanticId, params, view, fetch }) {
 		if (!view) error(404, 'no such card');
 		const ids = idsParam(params, 'hits', MAX_TOP);
-		const resp = await beJson<tt.PaperProfileResp>(
+		const resp = await beJson<PaperProfileResp>(
 			fetch,
 			`${BE_URL}/paper-profile/${encodeSemanticId(semanticId)}`
 		);
@@ -100,7 +100,7 @@ export const impact: CardKind = {
 	}
 };
 
-function byRank(a: tt.Paper, b: tt.Paper): number {
+function byRank(a: PaperOut, b: PaperOut): number {
 	return (b.score ?? 0) - (a.score ?? 0) || b.citations - a.citations || a.wid - b.wid;
 }
 
@@ -138,7 +138,7 @@ function pickCited(
 	return chosen;
 }
 
-function chipPaper(p: tt.Paper, profile: Profile): ChipPaper {
+function chipPaper(p: PaperOut, profile: Profile): ChipPaper {
 	const highlights = getPaperHighlights(p, undefined, profile.entityAtts);
 	const prestigious = highlights.some((h) => h.key === 'prestigious');
 	if (hasNobelCoauthor(p, profile.authorsMeta, profile.authorDmId))

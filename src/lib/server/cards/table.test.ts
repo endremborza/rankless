@@ -1,12 +1,12 @@
+import type { ColumnDecl, TableRow } from '$lib/wire/rankless_server/responses';
 import { describe, expect, it } from 'vitest';
-import type { MetricDecl, TableRow } from '$lib/tree-types';
 import type { TableCardColumn, TableCardRow } from '$lib/components/cards/TableCard.svelte';
 import type { CardContext } from './kind';
 import { table } from './table';
 
 type Props = { columns: TableCardColumn[]; rows: TableCardRow[]; note: string };
 
-const field = (id: string, type: 'count' | 'score', header: string): MetricDecl => ({
+const field = (id: string, type: 'count' | 'score', header: string): ColumnDecl => ({
 	id,
 	label: id,
 	header,
@@ -16,7 +16,7 @@ const field = (id: string, type: 'count' | 'score', header: string): MetricDecl 
 	cost: 'read',
 	kind: 'global'
 });
-const metrics: MetricDecl[] = [
+const metrics: ColumnDecl[] = [
 	{
 		id: 'citations',
 		label: 'Citations',

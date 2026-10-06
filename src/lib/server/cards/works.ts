@@ -1,4 +1,4 @@
-import type * as tt from '$lib/tree-types';
+import type { PaginatedPaperSetResp } from '$lib/wire/rankless_server/responses';
 import { BE_URL } from '$lib/constants';
 import { mergeWorks, WORKS_PAGE_SIZE, worksPageUrl, type Works } from '$lib/utils/works-loader';
 import { beJson } from './kind';
@@ -7,10 +7,7 @@ import { beJson } from './kind';
 // are fetched concurrently and merged in slice order.
 export async function loadAllWorks(fetchFn: typeof fetch, semanticId: string): Promise<Works> {
 	const page = (from: number) =>
-		beJson<tt.PaginatedPaperSetResp>(
-			fetchFn,
-			worksPageUrl(BE_URL, semanticId, from, WORKS_PAGE_SIZE)
-		);
+		beJson<PaginatedPaperSetResp>(fetchFn, worksPageUrl(BE_URL, semanticId, from, WORKS_PAGE_SIZE));
 	const first = await page(0);
 	const froms: number[] = [];
 	for (let from = WORKS_PAGE_SIZE; from < first.totalPapers; from += WORKS_PAGE_SIZE)

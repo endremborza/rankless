@@ -1,22 +1,7 @@
+import type { AuthorSubject, WorkSubject } from '$lib/wire/rankless_rs/user_ledger';
 import { BE_URL } from '$lib/constants';
 import { canonicalDoi } from '$lib/utils/identifiers';
-import type { WorkSubject, AuthorSubject } from '$lib/types/ledger';
-
-type WorkResolveResp = {
-	oaId: number;
-	wid: number;
-	doi: string;
-	year: number;
-	name: string;
-};
-
-type AuthorResolveResp = {
-	oaId: number;
-	dmId: number;
-	semanticId: string;
-	orcid?: string;
-	name: string;
-};
+import type { ResolveAuthorResp, ResolveWorkResp } from '$lib/wire/rankless_server/responses';
 
 export class ResolveError extends Error {
 	constructor(
@@ -55,9 +40,9 @@ export async function resolveWorkSubject(input: {
 	display_title?: string;
 	display_year?: number;
 }): Promise<WorkSubject> {
-	let live: WorkResolveResp | null = null;
+	let live: ResolveWorkResp | null = null;
 	if (input.wid !== undefined || input.oa_id !== undefined) {
-		live = await fetchResolve<WorkResolveResp>('/resolve/work', {
+		live = await fetchResolve<ResolveWorkResp>('/resolve/work', {
 			wid: input.wid,
 			oa_id: input.oa_id
 		});
@@ -89,7 +74,7 @@ export async function resolveAuthorSubject(input: {
 	dm_id?: number;
 	display_name?: string;
 }): Promise<AuthorSubject> {
-	const live = await fetchResolve<AuthorResolveResp>('/resolve/author', {
+	const live = await fetchResolve<ResolveAuthorResp>('/resolve/author', {
 		semantic_id: input.semantic_id,
 		orcid: input.orcid,
 		oa_id: input.oa_id,

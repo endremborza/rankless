@@ -1,5 +1,5 @@
+import type { PostAttRelatedEntity } from '$lib/wire/rankless_server/responses';
 import { error } from '@sveltejs/kit';
-import type * as tt from '$lib/tree-types';
 import { circleLayout, getIndex } from '$lib/network-util';
 import { lastWord } from '$lib/text-format-util';
 import { htmlToText } from '$lib/utils/paper-helpers';
@@ -62,7 +62,7 @@ export const network: CardKind = {
 // label goes outside the ring, or beside or across the node when that spot is taken; one with no
 // free spot (clear of other nodes and of the labels of highlighted, then bigger, nodes) is left out.
 export function layoutNetwork(
-	authors: tt.RelatedEntity[],
+	authors: PostAttRelatedEntity[],
 	total: number,
 	weights: number[],
 	highlight: Set<string>

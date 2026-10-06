@@ -1,4 +1,4 @@
-import type * as tt from '$lib/tree-types';
+import type { CountsResponse } from '$lib/wire/rankless_server/responses';
 import { BE_URL, BRAND_STATS } from '$lib/constants';
 import { formatNumber } from '$lib/text-format-util';
 import { renderSvgComponent } from '$lib/server/render';
@@ -19,7 +19,7 @@ async function fetchHomeStats(fetchFn: typeof fetch): Promise<string[]> {
 	try {
 		const res = await fetchFn(`${BE_URL}/counts`);
 		if (!res.ok) return BRAND_STATS;
-		const counts: tt.CountsResponse = await res.json();
+		const counts: CountsResponse = await res.json();
 		if (!counts?.total_works || !counts?.total_citations) return BRAND_STATS;
 		return [
 			`${formatNumber(counts.total_works)} papers`,

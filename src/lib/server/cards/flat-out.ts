@@ -1,3 +1,4 @@
+import type { AttributeLabels, TreeResponse, TreeSpec } from '$lib/wire/rankless_trees/io';
 import { error } from '@sveltejs/kit';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
@@ -17,8 +18,8 @@ const L1_TYPE = { map: 'countries', fields: 'subfields' } as const;
 
 export type FlatOutCard = {
 	levels: tt.LevelT;
-	atts: tt.AttributeLabels;
-	treeSpec: tt.TreeSpec;
+	atts: AttributeLabels;
+	treeSpec: TreeSpec;
 	hl: string[];
 	// "this author" and " since 2000" as the caption words them.
 	subject: string;
@@ -46,7 +47,7 @@ export async function loadFlatOut(
 	const treeSpec = { ...base, defaultIsSpec: flagParam(params, 'isSpec', isSpec) };
 	const hl = idsParam(params, 'hl', P.hl.max);
 	const conf: tt.FullTreeConfig = { semanticId, year, treeId, rootType, wide: true };
-	const resp = await beJson<tt.TreeResponse>(fetch, tf.treeBeUrl(BE_URL, conf, 0));
+	const resp = await beJson<TreeResponse>(fetch, tf.treeBeUrl(BE_URL, conf, 0));
 	if (!resp.tree || !resp.atts) error(404, 'card unavailable');
 	const levels = tf.flatFromResp(resp, treeSpec.defaultIsSpec, treeSpec);
 	if (!levels || Object.keys(levels).length === 0) error(404, 'card unavailable');

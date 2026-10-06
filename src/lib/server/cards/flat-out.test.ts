@@ -1,5 +1,6 @@
+import type { AttributeLabels, TreeSpecs } from '$lib/wire/rankless_trees/io';
 import { describe, expect, it } from 'vitest';
-import type { AttributeLabels, ResponseNode, TreeSpecs } from '$lib/tree-types';
+import type { ResponseNode } from '$lib/tree-types';
 import { loadFlatOut } from './flat-out';
 import { idsParam, type CardContext } from './kind';
 

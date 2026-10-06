@@ -1,5 +1,5 @@
+import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 import { error } from '@sveltejs/kit';
-import type * as tt from '$lib/tree-types';
 import {
 	buildCoauthors,
 	sortCoauthors,
@@ -44,7 +44,7 @@ export const timeline: CardKind = {
 	}
 };
 
-function coauthorSemId(c: CoAuthor, entityAtts: tt.EntityAttsForLinks): string {
+function coauthorSemId(c: CoAuthor, entityAtts: EntityAttsForLinks): string {
 	return c.key[0] === 'F' ? (entityAtts.authors?.[c.key.slice(1)]?.semantic_id ?? '') : '';
 }
 

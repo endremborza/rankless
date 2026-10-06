@@ -1,3 +1,4 @@
+import type { AuthorSubject, EventPayload, WorkSubject } from '$lib/wire/rankless_rs/user_ledger';
 import { describe, it, expect } from 'vitest';
 import {
 	subjectHash,
@@ -5,7 +6,6 @@ import {
 	authorCanonicalKey,
 	DEFAULT_MODERATION
 } from './ledger-hash';
-import type { AuthorSubject, WorkSubject, LedgerPayload } from '$lib/types/ledger';
 
 const emptyDisplay = { title: '', year: null };
 const emptyAuthorDisplay = { display_name: '' };
@@ -48,23 +48,23 @@ describe('canonical keys', () => {
 
 describe('subjectHash determinism and order-invariance', () => {
 	it('same disown payload → same hash', () => {
-		const p: LedgerPayload = { kind: 'disown_paper', work: ws(42) };
+		const p: EventPayload = { kind: 'disown_paper', work: ws(42) };
 		expect(subjectHash(p)).toBe(subjectHash(p));
 	});
 
 	it('merge_papers swap of keep/drop yields the same hash', () => {
-		const a: LedgerPayload = { kind: 'merge_papers', keep: ws(10), drop: ws(20) };
-		const b: LedgerPayload = { kind: 'merge_papers', keep: ws(20), drop: ws(10) };
+		const a: EventPayload = { kind: 'merge_papers', keep: ws(10), drop: ws(20) };
+		const b: EventPayload = { kind: 'merge_papers', keep: ws(20), drop: ws(10) };
 		expect(subjectHash(a)).toBe(subjectHash(b));
 	});
 
 	it('merge_authors swap of keep/drop yields the same hash', () => {
-		const a: LedgerPayload = {
+		const a: EventPayload = {
 			kind: 'merge_authors',
 			keep: as(1, '0000-0001-0000-0001'),
 			drop: as(2, '0000-0002-0000-0002')
 		};
-		const b: LedgerPayload = {
+		const b: EventPayload = {
 			kind: 'merge_authors',
 			keep: as(2, '0000-0002-0000-0002'),
 			drop: as(1, '0000-0001-0000-0001')

@@ -1,7 +1,7 @@
+import type { AppliedManifest } from '$lib/wire/rankless_rs/user_ledger';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { env } from '$env/dynamic/private';
-import type { AppliedManifest } from '$lib/types/ledger';
 
 export const EMPTY_MANIFEST: AppliedManifest = {
 	run_id: '',

@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { LedgerDb } from '$lib/server/db';
 import { readManifest, EMPTY_MANIFEST } from '$lib/server/manifest';
-export type { AppliedManifest } from '$lib/types/ledger';
+export type { AppliedManifest } from '$lib/wire/rankless_rs/user_ledger';
 
 export function GET() {
 	const manifest = readManifest();

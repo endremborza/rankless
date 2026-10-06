@@ -1,7 +1,8 @@
+import type { EventPayload } from '$lib/wire/rankless_rs/user_ledger';
 import { json } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 import { LedgerDb } from '$lib/server/db';
-import type { LedgerKind, LedgerPayload } from '$lib/types/ledger';
+import type { LedgerKind } from '$lib/types/ledger';
 import {
 	resolveWorkSubject,
 	resolveAuthorSubject,
@@ -35,7 +36,7 @@ async function buildPayload(
 	kind: LedgerKind,
 	input: PayloadInput,
 	orcid: string
-): Promise<LedgerPayload> {
+): Promise<EventPayload> {
 	switch (kind) {
 		case 'disown_paper': {
 			const work = await resolveWorkSubject({

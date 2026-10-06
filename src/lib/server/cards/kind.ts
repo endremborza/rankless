@@ -1,3 +1,5 @@
+import type { ViewResult } from '$lib/wire/rankless_server/responses';
+import type { TreeSpecs } from '$lib/wire/rankless_trees/io';
 import { error } from '@sveltejs/kit';
 import type { Component } from 'svelte';
 import type * as tt from '$lib/tree-types';
@@ -14,8 +16,8 @@ export type CardContext = {
 	rootType: tt.RootType;
 	semanticId: string;
 	params: URLSearchParams;
-	specs: tt.TreeSpecs;
-	view: tt.View | null;
+	specs: TreeSpecs;
+	view: ViewResult | null;
 	fetch: typeof fetch;
 };
 

@@ -1,5 +1,5 @@
+import type { PaperProfileResp } from '$lib/wire/rankless_server/responses';
 import { error } from '@sveltejs/kit';
-import type * as tt from '$lib/tree-types';
 import { BE_URL } from '$lib/constants';
 import { encodeSemanticId } from '$lib/tree-functions';
 import { htmlToText, isAuthored, resolveSourceName } from '$lib/utils/paper-helpers';
@@ -33,7 +33,7 @@ export const papers: CardKind = {
 		const sorts = P.sort.options as RainbowSort[];
 		const sort = oneOf(params, 'sort', sorts, P.sort.default as RainbowSort);
 		const [hlId] = idsParam(params, 'hl', P.hl.max);
-		const profile = await beJson<tt.PaperProfileResp>(
+		const profile = await beJson<PaperProfileResp>(
 			fetch,
 			`${BE_URL}/paper-profile/${encodeSemanticId(semanticId)}`
 		);

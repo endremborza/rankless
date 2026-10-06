@@ -1,3 +1,4 @@
+import type { ViewResult } from '$lib/wire/rankless_server/responses';
 import { error } from '@sveltejs/kit';
 import type * as tt from '$lib/tree-types';
 import { BE_URL, FULL_HOST } from '$lib/constants';
@@ -60,7 +61,7 @@ export async function loadCard(
 	const [specs, view] = await Promise.all([
 		loadSpecs(fetchFn),
 		semanticId
-			? beJson<tt.View>(fetchFn, `${BE_URL}/views/${rt}/${encodeSemanticId(semanticId)}`)
+			? beJson<ViewResult>(fetchFn, `${BE_URL}/views/${rt}/${encodeSemanticId(semanticId)}`)
 			: null
 	]);
 	if (view && !view.name) error(404, 'card unavailable');

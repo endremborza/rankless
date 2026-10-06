@@ -1,7 +1,8 @@
+import type { TreeResponse, TreeSpec } from '$lib/wire/rankless_trees/io';
 import { error } from '@sveltejs/kit';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
-import { BE_URL } from '$lib/constants';
+import { BE_URL, isEntityType } from '$lib/constants';
 import { INNER, LABEL_FLOOR } from '$lib/utils/cards';
 import TreeSvg from '$lib/components/TreeSvg.svelte';
 import { beJson, flagParam, LEVEL_WORD, type CardKind } from './kind';
@@ -25,10 +26,10 @@ export const tree: CardKind = {
 			rootType,
 			wide: false
 		};
-		const resp = await beJson<tt.TreeResponse>(fetch, tf.treeBeUrl(BE_URL, conf, 1));
+		const resp = await beJson<TreeResponse>(fetch, tf.treeBeUrl(BE_URL, conf, 1));
 		if (!resp.tree || !resp.atts) error(404, 'card unavailable');
 		const width = (TREE_HEIGHT * INNER.w) / INNER.h;
-		const treeSpec: tt.TreeSpec = {
+		const treeSpec: TreeSpec = {
 			...specs.specs[rootType][spec.treeId],
 			defaultIsSpec: flagParam(params, 'isSpec', specs.specs[rootType][spec.treeId].defaultIsSpec)
 		};
@@ -51,8 +52,10 @@ export const tree: CardKind = {
 	}
 };
 
-function treeCaption(rootType: tt.RootType, treeSpec: tt.TreeSpec, year: number): string {
-	const levels = treeSpec.breakdowns.map((b) => LEVEL_WORD[b.attributeType]).join(' › ');
+function treeCaption(rootType: tt.RootType, treeSpec: TreeSpec, year: number): string {
+	const levels = treeSpec.breakdowns
+		.map((b) => (isEntityType(b.attributeType) ? LEVEL_WORD[b.attributeType] : b.attributeType))
+		.join(' › ');
 	const since = tf.hasYearFilter(rootType) ? ` of papers since ${year}` : '';
 	const sizing = treeSpec.defaultIsSpec ? 'specialization' : 'citation count';
 	return `Citations${since} by ${levels} · bands sized by ${sizing}`;

@@ -1,7 +1,8 @@
+import type { EventPayload } from '$lib/wire/rankless_rs/user_ledger';
 import { Database } from 'bun:sqlite';
 import { env } from '$env/dynamic/private';
 import { DEFAULT_MODERATION, logicalKey, subjectHash } from './ledger-hash';
-import type { LedgerKind, LedgerPayload, ModerationState } from '$lib/types/ledger';
+import type { LedgerKind, ModerationState } from '$lib/types/ledger';
 import type { EnrichmentEntry, EnrichmentSource, ReviewVerdict } from '$lib/types/review';
 import type { EmailConsent, EmailPurposeKey } from '$lib/types/email-consent';
 import type { SessionUserData } from './session';
@@ -167,7 +168,7 @@ export type LedgerEvent = {
 	key: string;
 	orcid: string;
 	kind: LedgerKind;
-	payload: LedgerPayload;
+	payload: EventPayload;
 	subject_hash: string;
 	created_at: string;
 	revoked_at: string | null;
@@ -233,7 +234,7 @@ function eventFilterSql(filter: EventFilter): { where: string; params: (string |
 }
 
 export const LedgerDb = {
-	createEvent(orcid: string, payload: LedgerPayload): CreateEventResult {
+	createEvent(orcid: string, payload: EventPayload): CreateEventResult {
 		const hash = subjectHash(payload);
 		const moderation = DEFAULT_MODERATION[payload.kind];
 		const existing = getDb()

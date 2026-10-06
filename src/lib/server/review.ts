@@ -1,9 +1,9 @@
 // Pure review-domain logic: no DB or env access, so it stays unit-testable under
 // vitest (bun:sqlite cannot be imported there). DB glue lives in review-data.ts.
+import type { EventPayload, WorkSubject } from '$lib/wire/rankless_rs/user_ledger';
 import { fixName } from '$lib/name-overrides';
 import { canonicalDoi, normalizeOrcid } from '$lib/utils/identifiers';
 import type { LedgerEvent, UserRow } from './db';
-import type { LedgerPayload, WorkSubject } from '$lib/types/ledger';
 import type {
 	AdminReviewRow,
 	EnrichmentEntry,
@@ -60,7 +60,7 @@ export function isAutoModerated(moderatedBy: string | null): boolean {
 	return moderatedBy !== null && moderatedBy.startsWith('auto:');
 }
 
-export function claimedWork(payload: LedgerPayload): WorkSubject | null {
+export function claimedWork(payload: EventPayload): WorkSubject | null {
 	return payload.kind === 'claim_paper' || payload.kind === 'disown_paper' ? payload.work : null;
 }
 
@@ -112,7 +112,7 @@ export function composeReviewRows(
 
 // All snapshot/enrichment values are untrusted external data — render them via plain
 // `{}` interpolation only (Svelte auto-escapes). Do NOT switch consumers to {@html}.
-export function summarize(p: LedgerPayload): string {
+export function summarize(p: EventPayload): string {
 	switch (p.kind) {
 		case 'disown_paper':
 			return `disown “${p.work.display_snapshot.title || p.work.doi || p.work.oa_id || '?'}”`;

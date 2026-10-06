@@ -6,13 +6,13 @@
 // ship whole — the per-question timer is what keeps lookups out, so the
 // client checks picks locally.
 
+import type { EntityPeersResp, LadderResp } from '$lib/wire/rankless_server/responses';
 import { DAY_RE, okInt, okSemIdList } from './game-common';
 import { getDb } from './db';
 import { currentObjects } from './objects';
 import { BE_URL } from '$lib/constants';
 import { STANDING_MIN_TIER, citStandingTier, standingLabel, tierLabels } from '$lib/peers-utils';
 import { encodeSemanticId } from '$lib/tree-functions';
-import type * as tt from '$lib/tree-types';
 import { FULL, KINDS, dailyDeck, survivalDeck } from '$lib/utils/game-geo';
 import type {
 	CardBadge,
@@ -211,14 +211,14 @@ async function getLadder(): Promise<NonNullable<typeof ladderCache>> {
 	if (ladderCache) return ladderCache;
 	const res = await fetch(`${BE_URL}/ladder/${BADGE_ROOT}`);
 	if (!res.ok) throw new Error(`ladder fetch failed: ${res.status}`);
-	const data = (await res.json()) as tt.LadderData;
+	const data = (await res.json()) as LadderResp;
 	ladderCache = { labels: tierLabels(data.pctBands), rows: data.ladder };
 	return ladderCache;
 }
 
-async function getPeers(semId: string): Promise<tt.EntityPeersResp | null> {
+async function getPeers(semId: string): Promise<EntityPeersResp | null> {
 	const res = await fetch(`${BE_URL}/peers/${BADGE_ROOT}/${encodeSemanticId(semId)}`);
 	if (res.status === 404) return null;
 	if (!res.ok) throw new Error(`peers fetch failed for ${semId}: ${res.status}`);
-	return (await res.json()) as tt.EntityPeersResp;
+	return (await res.json()) as EntityPeersResp;
 }

@@ -1,4 +1,4 @@
-// Cross-language type boundaries (not covered by type-audit — see docs/type-audit.md):
+// Cross-language type boundaries, mirrored by hand (no Rust type describes them):
 //
 // subject_enrichment.data (TS-written, Python-read): WorkRecord, OrcidRecord
 // review_verdicts rows (Python-written, TS-read): ReviewVerdict

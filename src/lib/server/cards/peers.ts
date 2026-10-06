@@ -1,5 +1,5 @@
+import type { EntityPeersResp } from '$lib/wire/rankless_server/responses';
 import { error } from '@sveltejs/kit';
-import type * as tt from '$lib/tree-types';
 import type { ShowcasePeers } from '$lib/types/showcase';
 import { BE_URL, LATEST_YEAR } from '$lib/constants';
 import { encodeSemanticId } from '$lib/tree-functions';
@@ -18,7 +18,7 @@ export const peers: CardKind = {
 		if (!view) error(404, 'no such card');
 		const n = intParam(params, 'n', P.n.default, 1, P.n.max);
 		const [hl] = idsParam(params, 'hl', P.hl.max);
-		const resp = await beJson<tt.EntityPeersResp>(
+		const resp = await beJson<EntityPeersResp>(
 			fetch,
 			`${BE_URL}/peers/${rootType}/${encodeSemanticId(semanticId)}`
 		);

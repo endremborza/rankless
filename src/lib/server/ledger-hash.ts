@@ -1,11 +1,6 @@
+import type { AuthorSubject, EventPayload, WorkSubject } from '$lib/wire/rankless_rs/user_ledger';
 import { createHash } from 'crypto';
-import type {
-	LedgerKind,
-	LedgerPayload,
-	ModerationState,
-	WorkSubject,
-	AuthorSubject
-} from '$lib/types/ledger';
+import type { LedgerKind, ModerationState } from '$lib/types/ledger';
 
 export const DEFAULT_MODERATION: Record<LedgerKind, ModerationState> = {
 	disown_paper: 'auto_ok',
@@ -42,7 +37,7 @@ function sha1Hex(s: string): string {
 	return createHash('sha1').update(s).digest('hex');
 }
 
-export function subjectHash(payload: LedgerPayload): string {
+export function subjectHash(payload: EventPayload): string {
 	switch (payload.kind) {
 		case 'disown_paper':
 		case 'claim_paper':

@@ -1,3 +1,4 @@
+import type { ColumnDecl, SliceMeta, TableRow } from '$lib/wire/rankless_server/responses';
 import { error } from '@sveltejs/kit';
 import type * as tt from '$lib/tree-types';
 import { BE_URL } from '$lib/constants';
@@ -78,7 +79,7 @@ export const table: CardKind = {
 			.flatMap((key) => columnOf(key, metrics) ?? []);
 		const cols = [...cohort, ...extra];
 		const names = await loadNames(cols, fetch);
-		const value = (row: tt.TableRow, key: string) =>
+		const value = (row: TableRow, key: string) =>
 			fetched[key] ? fetched[key][row.dmId] : rowValue(row, key);
 
 		const noun = prettifyRoot(rootType);
@@ -110,7 +111,7 @@ export const table: CardKind = {
 
 // `cols` is a comma list of metric calls whose own arguments may be comma-separated
 // (`window_papers(2020, 2024)`); each must be a numeric metric of the root with its arguments.
-function colsParam(params: URLSearchParams, metrics: tt.MetricDecl[]): Column[] {
+function colsParam(params: URLSearchParams, metrics: ColumnDecl[]): Column[] {
 	const calls = splitCalls(params.get('cols') ?? '');
 	if (calls.length > P.cols.max) error(404, 'too many cols');
 	return calls.map((call) => {
@@ -155,7 +156,7 @@ async function loadNames(cols: Column[], fetchFn: typeof fetch): Promise<Names> 
 // The added columns' values for the shown rows, by the key the backend answers each call under.
 async function extraValues(
 	rootType: tt.RootType,
-	rows: tt.TableRow[],
+	rows: TableRow[],
 	typed: Column[],
 	fetchFn: typeof fetch
 ): Promise<Record<string, MetricValues>> {
@@ -177,8 +178,8 @@ function inSentence(col: Column, names: Names): string {
 function cohortNote(
 	noun: string,
 	from: number,
-	ranked: tt.TableRow[],
-	meta: tt.SliceMeta,
+	ranked: TableRow[],
+	meta: SliceMeta,
 	where: string
 ): string {
 	const top = screenedTop(meta);

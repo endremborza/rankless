@@ -1,12 +1,12 @@
+import type { PostAttRelatedEntity } from '$lib/wire/rankless_server/responses';
 import { describe, expect, it } from 'vitest';
-import type { RelatedEntity } from '$lib/tree-types';
 import { getIndex } from '$lib/network-util';
 import { INNER } from '$lib/utils/cards';
 import { overlaps } from '$lib/utils/label-placement';
 import { layoutNetwork } from './network';
 
 const N = 25;
-const authors: RelatedEntity[] = Array.from({ length: N }, (_, i) => ({
+const authors: PostAttRelatedEntity[] = Array.from({ length: N }, (_, i) => ({
 	name: `Firstname Longsurname${i}`,
 	semanticId: `a-${i}`,
 	etype: 'authors',
