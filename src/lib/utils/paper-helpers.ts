@@ -133,9 +133,8 @@ export function highlightLabel(hl: PaperHighlight): string {
 	return HIGHLIGHT_LABELS[hl.key] ?? hl.key;
 }
 
-// Backend sentinel for a discarded author whose OpenAlex display_name is missing.
-const DISC_NAME_SENTINEL = 'Unknown';
-
+// A served authorship's display name; null for a filtered author missing from `entityAtts` or a
+// discarded author without a name.
 export function resolveAuthorNameOrNull(
 	ship: PaperAuthorship,
 	entityAtts: EntityAttsForLinks,
@@ -143,14 +142,11 @@ export function resolveAuthorNameOrNull(
 ): string | null {
 	// entityAtts.authors is keyed by the bare dm_id, but discAuthorNames is keyed by the
 	// full prefixed id ("D{id}") — each branch must use its own key form.
-	let name: string | null;
-	if (ship.author[0] === 'F') {
-		name = entityAtts.authors?.[ship.author.slice(1)]?.name ?? null;
-	} else {
-		const disc = discAuthorNames[ship.author];
-		name = disc && disc !== DISC_NAME_SENTINEL ? disc : null;
-	}
-	return name == null ? null : fixName(name);
+	const name =
+		ship.author[0] === 'F'
+			? entityAtts.authors?.[ship.author.slice(1)]?.name
+			: discAuthorNames[ship.author];
+	return name ? fixName(name) : null;
 }
 
 // Combine entity-att maps without clobbering nested per-type records. A shallow spread would

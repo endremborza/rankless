@@ -51,9 +51,9 @@ describe('resolveAuthorNameOrNull', () => {
 		expect(resolveAuthorNameOrNull({ author: 'D404', insts: [] }, atts, disc)).toBeNull();
 	});
 
-	it('treats the backend sentinel and empty names as null', () => {
+	it('treats an empty name as null and any other name as a name', () => {
 		const d = { D1: 'Unknown', D2: '' };
-		expect(resolveAuthorNameOrNull({ author: 'D1', insts: [] }, atts, d)).toBeNull();
+		expect(resolveAuthorNameOrNull({ author: 'D1', insts: [] }, atts, d)).toBe('Unknown');
 		expect(resolveAuthorNameOrNull({ author: 'D2', insts: [] }, atts, d)).toBeNull();
 	});
 });

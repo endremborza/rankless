@@ -145,7 +145,7 @@ def build_coauthor_timeline(
             if att.get("semantic_id") == hero_sid:
                 return None  # the hero links everyone — leave out
             return att["name"], None
-        if disc.get(a) and disc[a] != "Unknown":
+        if disc.get(a):
             return disc[a], None
         return None
 
