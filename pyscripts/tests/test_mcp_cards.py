@@ -132,3 +132,15 @@ def test_the_mcp_page_lists_make_card() -> None:
     from pyscripts import build_mcp_manifest
 
     assert "make_card" in [t["name"] for t in build_mcp_manifest._tools()]
+
+
+def test_papers_clamp_the_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: dict = {}
+
+    async def get_json(_path: str, params: dict) -> dict:
+        sent.update(params)
+        return {"resp": {"papers": []}}
+
+    monkeypatch.setattr(tools, "get_json", get_json)
+    asyncio.run(tools.get_papers("authors", "subject", limit=400))
+    assert sent["n"] == tools.MAX_PAPERS_LIMIT

@@ -47,6 +47,7 @@ _default_sorts: dict[str, str] = {}
 _numeric: dict[str, set[str]] = {}
 
 MAX_RANK_LIMIT = 100
+MAX_PAPERS_LIMIT = 50
 MAX_ANNOTATE_IDS = 24
 ROW_INTERNALS = ("oaId", "dmId", "values")
 PAPER_FIELDS: Final = ("name", "year", "citations", "score", "isHit", "doi")
@@ -261,7 +262,8 @@ async def get_papers(
     limit: int = 10,
     sort: str | None = None,
 ) -> dict:
-    """Papers of an entity. sort="citations" ranks by citation count first.
+    """Papers of an entity, at most {MAX_PAPERS_LIMIT} per call (`limit`); page with `offset`.
+    sort="citations" ranks by citation count first.
 
     Each paper has its title, year, citations, `score` (its paper score, see
     get_methodology) and `isHit`. A hit paper links to its rankless page
@@ -273,7 +275,7 @@ async def get_papers(
     _check_etype(entity_type)
     res = await get_json(
         f"/works/{entity_type}/{encode_semantic_id(semantic_id)}/{offset}",
-        {"n": limit, "sort": sort},
+        {"n": max(1, min(limit, MAX_PAPERS_LIMIT)), "sort": sort},
     )
     papers = [_paper(p) for p in res.get("resp", {}).get("papers", [])]
     out = {"rankless_url": entity_url(entity_type, semantic_id), "papers": papers}
@@ -285,6 +287,11 @@ async def get_papers(
                 "papers", entity_type, semantic_id, {"hl": p["semanticId"]}
             )
     return out
+
+
+get_papers.__doc__ = (get_papers.__doc__ or "").format(
+    MAX_PAPERS_LIMIT=MAX_PAPERS_LIMIT
+)
 
 
 async def get_impact_dag(semantic_id: str) -> dict:
