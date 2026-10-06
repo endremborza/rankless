@@ -3,6 +3,7 @@ use std::sync::Arc;
 use dmove::{Entity, ET};
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
+use wiretypes::wire;
 
 use rankless_rs::{
     gen::a2_init_atts::WorkBiblios,
@@ -16,6 +17,7 @@ use rankless_trees::{
     path_finder::RefDAG,
 };
 
+#[wire]
 #[derive(Serialize, Clone)]
 pub(crate) struct SearchResult {
     pub name: Arc<str>,
@@ -37,6 +39,7 @@ pub(crate) struct SearchResult {
 // One browse-table row: the search result, its 1-based rank in the active cohort ordering, and
 // the metric columns the cohort carries, keyed by the metric call (`top_mean`,
 // `field_score(oncology)`); a value the root cannot read is absent.
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct TableRow {
     #[serde(flatten)]
@@ -49,6 +52,7 @@ pub(crate) struct TableRow {
 // What a `/slice` page carries beside its rows: the size of the cohort the rows are ranked in,
 // the size of the ranked set when the ranking is screened, and the metric columns the rows carry
 // in display order, keyed the same way as `TableRow.values`.
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct SliceMeta {
     pub total: usize,
@@ -58,6 +62,7 @@ pub(crate) struct SliceMeta {
 }
 
 // One `/slice` page: the rows and the meta they are read against.
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct SliceResp {
     pub rows: Vec<TableRow>,
@@ -66,6 +71,7 @@ pub(crate) struct SliceResp {
 
 // One entry of a root's `/v1/columns` registry: a metric declaration with the kind the root gives
 // it, derived from the columns the root loaded, so it sits beside the declaration rather than in it.
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct ColumnDecl {
     pub id: &'static str,
@@ -80,6 +86,7 @@ pub(crate) struct ColumnDecl {
 
 // One root type's registry: the metrics it has, their texts as it shows them, and the metric its
 // table is ordered by by default.
+#[wire]
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct RootRegistry {
@@ -87,12 +94,14 @@ pub(crate) struct RootRegistry {
     pub metrics: Vec<ColumnDecl>,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct ColumnRegistry {
     pub roots: HashMap<&'static str, RootRegistry>,
 }
 
 // The methodology constants, the years with yearly counts and the texts filled from them.
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct MethodologyOut {
     #[serde(flatten)]
@@ -104,12 +113,14 @@ pub(crate) struct MethodologyOut {
 
 // Page-local metric values, one column per requested call keyed by its canonical text, each
 // aligned with `ids`.
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct MetricValuesResp {
     pub ids: Vec<usize>,
     pub values: HashMap<Arc<str>, Vec<Option<f64>>>,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct UnionSearchResult {
     #[serde(flatten)]
@@ -118,6 +129,7 @@ pub(crate) struct UnionSearchResult {
     pub root_type: &'static str,
 }
 
+#[wire]
 #[derive(Serialize, Clone)]
 pub(crate) struct SerializableExt {
     #[serde(rename = "startYear")]
@@ -134,6 +146,7 @@ pub(crate) struct SerializableExt {
 // Hero relations grouped by relation type, keyed by the names the frontend consumes directly (no
 // numeric rel-type contract, no client-side regrouping). Built per request from the mmapped top-N
 // tables.
+#[wire]
 #[derive(Serialize, Clone, Default)]
 pub(crate) struct RelationGroups {
     #[serde(rename = "paper-fields")]
@@ -152,6 +165,7 @@ pub(crate) struct RelationGroups {
     pub paper_authors: Vec<PostAttRelatedEntity>,
 }
 
+#[wire]
 #[derive(Serialize, Clone)]
 pub(crate) struct PostAttRelatedEntity {
     pub name: String,
@@ -170,6 +184,7 @@ pub(crate) struct PostAttRelatedEntity {
     pub parent_semantic_id: Option<String>,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct ViewResult {
     #[serde(flatten)]
@@ -181,18 +196,21 @@ pub(crate) struct ViewResult {
     pub similars: Vec<SearchResult>,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct TopResult {
     pub name: String,
     pub entities: Vec<SearchResult>,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct EntityDescription {
     pub name: String,
     pub count: usize,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct CountsResponse {
     pub entities: Vec<EntityDescription>,
@@ -200,6 +218,7 @@ pub(crate) struct CountsResponse {
     pub total_works: usize,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct PeerSubfieldInfo {
     pub name: Arc<str>,
@@ -209,6 +228,7 @@ pub(crate) struct PeerSubfieldInfo {
     pub dm_id: usize,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct PeerEntry {
     //TODO - this should just be another view
@@ -235,6 +255,7 @@ pub(crate) struct PeerEntry {
 // The hero's papers per subfield (production side), one entry per nonzero subfield. Lets the hero
 // header show a paper count on a field tile pulled in by a top topic that falls outside the top
 // paper-fields relation, which only carries the top few.
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct RefSubfieldInfo {
     #[serde(rename = "semanticId")]
@@ -242,6 +263,7 @@ pub(crate) struct RefSubfieldInfo {
     pub papers: u32,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct EntityPeersResp {
     #[serde(rename = "topSubfields")]
@@ -254,6 +276,7 @@ pub(crate) struct EntityPeersResp {
 
 // Per-cohort-entity-type rank-breakpoint table the client caches once per root type and uses to tag
 // any citation count with its subfield standing (the standing is computed on the frontend).
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct LadderResp {
     #[serde(rename = "pctBands")]
@@ -263,6 +286,7 @@ pub(crate) struct LadderResp {
     pub ladder: Vec<Vec<Option<u32>>>,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct StatsSubfield {
     pub name: Arc<str>,
@@ -274,6 +298,7 @@ pub(crate) struct StatsSubfield {
 }
 
 // Paper and citation counts inside a year window, clamped to the era that has per-year resolution.
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct YearWindow {
     #[serde(rename = "windowFrom")]
@@ -295,6 +320,7 @@ pub(crate) struct YearWindow {
 // figures are clamped to that span. `topSubfields`/`subfield` are the citing-subfield impact
 // profile and are only populated for root types that carry one (authors/institutions/countries/
 // sources).
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct StatsResp {
     pub name: Arc<str>,
@@ -316,6 +342,7 @@ pub(crate) struct StatsResp {
     pub subfield: Option<StatsSubfield>,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct ResolveWorkResp {
     #[serde(rename = "oaId")]
@@ -326,11 +353,13 @@ pub(crate) struct ResolveWorkResp {
     pub name: String,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct AuthoredResp {
     pub authored: bool,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct ResolveAuthorResp {
     #[serde(rename = "oaId")]
@@ -344,12 +373,14 @@ pub(crate) struct ResolveAuthorResp {
     pub name: String,
 }
 
+#[wire]
 #[derive(Serialize, Clone)]
 pub(crate) struct PaperAuthorship {
     pub author: String, //prefixed with filtered/discarded
     pub insts: Vec<usize>,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct PaperOut {
     pub wid: usize,
@@ -378,16 +409,19 @@ pub(crate) struct PaperOut {
     pub created_topic: Option<String>,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct PaperAuthorMeta {
     pub prize: u8,
     pub year: u16,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct PaperSetResp {
     pub papers: Vec<PaperOut>,
     #[serde(rename = "entityAtts")]
+    #[schemars(with = "rankless_trees::io::EntityAttsForLinksWire")]
     pub entity_atts: EntityAttsForLinks,
     #[serde(rename = "discAuthorNames")]
     pub disc_author_names: HashMap<String, String>,
@@ -395,6 +429,7 @@ pub(crate) struct PaperSetResp {
     pub authors_meta: HashMap<usize, PaperAuthorMeta>, //only filtered authors
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct PaginatedPaperSetResp {
     pub resp: PaperSetResp,
@@ -404,6 +439,7 @@ pub(crate) struct PaginatedPaperSetResp {
     pub slice_start: usize,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub(crate) struct PaperProfileResp {
     pub dag: RefDAG,
