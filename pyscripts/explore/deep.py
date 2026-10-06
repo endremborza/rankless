@@ -32,7 +32,6 @@ Scoping options:
 import argparse
 import asyncio
 import json
-import os
 import sys
 import time
 from collections import Counter
@@ -239,18 +238,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--sample", type=int, default=DEFAULT_SAMPLE, help="seed entity count."
     )
     p.add_argument("--max-turns", type=int, default=MAX_TURNS, help="agent turn cap.")
-    p.add_argument("--out", default=None, help="run dir name under the output root.")
-    p.add_argument(
-        "--out-root",
-        default=str(WRITEUPS_DIR),
-        help=f"output root dir (default: {WRITEUPS_DIR}).",
-    )
+    p.add_argument("--out", default=None, help="run dir name under the run root.")
     return p
 
 
 def _load_investigation(ref: str) -> dict:
     run, _, fid = ref.partition(":")
-    path = WRITEUPS_DIR / run / "findings.json"
+    path = runs.root() / run / "findings.json"
     if not path.exists():
         raise SystemExit(f"--investigate: no findings.json at {path}")
     findings = json.loads(path.read_text()).get("findings", [])
@@ -491,29 +485,6 @@ def _counts(findings: list[dict], suggestions: list[dict]) -> dict:
         "metricsError": sum(1 for m in metrics if m["error"]),
         "endpointSuggestions": len(suggestions),
     }
-
-
-def _store_findings(findings: list[dict], config: DeepConfig) -> None:
-    run = config.out_dir.name
-    objects = [
-        {
-            "kind": "finding",
-            "obj_key": f"{run}|{f['id']}",
-            "title": f.get("title"),
-            "payload": f,
-        }
-        for f in findings
-        if f["_verified"]
-    ]
-    if not objects:
-        print("[deep] no fully verified findings; nothing stored")
-        return
-    con = object_store.connect()
-    try:
-        n = object_store.write_bundle(con, run, objects)
-    finally:
-        con.close()
-    print(f"[deep] {n} verified finding(s) -> object store bundle {run!r}")
 
 
 def _append_runs_log(config: DeepConfig, meta: dict) -> None:

@@ -17,9 +17,10 @@ recomputed from the institutions' coordinates and places, re-issued through
 failing any check is dropped, never corrected. Reviewer rejections
 (`status_note`) are quoted to the prompt as taste, the hand-edited
 `HOUSE_STYLE` block steers it without code, and the run report lists every
-candidate the harness held back and why. One immutable bundle holds every
-kind; `(kind, semId)` is the skip key, an anchor carries one card per kind, a
-name family one card per run.
+candidate the harness held back and why. One immutable object-store bundle
+holds every kind; `(kind, semId)` is the skip key, an anchor carries one card
+per kind, a name family one card per run. The report goes into the run's dir
+under the run root (`runs.py`).
 
     uv run -m pyscripts rankless-game-card-mining --backend local --count 100
 """
@@ -40,7 +41,7 @@ import mcp_server
 from mcp_server import client as be_client
 from mcp_server import verify
 from pyscripts import object_store
-from pyscripts.explore import cli, object_mining, runner
+from pyscripts.explore import cli, runner, runs
 
 WORKFLOW = "rankless-game-card-mining"
 TITLE = "Game cards"
@@ -61,6 +62,7 @@ EARTH_RADIUS_KM = 6371.0
 BATCH_SIZE = 20
 MAX_PROPOSALS = 10
 TIMEOUT_S = 600
+BREAK_AFTER = 5
 NOTE_LEN = (20, 300)
 TASTE_LIMIT = 40
 FACT_TOOL = "get_entity_profile"
@@ -275,6 +277,19 @@ class World:
 
 
 @dataclass(frozen=True)
+class Generated:
+    """A round's accepted cards, how many candidates it considered, its log,
+    its model spend (`batches`, `seconds`, `output_tokens`, `thinking_tokens`,
+    `usd`) and the report's extra sections."""
+
+    objects: list[dict]
+    n_targets: int
+    log: list[str]
+    cost: dict
+    sections: dict[str, list[str]]
+
+
+@dataclass(frozen=True)
 class Menu:
     """What the harness lets the model propose for one anchor: the kinds still
     open, the kinds the anchor is unusable for and why, and the roster around
@@ -294,16 +309,15 @@ def main(
     skip: int = 0,
     model: str = "sonnet-5",
     engine: str = runner.DEFAULT_RUNNER,
-    session: str = "",
     kinds: str = "",
     audit: bool = False,
 ) -> None:
     """Mine geography-quiz cards of every kind into the MCP object store; each
-    run is an mcp_session and writes one immutable bundle. Candidates come from
-    the citation-ordered slice ranks --skip..--skip+--pool; --count caps new
+    run writes one immutable bundle and a report in its run dir. Candidates come
+    from the citation-ordered slice ranks --skip..--skip+--pool; --count caps new
     cards per run, --kinds (comma-separated) opens only those kinds so a
-    starved kind gets a round of its own (--session joins a worker-claimed
-    session row; --backend as in explore.deep). --audit instead re-judges
+    starved kind gets a round of its own (--backend as in explore.deep). --audit
+    instead re-judges
     every stored card against the
     current rules and prints the failures with the index ids `objects
     set-status` takes: no model call, nothing written."""
@@ -322,18 +336,18 @@ def main(
     if not wanted:
         raise SystemExit(f"--kinds must name some of {list(KINDS)}")
     model = cli.resolve_model(model)
-    object_mining.run_bundle(
-        workflow=WORKFLOW,
-        title=TITLE,
-        etype=etype,
-        backend=backend,
-        backend_label=backend_label,
-        model=model,
-        count=count,
-        kinds=KINDS,
-        session=session,
-        generate=lambda con: _generate(con, count, pool, skip, model, wanted),
-        report_line=report_line,
+    name = runs.run_name(WORKFLOW, ETYPE)
+    con = object_store.connect()
+    try:
+        gen = _generate(con, count, pool, skip, model, wanted)
+        object_store.write_bundle(con, name, gen.objects)
+        n_current = sum(len(object_store.current(con, kind)) for kind in KINDS)
+    finally:
+        con.close()
+    report = _write_report(runs.root() / name, backend_label, model, gen)
+    print(
+        f"[{WORKFLOW}] {len(gen.objects)}/{gen.n_targets} accepted into bundle "
+        f"{name!r}; {n_current} current card(s) in store -> {report}"
     )
 
 
@@ -362,7 +376,7 @@ def haversine_km(a: Place, b: Place) -> float:
 def place_parts(distinct_text: str) -> tuple[str, str]:
     """(city, cc) from an institution's `City, 🇭🇺` distinct text."""
     city = distinct_text.split(",")[0].strip() if "," in distinct_text else ""
-    return city, object_mining.flag_cc(distinct_text)
+    return city, flag_cc(distinct_text)
 
 
 def unusable(anchor: Place, world: World) -> dict[str, str]:
@@ -698,8 +712,8 @@ def _generate(
     skip: int,
     model: str,
     wanted: tuple[str, ...] = KINDS,
-) -> object_mining.Generated:
-    have = {kind: object_mining.stored_ccs(con, kind, ETYPE) for kind in KINDS}
+) -> Generated:
+    have = {kind: stored_ccs(con, kind) for kind in KINDS}
     index, world = asyncio.run(_load_pool(skip, pool))
     log: list[str] = []
     calls: dict[str, object] = {}
@@ -762,21 +776,17 @@ def _generate(
             )
             proposals = cli.parse_json(raw).get("cards", [])
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
-            object_mining.log_note(log, WORKFLOW, f"batch at {start}: failed ({exc})")
+            log_note(log, f"batch at {start}: failed ({exc})")
             failures += 1
             # a dead auth or exhausted usage window fails every batch; an
             # idempotent rerun resumes later
-            if failures >= object_mining.BREAK_AFTER:
-                object_mining.log_note(
-                    log, WORKFLOW, f"aborting after {failures} consecutive failures"
-                )
+            if failures >= BREAK_AFTER:
+                log_note(log, f"aborting after {failures} consecutive failures")
                 break
             continue
         failures = 0
         if len(proposals) > MAX_PROPOSALS:
-            object_mining.log_note(
-                log, WORKFLOW, f"batch at {start}: {len(proposals)} proposals, capped"
-            )
+            log_note(log, f"batch at {start}: {len(proposals)} proposals, capped")
             proposals = proposals[:MAX_PROPOSALS]
         accepted = asyncio.run(
             _build_batch(
@@ -796,25 +806,76 @@ def _generate(
         cost["batches"] += 1
         for key in ("seconds", "output_tokens", "thinking_tokens", "usd"):
             cost[key] += stats.get(key, 0)
-        object_mining.log_note(
+        log_note(
             log,
-            WORKFLOW,
             f"batch at {start}: {len(menus)} candidate(s), {len(proposals)} proposal(s), "
             f"{len(accepted)} accepted; {stats.get('seconds', 0):.0f} s, "
             f"{stats.get('output_tokens', 0):,} output tokens "
             f"({stats.get('thinking_tokens', 0):,} thinking), ${stats.get('usd', 0):.2f}",
         )
     if cost["batches"]:
-        object_mining.log_note(log, WORKFLOW, object_mining.cost_line(cost))
+        log_note(log, cost_line(cost))
     looked = set(list(index)[:reached])
     table = [
         line
         for p, shut in held
         if p.sem_id in looked and (line := unusable_line(p, shut))
     ]
-    return object_mining.Generated(
-        objects, len(candidates), log, cost=cost, sections={"Held back": table}
+    return Generated(objects, len(candidates), log, cost, {"Held back": table})
+
+
+def stored_ccs(con: sqlite3.Connection, kind: str) -> dict[str, str]:
+    # current() skips rejected versions, so a rejected card frees its entity
+    # for re-mining
+    row_list = [r for r in object_store.current(con, kind) if r["etype"] == ETYPE]
+    return {
+        r["sem_id"]: entry["payload"].get("cc", "")
+        for r, entry in zip(row_list, object_store.read_entries(row_list))
+        if entry is not None
+    }
+
+
+def flag_cc(distinct_text: str) -> str:
+    # country flag emoji = two regional-indicator codepoints (ISO2)
+    ris = [c for c in distinct_text if 0x1F1E6 <= ord(c) <= 0x1F1FF]
+    return "".join(chr(ord(c) - 0x1F1E6 + ord("A")) for c in ris[:2])
+
+
+def log_note(log: list[str], message: str) -> None:
+    log.append(message)
+    print(f"[{WORKFLOW}] {message}")
+
+
+def cost_line(cost: dict) -> str:
+    return (
+        f"{cost['batches']} model call(s) in {cost['seconds']:.0f} s, "
+        f"{cost['output_tokens']:,} output tokens "
+        f"({cost['thinking_tokens']:,} thinking), ${cost['usd']:.2f}"
     )
+
+
+def _write_report(run_dir: Path, backend: str, model: str, gen: Generated) -> Path:
+    lines = [
+        f"# {TITLE} — {backend}",
+        "",
+        f"_Model `{model}` · {runs.utc_now_iso()} · "
+        f"{len(gen.objects)}/{gen.n_targets} accepted._",
+        f"_{cost_line(gen.cost)}_",
+        "",
+        "## Accepted",
+        "",
+    ]
+    lines += [report_line(o) for o in gen.objects]
+    if gen.log:
+        lines += ["", "## Verification log", ""]
+        lines += [f"- {entry}" for entry in gen.log]
+    for heading, body in gen.sections.items():
+        lines += ["", f"## {heading}", ""]
+        lines += body
+    run_dir.mkdir(parents=True, exist_ok=True)
+    path = run_dir / "report.md"
+    path.write_text("\n".join(lines) + "\n")
+    return path
 
 
 def _audit(pool: int) -> None:
@@ -986,7 +1047,7 @@ async def _locate(
         await be_client.aclose()
     failed = {f["args"]["semantic_id"] for f in bad}
     for sem in sorted(failed):
-        object_mining.log_note(log, WORKFLOW, f"{sem}: profile not reproducible")
+        log_note(log, f"{sem}: profile not reproducible")
     return _placed(
         [p for p in places if p.sem_id not in failed],
         [f for f in facts if f["args"]["semantic_id"] not in failed],
@@ -1015,14 +1076,13 @@ async def _build_batch(
                 prop, menus, anchors, roster_by_id, world, calls
             )
             if obj is None:
-                object_mining.log_note(log, WORKFLOW, f"drop {sem}: {why}")
+                log_note(log, f"drop {sem}: {why}")
                 continue
             kind, cc = obj["kind"], obj["payload"]["cc"]
             fam = family(obj["title"])
             if fam in families:
-                object_mining.log_note(
+                log_note(
                     log,
-                    WORKFLOW,
                     f"drop {sem}: name family {fam!r} already carded this run",
                 )
                 continue

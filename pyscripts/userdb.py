@@ -1,17 +1,16 @@
-"""One home for the user-data unit: `data/rankless.sqlite` plus the artifact
-dirs it references (`data/mcp-sessions/` run outputs, `data/mcp-objects/`
-object-store bundles). Everything that moves or preserves that unit lives
+"""One home for the user-data unit: `data/rankless.sqlite` plus the object-store
+bundles its `mcp_objects` index references (`data/mcp-objects/`). Everything that moves or preserves that unit lives
 here: consistent snapshots, cross-box table transfer with decision
 reconciliation, and retained off-box backups. `pyscripts.deploy` provides the
 ssh/rsync transport and calls in; flows in docs/mcp-server.md + docs/deploy.md.
 
-Transfers cover every curated table: `mcp_sessions`, `mcp_objects` (payload-free
+Transfers cover every curated table: `mcp_objects` (payload-free
 object index; review statuses reconcile by version key), `geo_game_runs` (the
 quiz's play log), `ledger_events` (+ moderation
 reconciliation), `ledger_runs`, `owner_pins`, `users`, `email_consents`,
 `subject_enrichment`, `review_verdicts`, and unexpired auth `sessions`. A
 transfer runs on the receiving side against a shipped snapshot of the source
-DB; the artifact dirs move alongside by rsync (deploy.py, and `backup` below).
+DB; the bundles move alongside by rsync (deploy.py, and `backup` below).
 
     uv run -m pyscripts userdb transfer --target <db> --incoming <db> --mode merge|mirror
     uv run -m pyscripts userdb snapshot --src <db> --dst <path>
@@ -59,7 +58,6 @@ from pyscripts import paths
 
 TABLES = (
     "profile_disclaimers",
-    "mcp_sessions",
     "mcp_objects",
     "geo_game_runs",
     "ledger_events",
@@ -336,9 +334,8 @@ def _backup_local(root: Path, out: Path) -> None:
         snap = Path(td) / "rankless.sqlite"
         snapshot(db, str(snap))
         _compress(snap, out)
-    for rel in paths.MCP_ARTIFACT_RELS:
-        if Path(rel).exists():
-            subprocess.run(["rsync", "-ra", rel, f"{root}/"], check=True)
+    if Path(paths.MCP_OBJECTS_REL).exists():
+        subprocess.run(["rsync", "-ra", paths.MCP_OBJECTS_REL, f"{root}/"], check=True)
 
 
 def _backup_box(source: str, root: Path, out: Path) -> None:
@@ -359,10 +356,9 @@ def _backup_box(source: str, root: Path, out: Path) -> None:
         tpr.ssh.rsync_from(f"{remote_tmp}/rankless.sqlite", td)
         tpr.ssh.run(f"rm -rf {remote_tmp}")
         _compress(Path(td) / "rankless.sqlite", out)
-    for rel in paths.MCP_ARTIFACT_RELS:
-        remote_dir = f"{tpr.deploy_dir}/{rel}"
-        if tpr.ssh.remote_exists(remote_dir):
-            tpr.ssh.rsync_from(remote_dir, str(root))
+    remote_dir = f"{tpr.deploy_dir}/{paths.MCP_OBJECTS_REL}"
+    if tpr.ssh.remote_exists(remote_dir):
+        tpr.ssh.rsync_from(remote_dir, str(root))
 
 
 def _compress(src: Path, out: Path) -> None:

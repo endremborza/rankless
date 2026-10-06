@@ -9,9 +9,9 @@ shape with `{{ var }}` placeholders, this module renders them with real values
 the same templates for cloud instances over SSH.
 
 Profiles = which services a box runs:
-- dev:         backend + mcp-server + mcp-worker
-- small-alpha: frontend (blue+green) + mcp-server + mcp-worker + status
-- live:        frontend + backend + mcp-server + mcp-worker + status
+- dev:         backend + mcp-server
+- small-alpha: frontend (blue+green) + mcp-server + status
+- live:        frontend + backend + mcp-server + status
 
 The MCP server's backend is a parameter (`--mcp-backend local|alpha|live|<url>`),
 defaulting per profile; re-run with a different value to re-point it.
@@ -33,7 +33,6 @@ TEMPLATE_DIR = REPO_ROOT / "deploy"
 
 BACKEND_UNIT = "rankless-backend.service"
 MCP_SERVER_UNIT = "rankless-mcp-server.service"
-MCP_WORKER_UNIT = "rankless-mcp-worker.service"
 BACKUP_SERVICE_UNIT = "rankless-backup.service"
 BACKUP_TIMER_UNIT = "rankless-backup.timer"
 STATUS_UNIT = "rankless-status.service"
@@ -43,13 +42,11 @@ FE_BUILD_NAMES = ["blue", "green"]
 MCP_PORT = 8100
 # The per-client API budget, shared by the `/v1` and `/mcp` locations.
 API_LIMIT_REQ = "limit_req zone=apilimit burst=50 nodelay;"
-DEFAULT_WORKER_MODEL = "claude-sonnet-5"
-DEFAULT_WORKER_RUNNER = "claude-cli"
 
 PROFILES = {
-    "dev": ("backend", "mcp-server", "mcp-worker"),
-    "small-alpha": ("frontend", "mcp-server", "mcp-worker", "status"),
-    "live": ("frontend", "backend", "mcp-server", "mcp-worker", "status"),
+    "dev": ("backend", "mcp-server"),
+    "small-alpha": ("frontend", "mcp-server", "status"),
+    "live": ("frontend", "backend", "mcp-server", "status"),
     "worker": ("backend",),  # cache-warm fleet box: backend unit only
 }
 # Where the MCP server points by default: a dev box mines real data from the
@@ -134,23 +131,6 @@ def render_mcp_server(
     )
 
 
-def render_mcp_worker(
-    repo_root: str,
-    python: str,
-    model: str = DEFAULT_WORKER_MODEL,
-    runner: str = DEFAULT_WORKER_RUNNER,
-) -> str:
-    return render(
-        MCP_WORKER_UNIT,
-        repo_root=repo_root,
-        python=python,
-        db_path=f"{repo_root}/{paths.DB_REL}",
-        sessions_root=f"{repo_root}/{paths.MCP_SESSIONS_REL}",
-        worker_model=model,
-        worker_runner=runner,
-    )
-
-
 def render_status(repo_root: str) -> str:
     return render(STATUS_UNIT, repo_root=repo_root)
 
@@ -195,12 +175,6 @@ def _build_parser() -> argparse.ArgumentParser:
         default="",
         help="comma-separated Host headers nginx forwards to the MCP server "
         "(the public endpoint's domain); empty = localhost only.",
-    )
-    p.add_argument("--worker-model", default=DEFAULT_WORKER_MODEL)
-    p.add_argument(
-        "--worker-runner",
-        default=DEFAULT_WORKER_RUNNER,
-        help="mining engine for the worker (see pyscripts/explore/runner.py).",
     )
     p.add_argument(
         "--domain", default=None, help="frontend ORIGIN domain (fe profiles)."
@@ -251,10 +225,6 @@ def _render_units(args: argparse.Namespace) -> dict[str, str]:
         )
         units[MCP_SERVER_UNIT] = render_mcp_server(
             repo, python, be_url, args.mcp_port, args.mcp_public_hosts
-        )
-    if "mcp-worker" in wanted:
-        units[MCP_WORKER_UNIT] = render_mcp_worker(
-            repo, python, args.worker_model, args.worker_runner
         )
     if "status" in wanted:
         units[STATUS_UNIT] = render_status(repo)

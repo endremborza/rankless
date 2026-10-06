@@ -27,9 +27,7 @@ COMMANDS = {
     "country-authors": "pyscripts.country_authors",
     "disclaimers": "pyscripts.disclaimers",
     "rankless-game-card-mining": "pyscripts.explore.game_card_mining",
-    "impact-stories": "pyscripts.explore.impact_stories",
     "objects": "pyscripts.object_store",
-    "runs": "pyscripts.explore.runs",
     "userdb": "pyscripts.userdb",
 }
 

@@ -4,7 +4,7 @@ export
 # Where the backend spills bigs parts during prep→read; .env overrides it.
 RANKLESS_PARTS_ROOT ?= /tmp/dmove-parts
 
-.PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest mcp-worker setup-services external-push external-pull
+.PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest setup-services external-push external-pull
 .PHONY: check format check-rs check-py check-js check-types format-rs format-py format-js types
 .PHONY: refresh-data commit-artifacts warm-caches ship-alpha promote
 .PHONY: fleet-probe fleet-suggest fleet-preflight fleet-prepare fleet-stamp
@@ -72,10 +72,6 @@ type-audit:
 # Bake the /mcp demo page manifest from the live tool/prompt sources.
 mcp-manifest:
 	uv run -m pyscripts.build_mcp_manifest $(ARGS)
-
-# Host worker for admin-created exploration sessions (systemd in prod).
-mcp-worker:
-	uv run -m pyscripts.mcp_worker $(ARGS)
 
 # Render deploy/ unit templates + install systemd --user services for a machine
 # profile (dev / small-alpha / live); see docs/mcp-server.md.

@@ -1,5 +1,4 @@
-"""Unified store for MCP-derived objects: game cards, verified findings, and
-whatever the miners produce next.
+"""Store for MCP-mined objects: the CampusQuest game cards.
 
 Payloads live in immutable per-run bundles — `data/mcp-objects/<run>.jsonl.zst`,
 zstd-compressed, one self-describing JSON object per line — while `mcp_objects`
@@ -8,11 +7,11 @@ the `(bundle, line)` address, generation stamp, review `status`
 (new → approved/rejected), and denormalized display fields. Regeneration never
 rewrites anything: a later run's bundle adds a superseding version row, and
 consumers read the latest non-rejected version per key. `gen_at` is a sortable
-UTC ISO datetime, stamped here at write time. Bundles move between boxes with the `data/mcp-sessions/`
-artifact copy; index rows ride the user-DB handoff (`pyscripts/userdb.py`) where
+UTC ISO datetime, stamped here at write time. Bundles move between boxes by
+rsync of `data/mcp-objects/`; index rows ride the user-DB handoff (`pyscripts/userdb.py`) where
 merges dedup on `(kind, obj_key, bundle)` and review decisions propagate. The
 frontend reads the same table + bundles via `src/lib/server/objects.ts`
-(`/campus-quest` consumes cards, `/mcp` reviews/presents).
+(`/campus-quest` consumes cards, `/admin/games/cards` reviews them).
 
     uv run -m pyscripts objects list --kind country-card
     uv run -m pyscripts objects ingest --path run.jsonl.zst

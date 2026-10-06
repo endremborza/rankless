@@ -6,7 +6,7 @@ export type ObjectStatus = 'new' | 'approved' | 'rejected';
 
 import type { CardKind } from './game-geo';
 
-export type ObjectKind = CardKind | 'finding' | 'impact-story';
+export type ObjectKind = CardKind;
 
 export type McpObject = {
 	id: number;

@@ -1,7 +1,8 @@
-"""External data sources the pipeline reads but does not produce.
+"""External data sources the pipeline reads but does not produce, and the agent runs.
 
 Everything from outside OpenAlex lives under one root, `$EXTERNAL_DATA_ROOT`, in a
-directory per source, outside the repo, the snapshot and `$OA_ROOT` so it is never
+directory per source (the agent runs in `runs/`, `pyscripts/explore/runs.py`),
+outside the repo, the snapshot and `$OA_ROOT` so it is never
 published and a snapshot update or `make nuke` never purges it; unset, the root is the
 repo's `data/external` (a dev box). A table the pipeline reads is required once the
 variable names the root and optional under the default, the rule

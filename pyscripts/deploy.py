@@ -130,7 +130,6 @@ NGINX_AVDIR, NGINX_ENDIR = [f"/etc/nginx/sites-{s}" for s in ["available", "enab
 UPSTREAM_ETC_FNAME = "app_upstreams"
 
 be_service_name = services.BACKEND_UNIT
-MCP_UNITS = (services.MCP_SERVER_UNIT, services.MCP_WORKER_UNIT)
 tunnel_service_name = "rankless-tunnel.service"
 fe_service_template_frame = services.FE_UNIT_FRAME
 
@@ -140,10 +139,9 @@ local_service_path.mkdir(exist_ok=True, parents=True)
 
 
 # MCP + ledger transfer (sync/merge_db_*): curated tables move via pyscripts.userdb,
-# the artifact dirs via rsync. Same relative layout (paths.py) on both ends.
+# the object-store bundles via rsync. Same relative layout (paths.py) on both ends.
 LOCAL_REPO = services.REPO_ROOT
 DB_XFER_TMP = f"{paths.DATA_DIR}/_dbxfer"
-MCP_ARTIFACT_DIRS = paths.MCP_ARTIFACT_RELS
 
 
 @cache
@@ -648,7 +646,7 @@ class Transper:
                 "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
             )
         self.ssh.run("curl -fsSL https://bun.sh/install | bash")
-        # uv drives the python side (mcp server + worker) on the instance.
+        # uv drives the python side (the mcp server) on the instance.
         self.ssh.run("curl -LsSf https://astral.sh/uv/install.sh | sh")
 
     def sync_txt(self, txt, name, dir):
@@ -685,8 +683,8 @@ class Transper:
         )
 
     def setup_mcp_services(self):
-        """MCP server + worker units on the instance (venv must be synced); the
-        server reads the box's own backend port, what nginx serves as its `/v1`."""
+        """The MCP server unit on the instance (venv must be synced); it reads
+        the box's own backend port, what nginx serves as its `/v1`."""
         self.sync_service(
             services.render_mcp_server(
                 self.deploy_dir,
@@ -696,18 +694,12 @@ class Transper:
             ),
             services.MCP_SERVER_UNIT,
         )
-        self.sync_service(
-            services.render_mcp_worker(self.deploy_dir, self.venv_python),
-            services.MCP_WORKER_UNIT,
-        )
         self.reload_systemctl()
-        for name in MCP_UNITS:
-            ServiceMan(name, self.ssh).enable()
+        ServiceMan(services.MCP_SERVER_UNIT, self.ssh).enable()
         self.restart_mcp()
 
     def restart_mcp(self):
-        for name in MCP_UNITS:
-            ServiceMan(name, self.ssh).restart()
+        ServiceMan(services.MCP_SERVER_UNIT, self.ssh).restart()
 
     def setup_status_service(self):
         self.sync_service(services.render_status(self.deploy_dir), services.STATUS_UNIT)
@@ -916,7 +908,7 @@ upstream {BE_UPSTREAM} {{
         self._push_db(mirror=False)
 
     def sync_db_to(self):
-        # Destructive on a live box: REPLACES its ledger_events/mcp_sessions
+        # Destructive on a live box: REPLACES its ledger_events/mcp_objects
         self._push_db(mirror=True)
 
     def merge_db_from(self):
@@ -932,8 +924,7 @@ upstream {BE_UPSTREAM} {{
             return
         mode = "mirror" if mirror else "merge"
         db_name = Path(paths.DB_REL).name
-        for rel in MCP_ARTIFACT_DIRS:
-            (LOCAL_REPO / rel).mkdir(parents=True, exist_ok=True)
+        (LOCAL_REPO / paths.MCP_OBJECTS_REL).mkdir(parents=True, exist_ok=True)
         # Ship a hot snapshot, never the live local file: a WAL-mode writer would
         # leave un-checkpointed commits in the -wal sidecar and risk a torn image.
         local_tmp = LOCAL_REPO / DB_XFER_TMP
@@ -949,12 +940,11 @@ upstream {BE_UPSTREAM} {{
         )
         self.ssh.run(f"rm -rf {tmp}")
         shutil.rmtree(local_tmp)
-        for rel in MCP_ARTIFACT_DIRS:
-            self.ssh.rsync(
-                str(LOCAL_REPO / rel),
-                f"{self.deploy_dir}/{paths.DATA_DIR}",
-                delete=mirror,
-            )
+        self.ssh.rsync(
+            str(LOCAL_REPO / paths.MCP_OBJECTS_REL),
+            f"{self.deploy_dir}/{paths.DATA_DIR}",
+            delete=mirror,
+        )
 
     def _pull_db(self, mirror):
         remote_db = f"{self.deploy_dir}/{paths.DB_REL}"
@@ -976,14 +966,11 @@ upstream {BE_UPSTREAM} {{
         self.ssh.run(f"rm -rf {remote_tmp}")
         userdb.transfer(str(LOCAL_REPO / paths.DB_REL), str(tmp / db_name), mode)
         shutil.rmtree(tmp)
-        for rel in MCP_ARTIFACT_DIRS:
-            remote_dir = f"{self.deploy_dir}/{rel}"
-            if self.ssh.remote_exists(remote_dir):
-                self.ssh.rsync_from(
-                    remote_dir,
-                    str(LOCAL_REPO / paths.DATA_DIR),
-                    delete=mirror,
-                )
+        remote_dir = f"{self.deploy_dir}/{paths.MCP_OBJECTS_REL}"
+        if self.ssh.remote_exists(remote_dir):
+            self.ssh.rsync_from(
+                remote_dir, str(LOCAL_REPO / paths.DATA_DIR), delete=mirror
+            )
 
     def setup_code(self, branch=None, domain: str | None = None):
         self.ssh.run(f"rm -rf {self.deploy_dir}")
@@ -1293,7 +1280,7 @@ OPS_STEPS: list[BoxStep] = [
     ),
     BoxStep(
         "mcp_units",
-        "MCP server + worker units, restarted",
+        "MCP server unit, restarted",
         lambda tpr, spec: tpr.setup_mcp_services(),
     ),
     BoxStep(

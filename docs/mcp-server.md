@@ -22,8 +22,7 @@ Environment:
   public domain, and the ops definition renders both backend domains into the unit)
 - `MCP_LOG_DIR` — when set, every tool call (a failing one with its `error`), `verify_claims`
   result and `suggest_endpoint` lands as one JSON line per day (`<dir>/YYYY-MM-DD.jsonl`,
-  keyed by MCP session id — a stranger's session is not a run, so it stays out of
-  `mcp_sessions`, and a file per day is greppable on the box); the unit points it at
+  keyed by MCP session id, a file per day greppable on the box); the unit points it at
   `paths.MCP_LOG_REL`
 
 The hosted endpoint is `https://<backend domain>/mcp` (streamable-http behind nginx):
@@ -164,17 +163,7 @@ an SDK/API engine without touching the mining or reproduction logic.
 
 ## Generator workflows
 
-`pyscripts/explore/object_mining.py` is the shared engine for workflows that mine
-per-entity objects into the store: it picks targets from the backend's citation-ordered
-slice (idempotent reruns skip already-stored keys, a per-country cap keeps packs
-diverse), mines each target with one agentic session, and lands the accepted objects as
-one immutable bundle. A workflow is a `GeneratorSpec` — prompts plus an accept policy —
-so adding one is a small module plus a `WORKFLOWS` registry entry (`explore/runs.py`),
-which also gives it the worker spawn path and the `/mcp` queue form. Each run registers
-itself as an `mcp_sessions` row (self-registered from the CLI with `params.origin:
-"cli"`; worker-claimed when queued from `/mcp`) named `<workflow>-<etype>-<UTC stamp>`
-— the naming every agent run shares (`runs.run_name`, mirrored in
-`src/lib/mcp-util.ts`).
+One generator mines objects into the store, the CampusQuest card round. A run is named `<workflow>-<etype>-<UTC stamp>` (`runs.run_name`, the naming every agent run shares), lands its accepted cards as one immutable bundle and writes its `report.md` into its dir under the run root.
 
 - **`uv run -m pyscripts rankless-game-card-mining`** (`game_card_mining.py`) — the
   CampusQuest card round, one mixed batch-prompted round over every card kind
@@ -230,15 +219,10 @@ itself as an `mcp_sessions` row (self-registered from the CLI with `params.origi
   `report.md` carry per-batch model spend from the CLI's JSON envelope
   (`cli.query_claude_cli(stats=…)`: seconds, output and thinking tokens, USD) and
   a "Held back" table listing every candidate the harness shut and why.
-- **`uv run -m pyscripts impact-stories`** (`impact_stories.py`) — short verified
-  narratives of how an entity's research gets used (citation flows, landmark papers,
-  peers); stories with any unreproducible fact are dropped; approved `impact-story`
-  objects show publicly on `/mcp`.
 
 ## Object store
 
-The unified home for the miners' reusable outputs — quiz cards, verified
-findings, whatever comes next — split into immutable payloads and a reviewable index:
+The home of the CampusQuest cards, split into immutable payloads and a reviewable index:
 
 - **Bundles** — each generation run writes one `data/mcp-objects/<run>.jsonl.zst`
   (zstd, one self-describing object per line: `kind`, `obj_key`, display fields,
@@ -257,75 +241,37 @@ restores it onto the index rows it writes.
 Writers: `pyscripts/object_store.py` (shared write/read/CLI:
 `uv run -m pyscripts objects {list,ingest,export,set-status,fsck}` — `fsck` verifies
 every index row's `(bundle, line)` address resolves, `export` compresses to a `.zst`
-path), the generator workflows above (one bundle per run, named after its session),
-and `deep.py`, which bundles every fully verified finding by default (`--no-store` to
-skip). The frontend reads the same index + bundles via `src/lib/server/objects.ts`
+path) and the card round above (one bundle per run, named after the run). The frontend reads the same index + bundles via `src/lib/server/objects.ts`
 (decompressed bundles are cached per process — immutability makes that safe; rows
 whose bundle hasn't reached this box read as payload-less and are dropped from
 consumer reads): `/campus-quest` consumes the current cards of every card kind
-(`src/lib/server/game-geo.ts`); `/mcp` shows approved findings and
-impact stories publicly and gives admins the full review list (approve/reject —
+(`src/lib/server/game-geo.ts`); `/admin/games/cards` is the review list (approve/reject —
 rejecting requires a reason, stored as `status_note` and shown in the list so
 rejections stay reviewable against later data improvements; decisions and notes
-propagate across boxes with the merge) — game cards never render publicly,
-they'd spoil the game.
+propagate across boxes with the merge) — cards never render publicly outside the
+game, they'd spoil it.
 
-Between boxes, bundles ride the artifact-dir copy (next to `data/mcp-sessions/`)
-and index rows ride the user-DB handoff below: merges dedup on
+Between boxes, bundles ride the `data/mcp-objects/` copy and index rows ride the user-DB handoff below: merges dedup on
 `(kind, obj_key, bundle)`, and for version rows both boxes hold, review
 decisions propagate — a decision beats `new`, and between two decisions the
 later `updated_at` wins.
 
 ## Public site
 
-One page serves everyone — **`/mcp`** (`src/routes/(stat)/mcp/`, "Developers" in the footer while `MCP_FEATURE_ON` is set):
+One page serves everyone, **`/mcp`** (`src/routes/(stat)/mcp/`, "Developers" in the footer while `MCP_FEATURE_ON` is set): the connect-your-agent snippets, the tools, resources and prompts, rendered from the baked manifest `src/lib/assets/data/mcp-manifest.json`, which `pyscripts/build_mcp_manifest.py` (`make mcp-manifest`) generates from the **live sources** (tool docstrings, a tool's endpoint from `deep._CURL_MAP`, `resources.py`, `prompts.py`, `MCP_PUBLIC_URL`) so nothing is restated. Re-bake after changing a tool or prompt: `make mcp-manifest` (`MCP_PUBLIC_URL=…` to set the hosted endpoint). The site neither starts nor stores agent runs.
 
-- **Reference** — connect-your-agent snippets and the tool/foci/option list, rendered from the
-  baked manifest `src/lib/assets/data/mcp-manifest.json`, generated by
-  `pyscripts/build_mcp_manifest.py` (`make mcp-manifest`) from the **live sources** — tool
-  docstrings, `deep._FOCUS_BLOCKS`, the argparse `--help` (via `deep.build_parser()`),
-  `resources.py`, `prompts.py`, and `MCP_PUBLIC_URL` — so nothing is restated. Re-bake after
-  changing a tool/prompt: `make mcp-manifest` (`MCP_PUBLIC_URL=… ` to set the hosted endpoint).
-- **Sessions** — the list of exploration sessions. The public sees public, completed runs;
-  admins (ORCID-gated via `isAdmin`) additionally see every session plus the controls: a form
-  that **enqueues** a new run, per-session visibility toggle, and delete.
-- **`/mcp/runs/[name]`** — one session: its command, metadata, and outputs, rendered from
-  `findings.json` via `SessionFindings.svelte` (raw `report.md`/`reproduce.md`/`findings.json`
-  under `…/raw/<file>`; private sessions 404 for non-admins).
+## Moving the user data between boxes
 
-## Sessions store & worker
-
-A session is a SQLite index row (`mcp_sessions` in `data/rankless.sqlite`) plus a directory
-`$MCP_SESSIONS_ROOT/<name>/` (default `data/mcp-sessions/`) holding the deep.py artifacts.
-The frontend reads/writes rows via `bun:sqlite` (`src/lib/server/mcp-sessions.ts`); the host
-worker uses Python's `sqlite3` on the same WAL file. Sessions come from this flow (admin form
-→ worker), from CLI generator runs that register themselves, or from `uv run -m pyscripts runs
-import <dir>... [--public]`, which copies a finished deep run made elsewhere (`deep.py
---no-store`, another box) under the sessions root and registers it as a `done` row (params and
-title derived from its `findings.json` meta) — there is no other side channel.
-
-`pyscripts/mcp_worker.py` (`make mcp-worker`, systemd in prod) polls for `queued` rows, claims
-one atomically, and spawns the row's workflow via the `explore/runs.py` `WORKFLOWS` registry
-(`params.type`; deep when absent; default `claude-sonnet-5`, model per-session, engine from
-`MCP_WORKER_RUNNER`). Deep runs write `findings.json` whose meta the worker ingests → `done`;
-self-closing workflows (the generators) set their own done/failed + meta and the worker only
-checks the exit code. On startup it re-queues rows a killed worker left `running` — but never
-self-registered CLI runs (`params.origin: "cli"`), which it does not own.
-deep.py's output root is overridable via `--out-root` or `RANKLESS_WRITEUPS_DIR` (so personal
-PKM runs still land in `.cril/`).
-
-### Moving sessions between boxes
-
-`make {merge,sync}_db_{to,from}_{live,alpha}` moves the user-data tables (`mcp_sessions`, `mcp_objects`, `geo_game_runs`,
+`make {merge,sync}_db_{to,from}_{live,alpha}` moves the user-data tables (`mcp_objects`, `geo_game_runs`,
 `ledger_events`, `ledger_runs`, `owner_pins`, `users`, `email_consents`, `subject_enrichment`, `review_verdicts`, and auth `sessions` —
-unexpired rows only, so deploys don't log everyone out) plus the `data/mcp-sessions/` +
-`data/mcp-objects/` artifact dirs between the local checkout and a running instance
+unexpired rows only, so deploys don't log everyone out) plus the `data/mcp-objects/`
+bundles between the local checkout and a running instance
 (`pyscripts/deploy.py` → `pyscripts/userdb.py`, the one home for moving and preserving the
 user-data unit — table transfer, decision reconciliation, snapshots, backups). `merge` unions rows (source never clobbers target; auto-id
 `ledger_events` dedup on their logical unique index, index-less tables on a NULL-safe
 exact-row guard) and copies dirs additively; `sync` mirrors — the target's copy of each table
 becomes an exact copy of the source's and dir deletes propagate. `_to_live` writes the live
-box, so `sync_db_to_live` **replaces** its ledger/sessions with your local copy — use
+box, so `sync_db_to_live` **replaces** its ledger and object index with your local copy — use
 `merge_db_to_live` to publish without clobbering.
 
 The deploy flow runs the handoff itself: `new_{small,large}_alpha` pull the latest DB from the
@@ -349,8 +295,8 @@ make setup-services ARGS="--profile dev"                        # this machine
 make setup-services ARGS="--profile dev --mcp-backend local"    # re-point the MCP server
 ```
 
-Profiles pick the service set: `dev` = backend + mcp-server + mcp-worker, `small-alpha` =
-frontend (blue+green) + mcp-server + mcp-worker + status, `live` = all five. The MCP server's backend
+Profiles pick the service set: `dev` = backend + mcp-server, `small-alpha` =
+frontend (blue+green) + mcp-server + status, `live` = all four. The MCP server's backend
 is a parameter (`--mcp-backend local|alpha|live|<url>`) with per-profile defaults (dev → alpha
 API, small-alpha and live → the box's own backend port, the one nginx serves as its `/v1`). Cloud
 instances get the same templates via `pyscripts/deploy.py` (`Transper.setup_mcp_services`, the
