@@ -15,7 +15,8 @@ export default ts.config(
 			'.venv/',
 			'target/',
 			'coverage/',
-			'coverage-e2e/'
+			'coverage-e2e/',
+			'src/lib/wire/'
 		]
 	},
 	js.configs.recommended,

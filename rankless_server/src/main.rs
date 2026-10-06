@@ -133,3 +133,14 @@ async fn async_main(n_threads: usize) {
         .unwrap();
     signal_task.await.unwrap();
 }
+
+#[cfg(test)]
+mod wire_types {
+    // The one test binary that links every crate with `#[wire]` types.
+    #[test]
+    fn generated_types_are_current() {
+        if let Err(e) = wiretypes::sync(concat!(env!("CARGO_MANIFEST_DIR"), "/../wiretypes.toml")) {
+            panic!("{e}");
+        }
+    }
+}

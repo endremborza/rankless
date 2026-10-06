@@ -11,8 +11,9 @@
 !/*.js
 !/*.cjs
 
-# Carve-outs inside the re-included trees: generated data, reports, lockfiles
+# Carve-outs inside the re-included trees: generated data, types, reports, lockfiles
 /src/lib/assets/data
+/src/lib/wire
 /docs/*.html
 /docs/benchmarking
 package-lock.json

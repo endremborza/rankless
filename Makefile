@@ -5,17 +5,26 @@ export
 RANKLESS_PARTS_ROOT ?= /tmp/dmove-parts
 
 .PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest mcp-worker setup-services external-push external-pull
-.PHONY: check format check-rs check-py check-js format-rs format-py format-js
+.PHONY: check format check-rs check-py check-js check-types format-rs format-py format-js types
 .PHONY: refresh-data commit-artifacts warm-caches ship-alpha promote
 .PHONY: fleet-probe fleet-suggest fleet-preflight fleet-prepare fleet-stamp
 
 PY_LINT_PATHS := pyscripts sql-yardstick mcp_server
 
 # Read-only verification gate. Run before every change; must be clean.
-check: check-rs check-py check-js
+check: check-rs check-py check-js check-types
 
 # Auto-fix everything that can be fixed mechanically, then run `check`.
-format: format-rs format-py format-js
+format: format-rs types format-py format-js
+
+WIRE_TEST := cargo test -q -p rankless-server generated_types_are_current
+
+# The TS/Python definitions of every `#[wire]` Rust type; see docs/type-generation.md.
+types:
+	WIRETYPES=write $(WIRE_TEST)
+
+check-types:
+	$(WIRE_TEST)
 
 check-rs:
 	cargo fmt --check

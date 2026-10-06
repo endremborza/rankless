@@ -8,6 +8,8 @@ members = [
     "rankless_rs",
     "rankless_server",
     "rankless_trees",
+    "wiretypes",
+    "wiretypes_macro",
 ]
 package = { version = "0.1.0", edition = "2021" }
 resolver = "2"

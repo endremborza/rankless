@@ -1,0 +1,10 @@
+# Where `wiretypes` writes the TS and Python definitions of every `#[wire]` Rust type; see
+# docs/type-generation.md.
+regenerate = "make types"
+
+[ts]
+out = "src/lib/wire"
+
+[python]
+out = "wire"
+style = "typeddict"
