@@ -96,6 +96,7 @@ This distinction is used consistently throughout the codebase.
 
 - Minimal comments — code should be self-documenting
 - DRY, no duplication
+- One literal per value: a constant's value is written only at its definition. A docstring or MCP description formats it in from the constant (`get_papers`, `ANNOTATE_DOC`); a Rust value the site or the MCP shows is served (`WORK_SCREEN` via `/v1/methodology`); `docs/` and comments name the constant, never its number; tests compare against the constant
 - Avoid new dependencies unless mature, reliable, or performance-critical
 
 ---
