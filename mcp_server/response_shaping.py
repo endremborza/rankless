@@ -86,9 +86,6 @@ def flatten_tree(
                 "citationLinks": child.get("linkCount", 0),
                 "sourceWorks": child.get("sourceCount", 0),
             }
-            if sem := att.get("semanticId"):
-                row["semanticId"] = sem
-                row["rankless_url"] = entity_url(etype, sem)
             if sub := walk(child, level + 1):
                 row["children"] = sub
             rows.append(row)
