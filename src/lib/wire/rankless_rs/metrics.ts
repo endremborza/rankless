@@ -15,12 +15,12 @@ export type WorkScreen = {
 	firstYear: number;
 	kinds: string[];
 	maxAuthorPapers: number;
-	maxAuthors: number;
 	minAuthorCitations: number;
 	minAuthorPapers: number;
 	minCitations: number;
 	minPapersForInstitution: number;
 	minPapersForSource: number;
+	teamLimit: number;
 };
 
 export type Methodology = {

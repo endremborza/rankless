@@ -128,7 +128,7 @@ export function formatReference(
 	includeDoi = true
 ): string {
 	const knownNames = buildKnownAuthorNames(paper.authorships, entityAtts, discAuthorNames);
-	const hasMore = knownNames.length < paper.authorships.length;
+	const hasMore = knownNames.length < paper.authorCount;
 	const authorStr = knownNames.length
 		? formatAuthorNames(knownNames, style === 'html' ? 'chicago' : style, hasMore)
 		: '';
@@ -194,7 +194,8 @@ export function toBibtexEntry(
 	key: string
 ): string {
 	const names = buildKnownAuthorNames(paper.authorships, entityAtts, discAuthorNames);
-	const authorList = names.join(' and ');
+	const unnamed = names.length && names.length < paper.authorCount ? ['others'] : [];
+	const authorList = [...names, ...unnamed].join(' and ');
 	const journal = entityAtts.sources?.[String(paper.source)]?.name ?? '';
 	const pages = pagesText(paper.biblio);
 	return `@article{${key},

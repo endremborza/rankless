@@ -30,7 +30,7 @@ use crate::{
         derive_links1::{WorkFilteredAuthors, WorkInstitutions, WorkSubfields, WorksCiting},
     },
     make_interface_struct,
-    metrics::{dampened_size, mean_of},
+    metrics::{dampened_size, mean_of, WORK_SCREEN},
     peers::{compute_career_centroid, SPEC_BETA},
     steps::{
         a1_entity_mapping::{Qs, Years},
@@ -307,12 +307,13 @@ where
         let wcs = bends.wciting.get(&wu).unwrap();
         let wlen = wcs.len();
         let coauthships = bends.w_aships.get(&wu).unwrap();
-        let ccn = coauthships.len() as f64;
-        for any_ship_id in coauthships {
-            let (is_filtered, ship_id) = reverse_prefixed_n(any_ship_id.to_usize());
-            if is_filtered {
-                self.top_authors
-                    .add((bends.ship_fa[ship_id], wlen as f64 / ccn));
+        if WORK_SCREEN.is_team(coauthships.len()) {
+            let share = wlen as f64 / coauthships.len() as f64;
+            for any_ship_id in coauthships {
+                let (is_filtered, ship_id) = reverse_prefixed_n(any_ship_id.to_usize());
+                if is_filtered {
+                    self.top_authors.add((bends.ship_fa[ship_id], share));
+                }
             }
         }
         for c_wid in wcs {

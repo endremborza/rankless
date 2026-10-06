@@ -55,7 +55,7 @@ pub const WORK_SCREEN: WorkScreen = WorkScreen {
         "conference-paper",
     ],
     min_citations: 1,
-    max_authors: 20,
+    team_limit: 20,
     // Year index 0 is START_YEAR and stands for an unknown year, so the screen opens after it.
     first_year: START_YEAR + 1,
     final_year: FINAL_YEAR,
@@ -121,7 +121,10 @@ pub struct PaperScore {
 pub struct WorkScreen {
     pub kinds: &'static [&'static str],
     pub min_citations: usize,
-    pub max_authors: usize,
+    // The most authorship rows a paper has while its authors count as one team: each other's
+    // co-authors, every institution among them credited. Above it an institution needs its share
+    // of the rows and the authors are members of a collaboration, not co-authors.
+    pub team_limit: usize,
     pub first_year: u16,
     pub final_year: u16,
     pub min_papers_for_institution: u16,
@@ -192,8 +195,14 @@ impl WorkScreen {
         self.kinds.contains(&kind.unwrap_or(""))
     }
 
-    pub fn admits_authorship(&self, authors: usize) -> bool {
-        authors <= self.max_authors
+    pub fn is_team(&self, rows: usize) -> bool {
+        rows <= self.team_limit
+    }
+
+    // An institution on `rows` of a paper's `of` authorship rows is credited with the paper when
+    // that is at least one row in `team_limit`, which every institution of a team's paper is.
+    pub fn credits_institution(&self, rows: usize, of: usize) -> bool {
+        rows * self.team_limit >= of
     }
 }
 

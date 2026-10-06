@@ -20,6 +20,7 @@ function makePaper(overrides: Partial<PaperOut> = {}): PaperOut {
 		doi: '',
 		citations: 0,
 		source: 1,
+		authorCount: 0,
 		authorships: [],
 		isHit: false,
 		...overrides

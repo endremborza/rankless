@@ -18,10 +18,10 @@ use dmove::{
 use rankless_rs::{
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
-        a2_init_atts::{DiscardedAuthorsNames, WorkBiblios, WorkDois},
+        a2_init_atts::{AuthorshipDiscardedAuthor, DiscardedAuthorsNames, WorkBiblios, WorkDois},
         derive_links3::HitPapers,
     },
-    metrics::{decode_bar, paper_score},
+    metrics::{decode_bar, paper_score, WORK_SCREEN},
     steps::a1_entity_mapping::YearInterface,
 };
 use rankless_trees::{
@@ -55,6 +55,20 @@ const INTERSECTABLE: [&str; 5] = [
     Subfields::NAME,
 ];
 
+// One authorship row of a work: `id` indexes the filtered or discarded authorship attributes.
+#[derive(Clone, Copy, Debug)]
+struct Ship {
+    pos: usize,
+    author: ShipAuthor,
+    id: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ShipAuthor {
+    Filtered(ET<Authors>),
+    Discarded(ET<AuthorshipDiscardedAuthor>),
+}
+
 pub(crate) async fn works_get(
     Path((etype, sem_id, pstart)): Path<(String, String, usize)>,
     Query(wq): Query<crate::responses::WorksQ>,
@@ -64,6 +78,7 @@ pub(crate) async fn works_get(
     let Some((_, dm_id)) = resolve_dm(&states.0 .0, &etype, &sem_id) else {
         return get_empty();
     };
+    let requested = (etype == Authors::NAME).then(|| ET::<Authors>::from_usize(dm_id));
     let gets = &states.0 .2.state.gets;
     let Some(work_arr) = gets.works_of_entity(dm_id, etype) else {
         return get_empty();
@@ -73,7 +88,13 @@ pub(crate) async fn works_get(
     }
     let total = work_arr.len();
     let start = min(pstart, total - 1);
-    let rmaker = |a: &[WT]| get_paper_set_resp(a[start..].iter().take(page_size), states.2.clone());
+    let rmaker = |a: &[WT]| {
+        get_paper_set_resp(
+            a[start..].iter().take(page_size),
+            requested.as_slice(),
+            states.2.clone(),
+        )
+    };
     let resp = if wq.sort.as_deref() == Some("citations") {
         let mut sorted = work_arr.to_vec();
         sorted.sort_by_key(|&w| Reverse(gets.wccount(w.to_usize())));
@@ -108,6 +129,7 @@ pub(crate) async fn intersect_get(
     }
 
     let mut clauses: Vec<Vec<&[WT]>> = Vec::with_capacity(clause_strs.len());
+    let mut requested: Vec<ET<Authors>> = Vec::new();
     let mut total_operands = 0;
     for cs in clause_strs {
         let Some((etype, ids)) = cs.split_once(':') else {
@@ -130,6 +152,9 @@ pub(crate) async fn intersect_get(
                 if let Some(slice) = gets.works_of_entity(dm_id as usize, etype.into()) {
                     operands.push(slice);
                 }
+                if etype == Authors::NAME {
+                    requested.push(ET::<Authors>::from_usize(dm_id as usize));
+                }
             }
         }
         clauses.push(operands);
@@ -141,7 +166,7 @@ pub(crate) async fn intersect_get(
             wids.sort_by_key(|&w| Reverse(gets.wccount(w.to_usize())));
             let top = wids.iter().take(n);
             let out = PaginatedPaperSetResp {
-                resp: get_paper_set_resp(top, states.2.clone()),
+                resp: get_paper_set_resp(top, &requested, states.2.clone()),
                 total_papers: total,
                 slice_start: 0,
             };
@@ -185,7 +210,7 @@ pub(crate) async fn paper_profile(
         .iter()
         .chain(conn.wids.iter().filter(|wid| !hw_set.contains(*wid)));
 
-    let papers = get_paper_set_resp(wids, states.2.clone());
+    let papers = get_paper_set_resp(wids, &[ET::<Authors>::from_usize(aid)], states.2.clone());
     let out = PaperProfileResp {
         dag: conn.dag,
         papers,
@@ -193,7 +218,12 @@ pub(crate) async fn paper_profile(
     (cache_header(60), Json(out).into_response())
 }
 
-fn get_paper_set_resp<'a, I>(wids: I, trm: Arc<InstTrm>) -> PaperSetResp
+// `requested_authors` are the authors the request is about: their rows are served on any work.
+fn get_paper_set_resp<'a, I>(
+    wids: I,
+    requested_authors: &[ET<Authors>],
+    trm: Arc<InstTrm>,
+) -> PaperSetResp
 where
     I: Iterator<Item = &'a WT>,
 {
@@ -208,6 +238,7 @@ where
         .map(|wid| {
             paper_out(
                 wid.to_usize(),
+                requested_authors,
                 &trm.state.gets,
                 &mut wnames_handle,
                 &mut doi_hand,
@@ -229,6 +260,7 @@ where
 
 fn paper_out(
     wid: usize,
+    requested_authors: &[ET<Authors>],
     gets: &Getters,
     wname_handler: &mut ManFileHandle,
     doi_handler: &mut VattReadingArcMap<WorkDois>,
@@ -289,47 +321,65 @@ fn paper_out(
     let biblio = Some(<ET<WorkBiblios> as ByteArrayInterface>::from_bytes(
         gets.wbiblios(wid),
     ));
-    let mut positioned_ships: Vec<(usize, PaperAuthorship)> = Vec::new();
-    for anyship in gets.wanyships(wid) {
-        let (is_filterd, ship_id) = reverse_prefixed_n(anyship.to_usize());
-        let (full_aid, insts_slice, position) = if is_filterd {
-            let aid = gets.fshipa(&ship_id);
-            add_to_eatts(Authors::NAME, aid.to_usize());
-            let prize_rec = gets.author_prizes(aid);
-            authors_meta.insert(
-                aid.to_usize(),
-                PaperAuthorMeta {
-                    prize: prize_rec.0,
-                    year: YearInterface::reverse(prize_rec.1),
-                },
-            );
-            let pos = gets.fship_pos(&ship_id).to_usize();
-            (format!("F{aid}"), gets.fshipis(ship_id), pos)
-        } else {
-            let aid = gets.dshipa(&ship_id);
-            let name = disc_name_handler
-                .get_via_mut(&aid.to_usize())
-                .unwrap_or("Unknown".to_string());
-            let full_aid = format!("D{aid}");
-            discarded_author_name_map.insert(full_aid.clone(), name);
-            let pos = gets.dship_pos(&ship_id).to_usize();
-            (full_aid, gets.dshipis(ship_id), pos)
-        };
-        let mut insts = Vec::new();
-        for iid in insts_slice {
-            add_to_eatts(Institutions::NAME, iid.to_usize());
-            insts.push(iid.to_usize());
-        }
-        positioned_ships.push((
-            position,
-            PaperAuthorship {
-                author: full_aid,
-                insts,
-            },
-        ));
-    }
-    positioned_ships.sort_by_key(|(p, _)| *p);
-    let authorships: Vec<PaperAuthorship> = positioned_ships.into_iter().map(|(_, a)| a).collect();
+    let ships: Vec<Ship> = gets
+        .wanyships(wid)
+        .iter()
+        .map(|anyship| {
+            let (is_filtered, id) = reverse_prefixed_n(anyship.to_usize());
+            if is_filtered {
+                Ship {
+                    pos: gets.fship_pos(&id).to_usize(),
+                    author: ShipAuthor::Filtered(*gets.fshipa(&id)),
+                    id,
+                }
+            } else {
+                Ship {
+                    pos: gets.dship_pos(&id).to_usize(),
+                    author: ShipAuthor::Discarded(*gets.dshipa(&id)),
+                    id,
+                }
+            }
+        })
+        .collect();
+    let author_count = ships.len() as u32;
+    let pinned = |aid: ET<Authors>| {
+        requested_authors.contains(&aid) || gets.author_prizes(&aid.to_usize()).0 != 0
+    };
+    let authorships = served_ships(ships, pinned)
+        .into_iter()
+        .map(|ship| {
+            let (author, insts) = match ship.author {
+                ShipAuthor::Filtered(aid) => {
+                    add_to_eatts(Authors::NAME, aid.to_usize());
+                    authors_meta.entry(aid.to_usize()).or_insert_with(|| {
+                        let prize_rec = gets.author_prizes(&aid.to_usize());
+                        PaperAuthorMeta {
+                            prize: prize_rec.0,
+                            year: YearInterface::reverse(prize_rec.1),
+                        }
+                    });
+                    (format!("F{aid}"), gets.fshipis(ship.id))
+                }
+                ShipAuthor::Discarded(aid) => {
+                    let full_aid = format!("D{aid}");
+                    if !discarded_author_name_map.contains_key(&full_aid) {
+                        if let Some(name) = disc_name_handler.get_via_mut(&aid.to_usize()) {
+                            discarded_author_name_map.insert(full_aid.clone(), name);
+                        }
+                    }
+                    (full_aid, gets.dshipis(ship.id))
+                }
+            };
+            let insts = insts
+                .iter()
+                .map(|iid| {
+                    add_to_eatts(Institutions::NAME, iid.to_usize());
+                    iid.to_usize()
+                })
+                .collect();
+            PaperAuthorship { author, insts }
+        })
+        .collect();
     let source = gets.top_source(&wid).to_usize();
     add_to_eatts(Sources::NAME, source);
     let citations = gets.wccount(wid) as u32;
@@ -347,10 +397,91 @@ fn paper_out(
         yearly_cites,
         biblio,
         source,
+        author_count,
         authorships,
         is_hit,
         bar: score.map(|_| decode_bar(bar)),
         score,
         created_topic,
+    }
+}
+
+// A work's served authorship rows in position order. A row on discarded author 0, which holds
+// every row OpenAlex left unresolved, is never served; past the first `team_limit` servable rows
+// only the rows of `pinned` authors are.
+fn served_ships(mut ships: Vec<Ship>, pinned: impl Fn(ET<Authors>) -> bool) -> Vec<Ship> {
+    ships.sort_by_key(|s| s.pos);
+    let mut servable = 0;
+    ships.retain(|s| {
+        let filtered = match s.author {
+            ShipAuthor::Discarded(0) => return false,
+            ShipAuthor::Discarded(_) => None,
+            ShipAuthor::Filtered(aid) => Some(aid),
+        };
+        servable += 1;
+        servable <= WORK_SCREEN.team_limit || filtered.is_some_and(&pinned)
+    });
+    ships
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ship(pos: usize, author: ShipAuthor) -> Ship {
+        Ship {
+            pos,
+            author,
+            id: pos,
+        }
+    }
+
+    fn served(ships: Vec<Ship>, pinned: &[ET<Authors>]) -> Vec<(usize, ShipAuthor)> {
+        served_ships(ships, |aid| pinned.contains(&aid))
+            .into_iter()
+            .map(|s| (s.pos, s.author))
+            .collect()
+    }
+
+    #[test]
+    fn team_serves_resolved_rows_in_position_order() {
+        use ShipAuthor::*;
+        let ships = vec![
+            ship(2, Discarded(7)),
+            ship(0, Filtered(3)),
+            ship(1, Discarded(0)),
+            ship(3, Discarded(0)),
+            ship(4, Filtered(5)),
+        ];
+        assert_eq!(
+            served(ships, &[]),
+            vec![(0, Filtered(3)), (2, Discarded(7)), (4, Filtered(5))]
+        );
+    }
+
+    #[test]
+    fn large_work_serves_the_limit_plus_pinned_authors() {
+        use ShipAuthor::*;
+        let (requested, laureate) = (100_000, 200_000);
+        let ships: Vec<Ship> = (0..3000)
+            .rev()
+            .map(|pos| {
+                let author = match pos {
+                    150 => Filtered(requested),
+                    900 => Filtered(laureate),
+                    p if p % 3 == 0 => Discarded(0),
+                    p if p % 3 == 1 => Discarded(p as ET<AuthorshipDiscardedAuthor>),
+                    p => Filtered(p as ET<Authors>),
+                };
+                ship(pos, author)
+            })
+            .collect();
+        let out = served(ships, &[requested, laureate]);
+
+        let limit = WORK_SCREEN.team_limit;
+        let head: Vec<usize> = (0..3000).filter(|p| p % 3 != 0).take(limit).collect();
+        let positions: Vec<usize> = out.iter().map(|(p, _)| *p).collect();
+        assert_eq!(positions, [head, vec![150, 900]].concat());
+        assert!(out.iter().all(|(_, a)| *a != Discarded(0)));
     }
 }

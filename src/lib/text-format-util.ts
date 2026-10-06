@@ -21,7 +21,12 @@ export function listPhrase(items: string[], conjunction = 'or'): string {
 
 // Which papers are in the data at all, read out from the served work screen.
 export function workScreenPhrase(screen: WorkScreen): string {
-	return `published ${screen.firstYear}–${screen.finalYear}, not retracted, categorized by OpenAlex as ${listPhrase(screen.kinds)}, cited at least ${pluralize('time', screen.minCitations)}, and written by no more than ${pluralize('author', screen.maxAuthors)}`;
+	return `published ${screen.firstYear}–${screen.finalYear}, not retracted, categorized by OpenAlex as ${listPhrase(screen.kinds)}, and cited at least ${pluralize('time', screen.minCitations)}`;
+}
+
+// What a paper with more authors than a team counts for, read out from the served work screen.
+export function teamLimitPhrase(screen: WorkScreen): string {
+	return `A paper with more than ${screen.teamLimit} authors is on each of its authors' records in full; an institution is credited with it only when at least 1 in ${screen.teamLimit} of its authors is affiliated there, and it creates no co-author links.`;
 }
 
 export function singularize(word: string) {

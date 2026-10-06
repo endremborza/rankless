@@ -384,7 +384,7 @@
 								</div>
 								<div class="paper-meta">
 									<span class="paper-cites">{formatNumber(paper.citations)} citations</span>
-									{#if paper.authorships.length}<span class="paper-authors"
+									{#if paper.authorCount}<span class="paper-authors"
 											><AuthorList {paper} {entityAtts} {discAuthorNames} max={2} /></span
 										>{/if}
 									{#if paper.createdTopic}
@@ -401,7 +401,7 @@
 									{/if}
 								</div>
 								<div class="paper-details">
-									{#if paper.authorships.length > 2}
+									{#if paper.authorCount > 2}
 										<div class="detail-row">
 											<span class="detail-label">Authors:</span>
 											<span><AuthorList {paper} {entityAtts} {discAuthorNames} showInst /></span>

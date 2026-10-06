@@ -10,6 +10,7 @@ import {
 } from './reference-format';
 
 function makePaper(overrides: Partial<PaperOut> = {}): PaperOut {
+	const authorships = overrides.authorships ?? [{ author: 'F1', insts: [] }];
 	return {
 		wid: 1,
 		oaId: 0,
@@ -18,7 +19,8 @@ function makePaper(overrides: Partial<PaperOut> = {}): PaperOut {
 		doi: '10.1234/test',
 		citations: 5,
 		source: 1,
-		authorships: [{ author: 'F1', insts: [] }],
+		authorCount: authorships.length,
+		authorships,
 		isHit: false,
 		...overrides
 	};
@@ -63,7 +65,7 @@ describe('formatReference', () => {
 });
 
 describe('bibtex', () => {
-	it('filters out Unknown authors', () => {
+	it('leaves unnamed authors to "and others"', () => {
 		const p = makePaper({
 			authorships: [
 				{ author: 'F1', insts: [] },
@@ -71,8 +73,32 @@ describe('bibtex', () => {
 			]
 		});
 		const bib = toBibtexEntry(p, baseAtts, {}, 'smith2023');
-		expect(bib).toContain('author = {Alice Smith}');
+		expect(bib).toContain('author = {Alice Smith and others}');
 		expect(bib).not.toContain('Unknown');
+	});
+
+	it('ends with "and others" when the paper has more authors than are served', () => {
+		const p = makePaper({
+			authorships: [
+				{ author: 'F1', insts: [] },
+				{ author: 'F2', insts: [] }
+			],
+			authorCount: 3000
+		});
+		const bib = toBibtexEntry(p, baseAtts, {}, 'smith2023');
+		expect(bib).toContain('author = {Alice Smith and Bob Jones and others}');
+	});
+
+	it('lists every author when all are named', () => {
+		const p = makePaper({
+			authorships: [
+				{ author: 'F1', insts: [] },
+				{ author: 'F2', insts: [] }
+			]
+		});
+		expect(toBibtexEntry(p, baseAtts, {}, 'smith2023')).toContain(
+			'author = {Alice Smith and Bob Jones}'
+		);
 	});
 
 	it('generates unique keys with suffixes for duplicates', () => {
@@ -142,5 +168,10 @@ describe('formatReference with unknown authors', () => {
 		const ref = formatReference(p, baseAtts, {}, 'html');
 		expect(ref).toContain('Smith');
 		expect(ref).toContain('et al.');
+	});
+
+	it('adds et al. when the paper has more authors than are served', () => {
+		const p = makePaper({ authorCount: 3000 });
+		expect(formatReference(p, baseAtts, {}, 'apa')).toContain('Smith, A., et al.');
 	});
 });

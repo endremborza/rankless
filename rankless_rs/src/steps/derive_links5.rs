@@ -99,25 +99,15 @@ impl CiteDeriver {
                     top5_citing_sfs[hi][k] = (*score, NET::<Subfields>::from_usize(*sfid));
                 }
 
+                // Every author has the same share of the citations, so the first listed lead.
                 let coauthships = self.backends.w_aships.get(&wu).unwrap();
-                let ccn = coauthships.len().max(1) as f64;
-                let cite_weight = citing.len() as f64 / ccn;
-                let mut authors: Vec<(f64, NET<Authors>)> = coauthships
-                    .iter()
-                    .filter_map(|any_ship_id| {
-                        let (is_filtered, ship_id) = reverse_prefixed_n(any_ship_id.to_usize());
-                        if is_filtered {
-                            Some((cite_weight, self.backends.ship_fa[ship_id]))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                authors.sort_unstable_by(|a, b| {
-                    b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
+                let share = (citing.len() as f64 / coauthships.len().max(1) as f64) as u32;
+                let authors = coauthships.iter().filter_map(|any_ship_id| {
+                    let (is_filtered, ship_id) = reverse_prefixed_n(any_ship_id.to_usize());
+                    is_filtered.then(|| self.backends.ship_fa[ship_id])
                 });
-                for (k, (score, aid)) in authors.iter().take(25).enumerate() {
-                    top15_authors[hi][k] = (*score as u32, *aid);
+                for (slot, aid) in top15_authors[hi].iter_mut().zip(authors) {
+                    *slot = (share, aid);
                 }
             });
         self.stowage

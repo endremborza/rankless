@@ -30,7 +30,12 @@
 	import { getExternalUrl } from '$lib/route-functions';
 	import TreeSvg from '$lib/components/TreeSvg.svelte';
 	import { resultsHidden } from '$lib/stores';
-	import { pluralize, prettifyRoot, workScreenPhrase } from '$lib/text-format-util.js';
+	import {
+		pluralize,
+		prettifyRoot,
+		teamLimitPhrase,
+		workScreenPhrase
+	} from '$lib/text-format-util.js';
 	import TypeWriter from '$lib/components/TypeWriter.svelte';
 	import FeatureShowcase from '$lib/components/FeatureShowcase.svelte';
 
@@ -158,14 +163,14 @@
 			id: 'data-filter',
 			answer: screen
 				? `
-			A paper enters the data if it is ${workScreenPhrase(screen)}. On top of that we only carry
+			A paper enters the data if it is ${workScreenPhrase(screen)}. ${teamLimitPhrase(screen)} On top of that we only carry
 			publication sources with at least ${screen.minPapersForSource} and institutions with at least
 			${pluralize('paper', screen.minPapersForInstitution)} of their own, and authors with at least
 			${pluralize('paper', screen.minAuthorPapers)} and
 			${pluralize('citation', screen.minAuthorCitations)} to their name, and no more than
 			${screen.maxAuthorPapers.toLocaleString('en-US')} papers, above which a record is an aggregate of
 			many people's works rather than one author. A researcher who claims
-			their profile keeps their own works through the type, citation and author-count screens.
+			their profile keeps their own works through the type and citation screens.
 		`
 				: ''
 		},

@@ -16,6 +16,7 @@ use crate::{
             WorkReferences, WorkSources, WorkTopics, WorkYears,
         },
     },
+    metrics::WORK_SCREEN,
     ReadFixIter,
 };
 
@@ -238,28 +239,33 @@ pub fn main(mut stowage: Stowage) -> io::Result<()> {
     let mut w_fauthors = init_empty_slice::<Works, Vec<ET<Authors>>>();
     let mut w_allinsts = init_empty_slice::<Works, Vec<ET<Institutions>>>();
 
+    // A work's institutions are those with their share of its authorship rows, in the order the
+    // rows first name them; an author has one filtered row per work.
+    let mut inst_rows: Vec<(ET<Institutions>, usize)> = Vec::new();
     for (wid, w_any_ships) in stowage
         .get_entity_interface::<WorkAnyAuthorships, ReadIter>()
         .enumerate()
     {
         for anyship_id in w_any_ships.iter() {
-            let (is_fileterd, ship_id) = reverse_prefixed_n(anyship_id.to_usize());
-            let iis = if is_fileterd {
-                let aid = ship_fats[ship_id];
-                if !w_fauthors[wid].contains(&aid) {
-                    w_fauthors[wid].push(aid);
-                }
-
+            let (is_filtered, ship_id) = reverse_prefixed_n(anyship_id.to_usize());
+            let iis = if is_filtered {
+                w_fauthors[wid].push(ship_fats[ship_id]);
                 &fship_is.0[ship_id]
             } else {
                 &dship_is.0[ship_id]
             };
             for iid in iis {
-                if !w_allinsts[wid].contains(iid) {
-                    w_allinsts[wid].push(*iid);
+                match inst_rows.iter_mut().find(|(i, _)| i == iid) {
+                    Some((_, rows)) => *rows += 1,
+                    None => inst_rows.push((*iid, 1)),
                 }
             }
         }
+        let credited = inst_rows
+            .drain(..)
+            .filter(|&(_, rows)| WORK_SCREEN.credits_institution(rows, w_any_ships.len()))
+            .map(|(iid, _)| iid);
+        w_allinsts[wid].extend(credited);
     }
 
     let wfa_name = "work-filtered-authors";

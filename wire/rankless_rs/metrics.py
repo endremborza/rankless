@@ -20,12 +20,12 @@ class WorkScreen(TypedDict):
     firstYear: int
     kinds: list[str]
     maxAuthorPapers: int
-    maxAuthors: int
     minAuthorCitations: int
     minAuthorPapers: int
     minCitations: int
     minPapersForInstitution: int
     minPapersForSource: int
+    teamLimit: int
 
 
 class Methodology(TypedDict):

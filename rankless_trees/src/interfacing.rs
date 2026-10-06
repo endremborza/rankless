@@ -33,7 +33,7 @@ use rankless_rs::{
         derive_links5::HitPaperYearlyCitations,
     },
     ladder::LADDER_LEN,
-    metrics::{mean_of, paper_score, H_SINCE},
+    metrics::{mean_of, paper_score, H_SINCE, WORK_SCREEN},
     steps::{
         a1_entity_mapping::YearInterface,
         a2_init_atts::OrcidType,
@@ -527,6 +527,17 @@ impl Getters {
         self.ifs.citing.locators.divided_sizes[wid].to_usize()
     }
 
+    // A paper's authorship rows when its authors are a team, none when they are a collaboration's
+    // members: only a team makes its authors each other's co-authors.
+    pub fn team_ships(&self, wid: WT) -> &[VaST<WorkAnyAuthorships>] {
+        let ships = self.wanyships(wid);
+        if WORK_SCREEN.is_team(ships.len()) {
+            ships
+        } else {
+            &[]
+        }
+    }
+
     pub fn columns_for(&self, etype: &str) -> Option<&RootColumns> {
         self.root_columns.get(etype)
     }
@@ -694,4 +705,67 @@ where
         })
         .collect();
     (E::NAME.to_string(), elevel)
+}
+
+#[cfg(test)]
+pub(crate) mod fixture {
+    use super::*;
+
+    // One paper, indexed by its position as a work id: one resolved authorship row per author,
+    // each at `inst`, which is also the paper's one institution and, as an id, its country.
+    pub struct Paper {
+        pub authors: Vec<usize>,
+        pub inst: usize,
+        pub cited_by: Vec<usize>,
+    }
+
+    // Getters holding the papers' authorships, institutions and citations, every paper in one
+    // subfield and period.
+    pub fn getters(papers: &[Paper]) -> Getters {
+        let n_authors = papers
+            .iter()
+            .flat_map(|p| &p.authors)
+            .max()
+            .map_or(0, |a| a + 1);
+        let n_insts = papers.iter().map(|p| p.inst).max().map_or(0, |i| i + 1);
+        let works_where = |on: &dyn Fn(&Paper) -> bool| {
+            let wids = papers.iter().enumerate().filter(|(_, p)| on(p));
+            wids.map(|(wid, _)| wid).collect()
+        };
+        let mut ship_ids = 0..;
+        let mut gets = Getters::fake();
+        let ifs = &mut gets.ifs;
+        ifs.wanyships = var_rows(papers.iter().map(|p| {
+            let ships = ship_ids.by_ref().take(p.authors.len());
+            ships.map(|ship| (ship << 1) | 1).collect()
+        }));
+        ifs.fshipa = fixed(papers.iter().flat_map(|p| p.authors.iter().copied()));
+        ifs.fshipis = var_rows(
+            papers
+                .iter()
+                .flat_map(|p| p.authors.iter().map(|_| vec![p.inst])),
+        );
+        ifs.winsts = var_rows(papers.iter().map(|p| vec![p.inst]));
+        ifs.wsubfields = var_rows(papers.iter().map(|_| vec![0]));
+        ifs.citing = var_rows(papers.iter().map(|p| p.cited_by.clone()));
+        ifs.wperiod = fixed(papers.iter().map(|_| 0));
+        ifs.icountry = fixed(0..n_insts);
+        ifs.aworks = var_rows((0..n_authors).map(|a| works_where(&|p| p.authors.contains(&a))));
+        ifs.iworks = var_rows((0..n_insts).map(|i| works_where(&|p| p.inst == i)));
+        gets
+    }
+
+    fn var_rows<E>(rows: impl Iterator<Item = Vec<usize>>) -> VattArrPair<E>
+    where
+        E: VariableSizeAttribute,
+        ET<E>: VarSizedAttributeElement,
+        VaST<E>: UnsignedNumber,
+    {
+        let rows = rows.map(|row| row.into_iter().map(VaST::<E>::from_usize).collect());
+        VattArrPair::from_boxes(VarBox(rows.collect()))
+    }
+
+    fn fixed<T: UnsignedNumber>(values: impl Iterator<Item = usize>) -> Box<[T]> {
+        values.map(T::from_usize).collect()
+    }
 }

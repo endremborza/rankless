@@ -10,12 +10,12 @@ use crate::{
     common::{CitRankLadderMarker, MainWorkMarker, YearlyPapersMarker},
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
-        a2_init_atts::{WorkDois, WorkTopics, WorkYears, WorksNames},
+        a2_init_atts::{WorkAnyAuthorships, WorkDois, WorkTopics, WorkYears, WorksNames},
         derive_links1::WorkSubfields,
         derive_links2::{AuthorWorks, SourceStats},
     },
     ladder,
-    metrics::{encode_bar, is_hit, is_scored, paper_score, EncodedBar},
+    metrics::{encode_bar, is_hit, is_scored, paper_score, EncodedBar, WORK_SCREEN},
     peers,
     steps::a1_entity_mapping::YearInterface,
     CiteCountMarker, QuickestBox, QuickestVBox, ReadIter, Stowage, WorkCountMarker,
@@ -104,12 +104,18 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
 
     let w2amap = starc
         .get_entity_interface::<crate::gen::derive_links1::WorkFilteredAuthors, QuickestVBox>();
+    // The authors of a work are co-authors while they are a team.
+    let is_team: Box<[bool]> = starc
+        .get_entity_interface::<WorkAnyAuthorships, ReadIter>()
+        .map(|ships| WORK_SCREEN.is_team(ships.len()))
+        .collect();
     let coauthorships: Vec<Box<[(ET<Authors>, u8)]>> = starc
         .get_entity_interface::<AuthorWorks, ReadIter>()
         .enumerate()
         .map(|(aid, aworks)| {
             let mut coauthor_map = HashMap::<ET<Authors>, u8>::new();
-            IntoIterator::into_iter(aworks).for_each(|wid| {
+            let team_works = IntoIterator::into_iter(aworks).filter(|wid| is_team[wid.to_usize()]);
+            team_works.for_each(|wid| {
                 w2amap.0[wid.to_usize()].iter().for_each(|c_aid| {
                     if c_aid.to_usize() != aid {
                         let entry = coauthor_map.entry(*c_aid).or_insert(0);

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { RootType } from './tree-types';
+import type { WorkScreen } from './wire/rankless_rs/metrics';
 import {
 	isAsciiOnly,
 	pluralize,
@@ -8,7 +9,9 @@ import {
 	getSpecDesc,
 	semantify,
 	singularize,
-	SPEC_BPS
+	SPEC_BPS,
+	teamLimitPhrase,
+	workScreenPhrase
 } from './text-format-util';
 
 describe('isAsciiOnly', () => {
@@ -125,5 +128,31 @@ describe('semantify', () => {
 	});
 	it('returns original string when depth exceeds tree', () => {
 		expect(semantify('x', 'authors', ['subfields-true', 'works-true', 'a', 'b'], 4)).toBe('x');
+	});
+});
+
+describe('work screen phrases', () => {
+	const screen: WorkScreen = {
+		kinds: ['article', 'book'],
+		minCitations: 1,
+		teamLimit: 20,
+		firstYear: 1951,
+		finalYear: 2026,
+		minPapersForInstitution: 5,
+		minPapersForSource: 5,
+		minAuthorPapers: 8,
+		minAuthorCitations: 400,
+		maxAuthorPapers: 5000
+	};
+
+	it('states no author limit on the papers in the data', () => {
+		expect(workScreenPhrase(screen)).toBe(
+			'published 1951–2026, not retracted, categorized by OpenAlex as article or book, and cited at least 1 time'
+		);
+	});
+
+	it('reads the team limit into the rule for larger papers', () => {
+		expect(teamLimitPhrase(screen)).toContain('more than 20 authors');
+		expect(teamLimitPhrase(screen)).toContain('at least 1 in 20 of its authors');
 	});
 });

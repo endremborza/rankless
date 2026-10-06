@@ -444,7 +444,7 @@ fn ledger_applies_through_filter_and_a1() {
     // Step 11 (citation screen): the owner's uncited article rides through.
     assert!(run.filter(11, "works").contains(&s.uncited));
     // Step 14 (authorship): the disowned solo work is authorless and drops; the shared one
-    // stays; the hyperauthored one survives only because the owner's œuvre is forced.
+    // stays, and so does the hyperauthored one.
     let works14 = run.filter(14, "works");
     assert!(!works14.contains(&s.solo));
     assert!(!works14.contains(&s.drop_work));
@@ -576,7 +576,7 @@ fn empty_ledger_is_the_counterfactual() {
     assert!(!run.filter(11, "works").contains(&s.uncited));
     let works14 = run.filter(14, "works");
     assert!(works14.contains(&s.solo));
-    assert!(!works14.contains(&s.hyper));
+    assert!(works14.contains(&s.hyper), "no ceiling on a work's authors");
     assert!(run.filter(14, "authors").contains(&s.drop.oa_id));
     assert!(!run.filter(20, "authors").contains(&s.owner.oa_id));
 

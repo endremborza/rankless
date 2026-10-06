@@ -1173,8 +1173,11 @@ impl<'a> Iterator for AuthorBestiePapers<'a> {
             let ref_wid = reg_peek!(self.ref_wids);
             let ref_per = self.gets.wperiod(ref_wid);
 
-            let ref_any_ship =
-                opt_peek!(self.ref_ships, self.ref_wids, self.gets.wanyships(*ref_wid));
+            let ref_any_ship = opt_peek!(
+                self.ref_ships,
+                self.ref_wids,
+                self.gets.team_ships(*ref_wid)
+            );
             let (is_filtered, ref_ship_id_u) = reverse_prefixed_n(ref_any_ship.to_usize());
             if !is_filtered {
                 self.ref_ships.as_mut().unwrap().next();
@@ -1217,8 +1220,11 @@ impl<'a> Iterator for AuthorBesties<'a> {
             let ref_wid = reg_peek!(self.ref_wids);
             let ref_per = self.gets.wperiod(ref_wid);
 
-            let ref_any_ship =
-                opt_peek!(self.ref_ships, self.ref_wids, self.gets.wanyships(*ref_wid));
+            let ref_any_ship = opt_peek!(
+                self.ref_ships,
+                self.ref_wids,
+                self.gets.team_ships(*ref_wid)
+            );
             let (is_filtered, ref_ship_id_u) = reverse_prefixed_n(ref_any_ship.to_usize());
             if !is_filtered {
                 self.ref_ships.as_mut().unwrap().next();
@@ -1308,8 +1314,11 @@ impl<'a> Iterator for WorkingAuthors<'a> {
         loop {
             let ref_wid = reg_peek!(self.ref_wids);
             let ref_per = self.gets.wperiod(ref_wid);
-            let ref_any_ship =
-                opt_peek!(self.ref_ships, self.ref_wids, self.gets.wanyships(*ref_wid));
+            let ref_any_ship = opt_peek!(
+                self.ref_ships,
+                self.ref_wids,
+                self.gets.team_ships(*ref_wid)
+            );
             let (is_filtered, ref_ship_id_u) = reverse_prefixed_n(ref_any_ship.to_usize());
             if !is_filtered {
                 self.ref_ships.as_mut().unwrap().next();
@@ -1337,7 +1346,7 @@ impl<'a> Iterator for WorkingAuthors<'a> {
             let cit_inst = opt_next!(
                 self.cit_insts,
                 self.cit_wids.as_mut().unwrap(),
-                self.gets.winsts(*ref_wid)
+                self.gets.winsts(*cit_wid)
             );
             return Some((
                 *ref_per,
@@ -1646,4 +1655,62 @@ where
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use rankless_rs::metrics::WORK_SCREEN;
+
+    use super::*;
+    use crate::interfacing::fixture::{getters, Paper};
+
+    const TEAM: usize = WORK_SCREEN.team_limit;
+    const ROOT_INST: usize = 0;
+    const CITING_INST: usize = 1;
+    const TEAM_WID: WT = 0;
+    const CITING_WID: WT = 2;
+
+    // Paper 0 has as many rows as a team can, paper 1 one more; author 0 and institution 0 are on
+    // both, and paper 2, from institution 1, cites both.
+    fn team_and_collaboration() -> Getters {
+        let paper = |rows: usize| Paper {
+            authors: (0..rows).collect(),
+            inst: ROOT_INST,
+            cited_by: vec![CITING_WID as usize],
+        };
+        let citing = Paper {
+            authors: vec![],
+            inst: CITING_INST,
+            cited_by: vec![],
+        };
+        getters(&[paper(TEAM), paper(TEAM + 1), citing])
+    }
+
+    #[test]
+    fn author_co_author_trees_count_team_papers_only() {
+        let gets = team_and_collaboration();
+        let root = ET::<Authors>::from_usize(0);
+        let besties: Vec<_> = AuthorBesties::new(root, &gets)
+            .map(|(_, (co_author, _, cit_inst, ref_wid, _))| {
+                (co_author.to_usize(), cit_inst.to_usize(), ref_wid)
+            })
+            .collect();
+        let expected: Vec<_> = (1..TEAM).map(|co| (co, CITING_INST, TEAM_WID)).collect();
+        assert_eq!(besties, expected);
+        let paper_besties: Vec<_> = AuthorBestiePapers::new(root, &gets)
+            .map(|(_, (co_author, ref_wid, ..))| (co_author.to_usize(), ref_wid))
+            .collect();
+        let expected: Vec<_> = (1..TEAM).map(|co| (co, TEAM_WID)).collect();
+        assert_eq!(paper_besties, expected);
+    }
+
+    #[test]
+    fn institution_authors_count_team_papers_under_their_citing_institutions() {
+        let gets = team_and_collaboration();
+        let root = ET::<Institutions>::from_usize(ROOT_INST);
+        let records: Vec<_> = WorkingAuthors::new(root, &gets)
+            .map(|(_, (_, _, cit_inst, ref_wid, _))| (cit_inst.to_usize(), ref_wid))
+            .collect();
+        assert_eq!(records, vec![(CITING_INST, TEAM_WID); TEAM]);
+    }
 }

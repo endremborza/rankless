@@ -247,6 +247,7 @@ export type PaperAuthorship = {
 };
 
 export type PaperOut = {
+	authorCount: number;
 	authorships: PaperAuthorship[];
 	bar?: number;
 	biblio?: BiblioInfo;

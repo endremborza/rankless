@@ -89,7 +89,7 @@
 					<span class="source-name">{source}</span>
 				{/if}
 			{/if}
-			{#if paper.authorships.length > 0}
+			{#if paper.authorCount > 0}
 				<div class="chip-authors">
 					<AuthorList {paper} {entityAtts} {discAuthorNames} max={3} showInst />
 				</div>

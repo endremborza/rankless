@@ -181,20 +181,19 @@ export type Author = {
 	instUrl?: string;
 };
 
-// Single resolver behind the shared <AuthorList>: maps a paper's authorships to display rows with
-// optional profile + institution links. `skipUnknown` drops co-authors whose display name is
-// missing (for compact, capped lists); full bibliographic lists keep them as "(unknown)".
+// Single resolver behind the shared <AuthorList>: maps a paper's served authorships to display
+// rows with optional profile + institution links. An authorship without a name is left out; it
+// stays in the paper's `authorCount`.
 export function resolveAuthors(
 	paper: PaperOut,
 	entityAtts: EntityAttsForLinks,
-	discAuthorNames: Record<string, string>,
-	skipUnknown = false
+	discAuthorNames: Record<string, string>
 ): Author[] {
 	const out: Author[] = [];
 	for (const ship of paper.authorships) {
 		const name = resolveAuthorNameOrNull(ship, entityAtts, discAuthorNames);
-		if (name === null && skipUnknown) continue;
-		const author: Author = { name: name ?? '(unknown)' };
+		if (name === null) continue;
+		const author: Author = { name };
 		if (ship.author[0] === 'F') {
 			const semId = entityAtts.authors?.[ship.author.slice(1)]?.semantic_id;
 			if (semId) author.url = `/authors/${semId}`;
@@ -211,6 +210,37 @@ export function resolveAuthors(
 		out.push(author);
 	}
 	return out;
+}
+
+export type Byline = {
+	shown: Author[];
+	// Authors of the paper not shown: unnamed, unserved and, while not expanded, past `max`.
+	others: number;
+	expandable: boolean;
+};
+
+// A paper's byline: the first `max` named authors, or every named one once expanded.
+export function authorByline(
+	authors: Author[],
+	authorCount: number,
+	max: number,
+	expanded: boolean
+): Byline {
+	const shown = expanded ? authors : authors.slice(0, max);
+	return {
+		shown,
+		others: authorCount - shown.length,
+		expandable: shown.length < authors.length
+	};
+}
+
+export function othersLabel(n: number): string {
+	return `+${n.toLocaleString('en-US')} other${n === 1 ? '' : 's'}`;
+}
+
+// A paper whose authors are each other's co-authors; a larger author list is a collaboration's.
+export function isTeamPaper(paper: PaperOut, teamLimit: number): boolean {
+	return paper.authorCount <= teamLimit;
 }
 
 export function buildPaperMap(papers: PaperOut[]): Record<number, PaperOut> {
@@ -240,22 +270,6 @@ export function hasNobelCoauthor(
 		const dmId = s.author.slice(1);
 		return s.author[0] === 'F' && dmId !== exceptDmId && (authorsMeta[dmId]?.prize ?? 0) > 0;
 	});
-}
-
-export function logMissingAuthors(
-	papers: PaperOut[],
-	entityAtts: EntityAttsForLinks,
-	discAuthorNames: Record<string, string>
-): void {
-	const missing = new Set<string>();
-	for (const paper of papers) {
-		for (const ship of paper.authorships) {
-			if (resolveAuthorNameOrNull(ship, entityAtts, discAuthorNames) === null) {
-				missing.add(ship.author);
-			}
-		}
-	}
-	if (missing.size) console.warn('Missing author IDs:', [...missing]);
 }
 
 export function getPaperHighlights(

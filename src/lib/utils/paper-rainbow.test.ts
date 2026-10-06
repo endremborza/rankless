@@ -13,6 +13,7 @@ function paper(year: number, yearlyCites: number[]): PaperOut {
 		doi: '',
 		citations,
 		source: 0,
+		authorCount: 0,
 		authorships: [],
 		yearlyCites,
 		isHit: true

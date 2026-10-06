@@ -391,6 +391,11 @@ pub(crate) struct PaperOut {
     pub doi: String,
     pub citations: u32,
     pub source: usize,
+    // Every authorship row of the paper, resolved or not.
+    #[serde(rename = "authorCount")]
+    pub author_count: u32,
+    // The served rows in position order: no unresolved row, and past the team limit only the
+    // first rows plus those of the requested authors and of laureates.
     pub authorships: Vec<PaperAuthorship>,
     #[serde(rename = "yearlyCites", skip_serializing_if = "Option::is_none")]
     pub yearly_cites: Option<Box<[u32]>>,

@@ -197,13 +197,16 @@ fn work_filter_with_forced(
 
 /// Single pass over works::atts::authorships building both:
 /// - inst_map (institution → works), written as the institution filter (inst_step_id)
-/// - work_author_map (work → authors), written as the work + author filters (person_step_id)
+/// - work_author_map (work → authors), written as the work + author filters (person_step_id): a
+///   work stays when at least one of its authorship rows names an author
+///
+/// Returns the `watched` works that stay.
 fn authorship_filter(
     stowage: &Stowage,
     inst_step_id: u8,
     person_step_id: u8,
-    forced: &ForcedWorks,
-) -> io::Result<()> {
+    watched: WorkSet,
+) -> io::Result<WorkSet> {
     let work_filt = Arc::new(stowage.get_last_filter(works::C).unwrap());
 
     type BMap = HashMap<BigId, HashSet<BigId>>;
@@ -255,25 +258,24 @@ fn authorship_filter(
         .map(|(inst, _)| inst);
     stowage.write_filter(inst_step_id, institutions::C, inst_ids)?;
 
-    // Forced works keep hyperauthored entries; their co-authors still face the step-20 minimums.
-    let mut taken_works = Vec::new();
-    let mut taken_authors: HashSet<BigId> = HashSet::new();
-    for (work, authors_set) in &work_author_map {
-        if WORK_SCREEN.admits_authorship(authors_set.len()) || forced.set.contains(work) {
-            taken_works.push(*work);
-            taken_authors.extend(authors_set.iter().copied());
-        }
-    }
+    let taken_authors: HashSet<BigId> = work_author_map.values().flatten().copied().collect();
     stowage.write_filter(person_step_id, authors::C, taken_authors.into_iter())?;
-    stowage.write_filter(person_step_id, works::C, taken_works.into_iter())
+    let stays = watched
+        .into_iter()
+        .filter(|w| work_author_map.contains_key(w))
+        .collect();
+    stowage.write_filter(person_step_id, works::C, work_author_map.into_keys())?;
+    Ok(stays)
 }
 
 /// Step 20: an author passes between the activity minimums and the work bound, or is pinned;
-/// returns the pinned rescues.
+/// returns the pinned rescues. The bound tells an aggregate record from a person's, so it does
+/// not apply to `merged` authors, whose counts are sums over records each under it.
 fn author_filter_with_pins(
     stowage: &Stowage,
     step_id: u8,
     pins: &HashSet<BigId>,
+    merged: HashSet<BigId>,
 ) -> io::Result<usize> {
     let pre_filter = Arc::new(stowage.get_last_filter(authors::C).unwrap());
     let pins = Arc::new(pins.clone());

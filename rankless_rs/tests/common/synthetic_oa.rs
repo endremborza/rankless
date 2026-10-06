@@ -31,8 +31,7 @@ use serde_json::{json, Value};
 pub const OA: &str = "https://openalex.org/";
 pub const ORCID: &str = "https://orcid.org/";
 pub const DOI: &str = "https://doi.org/";
-/// One more than the hyperauthorship ceiling `filter.rs` applies, so a work by all of them
-/// only survives when forced.
+/// More than `WORK_SCREEN.team_limit`, so a work by all of them is a collaboration's.
 pub const BULK_AUTHORS: usize = 24;
 pub const PART_REL: &str = "updated_date=2026-01-01/part_000.gz";
 /// Author slot of an authorship whose author record is missing (an empty `author` cell).
@@ -96,7 +95,7 @@ pub struct Scenario {
     pub dataset: u64,
     /// Owner's article no work references: fails the citation screen unless forced.
     pub uncited: u64,
-    /// Owner + every bulk author: above `MAX_AUTHORS` unless forced.
+    /// Owner + every bulk author: more rows than a team has.
     pub hyper: u64,
     pub keep_work: u64,
     pub drop_work: u64,

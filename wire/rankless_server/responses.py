@@ -256,6 +256,7 @@ class PaperAuthorship(TypedDict):
 
 
 class PaperOut(TypedDict):
+    authorCount: int
     authorships: list[PaperAuthorship]
     bar: NotRequired[float]
     biblio: NotRequired[BiblioInfo]

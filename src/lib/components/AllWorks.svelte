@@ -226,7 +226,7 @@
 									</div>
 									<div class="paper-byline">
 										{#if journal}<em class="byline-journal">{journal}</em>{/if}
-										{#if paper.authorships.length}{#if journal}<span class="byline-sep">·</span
+										{#if paper.authorCount}{#if journal}<span class="byline-sep">·</span
 												>{/if}<AuthorList {paper} {entityAtts} {discAuthorNames} />{/if}
 									</div>
 									{#if paper.hitSemId}<a href="/hit-papers/{paper.hitSemId}" class="hit-breakdown"

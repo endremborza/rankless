@@ -135,7 +135,8 @@ async def get_methodology() -> dict:
 
     `workScreen` decides which papers are in the data at all, and so what an
     indexed paper and an indexed citation are: work kinds, year window, citation
-    floor, author cap, and the per-entity minimums. `paperScore` holds what a
+    floor, `teamLimit` (the most authors a paper has while they count as one
+    team), and the per-entity minimums. `paperScore` holds what a
     paper's score measures it against (the bar's top share and blend weights) and
     the multiple that makes it a hit paper; `topN` and `hSince` parametrize the
     Top-N means and the recent h-indices; `yearlyCounts` is the first and last
