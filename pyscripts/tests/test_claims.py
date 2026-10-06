@@ -3,7 +3,7 @@ import sqlite3
 from pathlib import Path
 
 from pyscripts import claims
-from pyscripts.ledger_ids import merge_subject_hash, author_subject
+from pyscripts.ledger_ids import author_subject, subject_hash
 
 SCHEMA = """
 CREATE TABLE ledger_events (
@@ -129,7 +129,13 @@ def test_merge_lane_writes_only_approved_decisions(tmp_path: Path) -> None:
     assert rows == [
         (
             "0000-0002",
-            merge_subject_hash(keep, author_subject(9, None, "")),
+            subject_hash(
+                {
+                    "kind": "merge_authors",
+                    "keep": keep,
+                    "drop": author_subject(9, None, ""),
+                }
+            ),
             "accepted",
             "convert:0000-9999",
         )

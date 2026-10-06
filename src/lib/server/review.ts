@@ -124,6 +124,10 @@ export function summarize(p: EventPayload): string {
 			return `keep “${p.keep.display_snapshot.display_name}” ⇐ drop “${p.drop.display_snapshot.display_name}”${p.note ? ` — note: ${p.note}` : ''}`;
 		case 'strip_orcid':
 			return `not this ORCID's: “${p.author.display_snapshot.display_name}”`;
+		case 'reassign_paper':
+			return `“${p.work.display_snapshot.title || p.work.oa_id || '?'}” off “${p.author.display_snapshot.display_name}”${p.to ? ` ⇒ “${p.to.display_snapshot.display_name}”` : ''}`;
+		case 'name_author':
+			return `name “${p.author.display_snapshot.display_name}” ⇒ “${p.name}”`;
 		case 'revoke':
 			return `revoke ${p.target_key}${p.reason ? ` — ${p.reason}` : ''}`;
 		case 'moderation_decision':

@@ -18,6 +18,8 @@
 		merge_papers: 'duplicate papers merged',
 		merge_authors: 'duplicate scholar records merged',
 		strip_orcid: 'ORCID iDs removed from records that are not their holder’s',
+		reassign_paper: 'papers moved off a record that is not their author’s',
+		name_author: 'scholar names corrected',
 		claim_paper: 'papers claimed by their author'
 	};
 

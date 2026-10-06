@@ -8,6 +8,8 @@ export const DEFAULT_MODERATION: Record<LedgerKind, ModerationState> = {
 	merge_papers: 'auto_ok',
 	merge_authors: 'pending_review',
 	strip_orcid: 'pending_review',
+	reassign_paper: 'pending_review',
+	name_author: 'pending_review',
 	revoke: 'auto_ok',
 	moderation_decision: 'auto_ok',
 	add_paper_request: 'pending_review'
@@ -51,7 +53,12 @@ export function subjectHash(payload: EventPayload): string {
 			return sha1Hex(keys.join('|'));
 		}
 		case 'strip_orcid':
+		case 'name_author':
 			return sha1Hex(authorCanonicalKey(payload.author));
+		case 'reassign_paper':
+			return sha1Hex(
+				[workCanonicalKey(payload.work), authorCanonicalKey(payload.author)].join('|')
+			);
 		case 'revoke':
 			// Keyed on the target's merge-stable logical key, not a renumberable event_id.
 			return sha1Hex(`target:${payload.target_key}`);

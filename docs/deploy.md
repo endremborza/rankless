@@ -95,10 +95,10 @@ Tables the pipeline reads that OpenAlex does not provide live under one root per
 | --- | --- | --- | --- | --- |
 | `orcid/names.tsv.zst` | `derive-ledger` (in `make filter`) | `make orcid_summaries`, from `orcid/raw/ORCID_<year>_<month>_summaries.tar.gz` (downloaded if absent) | `make filter` fails | ORCID owners by works alone |
 | `enrichment/laureates.csv` | `make extend_csvs` | by hand | `extend_csvs` fails | no laureates |
-| `ledger/curated.jsonl` | `export_user_ledger` (in `make filter`), copied to `user-ledger/curated.jsonl` | by hand, lines in the `active.jsonl` shape (`pyscripts/ledger_ids.py`) | `make filter` fails | no curated events |
+| `ledger/curated.jsonl` | `export_user_ledger` (in `make filter`), copied to `user-ledger/curated.jsonl` | by hand, lines in the `active.jsonl` shape (`pyscripts/ledger_ids.py` `curated_line`): the site's kinds plus `reassign_paper` and `name_author` | `make filter` fails | no curated events |
 | `metascience/raw/{areas,q-by-year}.csv.gz`, `wiki/raw/oa-to-wiki-authors.csv.gz` | `make extend_csvs` | downloaded from the public bucket on first use | downloaded | downloaded |
 
-The pipeline reads nothing else there (`orcid/public_emails.tsv` and the audit files in `enrichment/` are kept, not read). So the primary data box sets `EXTERNAL_DATA_ROOT` and holds the first three tables: unset, its release has no laureates, no curated events and ORCID owners by works alone.
+The pipeline reads nothing else there (`orcid/public_emails.tsv` and the audit files in `enrichment/` are kept, not read). The agent runs live there too, one dir per run in `runs/` (`pyscripts/explore/runs.py`, [mcp-server.md](mcp-server.md)): private, never served, written by `make deep-explore` and the game-card round on whichever box runs them. So the primary data box sets `EXTERNAL_DATA_ROOT` and holds the first three tables: unset, its release has no laureates, no curated events and ORCID owners by works alone.
 
 A script sees `.env` only through make (`-include .env` + `export`): run these as make targets. A bare `uv run -m pyscripts.<script>` falls back to `./data/external`.
 

@@ -55,6 +55,8 @@ export type EventPayload =
 	| { kind: 'disown_paper'; work: WorkSubject }
 	| { kind: 'claim_paper'; work: WorkSubject }
 	| { kind: 'strip_orcid'; author: AuthorSubject }
+	| { kind: 'reassign_paper'; author: AuthorSubject; to?: AuthorSubject; work: WorkSubject }
+	| { kind: 'name_author'; author: AuthorSubject; name: string }
 	| { kind: 'revoke'; reason?: string; target_key: string }
 	| { kind: 'moderation_decision'; decision: ModerationVerdict; reason?: string; target_event_id: number }
 	| { kind: 'add_paper_request'; work_claim: Record<string, unknown> };

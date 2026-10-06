@@ -56,7 +56,7 @@ from pyscripts.ledger_ids import (
     author_subject,
     canonical_doi,
     logical_key,
-    merge_subject_hash,
+    subject_hash,
     oa_numeric,
 )
 
@@ -143,11 +143,13 @@ def apply_merges(
                 oa_numeric(claim["keep"]), claim["orcid"], claim["name"]
             )
             drop = author_subject(oa_numeric(decision["drop"]), None, "")
-            subject_hash = merge_subject_hash(keep, drop)
+            merge_key = subject_hash(
+                {"kind": "merge_authors", "keep": keep, "drop": drop}
+            )
             row = con.execute(
                 "SELECT event_id FROM ledger_events WHERE orcid = ? AND kind = 'merge_authors' "
                 "AND subject_hash = ? AND revoked_at IS NULL",
-                (claim["orcid"], subject_hash),
+                (claim["orcid"], merge_key),
             ).fetchone()
             if row:
                 print(f"  {claim['name']:20s} {decision['drop']}  already present")
@@ -172,7 +174,7 @@ def apply_merges(
                 (
                     claim["orcid"],
                     json.dumps(payload, separators=(",", ":")),
-                    subject_hash,
+                    merge_key,
                     f"convert:{admin_orcid}",
                 ),
             )
