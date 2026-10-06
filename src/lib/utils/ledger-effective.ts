@@ -1,4 +1,5 @@
-import type { LedgerEvent, AppliedManifest } from '$lib/types/ledger';
+import type { AppliedManifest } from '$lib/wire/rankless_rs/user_ledger';
+import type { LedgerEvent } from '$lib/types/ledger';
 
 export function computeEffective(
 	events: LedgerEvent[],

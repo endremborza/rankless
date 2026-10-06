@@ -1,3 +1,6 @@
+import type { Expr } from './wire/rankless_expr';
+import type { ColumnDecl, TableRow } from './wire/rankless_server/responses';
+import type { Kind } from './wire/rankless_trees/metrics';
 import { describe, it, expect } from 'vitest';
 import {
 	annotatable,
@@ -27,10 +30,9 @@ import {
 	tableQuery,
 	whereText
 } from './table-utils';
-import type { MetricDecl, MetricKind, TableRow, WhereExpr } from './tree-types';
 
 type Root = 'authors' | 'institutions';
-type Decl = Omit<MetricDecl, 'kind'> & { kinds: Partial<Record<Root, MetricKind>> };
+type Decl = Omit<ColumnDecl, 'kind'> & { kinds: Partial<Record<Root, Kind>> };
 
 // One declaration per metric with its kind per root, served as each root's registry.
 const decls: Decl[] = [
@@ -89,12 +91,12 @@ const decls: Decl[] = [
 		kinds: { authors: 'global', institutions: 'global' }
 	}
 ];
-const registryOf = (root: Root): MetricDecl[] =>
+const registryOf = (root: Root): ColumnDecl[] =>
 	decls.flatMap(({ kinds, ...d }) => (kinds[root] ? [{ ...d, kind: kinds[root] }] : []));
 const registry = registryOf('authors');
 const institutions = registryOf('institutions');
 
-const ids = (ms: MetricDecl[]) => ms.map((m) => m.id);
+const ids = (ms: ColumnDecl[]) => ms.map((m) => m.id);
 const names = { oncology: 'Oncology', hun: 'Hungary', can: 'Canada' };
 
 describe('table column model', () => {
@@ -219,7 +221,7 @@ describe('calls and clauses', () => {
 	});
 
 	it('shows a flat conjunction as chips and anything else as text', () => {
-		const flat: WhereExpr = {
+		const flat: Expr = {
 			and: [
 				{ clause: { call: { metric: 'country', args: [] }, op: 'eq', operand: 'hun' } },
 				{ clause: { call: { metric: 'field_score', args: ['oncology'] }, op: 'gt', operand: 1 } }
@@ -229,7 +231,7 @@ describe('calls and clauses', () => {
 			{ call: 'country', op: 'eq', operand: 'hun' },
 			{ call: 'field_score(oncology)', op: 'gt', operand: 1 }
 		]);
-		const single: WhereExpr = {
+		const single: Expr = {
 			clause: { call: { metric: 'papers', args: [] }, op: 'ge', operand: 5 }
 		};
 		expect(chipsFrom(single)).toEqual([{ call: 'papers', op: 'ge', operand: 5 }]);

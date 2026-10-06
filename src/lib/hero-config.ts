@@ -1,5 +1,10 @@
+import type {
+	EntityPeersResp,
+	LadderResp,
+	PostAttRelatedEntity
+} from '$lib/wire/rankless_server/responses';
 import type * as tt from '$lib/tree-types';
-import { ROOT_TYPES } from '$lib/constants';
+import { isRootType } from '$lib/constants';
 import { entToLink } from '$lib/tree-functions';
 import { pluralize } from '$lib/text-format-util';
 import {
@@ -140,14 +145,12 @@ export const HERO_CONFIG: Record<tt.RootType, HeroSpec> = {
 	}
 };
 
-function rootHref(etype: tt.EntityType, sid: string): string | null {
-	return ROOT_TYPES.includes(etype as tt.RootType) && sid
-		? entToLink({ rootType: etype as tt.RootType, semanticId: sid })
-		: null;
+function rootHref(etype: string, sid: string): string | null {
+	return isRootType(etype) && sid ? entToLink({ rootType: etype, semanticId: sid }) : null;
 }
 
 export function buildLeaderRows(
-	grouped: Partial<Record<tt.RelTypes, tt.RelatedEntity[]>>,
+	grouped: Partial<Record<tt.RelTypes, PostAttRelatedEntity[]>>,
 	specs: LeaderSpec[]
 ): LeaderRow[] {
 	const rows: LeaderRow[] = [];
@@ -178,9 +181,9 @@ export function buildLeaderRows(
 // distinct topics across all fields (backend returns them ordered by score); dedupes by topic name —
 // OpenAlex occasionally repeats one. `toTopic` shapes each topic, since count/hover differ per block.
 function groupTopicsByField(
-	rels: tt.RelatedEntity[] | undefined,
+	rels: PostAttRelatedEntity[] | undefined,
 	maxTopics: number,
-	toTopic: (t: tt.RelatedEntity) => HeroTopic
+	toTopic: (t: PostAttRelatedEntity) => HeroTopic
 ): Map<string, FieldTopics> {
 	const byField = new Map<string, FieldTopics>();
 	const seen = new Set<string>();
@@ -255,7 +258,7 @@ function assembleTiles(
 // `refPapers` maps subfield semantic id → papers authored, covering fields beyond the top few that
 // the `paper-fields` relation carries, so a topic-surfaced extra tile still shows its count.
 export function buildProductionTiles(
-	grouped: Partial<Record<tt.RelTypes, tt.RelatedEntity[]>>,
+	grouped: Partial<Record<tt.RelTypes, PostAttRelatedEntity[]>>,
 	refPapers: Map<string, number>,
 	maxChips: number,
 	maxTopics: number,
@@ -292,9 +295,9 @@ export function buildProductionTiles(
 // pulls in as an extra tile keeps its banner. Without peer data it falls back to citing-fields counts.
 export function buildImpactTiles(
 	cfg: HeroSpec,
-	peersData: tt.EntityPeersResp | null,
-	ladder: tt.LadderData | null,
-	grouped: Partial<Record<tt.RelTypes, tt.RelatedEntity[]>>,
+	peersData: EntityPeersResp | null,
+	ladder: LadderResp | null,
+	grouped: Partial<Record<tt.RelTypes, PostAttRelatedEntity[]>>,
 	rootType: tt.RootType,
 	maxChips: number,
 	minTier: number,

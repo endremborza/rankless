@@ -1,7 +1,7 @@
 <script lang="ts">
+	import type { SearchResult } from '$lib/wire/rankless_server/responses';
 	import { BE_REMOTE_URL } from '$lib/constants';
 	import { formatNumber } from '$lib/text-format-util';
-	import type { SearchResult } from '$lib/tree-types';
 	import { createEventDispatcher } from 'svelte';
 
 	export let rootType: string;

@@ -1,8 +1,9 @@
 <script lang="ts">
+	import type { SearchResult, UnionSearchResult } from '$lib/wire/rankless_server/responses';
 	import { pluralize, rootEmoji, formatNumber } from '$lib/text-format-util';
 	import { fixName } from '$lib/name-overrides';
-	import { BE_REMOTE_URL } from '$lib/constants';
-	import type { RootType, SearchResult } from '$lib/tree-types';
+	import { BE_REMOTE_URL, isRootType } from '$lib/constants';
+	import type { RootedResult, RootType } from '$lib/tree-types';
 	import { entToLink } from '$lib/tree-functions';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -26,7 +27,7 @@
 	let loading = false;
 	let delayedTerm = '';
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
-	let results: SearchResult[] = [];
+	let results: RootedResult[] = [];
 
 	export function move(delta: number) {
 		if (results.length === 0) return;
@@ -52,10 +53,12 @@
 			const res = await fetch(
 				`${BE_REMOTE_URL}/names/${cat}?` + new URLSearchParams({ q: searchTerm }).toString()
 			);
-			const l: SearchResult[] = await res.json();
+			const l: (SearchResult | UnionSearchResult)[] = await res.json();
 			if (delayedTerm == searchTerm) {
 				results = l.map((e) => {
-					return { ...e, name: fixName(e.name), rootType: e.rootType ?? (cat as RootType) };
+					const rootType =
+						'rootType' in e && isRootType(e.rootType) ? e.rootType : (cat as RootType);
+					return { ...e, name: fixName(e.name), rootType };
 				});
 				activeIndex = -1;
 			}

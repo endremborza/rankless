@@ -1,8 +1,9 @@
 <script lang="ts">
+	import type { ColumnDecl } from '$lib/wire/rankless_server/responses';
 	import { page } from '$app/state';
 	import ParamInputs from './ParamInputs.svelte';
 	import { argsReady, callText, defaultArgs, parseCall, type MetricArgs } from '$lib/table-utils';
-	import type { MetricDecl, NamedEntity } from '$lib/tree-types';
+	import type { NamedEntity } from '$lib/tree-types';
 
 	// Picks a metric and the argument its parameter takes, and hands over the call. A pick that
 	// asks for nothing applies at once, one with a parameter applies with the button. `selected`
@@ -15,12 +16,12 @@
 		action,
 		onpick
 	}: {
-		metrics: MetricDecl[];
+		metrics: ColumnDecl[];
 		subfields: NamedEntity[];
 		countries: NamedEntity[];
 		selected?: string;
 		action: string;
-		onpick: (metric: MetricDecl, args: MetricArgs) => void;
+		onpick: (metric: ColumnDecl, args: MetricArgs) => void;
 	} = $props();
 
 	let picked = $state<string | null>(null);

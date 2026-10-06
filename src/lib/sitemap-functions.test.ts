@@ -1,6 +1,7 @@
+import type { SliceResp, TableRow } from './wire/rankless_server/responses';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { respsFromLinks } from './sitemap-functions';
-import type { RootType, SliceResp, TableRow } from './tree-types';
+import type { RootType } from './tree-types';
 
 function row(semanticId: string): TableRow {
 	return {

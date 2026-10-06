@@ -10,7 +10,7 @@ declare global {
 		// interface Locals {}
 		interface PageData {
 			// Served by the (stat) layout for everything under it; see `loadMethodology`.
-			methodology?: import('./lib/tree-types').Methodology | null;
+			methodology?: import('./lib/wire/rankless_server/responses').MethodologyOut | null;
 		}
 		// interface Platform {}
 	}

@@ -1,6 +1,7 @@
+import type { LadderResp } from '$lib/wire/rankless_server/responses';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import type { LadderData, RootType } from '$lib/tree-types';
+import type { RootType } from '$lib/tree-types';
 import { BE_URL, COHORT_ROOT_TYPES } from '$lib/constants';
 import {
 	byName,
@@ -40,7 +41,7 @@ export const load: PageServerLoad = async ({ params, url, fetch }) => {
 	const field = fieldKey ? String(parseCall(fieldKey).args[0] ?? '') : '';
 	const ladder = field
 		? await fetch(`${BE_URL}/ladder/${rootType}`)
-				.then((r) => (r.ok ? (r.json() as Promise<LadderData>) : null))
+				.then((r) => (r.ok ? (r.json() as Promise<LadderResp>) : null))
 				.catch(() => null)
 		: null;
 

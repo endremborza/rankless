@@ -1,7 +1,8 @@
+import type { PaginatedPaperSetResp, PaperOut } from '$lib/wire/rankless_server/responses';
+import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 import { writable, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import { BE_REMOTE_URL } from '$lib/constants';
-import type { Paper, EntityAttsForLinks, PaginatedPaperSetResp } from '$lib/tree-types';
 import { encodeSemanticId } from '$lib/tree-functions';
 import { mergeEntityAtts } from '$lib/utils/paper-helpers';
 import { createStaleGuard, type IsCurrent } from '$lib/utils/stale-guard';
@@ -13,14 +14,14 @@ export const WORKS_PAGE_SIZE = 200;
 const WORKS_SORT = 'citations';
 
 export type Works = {
-	papers: Paper[];
+	papers: PaperOut[];
 	entityAtts: EntityAttsForLinks;
 	discAuthorNames: Record<string, string>;
 };
 
 export type WorksState = {
 	semanticId: string;
-	papers: Paper[];
+	papers: PaperOut[];
 	entityAtts: EntityAttsForLinks;
 	discAuthorNames: Record<string, string>;
 	sliceEnd: number;
@@ -33,7 +34,7 @@ export type WorksState = {
 
 // SSR-provided first batch — lets the initial render skip a client round-trip.
 export type WorksSeed = {
-	papers: Paper[];
+	papers: PaperOut[];
 	entityAtts: EntityAttsForLinks;
 	discAuthorNames: Record<string, string>;
 	sliceEnd: number;

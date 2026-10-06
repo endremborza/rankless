@@ -1,6 +1,19 @@
+import type {
+	AttributeLabels,
+	BreakdownSpec,
+	TreeResponse,
+	TreeSpec,
+	TreeSpecs
+} from '$lib/wire/rankless_trees/io';
 import { base } from '$app/paths';
 import type * as tt from '$lib/tree-types';
-import { COMPLETE_YEAR, DEFAULT_LIMIT_N, MAX_LEVEL_COUNT, ENTITY_TYPES } from './constants';
+import {
+	COMPLETE_YEAR,
+	DEFAULT_LIMIT_N,
+	MAX_LEVEL_COUNT,
+	ENTITY_TYPES,
+	isEntityType
+} from './constants';
 import { getSpecMetricObject } from './metric-calculation';
 import { getExternalUrl } from './route-functions';
 
@@ -29,18 +42,18 @@ export function getDefaultLevelSpecs() {
 		});
 }
 
-export function getTreeIndsByEntityType(specs: tt.TreeSpec[]): tt.IndsByEntityType {
+export function getTreeIndsByEntityType(specs: TreeSpec[]): tt.IndsByEntityType {
 	const out = Object.fromEntries(
 		ENTITY_TYPES.map((e) => [e, []])
 	) as unknown as tt.IndsByEntityType;
 	for (let i = 0; i < specs.length; i++) {
 		const aType = specs[i].breakdowns[0].attributeType;
-		if (ENTITY_TYPES.includes(aType)) out[aType].push(i);
+		if (isEntityType(aType)) out[aType].push(i);
 	}
 	return out;
 }
 
-export function getDefaultBreakdowns(treeSpec: tt.TreeSpec) {
+export function getDefaultBreakdowns(treeSpec: TreeSpec) {
 	const out: tt.SelectedBreakdowns = [];
 	for (let i = 0; i < MAX_LEVEL_COUNT; i++) {
 		if (i >= treeSpec.breakdowns.length) break;
@@ -63,7 +76,7 @@ export function getDefaultControlSpecs(spec: boolean): tt.FullControlSpecs {
 }
 
 export function getBreakdownOptions(
-	treeSpecs: tt.TreeSpecs,
+	treeSpecs: TreeSpecs,
 	rootType: tt.RootType,
 	maxD: number = MAX_LEVEL_COUNT,
 	minD: number = 2
@@ -75,16 +88,16 @@ export function getBreakdownOptions(
 		const v = entityTreeSpecs[i];
 		let valid = true;
 		for (const bd of v.breakdowns) {
-			if (!ENTITY_TYPES.includes(bd.attributeType)) valid = false;
+			if (!isEntityType(bd.attributeType)) valid = false;
 		}
 		if (!valid) continue;
-		if (v.breakdowns.length >= minD) entries.push([i, v] as [number, tt.TreeSpec]);
+		if (v.breakdowns.length >= minD) entries.push([i, v] as [number, TreeSpec]);
 	}
 	return fillBreakdownOptions(entries, maxD);
 }
 
 export function fillBreakdownOptions(
-	specsEnum: ArrayIterator<[number, tt.TreeSpec]> | [number, tt.TreeSpec][],
+	specsEnum: ArrayIterator<[number, TreeSpec]> | [number, TreeSpec][],
 	maxD: number = MAX_LEVEL_COUNT
 ) {
 	const out: tt.BreakdownOptions = {};
@@ -103,7 +116,7 @@ export function fillBreakdownOptions(
 	return out;
 }
 
-export function idFromBd(bd: tt.BreakdownSpec): string {
+export function idFromBd(bd: BreakdownSpec): string {
 	return `${bd.attributeType}-${bd.sourceSide}`;
 }
 
@@ -139,7 +152,7 @@ export async function fetchTree(
 	root: string,
 	conf: tt.FullTreeConfig,
 	shallow?: number
-): Promise<tt.TreeResponse> {
+): Promise<TreeResponse> {
 	const res = await fetch(treeBeUrl(root, conf, shallow));
 	return res.json();
 }
@@ -195,7 +208,7 @@ export function toLinkWithParams(conf: tt.FullTreeConfig, selectionState: tt.Bar
 export function parseLinkWithParams(
 	params: URLSearchParams,
 	rootType: tt.RootType,
-	treeSpecs: tt.TreeSpecs
+	treeSpecs: TreeSpecs
 ): tt.ShareSpec {
 	const year = parseInt(params.get('since') || getDefaultYear(rootType).toString());
 	let treeId = parseInt(params.get('tree') || '1') - 1 || 0;
@@ -277,8 +290,8 @@ export function deriveVisibleTree(
 	root: tt.ResponseNode,
 	controls: tt.FullControlSpecs,
 	selections: tt.BareNode,
-	attributeLabels: tt.AttributeLabels,
-	treeSpec: tt.TreeSpec
+	attributeLabels: AttributeLabels,
+	treeSpec: TreeSpec
 ): tt.TreeInfo {
 	const allLevelNodes = flatFilter(root, controls, selections, treeSpec, attributeLabels);
 
@@ -353,8 +366,8 @@ function flatFilter(
 	root: tt.ResponseNode,
 	controls: tt.FullControlSpecs,
 	selections: tt.BareNode,
-	treeSpec: tt.TreeSpec,
-	attributeLabels: tt.AttributeLabels
+	treeSpec: TreeSpec,
+	attributeLabels: AttributeLabels
 ): LevelNodeDescription[][] {
 	//on each level: (excluded ones should already not be there)
 	//collect selected ones
@@ -474,9 +487,9 @@ function flatFilter(
 }
 
 export function flatFromResp(
-	resp: tt.TreeResponse | undefined,
+	resp: TreeResponse | undefined,
 	isSpecialization: boolean,
-	spec: tt.TreeSpec
+	spec: TreeSpec
 ): undefined | tt.LevelT {
 	if (resp == undefined) return;
 	const globConf: tt.FullControlSpecs = {
@@ -570,8 +583,8 @@ export function getSomePath(tree: tt.BareNode): tt.PathInTree {
 
 export function getChildName(
 	path: tt.PathInTree,
-	attributeLabels: tt.AttributeLabels,
-	treeSpec: tt.TreeSpec
+	attributeLabels: AttributeLabels,
+	treeSpec: TreeSpec
 ) {
 	if (attributeLabels === undefined) {
 		return 'Loading...';
@@ -579,7 +592,7 @@ export function getChildName(
 	return nameById(attributeLabels, getEntityKind(path, treeSpec), lastE(path));
 }
 
-export function nameById(labels: tt.AttributeLabels, atype: tt.EntityType, id: number) {
+export function nameById(labels: AttributeLabels, atype: string, id: number) {
 	const emap = labels[atype];
 	if (emap === undefined) {
 		return UNKNOWN_NAME;
@@ -587,7 +600,7 @@ export function nameById(labels: tt.AttributeLabels, atype: tt.EntityType, id: n
 	return emap[id]?.name || UNKNOWN_NAME;
 }
 
-export function getEntityKind(path: tt.PathInTree, treeSpec: tt.TreeSpec) {
+export function getEntityKind(path: tt.PathInTree, treeSpec: TreeSpec) {
 	return treeSpec.breakdowns[path.length - 1].attributeType;
 }
 

@@ -1,14 +1,16 @@
 <script lang="ts">
+	import type { PaperOut } from '$lib/wire/rankless_server/responses';
+	import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
+	import type { RefDAG } from '$lib/wire/rankless_trees/path_finder';
 	import { afterUpdate, onMount } from 'svelte';
-	import type { RefTree, Paper, EntityAttsForLinks } from '$lib/tree-types';
 	import { isAuthored } from '$lib/utils/paper-helpers';
 	import { computeSeen, buildSubgraphs, classifyComponentLayers } from '$lib/utils/dag-builder';
 	import { computeImpactSummary, nobelPhrase, prestigiousPhrase } from '$lib/utils/impact-summary';
 	import { pluralize } from '$lib/text-format-util';
 	import DagChip from './DagChip.svelte';
 
-	export let dag: RefTree;
-	export let paperMap: Record<number, Paper>;
+	export let dag: RefDAG;
+	export let paperMap: Record<number, PaperOut>;
 	export let entityAtts: EntityAttsForLinks;
 	export let discAuthorNames: Record<string, string>;
 	export let authorsMeta: Record<string, { prize: number; year: number }> = {};

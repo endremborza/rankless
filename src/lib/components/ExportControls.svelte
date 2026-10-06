@@ -1,10 +1,11 @@
 <script lang="ts">
-	import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
+	import type { PaperOut } from '$lib/wire/rankless_server/responses';
+	import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 	import { toBibtexFile, type CitationStyle } from '$lib/utils/reference-format';
 	import { copyToClipboard, downloadTextFile } from '$lib/utils/clipboard-download';
 	import { COMPLETE_YEAR, LATEST_YEAR } from '$lib/constants';
 
-	export let filteredPapers: Paper[];
+	export let filteredPapers: PaperOut[];
 	export let totalCount: number;
 	export let entityAtts: EntityAttsForLinks;
 	export let discAuthorNames: Record<string, string>;

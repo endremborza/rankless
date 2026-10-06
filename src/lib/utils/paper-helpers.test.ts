@@ -1,3 +1,5 @@
+import type { PaperOut } from '$lib/wire/rankless_server/responses';
+import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 import { describe, it, expect } from 'vitest';
 import {
 	resolveAuthorNameOrNull,
@@ -5,7 +7,6 @@ import {
 	mergeEntityAtts,
 	oaWorkToPaperResp
 } from './paper-helpers';
-import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
 
 const atts: EntityAttsForLinks = {
 	authors: { '1': { name: 'Alice Smith', semantic_id: 'alice-smith', spec_baseline: 0 } }
@@ -14,7 +15,7 @@ const atts: EntityAttsForLinks = {
 // Backend keys discAuthorNames by the full prefixed id, NOT the bare numeric id.
 const disc = { D73073403: 'Carlos Navarrete' };
 
-function makePaper(overrides: Partial<Paper> = {}): Paper {
+function makePaper(overrides: Partial<PaperOut> = {}): PaperOut {
 	return {
 		wid: 1,
 		oaId: 0,

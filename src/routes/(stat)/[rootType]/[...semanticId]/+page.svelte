@@ -1,4 +1,13 @@
 <script lang="ts">
+	import type { AppliedManifest } from '$lib/wire/rankless_rs/user_ledger';
+	import type {
+		EntityPeersResp,
+		LadderResp,
+		PaperOut,
+		PaperProfileResp,
+		ViewResult
+	} from '$lib/wire/rankless_server/responses';
+	import type { AttributeLabels, EntityAttsForLinks, TreeSpecs } from '$lib/wire/rankless_trees/io';
 	import { APP_NAME } from '$lib/constants';
 	import { prettifyRoot } from '$lib/text-format-util';
 
@@ -27,15 +36,15 @@
 	import AuthorLedgerPanel from '$lib/components/AuthorLedgerPanel.svelte';
 	import { createWorksLoader } from '$lib/utils/works-loader';
 	import { createStaleGuard } from '$lib/utils/stale-guard';
-	import type { LedgerEvent, AppliedManifest } from '$lib/types/ledger';
+	import type { LedgerEvent } from '$lib/types/ledger';
 
 	export let data: {
-		view: tt.View;
+		view: ViewResult;
 		conf: tt.FullTreeConfig;
 		selectionState: tt.BareNode;
-		treeSpecs: tt.TreeSpecs;
+		treeSpecs: TreeSpecs;
 		tree: tt.ResponseNode;
-		atts: tt.AttributeLabels;
+		atts: AttributeLabels;
 		pngLink: string;
 		shallowed: boolean;
 		aboutParagraph: tt.AboutPara;
@@ -44,11 +53,11 @@
 		citeText: string;
 		prefixText: string;
 		disclaimer: string | null;
-		profile: tt.PaperProfileResp | null;
-		peersData: tt.EntityPeersResp | null;
-		ladder: tt.LadderData | null;
-		initialPapers: tt.Paper[];
-		initialEntityAtts: tt.EntityAttsForLinks;
+		profile: PaperProfileResp | null;
+		peersData: EntityPeersResp | null;
+		ladder: LadderResp | null;
+		initialPapers: PaperOut[];
+		initialEntityAtts: EntityAttsForLinks;
 		initialDiscAuthorNames: Record<string, string>;
 		initialTotalPapers: number;
 		initialWorksSliceEnd: number;

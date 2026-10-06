@@ -1,10 +1,11 @@
-import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
+import type { PaperOut } from '$lib/wire/rankless_server/responses';
+import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 import { resolveAuthorNameOrNull } from '$lib/utils/paper-helpers';
 
 export type SortMode = 'first' | 'recent' | 'count';
 
 // One marker on a co-author's row: every paper they share with the hero in a given year.
-export type YearGroup = { year: number; papers: Paper[]; hasHit: boolean };
+export type YearGroup = { year: number; papers: PaperOut[]; hasHit: boolean };
 
 export type CoAuthor = {
 	key: string; // the authorship id ("F{id}" / "D{id}") — stable identity across papers
@@ -25,12 +26,15 @@ const NICE_STEPS = [1, 2, 5, 10, 20, 25, 50];
 // without a usable year are skipped, and discarded (D) authors are kept (name only, no link) so
 // recent or minor collaborators missing from the top-N network still surface here.
 export function buildCoauthors(
-	papers: Paper[],
+	papers: PaperOut[],
 	entityAtts: EntityAttsForLinks,
 	discAuthorNames: Record<string, string>,
 	heroSemanticId: string
 ): CoAuthor[] {
-	const map = new Map<string, { name: string; url: string | null; byYear: Map<number, Paper[]> }>();
+	const map = new Map<
+		string,
+		{ name: string; url: string | null; byYear: Map<number, PaperOut[]> }
+	>();
 
 	for (const p of papers) {
 		if (!p.year || p.year <= 0) continue;

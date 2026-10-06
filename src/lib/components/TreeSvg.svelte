@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { AttributeLabels, TreeSpec } from '$lib/wire/rankless_trees/io';
 	import { MAX_LEVEL_COUNT } from '$lib/constants';
 	import { CHAR_W, MONO } from '$lib/utils/cards';
 	import type * as tt from '$lib/tree-types';
@@ -13,9 +14,9 @@
 	let minimumChildWidth = 2.5;
 	let fbRatio = 1200 / 630; // 227 linkedin
 
-	export let treeSpec: tt.TreeSpec;
+	export let treeSpec: TreeSpec;
 	export let tree: tt.ResponseNode;
-	export let attributeLabels: tt.AttributeLabels;
+	export let attributeLabels: AttributeLabels;
 
 	export let selectionState: tt.BareNode = { children: {} };
 	export let controlSpecs = tf.getDefaultControlSpecs(treeSpec.defaultIsSpec);

@@ -1,5 +1,6 @@
+import type { SliceResp, TableRow } from '$lib/wire/rankless_server/responses';
 import { isAsciiOnly } from './text-format-util';
-import type { RootType, SearchResult, SliceResp, TableRow } from '$lib/tree-types';
+import type { RootedResult, RootType } from '$lib/tree-types';
 import { BE_URL } from './constants';
 
 // The rows of one `/slice` page that can carry a sitemap URL: a semantic id outside ASCII has no
@@ -11,8 +12,8 @@ export async function sitemapRows(url: string): Promise<TableRow[]> {
 
 export async function respsFromLinks(
 	links: { url: string; name: RootType }[]
-): Promise<SearchResult[]> {
-	const resps: SearchResult[] = [];
+): Promise<RootedResult[]> {
+	const resps: RootedResult[] = [];
 	for (const link of links) {
 		for (const e of await sitemapRows(link.url)) {
 			resps.push({ ...e, rootType: link.name });

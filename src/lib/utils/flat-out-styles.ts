@@ -1,3 +1,4 @@
+import type { AttributeLabels } from '$lib/wire/rankless_trees/io';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
 import { HIGH_OP, LOW_OP } from '$lib/constants';
@@ -89,7 +90,7 @@ export function mapWeightText(isSpec: boolean, isRefSide: boolean | undefined): 
 }
 
 // The flat level keyed by country name, the key the map's paths carry.
-export function countryLevels(flatOut: tt.LevelT, atts: tt.AttributeLabels): tt.LevelT {
+export function countryLevels(flatOut: tt.LevelT, atts: AttributeLabels): tt.LevelT {
 	const countryAtts = atts.countries || {};
 	return Object.fromEntries(
 		Object.entries(flatOut)

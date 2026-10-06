@@ -1,3 +1,4 @@
+import type { TreeSpecs } from '$lib/wire/rankless_trees/io';
 import { FULL_HOST, ROOT_TYPES } from './constants';
 import { LAST_MOD } from './v_constants';
 import type * as tt from '$lib/tree-types';
@@ -48,7 +49,7 @@ export async function semIdResolver(
 	semanticId: string;
 	conf: tt.FullTreeConfig;
 	spec: tt.ShareSpec;
-	treeSpecs: tt.TreeSpecs;
+	treeSpecs: TreeSpecs;
 }> {
 	let rootType: tt.RootType;
 	if (ROOT_TYPES.includes(params.rootType as tt.RootType)) {

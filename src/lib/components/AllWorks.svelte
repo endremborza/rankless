@@ -1,7 +1,7 @@
 <script lang="ts">
+	import type { PaperOut } from '$lib/wire/rankless_server/responses';
 	import { createEventDispatcher } from 'svelte';
 	import { COMPLETE_YEAR } from '$lib/constants';
-	import type { Paper } from '$lib/tree-types';
 	import type { WorksLoader } from '$lib/utils/works-loader';
 	import { resolveSourceName, htmlToText } from '$lib/utils/paper-helpers';
 	import { formatNumber } from '$lib/text-format-util';
@@ -135,7 +135,7 @@
 
 	$: selectedPapers = [...selectedWids]
 		.map((wid) => papers.find((p) => p.wid === wid))
-		.filter((p): p is Paper => p != null);
+		.filter((p): p is PaperOut => p != null);
 
 	$: showOwnerActions = isOwner && ownerUnlocked && citationStyle === 'html';
 	$: showChangesSections = isOwner ? ownerUnlocked : true;

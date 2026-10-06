@@ -1,6 +1,7 @@
+import type { PaperOut } from '$lib/wire/rankless_server/responses';
+import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 import { describe, it, expect } from 'vitest';
 import { buildCoauthors, sortCoauthors, coauthorYearDomain, makeTicks } from './author-timeline';
-import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
 
 const atts: EntityAttsForLinks = {
 	authors: {
@@ -10,7 +11,7 @@ const atts: EntityAttsForLinks = {
 };
 const disc = { D9: 'Carlos Navarrete' };
 
-function makePaper(overrides: Partial<Paper> = {}): Paper {
+function makePaper(overrides: Partial<PaperOut> = {}): PaperOut {
 	return {
 		wid: 1,
 		oaId: 0,

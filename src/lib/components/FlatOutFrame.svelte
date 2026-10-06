@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { TreeResponse, TreeSpec, TreeSpecs } from '$lib/wire/rankless_trees/io';
 	import { onMount } from 'svelte';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
@@ -13,10 +14,10 @@
 	export let rootId: number;
 	export let indsByEntityType: tt.IndsByEntityType;
 	export let conf: tt.FullTreeConfig;
-	export let treeSpecs: tt.TreeSpecs;
+	export let treeSpecs: TreeSpecs;
 	export let infoPath: number[] = [];
 	export let year = conf.year;
-	export let resp: tt.TreeResponse | undefined = undefined;
+	export let resp: TreeResponse | undefined = undefined;
 	export let isSpec = false;
 	export let treeId: number;
 	export let backupNames: Record<number, string> = {};
@@ -29,7 +30,7 @@
 
 	$: levelOptions = tf.fillBreakdownOptions(
 		indsByEntityType[l1Type].map(
-			(e) => [e, treeSpecs.specs[conf.rootType][e]] as [number, tt.TreeSpec]
+			(e) => [e, treeSpecs.specs[conf.rootType][e]] as [number, TreeSpec]
 		),
 		1
 	);
@@ -64,7 +65,7 @@
 		resp = jsv;
 	}
 
-	function setNewFlout(resp: tt.TreeResponse | undefined, isSpec: boolean, treeSpec: tt.TreeSpec) {
+	function setNewFlout(resp: TreeResponse | undefined, isSpec: boolean, treeSpec: TreeSpec) {
 		if (treeSpec == undefined) return;
 		let newFlout = tf.flatFromResp(resp, isSpec, treeSpec);
 		if (newFlout != undefined) flatOut = newFlout;

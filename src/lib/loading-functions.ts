@@ -1,13 +1,15 @@
+import type { MethodologyOut, TopResult } from '$lib/wire/rankless_server/responses';
+import type { TreeResponse, TreeSpec, TreeSpecs } from '$lib/wire/rankless_trees/io';
 import { BE_URL } from '$lib/constants';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
 import { SEMANTIC_CONF } from '$lib/text-format-util';
 import { randN } from './util';
 
-export async function loadSpecs(fetchFn: typeof fetch = fetch): Promise<tt.TreeSpecs> {
+export async function loadSpecs(fetchFn: typeof fetch = fetch): Promise<TreeSpecs> {
 	return fetchFn(`${BE_URL}/specs`)
 		.then((res) => res.json())
-		.then((specs: tt.TreeSpecs) => {
+		.then((specs: TreeSpecs) => {
 			//possible quick fixes in specs
 			for (const nonSpecRt of ['sources', 'subfields']) {
 				for (let i = 0; i < specs.specs[nonSpecRt as tt.RootType].length; i++) {
@@ -21,31 +23,31 @@ export async function loadSpecs(fetchFn: typeof fetch = fetch): Promise<tt.TreeS
 // The one methodology object, read on every load so a backend redeploy is served on the next one.
 // A failed read answers the last good copy (null before the first): this loads in the layout every
 // page renders under, and a backend blip must neither 500 those pages nor hide their explanations.
-let methodology: tt.Methodology | null = null;
+let methodology: MethodologyOut | null = null;
 
 export async function loadMethodology(
 	fetchFn: typeof fetch = fetch
-): Promise<tt.Methodology | null> {
+): Promise<MethodologyOut | null> {
 	methodology = await fetchFn(`${BE_URL}/methodology`)
 		.then((res) => (res.ok ? res.json() : methodology))
 		.catch(() => methodology);
 	return methodology;
 }
 
-export async function loadTops(fetchFn: typeof fetch = fetch): Promise<tt.TopsResponse> {
+export async function loadTops(fetchFn: typeof fetch = fetch): Promise<TopResult[]> {
 	return fetchFn(`${BE_URL}/tops`).then((res) => res.json());
 }
 
 export class TopTreeLoader {
-	tops: tt.TopsResponse;
-	treeSpecs: tt.TreeSpecs;
+	tops: TopResult[];
+	treeSpecs: TreeSpecs;
 	rootName: string;
 	prefixText: string;
 	conf: tt.FullTreeConfig | undefined;
-	treeResp: tt.TreeResponse | undefined;
-	treeRespCache: Record<string, tt.TreeResponse>;
+	treeResp: TreeResponse | undefined;
+	treeRespCache: Record<string, TreeResponse>;
 
-	constructor(tops: tt.TopsResponse, treeSpecs: tt.TreeSpecs) {
+	constructor(tops: TopResult[], treeSpecs: TreeSpecs) {
 		this.tops = tops;
 		this.treeSpecs = treeSpecs;
 		this.rootName = '';
@@ -94,7 +96,7 @@ export class TopTreeLoader {
 		if (this.conf == undefined || this.treeResp == undefined) return;
 		const { tree, atts } = this.treeResp;
 		const rootType = this.conf.rootType as tt.RootType;
-		const treeSpec: tt.TreeSpec = this.treeSpecs.specs[rootType][this.conf.treeId];
+		const treeSpec: TreeSpec = this.treeSpecs.specs[rootType][this.conf.treeId];
 		return { treeSpec, tree, attributeLabels: atts, rootName: this.rootName };
 	}
 }
@@ -107,13 +109,13 @@ export async function getTopTreeLoader(fetchFn: typeof fetch = fetch): Promise<T
 }
 
 export function reconstructLoader(data: {
-	tops: tt.TopsResponse;
-	treeSpecs: tt.TreeSpecs;
+	tops: TopResult[];
+	treeSpecs: TreeSpecs;
 	rootName: string;
 	prefixText: string;
 	conf: tt.FullTreeConfig | undefined;
-	treeResp: tt.TreeResponse | undefined;
-	treeRespCache: Record<string, tt.TreeResponse>;
+	treeResp: TreeResponse | undefined;
+	treeRespCache: Record<string, TreeResponse>;
 }): TopTreeLoader {
 	const loader = new TopTreeLoader(data.tops, data.treeSpecs);
 	loader.rootName = data.rootName;

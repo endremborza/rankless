@@ -1,4 +1,5 @@
-import type { RootType, WorkScreen } from './tree-types';
+import type { WorkScreen } from './wire/rankless_rs/metrics';
+import type { RootType } from './tree-types';
 
 export function isAsciiOnly(str: string) {
 	return str.length > 0 && !/[\u0080-\uffff]/.test(str);

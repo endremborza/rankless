@@ -207,7 +207,8 @@ the only viz dependency).
 
 | File | Role |
 | --- | --- |
-| `lib/tree-types.ts` | `TreeGen<T>`, `View`, `Paper`, `RelatedEntity`, `SearchResult`, `TreeResponse`, `BreakdownSpec`, `RootType`, `EntityType`, `InstRel` |
+| `lib/wire/` | Generated (`make types`): the TS form of every `#[wire]` Rust type, one file per Rust module (`rankless_server/responses.ts`, `rankless_trees/io.ts`, `rankless_rs/user_ledger.ts`, ...) |
+| `lib/tree-types.ts` | Frontend-only types: `TreeGen<T>` and the tree node shapes over the generated `CollapsedNodeJson`, `RootType`, `EntityType`, `RootedResult`, `NamedEntity`, control/selection specs |
 | `lib/constants.ts` | `BE_URL`, `ENTITY_TYPES`, `MAX_LEVEL_COUNT=4`, `DEFAULT_LIMIT_N=10`, `COMPLETE_YEAR=1950`, ORCID endpoints; feature switches `EMAIL_FEATURE_ON` / `GAME_FEATURE_ON` / `MCP_FEATURE_ON` (see [unfinished-features.md](unfinished-features.md)) |
 | `lib/v_constants.ts` | `VERSION`, `LAST_MOD` build-time info |
 | `lib/types.ts` | `SurveySubmit`, `SurveyRecord` |

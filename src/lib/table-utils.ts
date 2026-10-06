@@ -1,19 +1,15 @@
+import type { Arg, Clause, Expr, Op } from './wire/rankless_expr';
 import type {
-	MetricDecl,
-	MetricKind,
-	MetricRegistry,
+	ColumnDecl,
+	ColumnRegistry,
 	MetricValuesResp,
-	NamedEntity,
 	RootRegistry,
-	RootType,
 	SliceMeta,
 	SliceResp,
-	TableRow,
-	WhereArg,
-	WhereClause,
-	WhereExpr,
-	WhereOp
-} from './tree-types';
+	TableRow
+} from './wire/rankless_server/responses';
+import type { Kind } from './wire/rankless_trees/metrics';
+import type { NamedEntity, RootType } from './tree-types';
 
 export const TABLE_PAGE_SIZE = 100;
 
@@ -21,7 +17,7 @@ export const TABLE_PAGE_SIZE = 100;
 const PARAM_ROOT = { subfield: 'subfields', country: 'countries' } as const;
 const PARAM_LIST_SIZE = 400;
 
-export type MetricArgs = WhereArg[];
+export type MetricArgs = Arg[];
 
 export type EntityParam = keyof typeof PARAM_ROOT;
 
@@ -29,7 +25,7 @@ export type EntityParam = keyof typeof PARAM_ROOT;
 export type Names = Record<string, string>;
 
 // One metric call as a column: the key its values are read under, its metric and arguments.
-export type Column = { key: string; decl: MetricDecl; args: MetricArgs };
+export type Column = { key: string; decl: ColumnDecl; args: MetricArgs };
 
 // The page's query, one key per `/slice` parameter: the ranking call, the `where` expression,
 // the pins and the page offset.
@@ -46,9 +42,9 @@ export const EMPTY_META: SliceMeta = { total: 0, screened: null, columns: [] };
 export const EMPTY_SLICE: Slice = { rows: [], meta: EMPTY_META, error: null };
 
 // One clause of a flat `where` conjunction, as the chips show it.
-export type Chip = { call: string; op: WhereOp; operand: WhereArg | WhereArg[] };
+export type Chip = { call: string; op: Op; operand: Arg | Arg[] };
 
-const OP_TEXT: Record<WhereOp, string> = {
+const OP_TEXT: Record<Op, string> = {
 	eq: '=',
 	ne: '!=',
 	lt: '<',
@@ -59,7 +55,7 @@ const OP_TEXT: Record<WhereOp, string> = {
 	not_in: 'not in'
 };
 
-const OP_LABEL: Record<WhereOp, string> = {
+const OP_LABEL: Record<Op, string> = {
 	eq: '=',
 	ne: '≠',
 	lt: '<',
@@ -70,41 +66,41 @@ const OP_LABEL: Record<WhereOp, string> = {
 	not_in: 'not in'
 };
 
-export const NUMERIC_OPS: WhereOp[] = ['ge', 'le', 'gt', 'lt', 'eq', 'ne'];
-export const ENTITY_OPS: WhereOp[] = ['eq', 'ne'];
+export const NUMERIC_OPS: Op[] = ['ge', 'le', 'gt', 'lt', 'eq', 'ne'];
+export const ENTITY_OPS: Op[] = ['eq', 'ne'];
 
-export function metricsFor(registry: MetricDecl[], kind: MetricKind) {
+export function metricsFor(registry: ColumnDecl[], kind: Kind) {
 	return registry.filter((m) => m.kind === kind);
 }
 
-export function isNumeric(m: MetricDecl) {
+export function isNumeric(m: ColumnDecl) {
 	return m.value.type !== 'entity' && m.value.type !== 'entities';
 }
 
 // Metrics that may rank the cohort: every numeric column-read metric of the root; a per-entity
 // one ranks the top 1000 by citations.
-export function rankable(registry: MetricDecl[]) {
+export function rankable(registry: ColumnDecl[]) {
 	return registry.filter((m) => isNumeric(m) && m.cost === 'read');
 }
 
 // Metrics the column adder offers: whatever the cohort's rows do not carry by themselves — every
 // parameterized or per-entity metric, and the tree walks.
-export function annotatable(registry: MetricDecl[]) {
+export function annotatable(registry: ColumnDecl[]) {
 	return registry.filter(
 		(m) => isNumeric(m) && (m.param !== undefined || m.kind === 'intricate' || m.cost === 'walk')
 	);
 }
 
 // Metrics a clause may test: every column read of the root.
-export function clauseable(registry: MetricDecl[]) {
+export function clauseable(registry: ColumnDecl[]) {
 	return registry.filter((m) => m.cost === 'read');
 }
 
-export function operatorsFor(m: MetricDecl) {
+export function operatorsFor(m: ColumnDecl) {
 	return isNumeric(m) ? NUMERIC_OPS : ENTITY_OPS;
 }
 
-export function opLabel(op: WhereOp) {
+export function opLabel(op: Op) {
 	return OP_LABEL[op];
 }
 
@@ -114,7 +110,7 @@ function bare(s: string) {
 	);
 }
 
-export function argText(a: WhereArg) {
+export function argText(a: Arg) {
 	if (typeof a === 'number') return String(a);
 	return bare(a) ? a : `"${a.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
@@ -140,7 +136,7 @@ export function parseCall(key: string): { metric: string; args: MetricArgs } {
 }
 
 // A call as a column of the root, null when its registry has no such metric.
-export function columnOf(key: string, registry: MetricDecl[]): Column | null {
+export function columnOf(key: string, registry: ColumnDecl[]): Column | null {
 	const { metric, args } = parseCall(key);
 	const decl = registry.find((m) => m.id === metric);
 	return decl ? { key, decl, args } : null;
@@ -149,7 +145,7 @@ export function columnOf(key: string, registry: MetricDecl[]): Column | null {
 // The column the cohort is ranked by. The backend keys it by its own spelling of the call
 // (`field_score(Oncology)` is `field_score(oncology)`) and lists it before any column the filter
 // adds, so the first listed column of the ordering's metric is it.
-export function sortColumn(columns: string[], sort: string, registry: MetricDecl[]): Column | null {
+export function sortColumn(columns: string[], sort: string, registry: ColumnDecl[]): Column | null {
 	const typed = columnOf(sort, registry);
 	const key = typed && columns.find((k) => parseCall(k).metric === typed.decl.id);
 	return key ? columnOf(key, registry) : typed;
@@ -168,13 +164,13 @@ export function whereText(chips: Chip[]) {
 
 // The chips of a flat conjunction of clauses; null for any other shape, which the page shows as
 // text.
-export function chipsFrom(expr: WhereExpr | null): Chip[] | null {
+export function chipsFrom(expr: Expr | null): Chip[] | null {
 	if (!expr) return [];
 	const items = 'and' in expr ? expr.and : [expr];
 	const chips: Chip[] = [];
 	for (const e of items) {
 		if (!('clause' in e)) return null;
-		const c: WhereClause = e.clause;
+		const c: Clause = e.clause;
 		chips.push({ call: callText(c.call.metric, c.call.args), op: c.op, operand: c.operand });
 	}
 	return chips;
@@ -182,21 +178,20 @@ export function chipsFrom(expr: WhereExpr | null): Chip[] | null {
 
 // The column name: the header template with the argument's name (or the raw argument), or the
 // label for a parameter-free metric.
-export function columnLabel(decl: MetricDecl, args: MetricArgs = [], names: Names = {}) {
+export function columnLabel(decl: ColumnDecl, args: MetricArgs = [], names: Names = {}) {
 	if (!decl.header) return decl.label;
-	const name = (a: WhereArg | undefined) =>
-		a === undefined ? '' : (names[String(a)] ?? String(a));
+	const name = (a: Arg | undefined) => (a === undefined ? '' : (names[String(a)] ?? String(a)));
 	return decl.header.replace(/\{(\w+)\}/g, (_, p: string) =>
 		p === 'window' ? `${name(args[0])}–${name(args[1])}` : name(args[0])
 	);
 }
 
 // "Papers ≥ 100", "Country = Hungary", "Oncology citations > 0".
-export function chipLabel(chip: Chip, registry: MetricDecl[], names: Names = {}) {
+export function chipLabel(chip: Chip, registry: ColumnDecl[], names: Names = {}) {
 	const { metric, args } = parseCall(chip.call);
 	const decl = registry.find((m) => m.id === metric);
 	const subject = decl ? columnLabel(decl, args, names) : chip.call;
-	const shown = (a: WhereArg) => (typeof a === 'number' ? a.toLocaleString() : (names[a] ?? a));
+	const shown = (a: Arg) => (typeof a === 'number' ? a.toLocaleString() : (names[a] ?? a));
 	const operand = Array.isArray(chip.operand)
 		? `(${chip.operand.map(shown).join(', ')})`
 		: shown(chip.operand);
@@ -208,19 +203,19 @@ export function isSet(v: string | number | null | undefined): v is string | numb
 }
 
 // The arguments a metric's parameter takes.
-export function arity(decl: MetricDecl): number {
+export function arity(decl: ColumnDecl): number {
 	return decl.param === 'window' ? 2 : decl.param ? 1 : 0;
 }
 
 // A call's arguments are all given; what they say is the backend's to check.
-export function argsReady(decl: MetricDecl, args: MetricArgs): boolean {
+export function argsReady(decl: ColumnDecl, args: MetricArgs): boolean {
 	return args.length === arity(decl) && args.every(isSet);
 }
 
 // The arguments a metric starts with: `base` where it fits the parameter, else the last five years
 // with yearly counts for a window, else nothing chosen yet.
 export function defaultArgs(
-	decl: MetricDecl,
+	decl: ColumnDecl,
 	base: MetricArgs,
 	yearly?: [number, number]
 ): MetricArgs {
@@ -254,7 +249,7 @@ export function screenedPhrase(top: number): string {
 	return `among the top ${top.toLocaleString()} by citations`;
 }
 
-export function formatMetric(decl: MetricDecl | undefined, v: number | null | undefined): string {
+export function formatMetric(decl: ColumnDecl | undefined, v: number | null | undefined): string {
 	if (v == null) return '–';
 	switch (decl?.value.type) {
 		case 'score':
@@ -349,7 +344,7 @@ export function fetchRegistry(
 	fetchFn: typeof fetch = fetch
 ): Promise<RootRegistry | null> {
 	return fetchFn(`${base}/columns`)
-		.then((r) => (r.ok ? (r.json() as Promise<MetricRegistry>) : null))
+		.then((r) => (r.ok ? (r.json() as Promise<ColumnRegistry>) : null))
 		.then((reg) => reg?.roots[rootType] ?? null)
 		.catch(() => null);
 }
@@ -359,10 +354,10 @@ export function fetchWhere(
 	base: string,
 	where: string,
 	fetchFn: typeof fetch = fetch
-): Promise<WhereExpr | null> {
+): Promise<Expr | null> {
 	if (!where.trim()) return Promise.resolve(null);
 	return fetchFn(`${base}/where?${new URLSearchParams({ q: where })}`)
-		.then((r) => (r.ok ? (r.json() as Promise<WhereExpr>) : null))
+		.then((r) => (r.ok ? (r.json() as Promise<Expr>) : null))
 		.catch(() => null);
 }
 

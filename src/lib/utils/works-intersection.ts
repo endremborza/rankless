@@ -1,5 +1,5 @@
+import type { PaginatedPaperSetResp } from '$lib/wire/rankless_server/responses';
 import { BE_REMOTE_URL } from '$lib/constants';
-import type { PaginatedPaperSetResp } from '$lib/tree-types';
 import type { WorkSetQuery } from '$lib/types/work-set';
 
 // Encode a CNF query into the path: clauses joined by '/', a clause is `etype:id,id,...`.

@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { AttributeLabels, AttributeLabel, OaPaperResp } from '$lib/tree-types';
+	import type { AttributeLabelOut, AttributeLabels } from '$lib/wire/rankless_trees/io';
+	import type { OaPaperResp } from '$lib/tree-types';
 	import { onMount } from 'svelte';
 	import { getCachedPaper, prefetchPaper } from '$lib/stores';
 	import { fixName } from '$lib/name-overrides';
@@ -23,8 +24,11 @@
 	let activeWorkId = 0;
 	const placeholder = 'Loading top paper...';
 
-	function getInstInfo(labels: AttributeLabels, id: number | undefined): [AttributeLabel, number] {
-		let instAtts: AttributeLabel = { name: '', oaId: -1, specBaseline: 0 };
+	function getInstInfo(
+		labels: AttributeLabels,
+		id: number | undefined
+	): [AttributeLabelOut, number] {
+		let instAtts: AttributeLabelOut = { name: '', oaId: -1, specBaseline: 0 };
 		let instOaNum = -1;
 		let instLabs = labels?.institutions;
 		if (instLabs != undefined && id != undefined) {

@@ -1,7 +1,8 @@
 <script lang="ts">
+	import type { SearchResult, TableRow } from '$lib/wire/rankless_server/responses';
 	import PeerSearch from './PeerSearch.svelte';
 	import { prettifyRoot } from '$lib/text-format-util';
-	import type { RootType, SearchResult, TableRow } from '$lib/tree-types';
+	import type { RootType } from '$lib/tree-types';
 
 	// Entities kept on the table whatever its ordering and filter: a name search adds one, a chip
 	// removes it, and the pinned rows name the chips.

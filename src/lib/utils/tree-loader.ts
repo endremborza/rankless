@@ -1,6 +1,7 @@
+import type { TreeResponse } from '$lib/wire/rankless_trees/io';
 import { writable } from 'svelte/store';
 import { BE_REMOTE_URL } from '$lib/constants';
-import type { FullTreeConfig, TreeResponse } from '$lib/tree-types';
+import type { FullTreeConfig } from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
 import { createStaleGuard } from '$lib/utils/stale-guard';
 

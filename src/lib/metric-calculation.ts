@@ -1,4 +1,5 @@
-import type { ResponseNode, OMap, AttributeLabel } from './tree-types';
+import type { AttributeLabelOut } from './wire/rankless_trees/io';
+import type { ResponseNode, OMap } from './tree-types';
 export type SpecInfo = { nodeRate: number; baselineRate: number; specMetric: number };
 
 export const ALPHA = 0.1;
@@ -6,7 +7,7 @@ export const ALPHA = 0.1;
 export function getSpecMetricObject(
 	node: ResponseNode,
 	nodeDivisor: number,
-	attributeLabels: OMap<AttributeLabel> | undefined,
+	attributeLabels: OMap<AttributeLabelOut> | undefined,
 	childId: number
 ): SpecInfo {
 	const nodeRate = (node?.linkCount || 0) / nodeDivisor;

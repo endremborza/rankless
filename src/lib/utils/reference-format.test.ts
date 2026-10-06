@@ -1,3 +1,5 @@
+import type { PaperOut } from '$lib/wire/rankless_server/responses';
+import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 import { describe, it, expect } from 'vitest';
 import {
 	formatReference,
@@ -6,9 +8,8 @@ import {
 	toBibtexEntry,
 	formatAuthorNames
 } from './reference-format';
-import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
 
-function makePaper(overrides: Partial<Paper> = {}): Paper {
+function makePaper(overrides: Partial<PaperOut> = {}): PaperOut {
 	return {
 		wid: 1,
 		oaId: 0,

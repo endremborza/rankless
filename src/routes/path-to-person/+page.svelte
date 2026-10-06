@@ -1,7 +1,7 @@
 <script lang="ts">
+	import type { SearchResult } from '$lib/wire/rankless_server/responses';
 	import { goto } from '$app/navigation';
 	import { BE_REMOTE_URL } from '$lib/constants';
-	import type { SearchResult } from '$lib/tree-types';
 
 	let srcQuery = '';
 	let targetQuery = '';

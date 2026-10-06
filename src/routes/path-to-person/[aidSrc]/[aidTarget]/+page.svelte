@@ -1,8 +1,9 @@
 <script lang="ts">
+	import type { SearchResult } from '$lib/wire/rankless_server/responses';
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { BE_REMOTE_URL } from '$lib/constants';
-	import type { PathResp, SearchResult } from '$lib/tree-types';
+	import type { PathResp } from '$lib/tree-types';
 	import RefTreeTable from '$lib/components/RefTreeTable.svelte';
 
 	export let data: { srcAid: string; targetAid: string };

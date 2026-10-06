@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { TreeSpecs } from '$lib/wire/rankless_trees/io';
 	import { nodes as nodesData, edges } from '$lib/assets/data/concept-map.json';
 	import { subfields, fields, domains } from '$lib/assets/data/field-hierarchy.json';
 	import { getColorArr } from '$lib/style-util';
@@ -21,7 +22,7 @@
 	export let rootId: number;
 	export let indsByEntityType: tt.IndsByEntityType;
 	export let conf: tt.FullTreeConfig;
-	export let treeSpecs: tt.TreeSpecs;
+	export let treeSpecs: TreeSpecs;
 
 	let defaultSat = 0.8;
 	let defaultOp = 1;
@@ -57,7 +58,7 @@
 	$: styleTag = mounted ? `<style>${getClassStyles(flatOut, hovered, hoveredParent)}</style>` : '';
 	$: updateTreeId(indsByEntityType);
 
-	function getSourceSide(treeSpecs: tt.TreeSpecs, rootType: tt.RootType, treeId: number) {
+	function getSourceSide(treeSpecs: TreeSpecs, rootType: tt.RootType, treeId: number) {
 		let treeSpec = treeSpecs.specs[rootType][treeId];
 		if (treeSpec == undefined) return false;
 		return treeSpec.breakdowns[0].sourceSide;

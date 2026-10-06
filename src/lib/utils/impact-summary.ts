@@ -1,4 +1,5 @@
-import type { Paper, EntityAttsForLinks, AuthorMeta } from '$lib/tree-types';
+import type { PaperAuthorMeta, PaperOut } from '$lib/wire/rankless_server/responses';
+import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 import { hasNobelCoauthor, PRESTIGIOUS_SOURCE_SEM_IDS } from '$lib/utils/paper-helpers';
 
 export type ImpactSummary = {
@@ -9,9 +10,9 @@ export type ImpactSummary = {
 
 export function computeImpactSummary(
 	impactedWids: number[],
-	paperMap: Record<number, Paper>,
+	paperMap: Record<number, PaperOut>,
 	entityAtts: EntityAttsForLinks,
-	authorsMeta: Record<string, AuthorMeta>
+	authorsMeta: Record<string, PaperAuthorMeta>
 ): ImpactSummary {
 	let nobelCount = 0;
 	let prestigiousCount = 0;

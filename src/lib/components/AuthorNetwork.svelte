@@ -1,7 +1,8 @@
 <script lang="ts">
+	import type { PaperOut, PostAttRelatedEntity } from '$lib/wire/rankless_server/responses';
+	import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 	import { circleLayout, getIndex } from '$lib/network-util';
 	import type { cytoscapeLayout } from '$lib/network-force';
-	import type { EntityAttsForLinks, Paper, RelatedEntity } from '$lib/tree-types';
 	import type { WorksLoader } from '$lib/utils/works-loader';
 	import { fetchWorkIntersection } from '$lib/utils/works-intersection';
 	import { isAuthored, resolveSourceName } from '$lib/utils/paper-helpers';
@@ -10,7 +11,7 @@
 	import { fade, slide } from 'svelte/transition';
 	import AuthorTimeline from './AuthorTimeline.svelte';
 
-	export let authors: RelatedEntity[] = [];
+	export let authors: PostAttRelatedEntity[] = [];
 	export let edgeWeights: number[] = [];
 	export let rootName: string = 'Person';
 	export let heroSemanticId: string = '';
@@ -94,7 +95,7 @@
 	// An edge weight reflects the pair's GLOBAL co-authorship, so it can be present even when the
 	// hero shares no paper with both — then the three-way `selectedPapers` is empty and we offer to
 	// load the pair's intersection from the backend instead.
-	let pairPapers: Paper[] | null = null;
+	let pairPapers: PaperOut[] | null = null;
 	let pairEntityAtts: EntityAttsForLinks = {};
 	let pairTotal = 0;
 	let pairLoading = false;
@@ -182,7 +183,7 @@
 		const maxW = Math.max(...weights);
 		return weights.map((e) => e / (maxW * 1.2) + 0.2);
 	}
-	function paperHref(p: Paper): string | null {
+	function paperHref(p: PaperOut): string | null {
 		return p.doi ? `https://doi.org/${p.doi}` : null;
 	}
 	function edgePath(a: { x: number; y: number }, b: { x: number; y: number }, curve: number) {

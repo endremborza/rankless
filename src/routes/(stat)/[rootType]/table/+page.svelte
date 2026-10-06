@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { ColumnDecl, TableRow } from '$lib/wire/rankless_server/responses';
 	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
@@ -33,7 +34,6 @@
 	import EntityPins from '$lib/components/EntityPins.svelte';
 	import InfoTip from '$lib/components/InfoTip.svelte';
 	import MetricPicker from '$lib/components/MetricPicker.svelte';
-	import type { MetricDecl, TableRow } from '$lib/tree-types';
 
 	let { data }: { data: PageData } = $props();
 
@@ -128,7 +128,7 @@
 		goto(tableHref(data.rootType, { ...q, pin: data.pin, ...patch }, data.defaultSort));
 	}
 
-	function rank(metric: MetricDecl, args: MetricArgs) {
+	function rank(metric: ColumnDecl, args: MetricArgs) {
 		go({ sort: callText(metric.id, args) });
 	}
 
@@ -145,7 +145,7 @@
 		inflight[col.key] -= 1;
 	}
 
-	function addColumn(metric: MetricDecl, args: MetricArgs) {
+	function addColumn(metric: ColumnDecl, args: MetricArgs) {
 		const key = callText(metric.id, args);
 		if (columns.some((c) => c.key === key) || data.columns.includes(key)) return;
 		const col = { key, decl: metric, args };

@@ -48,6 +48,10 @@ export const REL_TYPES: RelTypes[] = [
 
 export const ENTITY_TYPES: EntityType[] = ['topics', 'works', 'qs', ...ROOT_TYPES];
 
+// The backend names entity types with plain strings; these narrow one to the site's vocabulary.
+export const isRootType = (s: string): s is RootType => (ROOT_TYPES as string[]).includes(s);
+export const isEntityType = (s: string): s is EntityType => (ENTITY_TYPES as string[]).includes(s);
+
 export const HIGH_OP = 80;
 export const LOW_OP = 25;
 export const FONT_SIZE_PX = 16;

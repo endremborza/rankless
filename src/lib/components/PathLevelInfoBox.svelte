@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { AttributeLabels, PathInTree, TreeSpec, ResponseNode } from '$lib/tree-types';
+	import type { AttributeLabels, TreeSpec } from '$lib/wire/rankless_trees/io';
+	import type { PathInTree, ResponseNode } from '$lib/tree-types';
 	import { nameById, UNKNOWN_NAME } from '$lib/tree-functions';
 	import { pluralize, getSpecDesc } from '$lib/text-format-util';
 	import { getSpecMetricObject, type SpecInfo } from '$lib/metric-calculation';
@@ -32,7 +33,7 @@
 		name: string;
 		linkCount: number;
 		sourceCount: number;
-		topSourceId: number;
+		topSourceId: number | null;
 		topSourceLinks: number;
 		spec: SpecInfo;
 	}[] {
@@ -102,7 +103,10 @@
 		return nodes;
 	}
 
-	function scheduleAutoShow(hasSpace: boolean, leaf: { sourceCount: number; topSourceId: number }) {
+	function scheduleAutoShow(
+		hasSpace: boolean,
+		leaf: { sourceCount: number; topSourceId: number | null }
+	) {
 		if (!hasSpace || (leaf?.sourceCount || 0) === 0) return;
 		showPaper = true;
 	}
@@ -148,7 +152,7 @@
 			</p>
 		</div>
 		<div class="paper-container">
-			{#if expanded}
+			{#if expanded && leaf.topSourceId != null}
 				<WorkElem workId={leaf.topSourceId} {citeText} {attributeLabels} {instId} />
 			{:else if (leaf.sourceCount || 0) > 0 && !hasSpaceForPaper}
 				<button class="show-paper-btn" on:click={() => (showPaper = true)}>Show top paper</button>

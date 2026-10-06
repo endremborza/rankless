@@ -1,9 +1,8 @@
-import type { RefTree } from '$lib/tree-types';
-
+import type { RefDAG } from '$lib/wire/rankless_trees/path_finder';
 export type NodeMeta = { level: number; parents: Set<number>; children: Set<number> };
 export type SeenMap = Record<number, NodeMeta>;
 
-function build(node: RefTree, seen: SeenMap, depth: number, parent: number) {
+function build(node: RefDAG, seen: SeenMap, depth: number, parent: number) {
 	if (node === 'Leaf') return;
 	for (const key of Object.keys(node.Node).map(Number)) {
 		const isNew = seen[key] == undefined;
@@ -29,7 +28,7 @@ function build(node: RefTree, seen: SeenMap, depth: number, parent: number) {
 	}
 }
 
-export function computeSeen(t: RefTree): SeenMap {
+export function computeSeen(t: RefDAG): SeenMap {
 	const seen: SeenMap = {};
 	build(t, seen, 0, 0);
 	return seen;

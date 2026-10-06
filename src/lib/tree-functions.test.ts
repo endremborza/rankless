@@ -1,3 +1,4 @@
+import type { AttributeLabels, TreeSpec } from './wire/rankless_trees/io';
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('$app/paths', () => ({ base: '' }));
@@ -285,17 +286,17 @@ describe('nameById', () => {
 	it('returns name from labels', () => {
 		const labels = {
 			authors: { '5': { name: 'Alice', specBaseline: 0 } }
-		} as unknown as tt.AttributeLabels;
+		} as unknown as AttributeLabels;
 		expect(nameById(labels, 'authors', 5)).toBe('Alice');
 	});
 
 	it('returns UNKNOWN_NAME for missing id', () => {
-		const labels = { authors: {} } as unknown as tt.AttributeLabels;
+		const labels = { authors: {} } as unknown as AttributeLabels;
 		expect(nameById(labels, 'authors', 99)).toBe(UNKNOWN_NAME);
 	});
 
 	it('returns UNKNOWN_NAME for missing entity type', () => {
-		expect(nameById({} as unknown as tt.AttributeLabels, 'authors', 1)).toBe(UNKNOWN_NAME);
+		expect(nameById({} as unknown as AttributeLabels, 'authors', 1)).toBe(UNKNOWN_NAME);
 	});
 });
 
@@ -311,10 +312,12 @@ describe('deriveVisibleTree', () => {
 				2: { linkCount: 40, sourceCount: 5, topSourceId: 2, topSourceLinks: 2 }
 			}
 		};
-		const treeSpec: tt.TreeSpec = {
+		const treeSpec: TreeSpec = {
 			rootType: 'authors',
 			breakdowns: [{ attributeType: 'subfields', specDenomInd: 0, sourceSide: true }],
-			defaultIsSpec: false
+			defaultIsSpec: false,
+			allowSpec: true,
+			defaultYear: 0
 		};
 		const controls: tt.FullControlSpecs = {
 			globalLimit: 10,
@@ -323,7 +326,7 @@ describe('deriveVisibleTree', () => {
 		};
 		const labels = {
 			subfields: { '1': { name: 'A', specBaseline: 0.5 }, '2': { name: 'B', specBaseline: 0.5 } }
-		} as unknown as tt.AttributeLabels;
+		} as unknown as AttributeLabels;
 
 		const result = deriveVisibleTree(root, controls, {}, labels, treeSpec);
 		expect(result.tree.weight).toBe(100);

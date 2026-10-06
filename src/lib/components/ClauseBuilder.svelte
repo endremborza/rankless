@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { Op } from '$lib/wire/rankless_expr';
+	import type { ColumnDecl } from '$lib/wire/rankless_server/responses';
 	import { page } from '$app/state';
 	import ParamInputs from './ParamInputs.svelte';
 	import {
@@ -16,7 +18,7 @@
 		type MetricArgs,
 		type Names
 	} from '$lib/table-utils';
-	import type { MetricDecl, NamedEntity, WhereOp } from '$lib/tree-types';
+	import type { NamedEntity } from '$lib/tree-types';
 
 	// Narrows the cohort with one clause at a time: a metric call, an operator its value type
 	// allows, and an operand, each active clause a chip. A `where` the chips cannot show (anything
@@ -31,8 +33,8 @@
 		names,
 		onchange
 	}: {
-		metrics: MetricDecl[];
-		registry: MetricDecl[];
+		metrics: ColumnDecl[];
+		registry: ColumnDecl[];
 		subfields: NamedEntity[];
 		countries: NamedEntity[];
 		chips: Chip[] | null;
@@ -43,7 +45,7 @@
 
 	let metricId = $state('');
 	let args = $state<MetricArgs>([]);
-	let op = $state<WhereOp>('ge');
+	let op = $state<Op>('ge');
 	let operand = $state<string | number | null>(null);
 	let text = $derived(where);
 	const decl = $derived(metrics.find((m) => m.id === metricId));

@@ -1,7 +1,8 @@
 <script lang="ts">
+	import type { AttributeLabels, TreeResponse, TreeSpec } from '$lib/wire/rankless_trees/io';
 	import { browser } from '$app/environment';
 	import { BE_REMOTE_URL } from '$lib/constants';
-	import type { TreeResponse, NamedNode, AttributeLabels, TreeSpec } from '$lib/tree-types';
+	import type { NamedNode } from '$lib/tree-types';
 	import { encodeSemanticId, flatFromResp } from '$lib/tree-functions';
 	import TileTreeMap from './TileTreeMap.svelte';
 

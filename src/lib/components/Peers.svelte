@@ -1,5 +1,10 @@
 <script lang="ts">
-	import type { EntityPeersResp, LadderData, PeerEntry, SearchResult } from '$lib/tree-types';
+	import type {
+		EntityPeersResp,
+		LadderResp,
+		PeerEntry,
+		SearchResult
+	} from '$lib/wire/rankless_server/responses';
 	import {
 		abbrSfName,
 		sfColorVar,
@@ -92,8 +97,8 @@
 	// The endpoint carries a 24h browser cache. In prod, `?v=version` (a per-build stamp) busts it
 	// on each deploy so a regenerated ladder takes effect immediately. In dev, a per-fetch timestamp
 	// always bypasses the cache, so a `make -B` rebuild shows up without restarting `bun run dev`.
-	const ladderCache = new Map<string, Promise<LadderData | null>>();
-	function loadLadder(rt: string): Promise<LadderData | null> {
+	const ladderCache = new Map<string, Promise<LadderResp | null>>();
+	function loadLadder(rt: string): Promise<LadderResp | null> {
 		let p = ladderCache.get(rt);
 		if (!p) {
 			const bust = dev ? Date.now() : version;
@@ -112,7 +117,7 @@
 		});
 	}
 
-	let ladder: LadderData | null = null;
+	let ladder: LadderResp | null = null;
 	let labels: string[] = [];
 	// The two detail charts only share a scale + axis side by side; once stacked (≤900px) each is on its
 	// own. Matches the .detail-grid media query so the JS scale and the CSS layout flip together.

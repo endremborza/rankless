@@ -1,9 +1,9 @@
-import type { View, AttributeLabels, EntityPeersResp } from '$lib/tree-types';
-
 // Manual display-name fixes for entities whose OpenAlex `display_name` is stored in the wrong
 // script/language (e.g. Elinor Ostrom is held upstream as "Элинор Остром"). Keyed by the exact
 // backend string so `fixName` can be dropped in at any render site without needing the entity's
 // id. Drop an entry once OpenAlex corrects the source name.
+import type { EntityPeersResp, ViewResult } from '$lib/wire/rankless_server/responses';
+import type { AttributeLabels } from '$lib/wire/rankless_trees/io';
 const NAME_OVERRIDES: Record<string, string> = {
 	'Элинор Остром': 'Elinor Ostrom',
 	'Albert-Ĺaszló Barabási': 'Albert-László Barabási'
@@ -15,7 +15,7 @@ export function fixName(name: string): string {
 
 // Rewrite every name a View surfaces: the entity itself, its hero "leader"/co-author relations
 // (which also feed the co-authorship network), and its "similar entities" list.
-export function fixViewNames(view: View): void {
+export function fixViewNames(view: ViewResult): void {
 	view.name = fixName(view.name);
 	for (const rels of Object.values(view.relations ?? {})) {
 		for (const r of rels ?? []) r.name = fixName(r.name);

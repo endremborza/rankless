@@ -1,10 +1,10 @@
 import type {
-	AuthorMeta,
-	Paper,
+	PaperAuthorMeta,
 	PaperAuthorship,
-	EntityAttsForLinks,
-	OaPaperResp
-} from '$lib/tree-types';
+	PaperOut
+} from '$lib/wire/rankless_server/responses';
+import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
+import type { OaPaperResp } from '$lib/tree-types';
 import { fixName } from '$lib/name-overrides';
 
 export const PRESTIGIOUS_SOURCE_SEM_IDS = new Set(['science', 'nature']);
@@ -185,7 +185,7 @@ export type Author = {
 // optional profile + institution links. `skipUnknown` drops co-authors whose display name is
 // missing (for compact, capped lists); full bibliographic lists keep them as "(unknown)".
 export function resolveAuthors(
-	paper: Paper,
+	paper: PaperOut,
 	entityAtts: EntityAttsForLinks,
 	discAuthorNames: Record<string, string>,
 	skipUnknown = false
@@ -213,14 +213,14 @@ export function resolveAuthors(
 	return out;
 }
 
-export function buildPaperMap(papers: Paper[]): Record<number, Paper> {
-	const map: Record<number, Paper> = {};
+export function buildPaperMap(papers: PaperOut[]): Record<number, PaperOut> {
+	const map: Record<number, PaperOut> = {};
 	for (const p of papers) map[p.wid] = p;
 	return map;
 }
 
 export function isAuthored(
-	paper: Paper,
+	paper: PaperOut,
 	authorSemId: string,
 	entityAtts: EntityAttsForLinks
 ): boolean {
@@ -232,8 +232,8 @@ export function isAuthored(
 
 // A laureate among the paper's authors other than `exceptDmId` (the page's own author).
 export function hasNobelCoauthor(
-	paper: Paper,
-	authorsMeta: Record<string, AuthorMeta>,
+	paper: PaperOut,
+	authorsMeta: Record<string, PaperAuthorMeta>,
 	exceptDmId?: string
 ): boolean {
 	return paper.authorships.some((s) => {
@@ -243,7 +243,7 @@ export function hasNobelCoauthor(
 }
 
 export function logMissingAuthors(
-	papers: Paper[],
+	papers: PaperOut[],
 	entityAtts: EntityAttsForLinks,
 	discAuthorNames: Record<string, string>
 ): void {
@@ -259,7 +259,7 @@ export function logMissingAuthors(
 }
 
 export function getPaperHighlights(
-	paper: Paper,
+	paper: PaperOut,
 	sourceAuthorSemId?: string,
 	entityAtts?: EntityAttsForLinks
 ): PaperHighlight[] {

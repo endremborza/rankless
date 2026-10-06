@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { RefTree } from '$lib/tree-types';
+	import type { RefDAG } from '$lib/wire/rankless_trees/path_finder';
 
-	export let tree: RefTree;
+	export let tree: RefDAG;
 	export let nameMap: Record<number, string>;
 	export let doiMap: Record<number, string>;
 	export let relWorks: number[];
@@ -9,7 +9,7 @@
 	type SeenEntry = { level: number; parents: Set<number> };
 	type Seen = Record<number, SeenEntry>;
 
-	function filler(node: RefTree, seen: Seen, depth: number, parent: number) {
+	function filler(node: RefDAG, seen: Seen, depth: number, parent: number) {
 		if (node === 'Leaf') return;
 		for (const key of Object.keys(node.Node).map(Number)) {
 			const existing = seen[key];
@@ -23,7 +23,7 @@
 		}
 	}
 
-	function getSeen(t: RefTree): Seen {
+	function getSeen(t: RefDAG): Seen {
 		const seen: Seen = {};
 		filler(t, seen, 0, 0);
 		return seen;

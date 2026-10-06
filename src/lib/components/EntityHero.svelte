@@ -1,4 +1,9 @@
 <script lang="ts">
+	import type {
+		EntityPeersResp,
+		LadderResp,
+		ViewResult
+	} from '$lib/wire/rankless_server/responses';
 	import { page } from '$app/state';
 	import type * as tt from '$lib/tree-types';
 	import { COMPLETE_YEAR, LATEST_YEAR } from '$lib/constants';
@@ -14,11 +19,11 @@
 	import IndexedCitationLink from '$lib/components/IndexedCitationLink.svelte';
 	import HeroFieldBlocks from '$lib/components/HeroFieldBlocks.svelte';
 
-	export let view: tt.View;
+	export let view: ViewResult;
 	export let rootType: tt.RootType;
 	export let semanticId: string;
-	export let peersData: tt.EntityPeersResp | null = null;
-	export let ladder: tt.LadderData | null = null;
+	export let peersData: EntityPeersResp | null = null;
+	export let ladder: LadderResp | null = null;
 	export let citeText = '';
 	export let hitPaperCount = 0;
 	export let abstract: string | null = null;

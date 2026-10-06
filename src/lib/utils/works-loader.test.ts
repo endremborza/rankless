@@ -1,6 +1,6 @@
+import type { PaginatedPaperSetResp } from '$lib/wire/rankless_server/responses';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { get } from 'svelte/store';
-import type { PaginatedPaperSetResp } from '$lib/tree-types';
 import { createWorksLoader } from './works-loader';
 
 vi.mock(import('$app/environment'), async (importOriginal) => ({

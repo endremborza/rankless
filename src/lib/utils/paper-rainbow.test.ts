@@ -1,9 +1,9 @@
+import type { PaperOut } from '$lib/wire/rankless_server/responses';
 import { describe, expect, it } from 'vitest';
 import { LATEST_YEAR } from '$lib/constants';
-import type * as tt from '$lib/tree-types';
 import { getFigureBasis, xBase, yBase } from './paper-rainbow';
 
-function paper(year: number, yearlyCites: number[]): tt.Paper {
+function paper(year: number, yearlyCites: number[]): PaperOut {
 	const citations = yearlyCites.reduce((a, b) => a + b, 0);
 	return {
 		wid: year,

@@ -1,7 +1,8 @@
 <script lang="ts">
+	import type { TreeSpecs } from '$lib/wire/rankless_trees/io';
 	import { SEMANTIC_CONF, eTypeFromBdDesc, prettifyRoot, semantify } from '$lib/text-format-util';
 	import { getBreakdownOptions, getDefaultYear, toLinkWithParams } from '$lib/tree-functions';
-	import type { RootType, TreeSpecs } from '$lib/tree-types';
+	import type { RootType } from '$lib/tree-types';
 
 	export let name: string;
 	export let semanticId: string;

@@ -1,6 +1,7 @@
 <script lang="ts">
+	import type { AppliedManifest } from '$lib/wire/rankless_rs/user_ledger';
 	import { invalidateAll } from '$app/navigation';
-	import type { LedgerEvent, AppliedManifest } from '$lib/types/ledger';
+	import type { LedgerEvent } from '$lib/types/ledger';
 
 	export let events: LedgerEvent[];
 	export let manifest: AppliedManifest;

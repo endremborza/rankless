@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
+	import type { PaperOut } from '$lib/wire/rankless_server/responses';
+	import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 	import {
 		resolveSourceName,
 		getPaperHighlights,
@@ -9,7 +10,7 @@
 	import { createEventDispatcher } from 'svelte';
 	import AuthorList from './AuthorList.svelte';
 
-	export let paper: Paper | undefined;
+	export let paper: PaperOut | undefined;
 	export let wid: number;
 	export let entityAtts: EntityAttsForLinks;
 	export let discAuthorNames: Record<string, string>;

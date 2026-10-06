@@ -1,6 +1,7 @@
 <script lang="ts">
+	import type { ColumnDecl } from '$lib/wire/rankless_server/responses';
 	import { page } from '$app/state';
-	import type { MetricDecl, NamedEntity } from '$lib/tree-types';
+	import type { NamedEntity } from '$lib/tree-types';
 
 	// The inputs of a metric's parameter: a field, a country, or a year window; `args` is what the
 	// call is made with.
@@ -10,7 +11,7 @@
 		countries,
 		args = $bindable()
 	}: {
-		decl: MetricDecl;
+		decl: ColumnDecl;
 		subfields: NamedEntity[];
 		countries: NamedEntity[];
 		args: (string | number)[];

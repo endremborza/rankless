@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { TreeResponse, TreeSpecs } from '$lib/wire/rankless_trees/io';
 	import { onMount } from 'svelte';
 
 	import type * as tt from '$lib/tree-types';
@@ -18,14 +19,14 @@
 	export let rootId: number;
 	export let indsByEntityType: tt.IndsByEntityType;
 	export let conf: tt.FullTreeConfig;
-	export let treeSpecs: tt.TreeSpecs;
+	export let treeSpecs: TreeSpecs;
 
 	const OPA_SF = 'opa';
 	const FILL_SF = 'fill';
 	const PW_SF = 'pw';
 	const SC_SF = 'sc';
 
-	let resp: tt.TreeResponse | undefined;
+	let resp: TreeResponse | undefined;
 	let countryLevels: tt.LevelT = {};
 	let highlighted = '';
 	let highlightedQ = -1;
@@ -80,7 +81,7 @@
 		return `:root{ ${sLines.join('\n')} }`;
 	}
 
-	function updateL1(flatOut: undefined | tt.LevelT, resp: undefined | tt.TreeResponse) {
+	function updateL1(flatOut: undefined | tt.LevelT, resp: undefined | TreeResponse) {
 		if (flatOut != undefined && resp != undefined) {
 			try {
 				countryLevels = toCountryLevels(flatOut, resp.atts);

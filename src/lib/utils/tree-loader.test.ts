@@ -1,6 +1,7 @@
+import type { TreeResponse } from '$lib/wire/rankless_trees/io';
 import { describe, it, expect, vi } from 'vitest';
 import { get } from 'svelte/store';
-import type { FullTreeConfig, TreeResponse } from '$lib/tree-types';
+import type { FullTreeConfig } from '$lib/tree-types';
 import { createTreeLoader } from './tree-loader';
 
 type Deferred = {

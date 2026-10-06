@@ -1,4 +1,11 @@
 <script lang="ts">
+	import type { ViewResult } from '$lib/wire/rankless_server/responses';
+	import type {
+		AttributeLabels,
+		TreeResponse,
+		TreeSpec,
+		TreeSpecs
+	} from '$lib/wire/rankless_trees/io';
 	import TileTreeMap from '$lib/components/TileTreeMap.svelte';
 	import { subfields, fields, domains } from '$lib/assets/data/field-hierarchy.json';
 	import { onMount } from 'svelte';
@@ -8,9 +15,9 @@
 	import { page } from '$app/state';
 
 	export let data: {
-		view: tt.View;
+		view: ViewResult;
 		conf: tt.FullTreeConfig;
-		treeSpecs: tt.TreeSpecs;
+		treeSpecs: TreeSpecs;
 	};
 
 	let l1Type: tt.EntityType = 'subfields';
@@ -80,7 +87,7 @@
 		return [sfin, fieldId, domainId];
 	}
 
-	function treeToNamed(node: tt.OMap<{ w: number }>, atts: tt.AttributeLabels): tt.NamedNode {
+	function treeToNamed(node: tt.OMap<{ w: number }>, atts: AttributeLabels): tt.NamedNode {
 		const children: Record<number, tt.NamedNode & { children: Record<number, tt.NamedNode> }> = {};
 		for (const [attId, child] of Object.entries(node || {})) {
 			let [sfId, _, domainId] = getHier(attId);
@@ -107,7 +114,7 @@
 		let treeId = indsByEntityType[l1Type].includes(9) ? 9 : indsByEntityType[l1Type][0];
 
 		const specs = data.treeSpecs.specs[data.conf.rootType];
-		let spec: tt.TreeSpec;
+		let spec: TreeSpec;
 		for (let i = 0; i < specs.length; i++) {
 			spec = specs[i];
 			if (
@@ -123,7 +130,7 @@
 		const conf = { ...data.conf, wide: true, treeId };
 		fetch(tf.treeBeUrl(BE_REMOTE_URL, conf, 0))
 			.then((res) => res.json())
-			.then((resp: tt.TreeResponse) => {
+			.then((resp: TreeResponse) => {
 				if (resp.tree === undefined) return;
 				let isSpec = page.url.searchParams.has('spec');
 				let flatTree = tf.flatFromResp(resp, isSpec, spec);

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { AttributeLabels, TreeSpec, TreeSpecs } from '$lib/wire/rankless_trees/io';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 	import { pluralize } from '$lib/text-format-util';
@@ -26,11 +27,11 @@
 	export let shoPathLevelInfo = true;
 	export let shallowed = false;
 	export let fixHeight = true;
-	export let treeSpecs: tt.TreeSpecs;
+	export let treeSpecs: TreeSpecs;
 	export let selectionState: tt.BareNode = { children: {} };
 	export let completeTree: tt.ResponseNode;
-	export let attributeLabels: tt.AttributeLabels;
-	export let currentTreeSpec: tt.TreeSpec = treeSpecs.specs[conf.rootType][conf.treeId];
+	export let attributeLabels: AttributeLabels;
+	export let currentTreeSpec: TreeSpec = treeSpecs.specs[conf.rootType][conf.treeId];
 	export let selectedBreakdowns = tf.getDefaultBreakdowns(currentTreeSpec);
 	export let isGlobalSpecialization = currentTreeSpec.defaultIsSpec;
 

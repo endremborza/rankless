@@ -1,8 +1,9 @@
 <script lang="ts">
-	import type { Paper, EntityAttsForLinks } from '$lib/tree-types';
+	import type { PaperOut } from '$lib/wire/rankless_server/responses';
+	import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 	import { resolveAuthors } from '$lib/utils/paper-helpers';
 
-	export let paper: Paper;
+	export let paper: PaperOut;
 	export let entityAtts: EntityAttsForLinks = {};
 	export let discAuthorNames: Record<string, string> = {};
 	// Cap the rendered list, appending "et al." when more authors exist; undefined = show all.

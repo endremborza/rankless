@@ -1,9 +1,9 @@
+import type { RefDAG } from '$lib/wire/rankless_trees/path_finder';
 import { describe, it, expect } from 'vitest';
 import { computeSeen, buildSubgraphs, classifyComponentLayers } from './dag-builder';
-import type { RefTree } from '$lib/tree-types';
 
-const leaf: RefTree = 'Leaf';
-const node = (children: Record<number, RefTree>): RefTree => ({ Node: children });
+const leaf: RefDAG = 'Leaf';
+const node = (children: Record<number, RefDAG>): RefDAG => ({ Node: children });
 
 function pm(...wids: [number, number][]): Record<number, { year: number }> {
 	const m: Record<number, { year: number }> = {};

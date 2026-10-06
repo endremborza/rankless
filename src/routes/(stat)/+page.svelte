@@ -1,6 +1,9 @@
 <script lang="ts">
+	import type { TopResult } from '$lib/wire/rankless_server/responses';
+	import type { TreeResponse } from '$lib/wire/rankless_trees/io';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
+	import { isRootType } from '$lib/constants';
 	import { reconstructLoader } from '$lib/loading-functions';
 	import FullQc from '$lib/components/FullQc.svelte';
 	import { fade } from 'svelte/transition';
@@ -39,11 +42,12 @@
 		};
 	}
 
-	function getSpotlights(tops: tt.TopsResponse) {
+	function getSpotlights(tops: TopResult[]) {
 		let out = [];
 		for (const top of tops) {
-			let cta = ENTITY_CTA[top.name as tt.RootType];
-			if (cta != undefined) out.push({ cta, top });
+			if (!isRootType(top.name)) continue;
+			let cta = ENTITY_CTA[top.name];
+			if (cta != undefined) out.push({ cta, top, rootType: top.name });
 		}
 
 		return out;
@@ -224,7 +228,7 @@
 	export let data;
 
 	let selectedQcRootId = 0;
-	let treeResp: tt.TreeResponse | undefined = data.treeResp;
+	let treeResp: TreeResponse | undefined = data.treeResp;
 	let conf: tt.FullTreeConfig = data.conf!;
 	let rootName = data.rootName;
 	let prefixText = data.prefixText;
@@ -373,7 +377,7 @@
 			/>
 			<div class="inner">
 				<div class="grid cards">
-					{#each spotlights as { cta, top }, i (i)}
+					{#each spotlights as { cta, top, rootType }, i (i)}
 						<div class="card">
 							<TreeSvg
 								{...props}
@@ -390,7 +394,7 @@
 								<div class="links">
 									{#each top.entities.slice(0, 3) as ent, __i (__i)}
 										<a
-											href={tf.entToLink({ rootType: top.name, semanticId: ent.semanticId })}
+											href={tf.entToLink({ rootType, semanticId: ent.semanticId })}
 											target="_blank"
 											rel="noopener">{ent.name}</a
 										>

@@ -1,7 +1,7 @@
+import type { PaperOut } from '$lib/wire/rankless_server/responses';
 import { LATEST_YEAR } from '$lib/constants';
 import { getColor } from '$lib/style-util';
 import { formatNumber } from '$lib/text-format-util';
-import type * as tt from '$lib/tree-types';
 import { htmlToText } from '$lib/utils/paper-helpers';
 
 // The hit-paper rainbow's chart space: x runs 0..xBase over the years shown, y runs -yBase..0 up
@@ -30,7 +30,7 @@ export type FigPaper = {
 };
 export type FigureBasis = ReturnType<typeof getFigureBasis>;
 
-export function rainbowPapers(papers: tt.Paper[], sortBy: RainbowSort): tt.Paper[] {
+export function rainbowPapers(papers: PaperOut[], sortBy: RainbowSort): PaperOut[] {
 	return papers
 		.filter((p) => p.yearlyCites && p.yearlyCites.length > 0)
 		.toSorted((a, b) => {
@@ -51,7 +51,7 @@ export function computeYearRates(papers: { year: number }[]): number[] {
 	return rates;
 }
 
-export function getVisInds(ps: tt.Paper[], first: number, n: number): number[] {
+export function getVisInds(ps: PaperOut[], first: number, n: number): number[] {
 	const inds: number[] = [];
 	for (let i = first; i < Math.min(ps.length, first + n); i++) inds.push(i);
 	return inds;
@@ -81,7 +81,7 @@ export function logYTickSteps(yMax: number): number[] {
 }
 
 export function getFigureBasis(
-	ps: tt.Paper[],
+	ps: PaperOut[],
 	inds: number[],
 	globalMin: number,
 	align: boolean,

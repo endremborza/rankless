@@ -1,3 +1,15 @@
+import type { AppliedManifest } from '$lib/wire/rankless_rs/user_ledger';
+import type {
+	EntityPeersResp,
+	LadderResp,
+	PaginatedPaperSetResp,
+	PaperOut,
+	PaperProfileResp,
+	PostAttRelatedEntity,
+	SearchResult,
+	ViewResult
+} from '$lib/wire/rankless_server/responses';
+import type { EntityAttsForLinks, TreeResponse } from '$lib/wire/rankless_trees/io';
 import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import type * as tt from '$lib/tree-types';
@@ -10,7 +22,7 @@ import { LedgerDb } from '$lib/server/db';
 import { readManifest, EMPTY_MANIFEST } from '$lib/server/manifest';
 import { activeDisclaimer } from '$lib/server/disclaimers';
 import { computeEffective } from '$lib/utils/ledger-effective';
-import type { LedgerEvent, AppliedManifest } from '$lib/types/ledger';
+import type { LedgerEvent } from '$lib/types/ledger';
 
 export const ssr = true;
 
@@ -24,7 +36,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch, parent 
 		'',
 		fetch
 	);
-	const view: tt.View | undefined = await fetch(tf.viewBeUrl(BE_URL, conf))
+	const view: ViewResult | undefined = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => (res.ok ? res.json() : undefined))
 		.catch(() => undefined);
 	// An unresolved entity (renamed/mistyped slug) sends the visitor to search rather than a dead
@@ -34,7 +46,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch, parent 
 	}
 	fixViewNames(view);
 
-	const treeResp: tt.TreeResponse = await fetch(tf.treeBeUrl(BE_URL, conf, 1))
+	const treeResp: TreeResponse = await fetch(tf.treeBeUrl(BE_URL, conf, 1))
 		.then((res) => res.json())
 		.then((resp) => resp);
 	if (treeResp.tree == undefined || treeResp.shallowed == undefined || treeResp.atts == undefined) {
@@ -74,11 +86,11 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch, parent 
 	}
 
 	// Author-specific data (null/empty defaults for all other entity types)
-	let profile: tt.PaperProfileResp | null = null;
-	let peersPromise: Promise<tt.EntityPeersResp | null> = Promise.resolve(null);
-	let ladderPromise: Promise<tt.LadderData | null> = Promise.resolve(null);
-	let initialPapers: tt.Paper[] = [];
-	let initialEntityAtts: tt.EntityAttsForLinks = {};
+	let profile: PaperProfileResp | null = null;
+	let peersPromise: Promise<EntityPeersResp | null> = Promise.resolve(null);
+	let ladderPromise: Promise<LadderResp | null> = Promise.resolve(null);
+	let initialPapers: PaperOut[] = [];
+	let initialEntityAtts: EntityAttsForLinks = {};
 	let initialDiscAuthorNames: Record<string, string> = {};
 	let initialTotalPapers = 0;
 	let initialWorksSliceEnd = 0;
@@ -103,7 +115,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch, parent 
 
 	if (rootType === 'authors') {
 		const encodedSemId = tf.encodeSemanticId(semanticId);
-		const [profileResp, worksResp]: [tt.PaperProfileResp | null, tt.PaginatedPaperSetResp | null] =
+		const [profileResp, worksResp]: [PaperProfileResp | null, PaginatedPaperSetResp | null] =
 			await Promise.all([
 				fetch(`${BE_URL}/paper-profile/${encodedSemId}`)
 					.then((r) => r.json())
@@ -130,9 +142,9 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch, parent 
 				if (isOwner) authorOrcid = locals.user.orcid;
 			} else {
 				try {
-					const orcidResp: tt.SearchResult = await fetch(
-						`${BE_URL}/orcid/${locals.user.orcid}`
-					).then((r) => r.json());
+					const orcidResp: SearchResult = await fetch(`${BE_URL}/orcid/${locals.user.orcid}`).then(
+						(r) => r.json()
+					);
 					isOwner = orcidResp.semanticId === semanticId;
 					if (isOwner) authorOrcid = locals.user.orcid;
 				} catch {
@@ -232,7 +244,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch, parent 
 	error(404, 'Not found');
 };
 
-type Semantifyer = (rels: tt.RelatedEntity[]) => string;
+type Semantifyer = (rels: PostAttRelatedEntity[]) => string;
 
 type DecoratedRelated = {
 	score: number;
@@ -242,14 +254,14 @@ type DecoratedRelated = {
 };
 
 function semFunMaker(prefix: string, fun: (r: DecoratedRelated) => string) {
-	return (rels: tt.RelatedEntity[]) => {
+	return (rels: PostAttRelatedEntity[]) => {
 		const items = rels.slice(0, 10);
 		if (items.length === 0) return '';
 		return prefix + commaAndjoin(items.map((r) => fun(toDecorated(r))));
 	};
 }
 
-function toDecorated(r: tt.RelatedEntity): DecoratedRelated {
+function toDecorated(r: PostAttRelatedEntity): DecoratedRelated {
 	const bold = `<b>${r.name}</b>`;
 	let link = bold;
 	if (ROOT_TYPES.includes(r.etype as tt.RootType) && r.semanticId.length > 0) {
@@ -407,7 +419,7 @@ function getSemantifyers(rootName: string, rootType: tt.RootType): [tt.RelTypes,
 	return [];
 }
 
-function getFootText(rootType: tt.RootType, view: tt.View, semanticId: string) {
+function getFootText(rootType: tt.RootType, view: ViewResult, semanticId: string) {
 	if (rootType == 'authors') {
 		const slug = (view.meta || {}).wikiSlug || '';
 		if (slug.length > 0) {
@@ -426,7 +438,7 @@ function getFootText(rootType: tt.RootType, view: tt.View, semanticId: string) {
 }
 
 function getSemanticRels(
-	view: tt.View,
+	view: ViewResult,
 	rootName: string,
 	rootType: tt.RootType,
 	paperText: string,
@@ -437,7 +449,7 @@ function getSemanticRels(
 	const semantifyers = getSemantifyers(rootName, rootType);
 	const relationsMap = Object.fromEntries(
 		REL_TYPES.map((e) => [e, view.relations[e] ?? []])
-	) as Record<tt.RelTypes, tt.RelatedEntity[]>;
+	) as Record<tt.RelTypes, PostAttRelatedEntity[]>;
 	const out: string[] = [];
 	for (const [relK, relSemantifyer] of semantifyers) {
 		const result = relSemantifyer(relationsMap[relK]);
@@ -488,7 +500,7 @@ function sentenceJoiner(parts: string[]) {
 	return out.join(' ');
 }
 
-function getTopRels(view: tt.View): tt.SubbedRel[] {
+function getTopRels(view: ViewResult): tt.SubbedRel[] {
 	return REL_TYPES.map((rt) => ({ desc: rt, subs: view.relations[rt] ?? [] })).filter(
 		(sub) => sub.subs.length > 0
 	);

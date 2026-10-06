@@ -1,8 +1,9 @@
-import type { Paper, PaperAuthorship, EntityAttsForLinks } from '$lib/tree-types';
+import type { PaperAuthorship, PaperOut } from '$lib/wire/rankless_server/responses';
+import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 import { resolveAuthorNameOrNull } from '$lib/utils/paper-helpers';
 
 export type CitationStyle = 'html' | 'apa' | 'mla' | 'chicago';
-export type { Paper };
+export type { PaperOut };
 
 export interface SourcesMap {
 	[id: string]: { name: string; spec_baseline?: number };
@@ -110,7 +111,7 @@ export function formatAuthorNames(
 	return `${firstThree.join(', ')}, et al.`;
 }
 
-function pagesText(b: Paper['biblio']): string {
+function pagesText(b: PaperOut['biblio']): string {
 	if (!b) return '';
 	const { first_page, last_page } = b;
 	if (first_page && last_page) return `${first_page}–${last_page}`;
@@ -120,7 +121,7 @@ function pagesText(b: Paper['biblio']): string {
 }
 
 export function formatReference(
-	paper: Paper,
+	paper: PaperOut,
 	entityAtts: EntityAttsForLinks,
 	discAuthorNames: Record<string, string>,
 	style: CitationStyle = 'html',
@@ -187,7 +188,7 @@ function nextSuffix(s: string): string {
 }
 
 export function toBibtexEntry(
-	paper: Paper,
+	paper: PaperOut,
 	entityAtts: EntityAttsForLinks,
 	discAuthorNames: Record<string, string>,
 	key: string
@@ -209,7 +210,7 @@ export function toBibtexEntry(
 }
 
 export function toBibtexFile(
-	papers: Paper[],
+	papers: PaperOut[],
 	entityAtts: EntityAttsForLinks,
 	discAuthorNames: Record<string, string>
 ): string {

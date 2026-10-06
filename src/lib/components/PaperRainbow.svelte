@@ -1,8 +1,9 @@
 <script lang="ts">
+	import type { PaperOut } from '$lib/wire/rankless_server/responses';
+	import type { EntityAttsForLinks, TreeSpecs } from '$lib/wire/rankless_trees/io';
 	import { LATEST_YEAR } from '$lib/constants';
 	import { getColor, getColorArr } from '$lib/style-util';
 	import { formatNumber } from '$lib/text-format-util';
-	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 	import { resolveSourceName } from '$lib/utils/paper-helpers';
 	import {
@@ -19,10 +20,10 @@
 	import HitPaperExplainer from './HitPaperExplainer.svelte';
 	import { onMount, tick } from 'svelte';
 
-	export let papers: tt.Paper[];
-	export let entityAtts: tt.EntityAttsForLinks = {};
+	export let papers: PaperOut[];
+	export let entityAtts: EntityAttsForLinks = {};
 	export let discAuthorNames: Record<string, string> = {};
-	export let treeSpecs: tt.TreeSpecs | undefined = undefined;
+	export let treeSpecs: TreeSpecs | undefined = undefined;
 
 	const fontSize = 0.5;
 
@@ -44,7 +45,7 @@
 	let firstVisible: number | null = null;
 	let scrollTimeout: ReturnType<typeof setTimeout>;
 
-	function getBreakdownOptionsList(specs: tt.TreeSpecs | undefined): BreakdownOption[] {
+	function getBreakdownOptionsList(specs: TreeSpecs | undefined): BreakdownOption[] {
 		if (!specs) return [];
 		const hpSpecs = specs.specs['hit-papers'];
 		if (!hpSpecs) return [];
