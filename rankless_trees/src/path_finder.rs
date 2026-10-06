@@ -2,9 +2,11 @@ use std::{cell::RefCell, rc::Rc};
 
 use hashbrown::{HashMap, HashSet};
 use serde::Serialize;
+use wiretypes::wire;
 
 use crate::io::WT;
 
+#[wire]
 type RefDAGNodeT = Rc<RefCell<HashMap<WT, RefDAG>>>;
 
 pub struct CitingConnection {
@@ -12,9 +14,10 @@ pub struct CitingConnection {
     pub wids: HashSet<WT>,
 }
 
+#[wire]
 #[derive(Serialize, Debug, Clone)]
 pub enum RefDAG {
-    Node(RefDAGNodeT),
+    Node(#[schemars(with = "RefDAGNodeTWire")] RefDAGNodeT),
     Leaf,
 }
 

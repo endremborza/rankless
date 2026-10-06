@@ -20,6 +20,7 @@ use rankless_rs::{
     },
 };
 use serde::Serialize;
+use wiretypes::wire;
 
 use crate::interfacing::{Getters, RootColumns};
 
@@ -341,6 +342,7 @@ pub struct MetricDecl {
 }
 
 // A methodology item's texts, every constant filled in.
+#[wire]
 #[derive(Serialize)]
 pub struct ItemTexts {
     pub id: &'static str,
@@ -349,6 +351,7 @@ pub struct ItemTexts {
 }
 
 // A metric's texts as one root shows them, every constant filled in.
+#[wire]
 #[derive(Serialize)]
 pub struct MetricTexts {
     pub label: String,
@@ -376,6 +379,7 @@ pub enum Value {
     Ids([u32; N_AFF_COUNTRIES]),
 }
 
+#[wire]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
@@ -384,6 +388,7 @@ pub enum Kind {
 }
 
 // One read per entity is a column access; a walk opens the entity's tree.
+#[wire]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Cost {
@@ -392,6 +397,7 @@ pub enum Cost {
 }
 
 // How a value reads and which operators fit it: numbers compare, entity values match.
+#[wire]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 #[serde(rename_all = "lowercase", tag = "type", content = "entity")]
 pub enum ValueType {
@@ -416,6 +422,7 @@ pub enum Coverage {
 }
 
 // The argument a parameterized metric takes.
+#[wire]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Param {

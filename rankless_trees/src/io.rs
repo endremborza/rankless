@@ -13,6 +13,7 @@ use std::{
 use dmove_macro::impl_subs;
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
+use wiretypes::wire;
 
 use rankless_rs::{
     env_consts::START_YEAR,
@@ -41,10 +42,14 @@ const MAX_QUEUE_LEN: usize = 2048;
 pub type WT = ET<Works>;
 pub type WorkCiteT = u32;
 
+#[wire]
 pub type TreeSpecMap = HashMap<String, Vec<TreeSpec>>;
+#[wire]
 pub type AttributeLabels = HashMap<String, HashMap<usize, AttributeLabelOut>>;
+#[wire]
 pub type EntityAttsForLinks = HashMap<String, HashMap<usize, AttributeLabel>>;
 pub type CollapsedNode = CollapsedNodeGen<WT>;
+#[wire]
 pub type CollapsedNodeJson = CollapsedNodeGen<Option<BigId>>;
 pub type InProgressMap = HashMap<CacheKey, BoolCvp>;
 pub type ManFileHandle = VattReadingArcMap<WorksNames>;
@@ -98,6 +103,7 @@ pub struct FirstLevel {
 #[derive(Clone, Copy, Default)]
 pub struct WorkWInd(pub WT, pub WorkCiteT);
 
+#[wire]
 #[derive(Serialize, Clone)]
 pub struct AttributeLabel {
     pub name: Arc<str>,
@@ -105,6 +111,7 @@ pub struct AttributeLabel {
     pub spec_baseline: f64,
 }
 
+#[wire]
 #[derive(Serialize, Clone)]
 pub struct AttributeLabelOut {
     pub name: String,
@@ -126,6 +133,7 @@ pub struct TreeQ {
     pub cacheable: Option<bool>,
 }
 
+#[wire]
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct CollapsedNodeGen<T: Default> {
     #[serde(rename = "linkCount")]
@@ -144,6 +152,7 @@ pub struct BufSerTree {
     pub children: Box<BufSerChildren>,
 }
 
+#[wire]
 #[derive(Serialize, Clone)]
 pub struct JsSerTree {
     #[serde(flatten)]
@@ -151,22 +160,27 @@ pub struct JsSerTree {
     pub children: Box<JsSerChildren>,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub struct TreeResponse {
     pub tree: JsSerTree,
+    #[schemars(with = "AttributeLabelsWire")]
     pub atts: AttributeLabels,
     pub shallowed: bool,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub struct TreeSpecs {
     #[serde(skip_serializing)]
     root_types: Vec<String>,
+    #[schemars(with = "TreeSpecMapWire")]
     specs: TreeSpecMap,
     #[serde(rename = "yearBreaks")]
     year_breaks: YBT,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub struct TreeSpec {
     #[serde(rename = "rootType")]
@@ -180,6 +194,7 @@ pub struct TreeSpec {
     pub default_partition: u16,
 }
 
+#[wire]
 #[derive(Serialize)]
 pub struct BreakdownSpec {
     #[serde(flatten)]
@@ -227,6 +242,7 @@ pub enum BufSerChildren {
     Nodes(HashMap<u32, BufSerTree>),
 }
 
+#[wire]
 #[derive(Serialize, Clone)]
 #[serde(untagged)]
 pub enum JsSerChildren {
