@@ -1,6 +1,5 @@
-from mcp_server import card_url, entity_url
+from mcp_server import card_url, composite_url, entity_url
 from mcp_server.tools import _impact_dag
-from pyscripts.explore.posts import unverified
 
 
 def _paper(
@@ -89,11 +88,12 @@ def test_a_page_and_its_card_carry_the_same_view():
     ).endswith("/card/authors/table.png?sort=h_index")
 
 
-def test_unverified_allows_rounding_and_shares_but_not_new_numbers():
-    known = [6897, 71800, 3.727, 0.1247, 2003]
-    text = (
-        "The 2003 paper has 6,897 citations (6.9k), a score of 3.7, "
-        "12.5% of links, 72k in total and 13 laureates; 1/5 "
-        "https://rankless.org/authors/x2025"
+def test_a_composite_names_each_card_by_its_path_and_variant():
+    cards = [
+        "https://rankless.org/card/authors/a-b/map.png?hl=1",
+        "https://rankless.org/card/authors/a-b/tree.png",
+    ]
+    assert composite_url(cards) == (
+        "https://rankless.org/card/composite.png"
+        "?p=authors%2Fa-b%2Fmap%3Fhl%3D1&p=authors%2Fa-b%2Ftree"
     )
-    assert unverified(text, known) == ["13"]
