@@ -64,7 +64,7 @@ mcp-server:
 deep-explore:
 	uv run -m pyscripts.explore.deep $(ARGS)
 
-# Cross-language type/API-shape coherence audit; see docs/type-audit.md.
+# The ccl-science-data reader against the generated dmove entities; see docs/type-audit.md.
 # ARGS="--strict" also fails on warnings.
 type-audit:
 	uv run -m pyscripts.typeaudit $(ARGS)
