@@ -76,6 +76,21 @@ def card_url(
     return _with_query(f"{SITE_URL}/card/{path}/{kind}.png", query)
 
 
+def composite_url(cards: list[str], cols: int | None = None) -> str:
+    """One picture of several cards in a grid: each panel is a card URL's own path
+    and variant, so whatever a card shows the composite shows."""
+    base = f"{SITE_URL}/card/"
+    query = [("p", _panel(card[len(base) :])) for card in cards]
+    return (
+        f"{base}composite.png?{urlencode(query + ([('cols', cols)] if cols else []))}"
+    )
+
+
+def _panel(card: str) -> str:
+    path, _, query = card.partition("?")
+    return path.removesuffix(".png") + (f"?{query}" if query else "")
+
+
 def render_url(url: str) -> str:
     """`url` on the host that renders the cards."""
     if RENDER_URL != SITE_URL and url.startswith(SITE_URL):

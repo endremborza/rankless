@@ -37,13 +37,22 @@ export const CARD_KINDS: Record<CardKindName, CardKind> = {
 	table
 };
 
-export async function buildCardSvg(
+// What the frame draws around a kind's picture.
+export type LoadedCard = {
+	name: string;
+	caption: string;
+	url: string;
+	inner: CardKind['component'];
+	props: Record<string, unknown>;
+};
+
+export async function loadCard(
 	kind: string,
 	rootType: string,
 	semanticId: string,
 	params: URLSearchParams,
 	fetchFn: typeof fetch
-): Promise<string> {
+): Promise<LoadedCard> {
 	if (!Object.hasOwn(CARD_KINDS, kind)) error(404, 'no such card');
 	const card = CARD_KINDS[kind as CardKindName];
 	if (!CARD_SPEC[kind as CardKindName].types.includes(rootType)) error(404, 'no such card');
@@ -58,13 +67,23 @@ export async function buildCardSvg(
 	if (view) fixViewNames(view);
 	const data = await card.load({ rootType: rt, semanticId, params, specs, view, fetch: fetchFn });
 	const path = semanticId ? getEntityPath(rt, semanticId) : `/${rt}/table`;
-	return renderSvgComponent(CardFrame, {
+	return {
 		name: data.name ?? htmlToText(view?.name ?? ''),
 		caption: data.caption,
 		url: `${FULL_HOST}${path}`.replace(/^https?:\/\//, ''),
 		inner: card.component,
 		props: data.props
-	});
+	};
+}
+
+export async function buildCardSvg(
+	kind: string,
+	rootType: string,
+	semanticId: string,
+	params: URLSearchParams,
+	fetchFn: typeof fetch
+): Promise<string> {
+	return renderSvgComponent(CardFrame, await loadCard(kind, rootType, semanticId, params, fetchFn));
 }
 
 export async function cardPng(
