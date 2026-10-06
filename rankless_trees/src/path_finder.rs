@@ -130,6 +130,9 @@ pub fn extend_with_once_removed<G>(
 ) where
     G: RefGraph,
 {
+    if citing_wids.is_empty() {
+        return;
+    }
     //resp.tree should only contain first level keys that are present in refed_set
     let mut inter_from_refed: HashMap<WT, Vec<WT>> = HashMap::new();
     for &refed in refed_set.iter() {
@@ -284,6 +287,25 @@ mod tests {
         assert!(matches!(sub10.get(&3), Some(RefDAG::Leaf)));
         let sub_4 = node_map(sub10.get(&4).unwrap());
         assert!(matches!(sub_4.get(&5), Some(RefDAG::Leaf)));
+    }
+
+    struct UnreadGraph;
+
+    impl RefGraph for UnreadGraph {
+        fn get_refs(&self, wid: WT) -> &[WT] {
+            panic!("refs of {wid} read")
+        }
+        fn get_cites(&self, wid: WT) -> &[WT] {
+            panic!("cites of {wid} read")
+        }
+    }
+
+    #[test]
+    fn once_removed_without_citing_reads_no_citations() {
+        let mut conn = get_direct_links(&UnreadGraph, refed_set(&[3, 5]), &[]);
+        extend_with_once_removed(&UnreadGraph, refed_set(&[3, 5]), &[], &mut conn);
+        assert!(conn.wids.is_empty());
+        assert!(node_map(&conn.dag).is_empty());
     }
 
     #[test]
