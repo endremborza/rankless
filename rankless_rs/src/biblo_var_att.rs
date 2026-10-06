@@ -1,9 +1,12 @@
 use dmove::{ByteArrayInterface, VarSizedAttributeElement};
-use serde::Serialize;
 use std::convert::TryInto;
+
+use serde::Serialize;
+use wiretypes::wire;
 
 use crate::oa_structs::Biblio;
 
+#[wire]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct BiblioInfo {
     volume: String,

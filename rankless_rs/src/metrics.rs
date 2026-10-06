@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use serde::Serialize;
+use wiretypes::wire;
 
 use crate::env_consts::{
     FINAL_YEAR, MIN_AUTHOR_CITE_COUNT, MIN_AUTHOR_WORK_COUNT, MIN_PAPERS_FOR_INST,
@@ -92,6 +93,7 @@ pub const METHODOLOGY: Methodology = Methodology {
 pub type EncodedBar = u16;
 
 // What a paper's score measures it against, and the score that makes it a hit paper.
+#[wire]
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PaperScore {
@@ -113,6 +115,7 @@ pub struct PaperScore {
 // the citing paper is, so one object answers both. The year window and the per-entity minimums are
 // `env_consts`, generated per build environment, which is why no text can state them without
 // reading them.
+#[wire]
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkScreen {
@@ -129,6 +132,7 @@ pub struct WorkScreen {
 }
 
 // Every definition the site publishes about how its numbers are made, in one payload.
+#[wire]
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Methodology {
@@ -149,6 +153,7 @@ pub struct Texts {
 
 // One breakdown level of a tree: the attribute entity and the side of the citation link it sits
 // on. A tree's first level is a profile of the root entity, identified by this alone.
+#[wire]
 #[derive(Serialize, Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct Level {
     #[serde(rename = "attributeType")]

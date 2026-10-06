@@ -7,6 +7,7 @@ use std::{
 
 use hashbrown::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
+use wiretypes::wire;
 
 use crate::{
     common::{ParsedId, Stowage, MAIN_NAME},
@@ -120,28 +121,80 @@ pub struct Outcomes {
     skipped: Vec<SkippedEvent>,
 }
 
-/// A claim applies iff the claimant is credited on the work once the ledger is applied.
+/// A claim is settled once the reader shows who is credited on the work: a claimant the
+/// applied ledger leaves without a row there is granted one (`Outcomes::grants`).
 pub struct PendingClaim {
     pub key: String,
     pub claimant: BigId,
     pub work: BigId,
 }
 
+/// An authorship the ledger adds: the claimant's row on the claimed work, placed after the
+/// rows the snapshot lists, with no affiliation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GrantedShip {
+    pub author: BigId,
+    pub work: BigId,
+    pub position: u16,
+}
+
+#[wire]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkippedEvent {
     pub key: String,
     pub reason: SkipReason,
 }
 
-#[derive(Deserialize)]
-struct WorkSubject {
-    oa_id: Option<BigId>,
-    doi: Option<String>,
+/// A work as a ledger event names it, written by the site and by `pyscripts/ledger_ids.py`. The
+/// pipeline reads `oa_id` and `doi`, so a line carrying only those parses.
+#[wire]
+#[derive(Serialize, Deserialize)]
+pub struct WorkSubject {
+    pub oa_id: Option<BigId>,
+    pub doi: Option<String>,
+    pub dm_id_at_creation: Option<usize>,
+    pub semantic_id_at_creation: Option<String>,
+    pub run_id_at_creation: Option<String>,
+    #[serde(default)]
+    pub display_snapshot: WorkSnapshot,
 }
 
-#[derive(Deserialize)]
-struct AuthorSubject {
-    oa_id: Option<BigId>,
+/// An author record as a ledger event names it; the pipeline reads `oa_id`.
+#[wire]
+#[derive(Serialize, Deserialize)]
+pub struct AuthorSubject {
+    pub oa_id: Option<BigId>,
+    pub orcid: Option<String>,
+    pub dm_id_at_creation: Option<usize>,
+    pub semantic_id_at_creation: Option<String>,
+    pub run_id_at_creation: Option<String>,
+    #[serde(default)]
+    pub display_snapshot: AuthorSnapshot,
+}
+
+/// What the claimant saw of a work when creating the event.
+#[wire]
+#[derive(Serialize, Deserialize, Default)]
+pub struct WorkSnapshot {
+    pub title: String,
+    pub year: Option<u16>,
+}
+
+#[wire]
+#[derive(Serialize, Deserialize, Default)]
+pub struct AuthorSnapshot {
+    pub display_name: String,
+}
+
+/// `applied_manifest.json`, read by the site: what the run applied and why it skipped the rest,
+/// events named by their logical key.
+#[wire]
+#[derive(Serialize)]
+pub struct AppliedManifest {
+    pub run_id: String,
+    pub snapshot_at: String,
+    pub applied_keys: Vec<String>,
+    pub skipped: Vec<SkippedEvent>,
 }
 
 #[derive(Deserialize)]
@@ -182,13 +235,17 @@ pub enum SkipReason {
     ClaimantNotAttributed,
 }
 
-/// Mirrors TS `LedgerPayload`; `kind` is the discriminant tag.
-#[derive(Deserialize)]
+/// What a ledger event does, as the site stores it and `active.jsonl` carries it; `kind` is the
+/// tag.
+#[wire]
+#[derive(Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-enum EventPayload {
+pub enum EventPayload {
     MergeAuthors {
         keep: AuthorSubject,
         drop: AuthorSubject,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
     },
     MergePapers {
         keep: WorkSubject,
@@ -204,12 +261,32 @@ enum EventPayload {
     StripOrcid {
         author: AuthorSubject,
     },
-    // Never reach the pipeline (revokes are resolved away in export_user_ledger.py; the
-    // other two are never written to the ledger), but kept as variants so EventPayload
-    // stays a faithful mirror of TS LedgerPayload (see make type-audit).
-    Revoke,
-    ModerationDecision,
-    AddPaperRequest,
+    // The last three never reach the pipeline: revokes resolve away in export_user_ledger.py
+    // and the other two are never written to the ledger.
+    Revoke {
+        /// The revoked event's logical key, which a DB merge leaves stable (an event_id is
+        /// renumbered).
+        target_key: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+    },
+    ModerationDecision {
+        target_event_id: i64,
+        decision: ModerationVerdict,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+    },
+    AddPaperRequest {
+        work_claim: serde_json::Map<String, serde_json::Value>,
+    },
+}
+
+#[wire]
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModerationVerdict {
+    Accepted,
+    Rejected,
 }
 
 /// What the ledger does to an author record.
@@ -437,7 +514,7 @@ impl UserLedger {
         let mut skip =
             |key: String, reason: SkipReason| self.skipped.push(SkippedEvent { key, reason });
         match payload {
-            EventPayload::MergeAuthors { keep, drop } => match (keep.oa_id, drop.oa_id) {
+            EventPayload::MergeAuthors { keep, drop, .. } => match (keep.oa_id, drop.oa_id) {
                 (Some(k), Some(d)) if k != d => {
                     self.author_fates.push((Some(key), d, Fate::Merge(k)))
                 }
@@ -462,9 +539,9 @@ impl UserLedger {
                 None => skip(key, SkipReason::MissingOaId),
             },
             // Resolved in export or never emitted; never present in active.jsonl.
-            EventPayload::Revoke
-            | EventPayload::ModerationDecision
-            | EventPayload::AddPaperRequest => {}
+            EventPayload::Revoke { .. }
+            | EventPayload::ModerationDecision { .. }
+            | EventPayload::AddPaperRequest { .. } => {}
         }
     }
 
@@ -472,11 +549,12 @@ impl UserLedger {
     fn apply_derived(&mut self, event: LedgerEventLine) -> io::Result<()> {
         let (id, fate) = match event.payload {
             EventPayload::MergeAuthors {
-                keep: AuthorSubject { oa_id: Some(k) },
-                drop: AuthorSubject { oa_id: Some(d) },
+                keep: AuthorSubject { oa_id: Some(k), .. },
+                drop: AuthorSubject { oa_id: Some(d), .. },
+                ..
             } if k != d => (d, Fate::Merge(k)),
             EventPayload::StripOrcid {
-                author: AuthorSubject { oa_id: Some(a) },
+                author: AuthorSubject { oa_id: Some(a), .. },
             } => (a, Fate::Strip),
             _ => {
                 return Err(invalid(format!(
@@ -655,18 +733,18 @@ impl Outcomes {
         }
         applied.sort_unstable();
         skipped.sort_unstable_by(|a, b| a.key.cmp(&b.key));
-        let manifest = serde_json::json!({
-            "run_id": self.run_id,
-            "snapshot_at": self.run_id,
-            "applied_keys": applied,
-            "skipped": skipped,
-        });
-        write_json(&ul_dir.join(APPLIED_MANIFEST), &manifest)?;
         println!(
             "applied_manifest: {} applied, {} skipped",
             applied.len(),
             skipped.len()
         );
+        let manifest = AppliedManifest {
+            run_id: self.run_id.clone(),
+            snapshot_at: self.run_id.clone(),
+            applied_keys: applied,
+            skipped,
+        };
+        write_json(&ul_dir.join(APPLIED_MANIFEST), &manifest)?;
         Ok(())
     }
 }
@@ -807,8 +885,15 @@ mod tests {
         assert!(matches!(
             event.payload,
             EventPayload::MergeAuthors {
-                keep: AuthorSubject { oa_id: Some(10) },
-                drop: AuthorSubject { oa_id: Some(20) }
+                keep: AuthorSubject {
+                    oa_id: Some(10),
+                    ..
+                },
+                drop: AuthorSubject {
+                    oa_id: Some(20),
+                    ..
+                },
+                ..
             }
         ));
     }
