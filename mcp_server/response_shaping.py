@@ -8,6 +8,12 @@ from itertools import combinations
 from typing import Any
 
 from mcp_server import entity_url
+from wire.rankless_trees.io import (
+    BreakdownSpec,
+    CollapsedNodeJson,
+    JsSerTree,
+    TreeResponse,
+)
 
 TRUNCATE_N = 12
 
@@ -51,7 +57,7 @@ def coauthor_edges(view: dict, n: int = TRUNCATE_N) -> list[dict]:
 
 
 def flatten_tree(
-    resp: dict, breakdowns: list[dict], top_n: int, depth: int
+    resp: TreeResponse, breakdowns: list[BreakdownSpec], top_n: int, depth: int
 ) -> list[dict]:
     """Nested id-keyed tree -> named top-N rows per level.
 
@@ -60,11 +66,11 @@ def flatten_tree(
     """
     atts = resp.get("atts", {})
 
-    def walk(node: dict, level: int) -> list[dict]:
+    def walk(node: JsSerTree | CollapsedNodeJson, level: int) -> list[dict]:
         if level >= depth or "children" not in node:
             return []
         etype = breakdowns[level]["attributeType"] if level < len(breakdowns) else None
-        named = atts.get(etype, {})
+        named = atts.get(etype, {}) if etype else {}
         ranked = sorted(
             node["children"].items(),
             key=lambda kv: kv[1].get("linkCount", 0),

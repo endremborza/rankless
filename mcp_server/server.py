@@ -22,6 +22,7 @@ from mcp_server.prompts import PROMPTS
 from mcp_server.receipts import with_receipt
 from mcp_server.resources import AGENT_GUIDE, RESOURCES
 from mcp_server.tools import TOOLS, describe
+from wire.rankless_server.responses import ColumnRegistry
 
 LOCAL_HOSTS = ["127.0.0.1:*", "localhost:*"]
 # Registered as they are: what they return is not backend data to re-issue, so no receipt.
@@ -43,7 +44,7 @@ def transport_security(public_hosts: str) -> TransportSecuritySettings | None:
     )
 
 
-def fetch_registry() -> dict:
+def fetch_registry() -> ColumnRegistry:
     """The backend's metric registry, the source of the table tools' descriptions.
     An unreachable backend is a failed start: the box unit restarts on failure."""
     url = f"{mcp_server.BE_URL}/columns"
@@ -60,7 +61,7 @@ def fetch_registry() -> dict:
     raise AssertionError("unreachable")
 
 
-def build(registry: dict) -> FastMCP:
+def build(registry: ColumnRegistry) -> FastMCP:
     """The server with every tool, prompt and resource registered; the table tools
     describe themselves from the registry."""
     describe(registry)

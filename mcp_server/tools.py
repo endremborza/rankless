@@ -6,6 +6,8 @@ tool and the offline miners, and `server.py` registers them wrapped in the
 receipt envelope (`mcp_server.receipts`).
 """
 
+from typing import Final
+
 from mcp_server import (
     NOBEL_CATEGORIES,
     ROOT_TYPES,
@@ -24,8 +26,20 @@ from mcp_server.response_shaping import (
     flatten_tree,
     truncate_lists,
 )
+from wire.rankless_server.responses import (
+    ColumnDecl,
+    ColumnRegistry,
+    MetricValuesResp,
+    PaperAuthorMeta,
+    PaperOut,
+    PaperProfileResp,
+    SliceResp,
+    TableRow,
+)
+from wire.rankless_trees.io import AttributeLabel, TreeResponse, TreeSpecs
+from wire.rankless_trees.path_finder import RefDAG
 
-_specs_cache: dict | None = None
+_specs_cache: TreeSpecs | None = None
 # Each root type's default ordering, from the registry `describe()` reads; the backend
 # applies it to a sortless `/slice`, so this only names it.
 _default_sorts: dict[str, str] = {}
@@ -35,7 +49,7 @@ _numeric: dict[str, set[str]] = {}
 MAX_RANK_LIMIT = 100
 MAX_ANNOTATE_IDS = 24
 ROW_INTERNALS = ("oaId", "dmId", "values")
-PAPER_FIELDS = ("name", "year", "citations", "score", "isHit", "doi")
+PAPER_FIELDS: Final = ("name", "year", "citations", "score", "isHit", "doi")
 
 # The two table tools' descriptions are built from the backend's metric registry (`/v1/columns`)
 # by `describe()` before the server registers them, so the metric ids, meanings, value types,
@@ -84,7 +98,7 @@ def _check_etype(entity_type: str, allowed: tuple[str, ...] = ROOT_TYPES) -> Non
         raise ValueError(f"entity_type must be one of {allowed}, got {entity_type!r}")
 
 
-async def _specs() -> dict:
+async def _specs() -> TreeSpecs:
     global _specs_cache
     if _specs_cache is None:
         _specs_cache = await get_json("/specs")
@@ -215,7 +229,7 @@ async def get_citation_tree(
     # A hit paper's tree holds its one paper, which any later year filters out.
     default = (await _specs())["yearBreaks"][0] if entity_type == "hit-papers" else None
     year = since_year or default or spec["defaultYear"]
-    res = await get_json(
+    res: TreeResponse = await get_json(
         f"/trees/{entity_type}/{encode_semantic_id(semantic_id)}",
         {"year": year, "tid": tree_index},
     )
@@ -292,7 +306,9 @@ async def get_impact_dag(semantic_id: str) -> dict:
     the author; a hit's own `image_url` is the card with that hit and the
     author's papers it builds on.
     """
-    res = await get_json(f"/paper-profile/{encode_semantic_id(semantic_id)}")
+    res: PaperProfileResp = await get_json(
+        f"/paper-profile/{encode_semantic_id(semantic_id)}"
+    )
     return _impact_dag(res, semantic_id)
 
 
@@ -320,8 +336,8 @@ async def lookup_orcid(orcid: str) -> dict:
     return add_url(res, "authors")
 
 
-def _paper(p: dict) -> dict:
-    out = {k: p[k] for k in PAPER_FIELDS if p.get(k) not in (None, "")}
+def _paper(p: PaperOut) -> dict:
+    out = {k: v for k in PAPER_FIELDS if (v := p.get(k)) not in (None, "")}
     if sem := p.get("hitSemId"):
         out["semanticId"] = sem
         out["rankless_url"] = entity_url("hit-papers", sem)
@@ -330,7 +346,7 @@ def _paper(p: dict) -> dict:
     return out
 
 
-def _dag_paths(node: dict | str, prefix: tuple[int, ...] = ()) -> list[tuple[int, ...]]:
+def _dag_paths(node: RefDAG, prefix: tuple[int, ...] = ()) -> list[tuple[int, ...]]:
     if not isinstance(node, dict):
         return [prefix]
     return [
@@ -340,7 +356,7 @@ def _dag_paths(node: dict | str, prefix: tuple[int, ...] = ()) -> list[tuple[int
     ]
 
 
-def _impact_dag(res: dict, semantic_id: str) -> dict:
+def _impact_dag(res: PaperProfileResp, semantic_id: str) -> dict:
     """`/paper-profile`'s DAG (a citing hit paper -> the author's papers it cites)
     as one row per citing hit and one per cited paper of the author."""
     resp = res["papers"]
@@ -385,11 +401,11 @@ def _impact_dag(res: dict, semantic_id: str) -> dict:
     }
 
 
-def _rank(p: dict) -> tuple:
+def _rank(p: PaperOut) -> tuple:
     return (-(p.get("score") or 0), -p["citations"], p["wid"])
 
 
-def _laureate(att: dict, meta: dict) -> dict:
+def _laureate(att: AttributeLabel, meta: PaperAuthorMeta) -> dict:
     return {
         "name": att["name"],
         "prize": NOBEL_CATEGORIES[meta["prize"] - 1],
@@ -398,7 +414,7 @@ def _laureate(att: dict, meta: dict) -> dict:
     }
 
 
-def _row(row: dict, entity_type: str) -> dict:
+def _row(row: TableRow, entity_type: str) -> dict:
     flat = {k: v for k, v in row.items() if k not in ROW_INTERNALS}
     return add_url({**flat, **row.get("values", {})}, entity_type)
 
@@ -413,7 +429,9 @@ async def rank_entities(
     _check_etype(entity_type)
     limit = max(1, min(limit, MAX_RANK_LIMIT))
     params = {"sort": sort, "where": where}
-    page = await get_json(f"/slice/{entity_type}/{offset}/{offset + limit}", params)
+    page: SliceResp = await get_json(
+        f"/slice/{entity_type}/{offset}/{offset + limit}", params
+    )
     meta = page["meta"]
     view = {**params, "from": offset if offset else None}
     return {
@@ -437,8 +455,10 @@ async def annotate_entities(
     if not semantic_ids or not metrics:
         raise ValueError("semantic_ids and metrics must both be non-empty")
     pins = ",".join(semantic_ids[:MAX_ANNOTATE_IDS])
-    pinned = (await get_json(f"/slice/{entity_type}/0/0", {"pin": pins}))["rows"]
-    values = await get_json(
+    pinned: list[TableRow] = (
+        await get_json(f"/slice/{entity_type}/0/0", {"pin": pins})
+    )["rows"]
+    values: MetricValuesResp = await get_json(
         f"/metrics/{entity_type}",
         {
             "ids": ",".join(str(r["dmId"]) for r in pinned),
@@ -475,14 +495,14 @@ def _fits_table_card(entity_type: str, pins: list[str], metrics: list[str]) -> b
     )
 
 
-def _signature(m: dict) -> str:
+def _signature(m: ColumnDecl) -> str:
     param = m.get("param")
     return (
         f"{m['id']}({'from, to' if param == 'window' else param})" if param else m["id"]
     )
 
 
-def describe(registry: dict) -> None:
+def describe(registry: ColumnRegistry) -> None:
     """Fill the table tools' docstrings from the backend's metric registry. A metric's texts
     are per root type, so each wording is listed once, with the types it holds for grouped by
     the metric's kind on each."""
