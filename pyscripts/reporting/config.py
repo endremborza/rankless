@@ -2,6 +2,8 @@ import os
 import re
 from pathlib import Path
 
+from pyscripts.hosts import LIVE_BACKEND, LIVE_DOMAIN, MAIN_DOMAIN
+
 REPORTS_ROOT = Path(os.environ.get("REPORTS_V2_ROOT", "reports-v2")).resolve()
 
 ARCHIVE_DIR = REPORTS_ROOT / "archive"
@@ -55,7 +57,7 @@ LINE_RE = re.compile(
 # traffic with the box's prior alpha vhosts AND junk hitting it directly (raw IP,
 # EC2 hostname, spoofed Host scanners). `$host` lets the report keep only the live
 # domains, as an allowlist: a denylist cannot name the junk.
-LIVE_HOSTS = {"www.rankless.org", "rankless.org", "api.rankless.org"}
+LIVE_HOSTS = {LIVE_DOMAIN, MAIN_DOMAIN, LIVE_BACKEND}
 
 CACHE_STATUSES = {
     "HIT",

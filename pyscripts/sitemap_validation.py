@@ -6,9 +6,9 @@ import requests
 from lxml import etree
 from tqdm import tqdm
 
-ROOT = "https://www.rankless.org"
-# ROOT = "https://alpha.rankless.org"
-# ROOT = "http://127.0.0.1:5173"
+from pyscripts.hosts import LIVE_DOMAIN
+
+ROOT = f"https://{LIVE_DOMAIN}"  # ALPHA_DOMAIN (pyscripts.hosts) validates alpha
 
 indices = [
     "",

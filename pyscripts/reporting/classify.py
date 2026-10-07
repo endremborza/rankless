@@ -14,6 +14,8 @@ from urllib.parse import urlsplit
 
 import polars as pl
 
+from pyscripts.hosts import LIVE_BACKEND
+
 
 # --- bot-class labels ----------------------------------------------------
 
@@ -229,7 +231,7 @@ SOFT_RULES: list[SoftRule] = [
     SoftRule(
         "www_no_api",
         -2,
-        "At least one request to the frontend domain with zero api.rankless.org (/v1/) calls.",
+        f"At least one request to the frontend domain with zero {LIVE_BACKEND} (/v1/) calls.",
         ~pl.col("_has_api"),  # www_no_api
     ),
 ]

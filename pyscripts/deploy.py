@@ -22,6 +22,14 @@ from protocli import Dispatcher
 from mcp_server import BACKENDS
 from pyscripts import gitutil, migration_scripts, paths, services, userdb
 from pyscripts.fleet import manifest
+from pyscripts.hosts import (
+    ALPHA_BACKEND,
+    ALPHA_DOMAIN,
+    LIVE_BACKEND,
+    LIVE_DOMAIN,
+    MAIN_DOMAIN,
+)
+from wire.rankless_server.consts import PORT
 
 load_dotenv()
 
@@ -29,8 +37,6 @@ SERIVCE_DIR = ".config/systemd/user"
 BUN_PATH = "/.bun/bin/bun"
 SSL_ETC_DIR = "/etc/letsencrypt/live"
 LOCAL_SSL_TAR = "ssl_dir.tar.gz"
-
-MAIN_DOMAIN = "rankless.org"
 
 APTS = [
     "curl",
@@ -48,15 +54,7 @@ APTS = [
 ]
 
 
-def subd(sub):
-    return f"{sub}.{MAIN_DOMAIN}"
-
-
-ALPHA_DOMAIN = subd("alpha")
-LIVE_DOMAIN = subd("www")
 FW_DOMAIN = MAIN_DOMAIN
-ALPHA_BACKEND = subd("alpha-api")
-LIVE_BACKEND = subd("api")
 # Both public backend domains: the unit answers on whichever one the front
 # door routes to the box, before and after a promote.
 MCP_PUBLIC_HOSTS = f"{ALPHA_BACKEND},{LIVE_BACKEND}"

@@ -5,7 +5,7 @@
     uv run -m pyscripts stress capacity --worker-port 4000 --restart   # one worker, isolated
     uv run -m pyscripts stress feleak --abort --corpus slugs.gz --ssh-host rankless-alpha \
         --worker-port 4200 --local-port 14005 --restart   # single-worker leak regression test
-    uv run -m pyscripts stress churn --corpus slugs.gz --base https://alpha-api.rankless.org
+    uv run -m pyscripts stress churn --corpus slugs.gz
     uv run -m pyscripts stress sample --ssh-host rankless-alpha
 
 `meltdown` (DEFAULT) tears the FE deployment down: a bounded abort-flood
@@ -773,13 +773,12 @@ def main(
         "meltdown", "capacity", "churn", "replay", "feleak", "sample"
     ] = "meltdown",
     *,
-    base: str = "https://alpha-api.rankless.org",
+    base: str | None = None,
     corpus: str | None = None,
     concurrency: int = 16,
     hours: float = 8.0,
     speedup: float = 1.0,
-    host_map: str = "www.rankless.org=https://alpha.rankless.org,"
-    "api.rankless.org=https://alpha-api.rankless.org",
+    host_map: str | None = None,
     timeout: float = 120.0,
     report_every: int = 60,
     ssh_host: str = "rankless-alpha",
@@ -800,12 +799,32 @@ def main(
     _run_phases(argparse.Namespace(**locals()))
 
 
+def _alpha_targets() -> tuple[str, str]:
+    """Default (--base, --host-map): alpha's backend, and alpha answering for the live hosts."""
+    try:
+        from pyscripts import hosts
+    except ImportError:
+        raise SystemExit(
+            "--base and --host-map are required where the repo is not importable"
+        )
+    base = f"https://{hosts.ALPHA_BACKEND}"
+    live_to_alpha = {
+        hosts.LIVE_DOMAIN: f"https://{hosts.ALPHA_DOMAIN}",
+        hosts.LIVE_BACKEND: base,
+    }
+    return base, ",".join(f"{live}={alpha}" for live, alpha in live_to_alpha.items())
+
+
 def _run_phases(args: argparse.Namespace) -> None:
     with contextlib.suppress(OSError):
         LOG_DIR.mkdir(parents=True, exist_ok=True)
     if args.phase == "sample":
         sample(args)
         return
+    if args.base is None or args.host_map is None:
+        base, host_map = _alpha_targets()
+        args.base = args.base or base
+        args.host_map = args.host_map or host_map
     if args.phase == "meltdown":
         meltdown(args)  # auto-builds a corpus from --base if --corpus omitted
         return
