@@ -1,18 +1,30 @@
 use dmove::Entity;
 use rankless_rs::gen::a1_entity_mapping::Subfields;
+use wiretypes::wire;
 
 pub const MAX_HITS: usize = 80;
 pub const STAMP_FNAME: &str = "stamp";
+#[wire]
 pub const PORT: u16 = 3038;
 pub const SEARCH_SIZE: usize = 20;
+/// Rows one `/slice` page holds at most.
+#[wire]
 pub const MAX_SLICE: usize = 40_000;
+/// Ids one `/metrics/:etype` request is answered for; the rest are dropped.
+#[wire]
 pub const MAX_METRIC_IDS: usize = 100;
 // Calls one `/metrics/:etype` request may ask for; a walk metric costs one tree query per id, so
 // the two caps multiply.
 pub const MAX_METRIC_CALLS: usize = 16;
+/// Pinned entities one `/slice` request is answered for; the rest are dropped.
+#[wire]
 pub const MAX_PINS: usize = 24;
-// A screened ranking: the cohort's top `SCREEN_K` by citations, ranked by the sort metric.
+/// A screened ranking: the cohort's top `SCREEN_K` by citations, ranked by the sort metric.
+#[wire]
 pub const SCREEN_K: usize = 1000;
+/// Hex digits of the commit hash in the version stamp; `build.rs` reads the same file.
+#[wire]
+pub const COMMIT_HASH_LEN: usize = include!("commit_hash_len.in");
 pub const CACHEABLE_FROM: u32 = 10_000;
 pub const DEFAULT_N_THREADS: usize = 16;
 pub const N_SUBFIELDS: usize = Subfields::N;
