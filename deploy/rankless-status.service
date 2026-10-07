@@ -1,5 +1,5 @@
 [Unit]
-# Producer for nginx's :5566 /status (what live_monitoring.py polls): free memory,
+# Producer for nginx's /status on `STATUS_PORT` (what live_monitoring.py polls): free memory,
 # backend open files and root-FS fill, rewritten to /tmp/status_cache.json every
 # few seconds.
 Description=Rankless box status dump

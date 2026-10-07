@@ -89,10 +89,19 @@ CLOUDFLARE_RANGES = [
     "2a06:98c0::/29",
     "2c0f:f248::/32",
 ]
-# Where src/lib/server/card-raster.ts writes rendered share cards (tmpdir()/rankless-cards);
+# Where src/lib/server/card-raster.ts writes rendered share cards (`tmpdir()/CARD_CACHE_NAME`);
 # the module never evicts, so the box's tmpfiles rule ages them out.
-CARD_CACHE_DIR = "/tmp/rankless-cards"
+CARD_CACHE_DIR = f"/tmp/{paths.CARD_CACHE_NAME}"
 CARD_CACHE_MAX_AGE = "7d"
+# Front-door limits: pages and the API get separate per-visitor budgets (the API's
+# live in services.py), and page renders are also capped in flight, per visitor and
+# for the whole box.
+PAGE_RATE = "2r/s"
+PAGE_BURST = 20
+PAGE_CONN_PER_CLIENT = 8
+PAGE_CONN_TOTAL = 96
+PAGE_READ_TIMEOUT = "30s"
+PAGE_UPSTREAM_TRIES = 2
 
 BE_URL_VAR = "PUBLIC_BACKEND_URL"
 PUB_URL_VAR = "PUBLIC_ORIGIN"
@@ -248,8 +257,8 @@ def render_nginx_conf(
     fe_cache_dir: str,
     lt_token: str | None = None,
 ) -> str:
-    """The site conf: the frontend and API hosts behind Cloudflare plus the :5566
-    status endpoint. Visitor addresses come from CF-Connecting-IP, so every
+    """The site conf: the frontend and API hosts behind Cloudflare plus the
+    `services.STATUS_PORT` status endpoint. Visitor addresses come from CF-Connecting-IP, so every
     per-client zone keys on the visitor rather than the edge. Pages and the API
     get separate per-client budgets, and page renders are capped in flight
     (globally and per client) so a burst is shed with instant 503s instead of
@@ -321,8 +330,8 @@ proxy_cache_path {fe_cache_dir} levels=1:2 keys_zone=fe-cache:50m max_size=10g;
 {real_ip}
 real_ip_header CF-Connecting-IP;
 {lt_maps}
-limit_req_zone {limit_key} zone=pagelimit:10m rate=2r/s;
-limit_req_zone {limit_key} zone=apilimit:10m rate=10r/s;
+limit_req_zone {limit_key} zone=pagelimit:10m rate={PAGE_RATE};
+limit_req_zone {limit_key} zone=apilimit:10m rate={services.API_RATE};
 limit_conn_zone {limit_key} zone=pageconn:10m;
 limit_conn_zone {global_key} zone=pageload:1m;
 limit_req_status 429;
@@ -369,14 +378,14 @@ server {{
         proxy_cache fe-cache;
         {loc_suffix}
 
-        limit_req zone=pagelimit burst=20 nodelay;
-        limit_conn pageconn 8;
-        limit_conn pageload 96;
+        limit_req zone=pagelimit burst={PAGE_BURST} nodelay;
+        limit_conn pageconn {PAGE_CONN_PER_CLIENT};
+        limit_conn pageload {PAGE_CONN_TOTAL};
         # A render past this is a queue, not a page; and a bun 500 is a render
         # error, so only a dead worker is worth a second try.
-        proxy_read_timeout 30s;
+        proxy_read_timeout {PAGE_READ_TIMEOUT};
         proxy_next_upstream error invalid_header;
-        proxy_next_upstream_tries 2;
+        proxy_next_upstream_tries {PAGE_UPSTREAM_TRIES};
     }}
 }}
 
@@ -403,7 +412,7 @@ server {{
 }}
 
 server {{
-    listen 5566;
+    listen {services.STATUS_PORT};
 
     location /status {{
         default_type application/json;
@@ -1282,7 +1291,7 @@ OPS_STEPS: list[BoxStep] = [
     ),
     BoxStep(
         "status_unit",
-        f"{services.STATUS_UNIT} (/status producer on :5566), restarted",
+        f"{services.STATUS_UNIT} (/status producer on :{services.STATUS_PORT}), restarted",
         lambda tpr, spec: tpr.setup_status_service(),
     ),
     BoxStep(

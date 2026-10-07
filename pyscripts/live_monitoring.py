@@ -13,6 +13,7 @@ from email.mime.text import MIMEText
 import requests
 
 from .deploy import LIVE_DOMAIN, rolling_restart_live_fe
+from .services import STATUS_PORT
 
 EMAIL_ADDRESS = os.environ["GMAIL_ADDR"]
 EMAIL_PASSWORD = os.environ["GMAIL_APP_PW"]
@@ -147,7 +148,9 @@ if __name__ == "__main__":
                 except Exception as e:
                     log_result(e, "long time")
         try:
-            status_dic = requests.get(f"http://{IP}:5566/status", timeout=10).json()
+            status_dic = requests.get(
+                f"http://{IP}:{STATUS_PORT}/status", timeout=10
+            ).json()
         except Exception as e:
             print("failed status json")
             log_result(e, "status json")

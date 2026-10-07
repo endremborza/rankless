@@ -35,13 +35,17 @@ BACKEND_UNIT = "rankless-backend.service"
 MCP_SERVER_UNIT = "rankless-mcp-server.service"
 BACKUP_SERVICE_UNIT = "rankless-backup.service"
 BACKUP_TIMER_UNIT = "rankless-backup.timer"
+DEFAULT_BACKUP_DEST = Path.home() / "rankless-data" / "backups"
 STATUS_UNIT = "rankless-status.service"
+# The port nginx serves `/status` on; the unit's dump is what it serves.
+STATUS_PORT = 5566
 FE_UNIT_FRAME = "rankless-frontend-{}@.service"
 FE_BUILD_NAMES = ["blue", "green"]
 
-MCP_PORT = 8100
 # The per-client API budget, shared by the `/v1` and `/mcp` locations.
-API_LIMIT_REQ = "limit_req zone=apilimit burst=50 nodelay;"
+API_RATE = "10r/s"
+API_BURST = 50
+API_LIMIT_REQ = f"limit_req zone=apilimit burst={API_BURST} nodelay;"
 
 PROFILES = {
     "dev": ("backend", "mcp-server"),
@@ -194,8 +198,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--backup-dest",
-        default=str(Path.home() / "rankless-data" / "backups"),
-        help="where backups land on this machine (default: ~/rankless-data/backups).",
+        default=str(DEFAULT_BACKUP_DEST),
+        help=f"where backups land on this machine (default: {DEFAULT_BACKUP_DEST}).",
     )
     p.add_argument(
         "--print", action="store_true", help="print rendered units, install nothing."
