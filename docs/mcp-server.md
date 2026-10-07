@@ -91,17 +91,16 @@ wrapped in the receipt envelope, and `mcp_server/verify.py` re-issues them bare.
 ## Consumer: deep exploration
 
 ```bash
-uv run -m pyscripts.explore.deep --backend live --foci all \
+make deep-explore ARGS='--backend live --foci all \
     [--subject "César Hidalgo"] [--question "..."] [--investigate <run>[:<id>]] \
-    [--model opus] [--sample 8] [--max-turns 60] [--out my-run]
-# make alias: make deep-explore ARGS="--backend live --foci all"
+    [--story ["<occasion>"]] [--model opus] [--sample N] [--max-turns N] [--out my-run]'
+# = uv run -m pyscripts.explore.deep with the .env (EXTERNAL_DATA_ROOT) exported
 ```
 
 `pyscripts/explore/deep.py` drives a headless Claude session with these tools
 (`--mcp-config` + `--strict-mcp-config`, `--allowedTools mcp__rankless`) pointed at a chosen
 backend, then **re-issues every cited number** through the same tool functions — the
-reproduced value, not the model's text, is what gets published. Each run writes to
-`.cril/writeups/explorations/<run>/`:
+reproduced value, not the model's text, is what gets published. Each run writes to its dir under the run root, `$EXTERNAL_DATA_ROOT/runs/<run>/` (`pyscripts/explore/runs.py`; without the variable, as under a bare `uv run`, the root is `runs/` under `DEFAULT_EXTERNAL_DATA_ROOT`):
 
 | File | Contents |
 | --- | --- |
@@ -109,15 +108,13 @@ reproduced value, not the model's text, is what gets published. Each run writes 
 | `reproduce.md` | per-finding (`#f1`, `#f2`, …) numbers table + the exact calls (`tool(args) → path`) and equivalent `curl`. |
 | `findings.json` | machine-readable findings incl. stable `id`, reproduced values, and `meta` (per-phase runtime + counts). |
 | `ledger-suggestions.jsonl` | data-issue fix suggestions as the model wrote them (`kind`, `note`, `details`; not a `LedgerPayload`). |
+| `story.md`, `cards/` | with `--story`: one article written from the reproduced findings, and the card PNGs it shows (see below). |
 
-A one-line-per-run record is also appended to `.cril/writeups/explorations/runs.jsonl`.
+A one-line-per-run record is also appended to the run root's `runs.jsonl`.
 
 Parameters:
 
-- `--backend` — `local`, `alpha` or `live` (the `mcp_server.BACKENDS` table:
-  `127.0.0.1:3038`, `alpha-api.rankless.org`, `api.rankless.org`), or a full `/v1` URL.
-  Passed to the spawned MCP server (`RANKLESS_BE_URL` in the MCP config's `env`)
-  **and** the in-process verifier (`mcp_server.set_backend`), so both hit the same data.
+- `--backend` — a key of the `mcp_server.BACKENDS` table (`local`, `alpha`, `live`) or a full `/v1` URL. Passed to the spawned MCP server (`RANKLESS_BE_URL` in the MCP config's `env`) **and** the in-process verifier (`mcp_server.set_backend`), so both hit the same data.
 - `--foci` — any of `share` (interesting/shareable, sub-typed by `share_kind`), `query` (a
   specific investigation, drivable with `--question`), `data-issue` (a data problem: an
   investigation setup, or a single-ledger-entry fix), or `all`. Defaults to `query` when
@@ -129,27 +126,21 @@ Parameters:
   (`f1`, `f2`, …) in its run's `findings.json`; `--investigate <run>:f5` loads that
   finding's description + reproduced numbers as the seed and tells the agent to dig further.
   Omit `:<id>` to follow up the whole run.
-- `--max-turns` — cap on agent turns (default 120).
+- `--story ["<occasion>"]` — end the run with a story written from its reproduced findings; the value is the occasion (`"2026 Nobel Prize in Physics"`), if there is one.
+- `--max-turns` — cap on agent turns (default `MAX_TURNS` in `deep.py`).
 - `--suggest-endpoints` / `--no-suggest-endpoints` — surface backend endpoints that don't
   exist yet but would unlock better insight (on by default).
 
 `mcp_server/verify.py` re-issues the cited calls through `TOOL_FNS`, the same code the
 `verify_claims` tool runs for a live session.
 
-Findings list the pages they rest on (`entities`) and the share cards that show them
-(`images`). `uv run -m pyscripts.explore.posts <run-dir> [--context "..."]` turns a run's
-fully reproduced findings into an X thread, LinkedIn, Facebook and Reddit posts and an
-article draft, with no tools and no material but those findings; findings about gaps in
-rankless's own data stay out of the posts. Every number in the posts that no reproduced
-value accounts for (within the rounding it is written with, a percentage also read as a
-share) is listed for the reviewer, and X posts are measured with URLs counted as 23
-characters. The run dir is the publishable unit: `posts.json` holds the reply and the
-checks, every card a post uses is fetched into `cards/` (through `RANKLESS_RENDER_URL`
-when set), and `posts.md` and `article.md` reference them relatively.
+Findings list the pages they rest on (`entities`) and the share cards that show them (`images`). With `--story` the run ends by writing its story (`pyscripts/explore/story.py`): one more model call, with no tools and no material but the fully reproduced findings, returns a title and a markdown article with the findings' cards inline. Findings about gaps in rankless's own data stay out. The run dir gets `story.md`, whose YAML front matter holds the `title`, the `date`, the `occasion`, the `run`, `data_version` (the backend's `/v1/specs` version, the data run the numbers were read from), `image` (the first card the article shows, for a link preview) and `unverified`: every number in the text that no reproduced value accounts for, within the rounding it is written with, a percentage also read as a share; numbers in the occasion count as given. Every card the article shows is fetched into `cards/` (through `RANKLESS_RENDER_URL` when set) and referenced by that path, so a story and its pictures stay what they were on that data.
 
-The mining engine is pluggable: `pyscripts/explore/runner.py` holds a `RUNNERS` registry
-(selected with `--runner`, default `claude-cli`), so the Claude Code CLI can be swapped for
-an SDK/API engine without touching the mining or reproduction logic.
+A story is a file: the site neither renders nor edits it. Stories are published from their own repo, `rankless-stories` (a GitHub Pages site whose `scripts/add-story <run-dir> <slug>` copies a run's `story.md` and `cards/` in), where git holds their history and review.
+
+A run is private: the run root never reaches the site and moves between boxes with `make external-push|pull` ([deploy.md](deploy.md) §External data). What a run makes public leaves it by hand, a story through `rankless-stories`, game cards through the object store.
+
+The mining engine is pluggable: `pyscripts/explore/runner.py` holds a `RUNNERS` registry (selected with `--runner`, default `DEFAULT_RUNNER`, the Claude Code CLI), so the CLI can be swapped for an SDK/API engine without touching the mining or reproduction logic.
 
 ## Generator workflows
 

@@ -59,7 +59,7 @@ dev:
 mcp-server:
 	uv run -m mcp_server
 
-# Agentic deep exploration via the MCP tools; writes to .cril/writeups/.
+# Agentic deep exploration via the MCP tools; writes to $(EXTERNAL_DATA_ROOT)/runs/.
 # e.g. make deep-explore ARGS="--backend live --foci all"
 deep-explore:
 	uv run -m pyscripts.explore.deep $(ARGS)

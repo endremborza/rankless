@@ -11,7 +11,7 @@ path's section into a single report. Paths:
 - stories  -> shareable, data-grounded narratives.
 
 Agentic exploration over a live backend (deeper, evidence-reproduced, writes to
-.cril/writeups/) is a separate command: `pyscripts.explore.deep`.
+the run root, `runs.py`) is a separate command: `pyscripts.explore.deep`.
 """
 
 from dataclasses import dataclass, field

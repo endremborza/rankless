@@ -1,8 +1,8 @@
 """Agentic deep exploration over a live rankless backend via the MCP tools.
 
     uv run -m pyscripts.explore.deep --backend live --foci all \
-        [--subject "César Hidalgo"] [--question "..."] \
-        [--investigate <run>[:<id>]] [--model opus] [--sample 8] [--out my-run]
+        [--subject "César Hidalgo"] [--question "..."] [--story ["<occasion>"]] \
+        [--investigate <run>[:<id>]] [--model opus] [--sample N] [--out my-run]
 
 One run drives a headless Claude session with the rankless MCP tools
 (mcp_server/) pointed at a chosen backend. The agent produces findings; this
@@ -10,12 +10,14 @@ module then RE-ISSUES every cited number deterministically through the same
 tool functions, so the published numbers come from reproduction, not from the
 model.
 
-Output lands in `.cril/writeups/explorations/<run>/`:
+Output lands in the run's dir under the run root (`runs.root()`,
+`$EXTERNAL_DATA_ROOT/runs/<run>/`):
 - report.md   -> the stories only (prose + entity links), linking out
 - reproduce.md -> per-finding numbers table + the exact calls (+ curl)
 - findings.json -> machine-readable findings incl. reproduced values + ids
 - ledger-suggestions.jsonl -> data-issue fix suggestions as the model wrote them (kind, note, details)
-plus a one-line-per-run record appended to explorations/runs.jsonl.
+- story.md + cards/ -> with --story, one article written from the reproduced findings (story.py)
+plus a one-line-per-run record appended to the run root's runs.jsonl.
 
 Scoping options:
 - --foci        share / query / data-issue (or all); default query when
@@ -25,8 +27,10 @@ Scoping options:
 - --question    a specific investigation for the query focus.
 - --investigate deepen a past finding: `<run>` or `<run>:<id>` (finding ids
                 are `f1`, `f2`, ... in that run's findings.json).
+- --story       end the run with a story written from its reproduced findings;
+                the value is the occasion ("2026 Nobel Prize in Physics"), if any.
 - --suggest-endpoints  propose missing backend endpoints (on by default).
-- --max-turns   cap on agent turns (default 120).
+- --max-turns   cap on agent turns (default `MAX_TURNS`).
 """
 
 import argparse
@@ -41,15 +45,9 @@ from pathlib import Path
 import mcp_server
 from mcp_server import client as be_client
 from mcp_server import verify
-from pyscripts import object_store
-from pyscripts.explore import cli, evidence, runner, runs
+from pyscripts.explore import cli, evidence, runner, runs, story
 
 FOCI = ("share", "query", "data-issue")
-# Output root: personal PKM by default, overridable (env or --out-root) so the
-# host worker can write runs into the served sessions store instead.
-WRITEUPS_DIR = Path(
-    os.environ.get("RANKLESS_WRITEUPS_DIR", ".cril/writeups/explorations")
-)
 MAX_TURNS = 120
 TIMEOUT_S = 3600
 DEFAULT_SAMPLE = 8
@@ -104,10 +102,11 @@ class DeepConfig:
     backend_label: str
     foci: list[str]
     suggest_endpoints: bool
-    store: bool
     question: str | None
     subject: str | None
     investigate: dict | None
+    # the occasion of the story that ends the run; None for a run without one
+    story: str | None
     seeds: list[dict]
     sample: int
     max_turns: int
@@ -135,15 +134,14 @@ def main() -> int:
         backend_label=backend_label,
         foci=foci,
         suggest_endpoints=args.suggest_endpoints,
-        store=args.store,
         question=args.question,
         subject=args.subject,
         investigate=investigate,
+        story=args.story,
         seeds=seeds,
         sample=args.sample,
         max_turns=args.max_turns,
-        out_dir=Path(args.out_root)
-        / (args.out or runs.run_name("deep", backend_label)),
+        out_dir=runs.root() / (args.out or runs.run_name("deep", backend_label)),
     )
 
     print(
@@ -171,8 +169,12 @@ def main() -> int:
     }
 
     paths = _write(findings, suggestions, config, timing)
-    if config.store:
-        _store_findings(findings, config)
+    if config.story is not None:
+        data_version = asyncio.run(_data_version(config))
+        if path := story.write(
+            config.out_dir, findings, config.story, config.model, data_version
+        ):
+            print(f"-> {path}")
     n_ok = sum(f["_verified"] for f in findings)
     print(
         f"[deep] {len(findings)} finding(s), {n_ok} fully reproduced, "
@@ -209,19 +211,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--investigate",
         default=None,
-        help="deepen a past finding: '<run>' or '<run>:<id>' under the writeups dir.",
+        help="deepen a past finding: '<run>' or '<run>:<id>' under the run root.",
+    )
+    p.add_argument(
+        "--story",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="OCCASION",
+        help="end the run with a story (story.md) written from its reproduced findings; "
+        "the value is the occasion, e.g. the prize won.",
     )
     p.add_argument(
         "--suggest-endpoints",
         action=argparse.BooleanOptionalAction,
         default=True,
         help="ask the session to propose missing backend endpoints (default: on).",
-    )
-    p.add_argument(
-        "--store",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="collect fully verified findings into the MCP object store (default: on).",
     )
     p.add_argument(
         "--model",
@@ -422,6 +427,15 @@ async def _reproduce(findings: list[dict], config: DeepConfig) -> None:
                 m["key"]: m["reproduced"] for m in metrics if not m["error"]
             }
             finding["_verified"] = bool(metrics) and all(m["ok"] for m in metrics)
+    finally:
+        await be_client.aclose()
+
+
+async def _data_version(config: DeepConfig) -> str:
+    """The version of the data the backend serves (its `/v1/specs` stamp)."""
+    mcp_server.set_backend(config.backend_url)
+    try:
+        return (await be_client.get_json("/specs"))["version"]
     finally:
         await be_client.aclose()
 
