@@ -207,8 +207,13 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
                         for &aid in ref_authors.iter() {
                             let aid_u = aid.to_usize();
                             if aid_u >= lo && aid_u < hi && !hp_authors.contains(&aid) {
-                                dc[aid_u - lo]
-                                    .entry(hp_id)
+                                let hits = &mut dc[aid_u - lo];
+                                if hits.len() >= DIRECT_HITS_HELD && !hits.contains_key(&hp_id) {
+                                    *hits = top_hits(hits.iter().map(|(&hp, &s)| (s, hp)))
+                                        .map(|Reverse((s, hp))| (hp, s))
+                                        .collect();
+                                }
+                                hits.entry(hp_id)
                                     .and_modify(|s| *s = (*s).max(direct_score))
                                     .or_insert(direct_score);
                             }
@@ -250,12 +255,12 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         .map(|(dm, orm)| {
             let dm = mem::take(dm);
             let orm = mem::take(orm);
-            let mut heap = FixedHeap::<Reverse<(u64, ET<HitPapers>)>, TOP_HIT_PAPERS>::new();
-            for (&hp_id, &score) in dm.iter().chain(orm.iter()) {
-                heap.push_unique(Reverse((score, hp_id)));
-            }
+            let scored = dm
+                .iter()
+                .chain(orm.iter())
+                .map(|(&hp_id, &score)| (score, hp_id));
             let top: HashSet<ET<HitPapers>> =
-                heap.into_iter().map(|Reverse((_, hp_id))| hp_id).collect();
+                top_hits(scored).map(|Reverse((_, hp_id))| hp_id).collect();
             let mut direct_v: Vec<ET<HitPapers>> = dm
                 .into_iter()
                 .filter_map(|(hp, _)| top.contains(&hp).then_some(hp))
@@ -384,6 +389,17 @@ where
         );
     }
     h
+}
+
+/// The `TOP_HIT_PAPERS` best of (score, hit paper).
+fn top_hits(
+    scored: impl Iterator<Item = (u64, ET<HitPapers>)>,
+) -> impl Iterator<Item = Reverse<(u64, ET<HitPapers>)>> {
+    let mut heap = FixedHeap::<Reverse<(u64, ET<HitPapers>)>, TOP_HIT_PAPERS>::new();
+    for hit in scored {
+        heap.push_unique(Reverse(hit));
+    }
+    heap.into_iter()
 }
 
 fn team_sizes(counts: impl Iterator<Item = usize>) -> Box<[u16]> {
