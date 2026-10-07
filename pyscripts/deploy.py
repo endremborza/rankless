@@ -1621,9 +1621,7 @@ def smoke(live: bool) -> None:
     rt = next(iter(specs))
     rows = _check_json(f"https://{be}/v1/slice/{rt}/0/2", f"slice {rt}")["rows"]
     sid = quote_plus(rows[0]["semanticId"])
-    tree = _check_json(
-        f"https://{be}/v1/trees/{rt}/{sid}?tid=0&year=1950", f"tree {rt}/{sid}"
-    )
+    tree = _check_json(f"https://{be}/v1/trees/{rt}/{sid}?tid=0", f"tree {rt}/{sid}")
     if not tree:
         raise SystemExit("smoke: tree response empty")
     _check_mcp(f"https://{be}/mcp")

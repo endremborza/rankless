@@ -19,8 +19,6 @@ from tqdm import tqdm
 from .fleet.config import DEFAULT_BIG_CHUNK, DEFAULT_MIN_CITATIONS
 from .server_ops import DEFAULT_BE_ADDR as DEFAULT_ADDR
 
-year = 1950
-
 SIDC = "semanticId"
 RTC = "rt"
 TIDC = "tid"
@@ -64,7 +62,7 @@ class BatchRequester:
             .loc[lambda df: df["citations"] >= min_citations, :]
             .assign(cut_basis=lambda df: df["citations"] * df["bds"])
             .sort_values("cut_basis", ascending=False)
-            .pipe(add_be_urls, year, addr)
+            .pipe(add_be_urls, addr)
         )
         self.bigs = self.urled_sample.loc[
             lambda df: df["cut_basis"] > self.big_limit * 1e6
@@ -136,9 +134,9 @@ class BatchRequester:
             print(f"done in {round((time.time() - s) / 60 / 60, 2)} hours")
 
 
-def _urlify(s, year: int, addr: str) -> str:
+def _urlify(s, addr: str) -> str:
     qsid = quote_plus(s[SIDC])
-    return f"{addr}/v1/trees/{s[RTC]}/{qsid}?tid={s[TIDC]}&year={year}"
+    return f"{addr}/v1/trees/{s[RTC]}/{qsid}?tid={s[TIDC]}"
 
 
 def parse_url(url):
@@ -165,8 +163,8 @@ def resp_pipe(url):
     return {"fail": url}
 
 
-def add_be_urls(df, year=1950, addr: str = DEFAULT_ADDR):
-    return df.assign(url=df.apply(lambda s: _urlify(s, year, addr), axis=1))
+def add_be_urls(df, addr: str = DEFAULT_ADDR):
+    return df.assign(url=df.apply(lambda s: _urlify(s, addr), axis=1))
 
 
 def cache_dir_of(data_root: str, rt: str, eid: int, tid: int) -> Path:

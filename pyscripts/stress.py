@@ -71,7 +71,6 @@ import httpx
 if TYPE_CHECKING:
     from pyscripts.deploy import Transper
 
-YEAR = 1950
 LOG_DIR = Path(__file__).parent.parent / "logs" / "stress"
 CG_USER = "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service"
 CG_BE = f"{CG_USER}/app.slice/rankless-backend.service"
@@ -220,7 +219,7 @@ async def churn(args: argparse.Namespace) -> None:
             cursor[0] += 1
             url = (
                 f"{args.base}/v1/trees/{rt}/{quote_plus(slug)}"
-                f"?tid={random.randrange(tids[rt])}&year={YEAR}"
+                f"?tid={random.randrange(tids[rt])}"
             )
             await get_once(client, url, stats)
         stop.set()
