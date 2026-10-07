@@ -206,7 +206,7 @@ def test_nearest_card_needs_a_clear_nearest_under_the_ceiling() -> None:
     assert kms[1] == min(kms) and 40 < kms[1] < 70
     assert [o["semId"] for o in ok["options"]] == ["elte", "univie", "lmu", "szte"]
     assert ok["lat"] == 48.15 and ok["options"][1]["lon"] == 16.37
-    # Budapest at 161 km against Bratislava at 312 km: inside the 2x margin
+    # Bratislava, the runner-up, is inside NEAREST_MARGIN of Budapest
     ok, why = gcm.judge(
         "nearest-card", ELTE, [SZEGED, BRATISLAVA, MUNICH, VIENNA], [], WORLD
     )
@@ -222,13 +222,13 @@ def test_nearest_card_needs_a_clear_nearest_under_the_ceiling() -> None:
     assert ok is None and why == "not a tier-1 anchor"
 
 
-def test_options_must_be_roster_ids_with_two_of_tier_1() -> None:
+def test_options_must_be_roster_ids_with_enough_tier_1() -> None:
     ok, why = gcm.judge(
         "nearest-card", BRATISLAVA, [ELTE, VIENNA, MUNICH, CERN], [], WORLD
     )
     assert ok is None and why == "options off the roster ['cern']"
     ok, why = gcm.judge("local-card", ELTE, [DEBRECEN, BUDAPEST, SZEGED], [], WORLD)
-    assert ok is None and why == "fewer than 2 tier-1 options"
+    assert ok is None and why == f"fewer than {gcm.MIN_TIER1_OPTIONS} tier-1 options"
 
 
 def test_intruder_and_local_options_never_state_a_place() -> None:

@@ -5,6 +5,7 @@
 
 import { ccFlag, ccName, fnv1a, shareMessage, shuffle } from './game';
 import type { CardKind, DailyRun, PlayCard, PlayOption, RunStats } from '../types/game-geo';
+import game from '../assets/data/game.json' with { type: 'json' };
 
 // Public identity of the game, and the only place a rename touches: the route
 // directory matches on SLUG (src/params/campusQuest.ts) instead of naming it,
@@ -14,13 +15,10 @@ export const BRAND = 'CampusQuest';
 export const SLUG = 'campus-quest';
 export const PATH = `/${SLUG}`;
 
-export const KINDS: CardKind[] = [
-	'country-card',
-	'intruder-card',
-	'nearest-card',
-	'city-card',
-	'local-card'
-];
+// The kinds and the options on every card are shared with the card miner
+// (pyscripts/explore/game_card_mining.py) through game.json.
+export const KINDS = game.kinds as CardKind[];
+export const OPTIONS_PER_CARD = game.optionsPerCard;
 
 // The pair on screen is the instruction: each kind asks one question, always,
 // so nothing needs a label. `prompt`/`options` say how each side reads;
@@ -78,8 +76,8 @@ export const DAILY_SIZE = DAILY_RECIPE.length;
 export const LIVES = 5;
 
 // Scores count half-points: a plain hit is FULL, a hit after the 50:50 HALF
-// (0.5 x 0.5 = 0.25 is what a blind guess at four options is worth, so the
-// lifeline buys certainty, never score).
+// (a blind guess between the two options the lifeline leaves, at half score, is worth what a blind
+// guess among OPTIONS_PER_CARD options is, so the lifeline buys certainty, never score).
 export const FULL = 2;
 export const HALF = 1;
 

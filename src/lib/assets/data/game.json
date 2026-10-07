@@ -1,0 +1,4 @@
+{
+	"kinds": ["country-card", "intruder-card", "nearest-card", "city-card", "local-card"],
+	"optionsPerCard": 4
+}

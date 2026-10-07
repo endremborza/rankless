@@ -40,17 +40,23 @@ from pathlib import Path
 import mcp_server
 from mcp_server import client as be_client
 from mcp_server import verify
-from pyscripts import object_store
+from pyscripts import object_store, paths
 from pyscripts.explore import cli, runner, runs
 
 WORKFLOW = "rankless-game-card-mining"
 TITLE = "Game cards"
 ETYPE = "institutions"
-KINDS = ("country-card", "intruder-card", "nearest-card", "city-card", "local-card")
-# option entities a proposal names per kind; the anchor itself is the fourth
+_GAME = paths.asset("game.json")
+KINDS: tuple[str, ...] = tuple(_GAME["kinds"])
+OPTIONS_PER_CARD: int = _GAME["optionsPerCard"]
+# option entities a proposal names per kind; the anchor itself is the last
 # option of the intruder and local kinds
-N_OPTIONS = {"nearest-card": 4, "intruder-card": 3, "local-card": 3}
-N_DECOYS = 3
+N_OPTIONS = {
+    "nearest-card": OPTIONS_PER_CARD,
+    "intruder-card": OPTIONS_PER_CARD - 1,
+    "local-card": OPTIONS_PER_CARD - 1,
+}
+N_DECOYS = OPTIONS_PER_CARD - 1
 MIN_TIER1_OPTIONS = 2
 NEAREST_MARGIN = 2.0
 NEAREST_MAX_KM = 2000.0
@@ -61,7 +67,6 @@ NEAREST_MENU = 12
 EARTH_RADIUS_KM = 6371.0
 BATCH_SIZE = 20
 MAX_PROPOSALS = 10
-TIMEOUT_S = 600
 BREAK_AFTER = 5
 NOTE_LEN = (20, 300)
 TASTE_LIMIT = 40
@@ -199,37 +204,37 @@ Boring:
 
 _RULES = """\
 You curate cards for CampusQuest, a geography speed quiz on Rankless, a
-scholarly citation explorer: players see one prompt and four tappable options
-and answer within seconds. Every card is one of five kinds, each asking one
+scholarly citation explorer: players see one prompt and %(n_options)d tappable options
+and answer within seconds. Every card is one of %(kinds)d kinds, each asking one
 fixed question:
 
-- country-card — prompt: an institution; options: four countries. "Where is
+- country-card — prompt: an institution; options: %(n_options)d countries. "Where is
   it actually?" Good anchors are lesser-known institutions whose names point
-  at a SPECIFIC wrong place. Give exactly 3 decoy ISO 3166-1 alpha-2 codes,
+  at a SPECIFIC wrong place. Give exactly %(decoys)d decoy ISO 3166-1 alpha-2 codes,
   including the country the name evokes most; never the true country, never
   one the name contains.
-- city-card — prompt: an institution; options: four cities. "Which city?"
-  Best anchors are famous institutions with unobvious cities. Give 3 decoy
+- city-card — prompt: an institution; options: %(n_options)d cities. "Which city?"
+  Best anchors are famous institutions with unobvious cities. Give %(decoys)d decoy
   cities from the CITIES list a player might guess, never the true one.
-- nearest-card — prompt: a recognizable institution; options: four ROSTER
+- nearest-card — prompt: a recognizable institution; options: %(n_options)d ROSTER
   institutions. "Which is closest?" Use the distances given with the
-  candidate: one option must be at least twice as close as each of the other
-  three, and rough geographic sense should be able to reason it out.
-- intruder-card — prompt: a country; options: four institutions, three in
+  candidate: one option must be at least %(margin)g× as close as each of the other
+  %(others)d, and rough geographic sense should be able to reason it out.
+- intruder-card — prompt: a country; options: %(n_options)d institutions, %(intruder)d in
   that country and one elsewhere. "Which one is not here?" The anchor IS the
   intruder: an institution whose name reads as that country but sits
-  elsewhere. Give three ROSTER institutions of one INTRUDER COUNTRY as options;
+  elsewhere. Give %(intruder)d ROSTER institutions of one INTRUDER COUNTRY as options;
   their names should read as that country without stating it (no † entries).
-- local-card — prompt: a city; options: four institutions, one in that city
-  and three elsewhere. "Which one is here?" The anchor IS the local one. Give
-  three ROSTER institutions outside the anchor's city whose names state
+- local-card — prompt: a city; options: %(n_options)d institutions, one in that city
+  and %(local)d elsewhere. "Which one is here?" The anchor IS the local one. Give
+  %(local)d ROSTER institutions outside the anchor's city whose names state
   neither the asked city nor any place (no † entries).
 
 The harness decides what is usable; you decide what is interesting. Each
 candidate comes with the kinds still open to it — everything else is already
 carded or excluded, so propose nothing outside that list — and, for nearest
 cards, the nearest ROSTER institutions with their distance in km. Option ids
-come only from the ROSTER; nearest and local cards need at least two options
+come only from the ROSTER; nearest and local cards need at least %(tier1)d options
 of tier 1; a † roster entry (its name states a place: its city, its country
 or a region) can be a nearest option only; decoy cities come only from CITIES. You never state an
 answer, a country, a distance or a number: every answer is recomputed from
@@ -243,9 +248,22 @@ answering) saying where it really is and why the wrong answer tempted.
 Respond with ONLY a JSON object (no markdown fences):
 {"cards": [{"kind": "...", "anchor": "<id>", "options": ["<id>", ...],
   "decoys": ["...", ...], "note": "..."}]}
-`options` holds ids (nearest 4, intruder 3, local 3); `decoys` holds 3 ISO
-codes (country-card) or 3 city names (city-card).
-""" % {"max": MAX_PROPOSALS}
+`options` holds ids (%(options)s); `decoys` holds %(decoys)d ISO
+codes (country-card) or %(decoys)d city names (city-card).
+""" % {
+    "kinds": len(KINDS),
+    "n_options": OPTIONS_PER_CARD,
+    "decoys": N_DECOYS,
+    "margin": NEAREST_MARGIN,
+    "others": N_OPTIONS["nearest-card"] - 1,
+    "intruder": N_OPTIONS["intruder-card"],
+    "local": N_OPTIONS["local-card"],
+    "tier1": MIN_TIER1_OPTIONS,
+    "max": MAX_PROPOSALS,
+    "options": ", ".join(
+        f"{k.removesuffix('-card')} {n}" for k, n in N_OPTIONS.items()
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -588,7 +606,7 @@ def unusable_line(anchor: Place, shut: dict[str, str]) -> str:
 
 def _options_reject(options: list[Place], world: World, kind: str) -> str:
     """Option rules by kind: every option is a roster name; a nearest or local
-    card leans on fame (two of tier 1); an intruder or local card is decided
+    card leans on fame (MIN_TIER1_OPTIONS of tier 1); an intruder or local card is decided
     by knowledge, so no option may state a place: its city, its country or
     a region."""
     if off := [o.sem_id for o in options if o.sem_id not in world.tiers]:
@@ -609,7 +627,7 @@ def _judge_country(
 ) -> tuple[dict | None, str]:
     codes = [d.upper() for d in decoys]
     if len(codes) != N_DECOYS or len(set(codes)) != N_DECOYS or anchor.cc in codes:
-        return None, "need 3 distinct decoy countries other than the true one"
+        return None, f"need {N_DECOYS} distinct decoy countries other than the true one"
     if unknown := [c for c in codes if c not in world.iso2]:
         return None, f"unknown decoy code(s) {unknown}"
     if named := [c for c in codes if names(anchor.name, world.country_names.get(c))]:
@@ -624,7 +642,7 @@ def _judge_city(
         return None, "anchor has no city"
     folded = [_fold(d) for d in decoys]
     if len(decoys) != N_DECOYS or len(set(folded)) != N_DECOYS:
-        return None, "need 3 distinct decoy cities"
+        return None, f"need {N_DECOYS} distinct decoy cities"
     if _fold(anchor.city) in folded:
         return None, "the true city is among the decoys"
     if unknown := [d for d, f in zip(decoys, folded) if f not in world.cities]:
@@ -660,7 +678,7 @@ def _judge_intruder(
 ) -> tuple[dict | None, str]:
     ccs = {o.cc for o in options}
     if len(ccs) != 1 or "" in ccs:
-        return None, "the three locals must share one country"
+        return None, f"the {N_OPTIONS['intruder-card']} locals must share one country"
     country = ccs.pop()
     if not anchor.cc or anchor.cc == country:
         return None, "the intruder is in the asked country"
@@ -771,7 +789,6 @@ def _generate(
                 system,
                 _user_prompt([p for p in placed if p.sem_id in menus], menus),
                 model,
-                timeout_s=TIMEOUT_S,
                 stats=stats,
             )
             proposals = cli.parse_json(raw).get("cards", [])
@@ -1161,11 +1178,12 @@ def _fact(p: Place, path: str) -> dict:
 
 
 def _placed(entities: list[Place], facts: list[dict]) -> list[Place]:
-    """Places rebuilt from the reproduced facts, three per entity in
-    FACT_PATHS order."""
+    """Places rebuilt from the reproduced facts, one FACT_PATHS run per entity
+    in FACT_PATHS order."""
+    n = len(FACT_PATHS)
     out = []
     for i, e in enumerate(entities):
-        lat, lon, distinct = (f["reproduced"] for f in facts[3 * i : 3 * i + 3])
+        lat, lon, distinct = (f["reproduced"] for f in facts[n * i : n * (i + 1)])
         city, cc = place_parts(str(distinct))
         out.append(
             Place(

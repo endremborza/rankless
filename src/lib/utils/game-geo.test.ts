@@ -10,6 +10,7 @@ import {
 	KINDS,
 	LIVES,
 	MAX_MEDICAL_CARDS,
+	OPTIONS_PER_CARD,
 	PATH,
 	askParts,
 	dailyDeck,
@@ -201,6 +202,11 @@ describe('lifeline and points', () => {
 		expect(kept[0]).toBe(c.answer);
 		expect(kept[1]).not.toBe(c.answer);
 		expect(lifelineKeep(c, '2026-09-10')).toEqual(kept);
+	});
+
+	it('buys certainty, never score', () => {
+		const kept = lifelineKeep(card('city-card', 3), '2026-09-10');
+		expect(HALF / kept.length).toBe(FULL / OPTIONS_PER_CARD);
 	});
 
 	it('scores a lifelined hit half, a miss nothing', () => {

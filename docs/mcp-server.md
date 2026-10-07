@@ -167,21 +167,21 @@ One generator mines objects into the store, the CampusQuest card round. A run is
   city (every kind but nearest) or country (country, intruder), a tier-1 roster
   name (country, intruder: placeable by definition), a non-tier-1 name (nearest), a
   name off the roster (local) — and `menu()` hands the model, per candidate in a
-  batch of 20, the kinds still open and the nearest roster institutions with
+  batch of `BATCH_SIZE`, the kinds still open and the nearest roster institutions with
   distances, so it never does geography. The stable system prompt carries the
   hand-edited `HOUSE_STYLE` taste block, the roster grouped by country as the only
   legal option ids, the roster's cities as the only legal decoy cities, the
   countries that can host an intruder card, the notes, and every reviewer
-  rejection (`status_note`) grouped by reason. Proposals are capped at 10 per
-  batch and are question shapes only (kind, anchor, option ids or decoy names,
+  rejection (`status_note`) grouped by reason. Proposals are capped per
+  batch (`MAX_PROPOSALS`) and are question shapes only (kind, anchor, option ids or decoy names,
   reveal note), never an answer: every answer is recomputed from
   `get_entity_profile` facts re-issued through `verify.verify_facts` (coordinates +
   place, stored on the card as `facts`, one memoised profile fetch per institution
   per run), `judge()` re-applies `unusable()` plus the option rules (roster ids
-  only; at least two of tier 1 for nearest and local cards; no intruder local or
+  only; at least `MIN_TIER1_OPTIONS` of tier 1 for nearest and local cards; no intruder local or
   local option whose name states its own city or country, former names included —
   Peking University states Beijing — since such a card is solved by elimination;
-  the 2× nearest margin with the nearest at least 1 km away, so a same-city twin
+  the `NEAREST_MARGIN` nearest margin with the nearest at least `NEAREST_MIN_KM` away, so a same-city twin
   is never the answer, and no nearest option naming the anchor's city (two
   Barcelonas make the answer a reading test); one shared country for the intruder locals; no intruder-local or local option
   naming a first-level region either (`src/lib/assets/data/region-names.json`,
@@ -197,7 +197,7 @@ One generator mines objects into the store, the CampusQuest card round. A run is
   batch. Every payload carries the anchor's `city` next to its `cc`.
   `--kinds intruder-card,local-card` opens only those kinds, so a starved kind
   gets a round of its own (the intruder kind is the scarcest: it needs a
-  misdirecting non-tier-1 anchor and a country with three place-free roster
+  misdirecting non-tier-1 anchor and a country with `N_OPTIONS["intruder-card"]` place-free roster
   names). `--audit` re-judges every stored card against the current rules (places read
   from the payload, its facts, then the pool) and prints the failures grouped by
   reason with the index ids `objects set-status` takes — no model, nothing
