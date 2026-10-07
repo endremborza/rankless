@@ -8,7 +8,7 @@ every breakdown. Single query path: `TreeRunManager` worker → `TreeMakingRun::
    `PostRefIterWrap<MinIntX<Institutions>, RefSubCiSubTByRef>`). Each `next()` walks the citation
    graph via `Peekable<Iter>` chains driven by the `opt_peek!`/`opt_next!`/`reg_peek!` macros
    (`components.rs`), doing several mmap getter lookups per record, emitting a flat tuple
-   `(pid, (lvl0, lvl1, …, ref_wid, cit_wid))`. `pid` = work period (one of `N_PERS = 12`).
+   `(pid, (lvl0, lvl1, …, ref_wid, cit_wid))`. `pid` = work period (one of `N_PERS`).
 
 2. **Heap building** — `fill_heaps` allocates one `MinHeap` per period (`agg_tree.rs`; the array
    is sized `MAX_PARTITIONS`) and pushes _every_ record into `heaps[pid]`. `MinHeap` is a lazily
@@ -27,7 +27,7 @@ every breakdown. Single query path: `TreeRunManager` worker → `TreeMakingRun::
 
 5. **Collapse + serialize** — `collapse()` yields the full typed tree; `fold_tree` converts it
    `Into<BufSerTree>` via `children_from_vec` (`instances.rs`, builds nested `HashMap<u32,…>` per
-   node), `ingest_disjunct` (`io.rs`) merges the 12 period-trees.
+   node), `ingest_disjunct` (`io.rs`) merges the `N_PERS` period-trees.
    **tlog: `converted, ingested and wrote trees`.**
 
 6. **Prune + response** — `prune` (`prune.rs`) keeps the top children per level via two

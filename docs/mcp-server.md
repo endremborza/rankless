@@ -295,15 +295,7 @@ make setup-services ARGS="--profile dev"                        # this machine
 make setup-services ARGS="--profile dev --mcp-backend local"    # re-point the MCP server
 ```
 
-Profiles pick the service set: `dev` = backend + mcp-server, `small-alpha` =
-frontend (blue+green) + mcp-server + status, `live` = all four. The MCP server's backend
-is a parameter (`--mcp-backend local|alpha|live|<url>`) with per-profile defaults (dev → alpha
-API, small-alpha and live → the box's own backend port, the one nginx serves as its `/v1`). Cloud
-instances get the same templates via `pyscripts/deploy.py` (`Transper.setup_mcp_services`, the
-`mcp_units` step of the ops definition in `docs/deploy.md`),
-which also injects the `deploy/nginx-mcp-location.conf` proxy into the backend server block,
-exposing `https://alpha-api.rankless.org/mcp`. Set `MCP_PUBLIC_URL` to that when baking the
-manifest.
+Profiles (`services.PROFILES`) pick the service set. The MCP server's backend is a parameter (`--mcp-backend`, a `BACKENDS` key or a `/v1` URL) with a per-profile default (`DEFAULT_MCP_BACKEND`: a dev box mines a deployed API's real data, a serving box uses its own backend port, the one nginx serves as its `/v1`). Cloud instances get the same templates via `pyscripts/deploy.py` (`Transper.setup_mcp_services`, the `mcp_units` step of the ops definition in `docs/deploy.md`), which also injects the `deploy/nginx-mcp-location.conf` proxy into the backend server block, exposing `/mcp` on the alpha's backend domain, the `MCP_PUBLIC_URL` the manifest is baked with by default.
 
 The public endpoint is guarded on both sides: nginx forwards the real `Host`, applies the
 site's per-client `apilimit` zone to `/mcp` (429 past the burst), and the unit's

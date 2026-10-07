@@ -123,7 +123,7 @@ pull.
 
 ## Verifying end-to-end (dev box)
 
-1. Backend on 3038 + frontend dev server; `ADMIN_ORCIDS=<your orcid>`.
+1. `make dev` (backend + frontend dev server); `ADMIN_ORCIDS=<your orcid>`.
 2. `/dev-login`, create claims via `POST /api/ledger` (one DOI whose record
    carries your ORCID, a few foreign ones).
 3. `/admin/ledger` → Fetch metadata → titles/links appear, the proven claim

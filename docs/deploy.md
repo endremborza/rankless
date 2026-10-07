@@ -15,7 +15,7 @@ make ship-alpha         # fresh large alpha box (full setup + DB handoff + smoke
 make promote            # flip alpha to live (DB catch-ups + smoke)
 ```
 
-`refresh-data` and `warm-caches` take a pipeline lock (`/tmp/rankless-pipeline.lock`):
+`refresh-data` and `warm-caches` take a pipeline lock (`LOCK_PATH` in `pyscripts/recalc.py`):
 the dmove-parts root is shared, two data pipelines on one box corrupt each other.
 
 ## refresh-data
@@ -119,14 +119,13 @@ config is machine-local and gitignored — it names this box's ssh peers, paths 
 memory-fit bands, so it lives with the other per-machine state under `data/`:
 
 ```toml
-[fleet]
-min_citations = 100000 # warm worklist floor, uniform across workers
+[fleet]                # min_citations: warm worklist floor, uniform across workers (DEFAULT_MIN_CITATIONS)
 
-[model]                # resource model for preflight + suggest (fleet-wide)
-mem_base_gb = 41.0     # backend startup baseline (full env)
-gb_per_mcut = 0.25     # peak compute GB per M cut_basis per in-flight tree
-headroom_gb = 8.0      # OS + page cache + safety margin
-parts_gb_per_big = 20.0 # parts-root footprint per prepped big
+[model]                # resource model for preflight + suggest (fleet-wide); keys and defaults are the Model fields
+# mem_base_gb: backend startup baseline (full env)
+# gb_per_mcut: peak compute GB per M cut_basis per in-flight tree
+# headroom_gb: OS + page cache + safety margin
+# parts_gb_per_big: parts-root footprint per prepped big
 
 [[worker]]
 name = "local"

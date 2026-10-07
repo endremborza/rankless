@@ -26,10 +26,10 @@ claims and author-merges are queued for moderation.
 
 ## 2. Peers comparison — NEW
 
-Every institution, country, journal, and author is now placed against ~5 algorithmically
+Every institution, country, journal, and author is now placed against algorithmically
 similar peers. Mini per-subfield citation bars summarise each peer; selecting one opens
 **citations-by-field and citations-by-year** charts expressed as multipliers against that
-peer. Subfield chips carry percentile **"standing" badges** (top 5% … top 0.01%), derived
+peer. Subfield chips carry percentile **"standing" badges**, derived
 from a per-field citation "ladder". Any peer can be swapped for an arbitrary entity via search.
 
 ## 3. Redesigned entity pages — NEW
@@ -61,7 +61,8 @@ site this list was unreachable — see notes.)
 An author's standout ("hit") papers are surfaced directly on their profile as a colour-coded
 "rainbow", each linking to a **breakdown** — a treemap of which research domains cite the
 paper — with a plain-English explainer of why it qualified. The qualifying threshold was lowered
-(≥5000 → ≥500 citations, plus benchmark- and topic-based criteria), surfacing many more papers.
+from a flat citation count to a multiple (`PAPER_SCORE.hit_multiple`) of the citation bar of
+the paper's own field and year, surfacing many more papers.
 
 ## 7. Search & discovery
 

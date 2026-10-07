@@ -41,17 +41,17 @@ entity type**. Subfields and topics-as-entity are excluded.
 
 ## Tuning constants
 
-All constants are in `topic_tags.rs` (env-independent for now):
+The constants and their values are in `topic_tags.rs` (env-independent for now):
 
-| Constant | Value | Meaning |
-| --- | --- | --- |
-| `CREATOR_CUTOFF_YEAR` | 2000 | Min first-paper year for a topic to be eligible |
-| `MIN_CREATOR_CITATIONS` | 50 | Citation floor for a creator paper |
-| `MIN_DOM_TOPIC_PAPERS` | 50 | Skip topics too small for a share to be meaningful |
-| `DOM_PCT_AUTHORS` | 0.02 | Cited-share threshold, authors |
-| `DOM_PCT_INSTITUTIONS` | 0.10 | Cited-share threshold, institutions |
-| `DOM_PCT_SOURCES` | 0.20 | Cited-share threshold, sources |
-| `DOM_PCT_COUNTRIES` | 0.35 | Cited-share threshold, countries |
+| Constant | Meaning |
+| --- | --- |
+| `CREATOR_CUTOFF_YEAR` | Min first-paper year for a topic to be eligible |
+| `MIN_CREATOR_CITATIONS` | Citation floor for a creator paper |
+| `MIN_DOM_TOPIC_PAPERS` | Skip topics too small for a share to be meaningful |
+| `DOM_PCT_AUTHORS` | Cited-share threshold, authors |
+| `DOM_PCT_INSTITUTIONS` | Cited-share threshold, institutions |
+| `DOM_PCT_SOURCES` | Cited-share threshold, sources |
+| `DOM_PCT_COUNTRIES` | Cited-share threshold, countries |
 
 After tuning, re-run the pipeline from `derive_links3` and restart the server.
 
