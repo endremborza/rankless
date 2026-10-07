@@ -239,7 +239,7 @@
 
 <section>
 <h2>Hard rules &mdash; bot side</h2>
-<p class="hint">Any of these &rarr; <code class="cls-bot_known">bot_known</code>. Rates over 14,978,541 sessions.</p>
+<p class="hint">Any of these &rarr; <code class="cls-bot_known">bot_known</code>. Rates over 15,110,591 sessions.</p>
 <ul class="rules">
   <li>
     <code>empty_ua</code> &mdash; User-Agent header missing or empty.
@@ -247,7 +247,7 @@
   </li>
   <li>
     <code>bot_ua</code> &mdash; User-Agent matches a known bot/crawler/script family.
-      <span class="rate">11.16%</span>
+      <span class="rate">11.09%</span>
   </li>
   <li>
     <code>robots_or_sitemap</code> &mdash; Hit one of the bot-only routes: ['/robots.txt', '/sitemap*.xml'].
@@ -288,7 +288,7 @@
       </td>
       <td><code>search_used</code></td>
       <td>Used the search endpoint `/v1/names/{etype}` with a non-empty `q=` param.</td>
-      <td>0.35%</td>
+      <td>0.36%</td>
     </tr>
     <tr>
       <td class="pos">
@@ -296,7 +296,7 @@
       </td>
       <td><code>browser_ua</code></td>
       <td>User-Agent looks like a real browser (`Mozilla` + Chrome/Safari/Firefox/etc.).</td>
-      <td>94.46%</td>
+      <td>94.49%</td>
     </tr>
     <tr>
       <td class="pos">
@@ -312,7 +312,7 @@
       </td>
       <td><code>referrer_present</code></td>
       <td>At least one request carries a non-empty Referer.</td>
-      <td>31.66%</td>
+      <td>31.54%</td>
     </tr>
     <tr>
       <td class="neg">
@@ -320,7 +320,7 @@
       </td>
       <td><code>www_no_api</code></td>
       <td>At least one request to the frontend domain with zero api.rankless.org (/v1/) calls.</td>
-      <td>77.69%</td>
+      <td>77.75%</td>
     </tr>
   </tbody>
 </table>
@@ -332,14 +332,14 @@
   Sessions that reached soft scoring (no hard rule fired). Dotted lines mark the
   <code class="cls-human_likely">human_likely</code> / <code class="cls-bot_likely">bot_likely</code> thresholds.
 </p>
-<div id="score-dist" style="height:260px"></div><script>Plotly.newPlot("score-dist", {"data": [{"x": [-2, -1, 0, 1, 2, 3, 4, 5, 6], "y": [776614, 9487443, 1361944, 24389, 3271416, 1004, 55168, 6, 557], "type": "bar", "marker": {"color": "#89b4fa"}, "name": "sessions"}], "layout": {"xaxis": {"title": "soft score", "dtick": 1}, "yaxis": {"title": "sessions"}, "shapes": [{"type": "line", "x0": 2.5, "x1": 2.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#a6e3a1", "dash": "dot", "width": 1.5}}, {"type": "line", "x0": 0.5, "x1": 0.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#f38ba8", "dash": "dot", "width": 1.5}}], "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
+<div id="score-dist" style="height:260px"></div><script>Plotly.newPlot("score-dist", {"data": [{"x": [-2, -1, 0, 1, 2, 3, 4, 5, 6], "y": [778595, 9593373, 1365789, 24435, 3289573, 1008, 57236, 6, 576], "type": "bar", "marker": {"color": "#89b4fa"}, "name": "sessions"}], "layout": {"xaxis": {"title": "soft score", "dtick": 1}, "yaxis": {"title": "sessions"}, "shapes": [{"type": "line", "x0": 2.5, "x1": 2.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#a6e3a1", "dash": "dot", "width": 1.5}}, {"type": "line", "x0": 0.5, "x1": 0.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#f38ba8", "dash": "dot", "width": 1.5}}], "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
 </section>
 
 </main>
 <footer>
-  <span>Rendered 2026-10-07T14:10:30+00:00</span>
-  <span>Last pull: 2026-10-07T14:10:28+00:00</span>
-  <span>Last event: 2026-10-07 14:10:16+00:00</span>
+  <span>Rendered 2026-10-07T18:10:44+00:00</span>
+  <span>Last pull: 2026-10-07T18:10:42+00:00</span>
+  <span>Last event: 2026-10-07 18:10:29+00:00</span>
 </footer>
 </body>
 </html>
