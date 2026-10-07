@@ -3,9 +3,12 @@ use std::fmt::Display;
 use serde::Serialize;
 use wiretypes::wire;
 
-use crate::env_consts::{
-    FINAL_YEAR, MIN_AUTHOR_CITE_COUNT, MIN_AUTHOR_WORK_COUNT, MIN_PAPERS_FOR_INST,
-    MIN_PAPERS_FOR_SOURCE, START_YEAR,
+use crate::{
+    env_consts::{
+        FINAL_YEAR, MIN_AUTHOR_CITE_COUNT, MIN_AUTHOR_WORK_COUNT, MIN_PAPERS_FOR_INST,
+        MIN_PAPERS_FOR_SOURCE, START_YEAR,
+    },
+    ladder::{LADDER_LEN, LADDER_PCT_BANDS},
 };
 
 // Exponent of the entity-size divisor under the field score. Equal to `peers::SPEC_BETA` today and
@@ -15,6 +18,7 @@ pub const FIELD_SCORE_BETA: f64 = 0.75;
 // The paper score and the work screen, stated once: the pipeline steps and `filter` read these
 // values, `/v1/methodology` serves them, and every text about them is a template `fill` completes
 // from them, so no text restates a number.
+#[wire]
 pub const PAPER_SCORE: PaperScore = {
     let w_sf = 0.005;
     let w_year = 0.1;
@@ -31,6 +35,7 @@ pub const PAPER_SCORE: PaperScore = {
 
 // Papers a root type's Top-N mean averages over, keyed by entity name: this module compiles with
 // every pipeline step, before the entity types are generated.
+#[wire]
 pub const TOP_N: &[(&str, usize)] = &[
     ("sources", 1000),
     ("institutions", 2000),
@@ -40,6 +45,24 @@ pub const TOP_N: &[(&str, usize)] = &[
 
 // Publication years the recent h-indices count from.
 pub const H_SINCE: [u16; 2] = [2010, 2020];
+
+// A work carries an OpenAlex topic whose score for it is above this.
+#[wire]
+pub const MIN_TOPIC_SCORE: f64 = 0.7;
+
+// The hit papers an author's impact keeps: the best this many of those citing the author's work
+// directly or once removed.
+#[wire]
+pub const TOP_HIT_PAPERS: usize = 50;
+
+// The most shared papers a co-author count records; a pair with more stays at this.
+#[wire]
+pub const MAX_SHARED_PAPERS: u8 = 251;
+
+// A tree level's specialization baseline blends each entity's own share of the citations with the
+// uniform share, this much of the latter, so a rare entity's expected count is not near zero.
+#[wire]
+pub const SPEC_CORR_RATE: f64 = 0.45;
 
 // The last publication year with paper scores: in the final year, when a paper appeared would
 // weigh more than how it is cited.
@@ -87,6 +110,10 @@ pub const METHODOLOGY: Methodology = Methodology {
     paper_score: PAPER_SCORE,
     top_n: TOP_N,
     h_since: H_SINCE,
+    ladder_pct_bands: LADDER_PCT_BANDS,
+    min_topic_score: MIN_TOPIC_SCORE,
+    top_hit_papers: TOP_HIT_PAPERS,
+    spec_corr_rate: SPEC_CORR_RATE,
 };
 
 // A bar as stored: whole units of `1 / bar_scale` citations, 0 for a paper without a score.
@@ -143,6 +170,11 @@ pub struct Methodology {
     pub paper_score: PaperScore,
     pub top_n: &'static [(&'static str, usize)],
     pub h_since: [u16; H_SINCE.len()],
+    // The top shares of a field's cohort an entity's citation standing is placed in, loosest first.
+    pub ladder_pct_bands: [f64; LADDER_LEN],
+    pub min_topic_score: f64,
+    pub top_hit_papers: usize,
+    pub spec_corr_rate: f64,
 }
 
 // What one published item means and why it is defined that way, as templates over the constants.

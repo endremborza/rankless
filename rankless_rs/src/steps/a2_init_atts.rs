@@ -12,6 +12,7 @@ use crate::{
         AreaFields, Authors, Cities, Countries, DiscardedAuthors, Domains, Fields, Institutions,
         Sources, Subfields, Topics, Works,
     },
+    metrics::MIN_TOPIC_SCORE,
     oa_structs::{
         post::{
             read_post_str_arr, Author, Authorship, Field, IdSet, Institution, Location, Source,
@@ -40,7 +41,6 @@ use std::{
 };
 use tqdm::Iter;
 
-const MIN_TOPIC_SCORE: f64 = 0.7;
 const MIN_RATE: f64 = 0.8;
 const MIN_LEN: usize = 10;
 const EXT_STOP_WORDS: &[&str] = &[

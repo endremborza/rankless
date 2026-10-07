@@ -64,8 +64,12 @@ export type ColumnRegistry = {
 
 export type MethodologyOut = {
 	hSince: number[];
+	ladderPctBands: number[];
+	minTopicScore: number;
 	paperScore: PaperScore;
+	specCorrRate: number;
 	texts: ItemTexts[];
+	topHitPapers: number;
 	topN: [string, number][];
 	workScreen: WorkScreen;
 	yearlyCounts: [number, number];

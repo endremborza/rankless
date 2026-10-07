@@ -69,8 +69,12 @@ class ColumnRegistry(TypedDict):
 
 class MethodologyOut(TypedDict):
     hSince: list[int]
+    ladderPctBands: list[float]
+    minTopicScore: float
     paperScore: PaperScore
+    specCorrRate: float
     texts: list[ItemTexts]
+    topHitPapers: int
     topN: list[tuple[str, int]]
     workScreen: WorkScreen
     yearlyCounts: tuple[int, int]

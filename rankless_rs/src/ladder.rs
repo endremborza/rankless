@@ -1,7 +1,10 @@
+use wiretypes::wire;
+
 // Citation-rank breakpoint ladder layout (one row per subfield, one table per cohort entity type):
 //   [0..LADDER_LEN] = citation value at each percentile band (LADDER_PCT_BANDS), computed over the
 //                     cohort of entities active in that subfield.
 // u32::MAX in any slot means "not applicable" (cohort empty in that subfield).
+#[wire]
 pub const LADDER_PCT_BANDS: [f64; 11] = [
     0.20, 0.10, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001, 0.0005, 0.0002, 0.0001,
 ];

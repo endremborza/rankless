@@ -23,28 +23,35 @@ use crate::{
         },
     },
     ladder,
-    metrics::{summarize, top_n, Paper, PaperSetSummary, H_SINCE},
+    metrics::{summarize, top_n, Paper, PaperSetSummary, H_SINCE, TOP_HIT_PAPERS},
     peers::{self, PeerCalculator},
-    steps::a1_entity_mapping::{YearInterface, Years},
+    steps::{
+        a1_entity_mapping::{YearInterface, Years},
+        derive_links2::UNRANKED_Q,
+    },
     CiteCountMarker, NameExtensionMarker, NameMarker, QuickestBox, QuickestNumbered, QuickestVBox,
-    ReadIter, Stowage,
+    ReadIter, Stowage, N_PEERS,
 };
 
 // Metric weights for scoring hit-paper connections.
 // Score = (cite_count * CITE_COUNT_WEIGHT + source_prestige * SOURCE_PRESTIGE_WEIGHT + 1)
 // Direct connections are multiplied by DIRECT_MULTIPLIER before comparison.
-// Source prestige = (5 - min(quartile, 5)) * h_index * 2 + median_citations * 3
+// Source prestige (`citing_score`) is the source's h-index, weighted by how far its quartile
+// ranks above `UNRANKED_Q`, plus its median citations.
 // Nobel laureate reference authors get an additional NOBEL_MULTIPLIER on direct connections,
-// biasing their top-50 toward hit papers that directly cited their work.
+// biasing their `TOP_HIT_PAPERS` toward hit papers that directly cited their work.
 const CITE_COUNT_WEIGHT: u64 = 3;
 const SOURCE_PRESTIGE_WEIGHT: u64 = 5;
 const DIRECT_MULTIPLIER: u64 = 3;
 const NOBEL_MULTIPLIER: u64 = 2;
-const TOP_HIT_PAPERS: usize = 50;
+// An author's direct hits past this many are cut back to the best `TOP_HIT_PAPERS`, which a
+// later hit paper can only displace: the authors of a much-cited collaboration paper are cited
+// by more hit papers than is worth holding.
+const DIRECT_HITS_HELD: usize = 8 * TOP_HIT_PAPERS;
 
 fn citing_score(cite_count: ET<WorkCitingCounts>, h: u32, stats: (u32, u8)) -> u64 {
     let (median, q) = stats;
-    let prestige = (5u32.saturating_sub(q as u32)) * h * 2 + median * 3;
+    let prestige = u32::from(UNRANKED_Q.saturating_sub(q)) * h * 2 + median * 3;
     cite_count as u64 * CITE_COUNT_WEIGHT + prestige as u64 * SOURCE_PRESTIGE_WEIGHT + 1
 }
 
@@ -235,7 +242,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     let n_once: usize = once_removed.iter().map(|m| m.len()).sum();
     println!("direct: {n_direct} total entries, once_removed: {n_once} total entries");
 
-    // Select top-50 hit papers per author across both direct and once-removed,
+    // Select the `TOP_HIT_PAPERS` best hit papers per author across both direct and once-removed,
     // then split back into the two output attributes.
     let (direct_out, once_out) = direct
         .iter_mut()

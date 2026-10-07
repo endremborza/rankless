@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Final, TypedDict
+
+
+PAPER_SCORE: Final = {"barScale": 4, "hitMultiple": 1.5, "sfYearMinPapers": 400, "topShare": 0.01, "wSf": 0.005, "wSfYear": 0.895, "wYear": 0.1}
+TOP_N: Final = (("sources", 1000), ("institutions", 2000), ("countries", 2000), ("authors", 20))
+MIN_TOPIC_SCORE: Final = 0.7
+TOP_HIT_PAPERS: Final = 50
+MAX_SHARED_PAPERS: Final = 251
+SPEC_CORR_RATE: Final = 0.45
 
 
 class PaperScore(TypedDict):
@@ -30,7 +38,11 @@ class WorkScreen(TypedDict):
 
 class Methodology(TypedDict):
     hSince: list[int]
+    ladderPctBands: list[float]
+    minTopicScore: float
     paperScore: PaperScore
+    specCorrRate: float
+    topHitPapers: int
     topN: list[tuple[str, int]]
     workScreen: WorkScreen
 

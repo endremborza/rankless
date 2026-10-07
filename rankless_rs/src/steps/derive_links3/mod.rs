@@ -15,10 +15,12 @@ use crate::{
         derive_links2::{AuthorWorks, SourceStats},
     },
     ladder,
-    metrics::{encode_bar, is_hit, is_scored, paper_score, EncodedBar, WORK_SCREEN},
+    metrics::{
+        encode_bar, is_hit, is_scored, paper_score, EncodedBar, MAX_SHARED_PAPERS, WORK_SCREEN,
+    },
     peers,
     steps::a1_entity_mapping::YearInterface,
-    CiteCountMarker, QuickestBox, QuickestVBox, ReadIter, Stowage, WorkCountMarker,
+    CiteCountMarker, QuickestBox, QuickestVBox, ReadIter, Stowage, WorkCountMarker, N_PEERS,
 };
 
 mod bars;
@@ -119,7 +121,7 @@ pub fn main(stowage: Stowage) -> std::io::Result<()> {
                 w2amap.0[wid.to_usize()].iter().for_each(|c_aid| {
                     if c_aid.to_usize() != aid {
                         let entry = coauthor_map.entry(*c_aid).or_insert(0);
-                        if *entry <= 250 {
+                        if *entry < MAX_SHARED_PAPERS {
                             entry.add_assign(1)
                         }
                     }
