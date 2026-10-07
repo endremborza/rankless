@@ -38,7 +38,7 @@ FE fleet, `/v1` lines carry the true endpoint mix. `feleak` isolates ONE bun FE
 worker: it opens an SSH tunnel to that worker's port, floods it with page
 renders from THIS machine at lean concurrency, and samples the worker's cgroup
 RSS over SSH — measuring the bun leak with zero cross-worker CPU contention (the
-12-way on-box flood just CPU-thrashes: bun SSR is single-threaded per worker, so
+full-fleet on-box flood just CPU-thrashes: bun SSR is single-threaded per worker, so
 concurrency must stay ~2/worker or render latency collapses and the leak stalls).
 `sample` reads the backend cgroup + user@ PSI over SSH every interval into a CSV
 — PSI is what oomd kills on, so it is a first-class column. The sampler outlives
@@ -81,10 +81,6 @@ CG_BE = f"{CG_USER}/app.slice/rankless-backend.service"
 # which is what makes the bun leak bite. Every phase counts + surfaces these.
 PAGE_SIZE_WARN = 500_000  # bytes
 LATENCY_WARN = 0.30  # seconds
-# FE ports: blue 4000-4011, green 4200-4211 (FE_BUILD_PORTS_STARTS in deploy.py).
-# The live blue/green slot flips on each deploy, so derive the cgroup slice from
-# the port rather than hardcoding a color.
-FE_GREEN_START = 4200
 SAMPLE_COMM = (
     f"cat {CG_BE}/memory.current; "
     f"grep -E '^(anon|file) ' {CG_BE}/memory.stat; "
@@ -309,6 +305,15 @@ def ssh_tunnel(host: str, local_port: int, remote_port: int):
             proc.wait(timeout=5)
 
 
+def fe_slot(port: int) -> str:
+    """Blue/green slot of an FE worker port. The live slot flips on each deploy, so
+    the cgroup slice is derived from the port rather than hardcoding a color."""
+    from pyscripts.deploy import FE_BUILD_NAMES, FE_BUILD_PORTS_STARTS
+
+    slot = max(i for i, start in enumerate(FE_BUILD_PORTS_STARTS) if port >= start)
+    return FE_BUILD_NAMES[slot]
+
+
 def fe_worker_stat(host: str, port: int) -> tuple[int, int, float]:
     """(worker process RSS MiB, NRestarts, box 1-min loadavg) over SSH.
 
@@ -316,7 +321,7 @@ def fe_worker_stat(host: str, port: int) -> tuple[int, int, float]:
     NOT cgroup `memory.current`, which counts reclaimable page cache and gave a
     false "balloon" on the disk-card-cache-writing card path.
     """
-    color = "green" if port >= FE_GREEN_START else "blue"
+    color = fe_slot(port)
     unit = f"rankless-frontend-{color}@{port}"
     comm = (
         f"pid=$(systemctl --user show {unit} -p MainPID --value); "
@@ -455,7 +460,7 @@ def meltdown(args: argparse.Namespace) -> None:
 
 
 def restart_fe_worker(host: str, port: int) -> None:
-    color = "green" if port >= FE_GREEN_START else "blue"
+    color = fe_slot(port)
     subprocess.run(
         ["ssh", host, f"systemctl --user restart rankless-frontend-{color}@{port}"],
         check=True,
@@ -822,7 +827,9 @@ def _run_phases(args: argparse.Namespace) -> None:
     if args.abort:
         args.timeout = args.abort_timeout
     if args.phase == "feleak":
-        args.worker_port = args.worker_port or 4000
+        from pyscripts.deploy import FE_BUILD_PORTS_STARTS
+
+        args.worker_port = args.worker_port or FE_BUILD_PORTS_STARTS[0]
         with ssh_tunnel(args.ssh_host, args.local_port, args.worker_port):
             asyncio.run(feleak(args))
         return
