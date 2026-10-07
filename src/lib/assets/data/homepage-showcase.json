@@ -3,7 +3,7 @@
     "name": "Richard H. Thaler",
     "semanticId": "richard-h-thaler",
     "papers": 179,
-    "citations": 58805
+    "citations": 58835
   },
   "hitPapers": [
     {
@@ -13,27 +13,27 @@
     },
     {
       "year": 1980,
-      "citations": 3459,
+      "citations": 3460,
       "name": "Toward a positive theory of consumer choice"
     },
     {
       "year": 1985,
-      "citations": 3299,
+      "citations": 3300,
       "name": "Mental Accounting and Consumer Choice"
     },
     {
       "year": 1991,
-      "citations": 3200,
+      "citations": 3203,
       "name": "Anomalies: The Endowment Effect, Loss Aversion, and Status Quo Bias"
     },
     {
       "year": 1990,
-      "citations": 2104,
+      "citations": 2106,
       "name": "Experimental Tests of the Endowment Effect and the Coase Theorem"
     },
     {
       "year": 1999,
-      "citations": 1958,
+      "citations": 1961,
       "name": "Mental accounting matters"
     },
     {
@@ -43,12 +43,12 @@
     },
     {
       "year": 2008,
-      "citations": 1752,
+      "citations": 1753,
       "name": "Mental Accounting and Consumer Choice"
     },
     {
       "year": 2000,
-      "citations": 1640,
+      "citations": 1641,
       "name": "Experimental Tests of the Endowment Effect and the Coase Theorem"
     }
   ],
@@ -381,22 +381,22 @@
       {
         "name": "Daniel J. Kahneman",
         "semanticId": "daniel-j-kahneman",
-        "score": 3413
+        "score": 3415
       },
       {
         "name": "Jack L. Knetsch",
         "semanticId": "jack-l-knetsch",
-        "score": 3046
+        "score": 3048
       },
       {
         "name": "Shlomo Benartzi",
         "semanticId": "shlomo-benartzi",
-        "score": 2566
+        "score": 2568
       },
       {
         "name": "Cass Robert Sunstein",
         "semanticId": "cass-robert-sunstein",
-        "score": 1459
+        "score": 1461
       },
       {
         "name": "Hersh Shefrin",
@@ -429,61 +429,61 @@
     "subfields": [
       {
         "name": "Economics and Econometrics",
-        "hero": 26873,
-        "peer": 12131
+        "hero": 26876,
+        "peer": 12355
       },
       {
         "name": "Finance",
-        "hero": 15917,
-        "peer": 2903
+        "hero": 15919,
+        "peer": 2943
       },
       {
         "name": "General Decision Sciences",
-        "hero": 15568,
-        "peer": 12631
+        "hero": 15572,
+        "peer": 12797
       },
       {
         "name": "Accounting",
         "hero": 13667,
-        "peer": 3290
+        "peer": 3343
       },
       {
         "name": "Safety Research",
         "hero": 8381,
-        "peer": 14415
+        "peer": 14584
       },
       {
         "name": "Sociology and Political Science",
-        "hero": 7670,
-        "peer": 12048
+        "hero": 7679,
+        "peer": 12481
       }
     ],
     "yearFrom": 2016,
     "heroYearly": [
       2655,
       2692,
-      3176,
-      3316,
-      3258,
-      3378,
-      2663,
-      2376,
-      2004,
-      1442,
+      3177,
+      3317,
+      3262,
+      3383,
+      2668,
+      2381,
+      2006,
+      1443,
       257
     ],
     "peerYearly": [
-      3116,
-      2962,
-      3170,
-      3098,
-      2972,
-      3236,
-      2599,
-      2358,
-      2048,
-      1419,
-      290
+      3118,
+      2987,
+      3403,
+      3535,
+      3487,
+      3854,
+      3139,
+      2867,
+      2519,
+      1776,
+      375
     ]
   }
 }

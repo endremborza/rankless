@@ -28,20 +28,6 @@ pub struct AuthorshipsDiscardedAuthor {}
 
 pub struct Institutions {}
 
-impl Entity for Domains {
-    type T = u8;
-    const N: usize = 5;
-    const NAME: &str = "domains";
-}
-
-impl MappableEntity for Domains {
-    type KeyType = u64;
-}
-
-impl NamespacedEntity for Domains {
-    const NS: &str = "a1_entity_mapping";
-}
-
 impl Entity for Fields {
     type T = u8;
     const N: usize = 27;
@@ -53,6 +39,20 @@ impl MappableEntity for Fields {
 }
 
 impl NamespacedEntity for Fields {
+    const NS: &str = "a1_entity_mapping";
+}
+
+impl Entity for Domains {
+    type T = u8;
+    const N: usize = 5;
+    const NAME: &str = "domains";
+}
+
+impl MappableEntity for Domains {
+    type KeyType = u64;
+}
+
+impl NamespacedEntity for Domains {
     const NS: &str = "a1_entity_mapping";
 }
 
@@ -86,7 +86,7 @@ impl NamespacedEntity for Topics {
 
 impl Entity for Institutions {
     type T = u16;
-    const N: usize = 37531;
+    const N: usize = 37525;
     const NAME: &str = "institutions";
 }
 
@@ -100,7 +100,7 @@ impl NamespacedEntity for Institutions {
 
 impl Entity for Sources {
     type T = u16;
-    const N: usize = 43603;
+    const N: usize = 43599;
     const NAME: &str = "sources";
 }
 
@@ -156,7 +156,7 @@ impl NamespacedEntity for AreaFields {
 
 impl Entity for DiscardedAuthors {
     type T = u32;
-    const N: usize = 126038185;
+    const N: usize = 125908706;
     const NAME: &str = "discarded-authors";
 }
 
@@ -170,7 +170,7 @@ impl NamespacedEntity for DiscardedAuthors {
 
 impl Entity for Authors {
     type T = u32;
-    const N: usize = 4306812;
+    const N: usize = 4381923;
     const NAME: &str = "authors";
 }
 
@@ -184,7 +184,7 @@ impl NamespacedEntity for Authors {
 
 impl Entity for Works {
     type T = u32;
-    const N: usize = 98602860;
+    const N: usize = 98812929;
     const NAME: &str = "works";
 }
 
@@ -198,7 +198,7 @@ impl NamespacedEntity for Works {
 
 impl Entity for AuthorshipsFilteredAuthor {
     type T = u32;
-    const N: usize = 225751334;
+    const N: usize = 246770777;
     const NAME: &str = "authorships-filtered-author";
 }
 
@@ -208,7 +208,7 @@ impl MappableEntity for AuthorshipsFilteredAuthor {
 
 impl Entity for AuthorshipsDiscardedAuthor {
     type T = u32;
-    const N: usize = 124976959;
+    const N: usize = 129409367;
     const NAME: &str = "authorships-discarded-author";
 }
 
