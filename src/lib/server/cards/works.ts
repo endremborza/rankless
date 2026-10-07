@@ -1,6 +1,7 @@
 import type { PaginatedPaperSetResp } from '$lib/wire/rankless_server/responses';
 import { BE_URL } from '$lib/constants';
-import { mergeWorks, WORKS_PAGE_SIZE, worksPageUrl, type Works } from '$lib/utils/works-loader';
+import { mergeWorks, worksPageUrl, type Works } from '$lib/utils/works-loader';
+import { WORKS_PAGE_SIZE } from '$lib/utils/works-paging';
 import { beJson } from './kind';
 
 // Every paper of an author, in the works table's order: the first page names the total, the rest

@@ -28,7 +28,7 @@
 	export let data: EntityPeersResp;
 	export let rootType = 'authors';
 
-	const DEFAULT_FIELD_N = 5;
+	const DEFAULT_FIELD_N = cardKinds.peers.params.n.default;
 	const MIN_FIELD_N = 2;
 	const MAX_FIELD_N = SUBFIELD_COLOR_VARS.length;
 	// The peer's 1× line sits at this height; below it scales linearly into 0, above it up to the
@@ -39,8 +39,9 @@
 	const CLOSE_RATIO = 1.5;
 	const DETAIL_PLOT_H = 200;
 
-	// `sel` holds positions into data.topSubfields (sorted by hero citations desc). Default = top 5;
-	// the user can toggle MIN..MAX to change the comparison basis. Reset when the hero changes.
+	// `sel` holds positions into data.topSubfields (sorted by hero citations desc). Default = the top
+	// DEFAULT_FIELD_N; the user can toggle MIN..MAX to change the comparison basis. Reset when the
+	// hero changes.
 	let sel: number[] = [];
 	let selHeroId = '';
 	// User-swapped peers, keyed by grid slot. Each entry overrides data.peers[slot] in `displayPeers`.

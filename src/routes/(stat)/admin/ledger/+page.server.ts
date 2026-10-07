@@ -4,6 +4,7 @@ import { isAdmin } from '$lib/server/admin';
 import { loadReviewQueuePage } from '$lib/server/review-data';
 import type { EventFilter } from '$lib/server/db';
 import type { LedgerKind, ModerationState } from '$lib/types/ledger';
+import { QUEUE_PER_CHOICES, QUEUE_PER_DEFAULT } from '$lib/utils/ledger-queue';
 
 const STATE_MAP: Record<string, ModerationState | undefined> = {
 	pending: 'pending_review',
@@ -40,7 +41,12 @@ export const load: PageServerLoad = ({ locals, url }) => {
 	const kind = KINDS.has(kindRaw as LedgerKind) ? (kindRaw as LedgerKind) : undefined;
 	const actor = url.searchParams.get('actor') ?? '';
 	const page = clampInt(url.searchParams.get('page'), 1, 1_000_000, 1);
-	const per = clampInt(url.searchParams.get('per'), 10, 200, 50);
+	const per = clampInt(
+		url.searchParams.get('per'),
+		Math.min(...QUEUE_PER_CHOICES),
+		Math.max(...QUEUE_PER_CHOICES),
+		QUEUE_PER_DEFAULT
+	);
 
 	const filter: EventFilter = {
 		moderation: STATE_MAP[state],

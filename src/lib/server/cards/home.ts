@@ -13,8 +13,8 @@ export async function getHomeCardPng(fetchFn: typeof fetch): Promise<Buffer> {
 	return rasterizeSvg(svg);
 }
 
-// Live proof-points from the backend; any failure falls back to the brand constants so the card,
-// being an OG endpoint, never breaks. "every field" stays qualitative (252 subfields = all of science).
+// Live proof-points from the backend ahead of the brand ones; any failure leaves the brand ones
+// alone, so the card, being an OG endpoint, never breaks.
 async function fetchHomeStats(fetchFn: typeof fetch): Promise<string[]> {
 	try {
 		const res = await fetchFn(`${BE_URL}/counts`);
@@ -24,7 +24,7 @@ async function fetchHomeStats(fetchFn: typeof fetch): Promise<string[]> {
 		return [
 			`${formatNumber(counts.total_works)} papers`,
 			`${formatNumber(counts.total_citations)} citations`,
-			'every field'
+			...BRAND_STATS
 		];
 	} catch {
 		return BRAND_STATS;

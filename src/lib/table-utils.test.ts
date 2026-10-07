@@ -8,6 +8,7 @@ import {
 	callText,
 	chipLabel,
 	chipsFrom,
+	DEFAULT_WINDOW_YEARS,
 	defaultArgs,
 	clauseable,
 	clauseText,
@@ -189,13 +190,16 @@ describe('calls and clauses', () => {
 		expect(argsReady(papers, [])).toBe(true);
 	});
 
-	it('a window starts on the last five counted years unless one is given', () => {
+	it('a window starts on the default span of counted years unless one is given', () => {
 		const window = registry.find((d) => d.id === 'window_papers')!;
 		const field = registry.find((d) => d.id === 'field_score')!;
-		expect(defaultArgs(window, [], [2016, 2026])).toEqual([2021, 2026]);
-		expect(defaultArgs(window, [], [2024, 2026])).toEqual([2024, 2026]);
-		expect(defaultArgs(window, [2018, 2020], [2016, 2026])).toEqual([2018, 2020]);
-		expect(defaultArgs(window, ['oncology'], [2016, 2026])).toEqual([2021, 2026]);
+		const last = 2026;
+		const start = last - DEFAULT_WINDOW_YEARS;
+		expect(defaultArgs(window, [], [2016, last])).toEqual([start, last]);
+		const shortHistory: [number, number] = [last - DEFAULT_WINDOW_YEARS + 1, last];
+		expect(defaultArgs(window, [], shortHistory)).toEqual(shortHistory);
+		expect(defaultArgs(window, [2018, 2020], [2016, last])).toEqual([2018, 2020]);
+		expect(defaultArgs(window, ['oncology'], [2016, last])).toEqual([start, last]);
 		expect(defaultArgs(window, [])).toEqual([]);
 		expect(defaultArgs(field, [2018, 2020])).toEqual([]);
 		expect(defaultArgs(field, ['oncology'])).toEqual(['oncology']);

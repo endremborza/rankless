@@ -1,5 +1,7 @@
 import { type Page } from '@playwright/test';
 import { expect, test } from './coverage/fixtures';
+import { TABLE_PAGE_SIZE } from '../src/lib/table-utils';
+import { TOP_N } from '../src/lib/wire/rankless_rs/metrics';
 
 // The browse table: the ranking call and the `where` expression go through the server, a header
 // click reorders the loaded rows only, page-local columns cost one metric-values call per page.
@@ -65,11 +67,15 @@ function ranksValid(r: number[]) {
 
 const sorted = (r: number[]) => [...r].sort((a, b) => a - b);
 
-test('ranks the whole cohort from the picker and pages past the first 100', async ({ page }) => {
+const INSTITUTIONS_TOP_MEAN = `Top-${TOP_N.find(([root]) => root === 'institutions')![1]} mean`;
+
+test(`ranks the whole cohort from the picker and pages past the first ${TABLE_PAGE_SIZE}`, async ({
+	page
+}) => {
 	await page.goto('/institutions/table');
 	await page.waitForSelector('tbody tr');
 	let r = await ranks(page);
-	expect(r.length).toBe(100);
+	expect(r.length).toBe(TABLE_PAGE_SIZE);
 	expect(r[0]).toBe(1);
 	expect(ranksValid(r)).toBeTruthy();
 	expect(nonIncreasing(await column(page, 'Weighted total paper score'))).toBeTruthy();
@@ -78,23 +84,29 @@ test('ranks the whole cohort from the picker and pages past the first 100', asyn
 	await page.waitForURL(/sort=top_mean/);
 	await page.waitForSelector('tbody tr');
 	r = await ranks(page);
-	expect(r.length).toBe(100);
+	expect(r.length).toBe(TABLE_PAGE_SIZE);
 	expect(ranksValid(r)).toBeTruthy();
-	expect(nonIncreasing(await column(page, 'Top-2000 mean'))).toBeTruthy();
-	await expect(page.locator('th.ranked')).toContainText('Top-2000 mean');
+	expect(nonIncreasing(await column(page, INSTITUTIONS_TOP_MEAN))).toBeTruthy();
+	await expect(page.locator('th.ranked')).toContainText(INSTITUTIONS_TOP_MEAN);
 
 	await page.getByRole('button', { name: /Load more/ }).click();
-	await page.waitForFunction(() => document.querySelectorAll('tbody tr').length >= 200);
+	await page.waitForFunction(
+		(n) => document.querySelectorAll('tbody tr').length >= n,
+		2 * TABLE_PAGE_SIZE
+	);
 	r = await ranks(page);
-	expect(r.length).toBe(200);
-	expect(r[100]).toBeGreaterThanOrEqual(100);
+	expect(r.length).toBe(2 * TABLE_PAGE_SIZE);
+	expect(r[TABLE_PAGE_SIZE]).toBeGreaterThanOrEqual(TABLE_PAGE_SIZE);
 	expect(ranksValid(r)).toBeTruthy();
-	expect(nonIncreasing(await column(page, 'Top-2000 mean'))).toBeTruthy();
+	expect(nonIncreasing(await column(page, INSTITUTIONS_TOP_MEAN))).toBeTruthy();
 
 	// A ranking change after paging re-seeds the page: no rows of the previous ordering linger.
 	await page.getByLabel('Rank', { exact: true }).selectOption('papers');
 	await page.waitForURL(/sort=papers/);
-	await page.waitForFunction(() => document.querySelectorAll('tbody tr').length === 100);
+	await page.waitForFunction(
+		(n) => document.querySelectorAll('tbody tr').length === n,
+		TABLE_PAGE_SIZE
+	);
 	r = await ranks(page);
 	expect(r[0]).toBe(1);
 	expect(ranksValid(r)).toBeTruthy();
@@ -269,7 +281,7 @@ test('a page-local column costs one call, shows its cells pending and never reor
 	).toBeTruthy();
 	expect(metricCalls.length).toBe(1);
 	const u = new URL(metricCalls[0]);
-	expect(u.searchParams.get('ids')!.split(',').length).toBe(100);
+	expect(u.searchParams.get('ids')!.split(',').length).toBe(TABLE_PAGE_SIZE);
 	expect(u.searchParams.get('metrics')).toMatch(/^window_papers\(\d{4}, \d{4}\)$/);
 	expect(await ranks(page)).toEqual(before);
 

@@ -6,12 +6,7 @@ import { BE_REMOTE_URL } from '$lib/constants';
 import { encodeSemanticId } from '$lib/tree-functions';
 import { mergeEntityAtts } from '$lib/utils/paper-helpers';
 import { createStaleGuard, type IsCurrent } from '$lib/utils/stale-guard';
-
-const INITIAL_PAGE_SIZE = 20;
-export const WORKS_PAGE_SIZE = 200;
-// Pages arrive ranked by citation count so the first screen is the entity's most-cited works and
-// every appended page stays contiguous in that order (the backend re-sorts deterministically).
-const WORKS_SORT = 'citations';
+import { INITIAL_PAGE_SIZE, WORKS_PAGE_SIZE, WORKS_SORT } from '$lib/utils/works-paging';
 
 export type Works = {
 	papers: PaperOut[];

@@ -22,11 +22,12 @@ import { LedgerDb } from '$lib/server/db';
 import { readManifest, EMPTY_MANIFEST } from '$lib/server/manifest';
 import { activeDisclaimer } from '$lib/server/disclaimers';
 import { computeEffective } from '$lib/utils/ledger-effective';
+import { worksPageUrl } from '$lib/utils/works-loader';
+import { INITIAL_PAGE_SIZE } from '$lib/utils/works-paging';
 import type { LedgerEvent } from '$lib/types/ledger';
 
 export const ssr = true;
 
-const INITIAL_WORKS_N = 20;
 const PEER_ROOT_TYPES: tt.RootType[] = ['authors', 'institutions', 'countries', 'sources'];
 
 export const load: PageServerLoad = async ({ params, url, locals, fetch, parent }) => {
@@ -120,7 +121,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch, parent 
 				fetch(`${BE_URL}/paper-profile/${encodedSemId}`)
 					.then((r) => r.json())
 					.catch(() => null),
-				fetch(`${BE_URL}/works/authors/${encodedSemId}/0?n=${INITIAL_WORKS_N}&sort=citations`)
+				fetch(worksPageUrl(BE_URL, semanticId, 0, INITIAL_PAGE_SIZE))
 					.then((r) => r.json())
 					.catch(() => null)
 			]);

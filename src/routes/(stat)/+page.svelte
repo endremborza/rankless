@@ -4,6 +4,7 @@
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 	import { isRootType } from '$lib/constants';
+	import { CARD_H, CARD_W } from '$lib/utils/cards';
 	import { reconstructLoader } from '$lib/loading-functions';
 	import FullQc from '$lib/components/FullQc.svelte';
 	import { fade } from 'svelte/transition';
@@ -300,8 +301,8 @@
 	<meta property="og:url" content={ogUrl} />
 	<meta property="og:image" content={ogImage} />
 	<meta property="og:image:type" content="image/png" />
-	<meta property="og:image:width" content="1200" />
-	<meta property="og:image:height" content="630" />
+	<meta property="og:image:width" content={String(CARD_W)} />
+	<meta property="og:image:height" content={String(CARD_H)} />
 	<meta name="twitter:card" content="summary_large_image" />
 	<meta name="twitter:creator" content="@LearningCCL" />
 	<meta name="twitter:title" content={ogTitle} />

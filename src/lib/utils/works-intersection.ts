@@ -10,16 +10,19 @@ function encodeSpec(query: WorkSetQuery): string {
 		.join('/');
 }
 
-// Fetch the intersection of entity work-sets, ranked by citations and capped at `n`. Returns
+// Fetch the intersection of entity work-sets, ranked by citations and capped at `n` (the backend's
+// default when absent). Returns
 // null on any backend rejection (malformed/unknown etype → 4xx, or "too broad" → 422); the empty
 // query short-circuits without a request.
 export async function fetchWorkIntersection(
 	query: WorkSetQuery,
-	n = 200
+	n?: number
 ): Promise<PaginatedPaperSetResp | null> {
 	const spec = encodeSpec(query);
 	if (spec === '') return null;
-	const resp = await fetch(`${BE_REMOTE_URL}/works-intersect/${spec}?n=${n}`);
+	const resp = await fetch(
+		`${BE_REMOTE_URL}/works-intersect/${spec}${n === undefined ? '' : `?n=${n}`}`
+	);
 	if (!resp.ok) return null;
 	return (await resp.json()) as PaginatedPaperSetResp;
 }

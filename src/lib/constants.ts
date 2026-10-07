@@ -1,6 +1,7 @@
 import type { EntityType, RelTypes, RootType } from './tree-types';
 import { PUBLIC_ORIGIN, PUBLIC_BACKEND_URL } from '$env/static/public';
 import { dev } from '$app/environment';
+import { MAX_SLICE, PORT } from '$lib/wire/rankless_server/consts';
 
 export const APP_NAME = 'Rankless';
 
@@ -11,19 +12,17 @@ export const EMAIL_FEATURE_ON = dev;
 export const GAME_FEATURE_ON = dev;
 export const MCP_FEATURE_ON = dev;
 
-// Brand proof-points. The home card pulls live figures from the backend /counts endpoint; this is
-// the fallback shown only if that fetch fails, so it stays roughly current but approximate.
+// Brand proof-points that need no data: the home card shows them after its live /counts figures,
+// and alone when that fetch fails.
 export const BRAND_TAGLINE = 'Explore academic impact beyond rankings';
-export const BRAND_STATS = ['~90M papers', '1.9B citations', 'every field'];
+export const BRAND_STATS = ['every field'];
 
 export const FULL_HOST = PUBLIC_ORIGIN;
 export const SITEMAP_STEP_SIZE = 8192;
-export const ENTITY_SITEMAP_STEP_SIZE = 40000;
+export const ENTITY_SITEMAP_STEP_SIZE = MAX_SLICE;
 
-export const BE_URL = 'http://127.0.0.1:3038/v1';
+export const BE_URL = `http://127.0.0.1:${PORT}/v1`;
 export const BE_REMOTE_URL = `${PUBLIC_BACKEND_URL}/v1`;
-
-export const SURVEY_LOG_PATH = '/tmp/survey-logs.jsonl';
 
 export const ROOT_TYPES: RootType[] = [
 	'authors',

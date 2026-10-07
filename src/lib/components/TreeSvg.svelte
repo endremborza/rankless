@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { AttributeLabels, TreeSpec } from '$lib/wire/rankless_trees/io';
 	import { MAX_LEVEL_COUNT } from '$lib/constants';
-	import { CHAR_W, MONO } from '$lib/utils/cards';
+	import { CARD_H, CARD_W, CHAR_W, MONO } from '$lib/utils/cards';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 	import BrokenFittedText from './BrokenFittedText.svelte';
@@ -12,7 +12,7 @@
 	let headerRate = 0.11;
 	let overHangRate = 0.05;
 	let minimumChildWidth = 2.5;
-	let fbRatio = 1200 / 630; // 227 linkedin
+	let fbRatio = CARD_W / CARD_H;
 
 	export let treeSpec: TreeSpec;
 	export let tree: tt.ResponseNode;

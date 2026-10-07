@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PaperOut, PostAttRelatedEntity } from '$lib/wire/rankless_server/responses';
 	import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
-	import { circleLayout, getIndex } from '$lib/network-util';
+	import { circleLayout, COOLING, getIndex } from '$lib/network-util';
 	import type { cytoscapeLayout } from '$lib/network-force';
 	import type { WorksLoader } from '$lib/utils/works-loader';
 	import { fetchWorkIntersection } from '$lib/utils/works-intersection';
@@ -134,13 +134,10 @@
 		if (!idA || !idB) return;
 		pairLoading = true;
 		pairError = false;
-		const res = await fetchWorkIntersection(
-			[
-				{ etype: 'authors', ids: [idA] },
-				{ etype: 'authors', ids: [idB] }
-			],
-			200
-		);
+		const res = await fetchWorkIntersection([
+			{ etype: 'authors', ids: [idA] },
+			{ etype: 'authors', ids: [idB] }
+		]);
 		pairLoading = false;
 		if (!res) {
 			pairError = true;
@@ -209,9 +206,9 @@
 	let nestingFactor = 1.2;
 	let gravity = 0.05;
 	let numIter = 100;
-	let initialTemp = 1000;
-	let coolingFactor = 0.99;
-	let minTemp = 1;
+	let initialTemp = COOLING.initialTemp;
+	let coolingFactor = COOLING.coolingFactor;
+	let minTemp = COOLING.minTemp;
 
 	let positions: { x: number; y: number }[] = [];
 	let svgWidth: number;

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import cardKinds from '$lib/assets/data/card-kinds.json';
 	import type { WorksLoader } from '$lib/utils/works-loader';
 	import type { YearGroup, SortMode } from '$lib/utils/author-timeline';
 	import {
@@ -16,7 +17,7 @@
 
 	const TIP_MAX = 6;
 
-	let minPapers = 2;
+	let minPapers = cardKinds.timeline.params.min.default;
 	let sortMode: SortMode = 'first';
 	let trackWidth = 0;
 	let tip: Tip = null;

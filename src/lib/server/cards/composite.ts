@@ -4,7 +4,9 @@ import { renderSvgComponent } from '$lib/server/render';
 import { rasterizeSvg } from '$lib/server/card-raster';
 import CompositeFrame from '$lib/components/cards/CompositeFrame.svelte';
 import {
+	MAX_COLS,
 	MAX_PANELS,
+	MIN_PANELS,
 	compositeLayout,
 	defaultCols,
 	namespaceIds,
@@ -16,7 +18,7 @@ import { loadCard } from './index';
 
 const RASTER_W = 2400;
 
-// Several cards merged into one picture, `/card/composite.png?p=<panel>&p=<panel>&cols=2`: each
+// Several cards merged into one picture, `/card/composite.png?p=<panel>&p=<panel>&cols=<n>`: each
 // `p` is a card's own path and variant, loaded and validated as that card is, and drawn in a grid
 // under the names of the entities shown. Rendered per request, with no disk cache: a post bundles
 // the file once, and the variants are the product of the panels'.
@@ -25,8 +27,9 @@ export async function buildComposite(
 	fetchFn: typeof fetch
 ): Promise<{ svg: string; layout: CompositeLayout }> {
 	const refs = params.getAll('p').map((p) => parsePanelRef(p) ?? error(404, 'bad panel'));
-	if (refs.length < 2 || refs.length > MAX_PANELS) error(404, `2 to ${MAX_PANELS} panels`);
-	const cols = intParam(params, 'cols', defaultCols(refs.length), 1, 2);
+	if (refs.length < MIN_PANELS || refs.length > MAX_PANELS)
+		error(404, `${MIN_PANELS} to ${MAX_PANELS} panels`);
+	const cols = intParam(params, 'cols', defaultCols(refs.length), 1, MAX_COLS);
 	const cards = await Promise.all(
 		refs.map((ref) => loadCard(ref.kind, ref.rootType, ref.semanticId, ref.params, fetchFn))
 	);

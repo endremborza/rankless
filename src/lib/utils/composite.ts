@@ -4,7 +4,9 @@
 
 import { CARD_MARGIN as M, CARD_W, INNER } from '$lib/utils/cards';
 
+export const MIN_PANELS = 2;
 export const MAX_PANELS = 6;
+export const MAX_COLS = 2;
 // The heading line above a panel's picture.
 export const PANEL_HEAD = 46;
 const ROW_GAP = 40;
@@ -25,8 +27,9 @@ export type CompositeLayout = {
 	slots: { x: number; y: number }[];
 };
 
+// The smallest composite stacks in one column; any larger one fills the widest grid.
 export function defaultCols(n: number): number {
-	return n > 2 ? 2 : 1;
+	return n > MIN_PANELS ? MAX_COLS : 1;
 }
 
 // `n` panels in rows of `cols`, a short last row centred.

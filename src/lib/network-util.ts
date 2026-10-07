@@ -1,3 +1,6 @@
+// The force layout's cooling schedule: the layout's defaults and where the tuning sliders start.
+export const COOLING = { initialTemp: 1000, coolingFactor: 0.99, minTemp: 1 };
+
 export function getIndex(i: number, j: number, n: number) {
 	if (i === j) return -1;
 	if (i > j) [i, j] = [j, i];

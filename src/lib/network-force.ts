@@ -2,6 +2,7 @@
 // stay out of the entity-page chunk.
 import cytoscape from 'cytoscape';
 import fcose from 'cytoscape-fcose';
+import { COOLING } from './network-util';
 
 const cyReg = cytoscape as typeof cytoscape & { _fcoseRegistered?: boolean };
 if (!cyReg._fcoseRegistered) {
@@ -34,9 +35,9 @@ export function cytoscapeLayout(nodes: string[], edgeWeights: number[], opts: Fc
 		height: rawHeight = 400,
 		numIter = 1000,
 		gravity = 1,
-		initialTemp = 1000,
-		coolingFactor = 0.99,
-		minTemp = 1,
+		initialTemp = COOLING.initialTemp,
+		coolingFactor = COOLING.coolingFactor,
+		minTemp = COOLING.minTemp,
 		// idealEdgeLength = 100,
 		// nodeRepulsion = 4000,
 		// edgeElasticity = 100,

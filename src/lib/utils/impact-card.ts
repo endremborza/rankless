@@ -61,8 +61,8 @@ export function layoutImpact(
 	return { top: topChips, bottom: bottomChips, edges };
 }
 
-// The orders of both rows (at most 3! × 4! pairs) with the fewest crossing curves, the given
-// order where tied.
+// The orders of both rows (at most MAX_TOP! × MAX_BOTTOM! pairs, the row caps of the impact card
+// kind) with the fewest crossing curves, the given order where tied.
 export function uncross(
 	nTop: number,
 	nBottom: number,

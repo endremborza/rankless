@@ -10,8 +10,12 @@ import type {
 } from './wire/rankless_server/responses';
 import type { Kind } from './wire/rankless_trees/metrics';
 import type { NamedEntity, RootType } from './tree-types';
+import { MAX_METRIC_IDS } from './wire/rankless_server/consts';
 
-export const TABLE_PAGE_SIZE = 100;
+// A page is metric-valued in one request, which the backend answers for `MAX_METRIC_IDS` ids at most.
+export const TABLE_PAGE_SIZE = MAX_METRIC_IDS;
+// Years a window metric spans by default, counted back from the last counted year.
+export const DEFAULT_WINDOW_YEARS = 5;
 
 // The root type whose entities a metric's parameter names.
 const PARAM_ROOT = { subfield: 'subfields', country: 'countries' } as const;
@@ -78,7 +82,7 @@ export function isNumeric(m: ColumnDecl) {
 }
 
 // Metrics that may rank the cohort: every numeric column-read metric of the root; a per-entity
-// one ranks the top 1000 by citations.
+// one ranks the backend's `SCREEN_K` most cited.
 export function rankable(registry: ColumnDecl[]) {
 	return registry.filter((m) => isNumeric(m) && m.cost === 'read');
 }
@@ -212,15 +216,16 @@ export function argsReady(decl: ColumnDecl, args: MetricArgs): boolean {
 	return args.length === arity(decl) && args.every(isSet);
 }
 
-// The arguments a metric starts with: `base` where it fits the parameter, else the last five years
-// with yearly counts for a window, else nothing chosen yet.
+// The arguments a metric starts with: `base` where it fits the parameter, else the last
+// DEFAULT_WINDOW_YEARS years with yearly counts for a window, else nothing chosen yet.
 export function defaultArgs(
 	decl: ColumnDecl,
 	base: MetricArgs,
 	yearly?: [number, number]
 ): MetricArgs {
 	if (base.length === arity(decl)) return base;
-	if (decl.param === 'window' && yearly) return [Math.max(yearly[0], yearly[1] - 5), yearly[1]];
+	if (decl.param === 'window' && yearly)
+		return [Math.max(yearly[0], yearly[1] - DEFAULT_WINDOW_YEARS), yearly[1]];
 	return [];
 }
 

@@ -26,6 +26,8 @@
 	export let treeSpecs: TreeSpecs | undefined = undefined;
 
 	const fontSize = 0.5;
+	// Authors the row's byline names; the detail row lists everyone once there are more.
+	const BYLINE_AUTHORS = 2;
 
 	type BreakdownOption = { key: string; label: string; treeId: number };
 
@@ -385,7 +387,12 @@
 								<div class="paper-meta">
 									<span class="paper-cites">{formatNumber(paper.citations)} citations</span>
 									{#if paper.authorCount}<span class="paper-authors"
-											><AuthorList {paper} {entityAtts} {discAuthorNames} max={2} /></span
+											><AuthorList
+												{paper}
+												{entityAtts}
+												{discAuthorNames}
+												max={BYLINE_AUTHORS}
+											/></span
 										>{/if}
 									{#if paper.createdTopic}
 										<span class="paper-created-topic" title="Earliest impactful paper of this topic"
@@ -401,7 +408,7 @@
 									{/if}
 								</div>
 								<div class="paper-details">
-									{#if paper.authorCount > 2}
+									{#if paper.authorCount > BYLINE_AUTHORS}
 										<div class="detail-row">
 											<span class="detail-label">Authors:</span>
 											<span><AuthorList {paper} {entityAtts} {discAuthorNames} showInst /></span>

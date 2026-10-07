@@ -31,9 +31,9 @@ const BADGE_INKS: Record<string, { fill: string; ink: string }> = {
 type Profile = PaperSetResp & { byWid: Record<number, PaperOut>; authorDmId: string };
 
 // The hit papers that build on an author's work, as the page's impact DAG reads it: its roots are
-// the citing hits, the author's papers under them the ones they cite. `hits` picks up to three
-// citing hits by semantic id (default the top three by paper score); the author's papers they
-// cite sit below, at most four, each citing hit keeping at least one.
+// the citing hits, the author's papers under them the ones they cite. `hits` picks up to MAX_TOP
+// citing hits by semantic id (default the top MAX_TOP by paper score); the author's papers they
+// cite sit below, at most MAX_BOTTOM, each citing hit keeping at least one.
 export const impact: CardKind = {
 	component: ImpactCard,
 	async load({ semanticId, params, view, fetch }) {

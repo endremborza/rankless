@@ -85,7 +85,7 @@ type FieldBase = {
 type FieldTopics = { href: string | null; semanticId: string | null; topics: HeroTopic[] };
 
 // Co-author / top-scholar rows share one list size: generous enough to read as a community of
-// contributors rather than an elite few. The server precomputes up to 25 paper-authors per entity.
+// contributors rather than an elite few, within the backend's per-entity paper-author cap.
 const PEOPLE_LEADER_N = 8;
 
 export const HERO_CONFIG: Record<tt.RootType, HeroSpec> = {

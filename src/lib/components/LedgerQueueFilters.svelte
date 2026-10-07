@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
+	import { QUEUE_PER_CHOICES } from '$lib/utils/ledger-queue';
 
 	export let state: string;
 	export let kind: string;
@@ -21,7 +22,6 @@
 		'revoke',
 		'add_paper_request'
 	];
-	const PER_CHOICES = [25, 50, 100, 200];
 
 	$: pages = Math.max(1, Math.ceil(total / per));
 	$: from = total === 0 ? 0 : (page - 1) * per + 1;
@@ -67,7 +67,7 @@
 	<label>
 		per page
 		<select value={String(per)} on:change={(e) => navigate({ per: e.currentTarget.value })}>
-			{#each PER_CHOICES as p, i (i)}<option value={String(p)}>{p}</option>{/each}
+			{#each QUEUE_PER_CHOICES as p, i (i)}<option value={String(p)}>{p}</option>{/each}
 		</select>
 	</label>
 	<span class="pager">

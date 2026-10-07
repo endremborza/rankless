@@ -1,7 +1,8 @@
 import type { RequestHandler } from './$types';
 import { appendFile } from 'fs/promises';
 import { type SurveyRecord } from '$lib/types';
-import { SURVEY_LOG_PATH } from '$lib/constants';
+import { SURVEY_LOG_PATH } from '$lib/paths';
+import { setSurveyCookie } from '$lib/server/survey-cookie';
 
 export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 	try {
@@ -16,13 +17,7 @@ export const POST: RequestHandler = async ({ request, locals, cookies }) => {
 
 		await appendFile(SURVEY_LOG_PATH, JSON.stringify(record) + '\n', { encoding: 'utf8' });
 
-		// set cookie so they won't be prompted again
-		cookies.set('survey_completed', '1', {
-			path: '/',
-			// 10 years
-			maxAge: 60 * 60 * 24 * 365 * 10,
-			httpOnly: false // allow client-side reading if you want; security trade-off
-		});
+		setSurveyCookie(cookies, 'survey_completed');
 
 		return new Response(null, { status: 204 });
 	} catch (err) {

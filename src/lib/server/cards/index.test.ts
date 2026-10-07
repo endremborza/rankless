@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SUBFIELD_COLOR_VARS } from '$lib/peers-utils';
 import { RAINBOW_SORTS } from '$lib/utils/paper-rainbow';
 import { buildCardSvg } from './index';
 import { CARD_SPEC } from './kind';
@@ -36,5 +37,9 @@ describe('card kinds', () => {
 	it('offers the orderings the loaders know', () => {
 		expect(CARD_SPEC.papers.params.sort.options).toEqual([...RAINBOW_SORTS]);
 		expect(CARD_SPEC.timeline.params.sort.options).toEqual(Object.keys(SORT_WORDS));
+	});
+
+	it('offers as many peer fields as the comparison has colours', () => {
+		expect(CARD_SPEC.peers.params.n.max).toBe(SUBFIELD_COLOR_VARS.length);
 	});
 });

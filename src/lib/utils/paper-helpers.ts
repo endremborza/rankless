@@ -60,7 +60,8 @@ export function reconstructAbstractFromInvIndex(
 	return result || null;
 }
 
-const OA_FETCH_TIMEOUT_MS = 10_000;
+// How long a call to a third-party metadata API (OpenAlex, Crossref, ORCID) may take.
+export const EXTERNAL_FETCH_TIMEOUT_MS = 10_000;
 
 // Shape of the OpenAlex work JSON this app selects; every field is optional because the API
 // omits or nulls any of them (an authorship's author.id is null for a raw name it never
@@ -81,7 +82,7 @@ export type OaWorkJson = {
 // Every browser-side OpenAlex call goes through this: a bounded wait and a status check, so a
 // stalled or erroring request rejects instead of leaving a caller waiting forever.
 export async function fetchOaJson<T>(url: string): Promise<T> {
-	const res = await fetch(url, { signal: AbortSignal.timeout(OA_FETCH_TIMEOUT_MS) });
+	const res = await fetch(url, { signal: AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS) });
 	if (!res.ok) throw new Error(`${res.status} for ${url}`);
 	return (await res.json()) as T;
 }

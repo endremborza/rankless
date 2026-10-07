@@ -3,6 +3,7 @@
 // enrichment cache live in review-data.ts — the single writer of that cache.
 import { claimedWork } from './review';
 import { canonicalDoi, normalizeOrcid } from '$lib/utils/identifiers';
+import { EXTERNAL_FETCH_TIMEOUT_MS } from '$lib/utils/paper-helpers';
 import type { LedgerEvent } from './db';
 import type {
 	EnrichedAuthor,
@@ -12,7 +13,6 @@ import type {
 	WorkRecord
 } from '$lib/types/review';
 
-const FETCH_TIMEOUT_MS = 10_000;
 const ORCID_WORKS_CAP = 500;
 const ORCID_TITLES_CAP = 50;
 
@@ -159,7 +159,7 @@ async function getJson(
 	url: string,
 	headers: Record<string, string>
 ): Promise<unknown | 'not_found'> {
-	const res = await fetch(url, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+	const res = await fetch(url, { headers, signal: AbortSignal.timeout(EXTERNAL_FETCH_TIMEOUT_MS) });
 	if (res.status === 404) return 'not_found';
 	if (!res.ok) throw new Error(`${res.status} for ${url}`);
 	return res.json();

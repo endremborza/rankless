@@ -9,6 +9,7 @@
 	} from '$lib/wire/rankless_server/responses';
 	import type { AttributeLabels, EntityAttsForLinks, TreeSpecs } from '$lib/wire/rankless_trees/io';
 	import { APP_NAME } from '$lib/constants';
+	import { CARD_H, CARD_W } from '$lib/utils/cards';
 	import { prettifyRoot } from '$lib/text-format-util';
 
 	import type * as tt from '$lib/tree-types';
@@ -197,8 +198,8 @@
 	/>
 	<meta property="og:image" content={data.pngLink} />
 	<meta property="og:image:type" content="image/png" />
-	<meta property="og:image:width" content="1200" />
-	<meta property="og:image:height" content="630" />
+	<meta property="og:image:width" content={String(CARD_W)} />
+	<meta property="og:image:height" content={String(CARD_H)} />
 	<meta name="twitter:card" content="summary_large_image" />
 	<meta name="twitter:creator" content="@LearningCCL" />
 	<meta name="twitter:title" content="{htmlToText(data.view.name)} | {APP_NAME}" />

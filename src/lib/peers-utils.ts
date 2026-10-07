@@ -54,7 +54,7 @@ export function productionColor(idx: number, total: number): string {
 	return bandColor(PRODUCTION_BAND, idx, total);
 }
 
-// Cohort noun per root entity type, for framing standings ("top 5% of <noun> ...").
+// Cohort noun per root entity type, for framing standings ("top <band> of <noun> ...").
 const COHORT_NOUN: Record<string, string> = {
 	authors: 'authors',
 	institutions: 'institutions',
@@ -62,12 +62,12 @@ const COHORT_NOUN: Record<string, string> = {
 	sources: 'journals'
 };
 
-// Minimum standing tier worth surfacing as a badge — tier 1 (the loosest band, "top 20%")
+// Minimum standing tier worth surfacing as a badge — tier 1 (the loosest band of the ladder)
 // is suppressed everywhere standings show: the hero's subfield chips and the game cards.
 export const STANDING_MIN_TIER = 2;
 
 // Build the tier labels from the ladder's percentile bands so they never drift from the
-// backend: "top 20%" … "top 0.01%".
+// backend (`LADDER_PCT_BANDS`, loosest to tightest).
 export function tierLabels(pctBands: number[]): string[] {
 	return pctBands.map((p) => `top ${Number((p * 100).toFixed(4))}%`);
 }
