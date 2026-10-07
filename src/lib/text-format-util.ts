@@ -21,7 +21,10 @@ export function listPhrase(items: string[], conjunction = 'or'): string {
 
 // Which papers are in the data at all, read out from the served work screen.
 export function workScreenPhrase(screen: WorkScreen): string {
-	return `published ${screen.firstYear}–${screen.finalYear}, not retracted, categorized by OpenAlex as ${listPhrase(screen.kinds)}, and cited at least ${pluralize('time', screen.minCitations)}`;
+	const copies = screen.abstractDoiPrefixes.length
+		? ", not an abstracting service's copy of a paper"
+		: '';
+	return `published ${screen.firstYear}–${screen.finalYear}, not retracted${copies}, categorized by OpenAlex as ${listPhrase(screen.kinds)}, and cited at least ${pluralize('time', screen.minCitations)}`;
 }
 
 // What a paper with more authors than a team counts for, read out from the served work screen.

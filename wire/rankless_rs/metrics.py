@@ -24,15 +24,12 @@ class PaperScore(TypedDict):
 
 
 class WorkScreen(TypedDict):
+    abstractDoiPrefixes: list[str]
     finalYear: int
     firstYear: int
     kinds: list[str]
     maxAuthorPapers: int
-    minAuthorCitations: int
-    minAuthorPapers: int
     minCitations: int
-    minPapersForInstitution: int
-    minPapersForSource: int
     teamLimit: int
 
 

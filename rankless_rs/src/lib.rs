@@ -19,6 +19,7 @@ pub mod peers;
 mod semantic_ids;
 pub mod steps;
 pub mod user_ledger;
+mod work_identity;
 
 pub use common::{
     CiteCountMarker, MmapBox, NameExtensionMarker, NameMarker, PeerMarker, QuickestBox,

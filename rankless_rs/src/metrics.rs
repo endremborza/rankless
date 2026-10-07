@@ -4,11 +4,9 @@ use serde::Serialize;
 use wiretypes::wire;
 
 use crate::{
-    env_consts::{
-        FINAL_YEAR, MIN_AUTHOR_CITE_COUNT, MIN_AUTHOR_WORK_COUNT, MIN_PAPERS_FOR_INST,
-        MIN_PAPERS_FOR_SOURCE, START_YEAR,
-    },
+    env_consts::{FINAL_YEAR, START_YEAR},
     ladder::{LADDER_LEN, LADDER_PCT_BANDS},
+    work_identity::ABSTRACT_COPY_PREFIXES,
 };
 
 // Exponent of the entity-size divisor under the field score. Equal to `peers::SPEC_BETA` today and
@@ -77,15 +75,12 @@ pub const WORK_SCREEN: WorkScreen = WorkScreen {
         "book-chapter",
         "conference-paper",
     ],
+    abstract_doi_prefixes: ABSTRACT_COPY_PREFIXES,
     min_citations: 1,
     team_limit: 20,
     // Year index 0 is START_YEAR and stands for an unknown year, so the screen opens after it.
     first_year: START_YEAR + 1,
     final_year: FINAL_YEAR,
-    min_papers_for_institution: MIN_PAPERS_FOR_INST,
-    min_papers_for_source: MIN_PAPERS_FOR_SOURCE,
-    min_author_papers: MIN_AUTHOR_WORK_COUNT,
-    min_author_citations: MIN_AUTHOR_CITE_COUNT,
     // Real careers reach the low thousands of works; a record above this is an aggregate of many
     // people's, not an author.
     max_author_papers: 10_000,
@@ -147,6 +142,9 @@ pub struct PaperScore {
 #[serde(rename_all = "camelCase")]
 pub struct WorkScreen {
     pub kinds: &'static [&'static str],
+    // DOI prefixes of the records an abstracting service files under the abstracted paper's
+    // authors: copies of a paper, typed like papers, so no type screen catches them.
+    pub abstract_doi_prefixes: &'static [&'static str],
     pub min_citations: usize,
     // The most authorship rows a paper has while its authors count as one team: each other's
     // co-authors, every institution among them credited. Above it an institution needs its share
@@ -217,10 +215,16 @@ pub struct PaperSetSummary {
 }
 
 impl WorkScreen {
-    // The year and retraction screen. A pinned owner's œuvre rides through the kind screen below
-    // but not through this one.
-    pub fn admits_publication(&self, retracted: bool, year: u16) -> bool {
-        !retracted && (self.first_year..=self.final_year).contains(&year)
+    // The year, retraction and abstract-copy screen, `doi` without its resolver prefix. A pinned
+    // owner's œuvre rides through the kind screen below but not through this one.
+    pub fn admits_publication(&self, retracted: bool, year: u16, doi: Option<&str>) -> bool {
+        !retracted
+            && (self.first_year..=self.final_year).contains(&year)
+            && !doi.is_some_and(|d| {
+                self.abstract_doi_prefixes
+                    .iter()
+                    .any(|p| d.get(..p.len()).is_some_and(|h| h.eq_ignore_ascii_case(p)))
+            })
     }
 
     pub fn admits_kind(&self, kind: Option<&str>) -> bool {
@@ -440,6 +444,16 @@ mod tests {
         let max = EncodedBar::MAX as f64 * unit;
         assert_eq!(decode_bar(encode_bar(max)), max);
         assert!(std::panic::catch_unwind(|| encode_bar(max + 1.0)).is_err());
+    }
+
+    #[test]
+    fn an_abstracting_service_copy_is_no_publication() {
+        let year = WORK_SCREEN.first_year;
+        let copy = format!("{}198611379", WORK_SCREEN.abstract_doi_prefixes[0]);
+        assert!(!WORK_SCREEN.admits_publication(false, year, Some(&copy)));
+        assert!(!WORK_SCREEN.admits_publication(false, year, Some(&copy.to_uppercase())));
+        assert!(WORK_SCREEN.admits_publication(false, year, Some("10.1021/ja00528a029")));
+        assert!(WORK_SCREEN.admits_publication(false, year, None));
     }
 
     #[test]

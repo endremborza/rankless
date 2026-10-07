@@ -18,15 +18,12 @@ export type PaperScore = {
 };
 
 export type WorkScreen = {
+	abstractDoiPrefixes: string[];
 	finalYear: number;
 	firstYear: number;
 	kinds: string[];
 	maxAuthorPapers: number;
-	minAuthorCitations: number;
-	minAuthorPapers: number;
 	minCitations: number;
-	minPapersForInstitution: number;
-	minPapersForSource: number;
 	teamLimit: number;
 };
 

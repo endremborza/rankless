@@ -167,7 +167,11 @@ fn work_filter_with_forced(
         move |acc, o| {
             let Some(id) = o.get_parsed_id() else { return };
             let year = o.publication_year.unwrap_or(0);
-            let screened = WORK_SCREEN.admits_publication(o.is_retracted.unwrap_or(false), year);
+            let screened = WORK_SCREEN.admits_publication(
+                o.is_retracted.unwrap_or(false),
+                year,
+                o.doi.as_deref().map(strip_doi_prefix),
+            );
             let standard = screened & WORK_SCREEN.admits_kind(o.work_type.as_deref());
             let forced = screened & oeuvre.contains(&id);
             if forced {

@@ -41,7 +41,7 @@ accepted claim), then: `make filter extend_csvs` → forced gen-ladder rebuild �
   aggregates (from `APPLIED_MANIFEST`; event keys stay there), the derived
   identity records by reason (from `DERIVED_MANIFEST`: merges by how the
   ORCID's owner was chosen, or as a cluster its registered name does not
-  contradict, strips by why, paper merges of Angewandte's two editions),
+  contradict, strips by why, paper merges of two-edition journals),
   forced-works aggregates (from
   `FORCED_WORKS` — counts only, the wid list of works served
   beyond the standard screens stays private), and per-step

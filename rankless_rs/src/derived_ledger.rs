@@ -5,9 +5,8 @@
 //! it; the owner's oldest record keeps; every other record of the ORCID is merged into the keep or
 //! stripped of the ORCID. A record over the author screen's work bound never owns or keeps. A
 //! person merged from several records is named by the registered name, else by their largest
-//! record, when that name is fuller than the keep's own. Two work records the DOI system pairs
-//! are one paper when they share an author: an Angewandte paper's German-edition record merges
-//! into its International Edition record of the same manuscript number.
+//! record, when that name is fuller than the keep's own. The source also carries the paper merges
+//! `work_identity::edition_merges` finds.
 
 use std::{
     borrow::Cow,
@@ -28,15 +27,13 @@ use serde_json::{json, Value};
 use wiretypes::wire;
 
 use crate::{
-    common::{oa_id_parse_opt, ParsedId, Stowage, MAIN_NAME},
+    common::{ParsedId, Stowage, MAIN_NAME},
     csv_iter::par_reduce,
-    csv_writers::{authors, works},
+    csv_writers::authors,
     metrics::WORK_SCREEN,
-    oa_structs::{
-        post::{Author, Authorship},
-        Work,
-    },
-    user_ledger::{normalize_orcid, strip_doi_prefix, write_json, DERIVED_JSONL, DERIVED_MANIFEST},
+    oa_structs::post::Author,
+    user_ledger::{normalize_orcid, write_json, DERIVED_JSONL, DERIVED_MANIFEST},
+    work_identity::edition_merges,
 };
 
 /// The env var naming the root of the data from outside OpenAlex.
@@ -49,10 +46,6 @@ pub const DEFAULT_EXTERNAL_DATA_ROOT: &str = "data/external";
 #[wire]
 pub const NAMES_TABLE: &str = "orcid/names.tsv.zst";
 pub const SOURCE: &str = "derived";
-/// Angewandte Chemie publishes each paper in German and, as the International Edition, in
-/// English, under one manuscript number after these prefixes.
-const GERMAN_EDITION_DOI: &str = "10.1002/ange.";
-const INTERNATIONAL_EDITION_DOI: &str = "10.1002/anie.";
 
 /// Bits of shared name information two records need to be one person: two common tokens
 /// (about 7 and 9 bits) fall short of it once two initials disagree, one common token plus a
@@ -481,8 +474,8 @@ pub enum Reason {
     OverWorkBound,
     /// The display name of the owner cluster's record with the most works.
     LargestRecord,
-    /// A German-edition record beside its International Edition record.
-    AngewandteEdition,
+    /// A copy-edition record beside its twin in the original edition (`work_identity`).
+    EditionTwin,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -962,7 +955,7 @@ pub fn derive(stowage: &Stowage, names_table: Option<&Path>) -> io::Result<()> {
         registered_names: registered.is_some(),
         ..Default::default()
     };
-    let reason = Reason::AngewandteEdition;
+    let reason = Reason::EditionTwin;
     let mut records: Vec<Record> = edition_merges(stowage)
         .into_iter()
         .map(|(drop, keep)| Record {
@@ -1291,106 +1284,6 @@ fn load_registered(
     Ok(out)
 }
 
-/// (drop, keep): each German-edition record into the lowest-id International Edition record of
-/// its manuscript number that shares an author with it. The number alone is not the paper: until
-/// 2003 each edition numbered its own articles, and covers still are numbered apart. A German
-/// record without such a twin stays; before 1962 the German edition was the only one.
-fn edition_merges(stowage: &Stowage) -> Vec<(BigId, BigId)> {
-    let twins = twinned(par_reduce::<Work, Vec<(String, BigId, bool)>, _, _>(
-        stowage,
-        works::C,
-        MAIN_NAME,
-        |acc, w| {
-            if let (Some(id), Some((number, international))) =
-                (w.get_parsed_id(), w.doi.as_deref().and_then(edition))
-            {
-                acc.push((number, id, international));
-            }
-        },
-        |a, b| a.extend(b),
-        Some(10),
-    ));
-    let wanted: std::sync::Arc<HashSet<BigId>> = std::sync::Arc::new(
-        twins
-            .iter()
-            .flat_map(|(german, international)| german.iter().chain(international))
-            .copied()
-            .collect(),
-    );
-    let authors = par_reduce::<Authorship, HashMap<BigId, Vec<BigId>>, _, _>(
-        stowage,
-        works::C,
-        works::atts::authorships,
-        move |acc, s| {
-            let work = s.parent_id.as_deref().and_then(oa_id_parse_opt);
-            let author = s.author_id.as_deref().and_then(oa_id_parse_opt);
-            if let (Some(w), Some(a)) = (work.filter(|w| wanted.contains(w)), author) {
-                acc.entry(w).or_default().push(a);
-            }
-        },
-        |a, b| {
-            for (w, authors) in b {
-                a.entry(w).or_default().extend(authors);
-            }
-        },
-        Some(10),
-    );
-    pair_editions(&twins, &authors)
-}
-
-/// An Angewandte record's manuscript number and whether it is the International Edition's.
-fn edition(doi: &str) -> Option<(String, bool)> {
-    let doi = strip_doi_prefix(doi);
-    [
-        (GERMAN_EDITION_DOI, false),
-        (INTERNATIONAL_EDITION_DOI, true),
-    ]
-    .into_iter()
-    .find_map(|(prefix, international)| {
-        let number = doi.get(prefix.len()..)?;
-        doi[..prefix.len()]
-            .eq_ignore_ascii_case(prefix)
-            .then(|| (number.to_ascii_lowercase(), international))
-    })
-}
-
-/// (German records, International Edition records by id) of each number both editions carry.
-fn twinned(editions: Vec<(String, BigId, bool)>) -> Vec<(Vec<BigId>, Vec<BigId>)> {
-    let mut by_number: HashMap<String, (Vec<BigId>, Vec<BigId>)> = HashMap::new();
-    for (number, id, international) in editions {
-        let (german, intl) = by_number.entry(number).or_default();
-        if international { intl } else { german }.push(id);
-    }
-    by_number
-        .into_values()
-        .filter(|(german, intl)| !(german.is_empty() || intl.is_empty()))
-        .map(|(german, mut intl)| {
-            intl.sort_unstable();
-            (german, intl)
-        })
-        .collect()
-}
-
-fn pair_editions(
-    twins: &[(Vec<BigId>, Vec<BigId>)],
-    authors: &HashMap<BigId, Vec<BigId>>,
-) -> Vec<(BigId, BigId)> {
-    let none = Vec::new();
-    let of = |w: &BigId| authors.get(w).unwrap_or(&none);
-    let mut pairs: Vec<(BigId, BigId)> = twins
-        .iter()
-        .flat_map(|(german, intl)| {
-            german.iter().filter_map(|g| {
-                intl.iter()
-                    .find(|i| of(g).iter().any(|a| of(i).contains(a)))
-                    .map(|&i| (*g, i))
-            })
-        })
-        .collect();
-    pairs.sort_unstable();
-    pairs
-}
-
 /// One `ACTIVE_JSONL`-shaped line per decision, in (ORCID, id) order, plus the manifest.
 fn write_records(ul_dir: &Path, records: &[Record], manifest: &DerivedManifest) -> io::Result<()> {
     std::fs::create_dir_all(ul_dir)?;
@@ -1463,36 +1356,6 @@ fn squeeze(ascii: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_german_edition_record_folds_into_its_international_twin() {
-        let record = |doi: &str, id: BigId| {
-            let (number, international) = edition(doi).unwrap();
-            (number, id, international)
-        };
-        assert_eq!(edition("https://doi.org/10.1002/chem.200705241"), None);
-        let twins = twinned(vec![
-            record("https://doi.org/10.1002/ange.200705241", 1),
-            record("https://doi.org/10.1002/ANIE.200705241", 3),
-            record("https://doi.org/10.1002/anie.200705241", 2),
-            // a number each edition gave to a different article
-            record("https://doi.org/10.1002/ange.200390073", 6),
-            record("https://doi.org/10.1002/anie.200390073", 7),
-            // German only, International only
-            record("https://doi.org/10.1002/ange.19620740102", 4),
-            record("https://doi.org/10.1002/anie.201608955", 5),
-        ]);
-        let authors = [
-            (1, vec![10, 11]),
-            (2, vec![9]),
-            (3, vec![11]),
-            (6, vec![12]),
-            (7, vec![13]),
-        ]
-        .into_iter()
-        .collect();
-        assert_eq!(pair_editions(&twins, &authors), vec![(1, 3)]);
-    }
 
     /// Token frequencies at the magnitudes of the full author table (some 3 × 10⁸ tokens):
     /// the most common names near 7 bits, common ones near 9, 11 and 13, a rarer one at 16,

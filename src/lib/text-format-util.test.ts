@@ -134,20 +134,17 @@ describe('semantify', () => {
 describe('work screen phrases', () => {
 	const screen: WorkScreen = {
 		kinds: ['article', 'book'],
+		abstractDoiPrefixes: ['10.0/abstracts.'],
 		minCitations: 1,
 		teamLimit: 20,
 		firstYear: 1951,
 		finalYear: 2026,
-		minPapersForInstitution: 5,
-		minPapersForSource: 5,
-		minAuthorPapers: 8,
-		minAuthorCitations: 400,
 		maxAuthorPapers: 5000
 	};
 
 	it('states no author limit on the papers in the data', () => {
 		expect(workScreenPhrase(screen)).toBe(
-			'published 1951–2026, not retracted, categorized by OpenAlex as article or book, and cited at least 1 time'
+			"published 1951–2026, not retracted, not an abstracting service's copy of a paper, categorized by OpenAlex as article or book, and cited at least 1 time"
 		);
 	});
 
