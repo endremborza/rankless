@@ -15,13 +15,12 @@ import tomllib
 from dataclasses import dataclass, field
 
 from pyscripts.fleet.remote import Host
+from wire.rankless_server.consts import PORT
+from wire.rankless_trees.part_iterator import DEFAULT_PARTS_ROOT
 
 DEFAULT_CONFIG = "data/warm.toml"
 DEFAULT_MIN_CITATIONS = 100_000
 DEFAULT_BIG_CHUNK = 4
-DEFAULT_PORT = 3038
-PARTS_ROOT_VAR = "RANKLESS_PARTS_ROOT"
-DEFAULT_PARTS_ROOT = "/tmp/dmove-parts"  # the backend's default for PARTS_ROOT_VAR
 
 
 @dataclass(frozen=True)
@@ -51,7 +50,7 @@ class Worker:
     big_chunk: int = DEFAULT_BIG_CHUNK  # bigs in flight in the parts root per prep→read
     # where this box's backend spills bigs parts: its .env PARTS_ROOT_VAR
     parts_root: str = DEFAULT_PARTS_ROOT
-    port: int = DEFAULT_PORT
+    port: int = PORT
     speed: float = 1.0  # relative per-proc throughput; hand-tuned from measured clocks
 
     def __post_init__(self):

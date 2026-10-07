@@ -9,8 +9,9 @@ import os
 from dotenv import load_dotenv
 from protocli import Dispatcher
 
-from pyscripts.fleet.config import DEFAULT_CONFIG, DEFAULT_PARTS_ROOT, load_config
+from pyscripts.fleet.config import DEFAULT_CONFIG, load_config
 from pyscripts.fleet.drive import coverage_gate, warm  # noqa: F401 — package API
+from wire.rankless_trees.part_iterator import DEFAULT_PARTS_ROOT
 
 load_dotenv()
 

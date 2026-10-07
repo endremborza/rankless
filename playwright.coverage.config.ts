@@ -1,4 +1,6 @@
 import type { PlaywrightTestConfig } from '@playwright/test';
+import dev from './src/lib/assets/data/dev.json' with { type: 'json' };
+import { E2E_ENV } from './tests/e2e-env';
 
 // E2E coverage run: `bun run test:e2e:cov`.
 //
@@ -17,14 +19,10 @@ const config: PlaywrightTestConfig = {
 	globalTeardown: './tests/coverage/global-teardown.ts',
 	webServer: {
 		command: 'bun tests/seed-game.ts && bun run build && bun run preview',
-		port: 4173,
+		port: dev.previewPort,
 		reuseExistingServer: false,
 		timeout: 180_000,
-		env: {
-			COVERAGE: '1',
-			RANKLESS_DB_PATH: '.e2e-data/rankless.sqlite',
-			MCP_OBJECTS_ROOT: '.e2e-data/mcp-objects'
-		}
+		env: { COVERAGE: '1', ...E2E_ENV }
 	}
 };
 

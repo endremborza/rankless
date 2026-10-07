@@ -1,9 +1,11 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vitest/config';
+import dev from './src/lib/assets/data/dev.json';
 
 export default defineConfig({
 	plugins: [sveltekit()],
-	server: { fs: { allow: ['static'] }, watch: { ignored: ['**/target/**'] } },
+	server: { port: dev.devPort, fs: { allow: ['static'] }, watch: { ignored: ['**/target/**'] } },
+	preview: { port: dev.previewPort },
 	ssr: { external: ['bun:sqlite'] },
 	build: {
 		rollupOptions: {

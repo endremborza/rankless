@@ -696,17 +696,12 @@ cd rankless
 make bootstrap
 ```
 
-This: (1) clones `ccl-science-data` into `~/.cache/rankless/` and regenerates its reader
-bindings; (2) `uv sync` + `bun install`; (3) downloads the nano snapshot (~100 MB) into
-`./data/nano-snapshot/`; (4) runs the pipeline (`RANKLESS_ENV=nano`) → `./data/nano-root/`
-(~10 min first time); (5) builds `rankless-server` (`RANKLESS_ENV=nano` so compile-time
-constants match the data). Idempotent — stamp files at `.ready` / `.pipeline-done` skip
-finished steps.
+This: (1) clones `ccl-science-data` into `CCL_CLONE_DIR` (`DEFAULT_CCL_CLONE_DIR` in `pyscripts/dev/bootstrap.py` when unset) and regenerates its reader bindings; (2) `uv sync` + `bun install`; (3) downloads the nano snapshot from `NANO_ARTIFACT_URL` into `OA_SNAPSHOT`; (4) runs the pipeline (`RANKLESS_ENV=nano`) → `OA_ROOT` (~10 min first time); (5) builds `rankless-server` (`RANKLESS_ENV=nano` so compile-time constants match the data). Idempotent — stamp files (`SNAPSHOT_STAMP` in `OA_SNAPSHOT`, `PIPELINE_STAMP` in `OA_ROOT`) skip finished steps.
 
 **Daily flow:**
 
 ```sh
-make dev            # backend 127.0.0.1:3038 + SvelteKit 127.0.0.1:5173, interleaved logs
+make dev            # backend on PORT + SvelteKit on devPort (dev.json), interleaved logs
 uv run -m pyscripts.dev.run --open   # auto-launch browser
 ```
 
@@ -714,7 +709,7 @@ uv run -m pyscripts.dev.run --open   # auto-launch browser
 
 | Command | What runs |
 | --- | --- |
-| `bun run test` | Playwright e2e (`tests/`, builds + previews on 4173). `ledger.spec.ts` is excluded via `testIgnore` |
+| `bun run test` | Playwright e2e (`tests/`, builds + previews on `previewPort` from `dev.json`, against a scratch user DB + object store: `E2E_ENV` in `tests/e2e-env.ts`, named after `paths.json`, so seeded fixtures never land in `data/`). `ledger.spec.ts` is excluded via `testIgnore` |
 | `make mega_test` | The ledger integration test (`ledger.spec.ts`) — orchestrates dev server + backend + a pipeline run between its `pre-pipeline`/`post-pipeline` phases via `playwright.ledger.config.ts` |
 | `make test-ledger` | The Rust ledger gate (`rankless_rs/tests/ledger_pipeline.rs`): a synthetic snapshot through `to-csv → derive-ledger → filter → a1_entity_mapping`, in-process, in seconds; also part of `cargo test`. `make fixture-build` writes that snapshot, the ORCID registered-name table + `scenario.json` to `FIXTURE_DIR` (default `/tmp/rankless-fixture`) for driving the flow by hand |
 | `bun run test:unit` | Vitest unit tests (`src/**/*.test.ts`) — the TS logic in `src/lib` |
@@ -734,21 +729,13 @@ preview must run under bun, which has no `NODE_V8_COVERAGE` equivalent for a lon
 covered (it runs during hydration); the gap is SSR-only `.ts` (load functions, `+server.ts`,
 hooks), part of which the vitest unit suite already exercises.
 
-**Where things live:** `data/nano-snapshot/` (downloaded JSON, gitignored),
-`data/nano-root/` (local pipeline output, gitignored), `libs/ccl-science-data` (symlink →
-`~/.cache/rankless/ccl-science-data`; override with `CCL_CLONE_DIR=<path>`),
-`target/release/rankless-server`, `.env` (gitignored, seeded from `.env.example`).
-External data the pipeline reads but does not produce (the ORCID registered-name table,
-the laureate table, the bucket tables `extend_csvs` joins) lives under `EXTERNAL_DATA_ROOT`,
-a directory per source outside the repo and both trees; unset it is `./data/external`,
-where the bucket tables land and, without the ORCID table, `derive-ledger` picks each
-ORCID's owner by works alone and `extend_csvs` writes no laureates.
+**Where things live:** `OA_SNAPSHOT` (downloaded JSON, gitignored), `OA_ROOT` (local pipeline output, gitignored), `libs/ccl-science-data` (symlink → the `CCL_CLONE_DIR` clone), `target/release/rankless-server`, `.env` (gitignored, seeded from `.env.example`, whose `PUBLIC_BACKEND_URL` and `PUBLIC_ORIGIN` ports `pyscripts/tests/test_dev_setup.py` checks against `PORT` and `devPort`, since a dotenv file cannot derive them). External data the pipeline reads but does not produce (the ORCID registered-name table, the laureate table, the bucket tables `extend_csvs` joins) lives under `EXTERNAL_DATA_ROOT`, a directory per source outside the repo and both trees; unset it is `DEFAULT_EXTERNAL_DATA_ROOT`, where the bucket tables land and, without the ORCID table, `derive-ledger` picks each ORCID's owner by works alone and `extend_csvs` writes no laureates.
 
 **Troubleshooting:**
 
 | Symptom | Fix |
 | --- | --- |
-| `port 3038/5173 already in use` | `lsof -nP -iTCP:3038 -sTCP:LISTEN` to find the other instance |
+| `Server already running at …`, or the dev server's port taken | `lsof -nP -iTCP:<port> -sTCP:LISTEN` on the port it names (`PORT`, or `devPort` in `dev.json`) finds the other instance |
 | `backend never became ready` | inspect `make dev` output; usually incomplete OA_ROOT — re-run `make bootstrap` |
 | `NANO_ARTIFACT_URL` 404 | the artifact host isn't reachable; get a fresh URL |
 | ccl-science-data import error | `rm -rf libs/ccl-science-data && make bootstrap` |

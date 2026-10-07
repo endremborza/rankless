@@ -20,14 +20,9 @@ from dataclasses import dataclass
 
 from pyscripts import gitutil
 from pyscripts.fleet import manifest
-from pyscripts.fleet.config import (
-    DEFAULT_PARTS_ROOT,
-    PARTS_ROOT_VAR,
-    Model,
-    Worker,
-    parts_fs,
-)
+from pyscripts.fleet.config import Model, Worker, parts_fs
 from pyscripts.fleet.remote import Host
+from wire.rankless_trees.part_iterator import DEFAULT_PARTS_ROOT, PARTS_ROOT_VAR
 
 GB = 1024**3
 DISK_MARGIN_GB = 5.0

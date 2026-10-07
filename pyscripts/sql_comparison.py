@@ -46,16 +46,19 @@ from pyscripts.comparison_report import (
 )
 from pyscripts.server_ops import DockerServer, FlaskPgServer, port_free
 from pyscripts.stow_ops import RebuildLevel
+from wire.rankless_server.consts import PORT
 
 CCL_LIB = Path(ccl_science_data.__file__).parent.parent
 
 RUST_IMAGE = RUST_CONTAINER = "rankless-rust-sql"
-RUST_PORT = 3038
 FLASK_IMAGE = FLASK_CONTAINER = "rankless-pg-python"
 FLASK_PORT = 5000
 
 MEMORY_LIMIT = "8g"
 CPU_LIMIT = "4"
+
+DEFAULT_REBUILD = RebuildLevel.binary.value
+DEFAULT_SAMPLES = 4
 
 SAMPLE_BINS = [5_000, 10_000, 30_000, 100_000, 200_000]
 SUPPORTED_ETYPES = {
@@ -203,7 +206,7 @@ def run_comparison(
     rust = DockerServer(
         container=RUST_CONTAINER,
         image=RUST_IMAGE,
-        host_port=RUST_PORT,
+        host_port=PORT,
         data_root=oa_root,
         memory=MEMORY_LIMIT,
         cpus=CPU_LIMIT,

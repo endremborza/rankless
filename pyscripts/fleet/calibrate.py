@@ -17,15 +17,10 @@ fails loudly there.
 from dataclasses import dataclass, replace
 
 from pyscripts import gitutil, services
-from pyscripts.fleet.config import (
-    DEFAULT_PARTS_ROOT,
-    DEFAULT_PORT,
-    Fleet,
-    Model,
-    Worker,
-    parts_fs,
-)
+from pyscripts.fleet.config import Fleet, Model, Worker, parts_fs
 from pyscripts.fleet.remote import Host
+from wire.rankless_server.consts import PORT
+from wire.rankless_trees.part_iterator import DEFAULT_PARTS_ROOT
 
 GB = 1024**3
 MAX_PROCS = 16  # client-parallelism ceiling per bin
@@ -209,7 +204,7 @@ def render_toml(fleet: Fleet, workers: list[Worker]) -> str:
         lines.append(f"band = [{w.band[0]:.1f}, {w.band[1]:.1f}]")
         lines.append(f"bins = [{', '.join(f'{b:.1f}' for b in w.bins)}]")
         lines.append(f"procs = [{', '.join(map(str, w.procs))}]")
-        if w.port != DEFAULT_PORT:
+        if w.port != PORT:
             lines.append(f"port = {w.port}")
         if w.speed != 1.0:
             lines.append(f"speed = {w.speed}")

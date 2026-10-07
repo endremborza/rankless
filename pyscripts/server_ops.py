@@ -11,16 +11,18 @@ from typing import Callable, Optional
 
 import requests
 from tqdm import tqdm
+from wire.rankless_server.consts import COMMIT_HASH_LEN, PORT
 
 DEFAULT_BINARY = Path("target/release/rankless-server")
-DEFAULT_PORT = 3038
+POLL_INTERVAL_S = 3
 
 
 def _base_url(port: int) -> str:
     return f"http://127.0.0.1:{port}"
 
 
-DEFAULT_BE_ADDR = os.environ.get("RANKLESS_BE_URL") or _base_url(DEFAULT_PORT)
+DEFAULT_BE_ADDR = os.environ.get("RANKLESS_BE_URL") or _base_url(PORT)
+LOCAL_BE_URL = f"{_base_url(PORT)}/v1"
 
 
 def port_free(port: int) -> bool:
@@ -86,15 +88,17 @@ def wait_for_url(
             pass
         if dead_check and not dead_check():
             raise RuntimeError(f"{desc}: died before becoming ready.{_diag()}")
-        time.sleep(3)
-    raise TimeoutError(f"{desc}: not ready after {max_attempts * 3}s.{_diag()}")
+        time.sleep(POLL_INTERVAL_S)
+    raise TimeoutError(
+        f"{desc}: not ready after {max_attempts * POLL_INTERVAL_S}s.{_diag()}"
+    )
 
 
 @dataclass
 class ServerConfig:
     data_root: Path
     binary: Path = field(default_factory=lambda: DEFAULT_BINARY)
-    port: int = DEFAULT_PORT
+    port: int = PORT
 
     @property
     def base_url(self) -> str:
@@ -387,7 +391,7 @@ def image_exists(image: str) -> bool:
 
 def build_perf_image(sha: str, worktree: Path) -> str:
     """Build (or reuse) the ``rankless-perf-<sha>`` image from a worktree's binary."""
-    image = f"rankless-perf-{sha[:12]}"
+    image = f"rankless-perf-{sha[:COMMIT_HASH_LEN]}"
     if image_exists(image):
         print(f"[perf] reusing image {image}")
         return image

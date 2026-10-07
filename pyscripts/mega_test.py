@@ -33,15 +33,15 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
+from wire.rankless_rs.user_ledger import FORCED_WORKS
+
+from . import paths
 from .deploy import be_service_name
+from .dev._common import FRONTEND_PORT, TEST_ORCID
 from .server_ops import DEFAULT_BE_ADDR
 
-DEV_PORT = 5173
-BASE_URL = f"http://localhost:{DEV_PORT}"
+BASE_URL = f"http://localhost:{FRONTEND_PORT}"
 BE_URL = f"{DEFAULT_BE_ADDR}/v1"
-# Mirrors TEST_ORCID in tests/ledger.spec.ts; admin rights let the spec accept
-# its own claim (only accepted events reach the pipeline).
-TEST_ORCID = "0000-0003-4255-0492"
 REPO_ROOT = Path(__file__).parent.parent
 LOG_DIR = REPO_ROOT / "logs"
 DEV_SERVER_LOG = LOG_DIR / "dev-server.log"
@@ -90,9 +90,9 @@ def _wait_http(
 
 
 def _start_dev_server() -> subprocess.Popen:
-    if _port_in_use(DEV_PORT):
+    if _port_in_use(FRONTEND_PORT):
         sys.exit(
-            f"Port {DEV_PORT} already in use before starting dev server. "
+            f"Port {FRONTEND_PORT} already in use before starting dev server. "
             "Kill the existing process and retry."
         )
 
@@ -100,7 +100,7 @@ def _start_dev_server() -> subprocess.Popen:
     log_fh = DEV_SERVER_LOG.open("wb")
     env = {**os.environ, "NODE_ENV": "development", "ADMIN_ORCIDS": TEST_ORCID}
     proc = subprocess.Popen(
-        ["bun", "run", "dev", "--port", str(DEV_PORT)],
+        ["bun", "run", "dev", "--port", str(FRONTEND_PORT)],
         cwd=REPO_ROOT,
         env=env,
         stdout=log_fh,

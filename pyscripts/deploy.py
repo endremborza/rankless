@@ -119,7 +119,6 @@ VOLUME_THROUGHPUT_MBS = 250
 SMOKE_BOOT_S = 300
 SMOKE_POLL_S = 10
 LARGE_FE_PROCS = 12
-DEFAULT_RS_PORT = 3038
 BACKEND_PROCESS = "rankless-server"
 
 # Systemd unit shapes live in deploy/ (rendered by pyscripts/services.py); this
@@ -189,7 +188,7 @@ class IpAlloc:
 class UpstreamConf:
     fe_ports: list[int]
     ip: str = "127.0.0.1"
-    be_port: int = DEFAULT_RS_PORT
+    be_port: int = PORT
     fe_timeout: int = 1
     suffix: str = ""
 
@@ -1009,7 +1008,7 @@ upstream {BE_UPSTREAM} {{
         for name in migration_scripts.module_names():
             self._depcomm(f"{self.venv_python} -m pyscripts.migration_scripts.{name}")
 
-    def assert_backend_owns_port(self, port: int = DEFAULT_RS_PORT):
+    def assert_backend_owns_port(self, port: int = PORT):
         """Every listener on the backend port must be the backend binary itself. A
         reverse tunnel (`ssh -R`) from another box can hold the port and answer
         `/v1/specs` with that box's version, so a gate that talks to this box over

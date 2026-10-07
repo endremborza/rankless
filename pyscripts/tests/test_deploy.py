@@ -4,15 +4,16 @@ from types import SimpleNamespace
 
 import pytest
 
-from pyscripts import deploy, migration_scripts, userdb
+from pyscripts import deploy, migration_scripts, paths, services, userdb
 from pyscripts.fleet import manifest
 from pyscripts.fleet.remote import Host
+from wire.rankless_server.consts import PORT
 
 SS_TUNNEL = (
-    'LISTEN 0 128 127.0.0.1:3038 0.0.0.0:* users:(("sshd",pid=1201,fd=9))\n'
-    'LISTEN 0 128 [::1]:3038 [::]:* users:(("sshd",pid=1201,fd=8))\n'
+    f'LISTEN 0 128 127.0.0.1:{PORT} 0.0.0.0:* users:(("sshd",pid=1201,fd=9))\n'
+    f'LISTEN 0 128 [::1]:{PORT} [::]:* users:(("sshd",pid=1201,fd=8))\n'
 )
-SS_OWN = 'LISTEN 0 4096 127.0.0.1:3038 0.0.0.0:* users:(("rankless-server",pid=2210,fd=12))\n'
+SS_OWN = f'LISTEN 0 4096 127.0.0.1:{PORT} 0.0.0.0:* users:(("{deploy.BACKEND_PROCESS}",pid=2210,fd=12))\n'
 
 
 def _box(ss_output: str):
@@ -22,14 +23,16 @@ def _box(ss_output: str):
 
 
 def test_listeners_name_the_socket_owner() -> None:
-    assert deploy.listeners(SS_TUNNEL, 3038) == [
-        ("127.0.0.1:3038", "sshd"),
-        ("[::1]:3038", "sshd"),
+    assert deploy.listeners(SS_TUNNEL, PORT) == [
+        (f"127.0.0.1:{PORT}", "sshd"),
+        (f"[::1]:{PORT}", "sshd"),
     ]
-    assert deploy.listeners(SS_OWN, 3038) == [("127.0.0.1:3038", "rankless-server")]
-    assert deploy.listeners(SS_OWN, 3039) == []
-    assert deploy.listeners("LISTEN 0 128 127.0.0.1:3038 0.0.0.0:*\n", 3038) == [
-        ("127.0.0.1:3038", "")
+    assert deploy.listeners(SS_OWN, PORT) == [
+        (f"127.0.0.1:{PORT}", deploy.BACKEND_PROCESS)
+    ]
+    assert deploy.listeners(SS_OWN, PORT + 1) == []
+    assert deploy.listeners(f"LISTEN 0 128 127.0.0.1:{PORT} 0.0.0.0:*\n", PORT) == [
+        (f"127.0.0.1:{PORT}", "")
     ]
 
 
@@ -168,10 +171,7 @@ def test_nginx_conf_keys_on_the_visitor_and_caps_renders() -> None:
         "server 127.0.0.1:4200 max_fails=0;",
         "server 127.0.0.1:4201 max_fails=0;",
     ]
-    assert (
-        deploy.UpstreamConf([4200]).be_server()
-        == f"server 127.0.0.1:{deploy.DEFAULT_RS_PORT};"
-    )
+    assert deploy.UpstreamConf([4200]).be_server() == f"server 127.0.0.1:{PORT};"
 
 
 def test_ops_plan_is_ordered_and_gated_on_the_spec() -> None:

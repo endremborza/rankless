@@ -41,9 +41,9 @@ from pyscripts.server_ops import (
     ensure_worktree,
     remove_worktree,
 )
+from wire.rankless_server.consts import PORT
 
 DEFAULT_CONFIG = Path("pyscripts/perf_comparisons.toml")
-PORT = 3038
 MIB = 1024 * 1024
 
 PHASE_LINE = re.compile(

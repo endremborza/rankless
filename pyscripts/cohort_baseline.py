@@ -18,8 +18,12 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from pyscripts import paths
+from pyscripts.server_ops import LOCAL_BE_URL
+from wire.rankless_rs.user_ledger import OWNER_PINS
+
 load_dotenv()
-BASE = os.environ.get("COHORT_BE", "http://127.0.0.1:3038/v1").rstrip("/")
+BASE = os.environ.get("COHORT_BE", LOCAL_BE_URL).rstrip("/")
 AUTHOR_KEYS = ("semanticId", "name", "oaId", "papers", "citations")
 
 

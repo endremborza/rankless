@@ -150,9 +150,8 @@ repo_dir = "/home/borza/rankless"
 data_root = "/home/borza/rankless-data"
 band = [160.0, 320.0]
 procs = [1]
-bigs = true            # owns the top band + everything above it
-big_chunk = 4          # trees of parts spilled at a time
-parts_root = "/mnt/common-ssd/dmove-parts" # = the box's .env RANKLESS_PARTS_ROOT; default /tmp/dmove-parts
+bigs = true            # owns the top band + everything above it; big_chunk (DEFAULT_BIG_CHUNK) = trees of parts spilled at a time
+parts_root = "/mnt/common-ssd/dmove-parts" # = the box's .env RANKLESS_PARTS_ROOT; default DEFAULT_PARTS_ROOT
 ```
 
 Design rules: **the cache directory is the state** (a worker's backend serves
@@ -192,19 +191,19 @@ failure hours later, overlap = double compute) and fleets without exactly one
 2. **gate**: all checks print as one table; any failure aborts before any
    compute. `HEAD == origin` is asserted up front (workers pull from origin).
 3. **compute** (parallel): banded `cache bigs` / `cache rest` per worker, cache
-   files rsynced back every 10 minutes plus a final pass; the local worker runs
+   files rsynced back every `SYNC_BACK_S` seconds plus a final pass; the local worker runs
    in-process.
 4. **verify**: the disk-only coverage gate — every sampled tree cached on the
    primary root (no requests, so a gap can never trigger an out-of-memory
    compute locally).
 
-Bigs = everything above the top band's `hi`, computed via chunked prep→read: `big_chunk` trees prepped into the server's parts root, then read (the server deletes each tree's parts after its read), then the next chunk. The parts root is `RANKLESS_PARTS_ROOT` (default `/tmp/dmove-parts`; empty = default), read by the backend at startup from the box's `.env` and by `make clean-cache` — point it at a large SSD on a box whose `/tmp` is small, and mirror it as the worker's `parts_root` so preflight measures that filesystem (its parent directory: the root itself is created on demand) and fails the env check when the two disagree. Raise `big_chunk` if the SSD allows, lower it if it fills — preflight enforces `big_chunk × parts_gb_per_big` of headroom there.
+Bigs = everything above the top band's `hi`, computed via chunked prep→read: `big_chunk` trees prepped into the server's parts root, then read (the server deletes each tree's parts after its read), then the next chunk. The parts root is `RANKLESS_PARTS_ROOT` (default `DEFAULT_PARTS_ROOT`; empty = default), read by the backend at startup from the box's `.env` and by `make clean-cache` — point it at a large SSD on a box whose `/tmp` is small, and mirror it as the worker's `parts_root` so preflight measures that filesystem (its parent directory: the root itself is created on demand) and fails the env check when the two disagree. Raise `big_chunk` if the SSD allows, lower it if it fills — preflight enforces `big_chunk × parts_gb_per_big` of headroom there.
 
 Flags: `--config <toml>`, `--only <worker>`, `--no-push` (skip the data rsync),
 `--gate-only` (just re-check coverage). Single-box primitives stay available as
 `make cache-bigs / cache-rest / cache-validate-all / cache-validate-bigs`, banded
 via the cache CLI's flags (the same ones the driver ships per worker):
-`ARGS="--min 14 --limit 320 --bins 48 --procs 4,1 --chunk 4 --min-citations 100000"`.
+`ARGS="--min 14 --limit 320 --bins 48 --procs 4,1"` (`--chunk` and `--min-citations` default to `DEFAULT_BIG_CHUNK` and `DEFAULT_MIN_CITATIONS`).
 `data/warm.toml` is the only place bands are configured — the old `BIG_LIMIT`/
 `RL_BINS`/`RL_PROCS` env knobs are gone, and preflight fails any worker whose
 `.env` still sets one (exactly those three; other `RL_*` vars belong to the

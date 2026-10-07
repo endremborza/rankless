@@ -5,15 +5,17 @@
  *   "pre-pipeline"  — log in, disown/merge/claim, accept the claim, verify pending state
  *   "post-pipeline" — verify the pipeline applied the actions + restored the pinned œuvre
  *
- * State between the two phases is stored in /tmp/mega-test-ledger-state.json.
+ * State between the two phases is stored in `STATE_FILE`.
  */
 
 import { test, expect } from '@playwright/test';
 import * as fs from 'fs';
+import dev from '../src/lib/assets/data/dev.json' with { type: 'json' };
+import { WORKS_PAGE_SIZE } from '../src/lib/utils/works-paging';
+import { BE_URL } from './helpers';
 
 const STATE_FILE = '/tmp/mega-test-ledger-state.json';
-const BE_URL = process.env.BE_URL || 'http://127.0.0.1:3038/v1';
-const TEST_ORCID = '0000-0003-4255-0492';
+const TEST_ORCID = dev.testOrcid;
 const TEST_SEMANTIC_ID = 'robert-langer';
 const TEST_NAME = 'Robert+Langer';
 
@@ -151,7 +153,7 @@ test.describe('post-pipeline', () => {
 		const state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8'));
 		await login(page);
 
-		const worksUrl = `${BE_URL}/works/authors/${TEST_SEMANTIC_ID}/0?n=200`;
+		const worksUrl = `${BE_URL}/works/authors/${TEST_SEMANTIC_ID}/0?n=${WORKS_PAGE_SIZE}`;
 		const worksResp = await fetch(worksUrl);
 		const worksJson = await worksResp.json();
 		const papers: { name: string }[] = worksJson.resp?.papers ?? [];

@@ -18,9 +18,9 @@ from pathlib import Path
 from typing import IO
 
 from pyscripts.server_ops import ServerConfig, ServerProcess, wait_for_url
+from wire.rankless_server.consts import PORT
 
 from ._common import (
-    BACKEND_PORT,
     FRONTEND_PORT,
     REPO_ROOT,
     die,
@@ -33,7 +33,7 @@ from ._common import (
 
 
 BINARY = REPO_ROOT / "target" / "release" / "rankless-server"
-BACKEND_WAIT_ATTEMPTS = 60  # × 3s = 3 min, matches wait_for_url's cadence
+BACKEND_WAIT_ATTEMPTS = 60  # polls of `POLL_INTERVAL_S` each
 SHUTDOWN_GRACE_S = 6
 
 
@@ -106,7 +106,7 @@ def main(argv: list[str] | None = None) -> None:
     spawn_env = {**os.environ, **{k: v for k, v in env.items() if isinstance(v, str)}}
     spawn_env["OA_ROOT"] = str(oa_root)
 
-    server_cfg = ServerConfig(data_root=oa_root, binary=BINARY, port=BACKEND_PORT)
+    server_cfg = ServerConfig(data_root=oa_root, binary=BINARY, port=PORT)
     try:
         ServerProcess(server_cfg).assert_port_free()
     except RuntimeError as e:

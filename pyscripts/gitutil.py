@@ -3,8 +3,9 @@
 import subprocess
 from pathlib import Path
 
-# Must match rankless_server/build.rs's GIT_COMMIT bake (12-char short form).
-HEAD_CMD = "git rev-parse --short=12 HEAD"
+from wire.rankless_server.consts import COMMIT_HASH_LEN
+
+HEAD_CMD = f"git rev-parse --short={COMMIT_HASH_LEN} HEAD"
 
 
 def git(cwd: Path, *args: str) -> None:

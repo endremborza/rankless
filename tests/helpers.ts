@@ -1,7 +1,10 @@
 import { type Page, expect } from '@playwright/test';
 import { XMLParser } from 'fast-xml-parser';
+import dev from '../src/lib/assets/data/dev.json' with { type: 'json' };
+import { PORT } from '../src/lib/wire/rankless_server/consts';
 
-export const BASE_URL = 'http://localhost:4173';
+export const BASE_URL = `http://localhost:${dev.previewPort}`;
+export const BE_URL = process.env.BE_URL || `http://127.0.0.1:${PORT}/v1`;
 
 // First `limit` entity pathnames from a type's live sitemap. The e2e specs all need this; the array
 // coercion handles single-entry sitemaps that fast-xml-parser unwraps into an object.

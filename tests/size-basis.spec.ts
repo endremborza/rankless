@@ -1,8 +1,6 @@
 import { type Page } from '@playwright/test';
 import { test, expect } from './coverage/fixtures';
-import { sitemapEntityUrls } from './helpers';
-
-const BE_URL = process.env.BE_URL || 'http://127.0.0.1:3038/v1';
+import { BE_URL, sitemapEntityUrls } from './helpers';
 
 type Spec = {
 	defaultIsSpec: boolean;

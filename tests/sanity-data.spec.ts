@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test } from './coverage/fixtures';
 import { XMLParser } from 'fast-xml-parser';
+import { BASE_URL } from './helpers';
 
 // Collects structured data from curated + sampled entity pages into logs/sanity_check_data.json.
 // The test itself always passes — the Python analyzer (pyscripts/sanity_check.py) does validation.
@@ -62,7 +63,7 @@ type EntitySnapshot = {
 };
 
 async function sitemapUrls(type: string): Promise<string[]> {
-	const res = await fetch(`http://localhost:4173/sitemap-entity-${type}-1.xml`);
+	const res = await fetch(`${BASE_URL}/sitemap-entity-${type}-1.xml`);
 	expect(res.ok, `sitemap-entity-${type}-1.xml returned ${res.status}`).toBeTruthy();
 	// parseTagValue:false keeps <loc> as strings (no numeric coercion); we now scan
 	// the whole sitemap to randomize, so skip any malformed/empty entry defensively.

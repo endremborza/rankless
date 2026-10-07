@@ -10,7 +10,7 @@ confirming a real platform renders the image — is at the end.
 - `data.pngLink` (`…/+page.server.ts`) = absolute URL of `/card/{rootType}/{…}/tree.png`.
 - that route serves **`Content-Type: image/png`**.
 
-X, LinkedIn, Facebook, Slack, Discord, WhatsApp, iMessage **do not render SVG OG images** (they require PNG/JPEG), and `summary` yields a tiny thumbnail even with a valid raster, which is why the card is a PNG under `summary_large_image`. Crawlers can't reach `localhost`, so all tests run against a **public URL** (the live site, or a tunnel: `cloudflared tunnel --url http://localhost:5173`).
+X, LinkedIn, Facebook, Slack, Discord, WhatsApp, iMessage **do not render SVG OG images** (they require PNG/JPEG), and `summary` yields a tiny thumbnail even with a valid raster, which is why the card is a PNG under `summary_large_image`. Crawlers can't reach `localhost`, so all tests run against a **public URL** (the live site, or a tunnel to the dev server: `cloudflared tunnel --url http://localhost:<devPort>`, `devPort` in `src/lib/assets/data/dev.json`).
 
 ## Automated — `pyscripts/sharecard_test.py`
 

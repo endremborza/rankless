@@ -225,7 +225,7 @@ def test_release_manifest_assembly(
 
     assert m["stamp"] == "2026-08-12T10:00:00Z:abcdef123456"
     assert m["rankless_env"] == "mini"
-    assert len(m["git_commit"]) == 12
+    assert len(m["git_commit"]) == COMMIT_HASH_LEN
     assert m["snapshot"] == {"name": "openalex-snapshot-2026-06", "date": "2026-06"}
     assert m["ledger"] == {"site": 3}
     assert m["applied"] == {"disown_paper": 2, "merge_papers": 1}

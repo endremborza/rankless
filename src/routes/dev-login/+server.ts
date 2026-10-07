@@ -3,6 +3,7 @@ import { error } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { setSession } from '$lib/server/session';
 import { LedgerDb } from '$lib/server/db';
+import devConfig from '$lib/assets/data/dev.json';
 
 /**
  * Dev-only: set a session directly without going through ORCID OAuth.
@@ -18,7 +19,7 @@ import { LedgerDb } from '$lib/server/db';
  * The semanticId param overrides the ORCID → profile lookup, so you can point
  * your session at any profile without needing a real ORCID match in the pipeline.
  */
-const TEST_ORCID = '0000-0003-4255-0492';
+const TEST_ORCID = devConfig.testOrcid;
 export const GET: RequestHandler = (event) => {
 	if (!dev) error(404, 'Not found');
 	const p = event.url.searchParams;

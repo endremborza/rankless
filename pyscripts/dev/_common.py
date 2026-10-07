@@ -11,10 +11,13 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
+from pyscripts import paths
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-BACKEND_PORT = 3038
-FRONTEND_PORT = 5173
+_DEV = paths.asset("dev.json")
+FRONTEND_PORT: int = _DEV["devPort"]
+# The account `/dev-login` and the ledger spec sign in as.
+TEST_ORCID: str = _DEV["testOrcid"]
 
 
 def header(msg: str) -> None:
