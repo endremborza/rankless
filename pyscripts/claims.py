@@ -74,6 +74,7 @@ CAUSES = {
     "doi_not_in_snapshot": "DOI absent from this snapshot",
     "orcid_not_in_dataset": "claimant has no author record in this snapshot",
     "claimant_not_attributed": "snapshot does not credit the claimant on this paper",
+    "work_screened": "paper does not pass the screens that decide what is indexed",
     "identity_match_rejected": "only candidate match was a different researcher",
 }
 

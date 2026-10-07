@@ -2,7 +2,23 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, NotRequired, TypedDict
+from typing import Any, Final, Literal, NotRequired, TypedDict
+
+
+# The derived source's manifest, written beside its records.
+DERIVED_MANIFEST: Final = "derived_manifest.json"
+# The team's curated events, copied beside the site's by `export_user_ledger.py`.
+CURATED_JSONL: Final = "curated.jsonl"
+# The site's active events, one per line, as the export writes them.
+ACTIVE_JSONL: Final = "active.jsonl"
+# The export's run id, event ids and events per source.
+SNAPSHOT_MANIFEST: Final = "snapshot_manifest.json"
+# The pinned owners' ORCIDs, one per line.
+OWNER_PINS: Final = "owner_pins.txt"
+# What the filter step applied and skipped of the ledger, read by the site.
+APPLIED_MANIFEST: Final = "applied_manifest.json"
+# The filter step's private sidecar: the forced œuvre's aggregates and forced-only work ids.
+FORCED_WORKS: Final = "forced_works.json"
 
 
 class SkippedEvent(TypedDict):
@@ -42,7 +58,7 @@ class AuthorSnapshot(TypedDict):
 
 
 class AppliedManifest(TypedDict):
-    """`applied_manifest.json`, read by the site: what the run applied and why it skipped the rest,
+    """`APPLIED_MANIFEST`, read by the site: what the run applied and why it skipped the rest,
     events named by their logical key."""
     applied_keys: list[str]
     run_id: str
@@ -50,7 +66,7 @@ class AppliedManifest(TypedDict):
     snapshot_at: str
 
 
-type SkipReason = Literal["missing_oa_id", "missing_oa_id_or_orcid", "orcid_not_in_dataset", "oa_id_not_in_dataset", "doi_not_in_snapshot", "claimant_not_attributed"]
+type SkipReason = Literal["missing_oa_id", "missing_oa_id_or_orcid", "orcid_not_in_dataset", "oa_id_not_in_dataset", "doi_not_in_snapshot", "claimant_not_attributed", "author_not_on_work", "work_screened", "superseded", "merge_cycle"]
 
 
 class EventPayloadMergeAuthors(TypedDict):
@@ -81,6 +97,19 @@ class EventPayloadStripOrcid(TypedDict):
     author: AuthorSubject
 
 
+class EventPayloadReassignPaper(TypedDict):
+    kind: Literal["reassign_paper"]
+    author: AuthorSubject
+    to: NotRequired[AuthorSubject]
+    work: WorkSubject
+
+
+class EventPayloadNameAuthor(TypedDict):
+    kind: Literal["name_author"]
+    author: AuthorSubject
+    name: str
+
+
 class EventPayloadRevoke(TypedDict):
     kind: Literal["revoke"]
     reason: NotRequired[str]
@@ -101,9 +130,9 @@ class EventPayloadAddPaperRequest(TypedDict):
     work_claim: dict[str, Any]
 
 
-# What a ledger event does, as the site stores it and `active.jsonl` carries it; `kind` is the
+# What a ledger event does, as the site stores it and `ACTIVE_JSONL` carries it; `kind` is the
 # tag.
-type EventPayload = EventPayloadMergeAuthors | EventPayloadMergePapers | EventPayloadDisownPaper | EventPayloadClaimPaper | EventPayloadStripOrcid | EventPayloadRevoke | EventPayloadModerationDecision | EventPayloadAddPaperRequest
+type EventPayload = EventPayloadMergeAuthors | EventPayloadMergePapers | EventPayloadDisownPaper | EventPayloadClaimPaper | EventPayloadStripOrcid | EventPayloadReassignPaper | EventPayloadNameAuthor | EventPayloadRevoke | EventPayloadModerationDecision | EventPayloadAddPaperRequest
 
 
 type ModerationVerdict = Literal["accepted", "rejected"]

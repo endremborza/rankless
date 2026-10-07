@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     io,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -8,24 +9,28 @@ use std::{
 
 use hashbrown::{HashMap, HashSet};
 use serde::{de::DeserializeOwned, Deserialize};
+use serde_json::json;
 
 use crate::{
     common::{oa_id_parse_opt, ParsedId, Stowage, MAIN_NAME},
     csv_iter::par_reduce,
     csv_writers::{authors, institutions, sources, works},
+    env_consts::{
+        MIN_AUTHOR_CITE_COUNT, MIN_AUTHOR_WORK_COUNT, MIN_PAPERS_FOR_INST, MIN_PAPERS_FOR_SOURCE,
+    },
     metrics::WORK_SCREEN,
     oa_structs::{
         post::{Author, Institution, Location},
         ReferencedWork, Work,
     },
-    user_ledger::{Outcomes, SnapshotIds, UserLedger},
+    user_ledger::{
+        strip_doi_prefix, Outcomes, ResolvedLedger, SnapshotIds, UserLedger, FORCED_WORKS,
+    },
 };
 
 use dmove::BigId;
 
 const FORCE_DROP_INSTS: [BigId; 2] = [4210095297, 4210109586];
-
-const FORCED_WORKS: &str = "forced_works.json";
 
 type WorkSet = HashSet<BigId>;
 type Edge = (BigId, BigId);
@@ -35,6 +40,17 @@ struct AuthorshipRow {
     author: String,
     institutions: Option<String>,
     parent_id: String,
+    #[serde(default)]
+    position: u16,
+}
+
+/// What the authorship rows hold for the ledger's people.
+#[derive(Default)]
+struct Credit {
+    /// (author, work) pairs of the watched authors
+    edges: HashSet<Edge>,
+    /// row count of every claimed work record
+    rows: HashMap<BigId, u16>,
 }
 
 /// The pinned owners' œuvres, which ride through the type and citation screens.
@@ -87,22 +103,35 @@ impl FilterBase for Location {
     }
 }
 
+/// The ledger as decided against the raw tables.
+struct Settlement {
+    resolved: ResolvedLedger,
+    outcomes: Outcomes,
+    /// the watched authors' rows as the merges alone leave them
+    seen: HashSet<Edge>,
+    /// their rows under the whole ledger, the granted ones among them
+    credited: HashSet<Edge>,
+}
+
 pub fn main(mut stowage: Stowage) -> io::Result<()> {
     // The ledger is decided here, once, against the raw tables; every read below sees it
-    // applied, and the screens know only the pinned owners and their forced œuvre.
+    // applied, and the screens know only the forced works: the pinned owners' œuvre and the
+    // forced claims' records.
     let ul_dir = stowage.paths.user_ledger.clone();
-    let ledger = UserLedger::load(&ul_dir)?;
-    let ids = SnapshotIds::scan(&stowage, ledger.referenced());
-    let (resolved, outcomes) = ledger.resolve(&ids)?;
+    let Settlement {
+        resolved,
+        outcomes,
+        seen,
+        credited,
+    } = settle_ledger(&mut stowage)?;
     resolved.save(&ul_dir)?;
     stowage.set_ledger(resolved);
 
-    let credited = credited_edges(&stowage, &outcomes);
-    outcomes.write_manifest(&ul_dir, &credited)?;
     let oeuvre: WorkSet = credited
         .iter()
         .filter(|(author, _)| outcomes.pins.contains(author))
         .map(|(_, work)| *work)
+        .chain(outcomes.forced_claim_works(&credited))
         .collect();
 
     let mut forced = work_filter_with_forced(&stowage, 10, oeuvre)?;
@@ -110,44 +139,117 @@ pub fn main(mut stowage: Stowage) -> io::Result<()> {
         filter_step::<ReferencedWork>(&stowage, [works::C, works::C], 11, Some(&forced.set))?;
     filter_step::<Location>(&stowage, [sources::C, works::C], 12, None)?;
 
-    authorship_filter(&stowage, 13, 14, &forced)?;
-    let author_rescues = author_filter_with_pins(&stowage, 20, &outcomes.pins)?;
+    let served_claims = authorship_filter(&stowage, 13, 14, outcomes.claimed_works())?;
+    outcomes
+        .manifest(&seen, &credited, &served_claims)
+        .write(&ul_dir)?;
+    let author_rescues =
+        author_filter_with_pins(&stowage, 20, &outcomes.pins, &outcomes.bound_exempt)?;
     write_forced_sidecar(&stowage, &outcomes, &credited, &forced, author_rescues)?;
     inst_filter(&stowage, 21)
 }
 
-/// (author, work) pairs of the pinned owners and the claimants as the applied ledger
-/// credits them: the owners' œuvre is forced through the screens, the claimants' credit
-/// settles their claims. Needs its own pass: `authorship_filter` runs on the work filter
-/// this feeds.
-fn credited_edges(stowage: &Stowage, outcomes: &Outcomes) -> HashSet<Edge> {
-    let authors: Arc<HashSet<BigId>> = Arc::new(
-        outcomes
-            .pins
-            .iter()
-            .copied()
-            .chain(outcomes.claims.iter().map(|c| c.claimant))
-            .collect(),
+/// What the filter step would apply and skip of the ledger under `user-ledger/`, by kind and
+/// reason, without writing anything or running a screen: a claim counts as served.
+pub fn check_ledger(mut stowage: Stowage) -> io::Result<()> {
+    let Settlement {
+        resolved,
+        outcomes,
+        seen,
+        credited,
+    } = settle_ledger(&mut stowage)?;
+    println!(
+        "{} author merges, {} work merges, {} stripped ORCIDs, {} names, {} pinned owners",
+        resolved.author_aliases.len(),
+        resolved.work_aliases.len(),
+        resolved.stripped_orcids.len(),
+        resolved.author_names.len(),
+        outcomes.pins.len()
     );
-    if authors.is_empty() {
-        return HashSet::new();
+    let manifest = outcomes.manifest(&seen, &credited, &outcomes.claimed_works());
+    fn kind(key: &str) -> &str {
+        key.split('|').nth(1).unwrap_or("")
     }
-    par_reduce::<AuthorshipRow, HashSet<Edge>, _, _>(
+    // (key, reason as the manifest spells it)
+    let skipped: Vec<(&str, String)> = manifest
+        .skipped
+        .iter()
+        .map(|e| {
+            (
+                e.key.as_str(),
+                json!(e.reason).as_str().unwrap().to_string(),
+            )
+        })
+        .collect();
+    let mut tally: BTreeMap<(&str, &str), usize> = BTreeMap::new();
+    for key in &manifest.applied_keys {
+        *tally.entry((kind(key), "applied")).or_default() += 1;
+    }
+    for (key, reason) in &skipped {
+        *tally.entry((kind(key), reason)).or_default() += 1;
+    }
+    for ((kind, outcome), n) in tally {
+        println!("{kind}\t{outcome}\t{n}");
+    }
+    for (key, reason) in &skipped {
+        println!("skipped\t{reason}\t{key}");
+    }
+    Ok(())
+}
+
+/// Resolves the ledger and settles the events that take or grant an authorship row against the
+/// rows the merges alone leave, so the granted rows are in the ledger before any screen reads.
+fn settle_ledger(stowage: &mut Stowage) -> io::Result<Settlement> {
+    let ledger = UserLedger::load(&stowage.paths.user_ledger)?;
+    let ids = SnapshotIds::scan(stowage, ledger.referenced());
+    let (mut resolved, outcomes) = ledger.resolve(&ids)?;
+    stowage.set_ledger(resolved.merges_only());
+    let Credit { edges: seen, rows } = ledger_rows(stowage, &outcomes, &resolved);
+    let mut credited = resolved.credit(&seen);
+    resolved.granted_ships = outcomes.grants(&credited, &resolved.removed_edges, &rows);
+    credited.extend(resolved.granted_ships.iter().map(|g| (g.author, g.work)));
+    println!("granted authorships: {}", resolved.granted_ships.len());
+    Ok(Settlement {
+        resolved,
+        outcomes,
+        seen,
+        credited,
+    })
+}
+
+/// The watched authors' authorship rows and how many rows each claimed work record has: the
+/// owners' œuvre is forced through the screens, a disown or a reassignment applies to a row
+/// that is there, a claim is settled by the claimant's credit, a granted row goes after the
+/// listed ones. Needs its own pass: `authorship_filter` runs on the work filter this feeds.
+fn ledger_rows(stowage: &Stowage, outcomes: &Outcomes, resolved: &ResolvedLedger) -> Credit {
+    let authors = Arc::new(outcomes.watched(resolved));
+    if authors.is_empty() {
+        return Credit::default();
+    }
+    let claimed = Arc::new(outcomes.claimed_works());
+    par_reduce::<AuthorshipRow, Credit, _, _>(
         stowage,
         works::C,
         works::atts::authorships,
         move |acc, rec| {
-            let (Some(work), Some(author)) = (
-                oa_id_parse_opt(&rec.parent_id),
-                oa_id_parse_opt(&rec.author),
-            ) else {
+            let Some(work) = oa_id_parse_opt(&rec.parent_id) else {
                 return;
             };
-            if authors.contains(&author) {
-                acc.insert((author, work));
+            if claimed.contains(&work) {
+                let rows = acc.rows.entry(work).or_default();
+                *rows = (*rows).max(rec.position.saturating_add(1));
+            }
+            if let Some(author) = oa_id_parse_opt(&rec.author).filter(|a| authors.contains(a)) {
+                acc.edges.insert((author, work));
             }
         },
-        |a, b| a.extend(b),
+        |a, b| {
+            a.edges.extend(b.edges);
+            for (work, n) in b.rows {
+                let rows = a.rows.entry(work).or_default();
+                *rows = (*rows).max(n);
+            }
+        },
         Some(4),
     )
 }
@@ -274,15 +376,16 @@ fn authorship_filter(
 
 /// Step 20: an author passes between the activity minimums and the work bound, or is pinned;
 /// returns the pinned rescues. The bound tells an aggregate record from a person's, so it does
-/// not apply to `merged` authors, whose counts are sums over records each under it.
+/// not apply to the `exempt` merge keeps (`Outcomes::bound_exempt`).
 fn author_filter_with_pins(
     stowage: &Stowage,
     step_id: u8,
     pins: &HashSet<BigId>,
-    merged: HashSet<BigId>,
+    exempt: &HashSet<BigId>,
 ) -> io::Result<usize> {
     let pre_filter = Arc::new(stowage.get_last_filter(authors::C).unwrap());
     let pins = Arc::new(pins.clone());
+    let exempt = exempt.clone();
     let rescued = Arc::new(AtomicUsize::new(0));
     let rescue_count = Arc::clone(&rescued);
     filter_write::<Author, _>(stowage, step_id, authors::C, move |o| {
@@ -291,9 +394,9 @@ fn author_filter_with_pins(
         };
         let works = o.works_count.unwrap_or(0);
         let standard = pre_filter.contains(&aid)
-            & (works >= WORK_SCREEN.min_author_papers.into())
-            & (works <= WORK_SCREEN.max_author_papers)
-            & (o.cited_by_count.unwrap_or(0) >= WORK_SCREEN.min_author_citations.into());
+            & (works >= MIN_AUTHOR_WORK_COUNT.into())
+            & ((works <= WORK_SCREEN.max_author_papers) | exempt.contains(&aid))
+            & (o.cited_by_count.unwrap_or(0) >= MIN_AUTHOR_CITE_COUNT.into());
         let pinned = pins.contains(&aid);
         if pinned & !standard {
             rescue_count.fetch_add(1, Ordering::Relaxed);
@@ -303,7 +406,7 @@ fn author_filter_with_pins(
     Ok(rescued.load(Ordering::Relaxed))
 }
 
-/// The private `forced_works.json` sidecar (aggregates + the forced-only wids); `claimed`
+/// The private `FORCED_WORKS` sidecar (aggregates + the forced-only wids); `claimed`
 /// counts the applied claims among the works served beyond the standard screens.
 fn write_forced_sidecar(
     stowage: &Stowage,
@@ -321,12 +424,15 @@ fn write_forced_sidecar(
     let claimed = outcomes
         .claims
         .iter()
-        .filter(|c| outside.contains(&c.work) && credited.contains(&(c.claimant, c.work)))
+        .filter(|c| {
+            let credit = |w: &BigId| outside.contains(w) && credited.contains(&(c.claimant, *w));
+            c.works.iter().any(credit)
+        })
         .count();
     let mut outside_wids: Vec<BigId> = outside.into_iter().collect();
     outside_wids.sort_unstable();
 
-    let sidecar = serde_json::json!({
+    let sidecar = json!({
         "run_id": outcomes.run_id,
         "cohort": outcomes.pins.len(),
         "forced_total": forced.set.len(),

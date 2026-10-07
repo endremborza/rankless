@@ -22,14 +22,14 @@ the dmove-parts root is shared, two data pipelines on one box corrupt each other
 
 Merges the live box's user DB into the local copy (so the ledger export sees every
 accepted claim), then: `make filter extend_csvs` → forced gen-ladder rebuild →
-`make lib_data_generation restart-service homepage_showcase`.
+`make types lib_data_generation restart-service homepage_showcase` (`types` writes the env's wire constants for this box's `full` build).
 
-- `make filter` runs `export_user_ledger` (the site DB's events, and the curated ledger copied from the external root) and `rankless-rs derive-ledger` (the records the shared ORCIDs imply, merged into the holder's oldest record or stripped of the ORCID; `rankless_rs/src/derived_ledger.rs`) into `user-ledger/`. The filter step then resolves the derived records, the curated events and the site's, in that order: the last decision on a record wins. `derive-ledger` and `extend_csvs` read the external data root ([External data](#external-data)).
+- `make filter` runs `export_user_ledger` (the site DB's events, and the curated ledger copied from the external root) and `rankless-rs derive-ledger` (the records the shared ORCIDs imply, merged into the holder's oldest record or stripped of the ORCID, and the paper merges of `rankless_rs/src/work_identity.rs`, each copy-edition record into its twin of the same number when they share an author; `rankless_rs/src/derived_ledger.rs`) into the user-ledger directory (`USER_LEDGER_DIR`). The filter step then resolves the derived records, the curated events and the site's, in that order: the last decision on a record wins. `./target/release/rankless-rs check-ledger $OA_ROOT` prints what the filter step would apply and skip of the ledger in that directory, by kind and reason, without writing or screening anything: the check for a batch of curated lines before a run. `derive-ledger` and `extend_csvs` read the external data root ([External data](#external-data)).
 - `ARGS="--from-snapshot"` prepends `make to-csv` (a new OpenAlex snapshot landed;
   `make download-snapshot` stays manual).
 - `ARGS="--no-db-pull"` skips the DB merge (box without AWS access).
 - Stops `rankless-backend` right after the DB pull, before the first data-building goal: the filter step needs the tens of GB a resident backend holds, and `restart-service` at the end brings it back. The pull needs no RAM, so a failed pull leaves the box serving.
-- Ends by writing the data-root **stamp** (`$OA_ROOT/stamp`, `<run_id>:<digest12>`)
+- Ends by writing the data-root **stamp** (`$OA_ROOT/stamp`, `<run_id>:<digest>`)
   before restarting the backend — the backend echoes it in `/v1/specs.version`,
   which is what the warm fleet's preflight handshake compares. After any manual
   data surgery: `uv run -m pyscripts fleet stamp` + `make restart-service`.

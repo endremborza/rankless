@@ -639,7 +639,7 @@ impl Open {
 }
 
 impl Decision {
-    /// The decision as one `active.jsonl`-shaped line of the derived source.
+    /// The decision as one `ACTIVE_JSONL`-shaped line of the derived source.
     fn line(&self, orcid: &str) -> Value {
         let (key, kind, reason, mut payload) = match self {
             Decision::Merge { drop, keep, reason } => (

@@ -1,7 +1,7 @@
 //! Ledger pipeline gate on the synthetic snapshot: `to-csv → derive-ledger → filter →
 //! a1_entity_mapping` in-process. `derive-ledger` writes the identity records the shared
 //! ORCID implies; the filter step resolves them with the users' events against the raw tables
-//! and writes `resolved_ledger.json` + `applied_manifest.json`; from there every CSV read
+//! and writes the resolved ledger + `APPLIED_MANIFEST`; from there every CSV read
 //! applies the resolved tables, so the screens and a1 see merged ids as keep ids, disowned
 //! authorships as absent and stripped ORCIDs as blank. Later steps compile against `gen/` for
 //! one dataset shape, so their link-level invariants ride `make mega_test`; here the filter
@@ -22,7 +22,14 @@ use common::{
     TempRoot,
 };
 use dmove::LoadedIdMap;
-use rankless_rs::{common::Stowage, derived_ledger, run_step, user_ledger::ResolvedLedger};
+use rankless_rs::{
+    common::Stowage,
+    derived_ledger, run_step,
+    user_ledger::{
+        ResolvedLedger, ACTIVE_JSONL, APPLIED_MANIFEST, CURATED_JSONL, DERIVED_MANIFEST,
+        FORCED_WORKS, OWNER_PINS, SNAPSHOT_MANIFEST,
+    },
+};
 use serde_json::{json, Value};
 
 const RUN_ID: &str = "2026-09-02T00:00:00Z";
@@ -33,6 +40,8 @@ struct Event {
     orcid: String,
     kind: &'static str,
     payload: Value,
+    /// a line of `CURATED_JSONL`, else of `ACTIVE_JSONL`
+    curated: bool,
 }
 
 struct Fixture {
@@ -58,6 +67,15 @@ impl Event {
             orcid: orcid.to_string(),
             kind,
             payload,
+            curated: false,
+        }
+    }
+
+    /// The event as the curated ledger carries it.
+    fn curated(self) -> Self {
+        Self {
+            curated: true,
+            ..self
         }
     }
 
@@ -106,14 +124,14 @@ impl Event {
         )
     }
 
-    /// One `active.jsonl` line as `export_user_ledger.py` writes it.
+    /// One ledger line as `export_user_ledger.py` writes it.
     fn line(&self, event_id: usize) -> Value {
         json!({
             "event_id": event_id,
             "key": self.key,
             "orcid": self.orcid,
             "kind": self.kind,
-            "source": "site",
+            "source": if self.curated { "curated" } else { "site" },
             "payload": self.payload,
             "moderation": "auto_ok",
             "created_at": RUN_ID,
@@ -252,7 +270,7 @@ impl Run {
     }
 
     fn manifest(&self) -> Manifest {
-        let v = self.ledger_json("applied_manifest.json");
+        let v = self.ledger_json(APPLIED_MANIFEST);
         Manifest {
             run_id: v["run_id"].as_str().unwrap().to_string(),
             applied: v["applied_keys"]
@@ -318,19 +336,23 @@ fn doi(s: &Scenario, wid: u64) -> String {
 
 fn write_ledger(dir: &Path, events: &[Event], pins: &[&str]) {
     fs::create_dir_all(dir).unwrap();
-    let mut active = File::create(dir.join("active.jsonl")).unwrap();
+    let mut active = File::create(dir.join(ACTIVE_JSONL)).unwrap();
+    let mut curated = File::create(dir.join(CURATED_JSONL)).unwrap();
     for (i, e) in events.iter().enumerate() {
-        serde_json::to_writer(&mut active, &e.line(i + 1)).unwrap();
-        active.write_all(b"\n").unwrap();
+        let file = if e.curated { &mut curated } else { &mut active };
+        serde_json::to_writer(&mut *file, &e.line(i + 1)).unwrap();
+        file.write_all(b"\n").unwrap();
     }
-    let manifest = json!({"run_id": RUN_ID, "event_ids": (1..=events.len()).collect::<Vec<_>>(), "sources": {"site": events.len()}});
-    fs::write(dir.join("snapshot_manifest.json"), manifest.to_string()).unwrap();
+    let n_curated = events.iter().filter(|e| e.curated).count();
+    let sources = json!({"site": events.len() - n_curated, "curated": n_curated});
+    let manifest = json!({"run_id": RUN_ID, "event_ids": (1..=events.len()).collect::<Vec<_>>(), "sources": sources});
+    fs::write(dir.join(SNAPSHOT_MANIFEST), manifest.to_string()).unwrap();
     let mut pin_file = String::new();
     for p in pins {
         pin_file.push_str(p);
         pin_file.push('\n');
     }
-    fs::write(dir.join("owner_pins.txt"), pin_file).unwrap();
+    fs::write(dir.join(OWNER_PINS), pin_file).unwrap();
 }
 
 fn keys(events: &[Event], tags: &[&str]) -> BTreeSet<String> {
@@ -415,7 +437,7 @@ fn ledger_applies_through_filter_and_a1() {
         .into_iter()
         .collect()
     );
-    let derived = run.ledger_json("derived_manifest.json");
+    let derived = run.ledger_json(DERIVED_MANIFEST);
     assert_eq!(derived["registered_names"], true);
     assert_eq!(derived["owner_by"], json!({"registered_name": 1}));
     assert_eq!(derived["merges"], json!({"registered_name": 1}));
@@ -502,8 +524,8 @@ fn ledger_applies_through_filter_and_a1() {
     assert!(dm_of(&discarded, s.split_junk.oa_id).is_some());
 
     // The manifest: exact applied and skipped sets; the merged claims are credited only
-    // because the authorship rows read under the keep author's id — the split holder's
-    // claim through the derived merge, the other through the user's.
+    // because the authorship rows read under the keep author's id — the split holder's claim
+    // through the derived merge, the other through the user's.
     let applied = run.manifest();
     assert_eq!(applied.run_id, RUN_ID);
     assert_eq!(
@@ -541,7 +563,7 @@ fn ledger_applies_through_filter_and_a1() {
     expected_forced.remove(&s.shared);
     expected_forced.extend(fx.credited_works(&[s.keep.oa_id, s.drop.oa_id]));
     expected_forced.extend(fx.credited_works(&[s.split_keep.oa_id, s.split_extra.oa_id]));
-    let forced = run.ledger_json("forced_works.json");
+    let forced = run.ledger_json(FORCED_WORKS);
     assert_eq!(forced["cohort"], 3);
     assert_eq!(forced["forced_total"], expected_forced.len());
     assert_eq!(forced["outside_type"], 3);
@@ -588,7 +610,7 @@ fn empty_ledger_is_the_counterfactual() {
 
     let m = run.manifest();
     assert!(m.applied.is_empty() && m.skipped.is_empty());
-    let forced = run.ledger_json("forced_works.json");
+    let forced = run.ledger_json(FORCED_WORKS);
     for field in [
         "cohort",
         "forced_total",
@@ -599,6 +621,100 @@ fn empty_ledger_is_the_counterfactual() {
         assert_eq!(forced[field], 0, "{field}");
     }
     assert_eq!(forced["outside_wids"], json!([]));
+}
+
+#[test]
+fn a_row_is_taken_only_where_it_is_and_a_claim_counts_only_on_a_served_work() {
+    let fx = Fixture::new("ledger-rows");
+    let s = &fx.scenario;
+    let keep = s.keep.orcid.unwrap();
+    let outsider = s.outsider.orcid.unwrap();
+    let bulk = s.bulk_authors[2].oa_id;
+    let reassign = |tag: &str, work: u64, from: u64, to: Option<u64>| {
+        let mut payload = json!({"kind": "reassign_paper", "work": {"oa_id": work, "doi": null}, "author": {"oa_id": from}});
+        if let Some(to) = to {
+            payload["to"] = json!({"oa_id": to});
+        }
+        Event::new("", "reassign_paper", tag, payload)
+    };
+    let events = vec![
+        // nobody signs in: the owner's row on `shared` is the outsider's, a bulk author's on
+        // `uncited` is nobody's the data knows; `keep` claims its own preprint on the site, and
+        // the curated ledger forces the outsider onto a work that lists them nowhere and `keep`
+        // onto the preprint of the record not merged into it
+        reassign("moved", s.shared, s.owner.oa_id, Some(s.outsider.oa_id)),
+        reassign("unnamed", s.uncited, bulk, None),
+        reassign("absent", s.solo, bulk, None),
+        Event::disown(keep, s.solo, "not-on-it"),
+        Event::claim(keep, &doi(s, s.claim_auto), "preprint"),
+        Event::claim(outsider, &doi(s, s.not_mine), "forced-row").curated(),
+        Event::claim(keep, &doi(s, s.claim_merged), "forced-screen").curated(),
+        Event::new(
+            "",
+            "name_author",
+            "named",
+            json!({"kind": "name_author", "author": {"oa_id": s.owner.oa_id}, "name": "Olive Owner"}),
+        ),
+    ];
+    let run = fx.run(&events, &[]);
+
+    let resolved = run.resolved();
+    assert_eq!(
+        resolved.reassigned,
+        [
+            ((s.owner.oa_id, s.shared), Some(s.outsider.oa_id)),
+            ((bulk, s.uncited), None),
+            ((bulk, s.solo), None)
+        ]
+        .into_iter()
+        .collect()
+    );
+    assert_eq!(
+        resolved.author_names,
+        [(s.owner.oa_id, "Olive Owner".to_string())]
+            .into_iter()
+            .collect()
+    );
+    // The outsider, on no work in the snapshot, is an author through the row moved to them;
+    // `keep`'s site claim is credited on a preprint the type screen drops, as nothing is
+    // pinned, while the forced claims are granted their rows and ride through the screens.
+    assert!(run.filter(14, "works").contains(&s.shared));
+    assert!(run.filter(14, "authors").contains(&s.outsider.oa_id));
+    assert!(!run.filter(10, "works").contains(&s.claim_auto));
+    assert!(run.filter(10, "works").contains(&s.claim_merged));
+    let granted: BTreeSet<(u64, u64)> = resolved
+        .granted_ships
+        .iter()
+        .map(|g| (g.author, g.work))
+        .collect();
+    assert_eq!(
+        granted,
+        [
+            (s.outsider.oa_id, s.not_mine),
+            (s.keep.oa_id, s.claim_merged)
+        ]
+        .into()
+    );
+
+    let m = run.manifest();
+    assert_eq!(
+        m.applied,
+        keys(
+            &events,
+            &["moved", "unnamed", "named", "forced-row", "forced-screen"]
+        )
+    );
+    assert_eq!(
+        m.skipped,
+        skips(
+            &events,
+            &[
+                ("absent", "author_not_on_work"),
+                ("not-on-it", "author_not_on_work"),
+                ("preprint", "work_screened"),
+            ],
+        )
+    );
 }
 
 #[test]
@@ -706,7 +822,7 @@ fn without_registered_names_the_most_works_cluster_owns_the_orcid() {
             .into_iter()
             .collect()
     );
-    let derived = run.ledger_json("derived_manifest.json");
+    let derived = run.ledger_json(DERIVED_MANIFEST);
     assert_eq!(derived["registered_names"], false);
     assert_eq!(derived["owner_by"], json!({"most_works": 1}));
     assert_eq!(derived["merges"], json!({}));
@@ -715,7 +831,7 @@ fn without_registered_names_the_most_works_cluster_owns_the_orcid() {
         json!({"name_mismatch": 2, "over_work_bound": 1})
     );
     // The pin under that ORCID lands on the record that carries it after resolution.
-    let forced = run.ledger_json("forced_works.json");
+    let forced = run.ledger_json(FORCED_WORKS);
     assert_eq!(forced["cohort"], 1);
     assert_eq!(
         forced["forced_total"],

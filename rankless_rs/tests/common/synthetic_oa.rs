@@ -75,7 +75,7 @@ pub struct Scenario {
     pub keep: Person,
     /// Drop side of the author merge; no ORCID.
     pub drop: Person,
-    /// Has an ORCID but no authorship anywhere; claims a work that is not theirs.
+    /// Has an ORCID but no authorship anywhere; claims a work that lists them nowhere.
     pub outsider: Person,
     /// Four records under one ORCID, the registered name "Sam Split": the aggregate record
     /// (oldest id, over the work bound), the person's main record, a same-name split-off

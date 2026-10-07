@@ -234,7 +234,7 @@ pub struct Work {
     publication_date: Option<String>,
     #[serde(rename = "type")]
     pub work_type: Option<String>,
-    cited_by_count: Option<u64>,
+    pub cited_by_count: Option<u64>,
     pub is_retracted: Option<bool>,
     is_paratext: Option<bool>,
     #[serde(

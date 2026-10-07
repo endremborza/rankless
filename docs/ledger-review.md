@@ -20,18 +20,17 @@ Humans make every remaining decision; the AI never moderates.
    which admin (multiple admins supported via `ADMIN_ORCIDS`).
 
 Accepted events flow to the pipeline via `export_user_ledger.py` as before.
-A claim forces nothing on its own: every signed-in owner's whole œuvre already rides
-through the type/citation screens, so a claim is a status line — applied when the
-claimant is credited on the DOI's work once merges and disowns are applied (skips:
-`doi_not_in_snapshot`, `orcid_not_in_dataset`, `claimant_not_attributed`).
+A claim from the site forces nothing on its own: every signed-in owner's whole œuvre already rides through the type/citation screens, so a site claim is a status line, and it never adds an authorship row. A claim names its paper by DOI, which stands for every work record carrying it, or by the record the claimant saw when it has no DOI or the snapshot has the DOI on no record. It applies where the snapshot credits the claimant on one of those records once merges, disowns and reassignments are applied. A paper the snapshot lists under another record of the person (e.g. an unmerged one without the ORCID) needs that record merged: the merge carries the row, with its affiliations, onto the person. A curated `claim_paper` line (`curated.jsonl`) is forced: where the snapshot credits the claimant on no record of the paper, it grants them a row on the most cited one, after the listed rows and without an affiliation, and the record they are credited on rides through the type/citation screens like an owner's œuvre. A forced claim on a paper an unmerged record of the person is already on lists them twice, so the curated batch merges such records first. Skips: `doi_not_in_snapshot`, `oa_id_not_in_dataset`, `orcid_not_in_dataset`, `claimant_not_attributed`, and `work_screened` for a claim credited only on records the type or citation screen drops.
+
+The other skip reasons the applied manifest carries: `author_not_on_work` (a disown or a reassignment whose row is not there, e.g. the paper sits on an unmerged record of the person), `superseded` (a later event decides the same record or row) and `merge_cycle` (the keep already merges into the drop).
 
 ## Release claims lane (`pyscripts/claims.py`)
 
 `uv run -m pyscripts claims <step>` is the driver-side counterpart of the queue,
 for the batch of claims a release resolves. It exists because the queue's hard
 evidence is the **OpenAlex API**, while the pipeline reads the **snapshot** — the
-two disagree on recent papers, and accepting on API evidence would auto-apply a
-claim the snapshot cannot support.
+two disagree on recent papers, and a claim the snapshot credits to another record of
+the same person applies only once that record is merged.
 
 Everything case-specific is data: a per-release plan file (one entry per
 submitted claim — verdict, reason, the claimant's author record, the work's

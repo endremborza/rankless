@@ -13,7 +13,7 @@ use hashbrown::HashMap;
 use serde::de::DeserializeOwned;
 
 use crate::{
-    common::{oa_id_parse_opt, Stowage, MAIN_NAME},
+    common::{oa_id_parse_opt, Stowage, ID_PREFIX, MAIN_NAME},
     csv_writers::{authors, works, CSV_EXTENSION, PART_PREFIX},
     user_ledger::ResolvedLedger,
 };
@@ -42,24 +42,27 @@ struct Table {
 }
 
 /// One partition; when the stowage carries a ledger and the table has ledger-bearing
-/// columns, every row passes through the `Lens` before it is deserialized.
+/// columns, every row passes through the `Lens` before it is deserialized. A table's first
+/// partition ends with the rows the ledger adds to it.
 struct PartReader {
     rdr: Reader<StowInner>,
     headers: StringRecord,
     rec: StringRecord,
     lens: Option<Lens>,
+    added: Vec<StringRecord>,
     label: String,
 }
 
 /// The ledger applied at the read point, so every consumer sees a snapshot in which a
 /// merged id is its keep id, drop-side main rows and disowned authorships do not exist, a
-/// stripped author carries no ORCID and a keep author carries its merged records' counts.
-/// Column roles come from the table's header, resolved once per partition.
+/// reassigned authorship names its new author, a granted authorship has a row, a stripped
+/// author carries no ORCID, a keep author carries its merged records' counts and a renamed one
+/// its name. Column roles come from the table's header, resolved once per partition.
 struct Lens {
     ledger: Arc<ResolvedLedger>,
     /// main-table id column: a merge drop side has no row, an author row's cells may rewrite
     main_id: Option<(usize, Ids)>,
-    /// authors/main: a stripped row's `orcid`, a keep row's counts
+    /// authors/main: a stripped row's `orcid`, a keep row's counts, a renamed row's name
     author_cells: Option<AuthorCells>,
     /// work-id columns of a work attribute table, read as their keep id
     work_cols: Vec<usize>,
@@ -70,16 +73,18 @@ struct Lens {
 
 struct AuthorCells {
     orcid: usize,
+    name: usize,
     works: usize,
     cites: usize,
 }
 
-/// The authorships table: both ids read in keep space, a disowned edge has no row. An author's
-/// repeated rows on a work (a merged record's beside its keep's) all pass; a2 joins their
-/// institutions.
+/// The authorships table: both ids read in keep space, a disowned edge has no row, a
+/// reassigned one names its new author or none, a granted one has a row. An author's repeated
+/// rows on a work (a merged record's beside its keep's) all pass; a2 joins their institutions.
 struct Ships {
     work: usize,
     author: usize,
+    position: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -116,7 +121,7 @@ impl Table {
 }
 
 impl PartReader {
-    fn open(path: &Path, table: &Table, ledger: Option<&Arc<ResolvedLedger>>) -> Self {
+    fn open(path: &Path, table: &Table, ledger: Option<&Arc<ResolvedLedger>>, first: bool) -> Self {
         let label = table.label();
         let dec = zstd::Decoder::new(File::open(path).unwrap()).unwrap();
         let mut rdr = ReaderBuilder::new().from_reader(BufReader::new(dec));
@@ -125,11 +130,16 @@ impl PartReader {
             .unwrap_or_else(|e| panic!("csv header error in {label}: {e}"))
             .clone();
         let lens = ledger.and_then(|l| Lens::new(l, table, &headers));
+        let added = match &lens {
+            Some(lens) if first => lens.granted_rows(headers.len()),
+            _ => Vec::new(),
+        };
         Self {
             rdr,
             headers,
             rec: StringRecord::new(),
             lens,
+            added,
             label,
         }
     }
@@ -138,20 +148,21 @@ impl PartReader {
         loop {
             match self.rdr.read_record(&mut self.rec) {
                 Ok(true) => {}
-                Ok(false) => return None,
+                Ok(false) => {
+                    self.rec = self.added.pop()?;
+                    break;
+                }
                 Err(e) => panic!("csv read error in {}: {e}", self.label),
             }
-            if let Some(lens) = &self.lens {
-                if !lens.keeps(&mut self.rec) {
-                    continue;
-                }
+            if self.lens.as_ref().map_or(true, |l| l.keeps(&mut self.rec)) {
+                break;
             }
-            return Some(
-                self.rec
-                    .deserialize(Some(&self.headers))
-                    .unwrap_or_else(|e| panic!("csv deser error in {}: {e}", self.label)),
-            );
         }
+        Some(
+            self.rec
+                .deserialize(Some(&self.headers))
+                .unwrap_or_else(|e| panic!("csv deser error in {}: {e}", self.label)),
+        )
     }
 }
 
@@ -175,9 +186,13 @@ impl Lens {
         match (table.main.as_str(), table.sub.as_str()) {
             (works::C, MAIN_NAME) if has(Ids::Works) => main_id = Some((col("id"), Ids::Works)),
             (authors::C, MAIN_NAME) => {
-                if !(ledger.stripped_orcids.is_empty() && ledger.author_counts.is_empty()) {
+                if !(ledger.stripped_orcids.is_empty()
+                    && ledger.author_counts.is_empty()
+                    && ledger.author_names.is_empty())
+                {
                     author_cells = Some(AuthorCells {
                         orcid: col("orcid"),
+                        name: col("display_name"),
                         works: col("works_count"),
                         cites: col("cited_by_count"),
                     });
@@ -187,11 +202,16 @@ impl Lens {
                 }
             }
             (works::C, works::atts::authorships)
-                if has(Ids::Works) || has(Ids::Authors) || !ledger.removed_edges.is_empty() =>
+                if has(Ids::Works)
+                    || has(Ids::Authors)
+                    || !ledger.removed_edges.is_empty()
+                    || !ledger.reassigned.is_empty()
+                    || !ledger.granted_ships.is_empty() =>
             {
                 ships = Some(Ships {
                     work: col("parent_id"),
                     author: col("author"),
+                    position: col("position"),
                 })
             }
             (works::C, works::atts::referenced_works) if has(Ids::Works) => {
@@ -231,6 +251,26 @@ impl Lens {
         }
     }
 
+    /// The granted authorships as rows of the authorships table, last first: the ids and the
+    /// position, every other cell empty.
+    fn granted_rows(&self, width: usize) -> Vec<StringRecord> {
+        let Some(s) = &self.ships else {
+            return Vec::new();
+        };
+        self.ledger
+            .granted_ships
+            .iter()
+            .rev()
+            .map(|g| {
+                let mut fields = vec![String::new(); width];
+                fields[s.work] = format!("{ID_PREFIX}W{}", g.work);
+                fields[s.author] = format!("{ID_PREFIX}A{}", g.author);
+                fields[s.position] = g.position.to_string();
+                StringRecord::from(fields)
+            })
+            .collect()
+    }
+
     /// Rewrites the row in place; false when the row does not exist under the ledger.
     fn keeps(&self, rec: &mut StringRecord) -> bool {
         let ledger = &self.ledger;
@@ -247,6 +287,9 @@ impl Lens {
                     if let Some(&(works, cites)) = ledger.author_counts.get(&id) {
                         rewritten.push((cells.works, works.to_string()));
                         rewritten.push((cells.cites, cites.to_string()));
+                    }
+                    if let Some(name) = ledger.author_names.get(&id) {
+                        rewritten.push((cells.name, name.clone()));
                     }
                 }
             }
@@ -272,14 +315,18 @@ impl Lens {
                 oa_id_parse_opt(&rec[s.author]),
             ) {
                 let (work_root, author_root) = (ledger.work_root(work), ledger.author_root(author));
-                if ledger.removed_edges.contains(&(author_root, work_root)) {
+                let Some(named) = ledger.row_author((author_root, work_root)) else {
                     return false;
-                }
+                };
                 if work_root != work {
                     rewritten.push((s.work, with_id(&rec[s.work], work_root)));
                 }
-                if author_root != author {
-                    rewritten.push((s.author, with_id(&rec[s.author], author_root)));
+                match named {
+                    Some(a) if a != author => {
+                        rewritten.push((s.author, with_id(&rec[s.author], a)))
+                    }
+                    Some(_) => {}
+                    None => rewritten.push((s.author, String::new())),
                 }
             }
         }
@@ -305,7 +352,13 @@ impl<T: DeserializeOwned> Iterator for ObjIter<T> {
                 }
             }
             let path = self.remaining.pop_front()?;
-            self.current = Some(PartReader::open(&path, &self.table, self.ledger.as_ref()));
+            let first = self.current.is_none();
+            self.current = Some(PartReader::open(
+                &path,
+                &self.table,
+                self.ledger.as_ref(),
+                first,
+            ));
         }
     }
 }
@@ -330,13 +383,18 @@ where
     let paths = part_paths(&stowage.paths.entity_csvs, &table);
     let ledger = stowage.ledger.clone();
     let inner_fn = Arc::new(inner_fn);
-    let acc_from_path = move |acc: &mut Acc, path: PathBuf| {
-        let mut part = PartReader::open(&path, &table, ledger.as_ref());
+    let acc_from_path = move |acc: &mut Acc, (i, path): (usize, PathBuf)| {
+        let mut part = PartReader::open(&path, &table, ledger.as_ref(), i == 0);
         while let Some(rec) = part.next::<T>() {
             inner_fn(acc, rec);
         }
     };
-    map_reduce(paths.into_iter(), acc_from_path, reduce_fn, n_threads)
+    map_reduce(
+        paths.into_iter().enumerate(),
+        acc_from_path,
+        reduce_fn,
+        n_threads,
+    )
 }
 
 /// The id string with its numeric tail replaced, whatever prefix the column carries.
@@ -372,7 +430,7 @@ fn part_paths(root: &Path, table: &Table) -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::ID_PREFIX;
+    use crate::{oa_structs::post::Authorship, user_ledger::GrantedShip};
 
     fn lens(table: &Table, header: &[&str], ledger: ResolvedLedger) -> Lens {
         Lens::new(
@@ -481,6 +539,106 @@ mod tests {
         assert!(lens.keeps(&mut merged));
         assert_eq!(&merged[0], format!("{ID_PREFIX}W10"));
         assert_eq!(&merged[1], format!("{ID_PREFIX}A4"));
+    }
+
+    #[test]
+    fn a_reassigned_row_names_its_new_author_or_none_and_a_renamed_author_reads_so() {
+        let ledger = ResolvedLedger {
+            author_aliases: [(2, 1)].into_iter().collect(),
+            reassigned: [((1, 10), Some(7)), ((1, 11), None)].into_iter().collect(),
+            author_names: [(1, "Kim Keep".to_string())].into_iter().collect(),
+            ..Default::default()
+        };
+        let ships = Table::new(works::C, works::atts::authorships);
+        let header = ["parent_id", "author", "institutions", "position"];
+        let ship_lens = lens(&ships, &header, ledger.clone());
+        // the edge is matched in keep space, the row keeps its affiliation and position
+        let mut moved = row(&["W10", "A2", "I7", "3"]);
+        assert!(ship_lens.keeps(&mut moved));
+        assert_eq!(moved, row(&["W10", "A7", "I7", "3"]));
+        let mut unnamed = row(&["W11", "A1", "I7", "0"]);
+        assert!(ship_lens.keeps(&mut unnamed));
+        assert_eq!(unnamed, row(&["W11", "", "I7", "0"]));
+        let mut other = row(&["W12", "A1", "", "0"]);
+        assert!(ship_lens.keeps(&mut other));
+        assert_eq!(&other[1], format!("{ID_PREFIX}A1"));
+
+        let authors = Table::new(authors::C, MAIN_NAME);
+        let header = [
+            "id",
+            "orcid",
+            "display_name",
+            "works_count",
+            "cited_by_count",
+        ];
+        let author_lens = lens(&authors, &header, ledger);
+        let mut keep = row(&["A1", "0000-1", "K. Keep", "7", "300"]);
+        assert!(author_lens.keeps(&mut keep));
+        assert_eq!(&keep[2], "Kim Keep");
+        assert_eq!(&keep[1], "0000-1");
+    }
+
+    #[test]
+    fn a_granted_authorship_is_a_row_of_its_own() {
+        let ship = |author, work, position| GrantedShip {
+            author,
+            work,
+            position,
+        };
+        let ledger = ResolvedLedger {
+            granted_ships: vec![ship(3, 10, 2), ship(4, 11, 0)],
+            ..Default::default()
+        };
+        let table = Table::new(works::C, works::atts::authorships);
+        let header = ["parent_id", "author", "institutions", "position"];
+        let lens = lens(&table, &header, ledger);
+        // popped from the end, so they read in the ledger's order
+        assert_eq!(
+            lens.granted_rows(header.len()),
+            vec![row(&["W11", "A4", "", "0"]), row(&["W10", "A3", "", "2"])]
+        );
+        let mut listed = row(&["W10", "A5", "I7", "0"]);
+        assert!(lens.keeps(&mut listed));
+        assert_eq!(&listed[1], format!("{ID_PREFIX}A5"));
+        let other = Table::new(works::C, works::atts::locations);
+        assert!(Lens::new(
+            &lens.ledger,
+            &other,
+            &StringRecord::from(vec!["parent_id", "source"])
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn the_first_partition_ends_with_the_granted_rows() {
+        let dir = std::env::temp_dir().join(format!("csv-iter-granted-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("authorships.part-0000.csv.zst");
+        let csv = format!(
+            "parent_id,author,institutions,position\n{ID_PREFIX}W10,{ID_PREFIX}A5,,0\n{ID_PREFIX}W10,,,1\n"
+        );
+        std::fs::write(&path, zstd::encode_all(csv.as_bytes(), 0).unwrap()).unwrap();
+        let ledger = Arc::new(ResolvedLedger {
+            granted_ships: vec![GrantedShip {
+                author: 3,
+                work: 10,
+                position: 2,
+            }],
+            ..Default::default()
+        });
+        let table = Table::new(works::C, works::atts::authorships);
+        let read = |first: bool| {
+            let mut part = PartReader::open(&path, &table, Some(&ledger), first);
+            std::iter::from_fn(|| part.next::<Authorship>())
+                .map(|ship| (ship.author_id, ship.position))
+                .collect::<Vec<_>>()
+        };
+        let listed = vec![(Some(format!("{ID_PREFIX}A5")), 0), (None, 1)];
+        let mut with_grant = listed.clone();
+        with_grant.push((Some(format!("{ID_PREFIX}A3")), 2));
+        assert_eq!(read(true), with_grant);
+        assert_eq!(read(false), listed);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
