@@ -181,6 +181,7 @@ def _seed_sidecars(root: Path, run_id: str = "2026-08-12T10:00:00Z") -> None:
                 "owner_by": {"registered_name": 18, "most_works": 2},
                 "merges": {"registered_name": 30, "most_works": 12},
                 "strips": {"name_mismatch": 4, "over_work_bound": 1},
+                "paper_merges": {"angewandte_edition": 3},
             }
         )
     )
@@ -236,6 +237,7 @@ def test_release_manifest_assembly(
     assert m["derived"] == {
         "merges": {"registered_name": 30, "most_works": 12},
         "strips": {"name_mismatch": 4, "over_work_bound": 1},
+        "paper_merges": {"angewandte_edition": 3},
     }
     # aggregates only — the private wid list never enters the release record
     assert m["forced_works"] == {

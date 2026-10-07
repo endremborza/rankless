@@ -197,9 +197,10 @@ def build_release_manifest(root: Path) -> dict:
         "filter_counts": _filter_counts(root / "filter-steps"),
         "applied": dict(Counter(k.split("|")[1] for k in applied["applied_keys"])),
         "skipped": dict(Counter(s["reason"] for s in applied["skipped"])),
-        # The derived identity source (author records sharing an ORCID) by reason;
-        # the row counts and owner choices stay in the sidecar.
-        "derived": {k: derived[k] for k in ("merges", "strips")},
+        # The derived identity source (author records sharing an ORCID, Angewandte's
+        # two editions of a paper) by reason; the row counts and owner choices stay in
+        # the sidecar.
+        "derived": {k: derived[k] for k in ("merges", "strips", "paper_merges")},
         # Public aggregates only — the private wid list stays in the sidecar.
         "forced_works": {k: forced[k] for k in FORCED_AGGREGATES},
         "claims_review": _claims_review(rdir, run_id),
