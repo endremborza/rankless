@@ -55,7 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_rv_subject ON review_verdicts(orcid, kind, subjec
 
 _SYSTEM = """You are the moderation reviewer for Rankless, a scholarly impact explorer.
 An ORCID-authenticated user (the claimant) asserts authorship of papers via DOI.
-Decide per claim: approve, reject, or unsure. Conclusive cases (claimant ORCID
+Decide per claim: {verdict_list}. Conclusive cases (claimant ORCID
 present in the paper's Crossref/OpenAlex authorship record) are auto-approved
 upstream and never reach you — you judge name matches and context.
 
@@ -84,15 +84,18 @@ Calibration: confidence >= 0.9 needs a name match plus corroboration; a bare
 doi_on_orcid_record with no other record caps at unsure / 0.6.
 
 Return ONLY this JSON object, no fences, no prose around it:
-{"verdicts": [{"id": "<claim id>",
-  "verdict": "approve" | "reject" | "unsure",
+{{"verdicts": [{{"id": "<claim id>",
+  "verdict": {verdict_union},
   "confidence": 0.0-1.0,
   "reasoning": "2-4 plain sentences an admin reads before clicking",
-  "checks": {"name_on_author_list": "exact" | "variant" | "initials" | "absent" | "unknown",
+  "checks": {{"name_on_author_list": "exact" | "variant" | "initials" | "absent" | "unknown",
              "field_consistency": "consistent" | "adjacent" | "unrelated" | "unknown",
              "coauthor_overlap": ["coauthor names also seen in the claimant's network"],
-             "notes": "optional"}}]}
-One verdict per claim id, every id exactly once."""
+             "notes": "optional"}}}}]}}
+One verdict per claim id, every id exactly once.""".format(
+    verdict_list=", ".join(VERDICTS[:-1]) + f", or {VERDICTS[-1]}",
+    verdict_union=" | ".join(f'"{v}"' for v in VERDICTS),
+)
 
 
 @dataclass

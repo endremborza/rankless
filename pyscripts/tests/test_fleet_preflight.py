@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from pyscripts.fleet import preflight
+from pyscripts.fleet import manifest, preflight
 from pyscripts.fleet.config import Model, Worker
 from pyscripts.fleet.preflight import GB, Primary
 from pyscripts.fleet.remote import Host
@@ -12,7 +12,7 @@ PRIMARY = Primary(
     head="aaaabbbbcccc",
     rankless_env="full",
     oa_root="/p/data",
-    stamp=f"r1:{'f' * 12}",
+    stamp=f"r1:{DIG[: manifest.DIGEST_LEN]}",
     digest=DIG,
     data_size_gb=50.0,
     largest_file_gb=10.0,
@@ -98,7 +98,7 @@ def test_all_green_passes_gate(capsys) -> None:
         ),
         ({"df --output=avail": str(4 * GB)}, "disk"),
         ({"free -b": str(64 * GB)}, "memory"),
-        ({"/stamp": "r0:" + "0" * 12}, "stamp"),
+        ({"/stamp": "r0:" + "0" * manifest.DIGEST_LEN}, "stamp"),
         ({"sha256sum": "0" * 64}, "data"),
         ({"curl": json.dumps({"version": "bbbb|full|r1:ff", "specs": {}})}, "version"),
     ],

@@ -68,7 +68,8 @@ FE_MEMORY_MAX = "1280M"
 # restarts scatter in time. SSR is stateless and nginx retries other upstreams.
 FE_RUNTIME_MAX = "6h"
 FE_RUNTIME_JITTER = "3h"
-# Same hard-wall logic for the backend (~41 GB fresh working set on full data):
+# Same hard-wall logic for the backend (its fresh working set on full data is
+# `Model.mem_base_gb` in fleet/config.py):
 # die and reload in minutes instead of dragging the box into reclaim thrash.
 # Percentage of physical RAM so the same template fits every box size.
 BE_MEMORY_MAX = "85%"

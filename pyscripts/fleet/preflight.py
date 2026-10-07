@@ -239,10 +239,11 @@ def _stamp_detail(host: Host, w: Worker, primary: Primary) -> str:
 
 def _data_detail(host: Host, w: Worker, primary: Primary) -> str:
     dig = manifest.digest(host, w.data_root)
+    n = manifest.DIGEST_LEN
     assert dig == primary.digest, (
-        f"data digest {dig[:12]} != primary {primary.digest[:12]} — torn/stale push"
+        f"data digest {dig[:n]} != primary {primary.digest[:n]} — torn/stale push"
     )
-    return f"digest {dig[:12]} matches"
+    return f"digest {dig[:n]} matches"
 
 
 def _version_detail(host: Host, w: Worker, primary: Primary) -> str:

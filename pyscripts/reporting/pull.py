@@ -1,7 +1,7 @@
 import subprocess
 from dataclasses import dataclass
 
-from .config import LIVE_SSH_ID, NGINX_LOG, NGINX_LOG_ROTATED
+from .config import FIRST_RUN_TAIL_LINES, LIVE_SSH_ID, NGINX_LOG, NGINX_LOG_ROTATED
 from .state import State
 
 
@@ -23,9 +23,9 @@ def fetch_new_lines(state: State, ssh_host: str = LIVE_SSH_ID) -> FetchResult:
     rotated = state.last_inode and inode != state.last_inode
 
     if state.last_inode == 0:
-        # First run ever: only ingest the most recent ~200k lines so we don't
-        # try to fetch a multi-gigabyte log.
-        lines = _ssh_lines(ssh_host, f"tail -n 200000 {NGINX_LOG}")
+        # First run ever: only ingest the most recent FIRST_RUN_TAIL_LINES lines so
+        # we don't try to fetch a multi-gigabyte log.
+        lines = _ssh_lines(ssh_host, f"tail -n {FIRST_RUN_TAIL_LINES} {NGINX_LOG}")
         return FetchResult(lines=lines, new_inode=inode, new_size=size, rotated=False)
 
     if rotated:

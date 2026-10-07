@@ -32,7 +32,8 @@ from pyscripts.fleet.preflight import Check, Primary
 from pyscripts.fleet.remote import log, rsync
 
 SYNC_BACK_S = 600
-READY_ATTEMPTS = 240  # × 15s: a large box can take a while to load
+READY_POLL_S = 15
+READY_ATTEMPTS = 240  # × READY_POLL_S: a large box can take a while to load
 # Workers can sit outside the /mnt/data sync network, where the science-data
 # editable cannot resolve and psycopg2 cannot build (libpq) — neither is needed
 # to serve trees or run the cache CLI. Frozen = exactly the pulled lock; the
@@ -221,5 +222,5 @@ def _wait_ready(w: Worker, host) -> None:
             raise RuntimeError(
                 f"[{w.name}] backend unit failed — journalctl on the box"
             )
-        time.sleep(15)
+        time.sleep(READY_POLL_S)
     raise TimeoutError(f"[{w.name}] backend not ready — journalctl on the box")
