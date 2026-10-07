@@ -70,7 +70,7 @@ so display and evidence both come from external records, cached in SQLite:
 The **only fetcher is the SvelteKit server** (`src/lib/server/enrich.ts`,
 orchestrated by `review-data.ts`): the "Fetch metadata" button on
 `/admin/ledger` loops `POST /api/admin/enrich`, which fetches a bounded chunk
-(default 40) per call, upserts the cache, and runs the hard-evidence pass.
+(`DEFAULT_LIMIT` in `src/routes/api/admin/enrich/+server.ts`) per call, upserts the cache, and runs the hard-evidence pass.
 `status` is `ok | not_found | error`; `not_found` is kept as evidence (no such
 record), `error` rows are retried on the next run. Set `ENRICH_MAILTO` for
 polite-pool headers. Python never fetches — the AI lane fails loudly listing
