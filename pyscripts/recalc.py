@@ -19,12 +19,17 @@ from pathlib import Path
 from dotenv import load_dotenv
 from protocli import Dispatcher
 
-from pyscripts import fleet, gitutil, services
+from pyscripts import fleet, gitutil, paths, services
 from pyscripts.fleet import manifest
+from wire.rankless_rs.user_ledger import (
+    APPLIED_MANIFEST,
+    DERIVED_MANIFEST,
+    FORCED_WORKS,
+    SNAPSHOT_MANIFEST,
+)
 
 load_dotenv()
-ARTIFACT_PATHS = ("rankless_rs/src/gen", "src/lib/assets/data")
-LADDER_TOP = "rankless_rs/src/gen/derive_links5.rs"
+ARTIFACT_PATHS = (paths.GEN_DIR, "src/lib/assets/data")
 LOCK_PATH = Path("/tmp/rankless-pipeline.lock")
 
 
@@ -63,7 +68,7 @@ def refresh_data(*, from_snapshot: bool = False, no_db_pull: bool = False) -> No
         # The gen ladder's make deps only see steps/*.rs — it cannot know the
         # data changed under it, and after `filter` it always has. Force it,
         # and only it.
-        _make("-B", LADDER_TOP)
+        _make("-B", paths.LADDER_TOP)
         # Stamp before restart-service: the backend reads the stamp at startup
         # and echoes it in /v1/specs — the warm fleet's version handshake.
         root = os.environ["OA_ROOT"]
@@ -159,17 +164,17 @@ def _build_commit(rdir: Path, run_id: str) -> str:
 def build_release_manifest(root: Path) -> dict:
     """Aggregate the sidecars a refresh-data run leaves behind (per-source
     detail and event keys stay in the internal manifests)."""
-    ul = root / "user-ledger"
-    snap = json.loads((ul / "snapshot_manifest.json").read_text())
-    applied = json.loads((ul / "applied_manifest.json").read_text())
-    forced = json.loads((ul / "forced_works.json").read_text())
-    derived = json.loads((ul / "derived_manifest.json").read_text())
+    ul = root / paths.USER_LEDGER_DIR
+    snap = json.loads((ul / SNAPSHOT_MANIFEST).read_text())
+    applied = json.loads((ul / APPLIED_MANIFEST).read_text())
+    forced = json.loads((ul / FORCED_WORKS).read_text())
+    derived = json.loads((ul / DERIVED_MANIFEST).read_text())
     stamp = (root / manifest.STAMP_NAME).read_text().strip()
 
     run_id = snap["run_id"]
     for label, other in (
-        ("applied_manifest", applied["run_id"]),
-        ("forced_works", forced["run_id"]),
+        (APPLIED_MANIFEST, applied["run_id"]),
+        (FORCED_WORKS, forced["run_id"]),
         ("stamp", stamp),
     ):
         if not other.startswith(run_id):

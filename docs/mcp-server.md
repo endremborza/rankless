@@ -224,12 +224,8 @@ One generator mines objects into the store, the CampusQuest card round. A run is
 
 The home of the CampusQuest cards, split into immutable payloads and a reviewable index:
 
-- **Bundles** — each generation run writes one `data/mcp-objects/<run>.jsonl.zst`
-  (zstd, one self-describing object per line: `kind`, `obj_key`, display fields,
-  `payload`). Bundles are never rewritten; batching a run into one archive compresses
-  to roughly a sixth of the raw JSON.
-- **Index** — `mcp_objects` (in `data/rankless.sqlite`) holds one payload-free row
-  per object _version_: logical key `(kind, obj_key)`, the `(bundle, line)` address,
+- **Bundles** — each generation run writes one `<run>.jsonl.zst` into the objects root (`paths.objects_root()`: `MCP_OBJECTS_ROOT`, else `paths.MCP_OBJECTS_REL`) (zstd, one self-describing object per line: `kind`, `obj_key`, display fields, `payload`). Bundles are never rewritten; batching a run into one archive compresses to roughly a sixth of the raw JSON.
+- **Index** — `mcp_objects` (in the user DB, `paths.db_path()`: `RANKLESS_DB_PATH`, else `paths.DB_REL`) holds one payload-free row per object _version_: logical key `(kind, obj_key)`, the `(bundle, line)` address,
   `gen_at`, and a review `status` (`new` → `approved`/`rejected`). Regeneration adds
   a superseding version row; consumers read the **latest non-rejected** version per
   key, so rejecting a bad regeneration falls back to the previous good one.

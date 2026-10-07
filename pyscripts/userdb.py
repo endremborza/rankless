@@ -72,7 +72,7 @@ TABLES = (
 ROW_FILTERS = {"sessions": "expires_at > datetime('now')"}
 DECIDED_MODERATIONS = ("accepted", "rejected", "auto_ok")
 
-ZSTD_LEVEL = 19
+DEFAULT_KEEP_DAYS = 7
 BKP_TMP = f"{paths.DATA_DIR}/_bkxfer"
 SNAP_RE = re.compile(r"rankless-(\d{8})\.sqlite\.zst")
 
@@ -143,7 +143,10 @@ def user_count(db: str) -> int:
 
 
 def backup(
-    *, source: str = "live", dest: str = "data/backups", keep_days: int = 7
+    *,
+    source: str = "live",
+    dest: str = "data/backups",
+    keep_days: int = DEFAULT_KEEP_DAYS,
 ) -> None:
     """Back up a source's user DB + artifact dirs into <dest>/<source>/
     (--source local|live|alpha; live/alpha resolve the running box via deploy).
@@ -362,7 +365,7 @@ def _backup_box(source: str, root: Path, out: Path) -> None:
 
 
 def _compress(src: Path, out: Path) -> None:
-    out.write_bytes(zstandard.compress(src.read_bytes(), ZSTD_LEVEL))
+    out.write_bytes(zstandard.compress(src.read_bytes(), paths.ZSTD_LEVEL))
 
 
 def _transfer_cmd(*, target: str, incoming: str, mode: str) -> None:

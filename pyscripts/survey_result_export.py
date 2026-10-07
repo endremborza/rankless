@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pandas as pd
 
-GET_COMM = ["ssh", "rankless-live", "cat /tmp/survey-logs.jsonl"]
+from pyscripts import paths
+
+GET_COMM = ["ssh", "rankless-live", f"cat {paths.SURVEY_LOG_PATH}"]
 WEB_PUBLISH_DIR = os.environ["WEB_PUBLISH_DIR"]
 
 

@@ -18,7 +18,9 @@ import shlex
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
+from pyscripts import paths
 from pyscripts.fleet.remote import Host
+from wire.rankless_rs.user_ledger import SNAPSHOT_MANIFEST
 
 STAMP_NAME = "stamp"
 # Per-box state, never pushed. Digest equality is meaningful only over pushed
@@ -84,7 +86,7 @@ def stamp_digest(stamp: str) -> str:
 def run_id(root: str | None) -> str:
     """The ledger snapshot run_id when present, else today — names data builds
     (the stamp line here, the artifact commit message in recalc.py)."""
-    snap = Path(root or ".") / "user-ledger" / "snapshot_manifest.json"
+    snap = Path(root or ".") / paths.USER_LEDGER_DIR / SNAPSHOT_MANIFEST
     if root and snap.exists():
         return json.loads(snap.read_text())["run_id"]
     return dt.date.today().isoformat()

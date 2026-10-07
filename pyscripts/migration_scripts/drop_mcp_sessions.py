@@ -8,6 +8,8 @@ import argparse
 import shutil
 from pathlib import Path
 
+from pyscripts import paths
+
 from . import user_db
 
 TABLE = "mcp_sessions"
@@ -17,7 +19,7 @@ DIR = "mcp-sessions"
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
-        "--db", help="user DB (default: RANKLESS_DB_PATH or data/rankless.sqlite)"
+        "--db", help=f"user DB (default: RANKLESS_DB_PATH or {paths.DB_REL})"
     )
     db = ap.parse_args().db
     con = user_db(db)

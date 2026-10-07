@@ -7,12 +7,13 @@ import type { EnrichmentEntry, EnrichmentSource, ReviewVerdict } from '$lib/type
 import type { EmailConsent, EmailPurposeKey } from '$lib/types/email-consent';
 import type { SessionUserData } from './session';
 import { OBJECTS_SCHEMA } from './objects-schema';
+import { DB_REL } from '$lib/paths';
 
 let _db: Database | null = null;
 
 export function getDb(): Database {
 	if (_db) return _db;
-	const dbPath = env.RANKLESS_DB_PATH ?? 'data/rankless.sqlite';
+	const dbPath = env.RANKLESS_DB_PATH ?? DB_REL;
 	_db = new Database(dbPath);
 	// Multiple Bun worker processes (blue/green × procs) share this file; without a busy timeout a
 	// concurrent writer throws SQLITE_BUSY immediately instead of waiting. Set it *before* the WAL

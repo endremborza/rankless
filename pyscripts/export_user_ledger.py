@@ -1,11 +1,11 @@
-"""Export user ledger to $OA_ROOT/user-ledger/ for pipeline consumption.
+"""Export user ledger to $OA_ROOT/`USER_LEDGER_DIR`/ for pipeline consumption.
 
 Reads ledger_events and owner_pins from SQLite, writes:
-  user-ledger/active.jsonl           — active events ready for the pipeline
-  user-ledger/curated.jsonl          — the team's curated ledger ($EXTERNAL_DATA_ROOT/ledger/),
-                                       copied as it is; absent when the default root has none
-  user-ledger/snapshot_manifest.json — run_id (ISO ts) + exported event_ids + per-source counts
-  user-ledger/owner_pins.txt         — one ORCID per line
+  ACTIVE_JSONL       — active events ready for the pipeline
+  CURATED_JSONL      — the team's curated ledger ($EXTERNAL_DATA_ROOT/ledger/),
+                       copied as it is; absent when the default root has none
+  SNAPSHOT_MANIFEST  — run_id (ISO ts) + exported event_ids + per-source counts
+  OWNER_PINS         — one ORCID per line
 
 Every event carries a `source` (this exporter always writes "site" — the site
 SQLite DB is the "site" source). Future feeds (institutions, OA-API deltas)
@@ -34,7 +34,13 @@ from typing import Any
 
 from pyscripts import paths
 from pyscripts.external_data import table
-from pyscripts.ledger_ids import logical_key
+from pyscripts.ledger_ids import OK_MODERATION, OK_MODERATION_SQL, logical_key
+from wire.rankless_rs.user_ledger import (
+    ACTIVE_JSONL,
+    CURATED_JSONL,
+    OWNER_PINS,
+    SNAPSHOT_MANIFEST,
+)
 
 from .deploy import OA_ROOT_VAR
 
@@ -50,19 +56,16 @@ if DEFAULT_DATA_ROOT is None:
         pass
 
 DEFAULT_DB = paths.DB_REL
-OK_MODERATION = ("auto_ok", "accepted")
 SOURCE = "site"
 CURATED_SOURCE = "curated"
-CURATED_NAME = "curated.jsonl"
 
 
 def _fetch_active_events(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     try:
-        placeholders = ",".join("?" * len(OK_MODERATION))
         rows = conn.execute(
             f"SELECT event_id, orcid, kind, payload, subject_hash, moderation, created_at "
             f"FROM ledger_events "
-            f"WHERE revoked_at IS NULL AND moderation IN ({placeholders}) "
+            f"WHERE revoked_at IS NULL AND {OK_MODERATION_SQL} "
             f"ORDER BY event_id",
             OK_MODERATION,
         ).fetchall()
@@ -107,7 +110,7 @@ def _collapse_revokes(all_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def export(data_root: Path, db_path: str) -> None:
-    out_dir = data_root / "user-ledger"
+    out_dir = data_root / paths.USER_LEDGER_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
 
     conn = sqlite3.connect(db_path)
@@ -121,7 +124,7 @@ def export(data_root: Path, db_path: str) -> None:
     run_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     exported_ids = [e["event_id"] for e in active]
 
-    with open(out_dir / "active.jsonl", "w") as f:
+    with open(out_dir / ACTIVE_JSONL, "w") as f:
         for event in active:
             f.write(json.dumps(event, separators=(",", ":")) + "\n")
 
@@ -130,10 +133,10 @@ def export(data_root: Path, db_path: str) -> None:
     if curated is not None:
         sources[CURATED_SOURCE] = curated
 
-    with open(out_dir / "snapshot_manifest.json", "w") as f:
+    with open(out_dir / SNAPSHOT_MANIFEST, "w") as f:
         json.dump({"run_id": run_id, "event_ids": exported_ids, "sources": sources}, f)
 
-    with open(out_dir / "owner_pins.txt", "w") as f:
+    with open(out_dir / OWNER_PINS, "w") as f:
         f.write("\n".join(pins))
         if pins:
             f.write("\n")
@@ -145,8 +148,8 @@ def export(data_root: Path, db_path: str) -> None:
 def _export_curated(out_dir: Path) -> int | None:
     """The curated ledger's events beside the site's; None, and no stale copy left, when
     the default root holds none."""
-    dest = out_dir / CURATED_NAME
-    src = table("ledger", CURATED_NAME)
+    dest = out_dir / CURATED_JSONL
+    src = table("ledger", CURATED_JSONL)
     if src is None:
         dest.unlink(missing_ok=True)
         return None

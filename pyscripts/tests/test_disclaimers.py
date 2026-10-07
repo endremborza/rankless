@@ -2,15 +2,16 @@ import json
 
 import pytest
 
-from pyscripts import disclaimers
+from pyscripts import disclaimers, paths
+from wire.rankless_rs.user_ledger import APPLIED_MANIFEST
 
 
 @pytest.fixture
 def box(tmp_path, monkeypatch):
     """A box serving run `r1` whose backend knows one author."""
-    ledger = tmp_path / "user-ledger"
+    ledger = tmp_path / paths.USER_LEDGER_DIR
     ledger.mkdir()
-    manifest = ledger / "applied_manifest.json"
+    manifest = ledger / APPLIED_MANIFEST
     manifest.write_text(json.dumps({"run_id": "r1"}))
     monkeypatch.setenv("OA_ROOT", str(tmp_path))
 

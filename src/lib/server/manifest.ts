@@ -1,4 +1,5 @@
-import type { AppliedManifest } from '$lib/wire/rankless_rs/user_ledger';
+import { APPLIED_MANIFEST, type AppliedManifest } from '$lib/wire/rankless_rs/user_ledger';
+import { USER_LEDGER_DIR } from '$lib/paths';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { env } from '$env/dynamic/private';
@@ -13,7 +14,7 @@ export const EMPTY_MANIFEST: AppliedManifest = {
 export function manifestPath(): string {
 	const root = env.OA_ROOT;
 	if (!root) throw new Error('OA_ROOT env var not set');
-	return join(root, 'user-ledger', 'applied_manifest.json');
+	return join(root, USER_LEDGER_DIR, APPLIED_MANIFEST);
 }
 
 export function readManifest(): AppliedManifest {

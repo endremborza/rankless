@@ -4,8 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from pyscripts import recalc, services
+from pyscripts import paths, recalc, services
 from pyscripts.fleet.manifest import STAMP_NAME
+from wire.rankless_rs.user_ledger import (
+    APPLIED_MANIFEST,
+    DERIVED_MANIFEST,
+    FORCED_WORKS,
+    SNAPSHOT_MANIFEST,
+)
+from wire.rankless_server.consts import COMMIT_HASH_LEN
 
 
 def _git(cwd: Path, *args: str) -> str:
@@ -133,12 +140,12 @@ def test_deploy_primitives_derived() -> None:
 
 
 def _seed_sidecars(root: Path, run_id: str = "2026-08-12T10:00:00Z") -> None:
-    ul = root / "user-ledger"
+    ul = root / paths.USER_LEDGER_DIR
     ul.mkdir(parents=True)
-    (ul / "snapshot_manifest.json").write_text(
+    (ul / SNAPSHOT_MANIFEST).write_text(
         json.dumps({"run_id": run_id, "event_ids": [1, 2, 3], "sources": {"site": 3}})
     )
-    (ul / "applied_manifest.json").write_text(
+    (ul / APPLIED_MANIFEST).write_text(
         json.dumps(
             {
                 "run_id": run_id,
@@ -164,7 +171,7 @@ def _seed_sidecars(root: Path, run_id: str = "2026-08-12T10:00:00Z") -> None:
             }
         )
     )
-    (ul / "derived_manifest.json").write_text(
+    (ul / DERIVED_MANIFEST).write_text(
         json.dumps(
             {
                 "author_rows": 500,
@@ -177,7 +184,7 @@ def _seed_sidecars(root: Path, run_id: str = "2026-08-12T10:00:00Z") -> None:
             }
         )
     )
-    (ul / "forced_works.json").write_text(
+    (ul / FORCED_WORKS).write_text(
         json.dumps(
             {
                 "run_id": run_id,

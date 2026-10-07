@@ -13,6 +13,11 @@ from typing import Any
 
 from wire.rankless_rs.user_ledger import AuthorSubject, EventPayload, WorkSubject
 
+OK_MODERATION = ("auto_ok", "accepted")
+OK_MODERATION_SQL = f"moderation IN ({','.join('?' * len(OK_MODERATION))})"
+# subject_enrichment sources that carry a work's authorship, in preference order
+WORK_SOURCES = ("openalex", "crossref")
+
 _DOI_PREFIX = re.compile(r"^https?://(dx\.)?doi\.org/", re.I)
 _ORCID_PREFIX = re.compile(r"^https?://(www\.)?orcid\.org/", re.I)
 

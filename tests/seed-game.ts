@@ -9,9 +9,10 @@ import { dirname, join } from 'node:path';
 import { Database } from 'bun:sqlite';
 
 import { OBJECTS_SCHEMA } from '../src/lib/server/objects-schema';
+import { DB_REL, MCP_OBJECTS_REL } from '../src/lib/paths';
 
-const ROOT = process.env.MCP_OBJECTS_ROOT ?? 'data/mcp-objects';
-const DB_PATH = process.env.RANKLESS_DB_PATH ?? 'data/rankless.sqlite';
+const ROOT = process.env.MCP_OBJECTS_ROOT ?? MCP_OBJECTS_REL;
+const DB_PATH = process.env.RANKLESS_DB_PATH ?? DB_REL;
 const BUNDLE = 'seed-geo-fixture';
 
 type FixtureObject = {

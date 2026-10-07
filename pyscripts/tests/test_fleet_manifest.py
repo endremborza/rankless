@@ -2,8 +2,10 @@ import json
 import os
 from pathlib import Path
 
+from pyscripts import paths
 from pyscripts.fleet import manifest
 from pyscripts.fleet.remote import Host
+from wire.rankless_rs.user_ledger import SNAPSHOT_MANIFEST
 
 LOCAL = Host("t", None)
 
@@ -60,7 +62,7 @@ def test_stamp_roundtrip(tmp_path: Path) -> None:
 
 def test_run_id(tmp_path: Path) -> None:
     assert manifest.run_id(None).count("-") == 2  # date fallback
-    led = tmp_path / "user-ledger"
+    led = tmp_path / paths.USER_LEDGER_DIR
     led.mkdir()
-    (led / "snapshot_manifest.json").write_text(json.dumps({"run_id": "r42"}))
+    (led / SNAPSHOT_MANIFEST).write_text(json.dumps({"run_id": "r42"}))
     assert manifest.run_id(str(tmp_path)) == "r42"

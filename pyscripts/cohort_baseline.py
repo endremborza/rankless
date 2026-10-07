@@ -33,7 +33,7 @@ def main() -> None:
         version = json.load(r)["version"]
     record = documented_release(version)
 
-    pins_file = root / "user-ledger" / "owner_pins.txt"
+    pins_file = root / paths.USER_LEDGER_DIR / OWNER_PINS
     pins = [line for line in pins_file.read_text().splitlines() if line.strip()]
     authors = {orcid: _served_author(orcid) for orcid in pins}
 

@@ -2,8 +2,8 @@
 
     uv run -m pyscripts.typeaudit [--strict]   # make type-audit
 
-Runs ccl's own `_parse_entities` over `rankless_rs/src/gen/` and compares what it
-finds against a format-tolerant ground truth, writes logs/type-audit.md and prints
+Runs ccl's own `_parse_entities` over `paths.GEN_DIR` and compares what it
+finds against a format-tolerant ground truth, writes `REPORT_PATH` and prints
 a summary. Exits nonzero when the parser matches less than half of the entities
 (its regexes no longer fit the gen format); `--strict` also fails when the
 parser cannot be imported.
@@ -15,8 +15,9 @@ import re
 import sys
 from pathlib import Path
 
+from pyscripts import paths
+
 REPORT_PATH = Path("logs/type-audit.md")
-GEN_DIR = "rankless_rs/src/gen"
 GEN_READER = "libs/ccl-science-data/scripts/gen_reader.py"
 
 # The ccl reader only loads array-shaped entities (`type T = u{N}` or
@@ -46,7 +47,9 @@ def main() -> int:
 
 def audit_gen() -> tuple[str, str]:
     gen_txt = "\n\n".join(
-        p.read_text() for p in sorted(Path(GEN_DIR).iterdir()) if p.suffix == ".rs"
+        p.read_text()
+        for p in sorted(Path(paths.GEN_DIR).iterdir())
+        if p.suffix == ".rs"
     )
     ground = set(_ENTITY_NAME_RE.findall(gen_txt))
     parse_entities = _import_ccl_parser()

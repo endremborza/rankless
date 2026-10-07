@@ -198,7 +198,7 @@ def _assert_release_record() -> None:
     assert rel["applied"].get("claim_paper", 0) >= 1, rel["applied"]
     assert rel["ledger"].get("site"), rel["ledger"]
 
-    sidecar_path = Path(os.environ["OA_ROOT"]) / "user-ledger" / "forced_works.json"
+    sidecar_path = Path(os.environ["OA_ROOT"]) / paths.USER_LEDGER_DIR / FORCED_WORKS
     assert sidecar_path.exists(), f"forced-works sidecar missing: {sidecar_path}"
     forced = json.loads(sidecar_path.read_text())
     assert rel["forced_works"]["cohort"] == forced["cohort"], (

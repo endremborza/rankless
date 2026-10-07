@@ -14,7 +14,7 @@ from typing import Callable, Iterator, Optional
 import pandas as pd
 from tqdm import tqdm
 
-from pyscripts import poster_figures
+from pyscripts import paths, poster_figures
 from pyscripts.cache_prompting import RTC
 from pyscripts.comparison_report import (
     CompResult,
@@ -36,8 +36,6 @@ from pyscripts.comparison_report import (
 from pyscripts.server_ops import DockerServer, build_server
 from pyscripts.stow_ops import RebuildLevel, StowManager
 from pyscripts.tree_diff import make_diff_df
-
-FINAL_STEP = "rankless_rs/src/gen/derive_links5.rs"
 
 # fetch_pair(row, tid, breakdowns) -> (children_a, children_b, time_a, time_b)
 FetchPair = Callable[[pd.Series, int, list], tuple[dict, dict, float, float]]
@@ -64,7 +62,7 @@ def prepare_backend(
             subprocess.run(["make", "clean-cache"], check=True)
             build_server()
         case RebuildLevel.pipeline:
-            subprocess.run(["make", "-B", FINAL_STEP], check=True)
+            subprocess.run(["make", "-B", paths.LADDER_TOP], check=True)
             build_server()
         case RebuildLevel.full:
             subprocess.run(["make", "build-data"], check=True)

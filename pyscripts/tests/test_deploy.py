@@ -53,7 +53,7 @@ def test_push_data_is_the_fleet_definition() -> None:
         ("/oa/cache/", "box:/data/cache/", (), False),
     ]
     # the digest set ships whole: ledger + stamp ride along, per-box dirs stay put
-    assert "user-ledger" not in manifest.PUSH_EXCLUDES
+    assert paths.USER_LEDGER_DIR not in manifest.PUSH_EXCLUDES
     assert manifest.STAMP_NAME not in manifest.PUSH_EXCLUDES
     assert "cache" in manifest.PUSH_EXCLUDES
 

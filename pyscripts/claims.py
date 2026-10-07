@@ -53,17 +53,20 @@ from protocli import Dispatcher
 
 from pyscripts import paths
 from pyscripts.ledger_ids import (
+    OK_MODERATION,
+    OK_MODERATION_SQL,
+    WORK_SOURCES,
     author_subject,
     canonical_doi,
     logical_key,
     subject_hash,
     oa_numeric,
 )
+from wire.rankless_rs.user_ledger import APPLIED_MANIFEST, SNAPSHOT_MANIFEST
 
 load_dotenv()
 DEFAULT_PLAN = ".cril/claims-plan.json"
 MODERATED_BY = "auto:snapshot-authorship"
-WORK_SOURCES = ("openalex", "crossref")
 # Plan verdict/reason → the cause named in the report. Public phrasing: no internal
 # skip-reason identifiers (SkipReason rust enum), no individual named.
 CAUSES = {
@@ -230,7 +233,8 @@ def accept(
 
     total = con.execute(
         "SELECT count(*) FROM ledger_events WHERE kind = 'claim_paper' "
-        "AND revoked_at IS NULL AND moderation IN ('accepted', 'auto_ok')"
+        f"AND revoked_at IS NULL AND {OK_MODERATION_SQL}",
+        OK_MODERATION,
     ).fetchone()[0]
     con.close()
 
@@ -254,7 +258,7 @@ def record(
 ) -> Path:
     """Write `$OA_ROOT/releases/<run_id>.claims.json` — what every claim did, and why.
 
-    `applied_manifest.json` records what the pipeline integrated, but a claim that was
+    `APPLIED_MANIFEST` records what the pipeline integrated, but a claim that was
     never accepted is never exported, so it leaves no trace at all: the release record
     would show the claims that landed and stay silent about the ones that could not.
     Publishable aggregates at the top level (`recalc manifest` folds them in as
@@ -280,11 +284,9 @@ def record(
 
 
 def build_record(doc: dict, root: Path, db_path: str) -> dict:
-    ul = root / "user-ledger"
-    applied_keys = set(
-        json.loads((ul / "applied_manifest.json").read_text())["applied_keys"]
-    )
-    run_id = json.loads((ul / "snapshot_manifest.json").read_text())["run_id"]
+    ul = root / paths.USER_LEDGER_DIR
+    applied_keys = set(json.loads((ul / APPLIED_MANIFEST).read_text())["applied_keys"])
+    run_id = json.loads((ul / SNAPSHOT_MANIFEST).read_text())["run_id"]
     con = _connect(db_path)
     rows = _claim_rows(con)
     con.close()
@@ -396,7 +398,8 @@ def _merged_drops(con: sqlite3.Connection) -> dict[str, set[int]]:
     out: dict[str, set[int]] = {}
     for row in con.execute(
         "SELECT orcid, payload FROM ledger_events WHERE kind = 'merge_authors' "
-        "AND revoked_at IS NULL AND moderation IN ('accepted', 'auto_ok')"
+        f"AND revoked_at IS NULL AND {OK_MODERATION_SQL}",
+        OK_MODERATION,
     ):
         drop = (json.loads(row["payload"]).get("drop") or {}).get("oa_id")
         if drop is not None:

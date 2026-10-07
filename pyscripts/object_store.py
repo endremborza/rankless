@@ -31,7 +31,6 @@ from protocli import Dispatcher
 from pyscripts import paths
 
 STATUSES = ("new", "approved", "rejected")
-ZSTD_LEVEL = 19
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS mcp_objects (
@@ -98,7 +97,7 @@ def write_bundle(con: sqlite3.Connection, run: str, objects: list[dict]) -> int:
             raise SystemExit(f"bundle {path} exists with different content")
     else:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(zstandard.compress(raw, ZSTD_LEVEL))
+        path.write_bytes(zstandard.compress(raw, paths.ZSTD_LEVEL))
     with con:
         for line, obj in enumerate(objects):
             con.execute(
@@ -231,7 +230,7 @@ def export(*, path: str, kind: str = "", status: str = "", db: str = "") -> None
         con.close()
     data = "".join(line + "\n" for line in out)
     if path.endswith(".zst"):
-        Path(path).write_bytes(zstandard.compress(data.encode(), ZSTD_LEVEL))
+        Path(path).write_bytes(zstandard.compress(data.encode(), paths.ZSTD_LEVEL))
     else:
         Path(path).write_text(data)
     print(f"{len(out)} object(s) -> {path}")

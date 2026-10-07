@@ -12,6 +12,7 @@ import { env } from '$env/dynamic/private';
 import { getDb } from './db';
 import { OBJECTS_CURRENT_SQL } from './objects-schema';
 import type { McpObject, ObjectKind, ObjectStatus } from '$lib/types/objects';
+import { MCP_OBJECTS_REL } from '$lib/paths';
 
 const BUNDLE_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 
@@ -35,7 +36,7 @@ const bundleCache = new Map<string, unknown[]>();
 const warnedBundles = new Set<string>();
 
 export function objectsRoot(): string {
-	return env.MCP_OBJECTS_ROOT ?? 'data/mcp-objects';
+	return env.MCP_OBJECTS_ROOT ?? MCP_OBJECTS_REL;
 }
 
 export function listObjects(opts: {

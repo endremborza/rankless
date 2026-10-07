@@ -6,7 +6,7 @@ shown while the data run it was written against is served.
     uv run -m pyscripts disclaimers list
 
 Run on the box whose site should show the note: the row goes into that box's user DB
-with the run id of `$OA_ROOT/user-ledger/applied_manifest.json`, the file the site
+with the run id of `APPLIED_MANIFEST` under `$OA_ROOT`, the file the site
 compares it with (src/lib/server/disclaimers.ts). A new data run retires every earlier
 note; its row stays until replaced or removed. `add` asks the box's backend for the
 profile, so a mistyped slug fails here instead of never showing.
@@ -24,6 +24,7 @@ from protocli import Dispatcher
 
 from mcp_server import BE_URL, VIEW_TYPES, encode_semantic_id
 from pyscripts import paths
+from wire.rankless_rs.user_ledger import APPLIED_MANIFEST
 
 load_dotenv()
 
@@ -49,7 +50,7 @@ def connect(db_path: str = "") -> sqlite3.Connection:
 
 def served_run_id() -> str:
     """The run id of the data this box serves, read where the site reads it."""
-    manifest = Path(os.environ["OA_ROOT"]) / "user-ledger" / "applied_manifest.json"
+    manifest = Path(os.environ["OA_ROOT"]) / paths.USER_LEDGER_DIR / APPLIED_MANIFEST
     return json.loads(manifest.read_text())["run_id"]
 
 

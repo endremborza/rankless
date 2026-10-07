@@ -2,8 +2,9 @@ import json
 import sqlite3
 from pathlib import Path
 
-from pyscripts import claims
+from pyscripts import claims, paths
 from pyscripts.ledger_ids import author_subject, subject_hash
+from wire.rankless_rs.user_ledger import APPLIED_MANIFEST, SNAPSHOT_MANIFEST
 
 SCHEMA = """
 CREATE TABLE ledger_events (
@@ -33,10 +34,10 @@ def _seed(tmp_path: Path) -> tuple[str, dict]:
     con.commit()
     con.close()
 
-    ul = tmp_path / "user-ledger"
+    ul = tmp_path / paths.USER_LEDGER_DIR
     ul.mkdir()
-    (ul / "snapshot_manifest.json").write_text(json.dumps({"run_id": "2026-08-15T01Z"}))
-    (ul / "applied_manifest.json").write_text(
+    (ul / SNAPSHOT_MANIFEST).write_text(json.dumps({"run_id": "2026-08-15T01Z"}))
+    (ul / APPLIED_MANIFEST).write_text(
         json.dumps({"applied_keys": ["0000-0001|claim_paper|aa"]})
     )
     plan = {

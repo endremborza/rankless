@@ -38,11 +38,11 @@ accepted claim), then: `make filter extend_csvs` → forced gen-ladder rebuild �
   release, one machine-readable record: `run_id`/`stamp`/`git_commit`/`rankless_env`,
   the snapshot name+date, per-source ledger export counts (`export_user_ledger`
   stamps `source: "site"` on every event), applied-by-kind and skipped-by-reason
-  aggregates (from `applied_manifest.json`; event keys stay there), the derived
-  identity records by reason (from `derived_manifest.json`: merges by how the
+  aggregates (from `APPLIED_MANIFEST`; event keys stay there), the derived
+  identity records by reason (from `DERIVED_MANIFEST`: merges by how the
   ORCID's owner was chosen, or as a cluster its registered name does not
   contradict, strips by why), forced-works aggregates (from
-  `user-ledger/forced_works.json` — counts only, the wid list of works served
+  `FORCED_WORKS` — counts only, the wid list of works served
   beyond the standard screens stays private), and per-step
   filter counts derived from the `filter-steps/` id files themselves (8-byte ids,
   so kept = size/8 — no pipeline instrumentation). A pure function over those
@@ -55,10 +55,10 @@ accepted claim), then: `make filter extend_csvs` → forced gen-ladder rebuild �
 - **Claims sidecar** (releases that run the paper-claim lane):
   `uv run -m pyscripts claims record` writes `releases/<run_id>.claims.json` —
   every submitted claim, whether it landed and what stopped it. A claim that was
-  never accepted is never exported, so `applied_manifest` cannot account for it;
+  never accepted is never exported, so `APPLIED_MANIFEST` cannot account for it;
   without this the report would show the claims that landed and stay silent about
   the rest. It is written after the stamp, which is why it lives in `releases/`
-  (push- and digest-excluded) rather than in `user-ledger/`. `recalc manifest`
+  (push- and digest-excluded) rather than in the user-ledger directory. `recalc manifest`
   folds its top-level aggregates into the record as `claims_review`; per-claim
   detail stays on the box. Order: write the sidecar, then re-run
   `recalc manifest` + `release-report`.

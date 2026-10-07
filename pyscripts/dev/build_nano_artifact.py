@@ -24,12 +24,13 @@ import sys
 import tarfile
 from pathlib import Path
 
+from pyscripts import paths
+
 from ._common import REPO_ROOT, die, env_with_dotenv, header, info
 
 
 ENV_NAME = "nano"
 DEFAULT_OUTPUT = REPO_ROOT / f"{ENV_NAME}-snapshot.tar.zst"
-ZSTD_LEVEL = "19"
 
 
 def _which_zstd() -> str:
@@ -54,10 +55,10 @@ def _resolve_test_root() -> Path:
 
 
 def _tar_to_zst(source: Path, output: Path) -> None:
-    info(f"archiving {source} → {output} (zstd -{ZSTD_LEVEL})")
+    info(f"archiving {source} → {output} (zstd -{paths.ZSTD_LEVEL})")
     zstd = _which_zstd()
     proc = subprocess.Popen(
-        [zstd, "-T0", f"-{ZSTD_LEVEL}", "-o", str(output), "-f"],
+        [zstd, "-T0", f"-{paths.ZSTD_LEVEL}", "-o", str(output), "-f"],
         stdin=subprocess.PIPE,
     )
     assert proc.stdin is not None

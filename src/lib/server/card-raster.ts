@@ -4,14 +4,15 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CARD_H, CARD_W } from '$lib/utils/cards';
+import { CARD_CACHE_NAME } from '$lib/paths';
 
 // Social platforms (X, LinkedIn, Facebook, Slack, …) don't render SVG OG images, so every card is
-// rasterized to a 1200×630 PNG.
+// rasterized to a CARD_W×CARD_H PNG.
 
 // Rendering on every crawler hit spawns a process; a best-effort disk cache keyed by entity+params
 // amortizes that for widely-shared cards. process.env (not $env) keeps this module free of
 // SvelteKit virtual modules so it unit-tests under plain vitest.
-const CACHE_DIR = process.env.CARD_CACHE_DIR ?? join(tmpdir(), 'rankless-cards');
+const CACHE_DIR = process.env.CARD_CACHE_DIR ?? join(tmpdir(), CARD_CACHE_NAME);
 
 export async function rasterizeSvg(svg: string, width = CARD_W, height = CARD_H): Promise<Buffer> {
 	return await new Promise((resolve, reject) => {
