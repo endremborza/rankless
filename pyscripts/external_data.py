@@ -3,8 +3,8 @@
 Everything from outside OpenAlex lives under one root, `$EXTERNAL_DATA_ROOT`, in a
 directory per source (the agent runs in `runs/`, `pyscripts/explore/runs.py`),
 outside the repo, the snapshot and `$OA_ROOT` so it is never
-published and a snapshot update or `make nuke` never purges it; unset, the root is the
-repo's `data/external` (a dev box). A table the pipeline reads is required once the
+published and a snapshot update or `make nuke` never purges it; unset, the root is
+`DEFAULT_EXTERNAL_DATA_ROOT` under the repo (a dev box). A table the pipeline reads is required once the
 variable names the root and optional under the default, the rule
 `rankless_rs/src/derived_ledger.rs` applies to the same root. A download a box can
 fetch again from its URL sits in its source's `raw/`. The root syncs with
@@ -18,16 +18,19 @@ import os
 import subprocess
 from pathlib import Path
 
-ROOT_VAR = "EXTERNAL_DATA_ROOT"
+from wire.rankless_rs.derived_ledger import (
+    DEFAULT_EXTERNAL_DATA_ROOT,
+    EXTERNAL_DATA_ROOT,
+)
+
 REMOTE_VAR = "EXTERNAL_DATA_REMOTE"
-DEFAULT_ROOT = "data/external"
 RAW = "raw"
 
 
 def root(override: Path | None = None) -> Path:
     if override is not None:
         return override
-    return Path(os.environ.get(ROOT_VAR) or DEFAULT_ROOT)
+    return Path(os.environ.get(EXTERNAL_DATA_ROOT) or DEFAULT_EXTERNAL_DATA_ROOT)
 
 
 def source_dir(source: str, override: Path | None = None) -> Path:
@@ -47,8 +50,8 @@ def table(source: str, name: str) -> Path | None:
     path = root() / source / name
     if path.exists():
         return path
-    if os.environ.get(ROOT_VAR):
-        raise FileNotFoundError(f"{path} is missing under ${ROOT_VAR}")
+    if os.environ.get(EXTERNAL_DATA_ROOT):
+        raise FileNotFoundError(f"{path} is missing under ${EXTERNAL_DATA_ROOT}")
     return None
 
 
@@ -81,8 +84,8 @@ def main() -> None:
     p.add_argument("direction", choices=("push", "pull"))
     p.add_argument("--remote", default=os.environ.get(REMOTE_VAR), help="host:/path")
     args = p.parse_args()
-    if not os.environ.get(ROOT_VAR):
-        raise SystemExit(f"${ROOT_VAR} is unset: only a named root syncs")
+    if not os.environ.get(EXTERNAL_DATA_ROOT):
+        raise SystemExit(f"${EXTERNAL_DATA_ROOT} is unset: only a named root syncs")
     if not args.remote:
         raise SystemExit(f"set ${REMOTE_VAR} (host:/path) or pass --remote")
     sync(args.direction, args.remote)

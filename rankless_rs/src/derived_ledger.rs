@@ -23,6 +23,7 @@ use dmove::BigId;
 use hashbrown::{HashMap, HashSet};
 use serde::Serialize;
 use serde_json::{json, Value};
+use wiretypes::wire;
 
 use crate::{
     common::{ParsedId, Stowage, MAIN_NAME},
@@ -33,9 +34,14 @@ use crate::{
     user_ledger::{normalize_orcid, write_json, DERIVED_JSONL, DERIVED_MANIFEST},
 };
 
+/// The env var naming the root of the data from outside OpenAlex.
+#[wire]
 pub const EXTERNAL_DATA_ROOT: &str = "EXTERNAL_DATA_ROOT";
 /// The root when the variable is unset: a dev box, relative to the repo root the pipeline runs from.
+#[wire]
 pub const DEFAULT_EXTERNAL_DATA_ROOT: &str = "data/external";
+/// The ORCID registry's names, under the root.
+#[wire]
 pub const NAMES_TABLE: &str = "orcid/names.tsv.zst";
 pub const SOURCE: &str = "derived";
 

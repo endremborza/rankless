@@ -67,8 +67,8 @@ def test_only_public_emails_are_kept() -> None:
 def test_external_root_defaults_to_the_repo_data_dir(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv(external_data.ROOT_VAR, raising=False)
-    assert external_data.root() == Path(external_data.DEFAULT_ROOT)
-    monkeypatch.setenv(external_data.ROOT_VAR, "/elsewhere")
+    monkeypatch.delenv(external_data.EXTERNAL_DATA_ROOT, raising=False)
+    assert external_data.root() == Path(external_data.DEFAULT_EXTERNAL_DATA_ROOT)
+    monkeypatch.setenv(external_data.EXTERNAL_DATA_ROOT, "/elsewhere")
     assert external_data.root() == Path("/elsewhere")
     assert external_data.root(Path("/given")) == Path("/given")

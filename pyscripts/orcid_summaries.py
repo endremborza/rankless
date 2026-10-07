@@ -1,14 +1,15 @@
 """The ORCID Public Data File summaries, reduced to the two tables Rankless reads.
 
-Downloads the summaries tarball into `$EXTERNAL_DATA_ROOT/orcid/raw/` (resumable,
-md5-checked), streams it once and writes into `orcid/`:
+Downloads the summaries tarball into the `raw/` of the `SOURCE` directory of
+`$EXTERNAL_DATA_ROOT` (resumable, md5-checked), streams it once and writes into that
+source directory:
 
-    names.tsv.zst         orcid, given_names, family_name, credit_name, other_names
+    NAMES_NAME            orcid, given_names, family_name, credit_name, other_names
                           for every record — the registered-name table
                           `rankless-rs derive-ledger` reads
-    public_emails.tsv     orcid, email, primary, verified, last_modified for every
+    EMAILS_NAME           orcid, email, primary, verified, last_modified for every
                           public email — the author email lane joins its ORCIDs to it
-    summaries.stats.json  record and row counts of the pass
+    STATS_NAME            record and row counts of the pass
 
 Usage (make passes `.env`'s EXTERNAL_DATA_ROOT; --root overrides it):
     make orcid_summaries
@@ -29,12 +30,12 @@ from pathlib import Path
 import zstandard
 
 from pyscripts.external_data import fetched, source_dir
+from wire.rankless_rs.derived_ledger import NAMES_TABLE
 
-SOURCE = "orcid"
+SOURCE, NAMES_NAME = NAMES_TABLE.split("/")
 SUMMARIES_NAME = "ORCID_2025_10_summaries.tar.gz"
 SUMMARIES_URL = "https://ndownloader.figshare.com/files/58834837"
 SUMMARIES_MD5 = "210edf71f4a2bb44dd33aaa3037b3f17"
-NAMES_NAME = "names.tsv.zst"
 EMAILS_NAME = "public_emails.tsv"
 STATS_NAME = "summaries.stats.json"
 EMAIL_TAG = "{http://www.orcid.org/ns/email}email"
