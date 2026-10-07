@@ -1131,8 +1131,8 @@ fn decide(
 }
 
 /// The name a person merged from several records shows: of the registered given and family
-/// name (when `presentable` and one of the owner's names) and the display name of the owner's
-/// record with the most works, the one with the most full tokens, ties in that order; None
+/// name (when one of the owner's names) and the display name of the owner's record with the
+/// most works, both `presentable`, the one with the most full tokens, ties in that order; None
 /// unless it has more than the keep's own, so a keep's initials and diacritics stay.
 fn keep_name(
     owners: &[&Rec],
@@ -1140,25 +1140,27 @@ fn keep_name(
     registered: Option<&str>,
     freq: &Freq,
 ) -> Option<(String, Reason)> {
-    let largest = owners
-        .iter()
-        .max_by_key(|r| (r.works, Reverse(r.id)))
-        .unwrap();
     let registered = registered
         .filter(|d| presentable(d))
         .map(|d| (d, Name::parse(d)))
         .filter(|(_, n)| owners.iter().any(|r| same_person(&r.name, n, freq)))
         .map(|(d, n)| (d, n.tokens.len(), Reason::RegisteredName));
-    let largest = (
-        largest.display.as_str(),
-        largest.name.tokens.len(),
-        Reason::LargestRecord,
-    );
-    let (name, full, reason) = registered
-        .into_iter()
-        .chain([largest])
-        .reduce(|best, c| if c.1 > best.1 { c } else { best })
-        .unwrap();
+    let largest = owners
+        .iter()
+        .filter(|r| presentable(&r.display))
+        .max_by_key(|r| (r.works, Reverse(r.id)))
+        .map(|r| {
+            (
+                r.display.as_str(),
+                r.name.tokens.len(),
+                Reason::LargestRecord,
+            )
+        });
+    let (name, full, reason) =
+        registered
+            .into_iter()
+            .chain(largest)
+            .reduce(|best, c| if c.1 > best.1 { c } else { best })?;
     (full > keep.name.tokens.len()).then(|| (name.to_string(), reason))
 }
 
@@ -1508,6 +1510,19 @@ mod tests {
         assert!(names_given(&initialed, Some(&registered(&["William Lipscomb"]))).is_empty());
         let accented = vec![rec(1, "Peter Pálenský", 10), rec(2, "Peter Palensky", 20)];
         assert!(names_given(&accented, None).is_empty());
+        // the largest record's display passes the same screen as a registration, so the largest
+        // presentable one names the person, and an unpresentable group keeps the keep's name
+        let shouted = vec![
+            rec(1, "F. Halzen", 10),
+            rec(2, "Francis Halzen", 20),
+            rec(3, "FRANCIS L. HALZEN", 30),
+        ];
+        assert_eq!(
+            names_given(&shouted, None),
+            halzen("Francis Halzen", Reason::LargestRecord)
+        );
+        let unpresentable = vec![rec(1, "F. Halzen", 10), rec(2, "FRANCIS HALZEN", 20)];
+        assert!(names_given(&unpresentable, None).is_empty());
     }
 
     #[test]
