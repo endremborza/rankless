@@ -270,8 +270,6 @@ class FlaskPgServer(DockerServer):
     ccl_lib: Optional[Path] = None
     dockerfile: str = FLASK_DOCKERFILE
     target_port: int = 5000
-    memory: str = "8g"
-    cpus: str = "4"
     ready_accept_any: bool = True
 
     def __post_init__(self) -> None:

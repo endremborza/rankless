@@ -8,13 +8,13 @@ Run via the unified CLI:
     uv run -m pyscripts compare-sql [options]
 
 Options:
-    --rebuild-rust LEVEL   none | binary | pipeline | full  (default: binary)
+    --rebuild-rust LEVEL   {levels}  (default: {rebuild})
     --rebuild-sql          rebuild + restart Flask/PG container (default: skip if running)
     --no-keep-sql          stop Flask/PG container after run (default: keep running)
-    --samples N            entities per citation-count bin (default: 4)
-    --artifacts PATH       output directory (default: logs/comparison-artifacts)
+    --samples N            entities per citation-count bin (default: {samples})
+    --artifacts PATH       output directory (default: {artifacts})
 
-Artifacts written to logs/comparison-artifacts/{timestamp}-sql-vs-rust/:
+Artifacts written to {artifacts}/{{timestamp}}-sql-vs-rust/:
 summary.csv, grouped.csv, memory_samples.csv (raw memory time-series), the
 PNG debug report (report.html), and poster-quality vector figures
 (timing/memory/accuracy as .svg + .pdf, via poster_figures).
@@ -68,6 +68,12 @@ SUPPORTED_ETYPES = {
     EntC.WORKS,
 }
 
+__doc__ = (__doc__ or "").format(
+    levels=" | ".join(RebuildLevel),
+    rebuild=DEFAULT_REBUILD,
+    samples=DEFAULT_SAMPLES,
+    artifacts=ARTIFACTS_ROOT,
+)
 
 # ── OA → DM ID translation ────────────────────────────────────────────────────
 
@@ -254,13 +260,13 @@ def run_comparison(
 
 def main(
     *,
-    rebuild_rust: str = "binary",
+    rebuild_rust: str = DEFAULT_REBUILD,
     rebuild_sql: bool = False,
     no_keep_sql: bool = False,
-    samples: int = 4,
+    samples: int = DEFAULT_SAMPLES,
     artifacts: Path = ARTIFACTS_ROOT,
 ) -> None:
-    """Flask/PostgreSQL vs Rust comparison; --rebuild-rust none|binary|image."""
+    """Flask/PostgreSQL vs Rust comparison; --rebuild-rust takes a RebuildLevel."""
     ts = datetime.now().strftime("%Y-%m-%d-%H-%M")
     run_comparison(
         rebuild_rust=RebuildLevel(rebuild_rust),

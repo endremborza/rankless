@@ -38,6 +38,8 @@ test_sites = {
 
 MAIN_BRANCH = "rankless-main"
 bm_root = "/tmp/dmove-bm"
+N_RUNS = 2
+N_QUERIES = 250
 
 
 class Benchmarker:
@@ -70,10 +72,9 @@ class Benchmarker:
         qs = [0.5, 0.70, 0.85, 0.95]
         bins = [0, *[requester.urled_sample["cut_basis"].quantile(q) / 1e6 for q in qs]]
         proc_counts = [12, 8, 4, 2, 1]
-        n = 250
-        for run_id in range(1, 3):
+        for run_id in range(1, N_RUNS + 1):
             requester.set_ext_dic({"run": run_id})
-            requester.do_rest(bins, proc_counts, {"random_state": 742, "n": n})
+            requester.do_rest(bins, proc_counts, {"random_state": 742, "n": N_QUERIES})
         self.resps_act_df = requester.get_resps_df()
         self.add_memory_rec("post-requests")
 

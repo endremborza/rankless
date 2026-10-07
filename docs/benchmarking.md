@@ -82,7 +82,7 @@ helpers (worktree-isolated, never touch the working tree): `ensure_worktree(ref)
 
 ### Artifacts
 
-Both modes write to `logs/comparison-artifacts/{timestamp}-{slug}/`:
+Both modes write to `ARTIFACTS_ROOT/{timestamp}-{slug}/` (`pyscripts/comparison_report.py`):
 
 | File | Committable |
 | --- | --- |
@@ -94,7 +94,7 @@ Both modes write to `logs/comparison-artifacts/{timestamp}-{slug}/`:
 
 Benchmarks two git refs of the server on the **same** dataset, isolating cold tree-build
 cost and peak memory. Each ref is checked out _detached_ into a git worktree under
-`/tmp/rankless-perf/` and built there (the working tree is never touched), then run
+`PERF_ROOT` (`pyscripts/server_ops.py`) and built there (the working tree is never touched), then run
 **sequentially** — one container at a time, so timing is contention-free — against the same
 sampled query set.
 
@@ -104,10 +104,7 @@ make compare-branch ARGS="--only heap-to-sort"            # one named comparison
 uv run -m pyscripts compare-branch --config pyscripts/perf_comparisons.toml --only heap-to-sort
 ```
 
-Comparisons live in `pyscripts/perf_comparisons.toml`: `[defaults]` + one `[[comparison]]`
-per `(name, a, b)`, where `a` (candidate) / `b` (baseline) are any git ref (tag / branch /
-commit-ish). Per-comparison keys override the defaults (`repeats`, `samples`, `bins`,
-`cpus`, `mem_limit`, `keep_worktrees`, …).
+Comparisons live in `pyscripts/perf_comparisons.toml`: one `[[comparison]]` per `(name, a, b)`, where `a` (candidate) / `b` (baseline) are any git ref (tag / branch / commit-ish). Every other key is a `Settings` field of `pyscripts/branch_comparison.py` (`repeats`, `warmups`, `samples`, `min_citations`, `bins`, `cpus`, `mem_limit`, `keep_worktrees`) and defaults there; an optional `[defaults]` table overrides them for every comparison and a `[[comparison]]` key for that one.
 
 **Why it measures what it does:** queries use `cacheable=false` + no `year` over a read-only
 data mount, so every request is a full cold recompute. The primary signal is the server's
@@ -118,22 +115,13 @@ and B responses are diffed (`tree_diff.make_diff_df`) as a correctness guard: a 
 must not alter output, so `max rel-error` must stay ≈0. Images are cached as
 `rankless-perf-<sha>`, so re-running a ref is instant.
 
-Output (`logs/comparison-artifacts/<ts>-perf-<name>/`): console + `report.md` + `report.html`
+Output (`ARTIFACTS_ROOT/<ts>-perf-<name>/`): console + `report.md` + `report.html`
 (per-phase speedup `t_B/t_A`, memory, correctness), `timing_plot.png` (phase time vs
 citations, A vs B), and `per_query.csv` (raw per-`(entity, tid)` phase timings + memory).
 
 Config example (`pyscripts/perf_comparisons.toml`, parsed with stdlib `tomllib`):
 
 ```toml
-[defaults]
-repeats = 3                # timed cold recomputes per query (min + median reported)
-warmups = 1                # untimed runs to warm the OS page cache for the mmaps
-samples = 3                # entities per citation bin
-min_citations = 100_000
-bins = [100_000, 1_000_000, 5_000_000, 20_000_000]
-cpus = "4"
-keep_worktrees = true      # reuse worktree + image on the next run
-
 [[comparison]]
 name = "heap-to-sort"
 a = "1c01d0178"            # Vec + sort_unstable
@@ -148,19 +136,19 @@ container) — the small→large query ordering is the workaround; an optional `
 
 ```bash
 make compare-sql                                       # or: uv run -m pyscripts compare-sql
-uv run -m pyscripts compare-sql --rebuild-rust binary  # default
+uv run -m pyscripts compare-sql --rebuild-rust binary  # DEFAULT_REBUILD
 uv run -m pyscripts compare-sql --rebuild-rust none    # reuse image
 uv run -m pyscripts compare-sql --rebuild-sql          # also rebuild Flask/PG
 uv run -m pyscripts compare-sql --no-keep-sql --samples 8
 ```
 
-Manages two containers: Rust `rankless-rust-sql` (port 3038, rebuilt per `--rebuild-rust`,
-stopped after run) and Flask/PG `rankless-pg-python` (port 5000, kept alive between runs by
+Manages two containers: Rust `rankless-rust-sql` (published on the backend `PORT`, rebuilt per `--rebuild-rust`,
+stopped after run) and Flask/PG `rankless-pg-python` (`FLASK_PORT`, kept alive between runs by
 default; `FlaskPgServer.is_running()` skips start if up). OA→DM id translation via
 `_translate_tree`; `label_a="flask"`, `label_b="rs"` (time ratio flask/rs, >1 = flask
 slower); memory via `docker stats`.
 
-Rebuild levels (`--rebuild-rust`): `none` / `binary` (default) / `pipeline` (`make filter`) /
+Rebuild levels (`--rebuild-rust`): `none` / `binary` (`DEFAULT_REBUILD`) / `pipeline` (`make filter`) /
 `full` (`make build-data` — the backend-independent data build; `make complete` additionally
 restarts the service and bakes the homepage showcase).
 
@@ -171,21 +159,21 @@ make bench                # or: uv run -m pyscripts bench  (needs psutil install
 ```
 
 `pyscripts/bm.py` — standalone throughput/latency benchmark: builds + starts a local server,
-runs 2 × 250 queries across citation-count bins, **automatically switches to `rankless-main`
+runs `N_RUNS` × `N_QUERIES` queries across citation-count bins, **automatically switches to `MAIN_BRANCH`
 and repeats** for cross-branch timing. Collects response times, server-side log timings,
 memory (RSS/VMS via psutil), directory sizes. Writes compressed CSVs to
-`/tmp/dmove-bm/{timestamp}/`.
+`bm_root/{timestamp}/`.
 
 ---
 
 ## SQL vs Rust results
 
 Comparative evaluations between the Flask/SQL reference backend and the Rankless Rust
-backend, on data subsets. The full production dataset is ~80M works; subsets validate
+backend, on data subsets. The full production dataset's size is `total_works` of `/v1/counts`; subsets validate
 correctness and measure performance at reduced scale. The Rust binary's memory reflects the
 full production server (search engine, proactive cache, features absent from the Flask
-baseline). Both backends receive identical tree queries simultaneously in restricted 10 GB /
-4-CPU Docker containers and are compared structurally.
+baseline). Both backends receive identical tree queries simultaneously in Docker containers
+capped at `MEMORY_LIMIT` / `CPU_LIMIT` (`pyscripts/sql_comparison.py`) and are compared structurally.
 
 Metrics: **flask/rs** (time ratio, >1 = Flask slower), **r(LC)/r(SC)** (Pearson of
 link/source counts), **err(LC)/err(SC)** (relative error), **TopID%** (top source matched by

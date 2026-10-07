@@ -8,7 +8,7 @@ isolated git worktrees — the working tree you are sitting in is never touched.
     uv run -m pyscripts compare-branch --only heap-to-sort
     make compare-branch ARGS="--only heap-to-sort"
 
-Each comparison: each ref is checked out detached into /tmp/rankless-perf, built,
+Each comparison: each ref is checked out detached into `server_ops.PERF_ROOT`, built,
 imaged (cached by sha), then run sequentially (one container at a time, so timing
 is contention-free) against the same sampled query set. Queries use
 ``cacheable=false`` + no ``year`` over a read-only data mount, so every request is
@@ -67,7 +67,7 @@ class Settings:
     )
     cpus: str = "4"
     mem_limit: str = "32g"  # generous so peak reflects real usage, not a cap
-    keep_worktrees: bool = True
+    keep_worktrees: bool = True  # reuse worktree + image on the next run
 
 
 @dataclass
@@ -144,9 +144,9 @@ def _parse_phases(lines: list[str]) -> dict[str, float]:
     return out
 
 
-def _make_server(sha: str, image: str, s: Settings) -> DockerServer:
+def _make_server(image: str, s: Settings) -> DockerServer:
     return DockerServer(
-        container=f"rankless-perf-{sha[:12]}",
+        container=image,
         image=image,
         host_port=PORT,
         data_root=oa_root,
@@ -244,7 +244,7 @@ def run_comparison(comp: Comparison, artifacts_root: Path) -> None:
     img_a = build_perf_image(sha_a, wt_a)
     img_b = build_perf_image(sha_b, wt_b)
 
-    server_a = _make_server(sha_a, img_a, s)
+    server_a = _make_server(img_a, s)
     server_a.start()
     server_a.wait_ready()
     requester = BatchRequester(min_citations=s.min_citations, addr=server_a.base_url)
@@ -254,7 +254,7 @@ def run_comparison(comp: Comparison, artifacts_root: Path) -> None:
     logger.info("sampled %d (entity, tid) queries", len(sample_df))
     run_a = _measure_ref(server_a, _label(comp.a), sha_a, sample_df, requester.specs, s)
 
-    server_b = _make_server(sha_b, img_b, s)
+    server_b = _make_server(img_b, s)
     server_b.start()
     server_b.wait_ready()
     run_b = _measure_ref(server_b, _label(comp.b), sha_b, sample_df, requester.specs, s)
