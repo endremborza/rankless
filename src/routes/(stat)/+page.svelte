@@ -22,7 +22,6 @@
 
 	import AccordionElement from '$lib/components/AccordionElement.svelte';
 	import SpecCalcMath from '$lib/components/SpecCalcMath.svelte';
-	import { ALPHA } from '$lib/metric-calculation';
 	import SpecConcrete from '$lib/components/SpecConcrete.svelte';
 	import SpecConcrete2 from '$lib/components/SpecConcrete2.svelte';
 	import { afterNavigate } from '$app/navigation';
@@ -111,7 +110,8 @@
 
 	// The definitions the backend publishes. An entry that needs them and has none drops out
 	// below, rather than answering a question about the data with prose nothing checked.
-	$: screen = data.methodology?.workScreen ?? null;
+	$: methodology = data.methodology ?? null;
+	$: screen = methodology?.workScreen ?? null;
 
 	$: faQuestions = [
 		{
@@ -178,13 +178,15 @@
 		{
 			question: 'How do you assign papers and journals to subject categories?',
 			id: 'classification',
-			answer: `
+			answer: methodology
+				? `
 			We use OpenAlex's hierarchy of <a href="https://docs.openalex.org/api-entities/topics"
 				target="_blank">topics</a>
 			for each piece of work, based on the contents, references, source, etc. We assign topics to a
 			paper
-			with a match score of over 0.6.
+			with a match score of over ${methodology.minTopicScore}.
 		`
+				: ''
 		},
 		{
 			question: 'How do you measure impact?',
@@ -594,14 +596,19 @@
 						<i>s</i>
 						subset in the tree of <i>i</i> entity (say an institution).
 						<i>C<sub>i,s</sub></i> is the number of citations corresponding to the <i>s</i>
-						subset in the tree of <i>i</i> entity, with <i>I</i> being the set of all entities in
-						the particular class (in our case, all institutions).
+						subset in the tree of <i>i</i> entity.
 						<i>p(s)</i> is the parent set of <i>s</i> subset, meaning the first complete aggregation
 						in the tree above <i>s</i>.
-						<i>U<sub>s</sub></i> is a correctional term, to avoid outliers. It is {ALPHA} × 1/<i
+						<i>C<sub>s</sub></i> is the number of citations of the entity that defines the
+						<i>s</i>
+						subset, and <i>C</i> the number of all citations, so <i>C<sub>s</sub></i>/<i>C</i> is
+						the ratio expected from that entity's size.
+						<i>U<sub>s</sub></i> is a correctional term, to avoid outliers. It is <i>r</i> × 1/<i
 							>N<sub>s</sub></i
 						>
-						where <i>N<sub>s</sub></i> is the number of distinct elements in the subset
+						where <i>N<sub>s</sub></i> is the number of entities in the class of <i>s</i> (in our
+						case, all institutions), and <i>r</i>{#if methodology}&nbsp;= {methodology.specCorrRate}{/if}
+						is the weight this uniform share takes from the expected ratio, which keeps 1 − <i>r</i>
 					</p>
 					<p>
 						For one example, Corvinus University has 25.4k citations in our release database, and
