@@ -8,7 +8,7 @@ engine registry (pyscripts/explore/runner.py) with the rankless MCP tools
 attached. Structured verdicts land in `review_verdicts`, which the review
 queue at /admin/ledger displays; nothing is ever moderated automatically here.
 
-    uv run -m pyscripts review-ledger [--dry-run] [--model sonnet] [--limit N]
+    uv run -m pyscripts review-ledger [--dry-run] [--model NAME] [--limit N]
 
 Cross-language type boundary (Python ↔ TS): rows written here mirror
 `review_verdicts` DDL and the ReviewVerdict / WorkRecord / OrcidRecord types in
@@ -25,13 +25,14 @@ from pathlib import Path
 from pyscripts import paths
 import mcp_server
 from pyscripts.explore import cli, runner
-from pyscripts.ledger_ids import canonical_doi, normalize_orcid
+from pyscripts.ledger_ids import WORK_SOURCES, canonical_doi, normalize_orcid
 
 VERDICTS = ("approve", "reject", "unsure")
-WORK_SOURCES = ("crossref", "openalex")
 USABLE_STATUS = ("ok", "not_found")  # a missing record is itself evidence
 LOG_DIR = Path("logs/review-ledger")
 MAX_TURNS = 40
+DEFAULT_BATCH_SIZE = 8
+DEFAULT_TIMEOUT_S = 900
 
 # Mirror of the review_verdicts DDL in src/lib/server/db.ts (kept in both places
 # so whichever side touches a fresh DB first creates the same schema).
@@ -318,10 +319,10 @@ def main(
     backend: str = "local",
     kind: str = "claim_paper",
     limit: int | None = None,
-    batch_size: int = 8,
+    batch_size: int = DEFAULT_BATCH_SIZE,
     force: bool = False,
     dry_run: bool = False,
-    timeout_s: int = 900,
+    timeout_s: int = DEFAULT_TIMEOUT_S,
 ) -> None:
     """AI verdicts for pending user-ledger claims (see /admin/ledger):
     --backend local|alpha|live or a /v1 URL, --dry-run prints the bundles."""

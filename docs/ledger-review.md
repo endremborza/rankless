@@ -79,10 +79,12 @@ missing pairs and points at the button.
 ## AI lane (`pyscripts/review_ledger.py`)
 
 ```
-uv run -m pyscripts review-ledger [--db data/rankless.sqlite] [--model sonnet]
-    [--runner claude-cli] [--backend local|live|URL] [--limit N]
-    [--batch-size 8] [--force] [--dry-run] [--timeout-s 900]
+uv run -m pyscripts review-ledger [--db PATH] [--model NAME]
+    [--runner NAME] [--backend local|live|URL] [--limit N]
+    [--batch-size N] [--force] [--dry-run] [--timeout-s N]
 ```
+
+`--batch-size` and `--timeout-s` default to `DEFAULT_BATCH_SIZE` and `DEFAULT_TIMEOUT_S` in `pyscripts/review_ledger.py`.
 
 Selects pending, non-revoked `claim_paper` events lacking a verdict for the
 chosen model, groups them per claimant (shared ORCID evidence, cross-claim
