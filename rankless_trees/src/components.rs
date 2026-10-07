@@ -1413,7 +1413,7 @@ where
     type StackBasis = I::SB;
     const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = I::RWB_IS_SPEC;
-    const DEFAULT_PARTITION: u8 = 3; //2020
+    const DEFAULT_PARTITION: u8 = 3;
     fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
         let refs_it = R::LevelEntity::works_from_ram(&gets, id).iter().peekable();
         Self {

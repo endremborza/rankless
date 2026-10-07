@@ -32,7 +32,7 @@ pub const OA: &str = "https://openalex.org/";
 pub const ORCID: &str = "https://orcid.org/";
 pub const DOI: &str = "https://doi.org/";
 /// More than `WORK_SCREEN.team_limit`, so a work by all of them is a collaboration's.
-pub const BULK_AUTHORS: usize = 24;
+pub const BULK_AUTHORS: usize = WORK_SCREEN.team_limit + 4;
 pub const PART_REL: &str = "updated_date=2026-01-01/part_000.gz";
 /// Author slot of an authorship whose author record is missing (an empty `author` cell).
 pub const NO_AUTHOR: u64 = 0;
@@ -180,7 +180,7 @@ impl Scenario {
                 Person::new(
                     5000000 + k as u64,
                     None,
-                    BULK_NAMES[k],
+                    BULK_NAMES[k % BULK_NAMES.len()],
                     above_works,
                     above_cites,
                 )
@@ -509,7 +509,7 @@ impl Default for Scenario {
     }
 }
 
-const BULK_NAMES: [&str; BULK_AUTHORS] = [
+const BULK_NAMES: &[&str] = &[
     "Ada Bulk",
     "Ben Bulk",
     "Cy Bulk",

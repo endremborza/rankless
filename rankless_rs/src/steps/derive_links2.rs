@@ -40,6 +40,10 @@ use crate::{
 };
 
 pub const N_RELS: usize = 8;
+pub const N_AFF_COUNTRIES: usize = 3;
+pub const N_TOP_AUTHORS: usize = 25;
+// A source-year without a SCImago quartile ranks here, past Q4.
+pub const UNRANKED_Q: u8 = Qs::N as u8;
 pub const ERA_SIZE: usize = 11;
 pub const MAX_YEAR: usize = (FINAL_YEAR - START_YEAR) as usize;
 pub const MIN_YEAR: usize = MAX_YEAR - ERA_SIZE + 1;
@@ -49,17 +53,18 @@ pub const JOURNAL_COUNT_BETA: f64 = 0.5;
 
 pub type EraRec = [u32; ERA_SIZE];
 pub type TopNRec<E, const N: usize> = [(u32, NET<E>); N];
-pub type Top3Rec<E> = TopNRec<E, 3>;
+pub type TopAffCountriesRec<E> = TopNRec<E, N_AFF_COUNTRIES>;
 pub type Top5Rec<E> = TopNRec<E, 5>;
 pub type Top8Rec<E> = TopNRec<E, 8>;
-pub type Top15Rec<E> = TopNRec<E, 25>;
+pub type TopAuthorsRec<E> = TopNRec<E, N_TOP_AUTHORS>;
 
 type YT = ET<Years>;
 type IT = ET<Institutions>;
-type Top3RelExtender<E, SE> = TopNRelExtender<3, E, SE, HashMap<ET<E>, u32>>;
+type TopAffCountriesRelExtender<E, SE> =
+    TopNRelExtender<N_AFF_COUNTRIES, E, SE, HashMap<ET<E>, u32>>;
 type Top5RelExtender<E, SE> = TopNRelExtender<5, E, SE, HashMap<ET<E>, u32>>;
 type Top8RelExtender<E, SE> = TopNRelExtender<8, E, SE, HashMap<ET<E>, u32>>;
-type Top15HRelExtender<E, SE> = TopNRelExtender<25, E, SE, HashMap<ET<E>, f64>>;
+type TopAuthorsRelExtender<E, SE> = TopNRelExtender<N_TOP_AUTHORS, E, SE, HashMap<ET<E>, f64>>;
 
 #[derive(Debug, ByteFixArrayInterface)]
 pub struct InstRelation {
@@ -79,9 +84,9 @@ struct ExtensionContainer<E: NumberedEntity> {
     top_paper_topics: Top8RelExtender<Topics, E>,
     top_citing_sfs: Top5RelExtender<Subfields, E>,
     top_citing_topics: Top8RelExtender<Topics, E>,
-    top_aff_countries: Top3RelExtender<Countries, E>,
+    top_aff_countries: TopAffCountriesRelExtender<Countries, E>,
     top_journals: Top5RelExtender<Sources, E>,
-    top_authors: Top15HRelExtender<Authors, E>,
+    top_authors: TopAuthorsRelExtender<Authors, E>,
     rels: Vec<[InstRelation; N_RELS]>,
     rel_map_rec: HashMap<ET<Institutions>, InstRelation>,
 }
@@ -273,9 +278,9 @@ where
             top_paper_topics: Top8RelExtender::new(),
             top_citing_sfs: Top5RelExtender::new(),
             top_citing_topics: Top8RelExtender::new(),
-            top_aff_countries: Top3RelExtender::new(),
+            top_aff_countries: TopAffCountriesRelExtender::new(),
             top_journals: Top5RelExtender::new(),
-            top_authors: Top15HRelExtender::new(),
+            top_authors: TopAuthorsRelExtender::new(),
             rels: Vec::new(),
             rel_map_rec: HashMap::new(),
         }
@@ -547,7 +552,7 @@ impl CiteDeriver {
         let mut source_ext = ExtensionContainer::<Sources>::new();
         let iter = self.witer::<Sources>().map(|(i, ws)| {
             let sid = ET::<Sources>::from_usize(i);
-            let mut best_q = 5;
+            let mut best_q = UNRANKED_Q;
             let mut counts: Vec<usize> = ws
                 .iter()
                 .map(|e| {
@@ -720,11 +725,11 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
         .enumerate()
         .map(|(i, sources)| {
             let wy = w_years[i];
-            let mut best_q = 6;
+            let mut best_q = UNRANKED_Q + 1;
             let mut best_s = 0;
             let mut update = |mut q, sid| {
                 if q == 0 {
-                    q = 5
+                    q = UNRANKED_Q
                 }
                 if q < best_q {
                     best_s = sid;
@@ -732,7 +737,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
                 }
             };
             for sid in sources {
-                let q = *sqy.get(&(sid, wy)).unwrap_or(&5);
+                let q = *sqy.get(&(sid, wy)).unwrap_or(&UNRANKED_Q);
                 update(q, sid);
             }
             best_s
@@ -796,10 +801,11 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     Ok(())
 }
 
-// SCImago quartile → journal quality weight. Lower quartile is better; no SCImago rank (5) scores 0
-// so repositories/aggregators/unranked venues never surface as top journals. The spread keeps
-// quality leading, while a substantial per-entity paper count (count^JOURNAL_COUNT_BETA in the
-// TopJournal sorter) can still lift a journal a tier when the body of work warrants it.
+// SCImago quartile → journal quality weight. Lower quartile is better; no SCImago rank
+// (`UNRANKED_Q`) scores 0 so repositories/aggregators/unranked venues never surface as top
+// journals. The spread keeps quality leading, while a substantial per-entity paper count
+// (count^JOURNAL_COUNT_BETA in the TopJournal sorter) can still lift a journal a tier when the body
+// of work warrants it.
 fn journal_quality(best_q: u8) -> u32 {
     match best_q {
         1 => 27,

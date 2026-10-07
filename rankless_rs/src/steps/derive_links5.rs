@@ -17,7 +17,9 @@ use crate::{
     },
     steps::{
         a1_entity_mapping::YearInterface,
-        derive_links2::{inc_year, CiteDeriver, EraRec, Top15Rec, Top3Rec, Top5Rec, Top8Rec},
+        derive_links2::{
+            inc_year, CiteDeriver, EraRec, Top5Rec, Top8Rec, TopAffCountriesRec, TopAuthorsRec,
+        },
     },
     QuickestBox, QuickestNumbered, QuickestVBox, Stowage, WorkCountMarker,
 };
@@ -38,7 +40,7 @@ mark_empty!(
     WorkCountMarker => u8,
     YearlyPapersMarker => EraRec,
     HitWorkMarker => Box<[ET<HitPapers>]>,
-    Top3AffCountryMarker => Top3Rec<Countries>,
+    Top3AffCountryMarker => TopAffCountriesRec<Countries>,
     TopNPaperTopicMarker => Top8Rec<Topics>,
     TopNCitingTopicMarker => Top8Rec<Topics>
 );
@@ -48,7 +50,7 @@ impl CiteDeriver {
         let mut cy_counts = init_empty_slice::<HitPapers, Box<[u32]>>();
         let mut cy_eras = init_empty_slice::<HitPapers, EraRec>();
         let mut top5_journals = init_empty_slice::<HitPapers, Top5Rec<Sources>>();
-        let mut top15_authors = init_empty_slice::<HitPapers, Top15Rec<Authors>>();
+        let mut top_authors = init_empty_slice::<HitPapers, TopAuthorsRec<Authors>>();
         let mut top5_paper_sfs = init_empty_slice::<HitPapers, Top5Rec<Subfields>>();
         let mut top5_citing_sfs = init_empty_slice::<HitPapers, Top5Rec<Subfields>>();
         self.stowage
@@ -106,7 +108,7 @@ impl CiteDeriver {
                     let (is_filtered, ship_id) = reverse_prefixed_n(any_ship_id.to_usize());
                     is_filtered.then(|| self.backends.ship_fa[ship_id])
                 });
-                for (slot, aid) in top15_authors[hi].iter_mut().zip(authors) {
+                for (slot, aid) in top_authors[hi].iter_mut().zip(authors) {
                     *slot = (share, aid);
                 }
             });
@@ -119,7 +121,7 @@ impl CiteDeriver {
         self.stowage
             .ditf::<TopJournalMarker, HitPapers, _>(top5_journals.into_vec(), "top-journals");
         self.stowage
-            .ditf::<Top15AuthorMarker, HitPapers, _>(top15_authors.into_vec(), "top-paper-authors");
+            .ditf::<Top15AuthorMarker, HitPapers, _>(top_authors.into_vec(), "top-paper-authors");
         self.stowage.ditf::<TopNPaperSfMarker, HitPapers, _>(
             top5_paper_sfs.into_vec(),
             "top-paper-subfields",

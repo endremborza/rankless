@@ -401,10 +401,11 @@ mod tests {
 
     #[test]
     fn the_bar_round_trips_to_its_unit_and_overflow_fails() {
-        assert_eq!(decode_bar(encode_bar(6.6)), 6.5);
-        assert_eq!(decode_bar(encode_bar(6.7)), 6.75);
+        let unit = 1.0 / PAPER_SCORE.bar_scale as f64;
+        assert_eq!(encode_bar(6.0 + 0.4 * unit), encode_bar(6.0));
+        assert_eq!(encode_bar(6.0 + 0.6 * unit), encode_bar(6.0) + 1);
         assert_eq!(decode_bar(encode_bar(1788.0)), 1788.0);
-        let max = EncodedBar::MAX as f64 / PAPER_SCORE.bar_scale as f64;
+        let max = EncodedBar::MAX as f64 * unit;
         assert_eq!(decode_bar(encode_bar(max)), max);
         assert!(std::panic::catch_unwind(|| encode_bar(max + 1.0)).is_err());
     }
@@ -427,13 +428,15 @@ mod tests {
 
     #[test]
     fn a_hit_is_at_least_the_multiple_of_the_bar() {
-        let bar = encode_bar(4.0);
-        assert!(is_hit(paper_score(6, bar).unwrap()));
-        assert!(!is_hit(paper_score(5, bar).unwrap()));
-        let quarter = encode_bar(6.75);
-        let at = (6.75 * PAPER_SCORE.hit_multiple).ceil() as u32;
-        assert!(is_hit(paper_score(at, quarter).unwrap()));
-        assert!(!is_hit(paper_score(at - 1, quarter).unwrap()));
+        let unit = 1.0 / PAPER_SCORE.bar_scale as f64;
+        for bar in [4.0, 6.0 + unit] {
+            let at = (bar * PAPER_SCORE.hit_multiple).ceil() as u32;
+            assert!(is_hit(paper_score(at, encode_bar(bar)).unwrap()), "{bar}");
+            assert!(
+                !is_hit(paper_score(at - 1, encode_bar(bar)).unwrap()),
+                "{bar}"
+            );
+        }
     }
 
     #[test]
@@ -501,14 +504,28 @@ mod tests {
 
     #[test]
     fn a_template_takes_the_constants_and_leaves_a_parameter() {
-        let vars = text_vars();
+        let (vars, p) = (text_vars(), &PAPER_SCORE);
         assert_eq!(
             fill("{hit_multiple}× the top {top_share}", &vars),
-            "1.5× the top 1%"
+            format!(
+                "{}× the top {}",
+                decimal(p.hit_multiple),
+                percent(p.top_share)
+            )
         );
         assert_eq!(fill("{subfield} score", &vars), "{subfield} score");
-        assert_eq!(fill("{w_sf_year} {w_year}", &vars), "89.5% 10%");
+        assert_eq!(
+            fill("{w_sf_year} {w_year}", &vars),
+            format!("{} {}", percent(p.w_sf_year), percent(p.w_year))
+        );
         assert_eq!(fill("a { b", &vars), "a { b");
+    }
+
+    #[test]
+    fn shares_read_as_trimmed_percents() {
+        assert_eq!(percent(0.895), "89.5%");
+        assert_eq!(percent(0.1), "10%");
+        assert_eq!(decimal(1.5), "1.5");
     }
 
     #[test]

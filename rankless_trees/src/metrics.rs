@@ -16,7 +16,7 @@ use rankless_rs::{
     },
     steps::{
         a1_entity_mapping::{RawYear, YearInterface, Years},
-        derive_links2::{EraRec, MAX_YEAR, MIN_YEAR},
+        derive_links2::{EraRec, MAX_YEAR, MIN_YEAR, N_AFF_COUNTRIES},
     },
 };
 use serde::Serialize;
@@ -28,7 +28,6 @@ use dmove::{Entity, ET};
 
 // Bytes a cohort-wide evaluation may read per request; a metric over larger columns is intricate.
 pub const SCAN_BUDGET_BYTES: usize = 512 << 20;
-pub const N_AFF_COUNTRIES: usize = 3;
 
 pub const CITATIONS: &str = "citations";
 pub const PAPERS: &str = "papers";
@@ -306,7 +305,7 @@ pub const METRICS: &[MetricDecl] = &[
         id: COUNTRY,
         label: "Country",
         header: None,
-        meaning: "An institution's country; for any other entity, up to three countries of the institutions on its papers, the most frequent first.",
+        meaning: "An institution's country; for any other entity, up to {aff_countries} countries of the institutions on its papers, the most frequent first.",
         rationale: None,
         value: ValueType::Entities(Countries::NAME),
         param: None,
@@ -371,7 +370,7 @@ pub enum Arg {
     Window(RawYear, RawYear),
 }
 
-// What a read yields: a number, one entity id, or up to three entity ids (0 = absent).
+// What a read yields: a number, one entity id, or up to `N_AFF_COUNTRIES` entity ids (0 = absent).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Value {
     Num(f64),
@@ -715,10 +714,12 @@ pub fn methodology_texts() -> Vec<ItemTexts> {
         .collect()
 }
 
-// The definitions' text variables plus the era's first year, which only the columns know.
+// The definitions' text variables plus what only the columns know: the era's first year and the
+// most countries a country value names.
 fn vars() -> Vec<(&'static str, String)> {
     let mut vars = text_vars();
     vars.push(("era_from", ERA.0.to_string()));
+    vars.push(("aff_countries", N_AFF_COUNTRIES.to_string()));
     vars
 }
 
@@ -801,7 +802,7 @@ mod tests {
         }
         assert_eq!(
             metric(TOP_MEAN).unwrap().texts(Authors::NAME).label,
-            "Top-20 mean"
+            format!("Top-{} mean", top_n(Authors::NAME).unwrap())
         );
     }
 

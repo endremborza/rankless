@@ -107,8 +107,13 @@ mod tests {
 
     #[test]
     fn the_bar_is_the_count_entering_the_top_share() {
-        assert_eq!(top_share_bar(&mut cites(100)), 100.0);
-        assert_eq!(top_share_bar(&mut cites(250)), 248.0);
+        // a group whose top share is exactly its best paper
+        let one = (1.0 / PAPER_SCORE.top_share).round() as usize;
+        assert_eq!(top_share_bar(&mut cites(one)), one as f64);
+        // two and a half papers' share: the third best enters it
+        let n = one * 5 / 2;
+        assert_eq!(top_share_bar(&mut cites(n)), (n - 2) as f64);
+        // a group too small for a whole paper still has its best
         assert_eq!(top_share_bar(&mut cites(3)), 3.0);
         assert_eq!(top_share_bar(&mut Vec::new()), 0.0);
     }

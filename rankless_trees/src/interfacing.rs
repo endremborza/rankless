@@ -33,7 +33,7 @@ use rankless_rs::{
         derive_links5::HitPaperYearlyCitations,
     },
     ladder::LADDER_LEN,
-    metrics::{mean_of, paper_score, H_SINCE, WORK_SCREEN},
+    metrics::{mean_of, paper_score, H_SINCE, SPEC_CORR_RATE, WORK_SCREEN},
     steps::{
         a1_entity_mapping::YearInterface,
         a2_init_atts::OrcidType,
@@ -53,7 +53,6 @@ use dmove::{
 use hashbrown::HashMap;
 use rand::Rng;
 
-const SPEC_CORR_RATE: f64 = 0.45;
 const N_SUBFIELDS: usize = Subfields::N;
 
 type FB<E> = BeS<QuickestBox, E>;
