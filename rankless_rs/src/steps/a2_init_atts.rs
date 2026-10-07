@@ -87,6 +87,10 @@ struct ShipRelWriter {
     dainf: LoadedIdMap<ET<DiscardedAuthors>>,
     iinf: LoadedIdMap<ET<Institutions>>,
     seen_filtered_ships: HashSet<(usize, usize)>,
+    /// the works the ledger merged other records into, whose rows a record each may repeat
+    merged: HashSet<usize>,
+    /// (work, discarded author, the position of an unresolved row) seen on a merged work
+    seen_merged_ships: HashSet<(usize, usize, u16)>,
 }
 
 struct WorkBiblioWriter {
@@ -525,6 +529,14 @@ impl WorkAttWriter {
 
 impl ShipRelWriter {
     fn new(winf: Arc<LoadedIdMap<ET<Works>>>, stowage: &Stowage) -> Self {
+        let merged = stowage.ledger.as_ref().map_or_else(HashSet::new, |ledger| {
+            ledger
+                .work_aliases
+                .values()
+                .filter_map(|keep| winf.0.get(keep))
+                .map(|w| w.to_usize())
+                .collect()
+        });
         Self {
             fship2a: vec![0],
             fship2is: vec![Vec::new()],
@@ -538,6 +550,8 @@ impl ShipRelWriter {
             dainf: stowage.get_entity_interface::<DiscardedAuthors, QuickestNumbered>(),
             iinf: stowage.get_entity_interface::<Institutions, QuickestNumbered>(),
             seen_filtered_ships: HashSet::new(),
+            merged,
+            seen_merged_ships: HashSet::new(),
         }
     }
 
@@ -575,17 +589,37 @@ impl ShipRelWriter {
             })
             .unwrap_or((false, 0));
 
-        if is_filtered && !self.seen_filtered_ships.insert((w_ind, aid)) {
-            // The author's later row on the work (an OpenAlex duplicate, or a merged record's
-            // beside its keep's): its institutions join the first row's.
+        // An author's later row on the work (an OpenAlex duplicate, or a merged record's beside
+        // its keep's), and on a merged work a discarded author's later row or a second unresolved
+        // row at a position: its institutions join the first row's.
+        let repeated = if is_filtered {
+            !self.seen_filtered_ships.insert((w_ind, aid))
+        } else {
+            let position = if aid == 0 { ship.position } else { 0 };
+            self.merged.contains(&w_ind) && !self.seen_merged_ships.insert((w_ind, aid, position))
+        };
+        if repeated {
             let first = self.w2combined_ships[w_ind]
                 .iter()
-                .find(|&&(filtered, i)| filtered && self.fship2a[i] == aid)
+                .find(|&&(filtered, i)| {
+                    filtered == is_filtered
+                        && if filtered {
+                            self.fship2a[i] == aid
+                        } else {
+                            self.dship2a[i] == aid
+                                && (aid != 0 || self.dship2pos[i] == ship.position)
+                        }
+                })
                 .map(|&(_, i)| i)
                 .unwrap();
+            let ship2is = if is_filtered {
+                &mut self.fship2is
+            } else {
+                &mut self.dship2is
+            };
             for inst in ivec {
-                if !self.fship2is[first].contains(&inst) {
-                    self.fship2is[first].push(inst);
+                if !ship2is[first].contains(&inst) {
+                    ship2is[first].push(inst);
                 }
             }
             return;
@@ -762,12 +796,21 @@ impl<T> StorableMarker<Self> for T {
     }
 }
 
-impl<T> StorableMarker<T> for Vec<T> {
+impl<T: PartialEq> StorableMarker<T> for Vec<T> {
     type FinalType = Box<[T]>;
     fn update(&mut self, other: T) {
         self.push(other);
     }
-    fn finalize(self) -> Self::FinalType {
+    /// Each target once, in first-seen order: a merged work's records each list theirs.
+    fn finalize(mut self) -> Self::FinalType {
+        let mut kept = 0;
+        for i in 0..self.len() {
+            if !self[..kept].contains(&self[i]) {
+                self.swap(kept, i);
+                kept += 1;
+            }
+        }
+        self.truncate(kept);
         self.into_boxed_slice()
     }
 }
@@ -1299,6 +1342,8 @@ mod tests {
             dainf: id_map(&[2]),
             iinf: id_map(&[100, 200]),
             seen_filtered_ships: HashSet::new(),
+            merged: HashSet::new(),
+            seen_merged_ships: HashSet::new(),
         };
         w.proc_next(ship(10, 1, &[100], 0));
         w.proc_next(ship(10, 2, &[200], 1));
@@ -1316,6 +1361,65 @@ mod tests {
         assert_eq!(
             w.w2combined_ships[1],
             vec![(true, 1), (false, 1), (false, 2)]
+        );
+    }
+
+    #[test]
+    fn a_merged_works_discarded_and_unresolved_rows_pass_once() {
+        let mut w = ShipRelWriter {
+            fship2a: vec![0],
+            fship2is: vec![Vec::new()],
+            fship2pos: vec![0],
+            dship2a: vec![0],
+            dship2is: vec![Vec::new()],
+            dship2pos: vec![0],
+            w2combined_ships: vec![Vec::new(); 3].into_boxed_slice(),
+            winf: Arc::new(id_map(&[10, 11])),
+            fainf: id_map(&[1]),
+            dainf: id_map(&[2]),
+            iinf: id_map(&[100, 200]),
+            seen_filtered_ships: HashSet::new(),
+            merged: [1].into_iter().collect(),
+            seen_merged_ships: HashSet::new(),
+        };
+        let unresolved = |work, insts: &[u64], position| Authorship {
+            author_id: None,
+            ..ship(work, 0, insts, position)
+        };
+        // the merged work 10 reads both records' rows: the keep's, then the drop's
+        w.proc_next(ship(10, 1, &[100], 0));
+        w.proc_next(ship(10, 2, &[100], 1));
+        w.proc_next(unresolved(10, &[], 2));
+        w.proc_next(ship(10, 1, &[100], 0));
+        w.proc_next(ship(10, 2, &[200], 1));
+        w.proc_next(unresolved(10, &[200], 2));
+        w.proc_next(unresolved(10, &[], 3));
+        // work 11 is no merge keep: its rows pass as they are
+        w.proc_next(ship(11, 2, &[100], 0));
+        w.proc_next(ship(11, 2, &[200], 1));
+        let inst = |i| <ET<Institutions> as UnsignedNumber>::from_usize(i);
+        assert_eq!(
+            w.w2combined_ships[1],
+            vec![(true, 1), (false, 1), (false, 2), (false, 3)]
+        );
+        assert_eq!(w.dship2a, vec![0, 1, 0, 0, 1, 1]);
+        assert_eq!(w.dship2pos, vec![0, 1, 2, 3, 0, 1]);
+        assert_eq!(w.dship2is[1], vec![inst(1), inst(2)]);
+        assert_eq!(w.dship2is[2], vec![inst(2)]);
+        assert_eq!(w.w2combined_ships[2], vec![(false, 4), (false, 5)]);
+    }
+
+    #[test]
+    fn a_stored_list_keeps_each_target_once_in_order() {
+        let v: Vec<u32> = vec![3, 1, 3, 2, 1];
+        assert_eq!(
+            StorableMarker::<u32>::finalize(v),
+            vec![3, 1, 2].into_boxed_slice()
+        );
+        let empty: Vec<u32> = Vec::new();
+        assert_eq!(
+            StorableMarker::<u32>::finalize(empty),
+            Vec::new().into_boxed_slice()
         );
     }
 }
