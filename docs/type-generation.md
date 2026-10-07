@@ -1,6 +1,6 @@
 # Type generation (`wiretypes`)
 
-Rust is the one language cross-language shapes are written in. Every struct or enum that crosses a language boundary carries `#[wire]`, and `wiretypes` renders it as TypeScript and Python, one file per Rust module. The generated files are committed and never edited by hand.
+Rust is the one language cross-language shapes and constants are written in. Every struct or enum that crosses a language boundary, and every constant another language needs, carries `#[wire]`, and `wiretypes` renders it as TypeScript and Python, one file per Rust module. The generated files are committed and never edited by hand.
 
 ```bash
 make types        # rewrite src/lib/wire/ and wire/ from the Rust types (also part of make format)
@@ -34,6 +34,29 @@ It derives `schemars::JsonSchema`, so the schema follows every serde attribute (
 - A generic struct carries `#[wire]` for the derive and is registered per instantiation through an alias: `#[wire] pub type CollapsedNodeJson = CollapsedNodeGen<Option<BigId>>;` emits `CollapsedNodeJson`.
 - `HashMap`/`HashSet` fields from any crate (hashbrown here) are described as the std ones, automatically. A type alias over such a map hides it from that rewrite, so `#[wire]` on the alias also emits an `{Alias}Wire` twin, which a field of the alias type names: `#[schemars(with = "AttributeLabelsWire")]`.
 
+## Marking a constant
+
+`#[wire]` on a `const`, or an immutable `static`, whose type is `Serialize` exports its value into its module's file, ahead of the types: an `export const` in TypeScript and a `Final` in Python. The value is serialized when the targets are rendered, so it is whatever Rust evaluates: arithmetic over other constants, a struct literal, an `include!`. The name stays the Rust name, `///` docs become comments, and the item keeps its visibility.
+
+```rust
+/// Pinned entities one `/slice` request is answered for; the rest are dropped.
+#[wire]
+pub const MAX_PINS: usize = 24;
+```
+
+```ts
+// Pinned entities one `/slice` request is answered for; the rest are dropped.
+export const MAX_PINS = 24;
+```
+
+```python
+# Pinned entities one `/slice` request is answered for; the rest are dropped.
+MAX_PINS: Final = 24
+```
+
+- Arrays, slices and tuples become `[...] as const` in TypeScript and tuples in Python; a struct becomes an object literal (`as const`) or a dict, keys sorted.
+- A value derived from `env_consts` differs per build environment, while the generated files are one committed set, so it is served rather than generated. So are the methodology values the site and the MCP server explain (`/v1/methodology`).
+
 ## Config
 
 `wiretypes.toml` at the repo root names the targets, never a type:
@@ -56,6 +79,7 @@ style = "typeddict"
 | Rust module | TypeScript | Python |
 | --- | --- | --- |
 | `rankless_server::responses` | `src/lib/wire/rankless_server/responses.ts` | `wire/rankless_server/responses.py` |
+| `rankless_server::consts` | `src/lib/wire/rankless_server/consts.ts` | `wire/rankless_server/consts.py` |
 | `rankless_rs::user_ledger` | `src/lib/wire/rankless_rs/user_ledger.ts` | `wire/rankless_rs/user_ledger.py` |
 | `rankless_expr` | `src/lib/wire/rankless_expr.ts` | `wire/rankless_expr.py` |
 
@@ -85,8 +109,10 @@ The frontend's own types derive from the generated ones rather than restating th
 | Boundary | Rust source | Consumers |
 | --- | --- | --- |
 | `/v1` responses | `rankless_server/src/responses.rs`, `rankless_trees/src/{io,metrics,path_finder}.rs`, `rankless_rs/src/{metrics,biblo_var_att}.rs`, `rankless_expr` | frontend, `mcp_server` |
-| ledger events (DB payloads, `active.jsonl`) | `rankless_rs/src/user_ledger.rs` `EventPayload`, `WorkSubject`, `AuthorSubject` | the site's writers and readers, `pyscripts/ledger_ids.py` |
-| `applied_manifest.json` | `rankless_rs/src/user_ledger.rs` `AppliedManifest` | the site |
+| ledger events (DB payloads, `ACTIVE_JSONL`) | `rankless_rs/src/user_ledger.rs` `EventPayload`, `WorkSubject`, `AuthorSubject` | the site's writers and readers, `pyscripts/ledger_ids.py` |
+| `APPLIED_MANIFEST` | `rankless_rs/src/user_ledger.rs` `AppliedManifest` | the site |
+| server limits, port, commit-hash length | `rankless_server/src/consts.rs` | frontend, `mcp_server`, `pyscripts` |
+| `user-ledger/` file names, the external data root, the tree-parts root | `rankless_rs/src/{user_ledger,derived_ledger}.rs`, `rankless_trees/src/part_iterator.rs` | `pyscripts`, the site |
 
 dmove's binary entity files are a separate concern: ccl-science-data reads them, and [type-audit.md](type-audit.md) checks that reader. Shapes no Rust code touches (the review lane's enrichment records and verdicts in `lib/types/review.ts`) are still mirrored by hand.
 
@@ -96,9 +122,9 @@ dmove's binary entity files are a separate concern: ccl-science-data reads them,
 
 | File | Role |
 | --- | --- |
-| `wiretypes_macro/src/lib.rs` | `#[wire]`: the `JsonSchema` derive, the std-map rewrite, the null-dropping transform for `skip_serializing_if`, the `Wire` impl and the `inventory` registration |
-| `wiretypes/src/lib.rs` | `WireType` registry, `Wire` contract trait, `sync` (render, then write or check) |
-| `wiretypes/src/model.rs` | Registry → one schema generator per contract → one `Shape` per registered type |
+| `wiretypes_macro/src/lib.rs` | `#[wire]`: the `JsonSchema` derive, the std-map rewrite, the null-dropping transform for `skip_serializing_if`, the `Wire` impl and the `inventory` registration; on a const or static, the value's registration |
+| `wiretypes/src/lib.rs` | `WireType` and `WireConst` registries, `Wire` contract trait, `sync` (render, then write or check) |
+| `wiretypes/src/model.rs` | Registry → one schema generator per contract → one `Shape` per registered type, one JSON value per registered constant, grouped by module |
 | `wiretypes/src/shape.rs` | JSON Schema → `Shape`, the form the emitters read |
 | `wiretypes/src/ts.rs`, `python.rs` | The emitters |
 | `wiretypes/src/config.rs`, `output.rs` | `wiretypes.toml`; write and check over the output directories, which only ever touch files carrying the generated header |
