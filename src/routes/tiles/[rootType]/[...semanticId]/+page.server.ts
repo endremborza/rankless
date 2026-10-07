@@ -8,7 +8,7 @@ import { semIdResolver } from '$lib/route-functions';
 export const ssr = true;
 
 export const load: PageServerLoad = async ({ params, url, fetch }) => {
-	const { conf, treeSpecs } = await semIdResolver(params, url, '/tiles', fetch);
+	const { conf } = semIdResolver(params, url, '/tiles');
 
 	const view: ViewResult = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => res.json())
@@ -19,7 +19,7 @@ export const load: PageServerLoad = async ({ params, url, fetch }) => {
 	}
 
 	if (view) {
-		return { view, conf, treeSpecs };
+		return { view, conf };
 	}
 
 	error(404, 'Not found');

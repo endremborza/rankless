@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { TreeResponse, TreeSpec, TreeSpecs } from '$lib/wire/rankless_trees/io';
+	import type { TreeResponse, TreeSpec } from '$lib/wire/rankless_trees/io';
+	import { TREE_SPECS } from '$lib/wire/rankless_server/responses';
 	import { onMount } from 'svelte';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
@@ -14,7 +15,6 @@
 	export let rootId: number;
 	export let indsByEntityType: tt.IndsByEntityType;
 	export let conf: tt.FullTreeConfig;
-	export let treeSpecs: TreeSpecs;
 	export let infoPath: number[] = [];
 	export let year = conf.year;
 	export let resp: TreeResponse | undefined = undefined;
@@ -25,16 +25,16 @@
 	export let showInfobox = true;
 
 	let mounted = false;
-	let selectedBreakdowns = tf.getDefaultBreakdowns(treeSpecs.specs[conf.rootType][treeId]);
+	let selectedBreakdowns = tf.getDefaultBreakdowns(TREE_SPECS.specs[conf.rootType][treeId]);
 	const treeLoader = createTreeLoader();
 
 	$: levelOptions = tf.fillBreakdownOptions(
 		indsByEntityType[l1Type].map(
-			(e) => [e, treeSpecs.specs[conf.rootType][e]] as [number, TreeSpec]
+			(e) => [e, TREE_SPECS.specs[conf.rootType][e]] as [number, TreeSpec]
 		),
 		1
 	);
-	$: currentTreeSpec = treeSpecs.specs[conf.rootType][treeId];
+	$: currentTreeSpec = TREE_SPECS.specs[conf.rootType][treeId];
 
 	function updateTreeId(bSelected: string[], bdOptions: tt.BreakdownOptions) {
 		let bop = bSelected[0];
@@ -104,7 +104,7 @@
 			{#if tf.hasYearFilter(conf.rootType)}
 				Since
 				<select bind:value={year} aria-label="Since year"
-					>{#each treeSpecs.yearBreaks as y, __i (__i)}
+					>{#each TREE_SPECS.yearBreaks as y, __i (__i)}
 						<option>{y}</option>
 					{/each}
 				</select>

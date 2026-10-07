@@ -1,9 +1,9 @@
 import type { AttributeLabels, TreeSpec } from './wire/rankless_trees/io';
 import { describe, it, expect, vi } from 'vitest';
+import { TREE_SPECS } from './wire/rankless_server/responses';
 
 vi.mock('$app/paths', () => ({ base: '' }));
 vi.mock('$lib/constants', () => ({
-	COMPLETE_YEAR: 1950,
 	DEFAULT_LIMIT_N: 10,
 	MAX_LEVEL_COUNT: 4,
 	ENTITY_TYPES: [
@@ -271,14 +271,14 @@ describe('getEntityPath', () => {
 });
 
 describe('getDefaultYear', () => {
-	it('returns COMPLETE_YEAR for authors', () => {
-		expect(getDefaultYear('authors')).toBe(1950);
+	const { yearBreaks } = TREE_SPECS;
+	it('opens authors on the whole record, the first year break', () => {
+		expect(getDefaultYear('authors')).toBe(yearBreaks[0]);
 	});
-	it('returns 2020 for countries', () => {
-		expect(getDefaultYear('countries')).toBe(2020);
-	});
-	it('returns 2020 for subfields', () => {
-		expect(getDefaultYear('subfields')).toBe(2020);
+	it('opens countries and subfields on the same later year break', () => {
+		const year = getDefaultYear('countries');
+		expect(yearBreaks.indexOf(year)).toBeGreaterThan(0);
+		expect(getDefaultYear('subfields')).toBe(year);
 	});
 });
 

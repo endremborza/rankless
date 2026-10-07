@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { TreeResponse, TreeSpecs } from '$lib/wire/rankless_trees/io';
+	import type { TreeResponse } from '$lib/wire/rankless_trees/io';
+	import { TREE_SPECS } from '$lib/wire/rankless_server/responses';
 	import { onMount } from 'svelte';
 
 	import type * as tt from '$lib/tree-types';
@@ -19,7 +20,6 @@
 	export let rootId: number;
 	export let indsByEntityType: tt.IndsByEntityType;
 	export let conf: tt.FullTreeConfig;
-	export let treeSpecs: TreeSpecs;
 
 	const OPA_SF = 'opa';
 	const FILL_SF = 'fill';
@@ -45,7 +45,7 @@
 	let treeId: number;
 	let flatOut = {};
 
-	$: isRefSide = treeSpecs.specs[conf.rootType][treeId]?.breakdowns[0].sourceSide;
+	$: isRefSide = TREE_SPECS.specs[conf.rootType][treeId]?.breakdowns[0].sourceSide;
 	$: weightText = mapWeightText(isSpec, isRefSide);
 	$: updateL1(flatOut, resp);
 	$: styleTag = mounted
@@ -134,8 +134,7 @@
 			{rootId}
 			{indsByEntityType}
 			{conf}
-			{treeSpecs}
-			year={treeSpecs.yearBreaks[0]}
+			year={TREE_SPECS.yearBreaks[0]}
 			bind:flatOut
 			bind:treeId
 			bind:resp

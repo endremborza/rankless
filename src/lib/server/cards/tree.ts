@@ -1,3 +1,4 @@
+import { TREE_SPECS } from '$lib/wire/rankless_server/responses';
 import type { TreeResponse, TreeSpec } from '$lib/wire/rankless_trees/io';
 import { error } from '@sveltejs/kit';
 import type * as tt from '$lib/tree-types';
@@ -17,8 +18,8 @@ const MIN_LABEL_SCALE = LABEL_FLOOR / (INNER.h / TREE_HEIGHT) / 10;
 // specialization instead of volume) as the page's link carries them.
 export const tree: CardKind = {
 	component: TreeSvg,
-	async load({ rootType, semanticId, params, specs, fetch }) {
-		const spec = tf.parseLinkWithParams(params, rootType, specs);
+	async load({ rootType, semanticId, params, fetch }) {
+		const spec = tf.parseLinkWithParams(params, rootType);
 		const conf: tt.FullTreeConfig = {
 			semanticId,
 			year: spec.year,
@@ -29,9 +30,10 @@ export const tree: CardKind = {
 		const resp = await beJson<TreeResponse>(fetch, tf.treeBeUrl(BE_URL, conf, 1));
 		if (!resp.tree || !resp.atts) error(404, 'card unavailable');
 		const width = (TREE_HEIGHT * INNER.w) / INNER.h;
+		const base = TREE_SPECS.specs[rootType][spec.treeId];
 		const treeSpec: TreeSpec = {
-			...specs.specs[rootType][spec.treeId],
-			defaultIsSpec: flagParam(params, 'isSpec', specs.specs[rootType][spec.treeId].defaultIsSpec)
+			...base,
+			defaultIsSpec: flagParam(params, 'isSpec', base.defaultIsSpec)
 		};
 		return {
 			props: {

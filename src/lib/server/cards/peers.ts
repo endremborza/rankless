@@ -1,7 +1,7 @@
-import type { EntityPeersResp } from '$lib/wire/rankless_server/responses';
+import { METHODOLOGY, type EntityPeersResp } from '$lib/wire/rankless_server/responses';
 import { error } from '@sveltejs/kit';
 import type { ShowcasePeers } from '$lib/types/showcase';
-import { BE_URL, LATEST_YEAR } from '$lib/constants';
+import { BE_URL } from '$lib/constants';
 import { encodeSemanticId } from '$lib/tree-functions';
 import { fixName } from '$lib/name-overrides';
 import { htmlToText } from '$lib/utils/paper-helpers';
@@ -33,7 +33,7 @@ export const peers: CardKind = {
 				hero: resp.hero.subfieldCitations[i] ?? 0,
 				peer: peer.subfieldCitations[i] ?? 0
 			})),
-			yearFrom: LATEST_YEAR - (resp.hero.yearlyCites.length - 1),
+			yearFrom: METHODOLOGY.yearlyCounts[0],
 			heroYearly: resp.hero.yearlyCites,
 			peerYearly: peer.yearlyCites
 		};

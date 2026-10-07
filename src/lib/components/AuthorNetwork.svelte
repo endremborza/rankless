@@ -1,12 +1,15 @@
 <script lang="ts">
-	import type { PaperOut, PostAttRelatedEntity } from '$lib/wire/rankless_server/responses';
+	import {
+		METHODOLOGY,
+		type PaperOut,
+		type PostAttRelatedEntity
+	} from '$lib/wire/rankless_server/responses';
 	import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 	import { circleLayout, COOLING, getIndex } from '$lib/network-util';
 	import type { cytoscapeLayout } from '$lib/network-force';
 	import type { WorksLoader } from '$lib/utils/works-loader';
 	import { fetchWorkIntersection } from '$lib/utils/works-intersection';
 	import { isAuthored, isTeamPaper, resolveSourceName } from '$lib/utils/paper-helpers';
-	import { page } from '$app/state';
 	import { lastWord } from '$lib/text-format-util';
 	import { onMount } from 'svelte';
 	import { fade, slide } from 'svelte/transition';
@@ -75,14 +78,13 @@
 				: [nodeIds[selection.i], nodeIds[selection.j]];
 
 	// Only a team paper makes its authors co-authors, the links the network draws.
-	const teamLimit = page.data.methodology?.workScreen.teamLimit ?? Infinity;
 	$: selectedPapers =
 		selection === null
 			? []
 			: $works.papers
 					.filter(
 						(p) =>
-							isTeamPaper(p, teamLimit) &&
+							isTeamPaper(p, METHODOLOGY.workScreen.teamLimit) &&
 							selectionIds.every((id) => id !== '' && isAuthored(p, id, $works.entityAtts))
 					)
 					.sort((a, b) => b.citations - a.citations);

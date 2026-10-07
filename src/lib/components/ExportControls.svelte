@@ -3,7 +3,7 @@
 	import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 	import { toBibtexFile, type CitationStyle } from '$lib/utils/reference-format';
 	import { copyToClipboard, downloadTextFile } from '$lib/utils/clipboard-download';
-	import { COMPLETE_YEAR, LATEST_YEAR } from '$lib/constants';
+	import { METHODOLOGY } from '$lib/wire/rankless_server/responses';
 
 	export let filteredPapers: PaperOut[];
 	export let totalCount: number;
@@ -12,7 +12,7 @@
 
 	export let sortBy: 'year' | 'citations' = 'year';
 	export let minCitations = 0;
-	export let minYear = COMPLETE_YEAR;
+	export let minYear = METHODOLOGY.workScreen.firstYear;
 	export let topN = 0;
 	export let citationStyle: CitationStyle = 'html';
 
@@ -46,8 +46,8 @@
 			Since:
 			<input
 				type="number"
-				min={COMPLETE_YEAR}
-				max={LATEST_YEAR}
+				min={METHODOLOGY.workScreen.firstYear}
+				max={METHODOLOGY.workScreen.finalYear}
 				bind:value={minYear}
 				placeholder="year"
 				class="num-input year-input"

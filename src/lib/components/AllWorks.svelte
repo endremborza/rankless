@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PaperOut } from '$lib/wire/rankless_server/responses';
 	import { createEventDispatcher } from 'svelte';
-	import { COMPLETE_YEAR } from '$lib/constants';
+	import { METHODOLOGY } from '$lib/wire/rankless_server/responses';
 	import type { WorksLoader } from '$lib/utils/works-loader';
 	import { resolveSourceName, htmlToText } from '$lib/utils/paper-helpers';
 	import { formatNumber } from '$lib/text-format-util';
@@ -36,7 +36,7 @@
 	let sortBy: 'year' | 'citations' = 'citations';
 	let sortDir: 'asc' | 'desc' = 'desc';
 	let minCitations = 0;
-	let minYear = COMPLETE_YEAR;
+	let minYear = METHODOLOGY.workScreen.firstYear;
 	let topN = 0;
 	let citationStyle: CitationStyle = 'html';
 

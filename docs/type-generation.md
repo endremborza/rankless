@@ -54,8 +54,9 @@ export const MAX_PINS = 24;
 MAX_PINS: Final = 24
 ```
 
-- Arrays, slices and tuples become `[...] as const` in TypeScript and tuples in Python; a struct becomes an object literal (`as const`) or a dict, keys sorted.
-- A value derived from `env_consts` differs per build environment, while the generated files are one committed set, so it is served rather than generated. So are the methodology values the site and the MCP server explain (`/v1/methodology`).
+- A value whose type is itself a `#[wire]` type is annotated with it: `export const METHODOLOGY: MethodologyOut = {...}` and `METHODOLOGY: Final[MethodologyOut] = {...}`, a Python list where the type has a list and a tuple where it has a tuple. Any other array, slice or tuple becomes `[...] as const` in TypeScript and a tuple in Python; any other struct an object literal (`as const`) or a dict. Keys are sorted.
+- The site and the MCP server read what Rust defines from these files, never from an endpoint, so a value is fixed when the frontend is built.
+- The env's pipeline thresholds (`env_consts`, written by `rankless_rs/build.rs` from `RANKLESS_ENV`) are the one module whose generated files differ per env. They are committed with the `full` env's values, the ones the served data is filtered with: `refresh-data` runs `make types` on the primary data box and `commit-artifacts` commits them with the rest of a release. A dev box skip-worktrees them like `env_consts.rs`, and its `make types` rewrites them for its own env, so `make check-types` compares like with like. Between a threshold change and the next recalc, `make check-types` on the primary data box fails; the committed values are still the ones the served data was built with.
 
 ## Config
 
@@ -109,6 +110,8 @@ The frontend's own types derive from the generated ones rather than restating th
 | Boundary | Rust source | Consumers |
 | --- | --- | --- |
 | `/v1` responses | `rankless_server/src/responses.rs`, `rankless_trees/src/{io,metrics,path_finder}.rs`, `rankless_rs/src/{metrics,biblo_var_att}.rs`, `rankless_expr` | frontend, `mcp_server` |
+| the methodology and the tree specs (`METHODOLOGY`, `TREE_SPECS`) | `rankless_server/src/responses.rs` | frontend, `mcp_server`, `pyscripts` |
+| the env's pipeline thresholds | `rankless_rs/src/env_consts.rs` (from `rankless_rs/build.rs`) | frontend, `mcp_server` |
 | ledger events (DB payloads, `ACTIVE_JSONL`) | `rankless_rs/src/user_ledger.rs` `EventPayload`, `WorkSubject`, `AuthorSubject` | the site's writers and readers, `pyscripts/ledger_ids.py` |
 | `APPLIED_MANIFEST` | `rankless_rs/src/user_ledger.rs` `AppliedManifest` | the site |
 | server limits, port, commit-hash length | `rankless_server/src/consts.rs` | frontend, `mcp_server`, `pyscripts` |

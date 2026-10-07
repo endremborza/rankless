@@ -23,7 +23,7 @@ from mcp_server.prompts import PROMPTS
 from mcp_server.receipts import with_receipt
 from mcp_server.resources import AGENT_GUIDE, resources
 from mcp_server.tools import TOOLS, describe
-from wire.rankless_server.responses import ColumnRegistry, MethodologyOut
+from wire.rankless_server.responses import ColumnRegistry
 
 LOCAL_HOSTS = ["127.0.0.1:*", "localhost:*"]
 # Registered as they are: what they return is not backend data to re-issue, so no receipt.
@@ -46,7 +46,7 @@ def transport_security(public_hosts: str) -> TransportSecuritySettings | None:
 
 
 def fetch(path: str) -> Any:
-    """A backend document the descriptions are built from (`/columns`, `/methodology`).
+    """A backend document the descriptions are built from (`/columns`).
     An unreachable backend is a failed start: the box unit restarts on failure."""
     url = f"{mcp_server.BE_URL}{path}"
     for attempt in range(1, FETCH_ATTEMPTS + 1):
@@ -62,11 +62,11 @@ def fetch(path: str) -> Any:
     raise AssertionError("unreachable")
 
 
-def build(registry: ColumnRegistry, methodology: MethodologyOut) -> FastMCP:
+def build(registry: ColumnRegistry) -> FastMCP:
     """The server with every tool, prompt and resource registered; the table tools
     describe themselves from the registry, and the texts naming the era from the
     methodology's years."""
-    describe(registry, methodology)
+    describe(registry)
     mcp = FastMCP(
         "rankless",
         instructions=AGENT_GUIDE,
@@ -78,7 +78,7 @@ def build(registry: ColumnRegistry, methodology: MethodologyOut) -> FastMCP:
         mcp.tool()(fn)
     for prompt_fn in PROMPTS:
         mcp.prompt()(prompt_fn)
-    for uri, text in resources(methodology).items():
+    for uri, text in resources().items():
         _register_resource(mcp, uri, text)
     return mcp
 
@@ -101,7 +101,7 @@ def main() -> None:
         "--port", type=int, default=int(os.environ.get("MCP_PORT", mcp_server.MCP_PORT))
     )
     args = p.parse_args()
-    mcp = build(fetch("/columns"), fetch("/methodology"))
+    mcp = build(fetch("/columns"))
     if args.transport != "stdio":
         mcp.settings.host = args.host
         mcp.settings.port = args.port

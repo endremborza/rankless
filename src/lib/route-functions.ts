@@ -1,9 +1,7 @@
-import type { TreeSpecs } from '$lib/wire/rankless_trees/io';
 import { FULL_HOST, ROOT_TYPES } from './constants';
 import { LAST_MOD } from './v_constants';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
-import * as lf from '$lib/loading-functions';
 import oldCountrySem from '$lib/assets/data/old-country-semantic-id-map.json';
 import alpha2CC from '$lib/assets/data/country-alpha-2-to-3.json';
 import { error, redirect } from '@sveltejs/kit';
@@ -39,18 +37,16 @@ export function getSitemapIndex(subParams: string[]) {
 	return new Response(text, { headers: { 'Content-Type': 'application/xml' } });
 }
 
-export async function semIdResolver(
+export function semIdResolver(
 	params: { rootType: string; semanticId: string },
 	url: URL,
-	stem: string,
-	fetchFn: typeof fetch = fetch
-): Promise<{
+	stem: string
+): {
 	rootType: tt.RootType;
 	semanticId: string;
 	conf: tt.FullTreeConfig;
 	spec: tt.ShareSpec;
-	treeSpecs: TreeSpecs;
-}> {
+} {
 	let rootType: tt.RootType;
 	if (ROOT_TYPES.includes(params.rootType as tt.RootType)) {
 		rootType = params.rootType as tt.RootType;
@@ -59,8 +55,7 @@ export async function semIdResolver(
 	}
 	const semanticId: string = params.semanticId;
 
-	const treeSpecs = await lf.loadSpecs(fetchFn);
-	const spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
+	const spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType);
 	const conf: tt.FullTreeConfig = {
 		semanticId,
 		year: spec.year,
@@ -84,5 +79,5 @@ export async function semIdResolver(
 		const link = tf.decorBaseLink(linkBase, conf, spec.selectionState);
 		redirect(301, link);
 	}
-	return { rootType, semanticId, conf, spec, treeSpecs };
+	return { rootType, semanticId, conf, spec };
 }

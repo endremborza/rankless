@@ -1,6 +1,5 @@
 <script lang="ts">
-	import type { ColumnDecl } from '$lib/wire/rankless_server/responses';
-	import { page } from '$app/state';
+	import { METHODOLOGY, type ColumnDecl } from '$lib/wire/rankless_server/responses';
 	import type { NamedEntity } from '$lib/tree-types';
 
 	// The inputs of a metric's parameter: a field, a country, or a year window; `args` is what the
@@ -18,7 +17,7 @@
 	} = $props();
 
 	// The years a window can name; the backend refuses any other, so the inputs bound and flag them.
-	const yearly = $derived(page.data.methodology?.yearlyCounts);
+	const yearly = METHODOLOGY.yearlyCounts;
 
 	function setYear(i: number, v: number) {
 		const next = [...args];
@@ -58,8 +57,8 @@
 		class="control year"
 		type="number"
 		aria-label="From year"
-		min={yearly?.[0]}
-		max={args[1] || yearly?.[1]}
+		min={yearly[0]}
+		max={args[1] || yearly[1]}
 		value={args[0] ?? ''}
 		onchange={(e) => setYear(0, e.currentTarget.valueAsNumber)}
 	/>
@@ -67,8 +66,8 @@
 		class="control year"
 		type="number"
 		aria-label="To year"
-		min={args[0] || yearly?.[0]}
-		max={yearly?.[1]}
+		min={args[0] || yearly[0]}
+		max={yearly[1]}
 		value={args[1] ?? ''}
 		onchange={(e) => setYear(1, e.currentTarget.valueAsNumber)}
 	/>

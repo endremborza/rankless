@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ColumnDecl, TableRow } from '$lib/wire/rankless_server/responses';
+	import { METHODOLOGY, type ColumnDecl, type TableRow } from '$lib/wire/rankless_server/responses';
 	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
@@ -211,10 +211,8 @@
 	<h1>{noun}</h1>
 	<p class="cohort-note">
 		{cohortNote}
-		{#if data.methodology}
-			Metrics count papers {workScreenPhrase(data.methodology.workScreen)}. A column's info gives
-			the years it covers.
-		{/if}
+		Metrics count papers {workScreenPhrase(METHODOLOGY.workScreen)}. A column's info gives the years
+		it covers.
 	</p>
 	{#if data.error || columnError}
 		<p class="error">{data.error ?? columnError}</p>

@@ -1,21 +1,17 @@
 <script lang="ts">
-	import { page } from '$app/state';
 	import InfoTip from '$lib/components/InfoTip.svelte';
 	import { workScreenPhrase } from '$lib/text-format-util';
+	import { METHODOLOGY } from '$lib/wire/rankless_server/responses';
 </script>
 
-<!-- The kinds and limits are read from the methodology the backend serves rather than named here,
-	so this copy cannot fall behind the data. With none to read the word stands on its own, unlinked. -->
+<!-- The kinds and limits are read from the methodology rather than named here, so this copy cannot
+	fall behind the data. -->
 
-{#if page.data.methodology}
-	<InfoTip kind="inline" label="What counts as an indexed citation">
-		indexed
-		<span slot="text"
-			>Citations made by papers that are in the data at all: {workScreenPhrase(
-				page.data.methodology.workScreen
-			)}.</span
-		>
-	</InfoTip>
-{:else}
+<InfoTip kind="inline" label="What counts as an indexed citation">
 	indexed
-{/if}
+	<span slot="text"
+		>Citations made by papers that are in the data at all: {workScreenPhrase(
+			METHODOLOGY.workScreen
+		)}.</span
+	>
+</InfoTip>

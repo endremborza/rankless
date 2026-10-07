@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { TreeSpecs } from '$lib/wire/rankless_trees/io';
+	import { TREE_SPECS } from '$lib/wire/rankless_server/responses';
 	import { nodes as nodesData, edges } from '$lib/assets/data/concept-map.json';
 	import { subfields, fields, domains } from '$lib/assets/data/field-hierarchy.json';
 	import { getColorArr } from '$lib/style-util';
@@ -22,7 +22,6 @@
 	export let rootId: number;
 	export let indsByEntityType: tt.IndsByEntityType;
 	export let conf: tt.FullTreeConfig;
-	export let treeSpecs: TreeSpecs;
 
 	let defaultSat = 0.8;
 	let defaultOp = 1;
@@ -54,12 +53,12 @@
 	let flatOut = {};
 
 	let treeId: number;
-	$: sourceSide = getSourceSide(treeSpecs, conf.rootType, treeId);
+	$: sourceSide = getSourceSide(conf.rootType, treeId);
 	$: styleTag = mounted ? `<style>${getClassStyles(flatOut, hovered, hoveredParent)}</style>` : '';
 	$: updateTreeId(indsByEntityType);
 
-	function getSourceSide(treeSpecs: TreeSpecs, rootType: tt.RootType, treeId: number) {
-		let treeSpec = treeSpecs.specs[rootType][treeId];
+	function getSourceSide(rootType: tt.RootType, treeId: number) {
+		let treeSpec = TREE_SPECS.specs[rootType][treeId];
 		if (treeSpec == undefined) return false;
 		return treeSpec.breakdowns[0].sourceSide;
 	}
@@ -173,7 +172,6 @@
 			{rootId}
 			{indsByEntityType}
 			{conf}
-			{treeSpecs}
 			{backupNames}
 			bind:treeId
 			bind:flatOut

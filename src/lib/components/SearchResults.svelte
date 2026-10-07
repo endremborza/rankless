@@ -6,7 +6,6 @@
 	import type { RootedResult, RootType } from '$lib/tree-types';
 	import { entToLink } from '$lib/tree-functions';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { resultsHidden } from '$lib/stores';
 	import HitPaperExplainer from './HitPaperExplainer.svelte';
@@ -84,7 +83,7 @@
 </script>
 
 <div class="search-results" class:overlay class:hidden>
-	{#if page.data.methodology && cat === 'hit-papers' && disclaimerPosition === 'top'}
+	{#if cat === 'hit-papers' && disclaimerPosition === 'top'}
 		<div class="disclaimer-wrap">
 			<HitPaperExplainer />
 		</div>
@@ -121,7 +120,7 @@
 	{:else if delayedTerm.trim() !== ''}
 		<p class="search-status">No matches for “{delayedTerm}”.</p>
 	{/if}
-	{#if page.data.methodology && cat === 'hit-papers' && disclaimerPosition === 'bottom'}
+	{#if cat === 'hit-papers' && disclaimerPosition === 'bottom'}
 		<div class="disclaimer-wrap">
 			<HitPaperExplainer />
 		</div>

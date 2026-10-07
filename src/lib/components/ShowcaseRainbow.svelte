@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { LATEST_YEAR } from '$lib/constants';
+	import { METHODOLOGY } from '$lib/wire/rankless_server/responses';
 	import type { ShowcaseHitPaper } from '$lib/types/showcase';
 	import { formatNumber } from '$lib/text-format-util';
 	import { getColor } from '$lib/style-util';
@@ -15,11 +15,12 @@
 	const padT = 14;
 	const padB = 16;
 	const baseY = H - padB;
+	const { finalYear } = METHODOLOGY.workScreen;
 
 	// Each hit paper is an arc climbing from its publication year (left) to today (right), its height
 	// set by citations — the same "rainbow of trajectories" the real PaperRainbow draws, in miniature.
-	$: minYear = Math.min(LATEST_YEAR - 1, ...papers.map((p) => p.year));
-	$: span = Math.max(1, LATEST_YEAR - minYear);
+	$: minYear = Math.min(finalYear - 1, ...papers.map((p) => p.year));
+	$: span = Math.max(1, finalYear - minYear);
 	$: rootMax = Math.sqrt(Math.max(1, ...papers.map((p) => p.citations)));
 	// Color by publication-year rank (oldest→0, newest→1) through the site's getColor scale, exactly
 	// like the real PaperRainbow — so the miniature shares the site palette instead of a raw spectrum.

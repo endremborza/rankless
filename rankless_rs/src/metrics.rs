@@ -14,8 +14,8 @@ use crate::{
 pub const FIELD_SCORE_BETA: f64 = 0.75;
 
 // The paper score and the work screen, stated once: the pipeline steps and `filter` read these
-// values, `/v1/methodology` serves them, and every text about them is a template `fill` completes
-// from them, so no text restates a number.
+// values, `#[wire]` hands them to the site and the MCP server, and every text about them is a
+// template `fill` completes from them, so no text restates a number.
 #[wire]
 pub const PAPER_SCORE: PaperScore = {
     let w_sf = 0.005;
@@ -152,10 +152,6 @@ pub struct WorkScreen {
     pub team_limit: usize,
     pub first_year: u16,
     pub final_year: u16,
-    pub min_papers_for_institution: u16,
-    pub min_papers_for_source: u16,
-    pub min_author_papers: u16,
-    pub min_author_citations: u16,
     pub max_author_papers: u32,
 }
 

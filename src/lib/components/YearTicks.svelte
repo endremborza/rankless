@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { LATEST_YEAR, FONT_SIZE_PX } from '$lib/constants';
+	import { FONT_SIZE_PX } from '$lib/constants';
 	import { getColor } from '$lib/style-util';
 	import { formatNumber, shortYear } from '$lib/text-format-util';
 	import { niceTicks, seriesYears, tickCount } from '$lib/utils/year-ticks';
@@ -7,7 +7,7 @@
 
 	export let bottomStacks: number[];
 	export let topStacks: number[];
-	export let end: number = LATEST_YEAR;
+	export let end: number; // calendar year of the stacks' last entry
 	export let fullHeight: number; // container height in px
 	export let fullWidth: number; // container width in px
 	export let showBottom: boolean = true;

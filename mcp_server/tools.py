@@ -26,12 +26,19 @@ from mcp_server.response_shaping import (
     flatten_tree,
     truncate_lists,
 )
+from wire.rankless_rs.env_consts import (
+    MIN_AUTHOR_CITE_COUNT,
+    MIN_AUTHOR_WORK_COUNT,
+    MIN_PAPERS_FOR_INST,
+    MIN_PAPERS_FOR_SOURCE,
+)
 from wire.rankless_rs.metrics import MAX_SHARED_PAPERS, TOP_HIT_PAPERS
 from wire.rankless_server.consts import MAX_PINS, SCREEN_K
 from wire.rankless_server.responses import (
+    METHODOLOGY,
+    TREE_SPECS,
     ColumnDecl,
     ColumnRegistry,
-    MethodologyOut,
     MetricValuesResp,
     PaperAuthorMeta,
     PaperOut,
@@ -39,10 +46,9 @@ from wire.rankless_server.responses import (
     SliceResp,
     TableRow,
 )
-from wire.rankless_trees.io import AttributeLabel, TreeResponse, TreeSpecs
+from wire.rankless_trees.io import AttributeLabel, TreeResponse
 from wire.rankless_trees.path_finder import RefDAG
 
-_specs_cache: TreeSpecs | None = None
 # Each root type's default ordering, from the registry `describe()` reads; the backend
 # applies it to a sortless `/slice`, so this only names it.
 _default_sorts: dict[str, str] = {}
@@ -101,13 +107,6 @@ def _check_etype(entity_type: str, allowed: tuple[str, ...] = ROOT_TYPES) -> Non
         raise ValueError(f"entity_type must be one of {allowed}, got {entity_type!r}")
 
 
-async def _specs() -> TreeSpecs:
-    global _specs_cache
-    if _specs_cache is None:
-        _specs_cache = await get_json("/specs")
-    return _specs_cache
-
-
 async def search_entities(query: str, entity_type: str = "all") -> list[dict]:
     """Search entities by name; the ONLY legitimate way to turn a name into ids.
 
@@ -148,7 +147,13 @@ async def get_methodology() -> dict:
     what a number counts from this, never from memory; its values verify like any
     other data.
     """
-    return await get_json("/methodology")
+    minimums = {
+        "minPapersForInstitution": MIN_PAPERS_FOR_INST,
+        "minPapersForSource": MIN_PAPERS_FOR_SOURCE,
+        "minAuthorPapers": MIN_AUTHOR_WORK_COUNT,
+        "minAuthorCitations": MIN_AUTHOR_CITE_COUNT,
+    }
+    return {**METHODOLOGY, "workScreen": {**METHODOLOGY["workScreen"], **minimums}}
 
 
 async def get_entity_profile(entity_type: str, semantic_id: str) -> dict:
@@ -226,12 +231,12 @@ async def get_citation_tree(
     `hl` take.
     """
     _check_etype(entity_type, VIEW_TYPES)
-    specs = (await _specs())["specs"][entity_type]
+    specs = TREE_SPECS["specs"][entity_type]
     if not 0 <= tree_index < len(specs):
         raise ValueError(f"tree_index must be in 0..{len(specs) - 1}")
     spec = specs[tree_index]
     # A hit paper's tree holds its one paper, which any later year filters out.
-    default = (await _specs())["yearBreaks"][0] if entity_type == "hit-papers" else None
+    default = TREE_SPECS["yearBreaks"][0] if entity_type == "hit-papers" else None
     year = since_year or default or spec["defaultYear"]
     res: TreeResponse = await get_json(
         f"/trees/{entity_type}/{encode_semantic_id(semantic_id)}",
@@ -523,12 +528,12 @@ ERA_DOCS: Final = {
 }
 
 
-def describe(registry: ColumnRegistry, methodology: MethodologyOut) -> None:
-    """Fill the docstrings that state served values: the era's years from the methodology's
+def describe(registry: ColumnRegistry) -> None:
+    """Fill the docstrings that state backend values: the era's years from the methodology's
     `yearlyCounts`, and the table tools' from the backend's metric registry. A metric's texts
     are per root type, so each wording is listed once, with the types it holds for grouped by
     the metric's kind on each."""
-    first, last = methodology["yearlyCounts"]
+    first, last = METHODOLOGY["yearlyCounts"]
     for fn, doc in ERA_DOCS.items():
         fn.__doc__ = doc.format(first=first, last=last, max_shared=MAX_SHARED_PAPERS)
     kinds: dict[str, dict[str, list[str]]] = {}

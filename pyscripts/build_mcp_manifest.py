@@ -42,15 +42,13 @@ def main() -> int:
         "/v1 base URL (default: %(default)s).",
     )
     mcp_server.set_backend(resolve_backend(p.parse_args().backend)[0])
-    methodology = fetch("/methodology")
-    describe(fetch("/columns"), methodology)
+    describe(fetch("/columns"))
     manifest = {
         "generated": datetime.now().strftime("%Y-%m-%d"),
         "connect": _connect(),
         "tools": _tools(),
         "resources": [
-            {"uri": uri, "text": text.strip()}
-            for uri, text in resources(methodology).items()
+            {"uri": uri, "text": text.strip()} for uri, text in resources().items()
         ],
         "prompts": _prompts(),
     }

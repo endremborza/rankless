@@ -30,6 +30,7 @@ from pyscripts.hosts import (
     MAIN_DOMAIN,
 )
 from wire.rankless_server.consts import PORT
+from wire.rankless_server.responses import TREE_SPECS
 
 load_dotenv()
 
@@ -1623,8 +1624,7 @@ def smoke(live: bool) -> None:
     _check_ok(f"https://{fe}/", "frontend root", SMOKE_BOOT_S)
     specs_resp = _check_json(f"https://{be}/v1/specs", "specs", SMOKE_BOOT_S)
     documented_release(specs_resp.get("version", ""))
-    specs = specs_resp["specs"]
-    rt = next(iter(specs))
+    rt = next(iter(TREE_SPECS["specs"]))
     rows = _check_json(f"https://{be}/v1/slice/{rt}/0/2", f"slice {rt}")["rows"]
     sid = quote_plus(rows[0]["semanticId"])
     tree = _check_json(f"https://{be}/v1/trees/{rt}/{sid}?tid=0", f"tree {rt}/{sid}")

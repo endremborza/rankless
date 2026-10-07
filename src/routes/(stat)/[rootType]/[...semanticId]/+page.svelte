@@ -1,13 +1,14 @@
 <script lang="ts">
 	import type { AppliedManifest } from '$lib/wire/rankless_rs/user_ledger';
-	import type {
-		EntityPeersResp,
-		LadderResp,
-		PaperOut,
-		PaperProfileResp,
-		ViewResult
+	import {
+		TREE_SPECS,
+		type EntityPeersResp,
+		type LadderResp,
+		type PaperOut,
+		type PaperProfileResp,
+		type ViewResult
 	} from '$lib/wire/rankless_server/responses';
-	import type { AttributeLabels, EntityAttsForLinks, TreeSpecs } from '$lib/wire/rankless_trees/io';
+	import type { AttributeLabels, EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 	import { APP_NAME } from '$lib/constants';
 	import { CARD_H, CARD_W } from '$lib/utils/cards';
 	import { prettifyRoot } from '$lib/text-format-util';
@@ -43,7 +44,6 @@
 		view: ViewResult;
 		conf: tt.FullTreeConfig;
 		selectionState: tt.BareNode;
-		treeSpecs: TreeSpecs;
 		tree: tt.ResponseNode;
 		atts: AttributeLabels;
 		pngLink: string;
@@ -123,7 +123,7 @@
 			totalPapers: data.initialTotalPapers
 		});
 
-	$: indsByEntityType = tf.getTreeIndsByEntityType(data.treeSpecs.specs[data.conf.rootType]);
+	$: indsByEntityType = tf.getTreeIndsByEntityType(TREE_SPECS.specs[data.conf.rootType]);
 	$: showsCountry = indsByEntityType.countries.length > 0;
 	$: showsSubfields = indsByEntityType.subfields.length > 0;
 
@@ -238,7 +238,6 @@
 			selectedQcRootId={data.view.dmId}
 			conf={data.conf}
 			selectionState={data.selectionState}
-			treeSpecs={data.treeSpecs}
 			attributeLabels={data.atts}
 			completeTree={data.tree}
 			shallowed={data.shallowed}
@@ -250,12 +249,7 @@
 {#if isAuthor && authoredHitPapers.length > 0}
 	<section id="hits" class="shadowy padded marged main-block">
 		<h2 id="papers">{data.view.name}'s Hit Papers</h2>
-		<PaperRainbow
-			papers={authoredHitPapers}
-			{entityAtts}
-			{discAuthorNames}
-			treeSpecs={data.treeSpecs}
-		/>
+		<PaperRainbow papers={authoredHitPapers} {entityAtts} {discAuthorNames} />
 	</section>
 {/if}
 
@@ -274,7 +268,6 @@
 				{indsByEntityType}
 				rootName={data.view.name}
 				conf={data.conf}
-				treeSpecs={data.treeSpecs}
 			/>
 		{/key}
 	</section>
@@ -288,7 +281,6 @@
 				{indsByEntityType}
 				rootName={data.view.name}
 				conf={data.conf}
-				treeSpecs={data.treeSpecs}
 			/>
 		{/key}
 	</section>
@@ -351,12 +343,7 @@
 	<div class="similars-grid">
 		{#each data.view.similars as sim, __i (__i)}
 			<span>
-				<RandTreeLink
-					semanticId={sim.semanticId}
-					name={sim.name}
-					rootType={data.conf.rootType}
-					treeSpecs={data.treeSpecs}
-				/>
+				<RandTreeLink semanticId={sim.semanticId} name={sim.name} rootType={data.conf.rootType} />
 			</span>
 		{/each}
 	</div>

@@ -1,5 +1,4 @@
 import type { PaperOut } from '$lib/wire/rankless_server/responses';
-import { LATEST_YEAR } from '$lib/constants';
 import { getColor } from '$lib/style-util';
 import { formatNumber } from '$lib/text-format-util';
 import { htmlToText } from '$lib/utils/paper-helpers';
@@ -80,16 +79,23 @@ export function logYTickSteps(yMax: number): number[] {
 	return steps;
 }
 
+// The last year a paper's yearly citations reach: the series runs on from its publication year.
+function seriesEnd(p: PaperOut): number {
+	return p.year + (p.yearlyCites?.length ?? 1) - 1;
+}
+
+// The x axis runs from the earliest shown publication to the last year the papers' series reach.
 export function getFigureBasis(
 	ps: PaperOut[],
 	inds: number[],
-	globalMin: number,
 	align: boolean,
 	rates: number[],
 	log: boolean
 ) {
 	const nVis = inds.length;
-	const yearSpan = LATEST_YEAR - globalMin;
+	const finalYear = Math.max(...ps.map(seriesEnd));
+	const globalMin = nVis > 0 ? Math.min(...inds.map((i) => ps[i].year)) : finalYear - 1;
+	const yearSpan = finalYear - globalMin;
 	const xScale = Math.max(yearSpan, 1) / xBase;
 
 	const width = xBase + xPad + 5;
@@ -112,7 +118,6 @@ export function getFigureBasis(
 		const paper = ps[i];
 		const yc = paper.yearlyCites ?? [];
 		const startYear = paper.year - globalMin;
-		const lifespan = Math.max(LATEST_YEAR - paper.year + 1, 1);
 		const rate = rates[i];
 
 		let endX = 0,
@@ -120,7 +125,7 @@ export function getFigureBasis(
 		let cumSum = 0;
 		const pBasis: string[] = [];
 
-		for (let y = 0; y < yc.length && y < lifespan; y++) {
+		for (let y = 0; y < yc.length; y++) {
 			cumSum += yc[y];
 			const xPos = ((align ? 0 : startYear) + y) / xScale;
 			const yVal = -(yTransform(cumSum) / yScale);
@@ -136,8 +141,7 @@ export function getFigureBasis(
 			pBasis.push(`L ${(endX + 0.5).toFixed(3)} ${endY.toFixed(3)}`);
 		}
 
-		const nYears = Math.min(yc.length, lifespan);
-		const pathHorizLen = (nYears - 1) / xScale;
+		const pathHorizLen = (yc.length - 1) / xScale;
 		const maxChars = Math.max(8, Math.min(60, Math.round(pathHorizLen * 3.5)));
 		const plainName = htmlToText(paper.name);
 		const pathName =
@@ -168,7 +172,7 @@ export function getFigureBasis(
 			});
 		}
 	} else {
-		yearTicks.push({ name: globalMin, x: 0 }, { name: LATEST_YEAR, x: xBase });
+		yearTicks.push({ name: globalMin, x: 0 }, { name: finalYear, x: xBase });
 		for (let i = 1; i < yearSpan; i++) {
 			yearTicks.push({
 				name: toT(i, 1) || toT(i, 2) ? globalMin + i : undefined,

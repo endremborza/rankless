@@ -1,4 +1,5 @@
-import type { AttributeLabels, TreeSpecs } from '$lib/wire/rankless_trees/io';
+import { METHODOLOGY } from '$lib/wire/rankless_server/responses';
+import type { AttributeLabels } from '$lib/wire/rankless_trees/io';
 import { describe, expect, it } from 'vitest';
 import type { ResponseNode } from '$lib/tree-types';
 import { loadFlatOut } from './flat-out';
@@ -18,18 +19,7 @@ const atts = {
 		29: { name: 'China', specBaseline: 0.2 }
 	}
 } as unknown as AttributeLabels;
-const specs = {
-	specs: {
-		authors: [
-			{
-				rootType: 'authors',
-				breakdowns: [{ attributeType: 'countries', specDenomInd: 0, sourceSide: true }],
-				defaultIsSpec: false
-			}
-		]
-	},
-	yearBreaks: [2000, 2010]
-} as unknown as TreeSpecs;
+const { finalYear } = METHODOLOGY.workScreen;
 
 const load = (query: string) =>
 	loadFlatOut(
@@ -37,7 +27,6 @@ const load = (query: string) =>
 			rootType: 'authors',
 			semanticId: 'a-b',
 			params: new URLSearchParams(query),
-			specs,
 			view: null,
 			fetch: (async () => new Response(JSON.stringify({ tree, atts }))) as typeof fetch
 		} satisfies CardContext,
@@ -50,6 +39,11 @@ describe('map and fields cards', () => {
 	it('highlight level-1 nodes of the tree and refuse any other id', async () => {
 		expect((await load('hl=29')).hl).toEqual(['29']);
 		await expect(load('hl=30')).rejects.toMatchObject({ status: 404 });
+	});
+
+	it('take a `since` up to the final year of the data', async () => {
+		expect((await load(`since=${finalYear}`)).since).toBe(` since ${finalYear}`);
+		await expect(load(`since=${finalYear + 1}`)).rejects.toMatchObject({ status: 404 });
 	});
 });
 

@@ -1,5 +1,4 @@
 import type { ViewResult } from '$lib/wire/rankless_server/responses';
-import type { TreeSpecs } from '$lib/wire/rankless_trees/io';
 import { error } from '@sveltejs/kit';
 import type { Component } from 'svelte';
 import type * as tt from '$lib/tree-types';
@@ -11,12 +10,11 @@ export const CARD_SPEC = spec;
 export type CardKindName = keyof typeof spec;
 
 // What a kind's loader gets: the entity (its profile already loaded, `null` for a cohort card
-// with no entity), the variant parameters and the tree specs.
+// with no entity) and the variant parameters.
 export type CardContext = {
 	rootType: tt.RootType;
 	semanticId: string;
 	params: URLSearchParams;
-	specs: TreeSpecs;
 	view: ViewResult | null;
 	fetch: typeof fetch;
 };

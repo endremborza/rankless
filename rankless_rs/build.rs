@@ -33,14 +33,10 @@ fn main() {
         e_ind.add_assign(1);
     }
 
-    let year = 2026;
-    let start_year = 1950;
-    let env_dependent_vars = vec![
-        ("FINAL_YEAR", [year, year, year, year]),
-        (
-            "START_YEAR",
-            [start_year, start_year, start_year, start_year],
-        ),
+    let years = [("FINAL_YEAR", 2026), ("START_YEAR", 1950)];
+    // The pipeline's thresholds per env; `#[wire]` hands the env's own to the site and the MCP
+    // server, so their generated files differ per env like this one.
+    let thresholds = [
         ("MIN_PAPERS_FOR_INST", [40, 20, 30, 250]),
         ("MIN_PAPERS_FOR_SOURCE", [10, 20, 50, 200]),
         ("MIN_AUTHOR_WORK_COUNT", [10, 10, 10, 8]),
@@ -49,9 +45,15 @@ fn main() {
         // ("MIN_AUTHOR_I10_INDEX", [2, 2, 2, 3]),
     ];
 
-    let mut env_lines = Vec::new();
-    for e_var in env_dependent_vars.iter() {
-        env_lines.push(format!("pub const {}: u16 = {};", e_var.0, e_var.1[e_ind]))
+    let mut env_lines = vec!["use wiretypes::wire;\n".to_string()];
+    for (name, value) in years {
+        env_lines.push(format!("pub const {name}: u16 = {value};"));
+    }
+    for (name, values) in thresholds {
+        env_lines.push(format!(
+            "#[wire]\npub const {name}: u16 = {};",
+            values[e_ind]
+        ));
     }
     env_lines.push(format!(
         "pub const RANKLESS_ENV: &str = \"{rankless_env}\";"

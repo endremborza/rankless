@@ -54,12 +54,12 @@ DEFAULT_SAMPLE = 8
 
 # Backend GET a metric's tool maps to, for human-reproducible curl lines. Value
 # is (path_template, query_arg_names); None for tools whose call isn't a plain
-# GET (get_citation_tree resolves the year via /specs). Kept small and explicit
+# GET (get_citation_tree resolves the year from the tree specs, get_methodology
+# reads no backend). Kept small and explicit
 # rather than reconstructed from the tool bodies.
 _CURL_MAP = {
     "search_entities": ("/names/{entity_type}", ["query"]),
     "get_top_entities": ("/tops", []),
-    "get_methodology": ("/methodology", []),
     "get_entity_profile": ("/views/{entity_type}/{semantic_id}", []),
     "get_entity_stats": (
         "/stats/{entity_type}/{semantic_id}",

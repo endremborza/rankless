@@ -1,7 +1,6 @@
 <script lang="ts">
-	import type { PaperOut } from '$lib/wire/rankless_server/responses';
-	import type { EntityAttsForLinks, TreeSpecs } from '$lib/wire/rankless_trees/io';
-	import { LATEST_YEAR } from '$lib/constants';
+	import { TREE_SPECS, type PaperOut } from '$lib/wire/rankless_server/responses';
+	import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 	import { getColor, getColorArr } from '$lib/style-util';
 	import { formatNumber } from '$lib/text-format-util';
 	import * as tf from '$lib/tree-functions';
@@ -23,7 +22,6 @@
 	export let papers: PaperOut[];
 	export let entityAtts: EntityAttsForLinks = {};
 	export let discAuthorNames: Record<string, string> = {};
-	export let treeSpecs: TreeSpecs | undefined = undefined;
 
 	const fontSize = 0.5;
 	// Authors the row's byline names; the detail row lists everyone once there are more.
@@ -47,11 +45,8 @@
 	let firstVisible: number | null = null;
 	let scrollTimeout: ReturnType<typeof setTimeout>;
 
-	function getBreakdownOptionsList(specs: TreeSpecs | undefined): BreakdownOption[] {
-		if (!specs) return [];
-		const hpSpecs = specs.specs['hit-papers'];
-		if (!hpSpecs) return [];
-		const bdOptions = tf.getBreakdownOptions(specs, 'hit-papers', 1);
+	function getBreakdownOptionsList(): BreakdownOption[] {
+		const bdOptions = tf.getBreakdownOptions('hit-papers', 1);
 		const opts: BreakdownOption[] = [];
 		for (const [key, val] of Object.entries(bdOptions)) {
 			if (val.treeSpecs.length === 0) continue;
@@ -117,7 +112,7 @@
 		updateFirstVisible();
 	});
 
-	$: breakdownOptions = getBreakdownOptionsList(treeSpecs);
+	const breakdownOptions = getBreakdownOptionsList();
 
 	$: if (
 		breakdownOptions.length > 0 &&
@@ -126,10 +121,7 @@
 		breakdownTreeId = breakdownOptions[0].treeId;
 	}
 
-	$: breakdownTreeSpec =
-		treeSpecs && treeSpecs.specs['hit-papers']
-			? treeSpecs.specs['hit-papers'][breakdownTreeId]
-			: undefined;
+	$: breakdownTreeSpec = TREE_SPECS.specs['hit-papers'][breakdownTreeId];
 
 	$: chartPapers = rainbowPapers(papers, sortBy);
 
@@ -138,9 +130,7 @@
 
 	$: rates = computeYearRates(chartPapers);
 	$: visInds = getVisInds(chartPapers, firstVisible ?? 0, maxN);
-	$: visMinYear =
-		visInds.length > 0 ? Math.min(...visInds.map((i) => chartPapers[i].year)) : LATEST_YEAR - 1;
-	$: fb = getFigureBasis(chartPapers, visInds, visMinYear, alignTrajectories, rates, logScale);
+	$: fb = getFigureBasis(chartPapers, visInds, alignTrajectories, rates, logScale);
 	$: highlightedVis = visInds.includes(highlighted) ? highlighted - visInds[0] : undefined;
 </script>
 

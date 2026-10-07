@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use dmove::{Entity, ET};
 use hashbrown::HashMap;
@@ -12,10 +12,24 @@ use rankless_rs::{
 };
 use rankless_trees::{
     interfacing::RootColumns,
-    io::EntityAttsForLinks,
-    metrics::{Cost, ItemTexts, Kind, MetricTexts, Param, ValueType},
+    io::{EntityAttsForLinks, RunManagerSub, TreeSpecs},
+    metrics::{methodology_texts, Cost, ItemTexts, Kind, MetricTexts, Param, ValueType, ERA},
     path_finder::RefDAG,
 };
+
+use crate::state::TreeRoots;
+
+/// The methodology as the site and the MCP server state it.
+#[wire]
+pub(crate) static METHODOLOGY: LazyLock<MethodologyOut> = LazyLock::new(|| MethodologyOut {
+    constants: &rankless_rs::metrics::METHODOLOGY,
+    yearly_counts: ERA,
+    texts: methodology_texts(),
+});
+
+/// Every root type's trees and the year breaks they filter by.
+#[wire]
+pub(crate) static TREE_SPECS: LazyLock<TreeSpecs> = LazyLock::new(TreeRoots::get_specs);
 
 #[wire]
 #[derive(Serialize, Clone)]

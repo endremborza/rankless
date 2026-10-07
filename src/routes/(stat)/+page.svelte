@@ -1,5 +1,11 @@
 <script lang="ts">
-	import type { TopResult } from '$lib/wire/rankless_server/responses';
+	import { METHODOLOGY, type TopResult } from '$lib/wire/rankless_server/responses';
+	import {
+		MIN_AUTHOR_CITE_COUNT,
+		MIN_AUTHOR_WORK_COUNT,
+		MIN_PAPERS_FOR_INST,
+		MIN_PAPERS_FOR_SOURCE
+	} from '$lib/wire/rankless_rs/env_consts';
 	import type { TreeResponse } from '$lib/wire/rankless_trees/io';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
@@ -108,12 +114,9 @@
 		}
 	];
 
-	// The definitions the backend publishes. An entry that needs them and has none drops out
-	// below, rather than answering a question about the data with prose nothing checked.
-	$: methodology = data.methodology ?? null;
-	$: screen = methodology?.workScreen ?? null;
+	const screen = METHODOLOGY.workScreen;
 
-	$: faQuestions = [
+	const faQuestions = [
 		{
 			question: 'What are your data-sources?',
 			id: 'data',
@@ -128,13 +131,11 @@
 		{
 			question: 'What are indexed citations?',
 			id: 'indexed-citation',
-			answer: screen
-				? `
+			answer: `
 			Indexed citations are citations made by papers that passed the screen below, so a citation counts
 			exactly when the citing paper is itself in the data. Everything else — a retracted paper, a
 			work type we do not carry, a paper nothing has cited — sends no citation.
 		`
-				: ''
 		},
 		{
 			question: 'Can I download/export Rankless data?',
@@ -162,31 +163,27 @@
 		{
 			question: 'Do you filter the data?',
 			id: 'data-filter',
-			answer: screen
-				? `
+			answer: `
 			A paper enters the data if it is ${workScreenPhrase(screen)}. ${teamLimitPhrase(screen)} On top of that we only carry
-			publication sources with at least ${screen.minPapersForSource} and institutions with at least
-			${pluralize('paper', screen.minPapersForInstitution)} of their own, and authors with at least
-			${pluralize('paper', screen.minAuthorPapers)} and
-			${pluralize('citation', screen.minAuthorCitations)} to their name, and no more than
+			publication sources with at least ${MIN_PAPERS_FOR_SOURCE} and institutions with at least
+			${pluralize('paper', MIN_PAPERS_FOR_INST)} of their own, and authors with at least
+			${pluralize('paper', MIN_AUTHOR_WORK_COUNT)} and
+			${pluralize('citation', MIN_AUTHOR_CITE_COUNT)} to their name, and no more than
 			${screen.maxAuthorPapers.toLocaleString('en-US')} papers, above which a record is an aggregate of
 			many people's works rather than one author. A researcher who claims
 			their profile keeps their own works through the type and citation screens.
 		`
-				: ''
 		},
 		{
 			question: 'How do you assign papers and journals to subject categories?',
 			id: 'classification',
-			answer: methodology
-				? `
+			answer: `
 			We use OpenAlex's hierarchy of <a href="https://docs.openalex.org/api-entities/topics"
 				target="_blank">topics</a>
 			for each piece of work, based on the contents, references, source, etc. We assign topics to a
 			paper
-			with a match score of over ${methodology.minTopicScore}.
+			with a match score of over ${METHODOLOGY.minTopicScore}.
 		`
-				: ''
 		},
 		{
 			question: 'How do you measure impact?',
@@ -205,9 +202,9 @@
 				href="https://svelte.dev/" target="_blank">svelte</a>.
 		`
 		}
-	].filter((q) => q.answer.trim());
+	];
 
-	$: ldInnards = faQuestions.map((e) => {
+	const ldInnards = faQuestions.map((e) => {
 		return {
 			'@type': 'Question',
 			name: e.question,
@@ -218,14 +215,14 @@
 		};
 	});
 
-	$: jsonLd = {
+	const jsonLd = {
 		'@context': 'https://schema.org',
 		'@type': 'FAQPage',
 		name: 'Rankless FAQ',
 		mainEntity: ldInnards
 	};
 
-	$: fullLd = '<script type="application/ld+json">' + JSON.stringify(jsonLd) + '</' + 'script>';
+	const fullLd = '<script type="application/ld+json">' + JSON.stringify(jsonLd) + '</' + 'script>';
 
 	const metaDescription =
 		'Explore academic impact beyond rankings. Rankless offers a fresh perspective on how universities influence each geography and topic, emphasizing diverse forms of impact and providing a richer understanding of academic influence.';
@@ -347,7 +344,6 @@
 						shoPathLevelInfo={false}
 						attributeLabels={treeResp.atts}
 						completeTree={treeResp.tree}
-						treeSpecs={data.treeSpecs}
 						setUrl={false}
 						allowControls={false}
 					/>
@@ -607,7 +603,7 @@
 							>N<sub>s</sub></i
 						>
 						where <i>N<sub>s</sub></i> is the number of entities in the class of <i>s</i> (in our
-						case, all institutions), and <i>r</i>{#if methodology}&nbsp;= {methodology.specCorrRate}{/if}
+						case, all institutions), and <i>r</i>&nbsp;= {METHODOLOGY.specCorrRate}
 						is the weight this uniform share takes from the expected ratio, which keeps 1 − <i>r</i>
 					</p>
 					<p>

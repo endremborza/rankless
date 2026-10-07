@@ -29,7 +29,13 @@ from wire.rankless_rs.user_ledger import (
 )
 
 load_dotenv()
-ARTIFACT_PATHS = (paths.GEN_DIR, "src/lib/assets/data")
+# The pipeline's outputs, and the env's wire constants `make types` writes from this box's build.
+ARTIFACT_PATHS = (
+    paths.GEN_DIR,
+    "src/lib/assets/data",
+    "src/lib/wire/rankless_rs/env_consts.ts",
+    "wire/rankless_rs/env_consts.py",
+)
 LOCK_PATH = Path("/tmp/rankless-pipeline.lock")
 
 
@@ -76,12 +82,12 @@ def refresh_data(*, from_snapshot: bool = False, no_db_pull: bool = False) -> No
         # After the stamp: the manifest records it (and releases/ is
         # digest-excluded, so writing it keeps the stamp valid).
         write_release_manifest(Path(root))
-        _make("lib_data_generation", "restart-service", "homepage_showcase")
+        _make("types", "lib_data_generation", "restart-service", "homepage_showcase")
     print("refresh-data done — next: `make commit-artifacts`")
 
 
 def commit_artifacts(*, cwd: Path = Path(".")) -> None:
-    """Commit + push exactly the generated files (gen/, assets/data)."""
+    """Commit + push exactly the generated files (`ARTIFACT_PATHS`)."""
     branch = gitutil.current_branch(cwd)
     staged = gitutil.git_lines(cwd, "diff", "--cached", "--name-only")
     if staged:

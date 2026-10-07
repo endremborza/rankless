@@ -1,11 +1,6 @@
 <script lang="ts">
-	import type { ViewResult } from '$lib/wire/rankless_server/responses';
-	import type {
-		AttributeLabels,
-		TreeResponse,
-		TreeSpec,
-		TreeSpecs
-	} from '$lib/wire/rankless_trees/io';
+	import { TREE_SPECS, type ViewResult } from '$lib/wire/rankless_server/responses';
+	import type { AttributeLabels, TreeResponse, TreeSpec } from '$lib/wire/rankless_trees/io';
 	import TileTreeMap from '$lib/components/TileTreeMap.svelte';
 	import { subfields, fields, domains } from '$lib/assets/data/field-hierarchy.json';
 	import { onMount } from 'svelte';
@@ -17,7 +12,6 @@
 	export let data: {
 		view: ViewResult;
 		conf: tt.FullTreeConfig;
-		treeSpecs: TreeSpecs;
 	};
 
 	let l1Type: tt.EntityType = 'subfields';
@@ -110,10 +104,10 @@
 	}
 
 	onMount(() => {
-		const indsByEntityType = tf.getTreeIndsByEntityType(data.treeSpecs.specs[data.conf.rootType]);
+		const indsByEntityType = tf.getTreeIndsByEntityType(TREE_SPECS.specs[data.conf.rootType]);
 		let treeId = indsByEntityType[l1Type].includes(9) ? 9 : indsByEntityType[l1Type][0];
 
-		const specs = data.treeSpecs.specs[data.conf.rootType];
+		const specs = TREE_SPECS.specs[data.conf.rootType];
 		let spec: TreeSpec;
 		for (let i = 0; i < specs.length; i++) {
 			spec = specs[i];

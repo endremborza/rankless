@@ -48,7 +48,6 @@ export const papers: CardKind = {
 
 		const inds = withPinned(getVisInds(hits, 0, n), n, hl);
 		const rates = computeYearRates(hits);
-		const minYear = Math.min(...inds.map((i) => hits[i].year));
 		const rows: PaperRow[] = withPinned(inds, LIST_N, hl).map((i) => ({
 			year: hits[i].year,
 			journal: resolveSourceName(hits[i].source, entityAtts) || htmlToText(hits[i].name),
@@ -59,7 +58,7 @@ export const papers: CardKind = {
 		const years = hits.map((p) => p.year);
 		return {
 			props: {
-				basis: getFigureBasis(hits, inds, minYear, true, rates, false),
+				basis: getFigureBasis(hits, inds, true, rates, false),
 				hl,
 				rows,
 				listTitle: LIST_TITLE[sort],

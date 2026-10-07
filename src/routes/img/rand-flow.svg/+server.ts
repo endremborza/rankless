@@ -11,9 +11,8 @@ export const GET: RequestHandler = async ({ url }) => {
 	while (loader.conf == undefined) {
 		await loader.setRandTree();
 	}
-	const treeSpecs = loader.treeSpecs;
 	const rootType = loader.conf.rootType as tt.RootType;
-	const spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType, treeSpecs);
+	const spec: tt.ShareSpec = tf.parseLinkWithParams(url.searchParams, rootType);
 	const selectionState: tt.BareNode = spec.selectionState;
 	const props = { selectionState, height: 100, ...loader.getTreeSvgProps() };
 	const html = renderSvgComponent(TreeSvg, props);

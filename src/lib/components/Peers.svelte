@@ -1,9 +1,10 @@
 <script lang="ts">
-	import type {
-		EntityPeersResp,
-		LadderResp,
-		PeerEntry,
-		SearchResult
+	import {
+		METHODOLOGY,
+		type EntityPeersResp,
+		type LadderResp,
+		type PeerEntry,
+		type SearchResult
 	} from '$lib/wire/rankless_server/responses';
 	import {
 		abbrSfName,
@@ -17,8 +18,9 @@
 	} from '$lib/peers-utils';
 	import { formatNumber, shortYear } from '$lib/text-format-util';
 	import { encodeSemanticId } from '$lib/tree-functions';
-	import { BE_REMOTE_URL, LATEST_YEAR } from '$lib/constants';
+	import { BE_REMOTE_URL } from '$lib/constants';
 	import { createStaleGuard } from '$lib/utils/stale-guard';
+	import cardKinds from '$lib/assets/data/card-kinds.json';
 	import { dev, version } from '$app/environment';
 	import { onMount } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
@@ -166,10 +168,7 @@
 		while (i > 0 && (yc[i] ?? 0) === 0) i--;
 		return i + 1;
 	})();
-	$: years = Array.from(
-		{ length: nYears },
-		(_, i) => LATEST_YEAR - (data.hero.yearlyCites.length - 1) + i
-	);
+	$: years = Array.from({ length: nYears }, (_, i) => METHODOLOGY.yearlyCounts[0] + i);
 	// Compact '24-style year labels, thinned so they never crowd: aim for ~16 across the wide side-by-side
 	// chart, ~8 once it stacks to full width on a phone. Anchored to the latest year so it always shows.
 	$: yearStride = Math.max(1, Math.ceil(nYears / (wide ? 16 : 8)));

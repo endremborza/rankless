@@ -31,14 +31,15 @@ use crate::responses::{
 };
 use crate::search_cache::{fnv64, save_engine, try_load_engine};
 
-pub(crate) type InstTrm = TreeRunManager<(
+pub(crate) type TreeRoots = (
     Institutions,
     Authors,
     Subfields,
     Countries,
     Sources,
     HitPapers,
-)>;
+);
+pub(crate) type InstTrm = TreeRunManager<TreeRoots>;
 pub(crate) type NameStateMap = HashMap<&'static str, NameState>;
 pub(crate) type StatesT = State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>, Arc<InstTrm>)>;
 

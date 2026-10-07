@@ -1,38 +1,10 @@
-import type { MethodologyOut, TopResult } from '$lib/wire/rankless_server/responses';
-import type { TreeResponse, TreeSpec, TreeSpecs } from '$lib/wire/rankless_trees/io';
+import { TREE_SPECS, type TopResult } from '$lib/wire/rankless_server/responses';
+import type { TreeResponse, TreeSpec } from '$lib/wire/rankless_trees/io';
 import { BE_URL } from '$lib/constants';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
 import { SEMANTIC_CONF } from '$lib/text-format-util';
 import { randN } from './util';
-
-export async function loadSpecs(fetchFn: typeof fetch = fetch): Promise<TreeSpecs> {
-	return fetchFn(`${BE_URL}/specs`)
-		.then((res) => res.json())
-		.then((specs: TreeSpecs) => {
-			//possible quick fixes in specs
-			for (const nonSpecRt of ['sources', 'subfields']) {
-				for (let i = 0; i < specs.specs[nonSpecRt as tt.RootType].length; i++) {
-					specs.specs[nonSpecRt as tt.RootType][i].defaultIsSpec = false;
-				}
-			}
-			return specs;
-		});
-}
-
-// The one methodology object, read on every load so a backend redeploy is served on the next one.
-// A failed read answers the last good copy (null before the first): this loads in the layout every
-// page renders under, and a backend blip must neither 500 those pages nor hide their explanations.
-let methodology: MethodologyOut | null = null;
-
-export async function loadMethodology(
-	fetchFn: typeof fetch = fetch
-): Promise<MethodologyOut | null> {
-	methodology = await fetchFn(`${BE_URL}/methodology`)
-		.then((res) => (res.ok ? res.json() : methodology))
-		.catch(() => methodology);
-	return methodology;
-}
 
 export async function loadTops(fetchFn: typeof fetch = fetch): Promise<TopResult[]> {
 	return fetchFn(`${BE_URL}/tops`).then((res) => res.json());
@@ -40,16 +12,14 @@ export async function loadTops(fetchFn: typeof fetch = fetch): Promise<TopResult
 
 export class TopTreeLoader {
 	tops: TopResult[];
-	treeSpecs: TreeSpecs;
 	rootName: string;
 	prefixText: string;
 	conf: tt.FullTreeConfig | undefined;
 	treeResp: TreeResponse | undefined;
 	treeRespCache: Record<string, TreeResponse>;
 
-	constructor(tops: TopResult[], treeSpecs: TreeSpecs) {
+	constructor(tops: TopResult[]) {
 		this.tops = tops;
-		this.treeSpecs = treeSpecs;
 		this.rootName = '';
 		this.prefixText = '';
 		this.conf = undefined;
@@ -84,9 +54,9 @@ export class TopTreeLoader {
 		const jLen = this.tops[i].entities.length;
 		const j = randN(jLen);
 		const rootType = this.tops[i].name as tt.RootType;
-		const treeCount = this.treeSpecs.specs[rootType].length;
+		const treeCount = TREE_SPECS.specs[rootType].length;
 		let tid = randN(treeCount);
-		while (this.treeSpecs.specs[rootType][tid].breakdowns.length < 2) {
+		while (TREE_SPECS.specs[rootType][tid].breakdowns.length < 2) {
 			tid = randN(treeCount);
 		}
 		return this.setTree(i, j, tid, fetchFn);
@@ -96,28 +66,24 @@ export class TopTreeLoader {
 		if (this.conf == undefined || this.treeResp == undefined) return;
 		const { tree, atts } = this.treeResp;
 		const rootType = this.conf.rootType as tt.RootType;
-		const treeSpec: TreeSpec = this.treeSpecs.specs[rootType][this.conf.treeId];
+		const treeSpec: TreeSpec = TREE_SPECS.specs[rootType][this.conf.treeId];
 		return { treeSpec, tree, attributeLabels: atts, rootName: this.rootName };
 	}
 }
 
 export async function getTopTreeLoader(fetchFn: typeof fetch = fetch): Promise<TopTreeLoader> {
-	const treeSpecs = await loadSpecs(fetchFn);
-	const tops = await loadTops(fetchFn);
-	const loader = new TopTreeLoader(tops, treeSpecs);
-	return loader;
+	return new TopTreeLoader(await loadTops(fetchFn));
 }
 
 export function reconstructLoader(data: {
 	tops: TopResult[];
-	treeSpecs: TreeSpecs;
 	rootName: string;
 	prefixText: string;
 	conf: tt.FullTreeConfig | undefined;
 	treeResp: TreeResponse | undefined;
 	treeRespCache: Record<string, TreeResponse>;
 }): TopTreeLoader {
-	const loader = new TopTreeLoader(data.tops, data.treeSpecs);
+	const loader = new TopTreeLoader(data.tops);
 	loader.rootName = data.rootName;
 	loader.prefixText = data.prefixText;
 	loader.conf = data.conf;

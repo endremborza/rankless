@@ -107,7 +107,7 @@ The root is built where its data is made and reaches the data box with `make ext
 
 ## commit-artifacts
 
-Commits exactly the pipeline outputs — `rankless_rs/src/gen/`, `src/lib/assets/data/`
+Commits exactly the pipeline outputs — `rankless_rs/src/gen/`, `src/lib/assets/data/`, and the env's wire constants (`ARTIFACT_PATHS` in `pyscripts/recalc.py`; see [type-generation.md](type-generation.md))
 — and pushes. Aborts if anything is already staged (the artifact commit must stay
 pure), or if the branch is behind origin. Message: `data artifacts: <run_id>` (the
 ledger snapshot run_id when present, else the date). Deploy boxes clone from origin,

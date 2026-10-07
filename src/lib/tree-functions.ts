@@ -2,18 +2,12 @@ import type {
 	AttributeLabels,
 	BreakdownSpec,
 	TreeResponse,
-	TreeSpec,
-	TreeSpecs
+	TreeSpec
 } from '$lib/wire/rankless_trees/io';
+import { TREE_SPECS } from '$lib/wire/rankless_server/responses';
 import { base } from '$app/paths';
 import type * as tt from '$lib/tree-types';
-import {
-	COMPLETE_YEAR,
-	DEFAULT_LIMIT_N,
-	MAX_LEVEL_COUNT,
-	ENTITY_TYPES,
-	isEntityType
-} from './constants';
+import { DEFAULT_LIMIT_N, MAX_LEVEL_COUNT, ENTITY_TYPES, isEntityType } from './constants';
 import { getSpecMetricObject } from './metric-calculation';
 import { getExternalUrl } from './route-functions';
 
@@ -26,6 +20,8 @@ export const DEFAULT_CONTROL_SPEC: tt.ControlSpec = {
 };
 export const MAX_COUNT_FLAT = 300;
 export const UNKNOWN_NAME = 'Unknown';
+// Countries' and subfields' trees open on recent years: the year break at this position.
+const RECENT_YEAR_BREAK = 7;
 
 type LevelNodeDescription = { path: tt.PathInTree; node: tt.ResponseNode; derivedWeight: number };
 
@@ -76,13 +72,12 @@ export function getDefaultControlSpecs(spec: boolean): tt.FullControlSpecs {
 }
 
 export function getBreakdownOptions(
-	treeSpecs: TreeSpecs,
 	rootType: tt.RootType,
 	maxD: number = MAX_LEVEL_COUNT,
 	minD: number = 2
 ) {
 	//TODO: this should be cached, its just clutter
-	const entityTreeSpecs = treeSpecs.specs[rootType];
+	const entityTreeSpecs = TREE_SPECS.specs[rootType];
 	const entries = [];
 	for (let i = 0; i < entityTreeSpecs.length; i++) {
 		const v = entityTreeSpecs[i];
@@ -205,14 +200,10 @@ export function toLinkWithParams(conf: tt.FullTreeConfig, selectionState: tt.Bar
 	return decorBaseLink(url, conf, selectionState);
 }
 
-export function parseLinkWithParams(
-	params: URLSearchParams,
-	rootType: tt.RootType,
-	treeSpecs: TreeSpecs
-): tt.ShareSpec {
+export function parseLinkWithParams(params: URLSearchParams, rootType: tt.RootType): tt.ShareSpec {
 	const year = parseInt(params.get('since') || getDefaultYear(rootType).toString());
 	let treeId = parseInt(params.get('tree') || '1') - 1 || 0;
-	const nTrees = treeSpecs.specs[rootType].length;
+	const nTrees = TREE_SPECS.specs[rootType].length;
 	if (treeId < 0 || treeId >= nTrees) {
 		treeId = 0;
 	}
@@ -221,11 +212,13 @@ export function parseLinkWithParams(
 	return { year, treeId, selectionState };
 }
 
-export function getDefaultYear(rt: tt.RootType) {
+// The year a root type's tree opens on, one of the year breaks: the first, which keeps the whole
+// record, or a recent one for countries and subfields.
+export function getDefaultYear(rt: tt.RootType): number {
 	if (['authors', 'sources', 'institutions', 'hit-papers'].includes(rt)) {
-		return COMPLETE_YEAR;
+		return TREE_SPECS.yearBreaks[0];
 	}
-	return 2020;
+	return TREE_SPECS.yearBreaks[RECENT_YEAR_BREAK];
 }
 
 export function hasYearFilter(rt: tt.RootType): boolean {

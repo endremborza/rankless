@@ -1,5 +1,4 @@
 <script lang="ts">
-	import type { TreeSpecs } from '$lib/wire/rankless_trees/io';
 	import { SEMANTIC_CONF, eTypeFromBdDesc, prettifyRoot, semantify } from '$lib/text-format-util';
 	import { getBreakdownOptions, getDefaultYear, toLinkWithParams } from '$lib/tree-functions';
 	import type { RootType } from '$lib/tree-types';
@@ -7,10 +6,9 @@
 	export let name: string;
 	export let semanticId: string;
 	export let rootType: RootType;
-	export let treeSpecs: TreeSpecs;
 
-	function getSem(treeId: number, rootType: RootType, treeSpecs: TreeSpecs) {
-		let bops = getBreakdownOptions(treeSpecs, rootType);
+	function getSem(treeId: number, rootType: RootType) {
+		let bops = getBreakdownOptions(rootType);
 		let bop = '';
 		for (const [k, v] of Object.entries(bops)) {
 			if (v.treeSpecs.includes(treeId)) {
@@ -31,12 +29,12 @@
 		return { ent, suff, pref };
 	}
 
-	// $: treeId = Math.floor(Math.random() * treeSpecs.specs[rootType].length);
+	// $: treeId = Math.floor(Math.random() * TREE_SPECS.specs[rootType].length);
 	let treeId = 0;
 	$: conf = { year: getDefaultYear(rootType), treeId, semanticId, rootType, wide: false };
 
 	$: href = toLinkWithParams(conf, {});
-	$: sem = getSem(treeId, rootType, treeSpecs);
+	$: sem = getSem(treeId, rootType);
 	$: pref = SEMANTIC_CONF[rootType].start;
 </script>
 

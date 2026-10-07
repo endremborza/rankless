@@ -3,7 +3,6 @@ import { error } from '@sveltejs/kit';
 import type * as tt from '$lib/tree-types';
 import { BE_URL, FULL_HOST } from '$lib/constants';
 import { encodeSemanticId, getEntityPath } from '$lib/tree-functions';
-import { loadSpecs } from '$lib/loading-functions';
 import { fixViewNames } from '$lib/name-overrides';
 import { htmlToText } from '$lib/utils/paper-helpers';
 import { renderSvgComponent } from '$lib/server/render';
@@ -58,15 +57,12 @@ export async function loadCard(
 	const card = CARD_KINDS[kind as CardKindName];
 	if (!CARD_SPEC[kind as CardKindName].types.includes(rootType)) error(404, 'no such card');
 	const rt = rootType as tt.RootType;
-	const [specs, view] = await Promise.all([
-		loadSpecs(fetchFn),
-		semanticId
-			? beJson<ViewResult>(fetchFn, `${BE_URL}/views/${rt}/${encodeSemanticId(semanticId)}`)
-			: null
-	]);
+	const view = semanticId
+		? await beJson<ViewResult>(fetchFn, `${BE_URL}/views/${rt}/${encodeSemanticId(semanticId)}`)
+		: null;
 	if (view && !view.name) error(404, 'card unavailable');
 	if (view) fixViewNames(view);
-	const data = await card.load({ rootType: rt, semanticId, params, specs, view, fetch: fetchFn });
+	const data = await card.load({ rootType: rt, semanticId, params, view, fetch: fetchFn });
 	const path = semanticId ? getEntityPath(rt, semanticId) : `/${rt}/table`;
 	return {
 		name: data.name ?? htmlToText(view?.name ?? ''),

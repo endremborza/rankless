@@ -10,13 +10,7 @@
 
 	import { page } from '$app/state';
 	import type { RootType } from '$lib/tree-types';
-	import {
-		EMAIL_FEATURE_ON,
-		GAME_FEATURE_ON,
-		LATEST_YEAR,
-		MCP_FEATURE_ON,
-		ROOT_TYPES
-	} from '$lib/constants';
+	import { EMAIL_FEATURE_ON, GAME_FEATURE_ON, MCP_FEATURE_ON, ROOT_TYPES } from '$lib/constants';
 	import { prettifyRoot } from '$lib/text-format-util';
 	import { resultsHidden } from '$lib/stores';
 
@@ -27,6 +21,7 @@
 		askEmail: boolean;
 	};
 	const SEARCH_LISTBOX_ID = 'search-listbox';
+	const CURRENT_YEAR = new Date().getFullYear();
 
 	let options: RootType[] = ROOT_TYPES;
 	let cat: RootType | 'all' = 'all';
@@ -294,7 +289,7 @@
 	</div>
 	<div id="main-foot">
 		<TextedLogo pad={0} size={30} />
-		<span>{LATEST_YEAR}</span>
+		<span>{CURRENT_YEAR}</span>
 		<div id="foot-r">
 			{#if MCP_FEATURE_ON}<a href="/mcp">Developers</a>{/if}{#if GAME_FEATURE_ON}<a href="/game"
 					>Games</a

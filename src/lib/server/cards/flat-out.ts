@@ -1,8 +1,9 @@
+import { METHODOLOGY, TREE_SPECS } from '$lib/wire/rankless_server/responses';
 import type { AttributeLabels, TreeResponse, TreeSpec } from '$lib/wire/rankless_trees/io';
 import { error } from '@sveltejs/kit';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
-import { BE_URL, LATEST_YEAR } from '$lib/constants';
+import { BE_URL } from '$lib/constants';
 import {
 	beJson,
 	CARD_SPEC,
@@ -30,18 +31,24 @@ export type FlatOutCard = {
 // map load them: `tree` (1-based, one with the kind's type at level 1), `since`, `isSpec` (the
 // kind's default when it has one, else the tree's) and `hl` (level-1 node ids).
 export async function loadFlatOut(
-	{ rootType, semanticId, params, specs, fetch }: CardContext,
+	{ rootType, semanticId, params, fetch }: CardContext,
 	kind: keyof typeof L1_TYPE,
 	defaultTree: (inds: number[]) => number | undefined,
 	defaultYear: number
 ): Promise<FlatOutCard> {
 	const P = CARD_SPEC[kind].params;
 	const l1Type = L1_TYPE[kind];
-	const rootSpecs = specs.specs[rootType];
+	const rootSpecs = TREE_SPECS.specs[rootType];
 	const inds = tf.getTreeIndsByEntityType(rootSpecs)[l1Type];
 	const treeId = intParam(params, 'tree', (defaultTree(inds) ?? -1) + 1, 1, rootSpecs.length) - 1;
 	if (!inds.includes(treeId)) error(404, `tree has no ${l1Type} level`);
-	const year = intParam(params, 'since', defaultYear, specs.yearBreaks[0], LATEST_YEAR);
+	const year = intParam(
+		params,
+		'since',
+		defaultYear,
+		TREE_SPECS.yearBreaks[0],
+		METHODOLOGY.workScreen.finalYear
+	);
 	const base = rootSpecs[treeId];
 	const isSpec = 'default' in P.isSpec ? Boolean(P.isSpec.default) : base.defaultIsSpec;
 	const treeSpec = { ...base, defaultIsSpec: flagParam(params, 'isSpec', isSpec) };

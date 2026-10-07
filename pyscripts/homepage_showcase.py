@@ -15,11 +15,12 @@ import os
 import urllib.error
 import urllib.request
 from collections import defaultdict
-from datetime import date
 from pathlib import Path
-from .server_ops import wait_for_url
+from wire.rankless_server.responses import METHODOLOGY
 
-BASE = os.environ.get("SHOWCASE_BE", "http://127.0.0.1:3038/v1").rstrip("/")
+from .server_ops import LOCAL_BE_URL, wait_for_url
+
+BASE = os.environ.get("SHOWCASE_BE", LOCAL_BE_URL).rstrip("/")
 OUT = Path("src/lib/assets/data/homepage-showcase.json")
 
 # Tried in order; first one that resolves becomes the featured scholar. Falls back to the
@@ -101,9 +102,6 @@ def build_peers(peers: dict) -> dict:
     )
     hero_y = list(hero["yearlyCites"])
     peer_y = list(peer["yearlyCites"])
-    # EraRec ends at the current calendar year (== backend FINAL_YEAR / frontend LATEST_YEAR);
-    # year_from anchors the series so the chart can label real years.
-    year_from = date.today().year - (len(hero_y) - 1)
     while len(hero_y) > 1 and hero_y[-1] == 0 and peer_y[-1] == 0:
         hero_y.pop()
         peer_y.pop()
@@ -112,7 +110,7 @@ def build_peers(peers: dict) -> dict:
         "peerName": peer["name"],
         "peerCountry": peer.get("country"),
         "subfields": cols[:SUBFIELD_N],
-        "yearFrom": year_from,
+        "yearFrom": METHODOLOGY["yearlyCounts"][0],
         "heroYearly": hero_y,
         "peerYearly": peer_y,
     }

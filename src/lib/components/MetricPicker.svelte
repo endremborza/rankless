@@ -1,6 +1,5 @@
 <script lang="ts">
-	import type { ColumnDecl } from '$lib/wire/rankless_server/responses';
-	import { page } from '$app/state';
+	import { METHODOLOGY, type ColumnDecl } from '$lib/wire/rankless_server/responses';
 	import ParamInputs from './ParamInputs.svelte';
 	import { argsReady, callText, defaultArgs, parseCall, type MetricArgs } from '$lib/table-utils';
 	import type { NamedEntity } from '$lib/tree-types';
@@ -45,7 +44,7 @@
 		picked = id;
 		const d = metrics.find((m) => m.id === id);
 		const base = id === current.metric ? current.args : [];
-		args = d ? defaultArgs(d, base, page.data.methodology?.yearlyCounts) : [];
+		args = d ? defaultArgs(d, base, METHODOLOGY.yearlyCounts) : [];
 		if (d && !d.param) pick();
 	}
 </script>

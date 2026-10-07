@@ -9,7 +9,8 @@ import pytest
 import mcp_server
 from mcp_server import card_url, cards, tools
 from pyscripts.tests.test_mcp_impact_dag import PROFILE
-from pyscripts.tests.test_mcp_table_tools import METHODOLOGY, REGISTRY, fake_get_json
+from pyscripts.tests.test_mcp_table_tools import REGISTRY, fake_get_json
+from wire.rankless_server.responses import METHODOLOGY
 
 COAUTHORS = [{"semanticId": "c-d", "count": 1}, {"semanticId": "e-f", "count": 3}]
 
@@ -116,7 +117,7 @@ def test_annotations_link_a_table_card_only_when_it_holds_them(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(tools, "get_json", fake_get_json)
-    tools.describe(REGISTRY, METHODOLOGY)
+    tools.describe(REGISTRY)
     call = "field_score(oncology)"
     out = asyncio.run(tools.annotate_entities("authors", ["a", "b"], [call]))
     assert out["image_url"] == card_url(
@@ -137,7 +138,7 @@ def test_the_mcp_page_describes_the_tools_from_the_backend(
 ) -> None:
     from pyscripts import build_mcp_manifest
 
-    served = {"/columns": REGISTRY, "/methodology": METHODOLOGY}
+    served = {"/columns": REGISTRY}
     monkeypatch.setattr(build_mcp_manifest, "fetch", served.__getitem__)
     monkeypatch.setattr(build_mcp_manifest, "OUT_PATH", tmp_path / "manifest.json")
     monkeypatch.setattr(mcp_server, "BE_URL", mcp_server.BE_URL)

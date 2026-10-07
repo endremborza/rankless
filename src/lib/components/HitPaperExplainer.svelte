@@ -1,20 +1,18 @@
 <script lang="ts">
-	import { page } from '$app/state';
+	import { METHODOLOGY } from '$lib/wire/rankless_server/responses';
 
-	// The texts are the backend's, filled from the constants the pipeline ran with, so they cannot
-	// drift from the data behind them; with none to read there is nothing to say and nothing renders.
+	// The texts are filled from the constants the pipeline runs with, so they cannot drift from the
+	// data behind them.
 
 	export let summaryLabel = 'What are hit papers?';
 </script>
 
-{#if page.data.methodology}
-	<details class="hit-paper-explainer">
-		<summary>{summaryLabel}</summary>
-		{#each page.data.methodology.texts as text, i (i)}
-			<p><strong>{text.label}:</strong> {text.meaning}</p>
-		{/each}
-	</details>
-{/if}
+<details class="hit-paper-explainer">
+	<summary>{summaryLabel}</summary>
+	{#each METHODOLOGY.texts as text, i (i)}
+		<p><strong>{text.label}:</strong> {text.meaning}</p>
+	{/each}
+</details>
 
 <style>
 	.hit-paper-explainer {

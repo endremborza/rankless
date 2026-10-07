@@ -8,10 +8,7 @@ declare global {
 			surveyShouldPrompt: boolean;
 		}
 		// interface Locals {}
-		interface PageData {
-			// Served by the (stat) layout for everything under it; see `loadMethodology`.
-			methodology?: import('./lib/wire/rankless_server/responses').MethodologyOut | null;
-		}
+		// interface PageData {}
 		// interface Platform {}
 	}
 }

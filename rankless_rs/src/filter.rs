@@ -76,7 +76,7 @@ impl FilterBase for ReferencedWork {
 
 impl FilterBase for Location {
     const ENTITY_ATT: &'static str = works::atts::locations;
-    const MIN: usize = WORK_SCREEN.min_papers_for_source as usize;
+    const MIN: usize = MIN_PAPERS_FOR_SOURCE as usize;
     const FILTER_TARGETS: bool = false;
 
     fn iter_edges(&self) -> Vec<[String; 2]> {
@@ -231,7 +231,7 @@ fn authorship_filter(
                 for inst_str in insts.split(';') {
                     if let Some(inst_oa) = oa_id_parse_opt(inst_str) {
                         let entry = inst_map.entry(inst_oa).or_default();
-                        if entry.len() < WORK_SCREEN.min_papers_for_institution as usize {
+                        if entry.len() < MIN_PAPERS_FOR_INST as usize {
                             entry.insert(work_oa);
                         }
                     }
@@ -258,7 +258,7 @@ fn authorship_filter(
 
     let inst_ids = inst_map
         .into_iter()
-        .filter(|(_, works)| works.len() >= WORK_SCREEN.min_papers_for_institution as usize)
+        .filter(|(_, works)| works.len() >= MIN_PAPERS_FOR_INST as usize)
         .map(|(inst, _)| inst);
     stowage.write_filter(inst_step_id, institutions::C, inst_ids)?;
 

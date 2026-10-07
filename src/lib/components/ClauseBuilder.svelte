@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { Op } from '$lib/wire/rankless_expr';
-	import type { ColumnDecl } from '$lib/wire/rankless_server/responses';
-	import { page } from '$app/state';
+	import { METHODOLOGY, type ColumnDecl } from '$lib/wire/rankless_server/responses';
 	import ParamInputs from './ParamInputs.svelte';
 	import {
 		argsReady,
@@ -54,7 +53,7 @@
 	function choose(id: string) {
 		metricId = id;
 		const d = metrics.find((m) => m.id === id);
-		args = d ? defaultArgs(d, [], page.data.methodology?.yearlyCounts) : [];
+		args = d ? defaultArgs(d, [], METHODOLOGY.yearlyCounts) : [];
 		operand = null;
 		op = d && isNumeric(d) ? 'ge' : 'eq';
 	}

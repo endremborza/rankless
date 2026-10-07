@@ -1,20 +1,21 @@
 import type { AppliedManifest } from '$lib/wire/rankless_rs/user_ledger';
-import type {
-	EntityPeersResp,
-	LadderResp,
-	PaginatedPaperSetResp,
-	PaperOut,
-	PaperProfileResp,
-	PostAttRelatedEntity,
-	SearchResult,
-	ViewResult
+import {
+	METHODOLOGY,
+	type EntityPeersResp,
+	type LadderResp,
+	type PaginatedPaperSetResp,
+	type PaperOut,
+	type PaperProfileResp,
+	type PostAttRelatedEntity,
+	type SearchResult,
+	type ViewResult
 } from '$lib/wire/rankless_server/responses';
 import type { EntityAttsForLinks, TreeResponse } from '$lib/wire/rankless_trees/io';
 import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
-import { BE_URL, COMPLETE_YEAR, REL_TYPES, ROOT_TYPES } from '$lib/constants';
+import { BE_URL, REL_TYPES, ROOT_TYPES } from '$lib/constants';
 import { pluralize, SEMANTIC_CONF } from '$lib/text-format-util';
 import { getExternalUrl, semIdResolver } from '$lib/route-functions';
 import { fixViewNames, fixAttNames, fixPeerNames } from '$lib/name-overrides';
@@ -30,13 +31,8 @@ export const ssr = true;
 
 const PEER_ROOT_TYPES: tt.RootType[] = ['authors', 'institutions', 'countries', 'sources'];
 
-export const load: PageServerLoad = async ({ params, url, locals, fetch, parent }) => {
-	const { rootType, semanticId, conf, spec, treeSpecs } = await semIdResolver(
-		params,
-		url,
-		'',
-		fetch
-	);
+export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
+	const { rootType, semanticId, conf, spec } = semIdResolver(params, url, '');
 	const view: ViewResult | undefined = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => (res.ok ? res.json() : undefined))
 		.catch(() => undefined);
@@ -65,14 +61,12 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch, parent 
 
 	const paperText = pluralize('paper', view.papers);
 	const citeText = pluralize('indexed citation', view.citations);
-	const firstYear = (await parent()).methodology?.workScreen.firstYear ?? COMPLETE_YEAR;
 	const aboutParagraph = getSemanticRels(
 		view,
 		view.name,
 		rootType,
 		paperText,
 		citeText,
-		firstYear,
 		semanticId
 	);
 
@@ -212,7 +206,6 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch, parent 
 		return {
 			view,
 			conf,
-			treeSpecs,
 			selectionState: spec.selectionState,
 			tree,
 			atts,
@@ -444,7 +437,6 @@ function getSemanticRels(
 	rootType: tt.RootType,
 	paperText: string,
 	citeText: string,
-	firstYear: number,
 	semanticId: string
 ): tt.AboutPara {
 	const semantifyers = getSemantifyers(rootName, rootType);
@@ -466,7 +458,7 @@ function getSemanticRels(
 		authors: authorPrefix,
 		institutions: `In recent decades, authors affiliated with ${rootName} have published ${paperText}, which have received a total of ${citeText} `,
 		countries: `In recent decades scholars affiliated with institutions in ${rootName} have published ${paperText}, which have received a total of ${citeText} `,
-		subfields: `${paperText} covering ${rootName} have received a total of ${citeText} since ${firstYear} `,
+		subfields: `${paperText} covering ${rootName} have received a total of ${citeText} since ${METHODOLOGY.workScreen.firstYear} `,
 		sources: `The ${paperText} published in ${rootName} in the last decades have received a total of ${citeText} `,
 		'hit-papers': `This paper, published in ${view.startYear}, received ${citeText} `
 	};

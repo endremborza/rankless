@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { LATEST_YEAR } from '$lib/constants';
+import { METHODOLOGY } from '$lib/wire/rankless_server/responses';
 import { listPhrase } from '$lib/text-format-util';
 import { seriesYears } from '$lib/utils/year-ticks';
 import YearlyCard from '$lib/components/cards/YearlyCard.svelte';
@@ -12,10 +12,11 @@ export const yearly: CardKind = {
 	component: YearlyCard,
 	async load({ rootType, params, view }) {
 		if (!view) error(404, 'no such card');
-		const allYears = seriesYears(view.yearlyCites.length, LATEST_YEAR);
+		const last = METHODOLOGY.yearlyCounts[1];
+		const allYears = seriesYears(view.yearlyCites.length, last);
 		const first = allYears[0];
-		const from = intParam(params, 'from', first, first, LATEST_YEAR);
-		const to = intParam(params, 'to', LATEST_YEAR, from, LATEST_YEAR);
+		const from = intParam(params, 'from', first, first, last);
+		const to = intParam(params, 'to', last, from, last);
 		const hl = [...new Set(idsParam(params, 'hl', allYears.length).map(Number))];
 		if (hl.some((y) => !Number.isInteger(y) || y < from || y > to)) error(404, 'bad hl');
 		const showPapers = flagParam(params, 'papers', true) && rootType !== 'hit-papers';

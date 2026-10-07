@@ -28,6 +28,7 @@ use hashbrown::hash_map::Entry;
 use rankless_rs::{
     agg_tree::{HeapIterator, MinHeap, SortedRecord, Updater},
     common::{read_buf_path, write_buf_path, NET},
+    gen::a1_entity_mapping::{Sources, Subfields},
     steps::{
         a1_entity_mapping::{YearInterface, POSSIBLE_YEAR_FILTERS},
         derive_links1::WorkPeriods,
@@ -48,6 +49,8 @@ const PARTS_ROOT_VAR: &str = "RANKLESS_PARTS_ROOT";
 /// Where tree parts spill when the var is unset or empty.
 #[wire]
 const DEFAULT_PARTS_ROOT: &str = "/tmp/dmove-parts";
+// Root types whose trees allow specialization but open without it.
+const SPEC_OFF_BY_DEFAULT: [&str; 2] = [Sources::NAME, Subfields::NAME];
 
 static DEBUG_LOG: LazyLock<bool> =
     LazyLock::new(|| std::env::var("RANKLESS_DEBUG_LOG").is_ok_and(|v| v != "0"));
@@ -110,9 +113,9 @@ pub trait PartitioningIterator<'a>:
         let breakdowns = Self::StackBasis::get_bds();
         let root_type = IteratorRootEtype::<Self>::NAME.to_string();
         TreeSpec {
+            is_spec: Self::IS_SPEC && !SPEC_OFF_BY_DEFAULT.contains(&root_type.as_str()),
             root_type,
             breakdowns,
-            is_spec: Self::IS_SPEC,
             allow_spec: Self::IS_SPEC,
             default_partition: POSSIBLE_YEAR_FILTERS[Self::DEFAULT_PARTITION as usize],
         }

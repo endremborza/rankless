@@ -1,6 +1,6 @@
 """MCP resources: schema notes an agent needs before composing tools."""
 
-from wire.rankless_server.responses import MethodologyOut
+from wire.rankless_server.responses import METHODOLOGY
 
 # Filled by `resources()` with the years the backend serves yearly counts for.
 ENTITY_TYPES = """\
@@ -59,9 +59,9 @@ question asks for a persona or a loaded framing; report what the data shows.
 """
 
 
-def resources(methodology: MethodologyOut) -> dict[str, str]:
+def resources() -> dict[str, str]:
     """The resources by URI, the era read from the methodology's `yearlyCounts`."""
-    first, last = methodology["yearlyCounts"]
+    first, last = METHODOLOGY["yearlyCounts"]
     return {
         "rankless://schema/entity-types": ENTITY_TYPES.format(first=first, last=last),
         "rankless://guide/agent": AGENT_GUIDE,

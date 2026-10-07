@@ -16,8 +16,7 @@ use axum::{extract::State, routing::get, Router};
 use socket2::{Domain, Socket, Type};
 use tokio::{net::TcpListener, sync::Notify};
 
-use rankless_rs::{metrics::METHODOLOGY, Stowage};
-use rankless_trees::metrics::{methodology_texts, ERA};
+use rankless_rs::Stowage;
 
 use crate::consts::{DEFAULT_N_THREADS, PORT};
 use crate::handlers::{
@@ -25,7 +24,6 @@ use crate::handlers::{
     orcid_get, paper_profile, peers_get, resolve_author_get, resolve_work_get, sem_id_get,
     slice_get, stats_get, tops_get, tree_get, view_get, where_get, works_get,
 };
-use crate::responses::MethodologyOut;
 use crate::startup::get_rest;
 use crate::state::NameStateMap;
 use crate::util::static_router;
@@ -82,14 +80,7 @@ async fn async_main(n_threads: usize) {
         .with_state(states.0);
 
     let count_api = static_router(&counts_response);
-    let mut specs_payload = serde_json::to_value(&tree_manager.specs).unwrap();
-    specs_payload["version"] = serde_json::Value::String(util::version_stamp(&path));
-    let specs_api = static_router(&specs_payload);
-    let methodology_api = static_router(&MethodologyOut {
-        constants: &METHODOLOGY,
-        yearly_counts: ERA,
-        texts: methodology_texts(),
-    });
+    let specs_api = static_router(&serde_json::json!({ "version": util::version_stamp(&path) }));
 
     let tops_api = Router::new()
         .route("/", get(tops_get))
@@ -100,8 +91,7 @@ async fn async_main(n_threads: usize) {
         .nest("/counts", count_api)
         .nest("/columns", columns_api)
         .nest("/tops", tops_api)
-        .nest("/specs", specs_api)
-        .nest("/methodology", methodology_api);
+        .nest("/specs", specs_api);
 
     let app = Router::new().nest("/v1", api);
     let loc_addr = SocketAddr::from(([127, 0, 0, 1], PORT));

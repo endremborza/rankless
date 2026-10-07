@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { AttributeLabels, TreeSpec, TreeSpecs } from '$lib/wire/rankless_trees/io';
+	import type { AttributeLabels, TreeSpec } from '$lib/wire/rankless_trees/io';
+	import { TREE_SPECS } from '$lib/wire/rankless_server/responses';
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 	import { pluralize } from '$lib/text-format-util';
@@ -27,11 +28,10 @@
 	export let shoPathLevelInfo = true;
 	export let shallowed = false;
 	export let fixHeight = true;
-	export let treeSpecs: TreeSpecs;
 	export let selectionState: tt.BareNode = { children: {} };
 	export let completeTree: tt.ResponseNode;
 	export let attributeLabels: AttributeLabels;
-	export let currentTreeSpec: TreeSpec = treeSpecs.specs[conf.rootType][conf.treeId];
+	export let currentTreeSpec: TreeSpec = TREE_SPECS.specs[conf.rootType][conf.treeId];
 	export let selectedBreakdowns = tf.getDefaultBreakdowns(currentTreeSpec);
 	export let isGlobalSpecialization = currentTreeSpec.defaultIsSpec;
 
@@ -124,7 +124,7 @@
 	$: updateLevelSpecs(
 		visibleTreeInfo,
 		svgD1 * (1 - (headerRate + d1BottomPadRate) / 100),
-		tf.getBreakdownOptions(treeSpecs, conf.rootType),
+		tf.getBreakdownOptions(conf.rootType),
 		selectedBreakdowns
 	);
 
@@ -142,7 +142,7 @@
 		}
 		let newBreakdownMatchLevel = 0;
 		const newSelections = [];
-		let bdKeys = tf.getBreakdownOptions(treeSpecs, conf.rootType);
+		let bdKeys = tf.getBreakdownOptions(conf.rootType);
 		let bdLevel;
 		for (let selectedBD of selectedBreakdowns) {
 			if (selectedBD == '') {
@@ -186,13 +186,13 @@
 			// pop so that svelte does not update it
 			selectedBreakdowns.pop();
 		}
-		for (let bd of treeSpecs.specs[conf.rootType][conf.treeId].breakdowns) {
+		for (let bd of TREE_SPECS.specs[conf.rootType][conf.treeId].breakdowns) {
 			selectedBreakdowns.push(tf.idFromBd(bd));
 		}
 		while (selectedBreakdowns.length < MAX_LEVEL_COUNT) {
 			selectedBreakdowns.push('');
 		}
-		let newTreeSpec = treeSpecs.specs[conf.rootType][conf.treeId];
+		let newTreeSpec = TREE_SPECS.specs[conf.rootType][conf.treeId];
 		let newGlobalSpec = isGlobalSpecialization;
 		if (newTreeSpec.defaultIsSpec != currentTreeSpec.defaultIsSpec) {
 			newGlobalSpec = newTreeSpec.defaultIsSpec;
@@ -372,7 +372,7 @@
 					{#if tf.hasYearFilter(conf.rootType)}
 						<HeadControl interactText={false} checked={false} text="since" tip={sinceTip}>
 							<select bind:value={conf.year} aria-label="Since year"
-								>{#each treeSpecs.yearBreaks as y, __i (__i)}
+								>{#each TREE_SPECS.yearBreaks as y, __i (__i)}
 									<option>{y}</option>
 								{/each}
 							</select>

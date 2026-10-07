@@ -7,6 +7,7 @@ import {
 	mapWeightText
 } from '$lib/utils/flat-out-styles';
 import type { CardKind } from './kind';
+import { TREE_SPECS } from '$lib/wire/rankless_server/responses';
 import { loadFlatOut } from './flat-out';
 
 // The entity page's world map: each country shaded by the bucket of its citations (or
@@ -18,7 +19,7 @@ export const map: CardKind = {
 			ctx,
 			'map',
 			(inds) => inds[0],
-			ctx.specs.yearBreaks[0]
+			TREE_SPECS.yearBreaks[0]
 		);
 		const isSpec = treeSpec.defaultIsSpec;
 		const sourceSide = treeSpec.breakdowns[0].sourceSide;

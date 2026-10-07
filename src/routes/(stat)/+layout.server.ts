@@ -2,14 +2,10 @@ import type { LayoutServerLoad } from './$types';
 import { isAdmin } from '$lib/server/admin';
 import { ConsentDb } from '$lib/server/db';
 import { EMAIL_FEATURE_ON } from '$lib/constants';
-import { loadMethodology } from '$lib/loading-functions';
 
-export const load: LayoutServerLoad = async ({ locals, url, fetch }) => {
+export const load: LayoutServerLoad = async ({ locals, url }) => {
 	return {
 		user: locals.user,
-		// Every definition the site explains renders under this layout; components read it from
-		// `page.data`.
-		methodology: await loadMethodology(fetch),
 		isAdmin: isAdmin(locals.user?.orcid),
 		// drives the header email block: feature on, logged in, nothing on file yet
 		askEmail:

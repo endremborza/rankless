@@ -16,6 +16,8 @@ import requests
 from dotenv import load_dotenv
 from tqdm import tqdm
 
+from wire.rankless_server.responses import TREE_SPECS
+
 from .fleet.config import DEFAULT_BIG_CHUNK, DEFAULT_MIN_CITATIONS
 from .server_ops import DEFAULT_BE_ADDR as DEFAULT_ADDR
 
@@ -47,8 +49,9 @@ class BatchRequester:
         self.addr = addr
         self.big_limit = big_limit
         self.ext_dic = {}
-        self.specs, self.year_breaks = get_specs_and_ys(addr)
-        self.n_periods = len(self.year_breaks)
+        wait_for_backend(addr)
+        self.specs = TREE_SPECS["specs"]
+        self.n_periods = len(TREE_SPECS["yearBreaks"])
         tid_df = pd.DataFrame(
             [
                 {RTC: k, TIDC: i, BDSC: len(v["breakdowns"])}
@@ -198,16 +201,14 @@ def get_resdf(specs, addr: str = DEFAULT_ADDR, step_size=100, max_n=25_000):
     return pd.concat(resdfs).drop_duplicates([RTC, DMIC])
 
 
-def get_specs_and_ys(addr: str = DEFAULT_ADDR):
+def wait_for_backend(addr: str = DEFAULT_ADDR) -> None:
     for _ in range(20):
         try:
-            sd = requests.get(f"{addr}/v1/specs").json()
-            break
+            requests.get(f"{addr}/v1/specs").raise_for_status()
+            return
         except Exception as _:
             time.sleep(120)
-    else:
-        raise RuntimeError("no running backend")
-    return sd["specs"], sd["yearBreaks"]
+    raise RuntimeError("no running backend")
 
 
 def validate(urls):

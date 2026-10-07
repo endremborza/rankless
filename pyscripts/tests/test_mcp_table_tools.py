@@ -5,6 +5,7 @@ import pytest
 
 from mcp_server import SITE_URL, tools
 from wire.rankless_server.consts import MAX_PINS, SCREEN_K
+from wire.rankless_server.responses import METHODOLOGY
 
 DECLS = [
     {
@@ -67,8 +68,6 @@ def root_registry(root: str) -> dict:
 
 
 REGISTRY = {"roots": {root: root_registry(root) for root in DEFAULT_SORTS}}
-# The part of `/methodology` the descriptions read: the years with yearly counts.
-METHODOLOGY = {"yearlyCounts": (1990, 1999)}
 
 CALLS: list[tuple[str, dict]] = []
 
@@ -148,7 +147,7 @@ def test_rank_entities_passes_the_expressions_and_reads_the_counts() -> None:
 def test_rank_entities_without_a_sort_leaves_the_default_to_the_backend(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    tools.describe(REGISTRY, METHODOLOGY)
+    tools.describe(REGISTRY)
     out = asyncio.run(tools.rank_entities("authors"))
     assert CALLS[0][1] == {}
     assert out["sort"] == "weighted_paper_score"
@@ -176,7 +175,7 @@ def test_annotate_entities_resolves_names_then_aligns_values() -> None:
 
 
 def test_descriptions_are_built_from_the_registry() -> None:
-    tools.describe(REGISTRY, METHODOLOGY)
+    tools.describe(REGISTRY)
     rank = tools.rank_entities.__doc__ or ""
     assert rank.count("citations [count]: Citations received.") == 1
     assert "Citations received. global for authors, institutions." in rank
@@ -202,7 +201,7 @@ def test_descriptions_are_built_from_the_registry() -> None:
 
 
 def test_descriptions_state_the_served_era_and_the_backend_limits() -> None:
-    tools.describe(REGISTRY, METHODOLOGY)
+    tools.describe(REGISTRY)
     era = "{}..{}".format(*METHODOLOGY["yearlyCounts"])
     assert era in (tools.get_entity_profile.__doc__ or "")
     assert era in (tools.get_entity_stats.__doc__ or "")
@@ -213,7 +212,7 @@ def test_descriptions_state_the_served_era_and_the_backend_limits() -> None:
 def test_a_wording_one_type_states_differently_gets_its_own_line() -> None:
     registry = copy.deepcopy(REGISTRY)
     registry["roots"]["institutions"]["metrics"][0]["meaning"] = "Citations to it."
-    tools.describe(registry, METHODOLOGY)
+    tools.describe(registry)
     rank = tools.rank_entities.__doc__ or ""
     assert "citations [count]: Citations received. global for authors." in rank
     assert "citations [count]: Citations to it. global for institutions." in rank

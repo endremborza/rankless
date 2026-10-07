@@ -1,12 +1,11 @@
 <script lang="ts">
-	import type {
-		EntityPeersResp,
-		LadderResp,
-		ViewResult
+	import {
+		METHODOLOGY,
+		type EntityPeersResp,
+		type LadderResp,
+		type ViewResult
 	} from '$lib/wire/rankless_server/responses';
-	import { page } from '$app/state';
 	import type * as tt from '$lib/tree-types';
-	import { COMPLETE_YEAR, LATEST_YEAR } from '$lib/constants';
 	import { pluralize, formatNumber } from '$lib/text-format-util';
 	import {
 		HERO_CONFIG,
@@ -98,7 +97,7 @@
 					{pluralize('paper', view.papers)} ·
 					<IndexedCitationLink />
 					{#if cfg.sinceNote === 'complete'}
-						· since {page.data.methodology?.workScreen.firstYear ?? COMPLETE_YEAR}
+						· since {METHODOLOGY.workScreen.firstYear}
 					{:else if cfg.sinceNote === 'startYear'}
 						· active since {view.startYear}
 					{/if}
@@ -138,7 +137,7 @@
 					fullHeight={ticksHeight}
 					fullWidth={ticksWidth}
 					showBottom={!isHitPaper}
-					end={LATEST_YEAR}
+					end={METHODOLOGY.yearlyCounts[1]}
 				/>
 			</div>
 			{#if isHitPaper}
