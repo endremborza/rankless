@@ -29,6 +29,8 @@ pub struct ConstDef {
     pub name: String,
     pub doc: Option<String>,
     pub value: Value,
+    /// The value's type when it is a registered one, which the targets annotate it with.
+    pub ty: Option<TypeId>,
 }
 
 /// Every module path with what its file holds.
@@ -41,11 +43,12 @@ pub struct Module<'a> {
     pub types: Vec<TypeId>,
 }
 
-/// One schema generator's output: each registration's schema there, and the registration
-/// every `$defs` name stands for.
+/// One schema generator's output: each registration's and each value's schema there, and the
+/// registration every `$defs` name stands for.
 struct Generated {
     defs: serde_json::Map<String, Value>,
     roots: Vec<Value>,
+    value_roots: Vec<Value>,
     by_def: HashMap<String, TypeId>,
 }
 
@@ -64,8 +67,14 @@ impl Model {
                 });
             }
         }
-        let ser = Generated::new(&regs, SchemaSettings::draft2020_12().for_serialize());
-        let de = Generated::new(&regs, SchemaSettings::draft2020_12().for_deserialize());
+        let mut values: Vec<&WireConst> = values.into_iter().collect();
+        values.sort_by_key(|c| (c.module, c.line, c.name));
+        let ser = Generated::new(
+            &regs,
+            &values,
+            SchemaSettings::draft2020_12().for_serialize(),
+        );
+        let de = Generated::new(&regs, &[], SchemaSettings::draft2020_12().for_deserialize());
         let types = regs
             .iter()
             .enumerate()
@@ -77,11 +86,10 @@ impl Model {
                 generated.type_def(id, reg)
             })
             .collect::<Result<_, _>>()?;
-        let mut values: Vec<&WireConst> = values.into_iter().collect();
-        values.sort_by_key(|c| (c.module, c.line, c.name));
         let consts = values
             .into_iter()
-            .map(|c| {
+            .zip(&ser.value_roots)
+            .map(|(c, root)| {
                 let value = (c.value)().map_err(|e| Error::Value {
                     owner: format!("{}::{}", c.module, c.name),
                     reason: e.to_string(),
@@ -91,6 +99,7 @@ impl Model {
                     name: c.name.into(),
                     doc: (!c.doc.is_empty()).then(|| c.doc.into()),
                     value,
+                    ty: def_name(root).and_then(|def| ser.by_def.get(&def).copied()),
                 })
             })
             .collect::<Result<_, Error>>()?;
@@ -111,11 +120,15 @@ impl Model {
 }
 
 impl Generated {
-    fn new(regs: &[&WireType], settings: SchemaSettings) -> Self {
+    fn new(regs: &[&WireType], values: &[&WireConst], settings: SchemaSettings) -> Self {
         let mut generator = SchemaGenerator::new(settings);
         let roots: Vec<Value> = regs
             .iter()
             .map(|r| (r.subschema)(&mut generator).to_value())
+            .collect();
+        let value_roots = values
+            .iter()
+            .map(|c| (c.schema)(&mut generator).to_value())
             .collect();
         let by_def = roots
             .iter()
@@ -125,6 +138,7 @@ impl Generated {
         Self {
             defs: generator.take_definitions(true),
             roots,
+            value_roots,
             by_def,
         }
     }

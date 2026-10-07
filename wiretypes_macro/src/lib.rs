@@ -5,8 +5,8 @@ use syn::{
     parse_macro_input, parse_quote,
     punctuated::Punctuated,
     visit_mut::{self, VisitMut},
-    Attribute, Expr, ExprLit, Fields, Generics, Ident, Item, Lit, Meta, MetaNameValue, Path,
-    StaticMutability, Token, TypePath,
+    Attribute, Expr, ExprLit, Fields, GenericArgument, Generics, Ident, Item, Lit, Meta,
+    MetaNameValue, Path, PathArguments, StaticMutability, Token, Type, TypePath,
 };
 
 /// Rewrites every `HashMap`/`HashSet` path in a type to the std one, which schemars describes;
@@ -31,7 +31,8 @@ impl VisitMut for StdMaps {
 /// `wiretypes`. On a type alias it registers the aliased type under the alias name; an alias
 /// over a non-std map also gets an `{Alias}Wire` twin over the std one, which a field of the
 /// alias type names in `#[schemars(with = "..Wire")]`. On a `const` or an immutable `static`
-/// whose type is `Serialize`, it registers the value, which the targets spell as a literal.
+/// whose type is `Serialize` and `JsonSchema`, it registers the value, which the targets spell as
+/// a literal; a `LazyLock` static is spelled as the value it builds.
 ///
 /// Goes above the item's `#[derive(..)]`, whose `Serialize`/`Deserialize` decide the contract:
 /// `Serialize` describes what Rust sends, `Deserialize` alone what it accepts.
@@ -82,11 +83,11 @@ pub fn wire(attr: TokenStream, item: TokenStream) -> TokenStream {
             .into()
         }
         Item::Const(c) => {
-            let submit = const_submit(&c.ident, &c.attrs);
+            let submit = const_submit(&c.ident, &c.attrs, &c.ty);
             quote!(#c #submit).into()
         }
         Item::Static(s) if matches!(s.mutability, StaticMutability::None) => {
-            let submit = const_submit(&s.ident, &s.attrs);
+            let submit = const_submit(&s.ident, &s.attrs, &s.ty);
             quote!(#s #submit).into()
         }
         other => error(
@@ -184,8 +185,12 @@ fn submit(ty: &Ident, name: &Ident, constructor: TokenStream2) -> TokenStream2 {
     }
 }
 
-fn const_submit(ident: &Ident, attrs: &[Attribute]) -> TokenStream2 {
+fn const_submit(ident: &Ident, attrs: &[Attribute], ty: &Type) -> TokenStream2 {
     let (name, doc) = (ident.to_string(), doc(attrs));
+    let (ty, value) = match lazy_value(ty) {
+        Some(inner) => (inner, quote!(&*#ident)),
+        None => (ty, quote!(&#ident)),
+    };
     quote! {
         ::wiretypes::inventory::submit! {
             ::wiretypes::WireConst {
@@ -193,9 +198,23 @@ fn const_submit(ident: &Ident, attrs: &[Attribute]) -> TokenStream2 {
                 name: #name,
                 line: ::core::line!(),
                 doc: #doc,
-                value: || ::wiretypes::serde_json::to_value(&#ident),
+                value: || ::wiretypes::serde_json::to_value(#value),
+                schema: ::wiretypes::subschema::<#ty>,
             }
         }
+    }
+}
+
+/// The `T` of a `LazyLock<T>`.
+fn lazy_value(ty: &Type) -> Option<&Type> {
+    let Type::Path(tp) = ty else { return None };
+    let last = tp.path.segments.last()?;
+    let PathArguments::AngleBracketed(args) = &last.arguments else {
+        return None;
+    };
+    match args.args.first()? {
+        GenericArgument::Type(inner) if last.ident == "LazyLock" => Some(inner),
+        _ => None,
     }
 }
 

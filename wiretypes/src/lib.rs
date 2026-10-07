@@ -32,7 +32,8 @@ pub struct WireType {
     pub subschema: fn(&mut SchemaGenerator) -> Schema,
 }
 
-/// One `#[wire]` const or static: its value, serialized when the targets are rendered.
+/// One `#[wire]` const or static: its value, serialized when the targets are rendered, and its
+/// type, which names the value's registered type when it is one.
 pub struct WireConst {
     pub module: &'static str,
     pub name: &'static str,
@@ -40,6 +41,7 @@ pub struct WireConst {
     /// The item's `///` lines, empty for none.
     pub doc: &'static str,
     pub value: fn() -> serde_json::Result<serde_json::Value>,
+    pub schema: fn(&mut SchemaGenerator) -> Schema,
 }
 
 /// Which side of serde the generated type describes: what Rust sends, or what it accepts.
@@ -134,7 +136,8 @@ pub fn sync(config_path: impl AsRef<Path>) -> Result<(), Error> {
     }
 }
 
-fn subschema<T: JsonSchema>(generator: &mut SchemaGenerator) -> Schema {
+#[doc(hidden)]
+pub fn subschema<T: JsonSchema>(generator: &mut SchemaGenerator) -> Schema {
     generator.subschema_for::<T>()
 }
 

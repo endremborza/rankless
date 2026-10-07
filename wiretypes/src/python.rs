@@ -58,10 +58,104 @@ impl<'a> File<'a> {
         for c in consts {
             self.claim(&c.name)?;
             let doc = c.doc.as_deref().map(|d| comment(d, "")).unwrap_or_default();
-            block += &format!("{doc}{}: Final = {}\n", c.name, python_literal(&c.value));
+            let (annotation, literal) = match c.ty {
+                Some(id) => {
+                    let shape = Shape::Ref(id);
+                    let ty = self.expr(&shape, &c.name)?;
+                    (format!("Final[{ty}]"), self.typed_literal(&c.value, &shape))
+                }
+                None => ("Final".to_string(), python_literal(&c.value)),
+            };
+            block += &format!("{doc}{}: {annotation} = {literal}\n", c.name);
         }
         self.body.push(block.trim_end().to_string());
         Ok(())
+    }
+
+    /// A value as a Python literal of `shape`: a list where the type has a list, a tuple where it
+    /// has a tuple.
+    fn typed_literal(&self, v: &Value, shape: &Shape) -> String {
+        let shape = self.resolved(shape);
+        match (v, shape) {
+            (Value::Array(items), Shape::Tuple(shapes)) if items.len() == shapes.len() => {
+                let items: Vec<String> = items
+                    .iter()
+                    .zip(shapes)
+                    .map(|(i, s)| self.typed_literal(i, s))
+                    .collect();
+                match items.as_slice() {
+                    [one] => format!("({one},)"),
+                    _ => format!("({})", items.join(", ")),
+                }
+            }
+            (Value::Array(items), Shape::Array(inner)) => format!(
+                "[{}]",
+                items
+                    .iter()
+                    .map(|i| self.typed_literal(i, inner))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            (Value::Object(fields), Shape::Map(values)) => dict(fields, |_| values, self),
+            (Value::Object(fields), Shape::Object(_) | Shape::Intersection(_)) => {
+                let declared = self.fields_of(shape, "").unwrap_or_default();
+                dict(
+                    fields,
+                    |k| {
+                        declared
+                            .iter()
+                            .find(|f| f.key == k)
+                            .map_or(&Shape::Any, |f| &f.shape)
+                    },
+                    self,
+                )
+            }
+            (Value::Array(_) | Value::Object(_), Shape::Union(members)) => {
+                match members.iter().find(|m| self.admits(m, v)) {
+                    Some(m) => self.typed_literal(v, m),
+                    None => self.typed_literal(v, &Shape::Any),
+                }
+            }
+            (Value::Array(items), _) => format!(
+                "[{}]",
+                items
+                    .iter()
+                    .map(|i| self.typed_literal(i, &Shape::Any))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            (Value::Object(fields), _) => dict(fields, |_| &Shape::Any, self),
+            (other, _) => python_value(other),
+        }
+    }
+
+    /// Whether a union member describes the array or object `v`: a tuple of its length or a list
+    /// for an array; for an object, a map, or an object whose fields hold every key of `v` and
+    /// whose literal fields match it.
+    fn admits(&self, member: &Shape, v: &Value) -> bool {
+        let member = self.resolved(member);
+        match (v, member) {
+            (Value::Array(items), Shape::Tuple(shapes)) => items.len() == shapes.len(),
+            (Value::Array(_), Shape::Array(_)) | (Value::Object(_), Shape::Map(_)) => true,
+            (Value::Object(fields), Shape::Object(_) | Shape::Intersection(_)) => {
+                let Ok(declared) = self.fields_of(member, "") else {
+                    return false;
+                };
+                fields.keys().all(|k| declared.iter().any(|f| &f.key == k))
+                    && declared.iter().all(|f| match &f.shape {
+                        Shape::Literal(lit) => fields.get(&f.key).is_none_or(|x| x == lit),
+                        _ => true,
+                    })
+            }
+            _ => false,
+        }
+    }
+
+    fn resolved<'s>(&'s self, shape: &'s Shape) -> &'s Shape {
+        match shape {
+            Shape::Ref(id) => self.resolved(&self.model.types[*id].shape),
+            other => other,
+        }
     }
 
     fn declare(&mut self, id: usize) -> Result<(), Error> {
@@ -427,6 +521,22 @@ fn python_literal(v: &Value) -> String {
         }
         other => python_value(other),
     }
+}
+
+/// An object value as a dict literal, each value spelled as the shape its key has.
+fn dict<'s>(
+    fields: &serde_json::Map<String, Value>,
+    shape_of: impl Fn(&str) -> &'s Shape,
+    file: &File,
+) -> String {
+    let fields: Vec<String> = fields
+        .iter()
+        .map(|(k, v)| {
+            let literal = file.typed_literal(v, shape_of(k));
+            format!("{}: {literal}", Value::String(k.clone()))
+        })
+        .collect();
+    format!("{{{}}}", fields.join(", "))
 }
 
 fn python_value(v: &Value) -> String {

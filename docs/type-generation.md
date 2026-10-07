@@ -36,7 +36,7 @@ It derives `schemars::JsonSchema`, so the schema follows every serde attribute (
 
 ## Marking a constant
 
-`#[wire]` on a `const`, or an immutable `static`, whose type is `Serialize` exports its value into its module's file, ahead of the types: an `export const` in TypeScript and a `Final` in Python. The value is serialized when the targets are rendered, so it is whatever Rust evaluates: arithmetic over other constants, a struct literal, an `include!`. The name stays the Rust name, `///` docs become comments, and the item keeps its visibility.
+`#[wire]` on a `const`, or an immutable `static`, whose type is `Serialize` and `JsonSchema` exports its value into its module's file, ahead of the types: an `export const` in TypeScript and a `Final` in Python. The value is serialized when the targets are rendered, so it is whatever Rust evaluates: arithmetic over other constants, a struct literal, an `include!`, or what a `LazyLock` static builds (`METHODOLOGY` fills its texts, `TREE_SPECS` collects every tree's spec). The name stays the Rust name, `///` docs become comments, and the item keeps its visibility.
 
 ```rust
 /// Pinned entities one `/slice` request is answered for; the rest are dropped.
@@ -122,9 +122,9 @@ dmove's binary entity files are a separate concern: ccl-science-data reads them,
 
 | File | Role |
 | --- | --- |
-| `wiretypes_macro/src/lib.rs` | `#[wire]`: the `JsonSchema` derive, the std-map rewrite, the null-dropping transform for `skip_serializing_if`, the `Wire` impl and the `inventory` registration; on a const or static, the value's registration |
+| `wiretypes_macro/src/lib.rs` | `#[wire]`: the `JsonSchema` derive, the std-map rewrite, the null-dropping transform for `skip_serializing_if`, the `Wire` impl and the `inventory` registration; on a const or static, the value's and its type's registration (a `LazyLock` static's built value) |
 | `wiretypes/src/lib.rs` | `WireType` and `WireConst` registries, `Wire` contract trait, `sync` (render, then write or check) |
-| `wiretypes/src/model.rs` | Registry → one schema generator per contract → one `Shape` per registered type, one JSON value per registered constant, grouped by module |
+| `wiretypes/src/model.rs` | Registry → one schema generator per contract → one `Shape` per registered type, one JSON value per registered constant with its registered type when it has one, grouped by module |
 | `wiretypes/src/shape.rs` | JSON Schema → `Shape`, the form the emitters read |
 | `wiretypes/src/ts.rs`, `python.rs` | The emitters |
 | `wiretypes/src/config.rs`, `output.rs` | `wiretypes.toml`; write and check over the output directories, which only ever touch files carrying the generated header |

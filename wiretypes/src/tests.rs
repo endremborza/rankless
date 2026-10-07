@@ -62,6 +62,8 @@ mod shapes {
 }
 
 mod limits {
+    use std::sync::LazyLock;
+
     use serde::Serialize;
 
     use crate::wire;
@@ -79,15 +81,22 @@ mod limits {
     pub const SCREEN: Screen = Screen {
         min: 1,
         max_rows: 20,
+        span: (1951, 2026),
+        kinds: &["article"],
     };
     #[wire]
     pub static ON: bool = true;
+    #[wire]
+    pub static BUILT: LazyLock<Screen> = LazyLock::new(|| Screen { min: 2, ..SCREEN });
 
+    #[wire]
     #[derive(Serialize)]
     pub struct Screen {
         pub min: u8,
         #[serde(rename = "max-rows")]
         pub max_rows: u32,
+        pub span: (u16, u16),
+        pub kinds: &'static [&'static str],
     }
 }
 
@@ -240,8 +249,16 @@ export const PAGE = 25;
 export const ROOT = '/tmp/it\\'s';
 export const BANDS = [[0.2, 'top'], [0.01, 'rare']] as const;
 export const ONE = [7] as const;
-export const SCREEN = { 'max-rows': 20, min: 1 } as const;
+export const SCREEN: Screen = { kinds: ['article'], 'max-rows': 20, min: 1, span: [1951, 2026] };
 export const ON = true;
+export const BUILT: Screen = { kinds: ['article'], 'max-rows': 20, min: 2, span: [1951, 2026] };
+
+export type Screen = {
+\tkinds: string[];
+\t'max-rows': number;
+\tmin: number;
+\tspan: [number, number];
+};
 ";
 
 const PY_LIMITS: &str =
@@ -249,7 +266,7 @@ const PY_LIMITS: &str =
 
 from __future__ import annotations
 
-from typing import Final
+from typing import Final, TypedDict
 
 
 # Rows one page holds.
@@ -257,8 +274,20 @@ PAGE: Final = 25
 ROOT: Final = \"/tmp/it's\"
 BANDS: Final = ((0.2, \"top\"), (0.01, \"rare\"))
 ONE: Final = (7,)
-SCREEN: Final = {\"max-rows\": 20, \"min\": 1}
+SCREEN: Final[Screen] = {\"kinds\": [\"article\"], \"max-rows\": 20, \"min\": 1, \"span\": (1951, 2026)}
 ON: Final = True
+BUILT: Final[Screen] = {\"kinds\": [\"article\"], \"max-rows\": 20, \"min\": 2, \"span\": (1951, 2026)}
+
+
+Screen = TypedDict(
+    \"Screen\",
+    {
+        \"kinds\": 'list[str]',
+        \"max-rows\": 'int',
+        \"min\": 'int',
+        \"span\": 'tuple[int, int]',
+    },
+)
 ";
 
 fn model() -> Model {
@@ -307,7 +336,10 @@ fn python_hoists_variants_and_spells_odd_keys_functionally() {
 #[test]
 fn dataclasses_refuse_a_key_python_cannot_spell() {
     let err = python::render(&model(), PythonStyle::Dataclass, "make types").unwrap_err();
-    assert!(err.to_string().contains("paper-fields"), "{err}");
+    assert!(
+        err.to_string().contains("is not a Python identifier"),
+        "{err}"
+    );
 }
 
 #[test]

@@ -19,6 +19,7 @@ pub fn render(model: &Model, regenerate: &str) -> Result<BTreeMap<String, String
         for &id in &ids {
             model.types[id].shape.refs(&mut refs);
         }
+        refs.extend(contents.consts.iter().filter_map(|c| c.ty));
         let mut names: BTreeSet<&str> = ids
             .iter()
             .map(|&id| model.types[id].name.as_str())
@@ -55,11 +56,16 @@ pub fn render(model: &Model, regenerate: &str) -> Result<BTreeMap<String, String
         }
         for c in contents.consts {
             out += &comment(c.doc.as_deref(), "");
-            let narrow = match c.value {
-                Value::Array(_) | Value::Object(_) => " as const",
-                _ => "",
+            let (annotation, narrow) = match (c.ty, &c.value) {
+                (Some(id), _) => (format!(": {}", model.types[id].name), ""),
+                (None, Value::Array(_) | Value::Object(_)) => (String::new(), " as const"),
+                (None, _) => (String::new(), ""),
             };
-            out += &format!("export const {} = {}{narrow};\n", c.name, value(&c.value));
+            out += &format!(
+                "export const {}{annotation} = {}{narrow};\n",
+                c.name,
+                value(&c.value)
+            );
         }
         for id in ids {
             let t = &model.types[id];

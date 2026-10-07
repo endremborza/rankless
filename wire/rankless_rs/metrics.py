@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Final, TypedDict
 
 
-PAPER_SCORE: Final = {"barScale": 4, "hitMultiple": 1.5, "sfYearMinPapers": 400, "topShare": 0.01, "wSf": 0.005, "wSfYear": 0.895, "wYear": 0.1}
+PAPER_SCORE: Final[PaperScore] = {"barScale": 4, "hitMultiple": 1.5, "sfYearMinPapers": 400, "topShare": 0.01, "wSf": 0.005, "wSfYear": 0.895, "wYear": 0.1}
 TOP_N: Final = (("sources", 1000), ("institutions", 2000), ("countries", 2000), ("authors", 20))
 MIN_TOPIC_SCORE: Final = 0.7
 TOP_HIT_PAPERS: Final = 50
