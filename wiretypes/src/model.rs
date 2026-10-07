@@ -6,12 +6,14 @@ use serde_json::Value;
 use crate::{
     error::Error,
     shape::{self, Shape, TypeId},
-    Contract, WireType,
+    Contract, WireConst, WireType,
 };
 
-/// Every registered type, reduced to shapes, in (module, source line) order.
+/// Every registered type, reduced to shapes, and every registered value, each in (module, source
+/// line) order.
 pub struct Model {
     pub types: Vec<TypeDef>,
+    pub consts: Vec<ConstDef>,
 }
 
 pub struct TypeDef {
@@ -20,6 +22,23 @@ pub struct TypeDef {
     pub name: String,
     pub doc: Option<String>,
     pub shape: Shape,
+}
+
+pub struct ConstDef {
+    pub module: String,
+    pub name: String,
+    pub doc: Option<String>,
+    pub value: Value,
+}
+
+/// Every module path with what its file holds.
+pub type Modules<'a> = BTreeMap<&'a str, Module<'a>>;
+
+/// What one output file holds: a module's values, then its types.
+#[derive(Default)]
+pub struct Module<'a> {
+    pub consts: Vec<&'a ConstDef>,
+    pub types: Vec<TypeId>,
 }
 
 /// One schema generator's output: each registration's schema there, and the registration
@@ -31,7 +50,10 @@ struct Generated {
 }
 
 impl Model {
-    pub fn collect<'a>(registry: impl IntoIterator<Item = &'a WireType>) -> Result<Self, Error> {
+    pub fn collect<'a>(
+        registry: impl IntoIterator<Item = &'a WireType>,
+        values: impl IntoIterator<Item = &'a WireConst>,
+    ) -> Result<Self, Error> {
         let mut regs: Vec<&WireType> = registry.into_iter().collect();
         regs.sort_by_key(|r| (r.module, r.line, r.name));
         for pair in regs.windows(2) {
@@ -55,14 +77,34 @@ impl Model {
                 generated.type_def(id, reg)
             })
             .collect::<Result<_, _>>()?;
-        Ok(Self { types })
+        let mut values: Vec<&WireConst> = values.into_iter().collect();
+        values.sort_by_key(|c| (c.module, c.line, c.name));
+        let consts = values
+            .into_iter()
+            .map(|c| {
+                let value = (c.value)().map_err(|e| Error::Value {
+                    owner: format!("{}::{}", c.module, c.name),
+                    reason: e.to_string(),
+                })?;
+                Ok(ConstDef {
+                    module: c.module.into(),
+                    name: c.name.into(),
+                    doc: (!c.doc.is_empty()).then(|| c.doc.into()),
+                    value,
+                })
+            })
+            .collect::<Result<_, Error>>()?;
+        Ok(Self { types, consts })
     }
 
-    /// Type ids per module path, in declaration order.
-    pub fn modules(&self) -> BTreeMap<&str, Vec<TypeId>> {
-        let mut out: BTreeMap<&str, Vec<TypeId>> = BTreeMap::new();
+    /// Each module's values and type ids, in declaration order.
+    pub fn modules(&self) -> Modules<'_> {
+        let mut out = Modules::new();
+        for c in &self.consts {
+            out.entry(c.module.as_str()).or_default().consts.push(c);
+        }
         for (id, t) in self.types.iter().enumerate() {
-            out.entry(t.module.as_str()).or_default().push(id);
+            out.entry(t.module.as_str()).or_default().types.push(id);
         }
         out
     }

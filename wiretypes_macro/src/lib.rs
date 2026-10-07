@@ -5,7 +5,8 @@ use syn::{
     parse_macro_input, parse_quote,
     punctuated::Punctuated,
     visit_mut::{self, VisitMut},
-    Attribute, Fields, Generics, Ident, Item, Path, Token, TypePath,
+    Attribute, Expr, ExprLit, Fields, Generics, Ident, Item, Lit, Meta, MetaNameValue, Path,
+    StaticMutability, Token, TypePath,
 };
 
 /// Rewrites every `HashMap`/`HashSet` path in a type to the std one, which schemars describes;
@@ -29,7 +30,8 @@ impl VisitMut for StdMaps {
 /// Derives `JsonSchema` for a struct or enum crossing a language boundary and registers it with
 /// `wiretypes`. On a type alias it registers the aliased type under the alias name; an alias
 /// over a non-std map also gets an `{Alias}Wire` twin over the std one, which a field of the
-/// alias type names in `#[schemars(with = "..Wire")]`.
+/// alias type names in `#[schemars(with = "..Wire")]`. On a `const` or an immutable `static`
+/// whose type is `Serialize`, it registers the value, which the targets spell as a literal.
 ///
 /// Goes above the item's `#[derive(..)]`, whose `Serialize`/`Deserialize` decide the contract:
 /// `Serialize` describes what Rust sends, `Deserialize` alone what it accepts.
@@ -79,9 +81,17 @@ pub fn wire(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
             .into()
         }
+        Item::Const(c) => {
+            let submit = const_submit(&c.ident, &c.attrs);
+            quote!(#c #submit).into()
+        }
+        Item::Static(s) if matches!(s.mutability, StaticMutability::None) => {
+            let submit = const_submit(&s.ident, &s.attrs);
+            quote!(#s #submit).into()
+        }
         other => error(
             other,
-            "#[wire] goes on a struct, an enum or a non-generic type alias",
+            "#[wire] goes on a struct, an enum, a non-generic type alias, a const or a static",
         ),
     }
 }
@@ -172,6 +182,41 @@ fn submit(ty: &Ident, name: &Ident, constructor: TokenStream2) -> TokenStream2 {
             ::wiretypes::#constructor::<#ty>(::core::module_path!(), #name, ::core::line!())
         }
     }
+}
+
+fn const_submit(ident: &Ident, attrs: &[Attribute]) -> TokenStream2 {
+    let (name, doc) = (ident.to_string(), doc(attrs));
+    quote! {
+        ::wiretypes::inventory::submit! {
+            ::wiretypes::WireConst {
+                module: ::core::module_path!(),
+                name: #name,
+                line: ::core::line!(),
+                doc: #doc,
+                value: || ::wiretypes::serde_json::to_value(&#ident),
+            }
+        }
+    }
+}
+
+/// The `///` lines of an item, one space of indent dropped as rustdoc does.
+fn doc(attrs: &[Attribute]) -> String {
+    let lines: Vec<String> = attrs
+        .iter()
+        .filter_map(|a| match &a.meta {
+            Meta::NameValue(MetaNameValue {
+                path,
+                value:
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Str(s), ..
+                    }),
+                ..
+            }) if path.is_ident("doc") => Some(s.value()),
+            _ => None,
+        })
+        .map(|l| l.strip_prefix(' ').map(str::to_string).unwrap_or(l))
+        .collect();
+    lines.join("\n").trim().to_string()
 }
 
 fn error(tokens: impl ToTokens, msg: &str) -> TokenStream {

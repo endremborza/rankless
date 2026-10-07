@@ -19,6 +19,11 @@ pub enum Error {
         owner: String,
         schema: String,
     },
+    /// A registered value that does not serialize to JSON.
+    Value {
+        owner: String,
+        reason: String,
+    },
     /// One output file would declare or import a name twice.
     Collision {
         file: String,
@@ -49,6 +54,7 @@ impl fmt::Display for Error {
             Self::Unsupported { owner, schema } => {
                 write!(f, "`{owner}`: no emitter renders the schema {schema}")
             }
+            Self::Value { owner, reason } => write!(f, "`{owner}` does not serialize: {reason}"),
             Self::Collision { file, name } => write!(f, "{file}: `{name}` is declared twice"),
             Self::PythonField { owner, key } => write!(
                 f,

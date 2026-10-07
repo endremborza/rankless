@@ -5,7 +5,7 @@ use serde_json::Value;
 use crate::{
     config::PythonStyle,
     error::Error,
-    model::Model,
+    model::{ConstDef, Model, Modules},
     output::header,
     shape::{Field, Shape},
 };
@@ -22,7 +22,7 @@ struct File<'a> {
     model: &'a Model,
     module: &'a str,
     style: PythonStyle,
-    modules: &'a BTreeMap<&'a str, Vec<usize>>,
+    modules: &'a Modules<'a>,
     body: Vec<String>,
     names: BTreeSet<String>,
     imports: BTreeMap<String, BTreeSet<String>>,
@@ -34,7 +34,7 @@ impl<'a> File<'a> {
         model: &'a Model,
         module: &'a str,
         style: PythonStyle,
-        modules: &'a BTreeMap<&'a str, Vec<usize>>,
+        modules: &'a Modules<'a>,
     ) -> Self {
         Self {
             model,
@@ -46,6 +46,22 @@ impl<'a> File<'a> {
             imports: BTreeMap::new(),
             typing: BTreeSet::new(),
         }
+    }
+
+    /// The module's values as one block of `Final` assignments.
+    fn constants(&mut self, consts: &[&ConstDef]) -> Result<(), Error> {
+        if consts.is_empty() {
+            return Ok(());
+        }
+        self.typing.insert("Final");
+        let mut block = String::new();
+        for c in consts {
+            self.claim(&c.name)?;
+            let doc = c.doc.as_deref().map(|d| comment(d, "")).unwrap_or_default();
+            block += &format!("{doc}{}: Final = {}\n", c.name, python_literal(&c.value));
+        }
+        self.body.push(block.trim_end().to_string());
+        Ok(())
     }
 
     fn declare(&mut self, id: usize) -> Result<(), Error> {
@@ -323,9 +339,10 @@ pub fn render(
 ) -> Result<BTreeMap<String, String>, Error> {
     let modules = model.modules();
     let mut files = BTreeMap::new();
-    for (module, ids) in &modules {
+    for (module, contents) in &modules {
         let mut file = File::new(model, module, style, &modules);
-        for &id in ids {
+        file.constants(&contents.consts)?;
+        for &id in &contents.types {
             file.declare(id)?;
         }
         files.insert(file_path(module, &modules), file.finish(regenerate)?);
@@ -349,7 +366,7 @@ pub fn render(
     Ok(files)
 }
 
-fn file_path(module: &str, modules: &BTreeMap<&str, Vec<usize>>) -> String {
+fn file_path(module: &str, modules: &Modules) -> String {
     let base = module.replace("::", "/");
     match has_submodules(module, modules) {
         true => format!("{base}/__init__.py"),
@@ -358,7 +375,7 @@ fn file_path(module: &str, modules: &BTreeMap<&str, Vec<usize>>) -> String {
 }
 
 /// The package segments a module's file sits in: its own for an `__init__.py`, else its parent's.
-fn package_of<'m>(module: &'m str, modules: &BTreeMap<&str, Vec<usize>>) -> Vec<&'m str> {
+fn package_of<'m>(module: &'m str, modules: &Modules) -> Vec<&'m str> {
     let segments: Vec<&str> = module.split("::").collect();
     match has_submodules(module, modules) {
         true => segments,
@@ -366,7 +383,7 @@ fn package_of<'m>(module: &'m str, modules: &BTreeMap<&str, Vec<usize>>) -> Vec<
     }
 }
 
-fn has_submodules(module: &str, modules: &BTreeMap<&str, Vec<usize>>) -> bool {
+fn has_submodules(module: &str, modules: &Modules) -> bool {
     let prefix = format!("{module}::");
     modules.keys().any(|m| m.starts_with(&prefix))
 }
@@ -389,6 +406,27 @@ fn pascal(s: &str) -> String {
             std::iter::once(first).chain(chars).collect::<String>()
         })
         .collect()
+}
+
+/// A value as a Python literal; arrays and tuples become tuples, which a constant cannot mutate.
+fn python_literal(v: &Value) -> String {
+    match v {
+        Value::Array(items) => {
+            let items: Vec<String> = items.iter().map(python_literal).collect();
+            match items.as_slice() {
+                [one] => format!("({one},)"),
+                _ => format!("({})", items.join(", ")),
+            }
+        }
+        Value::Object(fields) => {
+            let fields: Vec<String> = fields
+                .iter()
+                .map(|(k, v)| format!("{}: {}", Value::String(k.clone()), python_literal(v)))
+                .collect();
+            format!("{{{}}}", fields.join(", "))
+        }
+        other => python_value(other),
+    }
 }
 
 fn python_value(v: &Value) -> String {

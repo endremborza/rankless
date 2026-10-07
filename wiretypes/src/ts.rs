@@ -12,8 +12,9 @@ use crate::{
 /// One `.ts` file per module, `a::b::c` at `a/b/c.ts`; types of other modules are imported.
 pub fn render(model: &Model, regenerate: &str) -> Result<BTreeMap<String, String>, Error> {
     let mut files = BTreeMap::new();
-    for (module, ids) in model.modules() {
+    for (module, contents) in model.modules() {
         let path = format!("{}.ts", module.replace("::", "/"));
+        let ids = contents.types;
         let mut refs = BTreeSet::new();
         for &id in &ids {
             model.types[id].shape.refs(&mut refs);
@@ -21,6 +22,7 @@ pub fn render(model: &Model, regenerate: &str) -> Result<BTreeMap<String, String
         let mut names: BTreeSet<&str> = ids
             .iter()
             .map(|&id| model.types[id].name.as_str())
+            .chain(contents.consts.iter().map(|c| c.name.as_str()))
             .collect();
         let mut imports: BTreeMap<String, Vec<&str>> = BTreeMap::new();
         for id in refs {
@@ -47,6 +49,17 @@ pub fn render(model: &Model, regenerate: &str) -> Result<BTreeMap<String, String
         for (from, mut names) in imports {
             names.sort_unstable();
             out += &format!("import type {{ {} }} from '{from}';\n", names.join(", "));
+        }
+        if !contents.consts.is_empty() {
+            out += "\n";
+        }
+        for c in contents.consts {
+            out += &comment(c.doc.as_deref(), "");
+            let narrow = match c.value {
+                Value::Array(_) | Value::Object(_) => " as const",
+                _ => "",
+            };
+            out += &format!("export const {} = {}{narrow};\n", c.name, value(&c.value));
         }
         for id in ids {
             let t = &model.types[id];
@@ -146,6 +159,26 @@ fn key(k: &str) -> String {
     match ident {
         true => k.into(),
         false => quoted(k),
+    }
+}
+
+/// A value as a TypeScript expression.
+fn value(v: &Value) -> String {
+    match v {
+        Value::Array(items) => format!(
+            "[{}]",
+            items.iter().map(value).collect::<Vec<_>>().join(", ")
+        ),
+        Value::Object(fields) if fields.is_empty() => "{}".into(),
+        Value::Object(fields) => format!(
+            "{{ {} }}",
+            fields
+                .iter()
+                .map(|(k, v)| format!("{}: {}", key(k), value(v)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        other => literal(other),
     }
 }
 

@@ -1,13 +1,15 @@
 //! Rust types as the single source for their TypeScript and Python definitions.
 //!
 //! `#[wire]` on a struct, enum or generic-instantiating type alias derives `JsonSchema` and
-//! registers the type; [`sync`] renders every registered type into the targets a TOML config
-//! names, one file per Rust module, and either writes them or checks the committed ones.
+//! registers the type; on a `const` or `static` it registers the value. [`sync`] renders every
+//! registered type and value into the targets a TOML config names, one file per Rust module,
+//! and either writes them or checks the committed ones.
 
 extern crate self as wiretypes;
 
 pub use inventory;
 pub use schemars;
+pub use serde_json;
 pub use wiretypes_macro::wire;
 
 pub use error::Error;
@@ -19,6 +21,7 @@ use schemars::{generate::SchemaGenerator, JsonSchema, Schema};
 pub const WRITE_ENV: &str = "WIRETYPES";
 
 inventory::collect!(WireType);
+inventory::collect!(WireConst);
 
 /// One `#[wire]` registration; built by the macro through [`registration`].
 pub struct WireType {
@@ -27,6 +30,16 @@ pub struct WireType {
     pub line: u32,
     pub contract: Contract,
     pub subschema: fn(&mut SchemaGenerator) -> Schema,
+}
+
+/// One `#[wire]` const or static: its value, serialized when the targets are rendered.
+pub struct WireConst {
+    pub module: &'static str,
+    pub name: &'static str,
+    pub line: u32,
+    /// The item's `///` lines, empty for none.
+    pub doc: &'static str,
+    pub value: fn() -> serde_json::Result<serde_json::Value>,
 }
 
 /// Which side of serde the generated type describes: what Rust sends, or what it accepts.
@@ -109,7 +122,10 @@ pub fn never_null(schema: &mut Schema) {
 pub fn sync(config_path: impl AsRef<Path>) -> Result<(), Error> {
     let config_path = config_path.as_ref();
     let config = config::Config::load(config_path)?;
-    let model = model::Model::collect(inventory::iter::<WireType>())?;
+    let model = model::Model::collect(
+        inventory::iter::<WireType>(),
+        inventory::iter::<WireConst>(),
+    )?;
     let root = config_path.parent().unwrap_or(Path::new("."));
     let outputs = config.render(&model)?;
     match std::env::var(WRITE_ENV).as_deref() {
