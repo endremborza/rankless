@@ -32,7 +32,10 @@ import pandas as pd
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import FuncFormatter, LogLocator
 
-RANKLESS = "#1f8fd0"
+from pyscripts import paths
+
+_STYLE = paths.asset("card-style.json")
+RANKLESS: str = _STYLE["accent"]
 BASELINE = "#bd7a73"
 RANKLESS_LABEL = "Rankless"
 BASELINE_LABEL = "PostgreSQL + Flask"
@@ -41,10 +44,7 @@ ACC_WARN = "#e0902f"
 ACC_BAD = "#cc4b3f"
 
 # the live-site "range" spectrum (src/routes/styles.css), legible slice for white
-SPECTRUM = LinearSegmentedColormap.from_list(
-    "rankless_spectrum",
-    ["#0dc6f3", "#269ada", "#5842a8", "#7d0082", "#af5850", "#e1b01e", "#fadc05"],
-)
+SPECTRUM = LinearSegmentedColormap.from_list("rankless_spectrum", _STYLE["spectrum"])
 # darker sub-range that stays readable on a light background (the brand --text-grad)
 TEXT_GRAD = LinearSegmentedColormap.from_list(
     "rankless_textgrad", ["#269ada", "#7d0082", "#c88437"]

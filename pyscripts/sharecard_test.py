@@ -27,10 +27,15 @@ from urllib.parse import quote
 
 import requests
 
-CARD_W, CARD_H = 1200, 630
+from pyscripts import paths
+
+_STYLE = paths.asset("card-style.json")
+CARD_W: int = _STYLE["width"]
+CARD_H: int = _STYLE["height"]
 DIM_TOL = 0.15
 MAX_BYTES = 5 * 1024 * 1024
 MAX_LOAD_S = 2.0
+DIM_CHECK = f"dimensions ~{CARD_W}x{CARD_H}"
 RASTER_TYPES = ("image/png", "image/jpeg", "image/jpg", "image/webp")
 RECOMMENDED = [
     "og:image:width",
@@ -229,26 +234,24 @@ def run_checks(meta: dict[str, str], img: ImageInfo) -> list[Check]:
         )
         checks.append(
             Check(
-                "dimensions ~1200x630",
+                DIM_CHECK,
                 PASS if ok else WARN,
                 f"{img.width}x{img.height}",
             )
         )
     else:
-        checks.append(
-            Check("dimensions ~1200x630", WARN, "could not read image dimensions")
-        )
+        checks.append(Check(DIM_CHECK, WARN, "could not read image dimensions"))
 
     checks.append(
         Check(
-            "size < 5 MiB",
+            f"size < {MAX_BYTES // 1024 // 1024} MiB",
             PASS if img.byte_size <= MAX_BYTES else FAIL,
             f"{img.byte_size / 1024 / 1024:.2f} MiB",
         )
     )
     checks.append(
         Check(
-            "loads < 2s",
+            f"loads < {MAX_LOAD_S:g}s",
             PASS if img.load_seconds <= MAX_LOAD_S else WARN,
             f"{img.load_seconds:.2f}s",
         )
@@ -334,7 +337,7 @@ def main() -> None:
     parser.add_argument(
         "--rasterize",
         action="store_true",
-        help="Phase 2 control: convert og:image to a 1200x630 PNG via rsvg-convert",
+        help=f"Phase 2 control: convert og:image to a {CARD_W}x{CARD_H} PNG via rsvg-convert",
     )
     parser.add_argument("--out", type=Path, default=Path("card.png"))
     parser.add_argument("--width", type=int, default=CARD_W)

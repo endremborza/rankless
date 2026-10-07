@@ -1,12 +1,16 @@
+import style from '../assets/data/card-style.json';
+
 // Geometry, faces and text fitting shared by the share cards. A card is rendered server-side to a
 // standalone SVG and rasterized, so nothing in it can be measured or styled through CSS: every
 // colour is a literal attribute and every text width is estimated from its character count at the
 // face's average advance. The brand faces must be installed on the rasterizer host (deploy.py
 // vendors static/fonts/); each family lists a generic fallback.
 
-// Social platforms take a 1200×630 raster.
-export const CARD_W = 1200;
-export const CARD_H = 630;
+// Social platforms take one fixed-size raster; every card is drawn at this size. The size and the
+// brand colours are shared with pyscripts/sharecard_test.py and pyscripts/poster_figures.py through
+// card-style.json.
+export const CARD_W = style.width;
+export const CARD_H = style.height;
 export const CARD_MARGIN = 48;
 // The box the frame gives a card's visualization.
 export const INNER = { x: CARD_MARGIN, y: 132, w: CARD_W - 2 * CARD_MARGIN, h: 418 };
@@ -20,19 +24,11 @@ export const CHAR_W = { serif: 0.5, sans: 0.53, mono: 0.62 } as const;
 export const INK = '#21272a';
 export const MUTED = '#4f4f4f';
 export const FAINT = '#9aa0a6';
-export const ACCENT = '#1f8fd0';
+export const ACCENT = style.accent;
 export const PAPER = '#ffffff';
 export const HAIRLINE = '#d9dde1';
-// Canonical brand spectrum (matches pyscripts/poster_figures.py SPECTRUM + the breakdown palette).
-export const SPECTRUM = [
-	'#0dc6f3',
-	'#269ada',
-	'#5842a8',
-	'#7d0082',
-	'#af5850',
-	'#e1b01e',
-	'#fadc05'
-];
+// Canonical brand spectrum (matches the breakdown palette).
+export const SPECTRUM = style.spectrum;
 
 // No label is drawn under this size at card width: the top items get labels, the rest none.
 export const LABEL_FLOOR = 13;
