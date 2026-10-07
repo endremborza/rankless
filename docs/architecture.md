@@ -144,9 +144,9 @@ the server. Steps run in order via `mods_as_comms!` in `lib.rs`:
 | `src/ids.rs` | ID encoding/decoding; `AttributeLabelUnion` |
 | `src/extensions.rs` | Extension methods for tree traversal |
 | `src/instances.rs` | Concrete tree instances and test configs |
-| `src/part_iterator.rs` | Incremental tree iteration; `TreeMakingParams`; tree-cache serving and writing (see below) |
+| `src/part_iterator.rs` | Incremental tree iteration; `TreeMakingParams`; tree-cache serving and writing (see below); a big tree's parts spill under the directory the env var `PARTS_ROOT_VAR` names, `DEFAULT_PARTS_ROOT` when it is unset or empty (both `#[wire]`) |
 | `src/components.rs` | Tree components (`DisJ`, `IntX`, `PostRefIterWrap`, `CountryInstsPost`); `StackBasis` folding |
-| `src/prune.rs` | Tree result pruning: `prune` keeps the top `MAX_SIBLINGS` by links and by specialization per level, `prune_wide` keeps the whole first level up to `MAX_WIDE` (512) leaves |
+| `src/prune.rs` | Tree result pruning: `prune` keeps the top `MAX_SIBLINGS` by links and by specialization per level, `prune_wide` keeps the whole first level up to `MAX_WIDE` leaves |
 | `src/arr_ext.rs` | Array manipulation extensions |
 | `src/test_utils.rs` | Test utilities (`#[cfg(test)]`) |
 

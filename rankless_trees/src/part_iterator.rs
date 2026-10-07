@@ -34,6 +34,7 @@ use rankless_rs::{
     },
 };
 use serde::Serialize;
+use wiretypes::wire;
 
 const MAX_PARTITIONS: usize = 16;
 const MAX_BUFSIZE: usize = 512;
@@ -41,7 +42,11 @@ const SHALLOW_LIMIT: u64 = 50_000; // size (bytes) of file
 
 // The FE's SSR fetch is always ?shallow=1 (entity +page.server.ts)
 const PRECALC_SHALLOW_DEPTH: u8 = 1;
+/// The env var naming where tree parts spill.
+#[wire]
 const PARTS_ROOT_VAR: &str = "RANKLESS_PARTS_ROOT";
+/// Where tree parts spill when the var is unset or empty.
+#[wire]
 const DEFAULT_PARTS_ROOT: &str = "/tmp/dmove-parts";
 
 static DEBUG_LOG: LazyLock<bool> =
