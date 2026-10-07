@@ -1,10 +1,6 @@
 # MCP server
 
-`mcp_server/` wraps the Rust backend (`rankless_server`, `127.0.0.1:3038`) in the
-[Model Context Protocol](https://modelcontextprotocol.io) so any MCP client — Claude
-Code, Claude Desktop, or the in-repo story miner — can consume citation data without
-bespoke integration. It is a separate Python process (official `mcp` SDK + `httpx`)
-that proxies and shapes responses; rate/agent logic stays out of the Rust hot path.
+`mcp_server/` wraps the Rust backend (`rankless_server`, by default the local one in `mcp_server.BACKENDS`, on its `PORT`) in the [Model Context Protocol](https://modelcontextprotocol.io) so any MCP client — Claude Code, Claude Desktop, or the in-repo story miner — can consume citation data without bespoke integration. It is a separate Python process (official `mcp` SDK + `httpx`) that proxies and shapes responses; rate/agent logic stays out of the Rust hot path.
 
 ## Running
 
@@ -14,20 +10,14 @@ make mcp-server            # = uv run -m mcp_server (stdio transport)
 
 Environment:
 
-- `RANKLESS_BE_URL` — backend base URL (default `http://127.0.0.1:3038/v1`)
-- `RANKLESS_SITE_URL` — base for `rankless_url` backlinks (default `https://rankless.org`; a serving box's `.env` sets it to the box's own site)
+- `RANKLESS_BE_URL` — backend base URL (default `BACKENDS["local"]`, the local backend on `PORT`)
+- `RANKLESS_SITE_URL` — base for `rankless_url` backlinks (default `SITE_URL`, the site on `MAIN_DOMAIN`; a serving box's `.env` sets it to the box's own site)
 - `RANKLESS_RENDER_URL` — where a card is fetched to render it when that is not the site (default `RANKLESS_SITE_URL`); `explore/runner.py` hands both URLs on to the MCP server it spawns
-- `MCP_PUBLIC_HOSTS` — comma-separated `Host` header values the hosted endpoint accepts
-  (the SDK's DNS-rebinding guard admits localhost only without it; nginx forwards the
-  public domain, and the ops definition renders both backend domains into the unit)
-- `MCP_LOG_DIR` — when set, every tool call (a failing one with its `error`), `verify_claims`
-  result and `suggest_endpoint` lands as one JSON line per day (`<dir>/YYYY-MM-DD.jsonl`,
-  keyed by MCP session id, a file per day greppable on the box); the unit points it at
-  `paths.MCP_LOG_REL`
+- `MCP_PUBLIC_HOSTS` — comma-separated `Host` header values the hosted endpoint accepts (the SDK's DNS-rebinding guard admits localhost only without it; nginx forwards the public domain, and the ops definition renders both backend domains into the unit)
+- `MCP_LOG_DIR` — when set, every tool call (a failing one with its `error`), `verify_claims` result and `suggest_endpoint` lands as one JSON line per day (`<dir>/YYYY-MM-DD.jsonl`, keyed by MCP session id, a file per day greppable on the box); the unit points it at `paths.MCP_LOG_REL`
+- `MCP_HOST`, `MCP_PORT` — where the HTTP transports listen (default `mcp_server.MCP_HOST` and `MCP_PORT`; the unit renders the port nginx proxies `/mcp` to)
 
-The hosted endpoint is `https://<backend domain>/mcp` (streamable-http behind nginx):
-`alpha-api.rankless.org/mcp` on the alpha, `api.rankless.org/mcp` once a box is promoted;
-the alpha URL is the published one (manifest, `/mcp` page).
+The hosted endpoint is `https://<backend domain>/mcp` (streamable-http behind nginx): on the alpha the host of `BACKENDS["alpha"]`, once a box is promoted that of `BACKENDS["live"]`; the alpha URL is the published one (manifest, `/mcp` page).
 Any MCP client points at it: `claude mcp add --transport http rankless <url>`, a
 Claude.ai / Claude Desktop custom connector (Settings → Connectors), or an
 `{"mcpServers": {"rankless": {"type": "http", "url": ...}}}` entry; the `/mcp` page carries
@@ -61,13 +51,13 @@ resolution tools, never guessed):
 | `get_entity_stats(etype, sem_id, year_from?, year_to?, subfield?)` | `/v1/stats/...` | recent-era window clamped to `[eraFrom, eraTo]` |
 | `get_citation_tree(etype, sem_id, tree_index?, since_year?, top_n?, depth?)` | `/v1/trees/...` | flattened top-N per level; level meaning from `/v1/specs` breakdowns; `since_year` keeps the entity's papers published from that year (a hit paper defaults to the first year break, since a later one drops its one paper); `rankless_url` and `image_url` carry the same `?tree=&since=` the page and its share card read (the card with `isSpec=0`, sized as the rows are ranked); a top-level row carries its `nodeId` (what `make_card`'s `paths`/`hl` take) and an `image_url` with that branch opened (node 0 cannot be opened and has none); also takes `hit-papers` |
 | `get_papers(etype, sem_id, offset?, limit?, sort?)` | `/v1/works/...` | `limit` clamped to `MAX_PAPERS_LIMIT`; `sort="citations"` for hit papers; each paper carries its `score` and `isHit`, a hit its page (`rankless_url`, `semanticId`), any other paper its OpenAlex page; for an author with hit papers among the rows, `image_url` = the hit-papers card and per hit row the card with that paper highlighted |
-| `get_impact_dag(sem_id)` | `/v1/paper-profile/:author` | the author's citing hit papers (the pipeline's top 50) with their laureate authors and the author's papers each cites (`cites` indexes `authorPapers`); `image_url` = the impact card (absent with no citing hit), per hit the card of that hit |
+| `get_impact_dag(sem_id)` | `/v1/paper-profile/:author` | the author's citing hit papers (the pipeline's top `TOP_HIT_PAPERS`) with their laureate authors and the author's papers each cites (`cites` indexes `authorPapers`); `image_url` = the impact card (absent with no citing hit), per hit the card of that hit |
 | `get_peers(etype, sem_id)` | `/v1/peers/...` | `image_url` = the peers card against the first peer (absent with no peer), per peer the card against that peer |
 | `lookup_orcid(orcid)` | `/v1/orcid/:id` |  |
-| `rank_entities(etype, sort?, where?, offset?, limit?)` | `/v1/slice/:etype/:from/:to` | a cohort ranked by a metric call (`field_score(oncology)`; without one, the type's default ordering from the registry) and narrowed by a `where` expression (`country = hun and city != budapest and papers >= 500`); `total` = the narrowed cohort's size, `screened` = the ranked set when a per-entity metric ranks or narrows the top 1000 by citations only, `columns` = the metric columns the rows carry (flattened into each row); `rankless_url` = the browse table of the same query (the table page reads the `/slice` keys, so the query is re-encoded, never translated), `image_url` its table card, from the same `offset` |
-| `annotate_entities(etype, semantic_ids, metrics)` | `/v1/slice?pin=` then `/v1/metrics/:etype?ids=&metrics=` | metric calls answered for up to 24 named entities in one call, keyed by the call; `image_url` = the table card with those entities pinned and the metrics as columns, present when one card holds them (the contract's `pin` and `cols` limits, numeric metrics only) |
+| `rank_entities(etype, sort?, where?, offset?, limit?)` | `/v1/slice/:etype/:from/:to` | a cohort ranked by a metric call (`field_score(oncology)`; without one, the type's default ordering from the registry) and narrowed by a `where` expression (`country = hun and city != budapest and papers >= 500`); `total` = the narrowed cohort's size, `screened` = the ranked set when a per-entity metric ranks or narrows the top `SCREEN_K` by citations only, `columns` = the metric columns the rows carry (flattened into each row); `rankless_url` = the browse table of the same query (the table page reads the `/slice` keys, so the query is re-encoded, never translated), `image_url` its table card, from the same `offset` |
+| `annotate_entities(etype, semantic_ids, metrics)` | `/v1/slice?pin=` then `/v1/metrics/:etype?ids=&metrics=` | metric calls answered for up to `MAX_PINS` named entities in one call, keyed by the call; `image_url` = the table card with those entities pinned and the metrics as columns, present when one card holds them (the contract's `pin` and `cols` limits, numeric metrics only) |
 
-The two table tools describe themselves from the backend's metric registry: `server.py` fetches `/v1/columns` before registering the tools (an unreachable backend fails the start, which the box unit retries) and `tools.describe()` fills their docstrings with the expression language, every metric's call signature, value type and meaning with the root types it holds for grouped by its kind on each (a meaning a type words differently, such as a Top-N mean's N, gets its own line), and each type's default ordering, the one the backend ranks by when `rank_entities` gives no `sort`. The metric meanings exist once, in `rankless_trees/src/metrics.rs`.
+The two table tools describe themselves from the backend's metric registry: `server.py` fetches `/v1/columns` and `/v1/methodology` before registering the tools (an unreachable backend fails the start, which the box unit retries) and `tools.describe()` fills their docstrings with the expression language, every metric's call signature, value type and meaning with the root types it holds for grouped by its kind on each (a meaning a type words differently, such as a Top-N mean's N, gets its own line), and each type's default ordering, the one the backend ranks by when `rank_entities` gives no `sort`. The metric meanings exist once, in `rankless_trees/src/metrics.rs`. The same start fills the recent era's years, the methodology's `yearlyCounts`, into the `get_entity_profile` and `get_entity_stats` descriptions and the `rankless://schema/entity-types` resource (`resources()`), since the era is per build environment.
 
 Every data-tool response is an envelope `{"receipt": {"id", "tool", "args"}, "data": ...}`
 (`mcp_server/receipts.py`): the receipt names the call that produced the data, ids run
@@ -247,21 +237,18 @@ rejections stay reviewable against later data improvements; decisions and notes
 propagate across boxes with the merge) — cards never render publicly outside the
 game, they'd spoil it.
 
-Between boxes, bundles ride the `data/mcp-objects/` copy and index rows ride the user-DB handoff below: merges dedup on
+Between boxes, bundles ride the objects-root copy and index rows ride the user-DB handoff below: merges dedup on
 `(kind, obj_key, bundle)`, and for version rows both boxes hold, review
 decisions propagate — a decision beats `new`, and between two decisions the
 later `updated_at` wins.
 
 ## Public site
 
-One page serves everyone, **`/mcp`** (`src/routes/(stat)/mcp/`, "Developers" in the footer while `MCP_FEATURE_ON` is set): the connect-your-agent snippets, the tools, resources and prompts, rendered from the baked manifest `src/lib/assets/data/mcp-manifest.json`, which `pyscripts/build_mcp_manifest.py` (`make mcp-manifest`) generates from the **live sources** (tool docstrings, a tool's endpoint from `deep._CURL_MAP`, `resources.py`, `prompts.py`, `MCP_PUBLIC_URL`) so nothing is restated. Re-bake after changing a tool or prompt: `make mcp-manifest` (`MCP_PUBLIC_URL=…` to set the hosted endpoint). The site neither starts nor stores agent runs.
+One page serves everyone, **`/mcp`** (`src/routes/(stat)/mcp/`, "Developers" in the footer while `MCP_FEATURE_ON` is set): the connect-your-agent snippets, the tools, resources and prompts, rendered from the baked manifest `src/lib/assets/data/mcp-manifest.json`, which `pyscripts/build_mcp_manifest.py` (`make mcp-manifest`) generates from the **live sources** (tool docstrings, a tool's endpoint from `deep._CURL_MAP`, `resources.py`, `prompts.py`, `MCP_PUBLIC_URL`) so nothing is restated; the texts built from served values (the table tools' metric lists, the era's years) are filled from a backend through the same `fetch` and `describe()` the server starts with. Re-bake after changing a tool or prompt: `make mcp-manifest` (`ARGS='--backend <key or /v1 URL>'` picks the backend, `uv run -m pyscripts.build_mcp_manifest --help` names the default; `MCP_PUBLIC_URL=…` sets the hosted endpoint). The site neither starts nor stores agent runs.
 
 ## Moving the user data between boxes
 
-`make {merge,sync}_db_{to,from}_{live,alpha}` moves the user-data tables (`mcp_objects`, `geo_game_runs`,
-`ledger_events`, `ledger_runs`, `owner_pins`, `users`, `email_consents`, `subject_enrichment`, `review_verdicts`, and auth `sessions` —
-unexpired rows only, so deploys don't log everyone out) plus the `data/mcp-objects/`
-bundles between the local checkout and a running instance
+`make {merge,sync}_db_{to,from}_{live,alpha}` moves the user-data tables (`userdb.TABLES`; `ROW_FILTERS` keeps only unexpired auth `sessions`, so deploys don't log everyone out) plus the objects-root bundles between the local checkout and a running instance
 (`pyscripts/deploy.py` → `pyscripts/userdb.py`, the one home for moving and preserving the
 user-data unit — table transfer, decision reconciliation, snapshots, backups). `merge` unions rows (source never clobbers target; auto-id
 `ledger_events` dedup on their logical unique index, index-less tables on a NULL-safe

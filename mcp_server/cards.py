@@ -36,7 +36,7 @@ def profile_cards(entity_type: str, semantic_id: str, view: dict) -> dict[str, s
         "yearly": True,
         "map": True,
         "fields": True,
-        "network": len(coauthors) >= 2,
+        "network": len(coauthors) >= KINDS["network"]["params"]["n"]["min"],
         "timeline": any(c.get("count", 0) >= shared for c in coauthors),
     }
     return {

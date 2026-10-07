@@ -50,7 +50,7 @@
 		"types": ["authors"],
 		"params": {
 			"with": { "is": "co-author semantic ids among the nodes, highlighted with their ties" },
-			"n": { "is": "nodes", "default": 25, "max": 25 }
+			"n": { "is": "nodes", "default": 25, "min": 2, "max": 25 }
 		}
 	},
 	"papers": {

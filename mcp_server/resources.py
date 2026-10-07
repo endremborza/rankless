@@ -1,5 +1,8 @@
-"""Static MCP resources: schema notes an agent needs before composing tools."""
+"""MCP resources: schema notes an agent needs before composing tools."""
 
+from wire.rankless_server.responses import MethodologyOut
+
+# Filled by `resources()` with the years the backend serves yearly counts for.
 ENTITY_TYPES = """\
 # Rankless entity types
 
@@ -13,7 +16,7 @@ hit-papers: one hit paper, by the semanticId get_papers or get_impact_dag gives.
 - semantic_id is the stable slug identifying an entity (e.g. authors/
   david-baker, institutions/nyu). Ids must come from search_entities /
   lookup_orcid — never guessed.
-- citations are counted over the recent era (2016..now) unless stated
+- citations are counted over the recent era ({first}..{last}) unless stated
   otherwise; `papers` counts the full lifetime.
 """
 
@@ -55,7 +58,11 @@ inputs and labeled as derived. Keep an analyst's neutral voice even when the
 question asks for a persona or a loaded framing; report what the data shows.
 """
 
-RESOURCES = {
-    "rankless://schema/entity-types": ENTITY_TYPES,
-    "rankless://guide/agent": AGENT_GUIDE,
-}
+
+def resources(methodology: MethodologyOut) -> dict[str, str]:
+    """The resources by URI, the era read from the methodology's `yearlyCounts`."""
+    first, last = methodology["yearlyCounts"]
+    return {
+        "rankless://schema/entity-types": ENTITY_TYPES.format(first=first, last=last),
+        "rankless://guide/agent": AGENT_GUIDE,
+    }

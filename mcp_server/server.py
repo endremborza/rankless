@@ -10,6 +10,7 @@ import argparse
 import os
 import sys
 import time
+from typing import Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -20,15 +21,15 @@ from mcp_server.cards import make_card
 from mcp_server.grounding import GROUNDING_TOOLS
 from mcp_server.prompts import PROMPTS
 from mcp_server.receipts import with_receipt
-from mcp_server.resources import AGENT_GUIDE, RESOURCES
+from mcp_server.resources import AGENT_GUIDE, resources
 from mcp_server.tools import TOOLS, describe
-from wire.rankless_server.responses import ColumnRegistry
+from wire.rankless_server.responses import ColumnRegistry, MethodologyOut
 
 LOCAL_HOSTS = ["127.0.0.1:*", "localhost:*"]
 # Registered as they are: what they return is not backend data to re-issue, so no receipt.
 PLAIN_TOOLS = (*GROUNDING_TOOLS, make_card)
-REGISTRY_ATTEMPTS = 3
-REGISTRY_RETRY_S = 5
+FETCH_ATTEMPTS = 3
+FETCH_RETRY_S = 5
 
 
 def transport_security(public_hosts: str) -> TransportSecuritySettings | None:
@@ -44,27 +45,28 @@ def transport_security(public_hosts: str) -> TransportSecuritySettings | None:
     )
 
 
-def fetch_registry() -> ColumnRegistry:
-    """The backend's metric registry, the source of the table tools' descriptions.
+def fetch(path: str) -> Any:
+    """A backend document the descriptions are built from (`/columns`, `/methodology`).
     An unreachable backend is a failed start: the box unit restarts on failure."""
-    url = f"{mcp_server.BE_URL}/columns"
-    for attempt in range(1, REGISTRY_ATTEMPTS + 1):
+    url = f"{mcp_server.BE_URL}{path}"
+    for attempt in range(1, FETCH_ATTEMPTS + 1):
         try:
             resp = httpx.get(url, timeout=10.0)
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPError as exc:
-            if attempt == REGISTRY_ATTEMPTS:
-                raise SystemExit(f"metric registry unreachable at {url}: {exc}")
-            print(f"metric registry not up yet ({exc}); retrying", file=sys.stderr)
-            time.sleep(REGISTRY_RETRY_S)
+            if attempt == FETCH_ATTEMPTS:
+                raise SystemExit(f"backend unreachable at {url}: {exc}")
+            print(f"backend not up yet ({exc}); retrying", file=sys.stderr)
+            time.sleep(FETCH_RETRY_S)
     raise AssertionError("unreachable")
 
 
-def build(registry: ColumnRegistry) -> FastMCP:
+def build(registry: ColumnRegistry, methodology: MethodologyOut) -> FastMCP:
     """The server with every tool, prompt and resource registered; the table tools
-    describe themselves from the registry."""
-    describe(registry)
+    describe themselves from the registry, and the texts naming the era from the
+    methodology's years."""
+    describe(registry, methodology)
     mcp = FastMCP(
         "rankless",
         instructions=AGENT_GUIDE,
@@ -76,7 +78,7 @@ def build(registry: ColumnRegistry) -> FastMCP:
         mcp.tool()(fn)
     for prompt_fn in PROMPTS:
         mcp.prompt()(prompt_fn)
-    for uri, text in RESOURCES.items():
+    for uri, text in resources(methodology).items():
         _register_resource(mcp, uri, text)
     return mcp
 
@@ -94,10 +96,12 @@ def main() -> None:
         default=os.environ.get("MCP_TRANSPORT", "stdio"),
         choices=["stdio", "sse", "streamable-http"],
     )
-    p.add_argument("--host", default=os.environ.get("MCP_HOST", "127.0.0.1"))
-    p.add_argument("--port", type=int, default=int(os.environ.get("MCP_PORT", "8000")))
+    p.add_argument("--host", default=os.environ.get("MCP_HOST", mcp_server.MCP_HOST))
+    p.add_argument(
+        "--port", type=int, default=int(os.environ.get("MCP_PORT", mcp_server.MCP_PORT))
+    )
     args = p.parse_args()
-    mcp = build(fetch_registry())
+    mcp = build(fetch("/columns"), fetch("/methodology"))
     if args.transport != "stdio":
         mcp.settings.host = args.host
         mcp.settings.port = args.port

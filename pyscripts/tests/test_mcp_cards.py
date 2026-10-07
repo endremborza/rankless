@@ -1,11 +1,15 @@
 import asyncio
+import json
+import sys
+from pathlib import Path
 
 import httpx
 import pytest
 
+import mcp_server
 from mcp_server import card_url, cards, tools
 from pyscripts.tests.test_mcp_impact_dag import PROFILE
-from pyscripts.tests.test_mcp_table_tools import REGISTRY, fake_get_json
+from pyscripts.tests.test_mcp_table_tools import METHODOLOGY, REGISTRY, fake_get_json
 
 COAUTHORS = [{"semanticId": "c-d", "count": 1}, {"semanticId": "e-f", "count": 3}]
 
@@ -112,7 +116,7 @@ def test_annotations_link_a_table_card_only_when_it_holds_them(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(tools, "get_json", fake_get_json)
-    tools.describe(REGISTRY)
+    tools.describe(REGISTRY, METHODOLOGY)
     call = "field_score(oncology)"
     out = asyncio.run(tools.annotate_entities("authors", ["a", "b"], [call]))
     assert out["image_url"] == card_url(
@@ -128,10 +132,23 @@ def test_annotations_link_a_table_card_only_when_it_holds_them(
     )
 
 
-def test_the_mcp_page_lists_make_card() -> None:
+def test_the_mcp_page_describes_the_tools_from_the_backend(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from pyscripts import build_mcp_manifest
 
-    assert "make_card" in [t["name"] for t in build_mcp_manifest._tools()]
+    served = {"/columns": REGISTRY, "/methodology": METHODOLOGY}
+    monkeypatch.setattr(build_mcp_manifest, "fetch", served.__getitem__)
+    monkeypatch.setattr(build_mcp_manifest, "OUT_PATH", tmp_path / "manifest.json")
+    monkeypatch.setattr(mcp_server, "BE_URL", mcp_server.BE_URL)
+    monkeypatch.setattr(sys, "argv", ["build_mcp_manifest"])
+    assert build_mcp_manifest.main() == 0
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    docs = {t["name"]: t["description"] for t in manifest["tools"]}
+    assert docs["make_card"] and docs["rank_entities"] and docs["annotate_entities"]
+    era = "{}..{}".format(*METHODOLOGY["yearlyCounts"])
+    assert era in docs["get_entity_profile"]
+    assert any(era in r["text"] for r in manifest["resources"])
 
 
 def test_papers_clamp_the_limit(monkeypatch: pytest.MonkeyPatch) -> None:

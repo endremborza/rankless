@@ -2,7 +2,7 @@
 
 A thin Python process that
 proxies tool calls to the low-latency Rust backend, shapes responses for
-agents (flatten trees, truncate, attach rankless.org backlinks), and keeps
+agents (flatten trees, truncate, attach `SITE_URL` backlinks), and keeps
 rate/agent logic out of the data hot path.
 
 Run over stdio with `uv run -m mcp_server`.
@@ -11,10 +11,13 @@ Run over stdio with `uv run -m mcp_server`.
 import os
 from urllib.parse import quote, urlencode
 
+from wire.rankless_server.consts import PORT
+
+MAIN_DOMAIN = "rankless.org"
 BACKENDS = {
-    "local": "http://127.0.0.1:3038/v1",
-    "alpha": "https://alpha-api.rankless.org/v1",
-    "live": "https://api.rankless.org/v1",
+    "local": f"http://127.0.0.1:{PORT}/v1",
+    "alpha": f"https://alpha-api.{MAIN_DOMAIN}/v1",
+    "live": f"https://api.{MAIN_DOMAIN}/v1",
 }
 BE_URL = os.environ.get("RANKLESS_BE_URL", BACKENDS["local"])
 
@@ -30,10 +33,15 @@ def resolve_backend(arg: str) -> tuple[str, str]:
 
 SITE_VAR = "RANKLESS_SITE_URL"
 RENDER_VAR = "RANKLESS_RENDER_URL"
-SITE_URL = os.environ.get(SITE_VAR, "https://rankless.org")
+SITE_URL = os.environ.get(SITE_VAR, f"https://{MAIN_DOMAIN}")
 # Where a card URL is fetched to render it: the site, or a frontend serving the same
 # cards from elsewhere (a local dev server over a tunnel) while the site does not.
 RENDER_URL = os.environ.get(RENDER_VAR, SITE_URL)
+
+# Where the MCP server listens over HTTP: the box unit renders the port into its environment,
+# and the nginx `/mcp` location proxies to it.
+MCP_HOST = "127.0.0.1"
+MCP_PORT = 8100
 
 ROOT_TYPES = ("authors", "institutions", "sources", "countries", "subfields")
 SEARCH_TYPES = (*ROOT_TYPES, "all")

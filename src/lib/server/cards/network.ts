@@ -45,10 +45,10 @@ export const network: CardKind = {
 	async load({ params, view }) {
 		if (!view) error(404, 'no such card');
 		const all = view.relations['paper-authors'] ?? [];
-		const n = intParam(params, 'n', P.n.default, 2, P.n.max);
+		const n = intParam(params, 'n', P.n.default, P.n.min, P.n.max);
 		const authors = all.slice(0, n);
 		const withIds = idsParam(params, 'with', n);
-		if (authors.length < 2) error(404, 'card unavailable');
+		if (authors.length < P.n.min) error(404, 'card unavailable');
 		if (withIds.some((id) => !authors.some((a) => a.semanticId === id)))
 			error(404, 'unknown co-author');
 		return {

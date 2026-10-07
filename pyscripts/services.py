@@ -25,7 +25,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from mcp_server import BACKENDS, resolve_backend
+from mcp_server import BACKENDS, MCP_HOST, MCP_PORT, resolve_backend
 from pyscripts import paths
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -136,7 +136,12 @@ def render_status(repo_root: str) -> str:
 
 
 def render_nginx_mcp(port: int = MCP_PORT) -> str:
-    return render("nginx-mcp-location.conf", mcp_port=port, api_limit_req=API_LIMIT_REQ)
+    return render(
+        "nginx-mcp-location.conf",
+        mcp_host=MCP_HOST,
+        mcp_port=port,
+        api_limit_req=API_LIMIT_REQ,
+    )
 
 
 def systemctl(*args: str) -> None:

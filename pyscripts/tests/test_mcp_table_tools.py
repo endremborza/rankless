@@ -3,7 +3,8 @@ import copy
 
 import pytest
 
-from mcp_server import tools
+from mcp_server import SITE_URL, tools
+from wire.rankless_server.consts import MAX_PINS, SCREEN_K
 
 DECLS = [
     {
@@ -66,6 +67,8 @@ def root_registry(root: str) -> dict:
 
 
 REGISTRY = {"roots": {root: root_registry(root) for root in DEFAULT_SORTS}}
+# The part of `/methodology` the descriptions read: the years with yearly counts.
+METHODOLOGY = {"yearlyCounts": (1990, 1999)}
 
 CALLS: list[tuple[str, dict]] = []
 
@@ -113,11 +116,14 @@ def test_rank_entities_passes_the_expressions_and_reads_the_counts() -> None:
     where = "country = hun and papers >= 100"
     out = asyncio.run(
         tools.rank_entities(
-            "institutions", sort="field_score(oncology)", where=where, limit=500
+            "institutions",
+            sort="field_score(oncology)",
+            where=where,
+            limit=5 * tools.MAX_RANK_LIMIT,
         )
     )
     path, params = CALLS[0]
-    assert path == "/slice/institutions/0/100"
+    assert path == f"/slice/institutions/0/{tools.MAX_RANK_LIMIT}"
     assert params == {"sort": "field_score(oncology)", "where": where}
     assert (out["total"], out["screened"], out["sort"]) == (
         42,
@@ -134,7 +140,7 @@ def test_rank_entities_passes_the_expressions_and_reads_the_counts() -> None:
     )
     # The site's table reads the very keys the backend took: one query vocabulary.
     assert out["rankless_url"] == (
-        "https://rankless.org/institutions/table"
+        f"{SITE_URL}/institutions/table"
         "?sort=field_score%28oncology%29&where=country+%3D+hun+and+papers+%3E%3D+100"
     )
 
@@ -142,7 +148,7 @@ def test_rank_entities_passes_the_expressions_and_reads_the_counts() -> None:
 def test_rank_entities_without_a_sort_leaves_the_default_to_the_backend(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    tools.describe(REGISTRY)
+    tools.describe(REGISTRY, METHODOLOGY)
     out = asyncio.run(tools.rank_entities("authors"))
     assert CALLS[0][1] == {}
     assert out["sort"] == "weighted_paper_score"
@@ -170,7 +176,7 @@ def test_annotate_entities_resolves_names_then_aligns_values() -> None:
 
 
 def test_descriptions_are_built_from_the_registry() -> None:
-    tools.describe(REGISTRY)
+    tools.describe(REGISTRY, METHODOLOGY)
     rank = tools.rank_entities.__doc__ or ""
     assert rank.count("citations [count]: Citations received.") == 1
     assert "Citations received. global for authors, institutions." in rank
@@ -195,10 +201,19 @@ def test_descriptions_are_built_from_the_registry() -> None:
     assert "citations [count]" not in annotate
 
 
+def test_descriptions_state_the_served_era_and_the_backend_limits() -> None:
+    tools.describe(REGISTRY, METHODOLOGY)
+    era = "{}..{}".format(*METHODOLOGY["yearlyCounts"])
+    assert era in (tools.get_entity_profile.__doc__ or "")
+    assert era in (tools.get_entity_stats.__doc__ or "")
+    assert f"top {SCREEN_K} by citations" in (tools.rank_entities.__doc__ or "")
+    assert f"up to {MAX_PINS} named" in (tools.annotate_entities.__doc__ or "")
+
+
 def test_a_wording_one_type_states_differently_gets_its_own_line() -> None:
     registry = copy.deepcopy(REGISTRY)
     registry["roots"]["institutions"]["metrics"][0]["meaning"] = "Citations to it."
-    tools.describe(registry)
+    tools.describe(registry, METHODOLOGY)
     rank = tools.rank_entities.__doc__ or ""
     assert "citations [count]: Citations received. global for authors." in rank
     assert "citations [count]: Citations to it. global for institutions." in rank

@@ -2,22 +2,26 @@
 
 Single source of truth: the tool docstrings, resources, and prompts are read
 straight from `mcp_server` (a tool's REST endpoint from deep's curl map), so the
-`/mcp` page never restates them.
+`/mcp` page never restates them. The texts built from served values (the table tools'
+metric lists, the era's years) are filled from `--backend` the way the server fills them
+at its start.
 
-    uv run -m pyscripts.build_mcp_manifest   # make mcp-manifest
+    uv run -m pyscripts.build_mcp_manifest [--backend alpha]   # make mcp-manifest ARGS=...
 """
 
+import argparse
 import inspect
 import json
 import os
 from datetime import datetime
 from pathlib import Path
 
-from mcp_server import BACKENDS
+import mcp_server
+from mcp_server import BACKENDS, resolve_backend
 from mcp_server.prompts import PROMPTS
-from mcp_server.resources import RESOURCES
-from mcp_server.server import PLAIN_TOOLS
-from mcp_server.tools import TOOLS
+from mcp_server.resources import resources
+from mcp_server.server import PLAIN_TOOLS, fetch
+from mcp_server.tools import TOOLS, describe
 from pyscripts.explore import deep
 
 OUT_PATH = Path("src/lib/assets/data/mcp-manifest.json")
@@ -30,12 +34,23 @@ PUBLIC_BE_URL = os.environ.get("MCP_PUBLIC_BE_URL", BACKENDS["live"])
 
 
 def main() -> int:
+    p = argparse.ArgumentParser(description="Bake the MCP page manifest.")
+    p.add_argument(
+        "--backend",
+        default="local",
+        help=f"backend the served texts are read from: one of {list(BACKENDS)} or a "
+        "/v1 base URL (default: %(default)s).",
+    )
+    mcp_server.set_backend(resolve_backend(p.parse_args().backend)[0])
+    methodology = fetch("/methodology")
+    describe(fetch("/columns"), methodology)
     manifest = {
         "generated": datetime.now().strftime("%Y-%m-%d"),
         "connect": _connect(),
         "tools": _tools(),
         "resources": [
-            {"uri": uri, "text": text.strip()} for uri, text in RESOURCES.items()
+            {"uri": uri, "text": text.strip()}
+            for uri, text in resources(methodology).items()
         ],
         "prompts": _prompts(),
     }

@@ -9,7 +9,6 @@ WorkingDirectory={{ repo_root }}
 EnvironmentFile=-{{ repo_root }}/.env
 Environment=PYTHONUNBUFFERED=1
 Environment=MCP_TRANSPORT=streamable-http
-Environment=MCP_HOST=127.0.0.1
 Environment=MCP_PORT={{ mcp_port }}
 Environment=RANKLESS_BE_URL={{ mcp_be_url }}
 Environment=MCP_PUBLIC_HOSTS={{ mcp_public_hosts }}

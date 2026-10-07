@@ -26,9 +26,12 @@ from mcp_server.response_shaping import (
     flatten_tree,
     truncate_lists,
 )
+from wire.rankless_rs.metrics import MAX_SHARED_PAPERS, TOP_HIT_PAPERS
+from wire.rankless_server.consts import MAX_PINS, SCREEN_K
 from wire.rankless_server.responses import (
     ColumnDecl,
     ColumnRegistry,
+    MethodologyOut,
     MetricValuesResp,
     PaperAuthorMeta,
     PaperOut,
@@ -48,7 +51,6 @@ _numeric: dict[str, set[str]] = {}
 
 MAX_RANK_LIMIT = 100
 MAX_PAPERS_LIMIT = 50
-MAX_ANNOTATE_IDS = 24
 ROW_INTERNALS = ("oaId", "dmId", "values")
 PAPER_FIELDS: Final = ("name", "year", "citations", "score", "isHit", "doi")
 
@@ -71,12 +73,12 @@ Rank the entities of one type by a metric call, narrowed by a `where` expression
 answer "which {{entity_type}} are strongest / biggest in ...". Without `sort` a type is ranked by
 its default ({defaults}). `total` is the size of the
 narrowed cohort; `screened` is set when a per-entity metric ranks (or narrows) only the cohort's
-top 1000 by citations, and then `rank` is within those 1000, not within `total`. Rows carry every metric column the ranking
+top {screen_k} by citations, and then `rank` is within those {screen_k}, not within `total`. Rows carry every metric column the ranking
 makes available (`columns` lists them) and `rankless_url` opens the same table on the site.
 
 {expressions}
 
-Metrics (global = ranks and narrows the whole cohort; per-entity = the top 1000 by citations;
+Metrics (global = ranks and narrows the whole cohort; per-entity = the top {screen_k} by citations;
 a walk = a page column for annotate_entities only, never a ranking or a clause):
 {metrics}
 """
@@ -154,13 +156,13 @@ async def get_entity_profile(entity_type: str, semantic_id: str) -> dict:
 
     entity_type is a root type or hit-papers (a hit paper's semantic_id comes
     from get_papers or get_impact_dag). `yearlyPapers`/`yearlyCites` cover the
-    recent era (2016..now), and `startYear` is the first year of that era with a
+    recent era ({first}..{last}), and `startYear` is the first year of that era with a
     paper, not a career start (a hit paper's is its publication year).
     `relations` holds ranked related entities per relation type (paper-fields,
     citing-fields, paper-journals, paper-authors, ...). `coauthorEdges` lists
     the strongest ties among the entity's top authors (an author's co-authors):
     the papers each pair wrote together anywhere, not only within this entity
-    (counts cap at 255). `image_url` is the share card of the entity's default
+    (counts stop at {max_shared}). `image_url` is the share card of the entity's default
     breakdown and `cards` the default card of every other kind this profile
     shows the entity has (yearly citations, map, fields, and for an author with
     co-authors their network and timeline); get_peers, get_papers and
@@ -187,7 +189,7 @@ async def get_entity_stats(
 ) -> dict:
     """Lifetime + year-windowed paper/citation counts, top citing subfields.
 
-    The per-year window only covers the recent era (2016..now); `windowFrom`/
+    The per-year window only covers the recent era ({first}..{last}); `windowFrom`/
     `windowTo` in the response show the clamped range actually used. Pass
     `subfield` (a subfields semantic_id) for that subfield's citation slice.
     """
@@ -298,8 +300,8 @@ async def get_impact_dag(semantic_id: str) -> dict:
     """The hit papers that build on an author's work: which of the most-cited
     papers of their fields and years cite the author's papers.
 
-    `citingHits` are at most 50 hit papers citing the author, ordered by paper
-    score. They are a selection, not all of them: the data keeps the 50 with
+    `citingHits` are at most {TOP_HIT_PAPERS} hit papers citing the author, ordered by paper
+    score. They are a selection, not all of them: the data keeps the {TOP_HIT_PAPERS} with
     the most citations and the strongest journals, favouring papers laureates
     wrote up to their prize year, and never a paper the author co-wrote; do not
     read a share of laureates or fields among them as a share of everything
@@ -318,6 +320,11 @@ async def get_impact_dag(semantic_id: str) -> dict:
         f"/paper-profile/{encode_semantic_id(semantic_id)}"
     )
     return _impact_dag(res, semantic_id)
+
+
+get_impact_dag.__doc__ = (get_impact_dag.__doc__ or "").format(
+    TOP_HIT_PAPERS=TOP_HIT_PAPERS
+)
 
 
 async def get_peers(entity_type: str, semantic_id: str) -> dict:
@@ -462,7 +469,7 @@ async def annotate_entities(
     _check_etype(entity_type)
     if not semantic_ids or not metrics:
         raise ValueError("semantic_ids and metrics must both be non-empty")
-    pins = ",".join(semantic_ids[:MAX_ANNOTATE_IDS])
+    pins = ",".join(semantic_ids[:MAX_PINS])
     pinned: list[TableRow] = (
         await get_json(f"/slice/{entity_type}/0/0", {"pin": pins})
     )["rows"]
@@ -510,10 +517,20 @@ def _signature(m: ColumnDecl) -> str:
     )
 
 
-def describe(registry: ColumnRegistry) -> None:
-    """Fill the table tools' docstrings from the backend's metric registry. A metric's texts
+# The docstrings naming the recent era: templates `describe()` fills with the served years.
+ERA_DOCS: Final = {
+    fn: fn.__doc__ or "" for fn in (get_entity_profile, get_entity_stats)
+}
+
+
+def describe(registry: ColumnRegistry, methodology: MethodologyOut) -> None:
+    """Fill the docstrings that state served values: the era's years from the methodology's
+    `yearlyCounts`, and the table tools' from the backend's metric registry. A metric's texts
     are per root type, so each wording is listed once, with the types it holds for grouped by
     the metric's kind on each."""
+    first, last = methodology["yearlyCounts"]
+    for fn, doc in ERA_DOCS.items():
+        fn.__doc__ = doc.format(first=first, last=last, max_shared=MAX_SHARED_PAPERS)
     kinds: dict[str, dict[str, list[str]]] = {}
     for root in (r for r in ROOT_TYPES if r in registry["roots"]):
         reg = registry["roots"][root]
@@ -546,12 +563,13 @@ def describe(registry: ColumnRegistry) -> None:
         if (rs := by_kind.get("a walk", []) + by_kind.get("per-entity", []))
     ]
     rank_entities.__doc__ = RANK_DOC.format(
+        screen_k=SCREEN_K,
         expressions=EXPRESSIONS,
         defaults=", ".join(f"{r} by {s}" for r, s in _default_sorts.items()),
         metrics="\n".join(rank_lines),
     )
     annotate_entities.__doc__ = ANNOTATE_DOC.format(
-        max_ids=MAX_ANNOTATE_IDS,
+        max_ids=MAX_PINS,
         card_pins=KINDS["table"]["params"]["pin"]["max"],
         card_cols=KINDS["table"]["params"]["cols"]["max"],
         expressions=EXPRESSIONS,

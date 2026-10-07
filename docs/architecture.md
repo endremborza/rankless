@@ -420,22 +420,22 @@ The Python form of every `#[wire]` Rust type and constant (`make types`), TypedD
 
 ### MCP server (`mcp_server/`)
 
-Python MCP proxy (stdio `uv run -m mcp_server` / `make mcp-server`; streamable-http behind
-nginx as `alpha-api.rankless.org/mcp`) exposing the Rust backend to any MCP client, with
+Python MCP proxy (stdio `uv run -m mcp_server` / `make mcp-server`; streamable-http on
+`MCP_HOST`:`MCP_PORT` behind nginx's `/mcp` location on the API host) exposing the Rust backend to any MCP client, with
 receipts on every response and a `verify_claims` tool; see [mcp-server.md](mcp-server.md).
 
 | File | Role |
 | --- | --- |
-| `server.py` | FastMCP wiring: data tools registered in the receipt envelope, `PLAIN_TOOLS` (the grounding tools and `make_card`) as they are, resources/prompts, server `instructions`; stdio or streamable-http, `MCP_PUBLIC_HOSTS` host guard for the hosted endpoint |
-| `tools.py` | Data tool implementations as plain async functions (`TOOL_FNS` registry, re-issued by `verify.py`) |
+| `server.py` | FastMCP wiring: at start `fetch` reads the backend's `/columns` and `/methodology` (an unreachable backend fails the start) and `build` calls `describe(registry, methodology)` before registering the data tools in the receipt envelope, `PLAIN_TOOLS` (the grounding tools and `make_card`) as they are, `resources(methodology)`/prompts, server `instructions`; stdio or streamable-http (host and port default to `mcp_server.MCP_HOST`/`MCP_PORT`, the env vars of those names override them), `MCP_PUBLIC_HOSTS` host guard for the hosted endpoint |
+| `tools.py` | Data tool implementations as plain async functions (`TOOL_FNS` registry, re-issued by `verify.py`); `describe()` fills the docstrings that state served values: the table tools' metric lists from the registry, and `ERA_DOCS`, the docstrings naming the recent era, with `yearlyCounts`; the limits they state are the generated constants (`SCREEN_K`, `MAX_PINS`, `TOP_HIT_PAPERS`, `MAX_SHARED_PAPERS`) |
 | `receipts.py` | `{receipt, data}` envelope + per-session receipt log (keyed by MCP session id, bounded) mirrored as daily JSONL under `MCP_LOG_DIR`; `with_receipt` wraps a plain tool for registration |
 | `grounding.py` | `verify_claims` (re-issue cited numbers by receipt id or tool+args, one fact-record format) and `suggest_endpoint` (log what the tools lacked) |
 | `verify.py` | Deterministic re-issue of model-cited tool calls (`verify_facts`, dotted-path walk); shared by the live tool and every offline miner |
-| `client.py` | Async httpx client for the backend (`RANKLESS_BE_URL`, default `127.0.0.1:3038/v1`) |
+| `client.py` | Async httpx client for the backend (`RANKLESS_BE_URL`, default `BACKENDS["local"]`, the local backend on the generated `PORT`) |
 | `response_shaping.py` | Tree flattening via `/v1/specs` breakdowns, list truncation, `rankless_url` backlinks, `coauthor_edges` (upper-triangle `authorNetwork` → named strongest ties) |
-| `__init__.py` | Backends, root/view types, the Nobel category list, and the site URLs a response links to: `entity_url` (a page, with its view state), `card_url` (a share card kind of an entity or a type's cohort, with its variant), `table_url`; `render_url` maps a card URL onto `RANKLESS_RENDER_URL` when the cards render elsewhere than the site |
-| `cards.py` | `KINDS`, the card contract read from `src/lib/assets/data/card-kinds.json` (the file the site's loaders parse by), `profile_cards` (the kinds an entity's `/views` profile proves it has), `fetch_card` (a card's PNG from the rendering host, also `explore/posts.py`'s fetch) and the `make_card` tool, which builds a variant's URL and fetches it once so a bad parameter fails in the session |
-| `resources.py` | Static schema/guide resources (`rankless://schema/entity-types`, `rankless://guide/agent` = the resolve → call → cite → verify → answer loop) |
+| `__init__.py` | `MAIN_DOMAIN`, the one domain literal `BACKENDS`, `SITE_URL` and `pyscripts/hosts.py` derive from (the local backend on the generated `PORT`); `MCP_HOST`/`MCP_PORT`, where the server listens over HTTP (`services.py` renders the port into the unit and the nginx `/mcp` location); root/view types, the Nobel category list, and the site URLs a response links to: `entity_url` (a page, with its view state), `card_url` (a share card kind of an entity or a type's cohort, with its variant), `table_url`; `render_url` maps a card URL onto `RANKLESS_RENDER_URL` when the cards render elsewhere than the site |
+| `cards.py` | `KINDS`, the card contract read from `src/lib/assets/data/card-kinds.json` (the file the site's loaders parse by), `profile_cards` (the kinds an entity's `/views` profile proves it has; a network needs the contract's `network.params.n.min` co-authors), `fetch_card` (a card's PNG from the rendering host, also `explore/story.py`'s fetch) and the `make_card` tool, which builds a variant's URL and fetches it once so a bad parameter fails in the session |
+| `resources.py` | `resources(methodology)`: the schema/guide resources by URI (`rankless://schema/entity-types`, its recent era filled from the methodology's `yearlyCounts`; `rankless://guide/agent` = the resolve → call → cite → verify → answer loop) |
 | `prompts.py` | Reusable prompts (`author_impact_report`) |
 
 ---

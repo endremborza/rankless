@@ -12,7 +12,9 @@ from mcp_server.server import transport_security
 CALLS: list[dict] = []
 
 
-async def fake_stats(entity_type: str, semantic_id: str, year_from: int = 2016) -> dict:
+async def fake_stats(
+    entity_type: str, semantic_id: str, year_from: int | None = None
+) -> dict:
     CALLS.append({"entity_type": entity_type, "semantic_id": semantic_id})
     return {"windowPapers": 42, "topSubfields": [{"citations": 7}]}
 
