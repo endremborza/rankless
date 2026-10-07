@@ -5,11 +5,18 @@
 	import ShowcaseTimeline from './ShowcaseTimeline.svelte';
 	import ShowcasePeers from './ShowcasePeers.svelte';
 	import ShowcaseCoauthors from './ShowcaseCoauthors.svelte';
+	import { LADDER_PCT_BANDS } from '$lib/wire/rankless_rs/ladder';
+	import { STANDING_MIN_TIER, standingLabel, tierLabels } from '$lib/peers-utils';
 
 	// Baked snapshot, shaped + validated by pyscripts/homepage_showcase.py (no backend call on load).
 	const showcase = showcaseRaw as unknown as ShowcaseData;
 	const { scholar, peers, coauthors, hitPapers, coauthorTimeline } = showcase;
 	const profile = `/authors/${scholar.semanticId}`;
+
+	// The standing badges run from the loosest tier shown to the ladder's tightest band.
+	const tiers = tierLabels([...LADDER_PCT_BANDS]);
+	const loosestBadge = standingLabel(STANDING_MIN_TIER, tiers)!;
+	const badgeRange = `${loosestBadge[0].toUpperCase()}${loosestBadge.slice(1)} to ${tiers.at(-1)}`;
 </script>
 
 <div class="card wide login">
@@ -113,7 +120,7 @@
 		</div>
 		<div class="more-item">
 			<h4>Standing badges</h4>
-			<p>Top 5% to top 0.01% — see exactly where an entity stands in each of its fields.</p>
+			<p>{badgeRange} — see exactly where an entity stands in each of its fields.</p>
 		</div>
 	</div>
 </div>
