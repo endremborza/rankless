@@ -1,6 +1,6 @@
-import type { PaperOut } from '$lib/wire/rankless_server/responses';
+import { METHODOLOGY, type PaperOut } from '$lib/wire/rankless_server/responses';
 import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
-import { resolveAuthorNameOrNull } from '$lib/utils/paper-helpers';
+import { isTeamPaper, resolveAuthorNameOrNull } from '$lib/utils/paper-helpers';
 
 export type SortMode = 'first' | 'recent' | 'count';
 
@@ -22,9 +22,10 @@ export type YearDomain = { lo: number; hi: number; span: number };
 
 const NICE_STEPS = [1, 2, 5, 10, 20, 25, 50];
 
-// Aggregate every named co-author across the hero's loaded works. The hero is dropped, papers
-// without a usable year are skipped, and discarded (D) authors are kept (name only, no link) so
-// recent or minor collaborators missing from the top-N network still surface here.
+// Aggregate every named co-author across the hero's loaded team papers, the ones that make their
+// authors co-authors. The hero is dropped, papers without a usable year are skipped, and discarded
+// (D) authors are kept (name only, no link) so recent or minor collaborators missing from the
+// top-N network still surface here.
 export function buildCoauthors(
 	papers: PaperOut[],
 	entityAtts: EntityAttsForLinks,
@@ -37,7 +38,7 @@ export function buildCoauthors(
 	>();
 
 	for (const p of papers) {
-		if (!p.year || p.year <= 0) continue;
+		if (!p.year || p.year <= 0 || !isTeamPaper(p, METHODOLOGY.workScreen.teamLimit)) continue;
 		for (const ship of p.authorships) {
 			let url: string | null = null;
 			if (ship.author[0] === 'F') {

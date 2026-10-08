@@ -1,4 +1,4 @@
-import type { PaperOut } from '$lib/wire/rankless_server/responses';
+import { METHODOLOGY, type PaperOut } from '$lib/wire/rankless_server/responses';
 import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 import { describe, it, expect } from 'vitest';
 import { buildCoauthors, sortCoauthors, coauthorYearDomain, makeTicks } from './author-timeline';
@@ -81,6 +81,19 @@ describe('buildCoauthors', () => {
 			[2019, 1, false],
 			[2021, 2, true]
 		]);
+	});
+
+	it('draws no co-authors from a paper over the team limit', () => {
+		const team = makePaper({
+			wid: 6,
+			year: 2022,
+			authorCount: METHODOLOGY.workScreen.teamLimit + 1,
+			authorships: [
+				{ author: 'F1', insts: [] },
+				{ author: 'F2', insts: [] }
+			]
+		});
+		expect(buildCoauthors([team], atts, disc, 'hero')).toEqual([]);
 	});
 
 	it('skips papers without a usable year and unresolvable authors', () => {
