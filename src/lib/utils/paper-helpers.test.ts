@@ -3,6 +3,7 @@ import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 import { describe, it, expect } from 'vitest';
 import {
 	authorByline,
+	hasNobelCoauthor,
 	othersLabel,
 	resolveAuthorNameOrNull,
 	resolveAuthors,
@@ -163,5 +164,24 @@ describe('oaWorkToPaperResp', () => {
 		]);
 		expect(resp.doi).toBe('');
 		expect(resp.year).toBe(2002);
+	});
+});
+
+describe('hasNobelCoauthor', () => {
+	const meta = {
+		'1': { prize: 3, year: 2026 },
+		'2': { prize: 3, year: 2026 },
+		'3': { prize: 2, year: 2001 }
+	};
+	const by = (...ids: string[]) =>
+		makePaper({ authorships: ids.map((id) => ({ author: `F${id}`, insts: [] })) });
+
+	it('leaves out the subject and the laureates who share the subject’s prize', () => {
+		expect(hasNobelCoauthor(by('1', '2'), meta, '1')).toBe(false);
+		expect(hasNobelCoauthor(by('2', '3'), meta, '1')).toBe(true);
+	});
+
+	it('counts every laureate when the subject holds no prize', () => {
+		expect(hasNobelCoauthor(by('2'), meta, '9')).toBe(true);
 	});
 });

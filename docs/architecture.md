@@ -347,7 +347,7 @@ the only viz dependency).
 | `lib/utils/paper-helpers.ts` | Paper/author/source name resolution (an authorship without a name is left out; `authorByline` caps the named authors and counts the rest of `authorCount` as "+N others" for `AuthorList.svelte`); highlight detection; OpenAlex work payloads (`fetchOaJson` bounds the wait and checks the status, `oaWorkToPaperResp` tolerates the nulls the API allows) |
 | `lib/server/disclaimers.ts` | `activeDisclaimer`: a profile's `profile_disclaimers` row, returned only while its `run_id` is the ledger manifest's, so a note lapses with the data run it was written against; the manifest is read only for a profile that has a row |
 | `lib/utils/dag-builder.ts` | DAG construction from RefTree |
-| `lib/utils/impact-summary.ts` | Summary counts (Nobel, Science/Nature, standout) for citing papers, and the phrases the page and the impact card word them with |
+| `lib/utils/impact-summary.ts` | Summary counts (Nobel, Science/Nature, standout) for citing papers, and the phrases the page and the impact card word them with; a Nobel count leaves out the subject and the laureates who share the subject's prize (`hasNobelCoauthor`) |
 | `lib/utils/clipboard-download.ts` | Clipboard copy + file download |
 | `lib/utils/game.ts` | Shared game plumbing: day stamp, streak rule, FNV hash, shuffle, flags + `Intl` country names, share-text frame, localStorage state, result-POST + clipboard helpers |
 | `lib/utils/geo.ts` | The world-map asset's lat/lon→map projection over `map-projection.json` |

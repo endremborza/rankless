@@ -43,7 +43,7 @@
 		...componentLayers[i].top,
 		...componentLayers[i].mid
 	]);
-	$: summary = computeImpactSummary(allImpacted, paperMap, entityAtts, authorsMeta);
+	$: summary = computeImpactSummary(allImpacted, paperMap, entityAtts, authorsMeta, pageAuthorDmId);
 
 	let currentIndex = 0;
 	$: if (components.length > 0 && currentIndex >= components.length) currentIndex = 0;

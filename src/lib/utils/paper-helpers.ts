@@ -257,15 +257,20 @@ export function isAuthored(
 	});
 }
 
-// A laureate among the paper's authors other than `exceptDmId` (the page's own author).
+// A paper with a Nobel laureate among its authors, besides `subjectDmId` and the laureates who
+// share the subject's own prize: neither the subject nor a co-laureate counts as a laureate
+// building on the subject's work.
 export function hasNobelCoauthor(
 	paper: PaperOut,
 	authorsMeta: Record<string, PaperAuthorMeta>,
-	exceptDmId?: string
+	subjectDmId?: string
 ): boolean {
+	const own = subjectDmId === undefined ? undefined : authorsMeta[subjectDmId];
+	const shared = (m: PaperAuthorMeta) => !!own && own.prize === m.prize && own.year === m.year;
 	return paper.authorships.some((s) => {
 		const dmId = s.author.slice(1);
-		return s.author[0] === 'F' && dmId !== exceptDmId && (authorsMeta[dmId]?.prize ?? 0) > 0;
+		const meta = authorsMeta[dmId];
+		return s.author[0] === 'F' && dmId !== subjectDmId && !!meta && meta.prize > 0 && !shared(meta);
 	});
 }
 

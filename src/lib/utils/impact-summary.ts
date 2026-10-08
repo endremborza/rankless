@@ -12,7 +12,8 @@ export function computeImpactSummary(
 	impactedWids: number[],
 	paperMap: Record<number, PaperOut>,
 	entityAtts: EntityAttsForLinks,
-	authorsMeta: Record<string, PaperAuthorMeta>
+	authorsMeta: Record<string, PaperAuthorMeta>,
+	subjectDmId?: string
 ): ImpactSummary {
 	let nobelCount = 0;
 	let prestigiousCount = 0;
@@ -29,7 +30,7 @@ export function computeImpactSummary(
 			prestigiousCount++;
 		}
 
-		if (hasNobelCoauthor(paper, authorsMeta)) nobelCount++;
+		if (hasNobelCoauthor(paper, authorsMeta, subjectDmId)) nobelCount++;
 	}
 
 	return { nobelCount, prestigiousCount, hitCount };

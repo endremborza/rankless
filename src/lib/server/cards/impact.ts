@@ -77,7 +77,8 @@ export const impact: CardKind = {
 			wids.filter((w) => !own(w)),
 			profile.byWid,
 			profile.entityAtts,
-			profile.authorsMeta
+			profile.authorsMeta,
+			profile.authorDmId
 		);
 		return {
 			props: {
