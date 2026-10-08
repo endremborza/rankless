@@ -1,20 +1,20 @@
 {
-  "generated": "2026-10-07",
+  "generated": "2026-10-08",
   "connect": {
-    "url": "https://alpha-api.rankless.org/mcp",
+    "url": "https://api.rankless.org/mcp",
     "transport": "streamable-http",
     "snippets": [
       {
         "label": "Claude Code",
-        "cmd": "claude mcp add --transport http rankless https://alpha-api.rankless.org/mcp"
+        "cmd": "claude mcp add --transport http rankless https://api.rankless.org/mcp"
       },
       {
         "label": "Claude.ai / Claude Desktop",
-        "cmd": "Settings → Connectors → Add custom connector → name: rankless, URL: https://alpha-api.rankless.org/mcp"
+        "cmd": "Settings → Connectors → Add custom connector → name: rankless, URL: https://api.rankless.org/mcp"
       },
       {
         "label": "MCP config (.mcp.json / Cursor / other clients)",
-        "cmd": "{\n  \"mcpServers\": {\n    \"rankless\": {\n      \"type\": \"http\",\n      \"url\": \"https://alpha-api.rankless.org/mcp\"\n    }\n  }\n}"
+        "cmd": "{\n  \"mcpServers\": {\n    \"rankless\": {\n      \"type\": \"http\",\n      \"url\": \"https://api.rankless.org/mcp\"\n    }\n  }\n}"
       },
       {
         "label": "Or run the stdio proxy against the public REST API",
