@@ -26,6 +26,7 @@ COMMANDS = {
     "calibrate-map": "pyscripts.calibrate_map",
     "country-authors": "pyscripts.country_authors",
     "disclaimers": "pyscripts.disclaimers",
+    "infographic": "pyscripts.explore.infographic",
     "rankless-game-card-mining": "pyscripts.explore.game_card_mining",
     "objects": "pyscripts.object_store",
     "userdb": "pyscripts.userdb",
