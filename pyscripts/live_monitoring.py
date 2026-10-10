@@ -31,7 +31,7 @@ FAIL_SECONDS = 120
 WAIT_SECONDS = 15
 WAIT_POST_WARN = 50
 
-LAST_SUCCESS = 0
+LAST_SUCCESS = time.time()
 ERROR_DEQUE = deque(maxlen=8)
 
 
@@ -124,46 +124,49 @@ def try_restarting_fe():
             print(f"failed restarting frontend {e}")
 
 
-if __name__ == "__main__":
-    started = False
-    while True:
-        if started:
-            read_records_and_warn()
-            time.sleep(WAIT_SECONDS)
-        else:
-            started = True
-            try:
-                warn("Rankless monitoring", f"just started with\n{get_success_dic()}")
-            except OSError as e:
-                print(f"startup mail failed: {e}")
-            continue
-        with multiprocessing.Pool(1) as pool:
-            try:
-                pool.map_async(validate, [2]).get(timeout=15)
-                log_result()
-            except Exception as e1:
-                log_result(e1, "short time")
-                try:
-                    pool.map_async(validate, [1]).get(timeout=30)
-                except Exception as e:
-                    log_result(e, "long time")
+def check_site():
+    with multiprocessing.Pool(1) as pool:
         try:
-            status_dic = requests.get(
-                f"http://{IP}:{STATUS_PORT}/status", timeout=10
-            ).json()
-        except Exception as e:
-            print("failed status json")
-            log_result(e, "status json")
-            continue
+            pool.map_async(validate, [2]).get(timeout=15)
+            log_result()
+        except Exception as e1:
+            log_result(e1, "short time")
+            try:
+                pool.map_async(validate, [1]).get(timeout=30)
+            except Exception as e:
+                log_result(e, "long time")
 
-        if status_dic["fs_use_pct"] >= 97.5:
-            warn("Rankless filling", str(status_dic))
-            continue
-        if status_dic["fs_use_pct"] > WARN_AT_FULL:
-            warn("Rankless running out of space", str(status_dic))
-        if status_dic["open_files"] > WARN_AT_FILES:
-            try_restarting_fe()
-            warn("Rankless too many open files", str(status_dic))
-        if status_dic["memory_free_gb"] < WARN_AT_RAM:
-            try_restarting_fe()
-            warn("Rankless running out of ram", str(status_dic))
+
+def check_status():
+    try:
+        status_dic = requests.get(
+            f"http://{IP}:{STATUS_PORT}/status", timeout=10
+        ).json()
+    except Exception as e:
+        print("failed status json")
+        log_result(e, "status json")
+        return
+
+    if status_dic["fs_use_pct"] >= 97.5:
+        warn("Rankless filling", str(status_dic))
+        return
+    if status_dic["fs_use_pct"] > WARN_AT_FULL:
+        warn("Rankless running out of space", str(status_dic))
+    if status_dic["open_files"] > WARN_AT_FILES:
+        try_restarting_fe()
+        warn("Rankless too many open files", str(status_dic))
+    if status_dic["memory_free_gb"] < WARN_AT_RAM:
+        try_restarting_fe()
+        warn("Rankless running out of ram", str(status_dic))
+
+
+if __name__ == "__main__":
+    try:
+        warn("Rankless monitoring", f"just started with\n{get_success_dic()}")
+    except OSError as e:
+        print(f"startup mail failed: {e}")
+    while True:
+        check_site()
+        check_status()
+        read_records_and_warn()
+        time.sleep(WAIT_SECONDS)
