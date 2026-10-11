@@ -22,6 +22,7 @@ import { fixViewNames, fixAttNames, fixPeerNames } from '$lib/name-overrides';
 import { LedgerDb } from '$lib/server/db';
 import { readManifest, EMPTY_MANIFEST } from '$lib/server/manifest';
 import { activeDisclaimer } from '$lib/server/disclaimers';
+import { movedSemanticId } from '$lib/server/moved-semantic-ids';
 import { computeEffective } from '$lib/utils/ledger-effective';
 import { worksPageUrl } from '$lib/utils/works-loader';
 import { INITIAL_PAGE_SIZE } from '$lib/utils/works-paging';
@@ -36,9 +37,14 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 	const view: ViewResult | undefined = await fetch(tf.viewBeUrl(BE_URL, conf))
 		.then((res) => (res.ok ? res.json() : undefined))
 		.catch(() => undefined);
-	// An unresolved entity (renamed/mistyped slug) sends the visitor to search rather than a dead
-	// 404 — the slug usually reads as the query (e.g. "geoffrey-e-hinton" → "geoffrey e hinton").
+	// An unresolved slug that a past release served moves for good to the entity's current one; any
+	// other (renamed/mistyped) goes to search rather than a dead 404 — the slug usually reads as the
+	// query (e.g. "geoffrey-e-hinton" → "geoffrey e hinton").
 	if (view == undefined || view.name == undefined) {
+		const moved = await movedSemanticId(rootType, semanticId, fetch);
+		if (moved !== undefined) {
+			redirect(301, `${tf.getEntityPath(rootType, moved)}${url.search}`);
+		}
 		redirect(307, `/search?q=${encodeURIComponent(semanticId.replace(/-/g, ' '))}`);
 	}
 	fixViewNames(view);

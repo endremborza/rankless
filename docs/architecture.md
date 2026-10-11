@@ -345,6 +345,7 @@ the only viz dependency).
 | `lib/server/review-data.ts` | DB glue: `runEnrichment` (chunked cache fill + auto-accept), `loadReviewQueuePage` |
 | `lib/utils/reference-format.ts` | Academic reference formatting (APA/MLA/Chicago, BibTeX) |
 | `lib/utils/paper-helpers.ts` | Paper/author/source name resolution (an authorship without a name is left out; `authorByline` caps the named authors and counts the rest of `authorCount` as "+N others" for `AuthorList.svelte`); highlight detection; OpenAlex work payloads (`fetchOaJson` bounds the wait and checks the status, `oaWorkToPaperResp` tolerates the nulls the API allows) |
+| `lib/server/moved-semantic-ids.ts` | `movedSemanticId`: a slug a past release served (`assets/data/moved-semantic-ids.json`, per root type the slug and its entity's OpenAlex id) resolved through `/sem-id-via-oa` to the entity's slug in the served release; the entity page 301s an unresolved slug there before falling back to search |
 | `lib/server/disclaimers.ts` | `activeDisclaimer`: a profile's `profile_disclaimers` row, returned only while its `run_id` is the ledger manifest's, so a note lapses with the data run it was written against; the manifest is read only for a profile that has a row |
 | `lib/utils/dag-builder.ts` | DAG construction from RefTree |
 | `lib/utils/impact-summary.ts` | Summary counts (Nobel, Science/Nature, standout) for citing papers, and the phrases the page and the impact card word them with; a Nobel count leaves out the subject and the laureates who share the subject's prize (`hasNobelCoauthor`) |
