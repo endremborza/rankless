@@ -23,6 +23,7 @@ estimation) and **performance** (per-endpoint latency, cache hit rate, error cat
 - **Classification:** paths templated to a small set of route shapes before aggregation;
   sessions = `(ip, ua)` split by a `SESSION_IDLE_MIN` idle window; bot/human = rule-based scorer (hard signals + soft
   aggregation), bucket per session.
+- **ORCID logins:** counted from the access log alone, as `LOGIN_ROUTE` hits answered with `LOGIN_OK_STATUS` (4xx = failed callback); the landing page shows them per KPI window and per day (`render/landing.py`).
 - **nginx log line** carries `cs=$upstream_cache_status host=$host` (emitted by
   `pyscripts/deploy.py`), always present. `cs` gives the cache hit rate; `host` lets the report
   keep only live-vhost rows — live instances are **promoted alphas**, so their access.log mixes

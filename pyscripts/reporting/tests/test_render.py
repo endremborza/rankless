@@ -10,6 +10,11 @@ from pyscripts.reporting.archive import annotate_routes
 from pyscripts.reporting.classify import annotate_events, classify_sessions
 from pyscripts.reporting.parse import parse_lines
 from pyscripts.reporting.render import render_all
+from pyscripts.reporting.render.landing import (
+    LOGIN_OK_STATUS,
+    LOGIN_ROUTE,
+    _login_card,
+)
 from pyscripts.reporting.sessions import assign_sessions
 
 from .fixtures import ALL
@@ -114,3 +119,26 @@ def test_render_local_keeps_run_errors():
         assert "162.158.162.77" in detail  # full detail retained locally
     finally:
         shutil.rmtree(tmp)
+
+
+def test_login_card_counts_callback_outcomes():
+    import datetime as dt
+
+    rows = [
+        (LOGIN_ROUTE, LOGIN_OK_STATUS),
+        (LOGIN_ROUTE, LOGIN_OK_STATUS),
+        (LOGIN_ROUTE, 400),
+        (LOGIN_ROUTE, 308),
+        ("/login", LOGIN_OK_STATUS),
+    ]
+    now = dt.datetime.now(dt.timezone.utc)
+    events = pl.DataFrame(
+        {
+            "t": [now] * len(rows),
+            "route_template": [r for r, _ in rows],
+            "status": pl.Series([s for _, s in rows], dtype=pl.UInt16),
+        }
+    )
+    html = _login_card(events)
+    assert '<div class="kpi-value">2</div>' in html
+    assert "1 failed" in html

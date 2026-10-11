@@ -10,6 +10,11 @@ WINDOWS = [
     ("Last 30d", "30d", 30 * 24),
 ]
 
+# The ORCID OAuth return: 302 once the session is set, 4xx when the state or the
+# token exchange fails.
+LOGIN_ROUTE = "/callback"
+LOGIN_OK_STATUS = 302
+
 
 def render(ctx: RenderContext) -> None:
     copy_assets(ctx)
@@ -29,6 +34,7 @@ def render(ctx: RenderContext) -> None:
             kpis=kpis,
             traffic_chart=_traffic_chart(ctx.daily),
             bot_chart=_bot_session_chart(ctx.sessions_table),
+            login_chart=_login_chart(ctx.events_hot),
         ),
     )
 
@@ -55,18 +61,39 @@ def _kpi_block(label: str, events: pl.DataFrame, hours: int) -> dict:
         _card("5xx rate", _pct(n_5xx / n)),
         _card("p99 urt", _ms(p99)),
         _card("Cache hit", _pct(cache_hit / n)),
+        _login_card(s),
     ]
     if n_sessions and "bot_class" in sess.columns:
         cards.append(_breakdown_card(sess["bot_class"]))
     return {"label": label, "html": "\n".join(cards)}
 
 
-def _card(label: str, value: str) -> str:
+def _card(label: str, value: str, sub: str = "") -> str:
+    sub_html = f'<div class="kpi-sub">{sub}</div>' if sub else ""
     return (
         f'<div class="kpi-card">'
         f'<div class="kpi-label">{label}</div>'
         f'<div class="kpi-value">{value}</div>'
+        f"{sub_html}"
         f"</div>"
+    )
+
+
+def _login_outcomes(events: pl.DataFrame) -> pl.DataFrame:
+    return events.filter(pl.col("route_template") == LOGIN_ROUTE).select(
+        "t",
+        ok=pl.col("status") == LOGIN_OK_STATUS,
+        failed=pl.col("status") >= 400,
+    )
+
+
+def _login_card(events: pl.DataFrame) -> str:
+    o = _login_outcomes(events)
+    failed = int(o["failed"].sum())
+    return _card(
+        "ORCID logins",
+        f"{int(o['ok'].sum()):,}",
+        f"{failed:,} failed" if failed else "",
     )
 
 
@@ -136,6 +163,35 @@ def _traffic_chart(daily: pl.DataFrame) -> str:
             }
         ],
         layout={"yaxis": {"title": "requests"}},
+    )
+
+
+def _login_chart(events: pl.DataFrame) -> str:
+    o = _login_outcomes(events)
+    if o.is_empty():
+        return hint("No ORCID logins yet.")
+    g = (
+        o.group_by(pl.col("t").dt.truncate("1d").alias("day"))
+        .agg(pl.col("ok").sum(), pl.col("failed").sum())
+        .sort("day")
+    )
+    days = g["day"].cast(pl.String).to_list()
+    return plotly_div(
+        "orcid-logins",
+        [
+            {
+                "x": days,
+                "y": g[col].to_list(),
+                "name": name,
+                "type": "bar",
+                "marker": {"color": color},
+            }
+            for col, name, color in (
+                ("ok", "Logins", "#a6e3a1"),
+                ("failed", "Failed", "#f38ba8"),
+            )
+        ],
+        layout={"barmode": "stack", "yaxis": {"title": "logins"}},
     )
 
 
