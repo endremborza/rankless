@@ -95,6 +95,7 @@ include Makefile.test
 
 # A step's static input, beside the step source the generated rule already lists.
 rankless_rs/src/gen/a2_init_atts.rs: rankless_rs/static/country-population.csv
+rankless_rs/src/gen/derive_links3.rs: rankless_rs/static/semantic-id-pins.csv
 
 download-snapshot:
 	aws s3 sync "s3://openalex" $(OA_SNAPSHOT) --no-sign-request --exclude "legacy-data/*" --exclude "data/parquet/*"
