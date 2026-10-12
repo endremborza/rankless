@@ -2,9 +2,11 @@
 
 Reads ledger_events and owner_pins from SQLite, writes:
   ACTIVE_JSONL       — active events ready for the pipeline
-  CURATED_JSONL      — the team's curated ledger ($EXTERNAL_DATA_ROOT/ledger/),
-                       copied as it is; absent when the default root has none
-  SNAPSHOT_MANIFEST  — run_id (ISO ts) + exported event_ids + per-source counts
+  CURATED_JSONL      — the team's curated ledger: the occasion files in
+                       $EXTERNAL_DATA_ROOT/ledger/`CURATED_DIR`/, joined in name order;
+                       absent when the default root has none
+  SNAPSHOT_MANIFEST  — run_id (ISO ts) + exported event_ids + per-source counts + the
+                       lines each curated occasion file gave
   OWNER_PINS         — one ORCID per line
 
 Every event carries a `source` (this exporter always writes "site" — the site
@@ -58,6 +60,8 @@ if DEFAULT_DATA_ROOT is None:
 DEFAULT_DB = paths.DB_REL
 SOURCE = "site"
 CURATED_SOURCE = "curated"
+# Under the external root's `ledger/`: one JSONL per curation occasion.
+CURATED_DIR = "curated"
 
 
 def _fetch_active_events(conn: sqlite3.Connection) -> list[dict[str, Any]]:
@@ -131,10 +135,18 @@ def export(data_root: Path, db_path: str) -> None:
     sources = {SOURCE: len(active)}
     curated = _export_curated(out_dir)
     if curated is not None:
-        sources[CURATED_SOURCE] = curated
+        sources[CURATED_SOURCE] = sum(curated.values())
 
     with open(out_dir / SNAPSHOT_MANIFEST, "w") as f:
-        json.dump({"run_id": run_id, "event_ids": exported_ids, "sources": sources}, f)
+        json.dump(
+            {
+                "run_id": run_id,
+                "event_ids": exported_ids,
+                "sources": sources,
+                "curated_files": curated or {},
+            },
+            f,
+        )
 
     with open(out_dir / OWNER_PINS, "w") as f:
         f.write("\n".join(pins))
@@ -145,17 +157,30 @@ def export(data_root: Path, db_path: str) -> None:
     print(f"run_id: {run_id}")
 
 
-def _export_curated(out_dir: Path) -> int | None:
-    """The curated ledger's events beside the site's; None, and no stale copy left, when
-    the default root holds none."""
+def _export_curated(out_dir: Path) -> dict[str, int] | None:
+    """The curated occasion files joined in name order beside the site's events, by file
+    the lines each gave; None, and no stale copy left, when the default root holds none.
+    An event key on two lines stops the export, since the pipeline would apply the event
+    in whichever file sorts last."""
     dest = out_dir / CURATED_JSONL
-    src = table("ledger", CURATED_JSONL)
+    src = table("ledger", CURATED_DIR)
     if src is None:
         dest.unlink(missing_ok=True)
         return None
-    lines = [line for line in src.read_text().splitlines() if line.strip()]
+    counts: dict[str, int] = {}
+    lines: list[str] = []
+    owners: dict[str, list[str]] = {}
+    for path in sorted(src.glob("*.jsonl")):
+        own = [line for line in path.read_text().splitlines() if line.strip()]
+        counts[path.name] = len(own)
+        lines += own
+        for line in own:
+            owners.setdefault(json.loads(line)["key"], []).append(path.name)
+    repeated = {k: files for k, files in owners.items() if len(files) > 1}
+    if repeated:
+        raise SystemExit(f"{src}: event keys on more than one line: {repeated}")
     dest.write_text("".join(line + "\n" for line in lines))
-    return len(lines)
+    return counts
 
 
 def main() -> None:
