@@ -25,33 +25,56 @@ pub(super) fn basic_sem_names(name: &str, _ext: &str) -> SemCandidates {
 }
 
 pub(super) fn source_sem_names(name: &str, ext: &str) -> SemCandidates {
-    let (preferred, fallbacks) =
-        ext_candidates(ext).partition(|s| is_acronym(s) && s.len() <= MAX_SOURCE_ACRONYM_LEN);
-    SemCandidates {
-        preferred,
-        name: semantify(name),
-        fallbacks,
-    }
+    alternate_candidates(name, ext, |s| {
+        is_acronym(s) && s.len() <= MAX_SOURCE_ACRONYM_LEN
+    })
 }
 
 pub(super) fn institution_sem_names(name: &str, ext: &str) -> SemCandidates {
-    let (mut preferred, fallbacks): (Vec<String>, Vec<String>) =
-        ext_candidates(ext).partition(|s| is_acronym(s));
-    preferred.extend(name.strip_prefix("University of ").map(semantify));
-    preferred.extend(name.strip_suffix(" University").map(semantify));
+    let mut c = alternate_candidates(name, ext, is_acronym);
+    let unprefixed = name.strip_prefix("The ").unwrap_or(name);
+    c.preferred
+        .extend(unprefixed.strip_prefix("University of ").map(semantify));
+    c.preferred
+        .extend(name.strip_suffix(" University").map(semantify));
+    c
+}
+
+/// Latin alternates `acronym` accepts are preferred. A name in another script transliterates into
+/// a slug few readers recognise, so its other Latin alternates are preferred after them; every
+/// other alternate is a fallback.
+fn alternate_candidates(name: &str, ext: &str, acronym: impl Fn(&str) -> bool) -> SemCandidates {
+    let latin_name = is_latin(name);
+    let (mut preferred, mut latin, mut fallbacks) = (Vec::new(), Vec::new(), Vec::new());
+    for raw in ext.split(EXT_SEP) {
+        let slug = semantify(raw);
+        if slug.is_empty() {
+            continue;
+        }
+        let candidates = match (is_latin(raw), acronym(&slug)) {
+            (true, true) => &mut preferred,
+            (true, false) if !latin_name => &mut latin,
+            _ => &mut fallbacks,
+        };
+        candidates.push(slug);
+    }
+    preferred.append(&mut latin);
     SemCandidates {
         preferred,
         name: semantify(name),
         fallbacks,
     }
-}
-
-fn ext_candidates(ext: &str) -> impl Iterator<Item = String> + '_ {
-    ext.split(EXT_SEP).map(semantify).filter(|s| !s.is_empty())
 }
 
 fn is_acronym(slug: &str) -> bool {
     slug.len() > 1 && !slug.contains('-')
+}
+
+// ASCII and the accented Latin letters, which keep their reading once deunicode strips the marks.
+fn is_latin(s: &str) -> bool {
+    s.chars()
+        .filter(|c| c.is_alphabetic())
+        .all(|c| c.is_ascii() || matches!(c, '\u{c0}'..='\u{24f}' | '\u{1e00}'..='\u{1eff}'))
 }
 
 fn pinned_sem_ids<E>(stowage: &Stowage) -> Vec<(usize, String)>
@@ -188,5 +211,17 @@ mod tests {
         assert_eq!(c.preferred, ["uoft", "toronto"]);
         assert_eq!(c.name, "university-of-toronto");
         assert_eq!(c.fallbacks, ["university-toronto"]);
+        let c = institution_sem_names("The University of Melbourne", "");
+        assert_eq!(c.preferred, ["melbourne"]);
+    }
+
+    #[test]
+    fn latin_alternates_outrank_a_name_in_another_script() {
+        let c = institution_sem_names("삼성", &exts(&["삼성전자", "samsung (south korea)", "sec"]));
+        assert_eq!(c.preferred, ["sec", "samsung-south-korea"]);
+        assert_eq!(c.fallbacks, [semantify("삼성전자")]);
+        let c = source_sem_names("地震学报", &exts(&["earthquake science"]));
+        assert_eq!(c.preferred, ["earthquake-science"]);
+        assert_eq!(c.name, "di-zhen-xue-bao");
     }
 }
