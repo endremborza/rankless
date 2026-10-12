@@ -3,10 +3,12 @@
 //! ORCID are one person's unless their names say otherwise: each ORCID's records are clustered by
 //! name; the cluster the ORCID's registered name matches (else the one with the most works) owns
 //! it; the owner's oldest record keeps; every other record of the ORCID is merged into the keep or
-//! stripped of the ORCID. A record over the author screen's work bound never owns or keeps. A
-//! person merged from several records is named by the registered name, else by their largest
-//! record, when that name is fuller than the keep's own. The source also carries the paper merges
-//! `work_identity::edition_merges` finds.
+//! stripped of the ORCID. A record a curated or site event strips is grouped with none of the
+//! ORCID's others, and a record over the author screen's work bound never owns or keeps. Two
+//! records whose names rule each other out are not merged through a third both match: the one the
+//! registered name rules out is stripped. A person merged from several records is named by the
+//! registered name, else by their largest record, when that name is fuller than the keep's own.
+//! The source also carries the paper merges `work_identity::edition_merges` finds.
 
 use std::{
     borrow::Cow,
@@ -67,6 +69,15 @@ const MIN_EDIT_LEN: usize = 6;
 /// other ("kaniska" ~ "kanishka"); below it both are names of their own ("christian" ~
 /// "christina", "gerald" ~ "gerard", "akihiko" ~ "akihito").
 const TYPO_BITS: f64 = 20.0;
+/// Where two names must rule each other out to split a merge, a leftover token they could both
+/// spell does not: one beginning the other at `TRANSLITERATED_INITIAL_LEN` letters ("ye" ~
+/// "yevhen", "sh" ~ "shuhrat"), or one `SHORT_SPELLING_EDITS` edit from it up to
+/// `SHORT_SPELLING_LEN` letters ("elena" ~ "yelena") and `SPELLING_EDITS` beyond ("ludmila" ~
+/// "liudmyla"); "inna" and "irina" stay two names.
+const TRANSLITERATED_INITIAL_LEN: usize = 2;
+const SHORT_SPELLING_LEN: usize = 5;
+const SHORT_SPELLING_EDITS: usize = 1;
+const SPELLING_EDITS: usize = 2;
 /// Full tokens a registered name needs to vouch for a cluster the names alone keep apart:
 /// "X WU" or "G. LI" fits too many people.
 const MIN_VOUCHING_TOKENS: usize = 2;
@@ -461,6 +472,15 @@ struct Residue {
     b_initials: usize,
 }
 
+/// How one ORCID's eligible records merge: their name clusters, the cluster that owns the
+/// ORCID and why, and per cluster why it merges (None: its records are stripped).
+struct Plan {
+    clusters: Vec<Vec<usize>>,
+    owner: usize,
+    reason: Reason,
+    merges: Vec<Option<Reason>>,
+}
+
 /// Why a record is merged (how its ORCID's owner cluster was chosen) or stripped, and where a
 /// keep's name comes from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
@@ -471,6 +491,9 @@ pub enum Reason {
     /// A cluster outside the owner's that no registered name contradicts.
     CompatibleName,
     NameMismatch,
+    /// A record the registered name rules out that rules out one it accepts, which single
+    /// linkage would have merged.
+    ConflictingName,
     OverWorkBound,
     /// The display name of the owner cluster's record with the most works.
     LargestRecord,
@@ -638,6 +661,67 @@ impl Open {
     }
 }
 
+impl Plan {
+    /// The owner is the cluster the registered name matches, else the one with the most works.
+    /// Once the registered name has picked the owner, a cluster it does not contradict is the
+    /// holder's too: the registration, read as the owner's names read it, is the evidence the
+    /// names alone lacked. Only a registered name of `MIN_VOUCHING_TOKENS` full tokens vouches,
+    /// and none does unless one of them names the owner.
+    fn new(recs: &[&Rec], registered: Option<&[Name]>, freq: &Freq) -> Self {
+        let clusters = cluster(recs, freq);
+        let (owner, reason) = owner(&clusters, recs, registered, freq);
+        let owner_names: Vec<&Name> = clusters[owner].iter().map(|&m| &recs[m].name).collect();
+        let read: Vec<(Name, f64)> = registered
+            .filter(|_| reason == Reason::RegisteredName)
+            .unwrap_or(&[])
+            .iter()
+            .map(|n| n.read_beside(&owner_names, freq))
+            .collect();
+        let vouches = |n: &Name| n.tokens.len() >= MIN_VOUCHING_TOKENS;
+        let vouching = read
+            .iter()
+            .any(|(n, closeness)| *closeness >= MATCH_BITS && vouches(n));
+        let names: Vec<&Name> = read
+            .iter()
+            .map(|(n, _)| n)
+            .filter(|n| vouching && vouches(n))
+            .collect();
+        let compatible_cluster = |members: &[usize]| {
+            members
+                .iter()
+                .any(|&m| names.iter().any(|n| compatible(&recs[m].name, n, freq)))
+        };
+        let merges = clusters
+            .iter()
+            .enumerate()
+            .map(|(ci, members)| {
+                if ci == owner {
+                    Some(reason)
+                } else if compatible_cluster(members) {
+                    Some(Reason::CompatibleName)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        Self {
+            clusters,
+            owner,
+            reason,
+            merges,
+        }
+    }
+
+    fn merged<'a>(&self, recs: &[&'a Rec]) -> Vec<&'a Rec> {
+        self.clusters
+            .iter()
+            .zip(&self.merges)
+            .filter(|(_, r)| r.is_some())
+            .flat_map(|(members, _)| members.iter().map(|&m| recs[m]))
+            .collect()
+    }
+}
+
 impl Decision {
     /// The decision as one `ACTIVE_JSONL`-shaped line of the derived source.
     fn line(&self, orcid: &str) -> Value {
@@ -689,7 +773,7 @@ pub fn affinity(a: &Name, b: &Name, freq: &Freq) -> f64 {
         if a.alike(b) {
             return f64::INFINITY;
         }
-        let r = residue(a, b, freq);
+        let r = residue(a, b, freq, false);
         best.max(
             r.shared
                 - (r.a_tokens + r.b_tokens) as f64 * EXTRA_TOKEN_BITS
@@ -704,9 +788,21 @@ pub fn affinity(a: &Name, b: &Name, freq: &Freq) -> f64 {
 /// "X. H. Wu" fits "Xiao-Hua Wu" and "Xiaohua Wu" fits "Xiaohua Q. Wu"; a record initial the
 /// registration does not explain is tolerated as long as the registration is used up.
 pub fn compatible(rec: &Name, reg: &Name, freq: &Freq) -> bool {
-    over_readings(rec, reg, false, |ok, rec, reg| {
+    consistent(rec, reg, freq, false)
+}
+
+/// `compatible` once a leftover token the other side could spell (`spelled`) counts as matched:
+/// "Yelena Korff" and "Elena Korff" may be one person, "Norman Heatley" and "Nathan Heatley" not.
+fn reconcilable(a: &Name, b: &Name, freq: &Freq) -> bool {
+    consistent(a, b, freq, true)
+}
+
+/// Whether one side has nothing left under some reading once every match is made, spellings
+/// among them when `spellings`.
+fn consistent(a: &Name, b: &Name, freq: &Freq, spellings: bool) -> bool {
+    over_readings(a, b, false, |ok, a, b| {
         ok || {
-            let r = residue(rec, reg, freq);
+            let r = residue(a, b, freq, spellings);
             r.a_tokens + r.a_initials == 0 || r.b_tokens + r.b_initials == 0
         }
     })
@@ -724,10 +820,19 @@ fn over_readings<T>(a: &Name, b: &Name, init: T, mut f: impl FnMut(T, &Name, &Na
 }
 
 /// What two names share, in bits, and what each has left once every match is made: tokens
-/// (exact, joined, prefixed, variant) and initials (the same initial, or an unmatched token's
-/// first letter).
-fn residue(a: &Name, b: &Name, freq: &Freq) -> Residue {
-    let (mut shared, open) = matched(a, b, freq);
+/// (exact, joined, prefixed, variant, and when `spellings` a spelling, which shares no bits) and
+/// initials (the same initial, or an unmatched token's first letter).
+fn residue(a: &Name, b: &Name, freq: &Freq, spellings: bool) -> Residue {
+    let (mut shared, mut open) = matched(a, b, freq);
+    if spellings {
+        for i in 0..a.tokens.len() {
+            if open.a[i] {
+                if let Some(j) = open.find_b(|j| spelled(&a.tokens[i], &b.tokens[j])) {
+                    open.take(i, j);
+                }
+            }
+        }
+    }
     let (mut a_init, mut b_init) = (a.initials.clone(), b.initials.clone());
     let same = take_matching(&mut a_init, &mut b_init);
     let mut a_first = open.firsts_a(a);
@@ -846,6 +951,36 @@ fn forms(tok: &str) -> impl Iterator<Item = &str> {
     let from = NICKNAMES.partition_point(|&(n, _)| n < tok);
     let to = from + NICKNAMES[from..].partition_point(|&(n, _)| n == tok);
     std::iter::once(tok).chain(NICKNAMES[from..to].iter().map(|&(_, full)| full))
+}
+
+/// Whether two tokens may spell one name (`TRANSLITERATED_INITIAL_LEN`, `SPELLING_EDITS`).
+fn spelled(x: &str, y: &str) -> bool {
+    let (short, long) = if x.len() <= y.len() { (x, y) } else { (y, x) };
+    if short.len() == TRANSLITERATED_INITIAL_LEN {
+        return long.starts_with(short);
+    }
+    let edits = if short.len() <= SHORT_SPELLING_LEN {
+        SHORT_SPELLING_EDITS
+    } else {
+        SPELLING_EDITS
+    };
+    long.len() - short.len() <= edits && edit_distance(short.as_bytes(), long.as_bytes()) <= edits
+}
+
+/// Levenshtein distance.
+fn edit_distance(x: &[u8], y: &[u8]) -> usize {
+    let mut prev: Vec<usize> = (0..=y.len()).collect();
+    let mut cur = vec![0; y.len() + 1];
+    for (i, &a) in x.iter().enumerate() {
+        cur[0] = i + 1;
+        for (j, &b) in y.iter().enumerate() {
+            cur[j + 1] = (prev[j + 1] + 1)
+                .min(cur[j] + 1)
+                .min(prev[j] + usize::from(a != b));
+        }
+        std::mem::swap(&mut prev, &mut cur);
+    }
+    prev[y.len()]
 }
 
 fn one_edit(x: &[u8], y: &[u8]) -> bool {
@@ -1039,62 +1174,41 @@ fn decide(
     if eligible.is_empty() {
         return out;
     }
-    let clusters = cluster(&eligible, freq);
     let names = registered.map(|r| r.names.as_slice());
-    let (owner, reason) = owner(&clusters, &eligible, names, freq);
-    *manifest.owner_by.entry(reason).or_default() += 1;
-    // Once the registered name has picked the owner, a cluster it does not contradict is the
-    // holder's too: the registration, read as the owner's names read it, is the evidence the
-    // names alone lacked. Only a registered name of `MIN_VOUCHING_TOKENS` full tokens vouches,
-    // and none does unless one of them names the owner. The oldest id of everything merged
-    // keeps.
-    let owners: Vec<&Rec> = clusters[owner].iter().map(|&m| eligible[m]).collect();
-    let owner_names: Vec<&Name> = owners.iter().map(|r| &r.name).collect();
-    let read: Vec<(Name, f64)> = names
-        .filter(|_| reason == Reason::RegisteredName)
-        .unwrap_or(&[])
-        .iter()
-        .map(|n| n.read_beside(&owner_names, freq))
-        .collect();
-    let vouches = |n: &Name| n.tokens.len() >= MIN_VOUCHING_TOKENS;
-    let vouching = read
-        .iter()
-        .any(|(n, closeness)| *closeness >= MATCH_BITS && vouches(n));
-    let names: Vec<&Name> = read
-        .iter()
-        .map(|(n, _)| n)
-        .filter(|n| vouching && vouches(n))
-        .collect();
-    let compatible_cluster = |members: &[usize]| {
-        members
-            .iter()
-            .any(|&m| names.iter().any(|n| compatible(&eligible[m].name, n, freq)))
-    };
-    let reasons: Vec<Option<Reason>> = clusters
-        .iter()
-        .enumerate()
-        .map(|(ci, members)| {
-            if ci == owner {
-                Some(reason)
-            } else if compatible_cluster(members) {
-                Some(Reason::CompatibleName)
-            } else {
-                None
-            }
-        })
-        .collect();
-    let keep = clusters
-        .iter()
-        .zip(&reasons)
-        .filter(|(_, r)| r.is_some())
-        .flat_map(|(members, _)| members.iter().map(|&m| eligible[m]))
+    let mut eligible = eligible;
+    let mut plan = Plan::new(&eligible, names, freq);
+    // Each pass removes a record the registration rejects and keeps one it accepts.
+    while plan.reason == Reason::RegisteredName {
+        let contested = contested(&plan.merged(&eligible), names.unwrap_or_default(), freq);
+        if contested.is_empty() {
+            break;
+        }
+        for r in &contested {
+            out.push(Decision::Strip {
+                id: r.id,
+                reason: Reason::ConflictingName,
+            });
+            *manifest.strips.entry(Reason::ConflictingName).or_default() += 1;
+        }
+        eligible.retain(|r| !contested.iter().any(|c| c.id == r.id));
+        plan = Plan::new(&eligible, names, freq);
+    }
+    *manifest.owner_by.entry(plan.reason).or_default() += 1;
+    // The oldest id of everything merged keeps.
+    let keep = plan
+        .merged(&eligible)
+        .into_iter()
         .min_by_key(|r| r.id)
         .unwrap();
+    let owners: Vec<&Rec> = plan.clusters[plan.owner]
+        .iter()
+        .map(|&m| eligible[m])
+        .collect();
     let mut merged = false;
-    for (members, merge_reason) in clusters.iter().zip(reasons) {
+    for (members, merge_reason) in plan.clusters.iter().zip(&plan.merges) {
         for &m in members {
             let id = eligible[m].id;
-            match merge_reason {
+            match *merge_reason {
                 Some(_) if id == keep.id => {}
                 Some(reason) => {
                     out.push(Decision::Merge {
@@ -1175,6 +1289,25 @@ fn presentable(name: &str) -> bool {
         && name.split_whitespace().nth(1).is_some()
         && name.chars().any(char::is_uppercase)
         && name.chars().any(char::is_lowercase)
+}
+
+/// The merged records the registered name rules out that also rule out a merged one it
+/// accepts, spelling allowed for both times (`reconcilable`): single linkage chains such a
+/// record to the holder through one both match ("N. B. Heatley" between Nathan B. and Norman
+/// George Heatley).
+fn contested<'a>(merged: &[&'a Rec], registered: &[Name], freq: &Freq) -> Vec<&'a Rec> {
+    let (accepted, ruled_out): (Vec<&Rec>, Vec<&Rec>) = merged
+        .iter()
+        .copied()
+        .partition(|r| registered.iter().any(|n| reconcilable(&r.name, n, freq)));
+    ruled_out
+        .into_iter()
+        .filter(|r| {
+            accepted.iter().any(|a| {
+                !same_person(&r.name, &a.name, freq) && !reconcilable(&r.name, &a.name, freq)
+            })
+        })
+        .collect()
 }
 
 /// Single-linkage clusters over `same_person`, each as sorted member indices.
@@ -1635,6 +1768,79 @@ mod tests {
             vec![(12, Reason::NameMismatch), (13, Reason::OverWorkBound)]
         );
         assert_eq!(manifest.owner_by[&Reason::MostWorks], 1);
+    }
+
+    #[test]
+    fn a_record_both_the_registration_and_a_holder_record_contradict_is_not_chained_in() {
+        // "N. B. Heatley" matches both men; the registration names Nathan.
+        let group = [
+            rec(1, "Norman George Heatley", 300),
+            rec(2, "N. B. Heatley", 5),
+            rec(3, "Nathan B. Heatley", 20),
+        ];
+        let mut manifest = DerivedManifest::default();
+        let reg = registered(&["Nathan B. Heatley"]);
+        assert_eq!(
+            decide(&group, Some(&reg), &freq(), &mut manifest),
+            vec![
+                Decision::Strip {
+                    id: 1,
+                    reason: Reason::ConflictingName
+                },
+                Decision::Merge {
+                    drop: 3,
+                    keep: 2,
+                    reason: Reason::RegisteredName
+                },
+                Decision::Name {
+                    keep: 2,
+                    name: "Nathan B. Heatley".into(),
+                    reason: Reason::RegisteredName
+                },
+            ]
+        );
+        assert_eq!(manifest.strips[&Reason::ConflictingName], 1);
+        // Two spellings of one given name are no contradiction.
+        let group = [
+            rec(1, "Yelena Korff", 50),
+            rec(2, "Korff", 3),
+            rec(3, "Elena Korff", 20),
+        ];
+        let merges = decide(
+            &group,
+            Some(&registered(&["Elena Korff"])),
+            &freq(),
+            &mut DerivedManifest::default(),
+        );
+        assert_eq!(
+            merges,
+            [2, 3].map(|drop| Decision::Merge {
+                drop,
+                keep: 1,
+                reason: Reason::RegisteredName
+            })
+        );
+    }
+
+    #[test]
+    fn a_spelling_is_a_transliterated_initial_or_an_edit_or_two() {
+        for (a, b) in [
+            ("elena", "yelena"),
+            ("ludmila", "liudmyla"),
+            ("alexander", "alexandr"),
+            ("ye", "yevhen"),
+            ("sh", "shuhrat"),
+        ] {
+            assert!(spelled(a, b), "{a} {b}");
+        }
+        for (a, b) in [
+            ("inna", "irina"),
+            ("david", "daniel"),
+            ("nina", "nikola"),
+            ("ye", "ekaterina"),
+        ] {
+            assert!(!spelled(a, b), "{a} {b}");
+        }
     }
 
     #[test]

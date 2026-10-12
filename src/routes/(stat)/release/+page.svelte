@@ -28,6 +28,8 @@
 		compatible_name: 'a spelling the registered name does not contradict',
 		most_works: 'the record with the most works survived',
 		name_mismatch: 'a different name from the iD’s holder',
+		conflicting_name:
+			'a different name from the iD’s holder, linked to them only through a record that fits both',
 		over_work_bound: 'an aggregate of many people’s works, not a scholar'
 	};
 
