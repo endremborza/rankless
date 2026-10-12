@@ -90,6 +90,7 @@ CLOUDFLARE_RANGES = [
     "2a06:98c0::/29",
     "2c0f:f248::/32",
 ]
+CLOUDFLARE_API = "https://api.cloudflare.com/client/v4"
 # Where src/lib/server/card-raster.ts writes rendered share cards (`tmpdir()/CARD_CACHE_NAME`);
 # the module never evicts, so the box's tmpfiles rule ages them out.
 CARD_CACHE_DIR = f"/tmp/{paths.CARD_CACHE_NAME}"
@@ -1464,6 +1465,33 @@ def kill_dangling():
 
 def kill_alpha():
     get_running_inst(False).terminate()
+
+
+def purge_cloudflare():
+    """Drop everything Cloudflare caches for the site's zone. `CLOUDFLARE_API_TOKEN`
+    needs Zone Read and Cache Purge on that zone."""
+    zones = _cloudflare("GET", "/zones", params={"name": MAIN_DOMAIN})
+    if not zones:
+        raise SystemExit(f"CLOUDFLARE_API_TOKEN cannot read the zone {MAIN_DOMAIN}")
+    _cloudflare(
+        "POST", f"/zones/{zones[0]['id']}/purge_cache", json={"purge_everything": True}
+    )
+    print(f"purged the Cloudflare cache of {MAIN_DOMAIN}")
+
+
+def _cloudflare(method: str, path: str, **kwargs) -> list | dict:
+    token = os.environ["CLOUDFLARE_API_TOKEN"]
+    resp = requests.request(
+        method,
+        CLOUDFLARE_API + path,
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+        **kwargs,
+    )
+    body = resp.json()
+    if not body["success"]:
+        raise SystemExit(f"Cloudflare {method} {path}: {body['errors']}")
+    return body["result"]
 
 
 def _handoff_db_to(target_tpr: Transper):
