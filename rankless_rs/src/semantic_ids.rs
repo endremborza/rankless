@@ -205,4 +205,10 @@ mod tests {
         );
         assert_eq!(ids, ["plos-one-2", "plos-one", ""]);
     }
+
+    #[test]
+    fn a_han_name_reads_as_pinyin() {
+        assert_eq!(semantify("东华大学"), "dong-hua-da-xue");
+        assert_eq!(semantify("Earthquake Science"), "earthquake-science");
+    }
 }

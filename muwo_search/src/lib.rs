@@ -450,14 +450,14 @@ impl StackWordSet {
             breaks_count: 0,
         };
         let mut i: u8 = 0;
-        for c in deunicode(&words.to_lowercase()).as_bytes().iter() {
-            if (*c == SPLIT_CHAR) && (i > 0) {
+        for c in deunicode(words).bytes().map(|b| b.to_ascii_lowercase()) {
+            if (c == SPLIT_CHAR) && (i > 0) {
                 out.new_break(i);
                 if out.breaks_count == MAX_QUERY_WORDS {
                     return out;
                 }
-            } else if (*c >= ASCII_LC_MIN) && (*c <= ASCII_LC_MAX) {
-                out.char_array[i as usize] = *c - ASCII_LC_MIN;
+            } else if (c >= ASCII_LC_MIN) && (c <= ASCII_LC_MAX) {
+                out.char_array[i as usize] = c - ASCII_LC_MIN;
                 i = i.wrapping_add(1);
                 if i == 0 {
                     return out;
