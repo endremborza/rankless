@@ -395,6 +395,25 @@ static NICKNAMES: &[(&str, &str)] = &[
     ("zhenya", "yevgeny"),
     ("zosia", "zofia"),
 ];
+/// Words that address or credential a person and name no one, folded; one written as a bare
+/// capital block is initials ("DR Kumar", "MS Islam"), and "Md" is a given name.
+static TITLES: &[&str] = &[
+    "assoc",
+    "asst",
+    "dr",
+    "dra",
+    "drs",
+    "miss",
+    "mr",
+    "mrs",
+    "ms",
+    "msc",
+    "mx",
+    "phd",
+    "prof",
+    "profa",
+    "professor",
+];
 
 type OrcidCode = u64;
 
@@ -528,16 +547,18 @@ impl Name {
     pub fn parse(raw: &str) -> Self {
         let (mut tokens, mut initials, mut caps) = (Vec::new(), Vec::new(), Vec::new());
         for raw_tok in deunicode(raw)
-            .split(|c: char| !c.is_ascii_alphanumeric())
+            .split_whitespace()
+            .map(untitled_word)
+            .flat_map(|w| w.split(|c: char| !c.is_ascii_alphanumeric()))
             .filter(|t| !t.is_empty())
         {
-            if raw_tok.bytes().all(|c| c.is_ascii_digit()) {
+            if raw_tok.bytes().all(|c| c.is_ascii_digit()) || is_title(raw_tok) {
                 continue;
             }
             let tok = squeeze(raw_tok);
             if tok.len() == 1 {
                 initials.extend(tok.chars());
-            } else if raw_tok.len() <= 3 && raw_tok.bytes().all(|c| c.is_ascii_uppercase()) {
+            } else if capital_block(raw_tok) {
                 initials.extend(tok.chars());
                 caps.push(tok);
             } else {
@@ -1255,27 +1276,71 @@ fn keep_name(
     freq: &Freq,
 ) -> Option<(String, Reason)> {
     let registered = registered
+        .map(untitled)
         .filter(|d| presentable(d))
-        .map(|d| (d, Name::parse(d)))
+        .map(|d| {
+            let name = Name::parse(&d);
+            (d, name)
+        })
         .filter(|(_, n)| owners.iter().any(|r| same_person(&r.name, n, freq)))
         .map(|(d, n)| (d, n.tokens.len(), Reason::RegisteredName));
     let largest = owners
         .iter()
-        .filter(|r| presentable(&r.display))
-        .max_by_key(|r| (r.works, Reverse(r.id)))
-        .map(|r| {
-            (
-                r.display.as_str(),
-                r.name.tokens.len(),
-                Reason::LargestRecord,
-            )
-        });
+        .map(|r| (untitled(&r.display), r))
+        .filter(|(d, _)| presentable(d))
+        .max_by_key(|(_, r)| (r.works, Reverse(r.id)))
+        .map(|(d, r)| (d, r.name.tokens.len(), Reason::LargestRecord));
     let (name, full, reason) =
         registered
             .into_iter()
             .chain(largest)
             .reduce(|best, c| if c.1 > best.1 { c } else { best })?;
-    (full > keep.name.tokens.len()).then(|| (name.to_string(), reason))
+    (full > keep.name.tokens.len()).then_some((name, reason))
+}
+
+/// The name without its title words ("Prof. Dr. Maria Rossi, Ph.D." → "Maria Rossi",
+/// "Dr.Mohammad Ansari" → "Mohammad Ansari").
+fn untitled(name: &str) -> String {
+    let words: Vec<&str> = name
+        .split_whitespace()
+        .map(untitled_word)
+        .filter(|w| !w.is_empty())
+        .collect();
+    words.join(" ").trim_end_matches([',', ';']).to_string()
+}
+
+/// The word without the titles it is or begins with: none of it when its letters spell one
+/// ("Ph.D.", "DR.") or a title joins the rest by a hyphen ("Dr.-Ing."), else what follows the
+/// titles a dot glues before it ("Dr.Mohammad").
+fn untitled_word(word: &str) -> &str {
+    if is_title(word) {
+        return "";
+    }
+    let mut rest = word;
+    while let Some((_, tail)) = rest.split_once('.').filter(|(head, _)| is_title(head)) {
+        if tail.starts_with('-') {
+            return "";
+        }
+        rest = tail;
+    }
+    rest
+}
+
+/// Whether the word's letters spell a title, unless it is a bare capital block.
+fn is_title(word: &str) -> bool {
+    !capital_block(word)
+        && TITLES.iter().any(|title| {
+            let mut letters = word
+                .chars()
+                .filter(|c| c.is_alphanumeric())
+                .map(|c| c.to_ascii_lowercase());
+            title.chars().all(|t| letters.next() == Some(t)) && letters.next().is_none()
+        })
+}
+
+/// Two or three capitals, read both as initials and as a name token.
+fn capital_block(raw_tok: &str) -> bool {
+    raw_tok.len() <= 3 && raw_tok.bytes().all(|c| c.is_ascii_uppercase())
 }
 
 /// Written in Latin script, in two tokens or more, and neither all lowercase nor all capitals.
@@ -1605,6 +1670,32 @@ mod tests {
                 id: 2,
                 reason: Reason::NameMismatch
             }]
+        );
+    }
+
+    #[test]
+    fn a_title_is_no_part_of_a_name() {
+        let alike = |a: &str, b: &str| Name::parse(a).alike(&Name::parse(b));
+        assert!(alike("Dr. Akshay Shetty", "Akshay Shetty"));
+        assert!(alike("Prof.Dr. Maria Rossi, PhD", "Maria Rossi"));
+        assert!(alike("John Smith, Ph.D.", "John Smith"));
+        assert!(alike("DR. JOHN SMITH", "John Smith"));
+        assert!(alike("Dr.-Ing. Anna Weber", "Anna Weber"));
+        assert!(!alike("Colin Dring", "Colin"), "Dring is a name");
+        assert!(!alike("DR Kumar", "Kumar"), "a capital block is initials");
+        assert!(!alike("MS Islam", "Islam"), "a capital block is initials");
+        assert!(!alike("M.D. Macleod", "Macleod"), "M.D. is initials");
+        assert!(!alike("Md Islam", "Islam"), "Md is a name");
+        assert_eq!(
+            untitled("Dr.Mohammad Rizwan Ansari"),
+            "Mohammad Rizwan Ansari"
+        );
+        assert_eq!(untitled("Prof. Dr. Maria Rossi PhD"), "Maria Rossi");
+        assert_eq!(untitled("Maria Rossi, Ph.D."), "Maria Rossi");
+        let group = vec![rec(1, "A. Shetty", 10), rec(2, "Akshay Shetty", 20)];
+        assert_eq!(
+            names_given(&group, Some(&registered(&["Dr Akshay K. Shetty"]))),
+            [(1, "Akshay K. Shetty".to_string(), Reason::RegisteredName)]
         );
     }
 
