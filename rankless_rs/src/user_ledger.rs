@@ -406,15 +406,7 @@ impl UserLedger {
                     .map_err(invalid)?;
             ul.derived_rows = Some(manifest.author_rows);
         }
-        for line in read_lines(&ul_dir.join(CURATED_JSONL))? {
-            ul.apply_curated(serde_json::from_str(&line).map_err(invalid)?);
-        }
-        for line in read_lines(&ul_dir.join(ACTIVE_JSONL))? {
-            match serde_json::from_str::<LedgerEventLine>(&line) {
-                Ok(event) => ul.apply_event(event),
-                Err(e) => eprintln!("user_ledger: skipping malformed event: {e}"),
-            }
-        }
+        ul.apply_user_sources(ul_dir)?;
         Ok(ul)
     }
 
@@ -471,6 +463,19 @@ impl UserLedger {
                     ids.author_rows
                 )));
             }
+        }
+        let stripped = self.user_stripped_ids();
+        let stale = self.author_fates.iter().find_map(|(key, id, fate)| {
+            let named = match fate {
+                Fate::Merge(keep) if stripped.contains(keep) => Some(*keep),
+                _ => stripped.contains(id).then_some(*id),
+            };
+            named.filter(|_| key.is_none())
+        });
+        if let Some(id) = stale {
+            return Err(invalid(format!(
+                "{DERIVED_JSONL} names record {id}, which {CURATED_JSONL} or {ACTIVE_JSONL} strips, so it predates the strip — rerun derive-ledger"
+            )));
         }
         let mut report = Report {
             applied: Vec::new(),
@@ -656,6 +661,34 @@ impl UserLedger {
             report,
         };
         Ok((resolved, outcomes))
+    }
+
+    /// The curated events, then the site's.
+    fn apply_user_sources(&mut self, ul_dir: &Path) -> io::Result<()> {
+        for line in read_lines(&ul_dir.join(CURATED_JSONL))? {
+            self.apply_curated(serde_json::from_str(&line).map_err(invalid)?);
+        }
+        for line in read_lines(&ul_dir.join(ACTIVE_JSONL))? {
+            match serde_json::from_str::<LedgerEventLine>(&line) {
+                Ok(event) => self.apply_event(event),
+                Err(e) => eprintln!("user_ledger: skipping malformed event: {e}"),
+            }
+        }
+        Ok(())
+    }
+
+    /// The records whose last curated or site event strips their ORCID.
+    fn user_stripped_ids(&self) -> HashSet<BigId> {
+        let mut last: HashMap<BigId, Fate> = HashMap::new();
+        for (key, id, fate) in &self.author_fates {
+            if key.is_some() {
+                last.insert(*id, *fate);
+            }
+        }
+        last.into_iter()
+            .filter(|(_, fate)| *fate == Fate::Strip)
+            .map(|(id, _)| id)
+            .collect()
     }
 
     fn apply_event(&mut self, event: LedgerEventLine) {
@@ -1112,6 +1145,15 @@ pub fn normalize_orcid(orcid: &str) -> String {
     orcid.strip_prefix(ORCID_PREF).unwrap_or(orcid).to_string()
 }
 
+/// The author records whose last curated or site event strips their ORCID: records the
+/// holder says are not theirs, which `derive-ledger` groups with none of the ORCID's others,
+/// so a derived file naming one predates the strip (`resolve` refuses it).
+pub fn user_stripped(ul_dir: &Path) -> io::Result<HashSet<BigId>> {
+    let mut ul = UserLedger::default();
+    ul.apply_user_sources(ul_dir)?;
+    Ok(ul.user_stripped_ids())
+}
+
 fn invalid(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, e)
 }
@@ -1452,8 +1494,7 @@ mod tests {
     #[test]
     fn a_stripped_keep_does_not_own_the_orcid_through_its_merged_records() {
         let mut ul = UserLedger::default();
-        ul.apply_derived(merge("d", 1, 2)).unwrap();
-        ul.derived_rows = Some(2);
+        ul.apply_event(merge("m", 1, 2));
         ul.apply_event(line(
             r#"{"key":"s","orcid":"o","payload":{"kind":"strip_orcid","author":{"oa_id":1}}}"#,
         ));
@@ -1467,6 +1508,35 @@ mod tests {
         let (resolved, outcomes) = ul.resolve(&ids).unwrap();
         assert_eq!(resolved.stripped_orcids, [1].into_iter().collect());
         assert!(outcomes.pins.is_empty());
+    }
+
+    #[test]
+    fn a_derived_file_naming_a_record_the_user_strips_predates_the_strip() {
+        let strip = |id: BigId| {
+            line(&format!(
+                r#"{{"key":"s{id}","orcid":"o","payload":{{"kind":"strip_orcid","author":{{"oa_id":{id}}}}}}}"#
+            ))
+        };
+        let ids = SnapshotIds {
+            orcid_carriers: carriers(&[("o", &[1, 2, 3])]),
+            authors: counts(&[1, 2, 3]),
+            author_rows: 3,
+            ..Default::default()
+        };
+        let derived = |stripped: BigId| {
+            let mut ul = UserLedger::default();
+            ul.apply_derived(merge("d", 1, 2)).unwrap();
+            ul.derived_rows = Some(3);
+            ul.apply_event(strip(stripped));
+            ul
+        };
+        // the keep and the drop were both in the group the derivation clustered
+        for stripped in [1, 2] {
+            assert!(derived(stripped).resolve(&ids).is_err());
+        }
+        let (resolved, _) = derived(3).resolve(&ids).unwrap();
+        assert_eq!(resolved.author_aliases, [(2, 1)].into_iter().collect());
+        assert_eq!(resolved.stripped_orcids, [3].into_iter().collect());
     }
 
     #[test]
@@ -1703,9 +1773,9 @@ mod tests {
             ul.apply_derived(line(l)).unwrap();
         }
         ul.derived_rows = Some(6);
-        // the user says 3 is not their record after all, and 4 is
+        // the user says 3 is another person's record (6) after all, and 4 is theirs
         ul.apply_event(line(
-            r#"{"key":"o|strip_orcid|x","orcid":"o","payload":{"kind":"strip_orcid","author":{"oa_id":3}}}"#,
+            r#"{"key":"o|merge_authors|x","orcid":"o","payload":{"kind":"merge_authors","keep":{"oa_id":6},"drop":{"oa_id":3}}}"#,
         ));
         ul.apply_event(line(
             r#"{"key":"o|merge_authors|y","orcid":"o","payload":{"kind":"merge_authors","keep":{"oa_id":1},"drop":{"oa_id":4}}}"#,
@@ -1714,20 +1784,23 @@ mod tests {
         let refs = ul.referenced();
         assert_eq!(refs.derived_rows, Some(6));
         assert!(refs.orcids.contains("o"));
-        assert_eq!(refs.authors, [1, 2, 3, 4].into_iter().collect());
+        assert_eq!(refs.authors, [1, 2, 3, 4, 6].into_iter().collect());
         let ids = SnapshotIds {
             orcid_carriers: carriers(&[("o", &[1, 2, 3, 4, 5])]),
-            authors: counts(&[1, 2, 3, 4]),
+            authors: counts(&[1, 2, 3, 4, 6]),
             author_rows: 6,
             ..Default::default()
         };
         let (resolved, outcomes) = ul.resolve(&ids).unwrap();
         assert_eq!(
             resolved.author_aliases,
-            [(2, 1), (4, 1)].into_iter().collect()
+            [(2, 1), (3, 6), (4, 1)].into_iter().collect()
         );
-        assert_eq!(resolved.stripped_orcids, [3, 5].into_iter().collect());
-        assert_eq!(resolved.author_counts, [(1, (3, 3))].into_iter().collect());
+        assert_eq!(resolved.stripped_orcids, [5].into_iter().collect());
+        assert_eq!(
+            resolved.author_counts,
+            [(1, (3, 3)), (6, (2, 2))].into_iter().collect()
+        );
         assert_eq!(outcomes.pins, [1].into_iter().collect());
         assert_eq!(outcomes.report.applied.len(), 2);
         assert!(outcomes.report.skipped.is_empty());

@@ -34,7 +34,7 @@ use crate::{
     csv_writers::authors,
     metrics::WORK_SCREEN,
     oa_structs::post::Author,
-    user_ledger::{normalize_orcid, write_json, DERIVED_JSONL, DERIVED_MANIFEST},
+    user_ledger::{normalize_orcid, user_stripped, write_json, DERIVED_JSONL, DERIVED_MANIFEST},
     work_identity::edition_merges,
 };
 
@@ -1099,6 +1099,8 @@ pub fn derive(stowage: &Stowage, names_table: Option<&Path>) -> io::Result<()> {
         |a, b| a.extend(b),
         Some(10),
     );
+    let user_stripped = user_stripped(&stowage.paths.user_ledger)?;
+    recs.retain(|r| !user_stripped.contains(&r.id));
     recs.sort_unstable_by(|a, b| (&a.orcid, a.id).cmp(&(&b.orcid, b.id)));
     let registered = match names_table {
         Some(path) => Some(load_registered(path, &wanted)?),

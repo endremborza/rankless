@@ -106,6 +106,15 @@ impl Event {
         )
     }
 
+    fn strip(orcid: &str, author: u64, tag: &str) -> Self {
+        Self::new(
+            orcid,
+            "strip_orcid",
+            tag,
+            json!({"kind": "strip_orcid", "author": {"oa_id": author, "orcid": orcid}}),
+        )
+    }
+
     fn claim(orcid: &str, doi: &str, tag: &str) -> Self {
         Self::new(
             orcid,
@@ -836,6 +845,32 @@ fn without_registered_names_the_most_works_cluster_owns_the_orcid() {
     assert_eq!(
         forced["forced_total"],
         fx.credited_works(&[s.split_alien.oa_id]).len()
+    );
+}
+
+#[test]
+fn a_record_its_holder_strips_is_grouped_with_none_of_theirs() {
+    let fx = Fixture::new("ledger-user-strip");
+    let s = &fx.scenario;
+    let split = s.split_keep.orcid.unwrap();
+    let strip = Event::strip(split, s.split_keep.oa_id, "not-mine").curated();
+    let run = fx.run(&[strip], &[split]);
+
+    // The record that would keep is not the holder's: the ORCID's other records are grouped
+    // without it, so the split-off record holds the ORCID and nothing merges into the stripped one.
+    let resolved = run.resolved();
+    assert!(resolved.author_aliases.is_empty());
+    assert_eq!(
+        resolved.stripped_orcids,
+        [s.split_alien.oa_id, s.split_junk.oa_id, s.split_keep.oa_id]
+            .into_iter()
+            .collect()
+    );
+    let forced = run.ledger_json(FORCED_WORKS);
+    assert_eq!(forced["cohort"], 1);
+    assert_eq!(
+        forced["forced_total"],
+        fx.credited_works(&[s.split_extra.oa_id]).len()
     );
 }
 
