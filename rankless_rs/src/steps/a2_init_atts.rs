@@ -35,11 +35,15 @@ use levenshtein::levenshtein;
 use serde::{de::DeserializeOwned, Deserialize};
 use std::{
     cmp::min,
+    hash::Hash,
     io,
     marker::PhantomData,
     sync::{Arc, Mutex},
 };
 use tqdm::Iter;
+
+/// A stored list up to this long is deduplicated by scanning; a longer one through a set.
+const SCAN_DEDUP_MAX: usize = 32;
 
 const MIN_RATE: f64 = 0.8;
 const MIN_LEN: usize = 10;
@@ -796,13 +800,19 @@ impl<T> StorableMarker<Self> for T {
     }
 }
 
-impl<T: PartialEq> StorableMarker<T> for Vec<T> {
+impl<T: Hash + Eq + Clone> StorableMarker<T> for Vec<T> {
     type FinalType = Box<[T]>;
     fn update(&mut self, other: T) {
         self.push(other);
     }
-    /// Each target once, in first-seen order: a merged work's records each list theirs.
+    /// Each target once, in first-seen order: a merged work's records each list theirs, and a
+    /// citer of both lists the keep twice. A short list is scanned, a long one goes through a set.
     fn finalize(mut self) -> Self::FinalType {
+        if self.len() > SCAN_DEDUP_MAX {
+            let mut seen = HashSet::with_capacity(self.len());
+            self.retain(|t| seen.insert(t.clone()));
+            return self.into_boxed_slice();
+        }
         let mut kept = 0;
         for i in 0..self.len() {
             if !self[..kept].contains(&self[i]) {
