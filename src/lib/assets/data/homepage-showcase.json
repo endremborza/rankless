@@ -3,7 +3,7 @@
     "name": "Richard H. Thaler",
     "semanticId": "richard-h-thaler",
     "papers": 179,
-    "citations": 58835
+    "citations": 58841
   },
   "hitPapers": [
     {
@@ -429,18 +429,18 @@
     "subfields": [
       {
         "name": "Economics and Econometrics",
-        "hero": 26876,
-        "peer": 12355
+        "hero": 26882,
+        "peer": 12357
       },
       {
         "name": "Finance",
-        "hero": 15919,
+        "hero": 15921,
         "peer": 2943
       },
       {
         "name": "General Decision Sciences",
-        "hero": 15572,
-        "peer": 12797
+        "hero": 15577,
+        "peer": 12803
       },
       {
         "name": "Accounting",
@@ -464,10 +464,10 @@
       2692,
       3177,
       3317,
-      3262,
-      3383,
-      2668,
-      2381,
+      3264,
+      3384,
+      2669,
+      2383,
       2006,
       1443,
       257
@@ -475,15 +475,15 @@
     "peerYearly": [
       3118,
       2987,
-      3403,
-      3535,
+      3405,
+      3537,
       3487,
-      3854,
-      3139,
+      3855,
+      3141,
       2867,
       2519,
       1776,
-      375
+      376
     ]
   }
 }
