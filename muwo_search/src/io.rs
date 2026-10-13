@@ -5,7 +5,7 @@ use super::{
     TrieNodeRoot, WordViaCharr, CHAR_COUNT,
 };
 
-const MAGIC: &[u8; 4] = b"MWS\x01";
+const MAGIC: &[u8; 4] = b"MWS\x02";
 
 impl<const S: usize> SearchEngine<S> {
     pub fn save<W: io::Write>(&self, w: &mut W) -> io::Result<()> {
@@ -15,7 +15,11 @@ impl<const S: usize> SearchEngine<S> {
         write_u64(w, ca.len() as u64)?;
         w.write_all(ca)?;
         save_root(&self.tree.prefix_tree, w)?;
-        save_root(&self.tree.inner_tree, w)
+        save_root(&self.tree.inner_tree, w)?;
+        for ids in self.tree.by_initial.iter() {
+            save_ids(ids, w)?;
+        }
+        Ok(())
     }
 
     pub fn try_load<R: io::Read>(r: &mut R) -> Option<Self> {
@@ -32,10 +36,15 @@ impl<const S: usize> SearchEngine<S> {
         r.read_exact(&mut char_array).ok()?;
         let prefix_tree = load_root::<S>(r)?;
         let inner_tree = load_root::<S>(r)?;
+        let mut by_initial = Vec::with_capacity(CHAR_COUNT);
+        for _ in 0..CHAR_COUNT {
+            by_initial.push(load_ids(r)?);
+        }
         Some(Self {
             tree: CustomTrie {
                 prefix_tree,
                 inner_tree,
+                by_initial: by_initial.try_into().ok()?,
                 char_array: char_array.into(),
             },
         })
@@ -65,10 +74,7 @@ fn save_leaves(leaves: &TrieLeaves, w: &mut impl io::Write) -> io::Result<()> {
     for leaf in leaves.0.iter() {
         write_u32(w, leaf.suffix.start_idx)?;
         write_u16(w, leaf.suffix.len)?;
-        write_u32(w, leaf.ids.len() as u32)?;
-        for &id in leaf.ids.iter() {
-            write_u32(w, id)?;
-        }
+        save_ids(&leaf.ids, w)?;
     }
     Ok(())
 }
@@ -79,17 +85,29 @@ fn load_leaves(r: &mut impl io::Read) -> Option<TrieLeaves> {
     for _ in 0..count {
         let start_idx = read_u32(r)?;
         let len = read_u16(r)?;
-        let id_count = read_u32(r)? as usize;
-        let mut ids = Vec::with_capacity(id_count);
-        for _ in 0..id_count {
-            ids.push(read_u32(r)?);
-        }
         leaves.push(TrieLeaf {
             suffix: WordViaCharr { start_idx, len },
-            ids: ids.into(),
+            ids: load_ids(r)?,
         });
     }
     Some(TrieLeaves(leaves.into()))
+}
+
+fn save_ids(ids: &[IndType], w: &mut impl io::Write) -> io::Result<()> {
+    write_u32(w, ids.len() as u32)?;
+    for &id in ids {
+        write_u32(w, id)?;
+    }
+    Ok(())
+}
+
+fn load_ids(r: &mut impl io::Read) -> Option<Box<[IndType]>> {
+    let count = read_u32(r)? as usize;
+    let mut ids = Vec::with_capacity(count);
+    for _ in 0..count {
+        ids.push(read_u32(r)?);
+    }
+    Some(ids.into())
 }
 
 fn save_l1<const S: usize>(node: &TrieNodeL1<S>, w: &mut impl io::Write) -> io::Result<()> {

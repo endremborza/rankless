@@ -233,3 +233,31 @@ fn lincoln() {
     println!("{:?}", engine.query("mit linc"));
     assert_eq!(engine.query("mit linc")[0], 3);
 }
+
+#[test]
+fn inner_match_needs_the_whole_word() {
+    let haystacks = vec!["Michael Garwood", "Michael Woodford"];
+    let engine: SearchEngine<TEST_SIZE> =
+        SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
+    assert_eq!(engine.query("woodford"), vec![1]);
+    assert_eq!(engine.query("michael woodford"), vec![1]);
+}
+
+#[test]
+fn initial_narrows_longer_words() {
+    let mut haystacks: Vec<String> = (0..TEST_SIZE + 4).map(|_| "Jane Doe".to_string()).collect();
+    let first = haystacks.len() as IndType;
+    haystacks.extend(["J Smith", "John Smith", "Adam Smith", "Adam J Smith"].map(String::from));
+    let engine: SearchEngine<TEST_SIZE> = SearchEngine::new(haystacks.into_iter());
+    assert_eq!(engine.query("j smith"), vec![first, first + 1, first + 3]);
+    assert_eq!(engine.query("smith j"), engine.query("j smith"));
+}
+
+#[test]
+fn whole_word_matches_rank_first() {
+    let haystacks = vec!["Anna Smithson", "Annabel Smith", "Anna Smith"];
+    let engine: SearchEngine<TEST_SIZE> =
+        SearchEngine::new(haystacks.iter().map(|s| s.to_string()));
+    assert_eq!(engine.query("anna smith"), vec![2, 0, 1]);
+    assert_eq!(engine.query("smith anna"), vec![2, 0, 1]);
+}

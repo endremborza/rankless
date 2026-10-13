@@ -6,12 +6,12 @@ mod tests;
 
 use deunicode::deunicode;
 pub use fixed_heap::{FixedHeap, Maxed, Mined};
+use merging::logfound;
 pub use merging::{
     log_search, ordered_calls, sorted_iters_to_arr, ArrExtender, ExtendableArr, OrderedMapper,
 };
-use merging::{logfound, merge_box_into_sorted_vec, merge_into_sorted_vec};
 
-use std::cmp::min;
+use std::cmp::Reverse;
 use std::convert::TryInto;
 use std::fmt::Debug;
 use std::ops::AddAssign;
@@ -26,6 +26,7 @@ const CHAR_COUNT: usize = ASCII_COUNT;
 
 const MAX_QUERY_CHARS: usize = 256;
 const MAX_QUERY_WORDS: usize = 32;
+const MAX_MATCHED_WORDS: usize = 3;
 
 const BRANCHING_LEVELS: usize = 2;
 
@@ -65,6 +66,8 @@ struct GenTrie<NextLevel, Out> {
 struct CustomTrie<const S: usize> {
     prefix_tree: TrieNodeRoot<S>,
     inner_tree: TrieNodeRoot<S>,
+    // per letter, the ids of the haystacks with a word starting with it
+    by_initial: [Box<[IndType]>; CHAR_COUNT],
     char_array: Box<[u8]>,
 }
 
@@ -92,43 +95,32 @@ trait Construct {
 }
 
 trait QueriableLevel {
-    fn query(&self, word: &[u8], char_arr: &[u8]) -> QueryResult;
-    fn query_prefiltered(&self, word: &[u8], char_arr: &[u8], include: &QueryResult)
-        -> QueryResult;
-    fn query_inners(&self, word: &[u8], char_arr: &[u8]) -> Vec<IndType>;
-    fn query_inners_prefiltered(
+    fn query(&self, word: &[u8], char_arr: &[u8], include: Option<&[IndType]>) -> QueryResult;
+    fn query_inners(
         &self,
         word: &[u8],
         char_arr: &[u8],
-        include: &QueryResult,
+        include: Option<&[IndType]>,
     ) -> Vec<IndType>;
 }
 
 impl<T, const S: usize> IndOutTrie<T, S> {
-    fn rel_inds(&self) -> Vec<IndType> {
+    fn rel_inds(&self, include: Option<&[IndType]>) -> Vec<IndType> {
         self.out
             .arr
             .into_iter()
             .take_while(|e| *e < IndType::MAX)
+            .filter(|e| included(include, *e))
             .collect()
-    }
-
-    fn rel_filt_inds(&self, include: &QueryResult) -> Vec<IndType> {
-        return self
-            .out
-            .arr
-            .into_iter()
-            .filter(|e| logfound(&include.partial, *e) || logfound(&include.perfect, *e))
-            .take_while(|e| *e < IndType::MAX)
-            .collect();
     }
 }
 
 impl TrieLeaves {
-    fn sides(&self, char_arr: &[u8], word: &[u8]) -> (usize, usize) {
-        let l = log_search(&self.0, |e| e.suffix.under(char_arr, word));
-        let r = log_search(&self.0[l..], |e| e.suffix.not_over(char_arr, word)) + l;
-        (l, r)
+    // leaves are sorted by suffix, so the ones extending `rest` form one run, led by its equal
+    fn range(&self, char_arr: &[u8], rest: &[u8]) -> &[TrieLeaf] {
+        let start = self.0.partition_point(|e| e.suffix.cut(char_arr) < rest);
+        let len = self.0[start..].partition_point(|e| e.suffix.cut(char_arr).starts_with(rest));
+        &self.0[start..start + len]
     }
 }
 
@@ -162,120 +154,47 @@ impl<T: Construct, const S: usize> Construct for IndOutTrie<T, S> {
 }
 
 impl<T: QueriableLevel, const S: usize> QueriableLevel for IndOutTrie<T, S> {
-    fn query(&self, word: &[u8], char_arr: &[u8]) -> QueryResult {
-        if word.len() == 0 {
-            let perfect = self.rel_inds();
-            return QueryResult {
-                perfect,
+    fn query(&self, word: &[u8], char_arr: &[u8], include: Option<&[IndType]>) -> QueryResult {
+        match word.split_first() {
+            None => QueryResult {
+                perfect: self.rel_inds(include),
                 partial: Vec::new(),
-            };
+            },
+            Some((c, rest)) => self.children[*c as usize].query(rest, char_arr, include),
         }
-        self.children[word[0] as usize].query(&word[1..], char_arr)
     }
 
-    fn query_inners(&self, word: &[u8], char_arr: &[u8]) -> Vec<IndType> {
-        if word.len() == 0 {
-            return self.rel_inds();
-        }
-        self.children[word[0] as usize].query_inners(&word[1..], char_arr)
-    }
-
-    fn query_prefiltered(
+    fn query_inners(
         &self,
         word: &[u8],
         char_arr: &[u8],
-        include: &QueryResult,
-    ) -> QueryResult {
-        if word.len() == 0 {
-            return QueryResult {
-                perfect: self.rel_filt_inds(include),
-                partial: Vec::new(),
-            };
-        }
-        self.children[word[0] as usize].query_prefiltered(&word[1..], char_arr, include)
-    }
-
-    fn query_inners_prefiltered(
-        &self,
-        word: &[u8],
-        char_arr: &[u8],
-        include: &QueryResult,
+        include: Option<&[IndType]>,
     ) -> Vec<IndType> {
-        if word.len() == 0 {
-            return self.rel_filt_inds(include);
+        match word.split_first() {
+            None => self.rel_inds(include),
+            Some((c, rest)) => self.children[*c as usize].query_inners(rest, char_arr, include),
         }
-        self.children[word[0] as usize].query_inners_prefiltered(&word[1..], char_arr, include)
     }
 }
 
 impl QueriableLevel for TrieLeaves {
-    fn query(&self, word: &[u8], char_arr: &[u8]) -> QueryResult {
-        let (l, r) = self.sides(char_arr, word);
-        let unlen = word.len() as u16;
-        let mut perfect = Vec::new();
-        // let mut shorters = Vec::new();
-        let mut partial = Vec::new();
-        for leaf in self.0[l..r].iter() {
-            if unlen == leaf.suffix.len {
-                perfect = leaf.ids.to_vec();
-            } else if unlen > leaf.suffix.len {
-                //TODO: puzzle - how the hell can we end up here?
-                // merge_box_into_sorted_vec(&mut shorters, &leaf.ids);
-            } else {
-                merge_box_into_sorted_vec(&mut partial, &leaf.ids);
-            }
+    fn query(&self, word: &[u8], char_arr: &[u8], include: Option<&[IndType]>) -> QueryResult {
+        let range = self.range(char_arr, word);
+        let (equal, longer) =
+            range.split_at(range.partition_point(|e| e.suffix.len as usize == word.len()));
+        QueryResult {
+            perfect: collect_ids(equal, include),
+            partial: collect_ids(longer, include),
         }
-        // extend_sorted(&mut shorters, longers);
-        QueryResult { perfect, partial }
     }
 
-    fn query_inners(&self, word: &[u8], char_arr: &[u8]) -> Vec<IndType> {
-        let (l, r) = self.sides(char_arr, word);
-        let mut out = Vec::new();
-        for leaf in self.0[l..r].iter() {
-            merge_box_into_sorted_vec(&mut out, &leaf.ids);
-        }
-        out
-    }
-
-    fn query_prefiltered(
+    fn query_inners(
         &self,
         word: &[u8],
         char_arr: &[u8],
-        include: &QueryResult,
-    ) -> QueryResult {
-        let (l, r) = self.sides(char_arr, word);
-        let fifu =
-            |e: &&IndType| logfound(&include.partial, **e) || logfound(&include.perfect, **e);
-        let unlen = word.len() as u16;
-        let mut perfect = Vec::new();
-        let mut partial = Vec::new();
-        for leaf in self.0[l..r].iter() {
-            let lids: Vec<IndType> = leaf.ids.iter().filter(fifu).map(|e| *e).collect();
-            if unlen == leaf.suffix.len {
-                perfect = lids;
-            } else {
-                merge_into_sorted_vec(&mut partial, lids);
-            }
-        }
-        QueryResult { perfect, partial }
-    }
-
-    fn query_inners_prefiltered(
-        &self,
-        word: &[u8],
-        char_arr: &[u8],
-        include: &QueryResult,
+        include: Option<&[IndType]>,
     ) -> Vec<IndType> {
-        let (l, r) = self.sides(char_arr, word);
-        let fifu =
-            |e: &&IndType| logfound(&include.partial, **e) || logfound(&include.perfect, **e);
-        let mut out = Vec::new();
-        for leaf in self.0[l..r].iter() {
-            let lids: Vec<IndType> = leaf.ids.iter().filter(fifu).map(|e| *e).collect();
-            merge_into_sorted_vec(&mut out, lids);
-        }
-        out
+        collect_ids(self.range(char_arr, word), include)
     }
 }
 
@@ -347,32 +266,6 @@ impl WordViaCharr {
         let su = self.start_idx as usize;
         &char_arr[su..(su + self.len as usize)]
     }
-
-    fn under(&self, char_arr: &[u8], comp: &[u8]) -> bool {
-        //consider empty comp
-        self.cmp_meta(char_arr, comp, false)
-    }
-
-    fn not_over(&self, char_arr: &[u8], comp: &[u8]) -> bool {
-        self.cmp_meta(char_arr, comp, true)
-    }
-
-    fn cmp_meta(&self, char_arr: &[u8], comp: &[u8], breaker: bool) -> bool {
-        let my_size = self.len as usize;
-        let my_arr = self.cut(char_arr);
-        for i in 0..comp.len() {
-            if i >= my_size {
-                break;
-            }
-            if my_arr[i] > comp[i] {
-                return false;
-            }
-            if my_arr[i] < comp[i] {
-                return true;
-            }
-        }
-        breaker
-    }
 }
 
 impl<const S: usize> CustomTrie<S> {
@@ -382,8 +275,10 @@ impl<const S: usize> CustomTrie<S> {
         let mut last_suff: Vec<u8> = Vec::new();
         let mut prep_tree = PrepTrieRoot::new();
         let mut inner_prep = PrepTrieRoot::new();
+        let mut by_initial: [Vec<IndType>; CHAR_COUNT] = core::array::from_fn(|_| Vec::new());
 
         for idxed_word in idxed_words.into_iter().rev().filter(|e| e.word.len() > 0) {
+            by_initial[idxed_word.word[0] as usize].push(idxed_word.outer_idx as IndType);
             last_suff = prep_tree.extend(&idxed_word, &mut char_array, 0, &last_suff);
             for i in 1..(idxed_word.word.len() - 1) {
                 inner_prep.extend(&idxed_word, &mut char_array, i, &last_suff);
@@ -392,53 +287,57 @@ impl<const S: usize> CustomTrie<S> {
         Self {
             prefix_tree: prep_tree.finalize(&char_array),
             inner_tree: inner_prep.finalize(&char_array),
+            by_initial: child_into(by_initial, |mut ids| {
+                ids.sort_unstable();
+                ids.dedup();
+                ids.into()
+            }),
             char_array: char_array.into(),
         }
     }
 
+    // The longest word is matched first, as the most selective, and the rest narrow it down;
+    // `perfect` keeps the ids matching every word whole.
     fn query(&self, sword: &StackWordSet, limit: usize) -> Vec<IndType> {
-        //should iterate through matches
-        //return _ordered_ indeices of matches
-        // I. perfect match at start of word
-        // II. perfect match within the word
-        // III. parital match anywhere
-        //    - this might be multilevel based on partials similarity
-        // should be optional to return up to a number or all - for multiword
-        if sword.breaks_count <= 1 {
-            let be = sword.break_array[0] as usize;
-            let word = &sword.char_array[0..be];
-            let mut matches = self.prefix_tree.query(word, &self.char_array);
-            if (matches.perfect.len() + matches.partial.len()) < limit {
-                self.extend_matches(&mut matches, word);
-            }
-            matches.into()
-        } else {
-            let be = sword.break_array[0] as usize;
-            let word = &sword.char_array[0..be];
-            let mut matches = self.prefix_tree.query(word, &self.char_array);
-            self.extend_matches(&mut matches, word);
-            let mut bs = be;
-            for i in 1..(min(sword.breaks_count, 3)) {
-                let be = sword.break_array[i] as usize;
-                let word = &sword.char_array[bs..be];
-                let mut prefs =
-                    self.prefix_tree
-                        .query_prefiltered(word, &self.char_array, &matches);
-                if word.len() > 1 {
-                    let ins =
-                        self.inner_tree
-                            .query_inners_prefiltered(word, &self.char_array, &matches);
-                    merge_into_sorted_vec(&mut prefs.partial, ins);
-                }
-                matches = prefs;
-                bs = be;
-            }
-            matches.into()
+        let mut words = sword.words();
+        words.sort_by_key(|w| Reverse(w.len()));
+        let first = words.first().copied().unwrap_or_default();
+        let mut matches = self.prefix_tree.query(first, &self.char_array, None);
+        if words.len() > 1 || matches.perfect.len() + matches.partial.len() < limit {
+            let inner = self.inner_tree.query_inners(first, &self.char_array, None);
+            matches.partial = union(&matches.partial, &inner);
         }
+        words
+            .iter()
+            .skip(1)
+            .take(MAX_MATCHED_WORDS - 1)
+            .fold(matches, |matches, word| self.narrow(matches, word))
+            .into()
     }
-    fn extend_matches(&self, matches: &mut QueryResult, word: &[u8]) {
-        let ins = self.inner_tree.query_inners(word, &self.char_array);
-        merge_into_sorted_vec(&mut matches.partial, ins);
+
+    fn narrow(&self, matches: QueryResult, word: &[u8]) -> QueryResult {
+        let include = union(&matches.perfect, &matches.partial);
+        // a lone letter matches whole as an initial, whether bare or starting a word
+        let found = match word {
+            [c] => QueryResult {
+                perfect: intersect(&include, &self.by_initial[*c as usize]),
+                partial: Vec::new(),
+            },
+            _ => {
+                let mut found = self
+                    .prefix_tree
+                    .query(word, &self.char_array, Some(&include));
+                let inner = self
+                    .inner_tree
+                    .query_inners(word, &self.char_array, Some(&include));
+                found.partial = union(&found.partial, &inner);
+                found
+            }
+        };
+        QueryResult {
+            perfect: intersect(&found.perfect, &matches.perfect),
+            partial: union(&found.perfect, &found.partial),
+        }
     }
 }
 
@@ -469,18 +368,25 @@ impl StackWordSet {
     }
 
     pub fn to_words(&self) -> Vec<String> {
-        let mut out = Vec::new();
-        let mut si = 0;
-        for i in 0..self.breaks_count {
-            let ei = self.break_array[i] as usize;
-            let cv = self.char_array[si..ei]
-                .iter()
-                .map(|e| *e + ASCII_LC_MIN)
-                .collect();
-            out.push(String::from_utf8(cv).expect("reading word"));
-            si = ei;
-        }
-        out
+        self.words()
+            .into_iter()
+            .map(|w| {
+                String::from_utf8(w.iter().map(|c| c + ASCII_LC_MIN).collect())
+                    .expect("reading word")
+            })
+            .collect()
+    }
+
+    fn words(&self) -> Vec<&[u8]> {
+        let mut start = 0;
+        self.break_array[..self.breaks_count]
+            .iter()
+            .map(|&end| {
+                let word = &self.char_array[start..end as usize];
+                start = end as usize;
+                word
+            })
+            .collect()
     }
 
     fn new_break(&mut self, i: u8) {
@@ -532,18 +438,46 @@ fn extend_sorted<T: PartialOrd>(int_v: &mut Vec<T>, add_v: Vec<T>) {
     }
 }
 
+fn collect_ids<'a>(
+    leaves: impl IntoIterator<Item = &'a TrieLeaf>,
+    include: Option<&[IndType]>,
+) -> Vec<IndType> {
+    let mut ids: Vec<IndType> = leaves
+        .into_iter()
+        .flat_map(|leaf| leaf.ids.iter().copied())
+        .filter(|&id| included(include, id))
+        .collect();
+    ids.sort_unstable();
+    ids.dedup();
+    ids
+}
+
+fn included(include: Option<&[IndType]>, id: IndType) -> bool {
+    include.is_none_or(|inc| logfound(inc, id))
+}
+
+fn union(left: &[IndType], right: &[IndType]) -> Vec<IndType> {
+    let mut out = Vec::with_capacity(left.len() + right.len());
+    sorted_iters_to_arr(&mut out, left.iter(), right.iter());
+    out
+}
+
+fn intersect(left: &[IndType], right: &[IndType]) -> Vec<IndType> {
+    left.iter()
+        .copied()
+        .filter(|&id| logfound(right, id))
+        .collect()
+}
+
 fn get_idxed_words<I: Iterator<Item = String>>(haystacks: I) -> Vec<IndexedWord> {
     let mut idxed_words = Vec::new();
     for (hi, haystack) in haystacks.enumerate() {
         let wstack = StackWordSet::new(&haystack);
-        let mut last_break = 0;
-        for break_n in 0..wstack.breaks_count {
-            let this_break = wstack.break_array[break_n] as usize;
+        for word in wstack.words() {
             idxed_words.push(IndexedWord {
-                word: wstack.char_array[last_break..this_break].to_vec(),
+                word: word.to_vec(),
                 outer_idx: hi,
             });
-            last_break = this_break;
         }
     }
     idxed_words

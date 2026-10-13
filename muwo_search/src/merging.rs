@@ -45,72 +45,6 @@ where
     v
 }
 
-pub fn merge_box_into_sorted_vec<T>(left_vec: &mut Vec<T>, right_barr: &[T])
-where
-    T: PartialOrd + Copy,
-{
-    merge_into_sorted_vec(left_vec, right_barr.to_vec());
-}
-
-pub fn merge_into_sorted_vec<T>(left_vec: &mut Vec<T>, mut right_vec: Vec<T>)
-where
-    T: PartialOrd + Copy,
-{
-    if left_vec.is_empty() {
-        let _ = std::mem::replace(left_vec, right_vec);
-        return;
-    }
-    if right_vec.is_empty() {
-        return;
-    }
-    let mut li = 0;
-    let mut ri = 0;
-
-    loop {
-        if left_vec[li] == right_vec[ri] {
-            //maybe the merging thing
-            ri += 1;
-            li += 1;
-        } else if right_vec[ri] < left_vec[li] {
-            std::mem::swap(&mut left_vec[li], &mut right_vec[ri]);
-            movin_on_up(&mut right_vec[ri..]);
-        } else {
-            li += 1;
-        }
-
-        if (li == left_vec.len()) || (ri == right_vec.len()) {
-            break;
-        }
-    }
-
-    if ri < right_vec.len() {
-        if left_vec[li - 1] == right_vec[ri] {
-            ri += 1;
-        }
-    }
-
-    for i in ri..right_vec.len() {
-        let nval = right_vec[i];
-        if nval == left_vec[left_vec.len() - 1] {
-            //maybe merging thing
-        } else {
-            left_vec.push(nval);
-        }
-    }
-}
-
-fn movin_on_up<T: PartialOrd>(arr: &mut [T]) {
-    let mut i = 0;
-    while (i + 1) < arr.len() {
-        if arr[i] > arr[i + 1] {
-            arr.swap(i, i + 1);
-            i += 1;
-        } else {
-            break;
-        }
-    }
-}
-
 pub fn sorted_iters_to_arr<'a, 'b, T, IL, IR, V>(out: &mut V, left_it: IL, right_it: IR)
 where
     T: PartialOrd + Clone + 'a + 'b,
@@ -215,10 +149,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use std::collections::HashSet;
-
     use super::*;
-    use rand::{rngs::StdRng, Rng, SeedableRng};
 
     #[derive(Debug, Clone, Copy)]
     struct PartCmp(u8, u8);
@@ -237,50 +168,13 @@ mod tests {
 
     #[test]
     fn merger() {
-        let mut left = vec![PartCmp(0, 1), PartCmp(1, 1), PartCmp(3, 1), PartCmp(5, 1)];
+        let left = vec![PartCmp(0, 1), PartCmp(1, 1), PartCmp(3, 1), PartCmp(5, 1)];
         let right = vec![PartCmp(2, 1), PartCmp(3, 2), PartCmp(4, 3)];
 
         println!("lr");
         test_m1_out(_merge_sorted_vecs(left.clone(), right.clone()), 1);
         println!("rl");
-        test_m1_out(_merge_sorted_vecs(right.clone(), left.clone()), 2);
-
-        merge_into_sorted_vec(&mut left, right);
-        println!("lin");
-        test_m1_out(left, 1);
-    }
-
-    #[test]
-    fn compare_rnd() {
-        let mut rng = StdRng::seed_from_u64(42);
-        for (ll, rl) in vec![
-            (0, 4),
-            (4, 0),
-            (3, 2),
-            (2, 3),
-            (10, 30),
-            (30, 10),
-            (50, 50),
-            (100, 10),
-            (10, 100),
-        ] {
-            let mut ls: HashSet<u8> = HashSet::new();
-            let mut rs: HashSet<u8> = HashSet::new();
-            (0..ll).for_each(|_| {
-                ls.insert(rng.gen());
-            });
-            (0..rl).for_each(|_| {
-                rs.insert(rng.gen());
-            });
-            let mut lv: Vec<u8> = ls.into_iter().collect();
-            let mut rv: Vec<u8> = rs.into_iter().collect();
-            lv.sort();
-            rv.sort();
-
-            let ov = _merge_sorted_vecs(lv.clone(), rv.clone());
-            merge_into_sorted_vec(&mut lv, rv);
-            assert_eq!(lv, ov, "(new vs old) {ll} - {rl}");
-        }
+        test_m1_out(_merge_sorted_vecs(right, left), 2);
     }
 
     fn test_m1_out(out: Vec<PartCmp>, tc: u8) {
