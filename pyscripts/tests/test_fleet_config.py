@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import pytest
@@ -29,10 +30,8 @@ name = "big-box"
 host = "big-box"
 repo_dir = "/home/x/rankless"
 data_root = "/home/x/rankless-data"
-band = [160.0, 320.0]
-procs = [2]
-bigs = true
-big_chunk = 3
+band = [160.0, inf]
+procs = [1]
 """
 
 
@@ -47,18 +46,15 @@ def test_load_and_cache_flags(tmp_path: Path) -> None:
     assert fleet.min_citations == 50000
     local, mid, big = fleet.workers
     assert local.host is None and fleet.local() is local
-    assert fleet.bigs_worker() is big and fleet.big_limit() == 320.0
     assert local.cache_flags(fleet.min_citations) == [
         "--min=0.0",
         "--limit=14.0",
         "--bins=6.0",
         "--procs=16,8",
-        "--chunk=4",
         "--min-citations=50000",
     ]
-    assert big.actions() == ["bigs", "rest"] and mid.actions() == ["rest"]
+    assert mid.band == (14.0, 160.0) and big.band == (160.0, math.inf)
     assert "--bins=" in big.cache_flags(50000)  # single-bin band → empty list
-    assert "--chunk=3" in big.cache_flags(50000)
 
 
 def test_cache_flags_roundtrip(tmp_path: Path) -> None:
@@ -71,13 +67,14 @@ def test_cache_flags_roundtrip(tmp_path: Path) -> None:
     fleet = _load(tmp_path, CONF)
     local, _, big = fleet.workers
 
-    args = parser.parse_args(["rest", *local.cache_flags(fleet.min_citations)])
+    args = parser.parse_args(["warm", *local.cache_flags(fleet.min_citations)])
     assert (args.min, args.limit) == local.band
     assert args.bins == local.bins and args.procs == local.procs
     assert args.min_citations == fleet.min_citations
 
-    args = parser.parse_args(["bigs", *big.cache_flags(fleet.min_citations)])
-    assert args.bins == [] and args.procs == [2] and args.chunk == 3
+    args = parser.parse_args(["warm", *big.cache_flags(fleet.min_citations)])
+    assert (args.min, args.limit) == big.band
+    assert args.bins == [] and args.procs == [1]
 
 
 def test_fleet_section_optional(tmp_path: Path) -> None:
@@ -112,13 +109,10 @@ def test_structural_validation(tmp_path: Path) -> None:
         (("band = [14.0, 160.0]", "band = [15.0, 160.0]"), "gap"),
         (("band = [14.0, 160.0]", "band = [12.0, 160.0]"), "overlap"),
         (("band = [0.0, 14.0]", "band = [1.0, 14.0]"), "start at 0"),
-        (("bigs = true\n", ""), "exactly one"),
-        (("speed = 0.6", "bigs = true"), "exactly one"),
+        (("band = [160.0, inf]", "band = [160.0, 320.0]"), "open-ended"),
+        (("procs = [1]", "procs = [2]"), "one at a time"),
         (
-            (
-                "band = [160.0, 320.0]\nprocs = [2]",
-                "band = [160.0, 320.0]\nbins = [400.0]\nprocs = [2, 1]",
-            ),
+            ("procs = [1]", "bins = [100.0]\nprocs = [2, 1]"),
             "inside the band",
         ),
     ],
@@ -126,14 +120,6 @@ def test_structural_validation(tmp_path: Path) -> None:
 def test_tiling_validation(tmp_path: Path, mangle: tuple, match: str) -> None:
     with pytest.raises(SystemExit, match=match):
         _load(tmp_path, CONF.replace(*mangle))
-
-
-def test_bigs_must_own_top_band(tmp_path: Path) -> None:
-    swapped = CONF.replace(
-        "procs = [4, 1]\nspeed = 0.6", "procs = [4, 1]\nbigs = true"
-    ).replace("procs = [2]\nbigs = true\nbig_chunk = 3", "procs = [2]")
-    with pytest.raises(SystemExit, match="top band"):
-        _load(tmp_path, swapped)
 
 
 def test_bands_optional_for_calibration(tmp_path: Path) -> None:

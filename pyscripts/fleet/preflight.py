@@ -8,21 +8,21 @@ The failure classes this catches (each burned us or nearly did):
   handshake reflects the *running* process, not the checkout)
 - band assignment the box cannot hold in RAM — compute-time OOM, not the
   serving-leak class (memory)
-- bigs box filling its parts root or the data push filling the disk (disk)
+- the data push filling the disk (disk)
 
 Every check returns a named `Check` instead of raising, so one dead box
 reports as a row in the gate table, and the run aborts before any compute.
 """
 
 import json
+import math
 import os
 from dataclasses import dataclass
 
 from pyscripts import gitutil
 from pyscripts.fleet import manifest
-from pyscripts.fleet.config import Model, Worker, parts_fs
+from pyscripts.fleet.config import Model, Worker
 from pyscripts.fleet.remote import Host
-from wire.rankless_trees.part_iterator import DEFAULT_PARTS_ROOT, PARTS_ROOT_VAR
 
 GB = 1024**3
 DISK_MARGIN_GB = 5.0
@@ -89,7 +89,7 @@ def pre_checks(w: Worker, host: Host, model: Model, primary: Primary) -> list[Ch
     if w.host is not None:
         checks += [
             _check(w, "env", _env_detail, host, w, primary),
-            _check(w, "disk", _disk_detail, host, w, model, primary),
+            _check(w, "disk", _disk_detail, host, w, primary),
         ]
     checks.append(_check(w, "memory", _memory_detail, host, w, model))
     return checks
@@ -126,12 +126,14 @@ def gate(checks: list[Check]) -> None:
 def est_peak_gb(w: Worker, model: Model) -> float:
     """Crude linear peak: baseline + the worst (procs × bin hi) product.
 
-    Bigs prep is disk-bounded, not RAM-bound (`_disk_detail` covers it), so it
-    adds no term here. The coefficients live in [model] (docs/deploy.md);
-    calibrate from a real run's MemoryPeak.
+    The open top bin has no hi to scale and adds no term: it builds one tree at
+    a time. The coefficients live in [model] (docs/deploy.md); calibrate from a
+    real run's MemoryPeak.
     """
-    per_bin = [procs * hi * model.gb_per_mcut for hi, procs in w.bin_edges()]
-    return model.mem_base_gb + max(per_bin)
+    per_bin = [
+        procs * hi * model.gb_per_mcut for hi, procs in w.bin_edges() if hi != math.inf
+    ]
+    return model.mem_base_gb + max(per_bin, default=0.0)
 
 
 def _check(w: Worker, name: str, fn, *args) -> Check:
@@ -171,12 +173,7 @@ def _env_detail(host: Host, w: Worker, primary: Primary) -> str:
     assert renv == primary.rankless_env, (
         f"RANKLESS_ENV {renv} != primary {primary.rankless_env}"
     )
-    parts = remote.get(PARTS_ROOT_VAR) or DEFAULT_PARTS_ROOT
-    assert parts.rstrip("/") == w.parts_root.rstrip("/"), (
-        f"{PARTS_ROOT_VAR}={parts} != {w.parts_root} — the box's backend spills "
-        "parts where its .env says, so the gate would measure the wrong disk"
-    )
-    return f"OA_ROOT, RANKLESS_ENV={renv} + parts root agree"
+    return f"OA_ROOT + RANKLESS_ENV={renv} agree"
 
 
 def _parse_env(text: str) -> dict[str, str]:
@@ -190,7 +187,7 @@ def _parse_env(text: str) -> dict[str, str]:
     return pairs
 
 
-def _disk_detail(host: Host, w: Worker, model: Model, primary: Primary) -> str:
+def _disk_detail(host: Host, w: Worker, primary: Primary) -> str:
     avail_gb = _df_avail_gb(host, w.data_root)
     have_gb = int(_du_cmd_out(host, w.data_root, check=False) or 0) / GB
     # growth to the final size, plus the one replacement rsync holds in flight
@@ -202,18 +199,7 @@ def _disk_detail(host: Host, w: Worker, model: Model, primary: Primary) -> str:
     assert avail_gb >= need_gb, (
         f"{w.data_root}: {avail_gb:.0f}G free < {need_gb:.0f}G needed for the push"
     )
-    detail = f"{avail_gb:.0f}G free for a {need_gb:.0f}G push"
-    if w.bigs:
-        fs = parts_fs(w.parts_root)
-        parts_gb = _df_avail_gb(host, fs)
-        parts_need = w.big_chunk * model.parts_gb_per_big
-        assert parts_gb >= parts_need, (
-            f"{fs}: {parts_gb:.0f}G free < {parts_need:.0f}G for big_chunk="
-            f"{w.big_chunk} (lower big_chunk, clear {w.parts_root}, or move it "
-            f"via {PARTS_ROOT_VAR})"
-        )
-        detail += f"; {fs} {parts_gb:.0f}G ≥ {parts_need:.0f}G for bigs"
-    return detail
+    return f"{avail_gb:.0f}G free for a {need_gb:.0f}G push"
 
 
 def _memory_detail(host: Host, w: Worker, model: Model) -> str:

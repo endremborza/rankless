@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import math
 import os
 import re
 import time
@@ -18,7 +19,7 @@ from tqdm import tqdm
 
 from wire.rankless_server.responses import TREE_SPECS
 
-from .fleet.config import DEFAULT_BIG_CHUNK, DEFAULT_MIN_CITATIONS
+from .fleet.config import DEFAULT_MIN_CITATIONS
 from .server_ops import DEFAULT_BE_ADDR as DEFAULT_ADDR
 
 SIDC = "semanticId"
@@ -30,24 +31,21 @@ DMIC = "dmId"
 
 load_dotenv(".env", override=True)
 
-# Size-band defaults, in millions of cut_basis (citations × breakdown count).
-# min..big_limit is a box's `rest` share, above big_limit is the `bigs` set
-# (prep/read via the server's parts root). Banded runs get these as CLI flags — from
+# Size-band defaults, in millions of cut_basis (citations × breakdown count):
+# a `warm` run computes the trees in (min, limit], its bins each requested with
+# their procs in parallel. Banded runs get these as CLI flags — from
 # data/warm.toml when driven (pyscripts/fleet), by hand otherwise.
 DEFAULT_BINS = [1.5 * 4, 3.5 * 4, 12 * 4]
 DEFAULT_PROCS = [16, 8, 4, 1]
-DEFAULT_BIG_LIMIT = 80.0 * 4
 
 
 class BatchRequester:
     def __init__(
         self,
         min_citations=DEFAULT_MIN_CITATIONS,
-        big_limit=DEFAULT_BIG_LIMIT,
         addr: str = DEFAULT_ADDR,
     ) -> None:
         self.addr = addr
-        self.big_limit = big_limit
         self.ext_dic = {}
         wait_for_backend(addr)
         self.specs = TREE_SPECS["specs"]
@@ -67,36 +65,16 @@ class BatchRequester:
             .sort_values("cut_basis", ascending=False)
             .pipe(add_be_urls, addr)
         )
-        self.bigs = self.urled_sample.loc[
-            lambda df: df["cut_basis"] > self.big_limit * 1e6
-        ]
-        self.big_urls = self.bigs["url"].tolist()
-        print("BIGS:", len(self.big_urls))
         self.resps = []
 
-    def do_rest(self, bins=None, proc_counts=None, sampling_kwargs={"frac": 1.0}):
-        if bins is None:
-            bins = [0, *DEFAULT_BINS]
-        if proc_counts is None:
-            proc_counts = DEFAULT_PROCS
-        print("procs", proc_counts)
+    def warm(self, edges: list[float], procs: list[int], sampling_kwargs={"frac": 1.0}):
+        """Request the trees between consecutive `edges` (M cut_basis), each bin
+        with its `procs` in parallel."""
+        print("procs", procs)
         print(f"n: {round(self.urled_sample.shape[0] / 1e3, 1)}k")
-        for gid, gdf in tqdm(self.iter_gdfs(bins, proc_counts)):
+        for gid, gdf in tqdm(self.iter_gdfs(edges, procs)):
             suburls = gdf.sample(**sampling_kwargs)["url"].tolist()
             self._run(suburls, gid)
-
-    def do_bigs(self, chunk_size=DEFAULT_BIG_CHUNK):
-        # Chunked prep→read: the server deletes each tree's parts
-        # after its read, so parts disk peaks at one chunk instead of every big
-        # at once. Already-cached trees are skipped (prep/read bypass the cache,
-        # so a plain rerun would recompute them) — rerunning resumes.
-        rows = [s for _, s in self.bigs.iterrows()]
-        todo = [s for s in rows if not tree_cached(s, self.n_periods)]
-        print(f"bigs: {len(rows) - len(todo)} cached, {len(todo)} to compute")
-        for i in range(0, len(todo), chunk_size):
-            chunk = [s["url"] for s in todo[i : i + chunk_size]]
-            self._run([url + "&big_prep=true" for url in chunk], len(chunk))
-            self._run([url + "&big_read=true" for url in chunk], 1)
 
     def set_ext_dic(self, d):
         self.ext_dic = d
@@ -106,10 +84,9 @@ class BatchRequester:
             self.urled_sample.loc[:, [RTC, SIDC, TIDC, BDSC, "citations", "cut_basis"]]
         )
 
-    def iter_gdfs(self, bins: list[float], proc_counts: list):
-        full_bins = [*bins, self.big_limit]
-        print("running with bins ", [f"{e}M" for e in full_bins])
-        mbins = [e * 1e6 for e in full_bins]
+    def iter_gdfs(self, edges: list[float], procs: list[int]):
+        print("running with bins ", [f"{e}M" for e in edges])
+        mbins = [e * 1e6 for e in edges]
         # Bands are labelled by index, then mapped to their proc count: two
         # bands may legitimately run the same number of procs, and pd.cut
         # rejects duplicate labels.
@@ -121,7 +98,7 @@ class BatchRequester:
             .loc[lambda df: df["ccut"].notna()]
             .groupby("ccut", observed=True)
         )
-        return ((proc_counts[band], gdf) for band, gdf in grouped)
+        return ((procs[band], gdf) for band, gdf in grouped)
 
     def _run(self, urls, nprocs):
         if nprocs == 1:
@@ -177,7 +154,7 @@ def cache_dir_of(data_root: str, rt: str, eid: int, tid: int) -> Path:
 
 def tree_cached(s, n_periods: int, data_root: str | None = None) -> bool:
     # The server writes one bare {pid}.zst per period as it walks the years
-    # (wide-/shallow- variants alongside), so a kill mid-read leaves a dir with
+    # (wide-/shallow- variants alongside), so a kill mid-walk leaves a dir with
     # only the newest periods — done means all n_periods bare files are there.
     root = data_root or os.environ["OA_ROOT"]
     d = cache_dir_of(root, s[RTC], s[DMIC], s[TIDC])
@@ -215,29 +192,26 @@ def validate(urls):
     list(map(resp_pipe, tqdm(urls)))
 
 
-CACHE_ACTIONS = ("bigs", "rest", "validate-all", "validate-bigs")
+CACHE_ACTIONS = ("warm", "validate-all")
 
 
 def main(
-    action: Literal["bigs", "rest", "validate-all", "validate-bigs"],
+    action: Literal["warm", "validate-all"],
     *,
     min: float = 0.0,
-    limit: float = DEFAULT_BIG_LIMIT,
+    limit: float = math.inf,
     bins: list[float] = DEFAULT_BINS,
     procs: list[int] = DEFAULT_PROCS,
-    chunk: int = DEFAULT_BIG_CHUNK,
     min_citations: int = DEFAULT_MIN_CITATIONS,
 ) -> None:
     """Warm or validate the server response cache: --min/--limit band the run
     in M cut_basis, --bins/--procs set per-size-bin client parallelism."""
     if len(procs) != len(bins) + 1:
         raise SystemExit("--procs needs exactly one more entry than --bins")
-    runner = BatchRequester(min_citations=min_citations, big_limit=limit)
+    runner = BatchRequester(min_citations=min_citations)
     dispatch = {
-        "bigs": lambda: runner.do_bigs(chunk),
-        "rest": lambda: runner.do_rest([min, *bins], procs),
+        "warm": lambda: runner.warm([min, *bins, limit], procs),
         "validate-all": lambda: validate(runner.urled_sample["url"].tolist()),
-        "validate-bigs": lambda: validate(runner.big_urls),
     }
     assert set(dispatch) == set(CACHE_ACTIONS)  # choices and dispatch stay in lockstep
     dispatch[action]()

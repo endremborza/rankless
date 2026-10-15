@@ -68,13 +68,14 @@ class Benchmarker:
         self.add_memory_rec("started")
 
     def run_requests(self):
-        requester = BatchRequester(min_citations=1000, big_limit=40 * 4)
+        requester = BatchRequester(min_citations=1000)
         qs = [0.5, 0.70, 0.85, 0.95]
-        bins = [0, *[requester.urled_sample["cut_basis"].quantile(q) / 1e6 for q in qs]]
+        quantiles = [requester.urled_sample["cut_basis"].quantile(q) / 1e6 for q in qs]
+        edges = [0, *quantiles, 40 * 4]
         proc_counts = [12, 8, 4, 2, 1]
         for run_id in range(1, N_RUNS + 1):
             requester.set_ext_dic({"run": run_id})
-            requester.do_rest(bins, proc_counts, {"random_state": 742, "n": N_QUERIES})
+            requester.warm(edges, proc_counts, {"random_state": 742, "n": N_QUERIES})
         self.resps_act_df = requester.get_resps_df()
         self.add_memory_rec("post-requests")
 

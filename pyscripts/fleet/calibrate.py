@@ -1,30 +1,28 @@
 """Calibration helper: probe machines, draft bands/procs/limits for warm.toml.
 
-`probe` gathers per-box facts (RAM, disk, parts headroom, cores, checkout,
-backend unit, toolchain) — the readiness checklist for adding a machine to the
+`probe` gathers per-box facts (RAM, disk, cores, checkout, backend unit,
+toolchain) — the readiness checklist for adding a machine to the
 fleet.
 `suggest` turns probes + the actual warm worklist into a complete draft config:
 bands tiled so estimated wall-clock is balanced by each box's `speed` weight,
-every band capped by what the box's RAM can hold (the [model] coefficients),
-the top band + bigs duty on the highest-ceiling box, `big_chunk` from the parts
-root's headroom.
+every band below the top capped by what the box's RAM can hold (the [model]
+coefficients), the open top band on the highest-ceiling box.
 
 The output is a draft to paste into data/warm.toml and hand-tune — the same
 [model] numbers the preflight gate enforces are printed with it, so a lie here
 fails loudly there.
 """
 
+import math
 from dataclasses import dataclass, replace
 
 from pyscripts import gitutil, services
-from pyscripts.fleet.config import Fleet, Model, Worker, parts_fs
+from pyscripts.fleet.config import Fleet, Model, Worker
 from pyscripts.fleet.remote import Host
 from wire.rankless_server.consts import PORT
-from wire.rankless_trees.part_iterator import DEFAULT_PARTS_ROOT
 
 GB = 1024**3
 MAX_PROCS = 16  # client-parallelism ceiling per bin
-MAX_BIG_CHUNK = 8
 COST_FLOOR_M = 1.0  # per-tree overhead so tiny trees still carry weight
 
 
@@ -35,18 +33,13 @@ class Probe:
     mem_avail_gb: float = -1
     cores: int = -1
     data_avail_gb: float = -1
-    parts_avail_gb: float = -1
     head: str = "?"
     unit: str = "?"
     tools_ok: bool = False
 
 
 def probe(
-    name: str,
-    host: str | None,
-    repo_dir: str = "",
-    data_root: str = "",
-    parts_root: str = DEFAULT_PARTS_ROOT,
+    name: str, host: str | None, repo_dir: str = "", data_root: str = ""
 ) -> Probe:
     h = Host(name, host)
     fields: dict = {}
@@ -60,11 +53,6 @@ def probe(
     _try("mem_total_gb", "free -b | awk '/Mem:/ {print $2}'", lambda s: int(s) / GB)
     _try("mem_avail_gb", "free -b | awk '/Mem:/ {print $7}'", lambda s: int(s) / GB)
     _try("cores", "nproc", int)
-    _try(
-        "parts_avail_gb",
-        f"df --output=avail -B1 {parts_fs(parts_root)} | tail -1",
-        lambda s: int(s) / GB,
-    )
     _try("unit", f"systemctl --user is-active {services.BACKEND_UNIT} || true", str)
     _try(
         "tools_ok",
@@ -84,18 +72,17 @@ def probe(
 
 def probe_fleet(fleet: Fleet) -> dict[str, Probe]:
     return {
-        w.name: probe(w.name, w.host, w.repo_dir, w.data_root, w.parts_root)
-        for w in fleet.workers
+        w.name: probe(w.name, w.host, w.repo_dir, w.data_root) for w in fleet.workers
     }
 
 
 def print_probes(probes: dict[str, Probe]) -> None:
-    hdr = f"{'worker':12} {'ram':>6} {'avail':>6} {'cores':>5} {'data':>7} {'parts':>7} {'unit':>8} {'tools':>5}  head"
+    hdr = f"{'worker':12} {'ram':>6} {'avail':>6} {'cores':>5} {'data':>7} {'unit':>8} {'tools':>5}  head"
     print(hdr)
     for p in probes.values():
         print(
             f"{p.name:12} {p.mem_total_gb:5.0f}G {p.mem_avail_gb:5.0f}G {p.cores:5} "
-            f"{p.data_avail_gb:6.0f}G {p.parts_avail_gb:6.0f}G {p.unit:>8} "
+            f"{p.data_avail_gb:6.0f}G {p.unit:>8} "
             f"{'ok' if p.tools_ok else 'MISS':>5}  {p.head}"
         )
 
@@ -120,41 +107,30 @@ def suggest_workers(
         )
     ceil = {name: ceiling_mcut(p, model) for name, p in probes.items()}
     order = sorted(fleet.workers, key=lambda w: ceil[w.name])
-    big_limit = round(min(ceil[order[-1].name], cuts[-1] + 1), 1)
-    in_band = [c for c in cuts if c <= big_limit]
-    costs = [c + COST_FLOOR_M for c in in_band]
+    costs = [c + COST_FLOOR_M for c in cuts]
     total_cost, total_speed = sum(costs), sum(w.speed for w in order)
 
     out, lo, cum, j, speed_cum = [], 0.0, 0.0, 0, 0.0
     for k, w in enumerate(order):
         speed_cum += w.speed
         if k == len(order) - 1:
-            hi = big_limit
+            hi = math.inf
         else:
             # Never advance the cost cursor past this box's RAM ceiling —
             # clamped-off work must count toward the later boxes' targets.
             target = total_cost * speed_cum / total_speed
             cap = ceil[w.name]
-            while j < len(in_band) and cum < target and in_band[j] <= cap:
+            while j < len(cuts) and cum < target and cuts[j] <= cap:
                 cum += costs[j]
                 j += 1
-            hi = round(min(in_band[j - 1] if j else lo, cap), 1)
+            hi = round(min(cuts[j - 1] if j else lo, cap), 1)
         if hi <= lo:
             raise SystemExit(
                 f"[{w.name}] gets an empty band at [{lo}, {hi}) — its RAM ceiling "
                 f"({ceil[w.name]:.0f}M) or speed weight is too small for its slot"
             )
         bins, procs = _bins_and_procs(lo, hi, probes[w.name], model)
-        out.append(
-            replace(
-                w,
-                band=(lo, hi),
-                bins=bins,
-                procs=procs,
-                bigs=k == len(order) - 1,
-                big_chunk=_big_chunk(probes[w.name], model),
-            )
-        )
+        out.append(replace(w, band=(lo, hi), bins=bins, procs=procs))
         lo = hi
     return out
 
@@ -167,9 +143,8 @@ def summarize(workers: list[Worker], cuts_m: list[float], model: Model) -> str:
         assert w.band is not None
         lo, hi = w.band
         n = sum(lo < c <= hi for c in cuts_m)
-        extra = f" (+{sum(c > hi for c in cuts_m)} bigs)" if w.bigs else ""
         lines.append(
-            f"  {w.name:12} band ({lo}, {hi}] → {n} trees{extra}, "
+            f"  {w.name:12} band ({lo}, {hi}] → {n} trees, "
             f"est peak {est_peak_gb(w, model):.0f}G"
         )
     return "\n".join(lines)
@@ -188,7 +163,6 @@ def render_toml(fleet: Fleet, workers: list[Worker]) -> str:
         f"mem_base_gb = {model.mem_base_gb}",
         f"gb_per_mcut = {model.gb_per_mcut}",
         f"headroom_gb = {model.headroom_gb}",
-        f"parts_gb_per_big = {model.parts_gb_per_big}",
     ]
     for w in workers:
         assert w.band is not None
@@ -199,8 +173,6 @@ def render_toml(fleet: Fleet, workers: list[Worker]) -> str:
                 f'repo_dir = "{w.repo_dir}"',
                 f'data_root = "{w.data_root}"',
             ]
-        if w.parts_root != DEFAULT_PARTS_ROOT:
-            lines.append(f'parts_root = "{w.parts_root}"')
         lines.append(f"band = [{w.band[0]:.1f}, {w.band[1]:.1f}]")
         lines.append(f"bins = [{', '.join(f'{b:.1f}' for b in w.bins)}]")
         lines.append(f"procs = [{', '.join(map(str, w.procs))}]")
@@ -208,8 +180,6 @@ def render_toml(fleet: Fleet, workers: list[Worker]) -> str:
             lines.append(f"port = {w.port}")
         if w.speed != 1.0:
             lines.append(f"speed = {w.speed}")
-        if w.bigs:
-            lines += ["bigs = true", f"big_chunk = {w.big_chunk}"]
     return "\n".join(lines) + "\n"
 
 
@@ -229,7 +199,11 @@ def _bins_and_procs(
     def procs_at(m: float) -> int:
         return max(1, min(cores, MAX_PROCS, int(budget // (m * model.gb_per_mcut))))
 
-    interior = sorted({round(e, 1) for e in (hi / 16, hi / 4) if lo < round(e, 1) < hi})
+    # an open band's breaks scale with the largest tree the box holds instead of its hi
+    span = min(hi, budget / model.gb_per_mcut)
+    interior = sorted(
+        {round(e, 1) for e in (span / 16, span / 4) if lo < round(e, 1) < hi}
+    )
     edges = [*interior, hi]  # each sub-bin's hi drives its parallelism
     per_edge = [procs_at(e) for e in edges]
     bins, procs = [], [per_edge[0]]
@@ -238,9 +212,3 @@ def _bins_and_procs(
             bins.append(boundary)
             procs.append(pr)
     return bins, procs
-
-
-def _big_chunk(p: Probe, model: Model) -> int:
-    if p.parts_avail_gb <= 0:
-        return 1
-    return max(1, min(MAX_BIG_CHUNK, int(p.parts_avail_gb // model.parts_gb_per_big)))

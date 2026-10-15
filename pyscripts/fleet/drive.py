@@ -10,7 +10,7 @@ Phases, with a hard barrier before any compute:
 2. **gate**: every check from every worker on one table; any failure — including
    a worker whose whole prepare raised — is a row here, and aborts before hours
    of compute, while the run is still free to rerun.
-3. **compute** (all workers, parallel): banded `cache bigs`/`cache rest`,
+3. **compute** (all workers, parallel): banded `cache warm`,
    with periodic cache sync-back from remotes.
 4. **verify**: final sync-back + the disk-only coverage gate over the full
    warm worklist on the primary root.
@@ -73,7 +73,7 @@ def coverage_gate(local_root: str, min_citations: int) -> None:
     """Every tree of the warm worklist must be fully cached on the primary root.
 
     Disk-only apart from the /v1/specs period count — no tree requests — so a
-    missing big can never trigger an out-of-memory compute on this box.
+    missing large tree can never trigger an out-of-memory compute on this box.
     """
     from pyscripts.cache_prompting import BatchRequester, tree_cached
 
@@ -158,29 +158,27 @@ def _prepare(w: Worker, fleet: Fleet, primary: Primary, push: bool) -> list[Chec
 
 def _compute(w: Worker, fleet: Fleet, local_root: str) -> None:
     if w.host is None:
-        return _run_actions(w, fleet)
+        return _run_band(w, fleet)
     stop_sync = threading.Event()
     syncer = threading.Thread(target=_sync_back_loop, args=(w, local_root, stop_sync))
     syncer.start()
     try:
-        _run_actions(w, fleet)
+        _run_band(w, fleet)
     finally:
         stop_sync.set()
         syncer.join()
     _sync_back(w, local_root)
 
 
-def _run_actions(w: Worker, fleet: Fleet) -> None:
-    for action in w.actions():
-        log(w.name, f"cache {action} band={w.band}")
-        flags = shlex.join(w.cache_flags(fleet.min_citations))
-        if w.host is None:  # the driver box has the full, auto-synced env
-            w.conn().stream(f"uv run -m pyscripts cache {action} {flags}")
-        else:
-            w.conn().stream(
-                f"cd {w.repo_dir} && uv run --no-sync -m pyscripts cache "
-                f"{action} {flags}"
-            )
+def _run_band(w: Worker, fleet: Fleet) -> None:
+    log(w.name, f"cache warm band={w.band}")
+    flags = shlex.join(w.cache_flags(fleet.min_citations))
+    if w.host is None:  # the driver box has the full, auto-synced env
+        w.conn().stream(f"uv run -m pyscripts cache warm {flags}")
+    else:
+        w.conn().stream(
+            f"cd {w.repo_dir} && uv run --no-sync -m pyscripts cache warm {flags}"
+        )
 
 
 def _invalidate_stale_cache(w: Worker, host, primary: Primary) -> None:

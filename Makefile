@@ -1,9 +1,6 @@
 -include .env
 export
 
-# Where the backend spills bigs parts during prep→read; .env overrides it.
-RANKLESS_PARTS_ROOT ?= /tmp/dmove-parts
-
 .PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest setup-services external-push external-pull
 .PHONY: check format check-rs check-py check-js check-types format-rs format-py format-js types
 .PHONY: refresh-data commit-artifacts warm-caches ship-alpha promote
@@ -143,7 +140,7 @@ bench:
 compare-sql compare-branch:
 	uv run -m pyscripts $@ $(ARGS)
 
-cache-bigs cache-rest cache-validate-all cache-validate-bigs:
+cache-warm cache-validate-all:
 	uv run -m pyscripts cache $(@:cache-%=%) $(ARGS)
 
 # Tear the current alpha FE down: abort-flood all workers to OOM (the client-
@@ -212,7 +209,6 @@ clean-filters:
 
 clean-cache:
 	rm -rf $(OA_ROOT)/cache
-	rm -rf $(RANKLESS_PARTS_ROOT)
 
 clean-ledger:
 	rm -rf $(OA_ROOT)/user-ledger

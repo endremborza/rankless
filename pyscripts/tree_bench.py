@@ -193,7 +193,7 @@ def _build_all(
     server: ServerProcess, min_citations: int, limit: int, trees_path: Path
 ) -> list[dict]:
     assert server.pid is not None
-    work = BatchRequester(min_citations, np.inf, DEFAULT_BE_ADDR).urled_sample
+    work = BatchRequester(min_citations, DEFAULT_BE_ADDR).urled_sample
     work = work.sort_values("cut_basis").reset_index(drop=True)
     if limit:
         work = work.head(limit)

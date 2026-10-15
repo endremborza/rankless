@@ -2,25 +2,22 @@
 
 The config is machine-local and gitignored (example in docs/deploy.md). Bands
 are (lo, hi] in millions of cut_basis (citations × breakdown count) — pd.cut
-right-inclusive, so a tree exactly on a boundary belongs to the lower band and
-`bigs` (strictly above the top hi) tiles exactly. Static validation catches at
-load time what the coverage gate would only report after the run: bands must tile
-(0, big_limit] with no gap or overlap, and exactly one worker owns the top
-band with `bigs = true` (it computes everything above it via chunked
-prep→read).
+right-inclusive, so a tree exactly on a boundary belongs to the lower band.
+Static validation catches at load time what the coverage gate would only report
+after the run: bands must tile (0, inf) with no gap or overlap, so the top band
+is open-ended (hi = inf), and its last bin, holding the largest trees, runs one
+tree at a time.
 """
 
-import os
+import math
 import tomllib
 from dataclasses import dataclass, field
 
 from pyscripts.fleet.remote import Host
 from wire.rankless_server.consts import PORT
-from wire.rankless_trees.part_iterator import DEFAULT_PARTS_ROOT
 
 DEFAULT_CONFIG = "data/warm.toml"
 DEFAULT_MIN_CITATIONS = 100_000
-DEFAULT_BIG_CHUNK = 4
 
 
 @dataclass(frozen=True)
@@ -34,7 +31,6 @@ class Model:
     mem_base_gb: float = 41.0  # backend startup baseline (full env)
     gb_per_mcut: float = 0.25  # peak compute GB per M cut_basis per in-flight tree
     headroom_gb: float = 8.0  # OS + page cache + safety margin
-    parts_gb_per_big: float = 20.0  # parts-root footprint per prepped big
 
 
 @dataclass
@@ -46,10 +42,6 @@ class Worker:
     band: tuple[float, float] | None = None
     bins: list[float] = field(default_factory=list)
     procs: list[int] = field(default_factory=list)
-    bigs: bool = False
-    big_chunk: int = DEFAULT_BIG_CHUNK  # bigs in flight in the parts root per prep→read
-    # where this box's backend spills bigs parts: its .env PARTS_ROOT_VAR
-    parts_root: str = DEFAULT_PARTS_ROOT
     port: int = PORT
     speed: float = 1.0  # relative per-proc throughput; hand-tuned from measured clocks
 
@@ -81,12 +73,8 @@ class Worker:
             f"--limit={hi}",
             f"--bins={','.join(map(str, self.bins))}",
             f"--procs={','.join(map(str, self.procs))}",
-            f"--chunk={self.big_chunk}",
             f"--min-citations={min_citations}",
         ]
-
-    def actions(self) -> list[str]:
-        return (["bigs"] if self.bigs else []) + ["rest"]
 
     def bin_edges(self) -> list[tuple[float, int]]:
         """(bin hi, procs) pairs — the unit of the memory model."""
@@ -105,20 +93,6 @@ class Fleet:
 
     def local(self) -> Worker | None:
         return next((w for w in self.workers if w.host is None), None)
-
-    def bigs_worker(self) -> Worker:
-        return next(w for w in self.workers if w.bigs)
-
-    def big_limit(self) -> float:
-        band = self.bigs_worker().band
-        assert band is not None
-        return band[1]
-
-
-def parts_fs(parts_root: str) -> str:
-    """The directory whose filesystem the parts fill: the root itself is created
-    on demand and removed by clean-cache, its parent always exists."""
-    return os.path.dirname(parts_root.rstrip("/")) or "/"
 
 
 def load_config(path: str, require_bands: bool = True) -> Fleet:
@@ -176,17 +150,15 @@ def _check_tiling(workers: list[Worker]) -> None:
             raise SystemExit(f"band gap between {name} and {nname}: ({hi}, {nlo}]")
         if hi > nlo:
             raise SystemExit(f"bands of {name} and {nname} overlap at ({nlo}, {hi}]")
-    bigs = [w for w in workers if w.bigs]
-    if len(bigs) != 1:
+    (_, top_hi), top_name = bands[-1]
+    if top_hi != math.inf:
         raise SystemExit(
-            f"exactly one worker must set bigs = true (found {len(bigs)}) — "
-            "it owns everything above the top band"
+            f"the top band ({top_name}) must be open-ended, hi = inf: trees above "
+            f"{top_hi} would never be computed"
         )
-    top_hi = bands[-1][0][1]
-    assert bigs[0].band is not None
-    if bigs[0].band[1] != top_hi:
+    top = next(w for w in workers if w.name == top_name)
+    if top.procs[-1] != 1:
         raise SystemExit(
-            f"the bigs worker ({bigs[0].name}) must own the top band: its hi "
-            f"{bigs[0].band[1]} != fleet top {top_hi}, so trees in between would "
-            "be computed twice"
+            f"[{top_name}] the open-ended last bin holds the largest trees, so it "
+            "runs one at a time: procs must end in 1"
         )

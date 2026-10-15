@@ -16,7 +16,7 @@ make promote            # flip alpha to live (DB catch-ups + smoke)
 ```
 
 `refresh-data` and `warm-caches` take a pipeline lock (`LOCK_PATH` in `pyscripts/recalc.py`):
-the dmove-parts root is shared, two data pipelines on one box corrupt each other.
+they share the box's data root and backend, two data pipelines on one box corrupt each other.
 
 ## refresh-data
 
@@ -126,7 +126,6 @@ memory-fit bands, so it lives with the other per-machine state under `data/`:
 # mem_base_gb: backend startup baseline (full env)
 # gb_per_mcut: peak compute GB per M cut_basis per in-flight tree
 # headroom_gb: OS + page cache + safety margin
-# parts_gb_per_big: parts-root footprint per prepped big
 
 [[worker]]
 name = "local"
@@ -149,31 +148,28 @@ name = "sscub"
 host = "sscub-borza"
 repo_dir = "/home/borza/rankless"
 data_root = "/home/borza/rankless-data"
-band = [160.0, 320.0]
-procs = [1]
-bigs = true            # owns the top band + everything above it; big_chunk (DEFAULT_BIG_CHUNK) = trees of parts spilled at a time
-parts_root = "/mnt/common-ssd/dmove-parts" # = the box's .env RANKLESS_PARTS_ROOT; default DEFAULT_PARTS_ROOT
+band = [160.0, inf]    # the top band is open-ended
+procs = [1]            # its last bin holds the largest trees: one at a time
 ```
 
 Design rules: **the cache directory is the state** (a worker's backend serves
-already-cached responses instantly, the bigs runner skips cached trees, so a
-crashed run resumes by rerunning the stage), and **nothing is trusted before the
+already-cached responses instantly, so a crashed run resumes by rerunning the
+stage), and **nothing is trusted before the
 preflight gate passes**.
 
-`load_config` statically rejects bands that don't tile `(0, top]` (gap = coverage
-failure hours later, overlap = double compute) and fleets without exactly one
-`bigs` worker owning the top band. The stage then runs in phases:
+`load_config` statically rejects bands that don't tile `(0, inf)` (gap = coverage
+failure hours later, overlap = double compute, a bounded top band = trees never
+computed) and a top band whose last bin runs more than one tree at a time. The
+stage then runs in phases:
 
 1. **prepare** (parallel per worker): pre-checks — clean checkout (the driver
    too: a dirty driver runs code no commit describes while still reporting a
    matching baked commit, so warm-caches mechanically requires
-   commit-artifacts first), `.env` agreement (`OA_ROOT`, `RANKLESS_ENV`,
-   `RANKLESS_PARTS_ROOT` against the worker's `parts_root`), disk
+   commit-artifacts first), `.env` agreement (`OA_ROOT`, `RANKLESS_ENV`), disk
    headroom for the push (growth to the primary's size plus its largest pushed
    file — rsync writes each replacement beside the old one and renames, so one
    file is in flight on top — plus a margin; the additive cache seed is not
-   counted) and (bigs)
-   the parts root's filesystem, RAM ≥ the `[model]` peak estimate for the band — then
+   counted), RAM ≥ the `[model]` peak estimate for the band's bounded bins — then
    rsync data (`--delete` mirror of the pushed subdirs; per-box dirs excluded)
    - seed the union cache, `git pull --ff-only`, a frozen dep sync
      (`--no-install-package` for the science-data editable + psycopg2 — workers
@@ -191,20 +187,20 @@ failure hours later, overlap = double compute) and fleets without exactly one
      restart its own version handshake would fail on every real release.
 2. **gate**: all checks print as one table; any failure aborts before any
    compute. `HEAD == origin` is asserted up front (workers pull from origin).
-3. **compute** (parallel): banded `cache bigs` / `cache rest` per worker, cache
+3. **compute** (parallel): banded `cache warm` per worker, cache
    files rsynced back every `SYNC_BACK_S` seconds plus a final pass; the local worker runs
    in-process.
 4. **verify**: the disk-only coverage gate — every sampled tree cached on the
    primary root (no requests, so a gap can never trigger an out-of-memory
    compute locally).
 
-Bigs = everything above the top band's `hi`, computed via chunked prep→read: `big_chunk` trees prepped into the server's parts root, then read (the server deletes each tree's parts after its read), then the next chunk. The parts root is `RANKLESS_PARTS_ROOT` (default `DEFAULT_PARTS_ROOT`; empty = default), read by the backend at startup from the box's `.env` and by `make clean-cache` — point it at a large SSD on a box whose `/tmp` is small, and mirror it as the worker's `parts_root` so preflight measures that filesystem (its parent directory: the root itself is created on demand) and fails the env check when the two disagree. Raise `big_chunk` if the SSD allows, lower it if it fills — preflight enforces `big_chunk × parts_gb_per_big` of headroom there.
+The open top bin holds the largest trees, each built by the year walk (see [tree-internals](tree-internals.md)): its peak is one run of years plus the tree so far, which the linear `[model]` does not cover, so the gate leaves it out and the top band belongs on the box with the most RAM.
 
 Flags: `--config <toml>`, `--only <worker>`, `--no-push` (skip the data rsync),
 `--gate-only` (just re-check coverage). Single-box primitives stay available as
-`make cache-bigs / cache-rest / cache-validate-all / cache-validate-bigs`, banded
+`make cache-warm / cache-validate-all`, banded
 via the cache CLI's flags (the same ones the driver ships per worker):
-`ARGS="--min 14 --limit 320 --bins 48 --procs 4,1"` (`--chunk` and `--min-citations` default to `DEFAULT_BIG_CHUNK` and `DEFAULT_MIN_CITATIONS`).
+`ARGS="--min 14 --limit 160 --bins 48 --procs 4,1"` (`--limit` defaults to `inf`, `--min-citations` to `DEFAULT_MIN_CITATIONS`).
 `data/warm.toml` is the only place bands are configured — the old `BIG_LIMIT`/
 `RL_BINS`/`RL_PROCS` env knobs are gone, and preflight fails any worker whose
 `.env` still sets one (exactly those three; other `RL_*` vars belong to the
@@ -212,18 +208,17 @@ deploy tooling and stay).
 
 ### Fleet helpers (`make fleet-<action>`, i.e. `uv run -m pyscripts fleet <action>`)
 
-- `probe` — per-machine facts: RAM, cores, data-root + parts-root free space,
+- `probe` — per-machine facts: RAM, cores, data-root free space,
   checkout HEAD, backend-unit state, cargo/uv presence. Adding a machine =
-  ssh-config alias + checkout + `.env` (`OA_ROOT`, `RANKLESS_ENV`,
-  `RANKLESS_PARTS_ROOT` when `/tmp` is small) +
+  ssh-config alias + checkout + `.env` (`OA_ROOT`, `RANKLESS_ENV`) +
   `make setup-services ARGS="--profile worker --no-start"` (backend unit only;
   the driver starts it after the data push) + cargo/uv; `probe --host <alias>`
-  (then with `--repo-dir/--data-root/--parts-root`) checks each step's result.
+  (then with `--repo-dir/--data-root`) checks each step's result.
 - `suggest` — drafts a complete `warm.toml`: probes every configured worker,
   pulls the real worklist from the local backend, tiles bands so estimated
   wall-clock is balanced by `speed` and every band fits its box's RAM under
-  `[model]`, puts the top band + bigs duty on the highest-ceiling box, derives
-  `bins`/`procs` and `big_chunk`. Bandless `[[worker]]` stanzas (just
+  `[model]`, puts the open top band on the highest-ceiling box, derives
+  `bins`/`procs`. Bandless `[[worker]]` stanzas (just
   name/host/paths) are enough as input; paste + hand-tune the output.
 - `preflight` — the full check table against the current fleet, changing
   nothing. Run it any time; `warm-caches` enforces the same gate itself.
@@ -242,11 +237,9 @@ deploy tooling and stay).
 
 Recalibrate `[model]` after each real run: read each box's
 `systemctl --user show rankless-backend -p MemoryPeak` and fit `gb_per_mcut` =
-(peak − base) / (procs × band hi); per-band wall-clocks (the drive's
+(peak − base) / (procs × band hi) on the bounded bands; per-band wall-clocks (the drive's
 `done in N hours` lines) fit each worker's `speed` — `speed` is the deliberate
 manual lever, suggest does not fold per-bin parallelism into its cost split.
-`parts_gb_per_big` can only be sampled mid-run (`du` of the parts root during a
-bigs chunk) — parts are deleted after each read.
 
 ## ship-alpha
 

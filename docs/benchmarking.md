@@ -58,7 +58,7 @@ rel-error <1%/<5%, top-source ID match >90%/>70%, top-source link rel-error <2%/
 `"a"`,`"b"`), `metric_stats` (Pearson + rel-error scoped to label_a nodes; `None` if mean
 relerr > 5%), `top_source_stats` (top-source ID match + link rel-error).
 
-**`cache_prompting.py`** — `BatchRequester(min_citations, big_limit, addr)`,
+**`cache_prompting.py`** — `BatchRequester(min_citations, addr)`,
 `wait_for_backend(addr)`.
 
 **`server_ops.py`** — `ServerProcess` (local: `start`/`wait_ready`/`stop`), `DockerServer`
