@@ -19,7 +19,7 @@ use rankless_trees::{
     extensions::DistinctionText,
     interfacing::{
         make_stats_entry_arc, Getters, NodeInterfaceable, NodeInterfaces, RootInterfaceable,
-        RootInterfaces,
+        RootInterfaces, ServerGetters,
     },
     io::TreeRunManager,
     AttributeLabelUnion,
@@ -36,17 +36,26 @@ const AUTHOR_BLACKLIST: &str = include_str!("../author_blacklist.txt");
 
 type StateKv = (&'static str, (NameState, TopResult, EntityDescription));
 
+// The server-only columns are absent when `trees_only`.
 pub(crate) fn get_rest(
     stowage: Stowage,
     n_threads: usize,
+    trees_only: bool,
 ) -> (
     NameStateMap,
     Arc<AttributeLabelUnion>,
     Arc<InstTrm>,
     CountsResponse,
     Vec<TopResult>,
+    Option<Arc<ServerGetters>>,
 ) {
-    let gets = Arc::new(Getters::new(Arc::new(stowage)));
+    let stowage = Arc::new(stowage);
+    let (gets, server) = std::thread::scope(|s| {
+        let server = (!trees_only).then(|| s.spawn(|| ServerGetters::new(stowage.clone())));
+        let gets = Getters::new(stowage.clone());
+        (gets, server.map(|h| h.join().expect("server getters")))
+    });
+    let gets = Arc::new(gets);
     let mux_satts: Arc<Mutex<AttributeLabelUnion>> = Arc::new(Mutex::new(HashMap::new()));
     let cv_pair = AcTuple::<Option<f64>>::default();
     let mut ns_map: NameStateMap = HashMap::new();
@@ -76,7 +85,14 @@ pub(crate) fn get_rest(
     let asatts = Arc::new(satts);
     let tm: Arc<InstTrm> = TreeRunManager::new(gets, asatts.clone(), n_threads);
     print_mem_use("got tm");
-    (ns_map, asatts, tm, counts_response, tops)
+    (
+        ns_map,
+        asatts,
+        tm,
+        counts_response,
+        tops,
+        server.map(Arc::new),
+    )
 }
 
 fn author_blacklist() -> HashSet<BigId> {

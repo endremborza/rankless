@@ -14,13 +14,16 @@ use rankless_rs::{
     },
     steps::{a1_entity_mapping::YearInterface, a2_init_atts::OrcidType},
 };
-use rankless_trees::io::ManFileHandle;
+use rankless_trees::{
+    interfacing::file_handle,
+    io::{ManFileHandle, WT},
+};
 
 use crate::responses::{
     AuthoredQ, AuthoredResp, BasicQ, ResolveAuthorQ, ResolveAuthorResp, ResolveWorkQ,
     ResolveWorkResp, SearchResult, UnionSearchResult,
 };
-use crate::state::StatesT;
+use crate::state::{FullStatesT, StatesT};
 use crate::util::{cache_header, get_empty};
 
 pub(crate) async fn name_get(
@@ -88,7 +91,7 @@ pub(crate) async fn sem_id_get(
 
 pub(crate) async fn orcid_get(
     Path(orcid_id): Path<String>,
-    states: StatesT,
+    states: FullStatesT,
 ) -> Json<Option<SearchResult>> {
     let mut out = None;
     let obytes: ET<AuthorOrcids> = orcid_id
@@ -97,7 +100,7 @@ pub(crate) async fn orcid_get(
         .collect::<Vec<u8>>()
         .try_into()
         .unwrap_or(<ET<AuthorOrcids> as Default>::default());
-    if let Some(&a_dm_id) = states.0 .2.state.gets.orcid_map.get(&obytes) {
+    if let Some(&a_dm_id) = states.0 .3.orcid_map.get(&obytes) {
         if let Some(nstate) = states.0 .0.get(Authors::NAME) {
             if let Some(a_rid) = nstate.response_id_from_dm(a_dm_id) {
                 let s = nstate.responses[a_rid].clone();
@@ -110,7 +113,7 @@ pub(crate) async fn orcid_get(
 
 pub(crate) async fn resolve_work_get(
     q: Query<ResolveWorkQ>,
-    states: StatesT,
+    states: FullStatesT,
 ) -> (StatusCode, Json<Option<ResolveWorkResp>>) {
     let trm = &states.0 .2;
     let gets = &trm.state.gets;
@@ -132,7 +135,7 @@ pub(crate) async fn resolve_work_get(
         return (StatusCode::BAD_REQUEST, Json(None));
     };
     let mut wname_handler: ManFileHandle = trm.get_file_handle();
-    let mut doi_handler: VattReadingArcMap<WorkDois> = trm.get_file_handle();
+    let mut doi_handler: VattReadingArcMap<WorkDois> = file_handle(&*states.0 .3, &gets.stowage);
     let name = wname_handler
         .get_via_mut(&wid)
         .unwrap_or_else(|| "Unknown".to_string());
@@ -149,13 +152,13 @@ pub(crate) async fn resolve_work_get(
 
 pub(crate) async fn resolve_author_get(
     q: Query<ResolveAuthorQ>,
-    states: StatesT,
+    states: FullStatesT,
 ) -> (StatusCode, Json<Option<ResolveAuthorResp>>) {
     let nstate = match states.0 .0.get(Authors::NAME) {
         Some(s) => s,
         None => return (StatusCode::NOT_FOUND, Json(None)),
     };
-    let gets = &states.0 .2.state.gets;
+    let server = &states.0 .3;
     let dm_id: usize = if let Some(d) = q.dm_id {
         d
     } else if let Some(sem_id) = &q.semantic_id {
@@ -168,7 +171,7 @@ pub(crate) async fn resolve_author_get(
             Ok(b) => b,
             Err(_) => return (StatusCode::BAD_REQUEST, Json(None)),
         };
-        match gets.orcid_map.get(&obytes) {
+        match server.orcid_map.get(&obytes) {
             Some(&d) => d,
             None => return (StatusCode::NOT_FOUND, Json(None)),
         }
@@ -187,7 +190,7 @@ pub(crate) async fn resolve_author_get(
     let sr = &nstate.responses[rid];
     let na_orcid = OrcidType::default();
     let orcid = if dm_id < <Authors as Entity>::N {
-        let bytes = *gets.author_orcids(&dm_id);
+        let bytes = *server.author_orcids(&dm_id);
         if bytes == na_orcid {
             None
         } else {
@@ -209,13 +212,13 @@ pub(crate) async fn resolve_author_get(
 // Does the author behind `orcid` author work `wid`? Backs the ledger's merge_papers
 // authorization: a user may only merge papers they authored (checked against their
 // MainWorkMarker production set). Unknown orcid / malformed input -> false (deny).
-pub(crate) async fn authored_get(q: Query<AuthoredQ>, states: StatesT) -> Json<AuthoredResp> {
+pub(crate) async fn authored_get(q: Query<AuthoredQ>, states: FullStatesT) -> Json<AuthoredResp> {
     let gets = &states.0 .2.state.gets;
     let obytes: OrcidType = match q.orcid.as_bytes().try_into() {
         Ok(b) => b,
         Err(_) => return Json(AuthoredResp { authored: false }),
     };
-    let authored = match gets.orcid_map.get(&obytes) {
+    let authored = match states.0 .3.orcid_map.get(&obytes) {
         Some(&aid) => gets
             .aworks(ET::<Authors>::from_usize(aid))
             .iter()

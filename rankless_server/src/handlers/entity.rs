@@ -19,7 +19,7 @@ use rankless_rs::{
     ladder::LADDER_PCT_BANDS,
 };
 use rankless_trees::{
-    interfacing::Getters,
+    interfacing::{Getters, ServerGetters},
     io::{TreeQ, TreeResponse},
     metrics::ERA,
     AttributeLabelUnion,
@@ -27,7 +27,7 @@ use rankless_trees::{
 
 use crate::consts::{CACHEABLE_FROM, N_SUBFIELDS};
 use crate::responses::{LadderResp, StatsQ, StatsResp, StatsSubfield, TopResult, ViewResult};
-use crate::state::{hit_papers, serializable_ext, year_window, StatesT};
+use crate::state::{hit_papers, serializable_ext, year_window, FullStatesT, StatesT};
 use crate::util::{cache_header, get_empty, resolve_dm, resolve_entity, root_cols};
 
 pub(crate) async fn tree_get(
@@ -75,13 +75,13 @@ pub(crate) async fn tops_get(tops_state: State<Arc<Vec<TopResult>>>) -> Json<Vec
 
 pub(crate) async fn view_get(
     Path((etype, semantic_id)): Path<(String, String)>,
-    states: StatesT,
+    states: FullStatesT,
 ) -> Json<Option<ViewResult>> {
     let satts = &states.0 .1;
     let Some((state, dm_id, rid)) = resolve_entity(&states.0 .0, &etype, &semantic_id) else {
         return Json(None);
     };
-    let cols = root_cols(&states, &etype);
+    let cols = root_cols(&states.2, &etype);
     let similars = cols.peers[dm_id]
         .iter()
         .filter(|&&pid| pid != 0)
@@ -91,12 +91,20 @@ pub(crate) async fn view_get(
                 .map(|r| state.responses[r].clone())
         })
         .collect();
-    let gets = &states.0 .2.state.gets;
+    let (gets, server) = (&states.0 .2.state.gets, &*states.0 .3);
     Json(Some(ViewResult {
         similars,
-        ext: serializable_ext(etype.as_str(), dm_id, cols, satts, &states.0 .0, gets),
+        ext: serializable_ext(
+            etype.as_str(),
+            dm_id,
+            cols,
+            satts,
+            &states.0 .0,
+            gets,
+            server,
+        ),
         sr: state.responses[rid].clone(),
-        meta: compute_meta(etype.as_str(), dm_id, gets, hit_papers(cols, dm_id)),
+        meta: compute_meta(etype.as_str(), dm_id, gets, server, hit_papers(cols, dm_id)),
     }))
 }
 
@@ -111,7 +119,7 @@ pub(crate) async fn stats_get(
     };
     let sr = &state.responses[rid];
     let (era_from, era_to) = ERA;
-    let window = year_window(root_cols(&states, &etype), dm_id, q.year_from, q.year_to);
+    let window = year_window(root_cols(&states.2, &etype), dm_id, q.year_from, q.year_to);
 
     // Per-subfield citing profile only exists for root types carrying the subfield profiles.
     let mut top_subfields = Vec::new();
@@ -203,12 +211,13 @@ fn compute_meta(
     etype: &str,
     dm_id: usize,
     gets: &Getters,
+    server: &ServerGetters,
     hits: &[ET<HitPapers>],
 ) -> Option<HashMap<&'static str, String>> {
     if etype == Authors::NAME {
-        author_meta(dm_id, gets, hits)
+        author_meta(dm_id, gets, server, hits)
     } else if etype == Institutions::NAME {
-        inst_meta(dm_id, gets)
+        inst_meta(dm_id, server)
     } else {
         None
     }
@@ -217,11 +226,12 @@ fn compute_meta(
 fn author_meta(
     dm_id: usize,
     gets: &Getters,
+    server: &ServerGetters,
     hits: &[ET<HitPapers>],
 ) -> Option<HashMap<&'static str, String>> {
-    let slug = String::from_utf8(gets.aslugs(dm_id).to_vec()).unwrap_or_default();
-    let any_hits = if (gets.author_citing_once(dm_id).len() > 0)
-        || (gets.author_citing_direct(dm_id).len() > 0)
+    let slug = String::from_utf8(server.aslugs(dm_id).to_vec()).unwrap_or_default();
+    let any_hits = if (server.author_citing_once(dm_id).len() > 0)
+        || (server.author_citing_direct(dm_id).len() > 0)
         || !hits.is_empty()
     {
         "1"
@@ -229,7 +239,7 @@ fn author_meta(
         "0"
     };
     let na_orcid: ET<AuthorOrcids> = <ET<AuthorOrcids> as Default>::default();
-    let orcid_o = gets.author_orcids(&dm_id);
+    let orcid_o = server.author_orcids(&dm_id);
     let orcid = if orcid_o == &na_orcid {
         ""
     } else {
@@ -238,15 +248,15 @@ fn author_meta(
     let kvs = vec![
         ("wikiSlug", slug),
         ("rawCites", gets.raw_cites(&dm_id).to_string()),
-        ("rawPapers", gets.raw_works(&dm_id).to_string()),
+        ("rawPapers", server.raw_works(&dm_id).to_string()),
         ("anyHits", any_hits.to_string()),
         ("orcid", orcid.to_string()),
     ];
     Some(HashMap::from_iter(kvs.into_iter()))
 }
 
-fn inst_meta(dm_id: usize, gets: &Getters) -> Option<HashMap<&'static str, String>> {
-    let loc = gets.iloc(&dm_id);
+fn inst_meta(dm_id: usize, server: &ServerGetters) -> Option<HashMap<&'static str, String>> {
+    let loc = server.iloc(&dm_id);
     let kvs = vec![("lat", loc.0.to_string()), ("lon", loc.1.to_string())];
     Some(HashMap::from_iter(kvs.into_iter()))
 }

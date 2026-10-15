@@ -11,3 +11,6 @@ export const MAX_PINS = 24;
 export const SCREEN_K = 1000;
 // Hex digits of the commit hash in the version stamp; `build.rs` reads the same file.
 export const COMMIT_HASH_LEN = 12;
+// The backend argument that loads only what tree builds and the routes reading no server-only
+// column need, and serves only those routes.
+export const TREES_ONLY_FLAG = '--trees-only';

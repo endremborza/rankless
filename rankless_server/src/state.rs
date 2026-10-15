@@ -18,7 +18,7 @@ use rankless_rs::{
 };
 use rankless_trees::{
     extensions::DistinctionText,
-    interfacing::{Getters, RootColumns, RootInterfaceable, RootInterfaces},
+    interfacing::{Getters, RootColumns, RootInterfaceable, RootInterfaces, ServerGetters},
     io::TreeRunManager,
     metrics::{self, Arg, Kind, MetricDecl, Value, ERA, METRICS},
     AttributeLabelUnion,
@@ -41,7 +41,15 @@ pub(crate) type TreeRoots = (
 );
 pub(crate) type InstTrm = TreeRunManager<TreeRoots>;
 pub(crate) type NameStateMap = HashMap<&'static str, NameState>;
-pub(crate) type StatesT = State<(Arc<NameStateMap>, Arc<AttributeLabelUnion>, Arc<InstTrm>)>;
+pub(crate) type TreeStates = (Arc<NameStateMap>, Arc<AttributeLabelUnion>, Arc<InstTrm>);
+pub(crate) type StatesT = State<TreeStates>;
+// The handlers that read server-only columns, which a trees-only backend does not load.
+pub(crate) type FullStatesT = State<(
+    Arc<NameStateMap>,
+    Arc<AttributeLabelUnion>,
+    Arc<InstTrm>,
+    Arc<ServerGetters>,
+)>;
 
 // The search side of a root type: the engine, the responses it answers with, the id maps between
 // semantic, OpenAlex, dm and response ids, and the cohort orderings. Every per-entity number is a
@@ -146,8 +154,9 @@ pub(crate) fn serializable_ext(
     satts: &AttributeLabelUnion,
     nstates: &NameStateMap,
     gets: &Getters,
+    server: &ServerGetters,
 ) -> SerializableExt {
-    let (relations, author_network) = build_relations(etype, dm_id, satts, nstates, gets);
+    let (relations, author_network) = build_relations(etype, dm_id, satts, nstates, gets, server);
     SerializableExt {
         start_year: start_year(etype, dm_id, cols, gets),
         yearly_papers: yearly_papers(cols, dm_id),
@@ -163,6 +172,7 @@ fn build_relations(
     satts: &AttributeLabelUnion,
     nstates: &NameStateMap,
     gets: &Getters,
+    server: &ServerGetters,
 ) -> (RelationGroups, Box<[u8]>) {
     // TODO: these parameters reappear a bunch and also there are a lot of WET
     // relation defs here, a refactor will soon be in order
@@ -173,7 +183,8 @@ fn build_relations(
     // co-authorship map (complete, u8-capped). Other entity types list "top scholars" here, where a
     // pairwise shared count is meaningless, so the map stays empty and the count is omitted.
     let coauthor_counts: HashMap<usize, u32> = if etype == Authors::NAME {
-        gets.coathors(dm_id)
+        server
+            .coathors(dm_id)
             .iter()
             .map(|(a, n)| (a.to_usize(), *n as u32))
             .collect()
@@ -233,7 +244,7 @@ fn build_relations(
         paper_topics,
         citing_topics,
     };
-    let author_network = build_author_network(tr.authors.row(dm_id), gets);
+    let author_network = build_author_network(tr.authors.row(dm_id), server);
     (relations, author_network)
 }
 
@@ -293,7 +304,10 @@ where
 
 // Upper-triangular co-authorship counts among the entity's top paper-authors (same order as the
 // `paper-authors` group), each looked up against the resident per-author `coathors` lists.
-fn build_author_network<ID, const N: usize>(row: [(u32, ID); N], gets: &Getters) -> Box<[u8]>
+fn build_author_network<ID, const N: usize>(
+    row: [(u32, ID); N],
+    server: &ServerGetters,
+) -> Box<[u8]>
 where
     ID: UnsignedNumber,
 {
@@ -304,7 +318,7 @@ where
         .collect();
     let mut out: Vec<u8> = Vec::new();
     for si in 0..ids.len().saturating_sub(1) {
-        let coll_nums = gets.coathors(ids[si]);
+        let coll_nums = server.coathors(ids[si]);
         for &taid in ids.iter().skip(si + 1) {
             let mut coll_num: u8 = 0;
             for (ctaid, n) in coll_nums {

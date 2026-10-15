@@ -31,7 +31,7 @@ use dmove::{
 
 use crate::{
     instances::TreeGetter,
-    interfacing::{Getters, LocatorsFromMemory},
+    interfacing::{file_handle, Getters, LocatorsFromMemory},
     part_iterator::TreeMakingParams,
     prune::MAX_WIDE,
     AttributeLabelUnion,
@@ -620,19 +620,10 @@ where
 
     pub fn get_file_handle<E>(&self) -> VattReadingArcMap<E>
     where
-        E: NamespacedEntity,
-        E: LocatorsFromMemory,
+        E: NamespacedEntity + LocatorsFromMemory<Getters>,
         ET<E>: VarSizedAttributeElement,
     {
-        let parent = self
-            .state
-            .gets
-            .stowage
-            .path_from_ns(<E as NamespacedEntity>::NS);
-        VattReadingArcMap::<E>::from_locator(
-            <E as LocatorsFromMemory>::locs_from_ram(&self.state.gets),
-            &parent,
-        )
+        file_handle(&self.state.gets, &self.state.gets.stowage)
     }
 
     fn add_to_queue(&self, fq: Option<FullTreeQuery>, res_cvp: ResCvp) -> bool {

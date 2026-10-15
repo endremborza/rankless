@@ -16,3 +16,6 @@ MAX_PINS: Final = 24
 SCREEN_K: Final = 1000
 # Hex digits of the commit hash in the version stamp; `build.rs` reads the same file.
 COMMIT_HASH_LEN: Final = 12
+# The backend argument that loads only what tree builds and the routes reading no server-only
+# column need, and serves only those routes.
+TREES_ONLY_FLAG: Final = "--trees-only"

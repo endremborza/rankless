@@ -48,7 +48,7 @@ use dmove::{
     BigId, ByteArrayInterface, ByteFixArrayInterface, CompactEntity, Entity,
     EntityImmutableRefMapperBackend, Locators, MappableEntity, MarkedAttribute, MmapSlice,
     NamespacedEntity, UnsignedNumber, VaST, VarAttBuilder, VarBox, VarSizedAttributeElement,
-    VariableSizeAttribute, VattArrPair, ET, MAA,
+    VariableSizeAttribute, VattArrPair, VattReadingArcMap, ET, MAA,
 };
 use hashbrown::HashMap;
 use rand::Rng;
@@ -60,15 +60,25 @@ type MB<E> = BeS<QuickMap, E>;
 
 pub type RootColumnMap = HashMap<&'static str, RootColumns>;
 
+// What tree builds and their responses read, and what the search state, the table slices and the
+// tree handler need at startup: everything a trees-only process loads.
 pub struct Getters {
     ifs: Interfaces,
     pub stowage: Arc<Stowage>,
     pub inst_oa: Box<[BigId]>,
     pub work_oa: Box<[BigId]>,
     pub hit_papers: Box<[WT]>,
+    // Works are numbered by publication year (`a1_entity_mapping`): year `y` is the run of ids
+    // `year_starts[y]..year_starts[y + 1]`.
+    year_starts: Box<[WT]>,
+    root_columns: RootColumnMap,
+}
+
+// The columns only the other HTTP handlers read.
+pub struct ServerGetters {
+    ifs: ServerInterfaces,
     pub hit_wid_map: HashMap<WT, usize>,
     pub orcid_map: HashMap<ET<AuthorOrcids>, usize>,
-    root_columns: RootColumnMap,
 }
 
 // The per-subfield citation profile a peer ranking is computed from and the matching paper profile
@@ -132,18 +142,9 @@ pub struct RootColumns {
     pub year_centroids: Option<Box<[f32]>>,
 }
 
-macro_rules! make_interfaces {
-    ($($e_key:ident > $e_t:ty),*;$($f_key:ident => $f_t:ty),*; $($v_key:ident -> $v_t:ty),*; $($loc_key:ident loc $loc_t:ty),*; $($m_key:ident >> $m_t:ty),*) => {
-        rankless_rs::make_interface_struct!(Interfaces,
-            $($e_key > $e_t),*;
-            $($f_key => $f_t),*;
-            $($v_key -> $v_t),*;
-            $($loc_key loc $loc_t),*;
-            $($m_key >> $m_t),*
-        );
-
-        impl Getters {
-
+macro_rules! column_accessors {
+    ($S:ident; $($f_key:ident => $f_t:ty),*; $($v_key:ident -> $v_t:ty),*; $($loc_key:ident loc $loc_t:ty),*) => {
+        impl $S {
             $(
                 pub fn $f_key<'a, K: UnsignedNumber>(&'a self, key: &K) -> &'a ET<$f_t> {
                     type BE = FB<$f_t>;
@@ -160,6 +161,37 @@ macro_rules! make_interfaces {
 
                 }
             )*
+
+            $(
+                pub fn $loc_key<'a>(&'a self) -> Arc<Locators<$loc_t>> {
+                    self.ifs.$loc_key.clone()
+                }
+            )*
+        }
+
+        $(
+        impl LocatorsFromMemory<$S> for $loc_t {
+            fn locs_from_ram(gets: &$S) -> Arc<Locators<$loc_t>> {
+                gets.$loc_key()
+            }
+        }
+        )*
+    };
+}
+
+macro_rules! make_interfaces {
+    ($($e_key:ident > $e_t:ty),*; $($f_key:ident => $f_t:ty),*; $($v_key:ident -> $v_t:ty),*; $($loc_key:ident loc $loc_t:ty),*; $($m_key:ident >> $m_t:ty),*) => {
+        rankless_rs::make_interface_struct!(Interfaces,
+            $($e_key > $e_t),*;
+            $($f_key => $f_t),*;
+            $($v_key -> $v_t),*;
+            $($loc_key loc $loc_t),*;
+            $($m_key >> $m_t),*
+        );
+
+        column_accessors!(Getters; $($f_key => $f_t),*; $($v_key -> $v_t),*; $($loc_key loc $loc_t),*);
+
+        impl Getters {
 
             $(
                 pub fn $e_key<'a>(&'a self, key: ET<$e_t>) -> &'a [VaST<MAA<$e_t, MainWorkMarker>>] {
@@ -183,12 +215,6 @@ macro_rules! make_interfaces {
                 }
             )*
 
-            $(
-                pub fn $loc_key<'a>(&'a self) -> Arc<Locators<$loc_t>> {
-                    self.ifs.$loc_key.clone()
-                }
-            )*
-
             pub fn works_of_entity<'a>(&'a self, key: usize, etype: String) -> Option<&'a [WT]>  {
                 // This is super similar to WorksFromMemory but with a string parameter
                 $(
@@ -208,15 +234,19 @@ macro_rules! make_interfaces {
             }
         }
         )*
+    };
+}
 
-        $(
-        impl LocatorsFromMemory for $loc_t {
-            fn locs_from_ram(gets: &Getters) -> Arc<Locators<$loc_t>> {
-                gets.$loc_key()
-            }
-        }
-        )*
+macro_rules! make_server_interfaces {
+    ($($f_key:ident => $f_t:ty),*; $($v_key:ident -> $v_t:ty),*; $($loc_key:ident loc $loc_t:ty),*) => {
+        rankless_rs::make_interface_struct!(ServerInterfaces,
+            ;
+            $($f_key => $f_t),*;
+            $($v_key -> $v_t),*;
+            $($loc_key loc $loc_t),*;
+        );
 
+        column_accessors!(ServerGetters; $($f_key => $f_t),*; $($v_key -> $v_t),*; $($loc_key loc $loc_t),*);
     };
 }
 
@@ -270,45 +300,46 @@ make_interfaces!(
     soworks > Sources,
     sfworks > Subfields,
     hit_wids > HitPapers;
-    year => WorkYears,
     top_source => WorkTopSource,
-    wperiod => WorkPeriods,
-    source_stats => SourceStats,
     tsuf => TopicSubfields,
     icountry => InstCountries,
     icity => InstCities,
-    iloc => InstLocs,
     ccodes => CountryCodes,
     fshipa => AuthorshipFilteredAuthor,
-    dshipa => AuthorshipDiscardedAuthor,
-    fship_pos => FilteredAuthorshipPosition,
-    dship_pos => DiscardedAuthorshipPosition,
-    author_prizes => AuthorNobels,
-    author_orcids => AuthorOrcids,
     raw_cites => AuthorRawCites,
-    raw_works => AuthorRawWorkCounts,
-    wbar => WorkBars,
-    hit_created_topic => HitPapersCreatedTopic;
-    wrefs -> WorkReferences,
+    wbar => WorkBars;
     wtopics -> WorkTopics,
     wsubfields -> WorkSubfields,
     winsts -> WorkInstitutions,
     wanyships -> WorkAnyAuthorships,
     wcountries -> WorkCountries,
-    wbiblios -> WorkBiblios,
     fshipis -> FilteredAuthorshipInstitutions,
-    dshipis -> DiscardedAuthorshipInstitutions,
     cinames -> CitiesNames,
+    country_insts -> CountryInsts;
+    wn_locators loc WorksNames;
+    sqy >> SourceYearQs
+);
+
+make_server_interfaces!(
+    source_stats => SourceStats,
+    iloc => InstLocs,
+    dshipa => AuthorshipDiscardedAuthor,
+    fship_pos => FilteredAuthorshipPosition,
+    dship_pos => DiscardedAuthorshipPosition,
+    author_prizes => AuthorNobels,
+    author_orcids => AuthorOrcids,
+    raw_works => AuthorRawWorkCounts,
+    hit_created_topic => HitPapersCreatedTopic;
+    wrefs -> WorkReferences,
+    wbiblios -> WorkBiblios,
+    dshipis -> DiscardedAuthorshipInstitutions,
     aslugs -> AuthorWikiSlugs,
     coathors -> Coauthors,
     author_citing_direct -> AuthorCitingHitsDirect,
     author_citing_once -> AuthorCitingHitsOnce,
-    hit_yearlies -> HitPaperYearlyCitations,
-    country_insts -> CountryInsts;
+    hit_yearlies -> HitPaperYearlyCitations;
     dan_locators loc DiscardedAuthorsNames,
-    doi_locators loc WorkDois,
-    wn_locators loc WorksNames;
-    sqy >> SourceYearQs
+    doi_locators loc WorkDois
 );
 
 // The search side of a root type: names, semantic ids and OpenAlex ids, loaded at startup and
@@ -491,11 +522,11 @@ pub trait WorksFromMemory: MarkedAttribute<MainWorkMarker> + NumberedEntity {
     fn works_from_ram(gets: &Getters, id: NET<Self>) -> &[WT];
 }
 
-pub trait LocatorsFromMemory: VariableSizeAttribute + Sized
+pub trait LocatorsFromMemory<G>: VariableSizeAttribute + Sized
 where
     ET<Self>: VarSizedAttributeElement,
 {
-    fn locs_from_ram(gets: &Getters) -> Arc<Locators<Self>>;
+    fn locs_from_ram(gets: &G) -> Arc<Locators<Self>>;
 }
 
 impl<E> NodeInterfaces<E>
@@ -542,38 +573,24 @@ impl Getters {
     }
 
     pub fn new(stowage: Arc<Stowage>) -> Self {
-        let inst_oa = reverse_id::<Institutions>(&stowage);
-        let work_oa = reverse_id::<Works>(&stowage);
-        let hit_papers: Box<[WT]> = reverse_id::<HitPapers>(&stowage)
-            .iter()
-            .map(|e| WT::from_usize(e.to_usize()))
-            .collect();
-        let hit_wid_map: HashMap<WT, usize> =
-            HashMap::from_iter(hit_papers.iter().enumerate().map(|(hwi, e)| (*e, hwi)));
-        let mut orcid_map = HashMap::new();
-        let ifs = Interfaces::new(stowage.clone());
-        let na_orcid = OrcidType::default();
-        ifs.author_orcids
-            .iter()
-            .enumerate()
-            .for_each(|(aid, orcid_id)| {
-                if orcid_id != &na_orcid {
-                    orcid_map.insert(*orcid_id, aid);
-                }
-            });
-        let root_columns = load_root_columns(&stowage);
         let mut gets = Self {
-            ifs,
+            ifs: Interfaces::new(stowage.clone()),
+            inst_oa: reverse_id::<Institutions>(&stowage),
+            work_oa: reverse_id::<Works>(&stowage),
+            hit_papers: reverse_id::<HitPapers>(&stowage)
+                .iter()
+                .map(|e| WT::from_usize(e.to_usize()))
+                .collect(),
+            year_starts: year_starts(
+                stowage
+                    .get_entity_interface::<WorkYears, ReadFixIter>()
+                    .take(Works::N),
+            ),
+            root_columns: load_root_columns(&stowage),
             stowage,
-            inst_oa,
-            work_oa,
-            hit_papers,
-            hit_wid_map,
-            orcid_map,
-            root_columns,
         };
         gets.score_hit_papers();
-        println!("loaded full Getters");
+        println!("loaded tree Getters");
         gets
     }
 
@@ -608,18 +625,48 @@ impl Getters {
             WorksNames::NAME,
         );
 
-        let mut ifs = Interfaces::fake();
-        //TODO a hack for testing
-        ifs.year = YearInterface::iter().collect();
         Self {
             stowage: Arc::new(stowage),
-            ifs,
+            ifs: Interfaces::fake(),
             inst_oa: Vec::new().into(),
             work_oa: (0..20000000).collect::<Vec<BigId>>().into(),
             hit_papers: Vec::new().into(),
-            hit_wid_map: HashMap::new(),
-            orcid_map: HashMap::new(),
+            // Work `w` is of year `w`, the last year holding every later work.
+            year_starts: year_starts(YearInterface::iter())
+                .iter()
+                .map(|&s| {
+                    if s as usize == YearInterface::iter().len() {
+                        WT::MAX
+                    } else {
+                        s
+                    }
+                })
+                .collect(),
             root_columns: HashMap::new(),
+        }
+    }
+}
+
+impl ServerGetters {
+    pub fn new(stowage: Arc<Stowage>) -> Self {
+        let hits = reverse_id::<HitPapers>(&stowage);
+        let hit_wid_map = HashMap::from_iter(
+            (hits.iter().enumerate()).map(|(i, w)| (WT::from_usize(w.to_usize()), i)),
+        );
+        let ifs = ServerInterfaces::new(stowage);
+        let na_orcid = OrcidType::default();
+        let orcid_map = ifs
+            .author_orcids
+            .iter()
+            .enumerate()
+            .filter(|(_, orcid)| *orcid != &na_orcid)
+            .map(|(aid, orcid)| (*orcid, aid))
+            .collect();
+        println!("loaded server Getters");
+        Self {
+            ifs,
+            hit_wid_map,
+            orcid_map,
         }
     }
 }

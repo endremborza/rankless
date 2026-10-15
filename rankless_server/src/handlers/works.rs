@@ -1,7 +1,4 @@
-use std::{
-    cmp::{min, Reverse},
-    sync::Arc,
-};
+use std::cmp::{min, Reverse};
 
 use axum::{
     extract::{Path, Query},
@@ -25,7 +22,7 @@ use rankless_rs::{
     steps::a1_entity_mapping::YearInterface,
 };
 use rankless_trees::{
-    interfacing::Getters,
+    interfacing::{file_handle, Getters, ServerGetters},
     io::{EntityAttsForLinks, ManFileHandle, WT},
     path_finder::{extend_with_once_removed, get_direct_links},
     work_set::cnf_intersect,
@@ -40,7 +37,7 @@ use crate::responses::{
     PaginatedPaperSetResp, PaperAuthorMeta, PaperAuthorship, PaperOut, PaperProfileResp,
     PaperSetResp,
 };
-use crate::state::{hit_papers, InstTrm, StatesT};
+use crate::state::{hit_papers, FullStatesT, InstTrm};
 use crate::util::{bad_text, cache_header, get_empty, resolve_dm, root_cols};
 
 // Entity types whose work-lists may be intersected. Restricted to the five "stat" facets: their
@@ -72,7 +69,7 @@ enum ShipAuthor {
 pub(crate) async fn works_get(
     Path((etype, sem_id, pstart)): Path<(String, String, usize)>,
     Query(wq): Query<crate::responses::WorksQ>,
-    states: StatesT,
+    states: FullStatesT,
 ) -> (HeaderMap, Response) {
     let page_size = wq.n.unwrap_or(WORKS_PAGE_SIZE_MAX).min(WORKS_PAGE_SIZE_MAX);
     let Some((_, dm_id)) = resolve_dm(&states.0 .0, &etype, &sem_id) else {
@@ -92,7 +89,8 @@ pub(crate) async fn works_get(
         get_paper_set_resp(
             a[start..].iter().take(page_size),
             requested.as_slice(),
-            states.2.clone(),
+            &states.2,
+            &states.3,
         )
     };
     let resp = if wq.sort.as_deref() == Some("citations") {
@@ -117,7 +115,7 @@ pub(crate) async fn works_get(
 pub(crate) async fn intersect_get(
     Path(spec): Path<String>,
     Query(wq): Query<crate::responses::WorksQ>,
-    states: StatesT,
+    states: FullStatesT,
 ) -> (HeaderMap, Response) {
     let n = wq.n.unwrap_or(INTERSECT_DEFAULT_N).min(WORKS_PAGE_SIZE_MAX);
     let nstates = &states.0 .0;
@@ -166,7 +164,7 @@ pub(crate) async fn intersect_get(
             wids.sort_by_key(|&w| Reverse(gets.wccount(w.to_usize())));
             let top = wids.iter().take(n);
             let out = PaginatedPaperSetResp {
-                resp: get_paper_set_resp(top, &requested, states.2.clone()),
+                resp: get_paper_set_resp(top, &requested, &states.2, &states.3),
                 total_papers: total,
                 slice_start: 0,
             };
@@ -178,23 +176,23 @@ pub(crate) async fn intersect_get(
 
 pub(crate) async fn paper_profile(
     Path(author_sem_id): Path<String>,
-    states: StatesT,
+    states: FullStatesT,
 ) -> (HeaderMap, Response) {
     let Some((_, aid)) = resolve_dm(&states.0 .0, Authors::NAME, &author_sem_id) else {
         return get_empty();
     };
-    let gets = &states.0 .2.state.gets;
-    let hw_set: HashSet<WT> = hit_papers(root_cols(&states, Authors::NAME), aid)
+    let (gets, server) = (&states.0 .2.state.gets, &*states.0 .3);
+    let hw_set: HashSet<WT> = hit_papers(root_cols(&states.2, Authors::NAME), aid)
         .iter()
         .map(|hwid| gets.hit_papers[hwid.to_usize()])
         .collect();
 
-    let direct_hit_wids: Vec<WT> = gets
+    let direct_hit_wids: Vec<WT> = server
         .author_citing_direct(aid)
         .iter()
         .map(|&hid| gets.hit_papers[hid as usize] as WT)
         .collect();
-    let once_hit_wids: Vec<WT> = gets
+    let once_hit_wids: Vec<WT> = server
         .author_citing_once(aid)
         .iter()
         .map(|&hid| gets.hit_papers[hid as usize] as WT)
@@ -203,14 +201,15 @@ pub(crate) async fn paper_profile(
     let refed_wids: &[WT] = gets.aworks(ET::<Authors>::from_usize(aid));
     let refed_set: HashSet<WT> = refed_wids.iter().copied().collect();
 
-    let mut conn = get_direct_links(gets, refed_set.clone(), &direct_hit_wids);
-    extend_with_once_removed(gets, refed_set, &once_hit_wids, &mut conn);
+    let graph = (gets, server);
+    let mut conn = get_direct_links(&graph, refed_set.clone(), &direct_hit_wids);
+    extend_with_once_removed(&graph, refed_set, &once_hit_wids, &mut conn);
 
     let wids = hw_set
         .iter()
         .chain(conn.wids.iter().filter(|wid| !hw_set.contains(*wid)));
 
-    let papers = get_paper_set_resp(wids, &[ET::<Authors>::from_usize(aid)], states.2.clone());
+    let papers = get_paper_set_resp(wids, &[ET::<Authors>::from_usize(aid)], &states.2, server);
     let out = PaperProfileResp {
         dag: conn.dag,
         papers,
@@ -222,7 +221,8 @@ pub(crate) async fn paper_profile(
 fn get_paper_set_resp<'a, I>(
     wids: I,
     requested_authors: &[ET<Authors>],
-    trm: Arc<InstTrm>,
+    trm: &InstTrm,
+    server: &ServerGetters,
 ) -> PaperSetResp
 where
     I: Iterator<Item = &'a WT>,
@@ -230,8 +230,9 @@ where
     let mut disc_author_names = HashMap::new();
     let mut authors_meta = HashMap::new();
     let mut wnames_handle = trm.get_file_handle();
-    let mut doi_hand = trm.get_file_handle();
-    let mut dan_hand = trm.get_file_handle();
+    let stowage = &trm.state.gets.stowage;
+    let mut doi_hand = file_handle(server, stowage);
+    let mut dan_hand = file_handle(server, stowage);
 
     let mut entity_atts: EntityAttsForLinks = HashMap::new();
     let papers = wids
@@ -240,6 +241,7 @@ where
                 wid.to_usize(),
                 requested_authors,
                 &trm.state.gets,
+                server,
                 &mut wnames_handle,
                 &mut doi_hand,
                 &mut dan_hand,
@@ -262,6 +264,7 @@ fn paper_out(
     wid: usize,
     requested_authors: &[ET<Authors>],
     gets: &Getters,
+    server: &ServerGetters,
     wname_handler: &mut ManFileHandle,
     doi_handler: &mut VattReadingArcMap<WorkDois>,
     disc_name_handler: &mut VattReadingArcMap<DiscardedAuthorsNames>,
@@ -275,13 +278,13 @@ fn paper_out(
     let mut hit_sem_id = None;
     let mut created_topic = None;
     let (name, doi) = if let (Some(hwid), Some(hit_attlu)) = (
-        gets.hit_wid_map.get(&WT::from_usize(wid)),
+        server.hit_wid_map.get(&WT::from_usize(wid)),
         att_union.get(HitPapers::NAME),
     ) {
         let hit_atts = &hit_attlu[*hwid];
         let name = hit_atts.name.to_string();
         hit_sem_id = Some(hit_atts.semantic_id.to_string());
-        let ct = gets.hit_created_topic(hwid).to_usize();
+        let ct = server.hit_created_topic(hwid).to_usize();
         if ct != 0 {
             created_topic = att_union
                 .get(Topics::NAME)
@@ -293,7 +296,7 @@ fn paper_out(
         } else {
             String::new()
         };
-        yearly_cites = Some(gets.hit_yearlies(*hwid).into());
+        yearly_cites = Some(server.hit_yearlies(*hwid).into());
         is_hit = true;
         (name, doi)
     } else {
@@ -319,7 +322,7 @@ fn paper_out(
     //this is similarly to String with hit paper names not automatically remakes
     //the var sized element from &[SubType]
     let biblio = Some(<ET<WorkBiblios> as ByteArrayInterface>::from_bytes(
-        gets.wbiblios(wid),
+        server.wbiblios(wid),
     ));
     let ships: Vec<Ship> = gets
         .wanyships(wid)
@@ -328,14 +331,14 @@ fn paper_out(
             let (is_filtered, id) = reverse_prefixed_n(anyship.to_usize());
             if is_filtered {
                 Ship {
-                    pos: gets.fship_pos(&id).to_usize(),
+                    pos: server.fship_pos(&id).to_usize(),
                     author: ShipAuthor::Filtered(*gets.fshipa(&id)),
                     id,
                 }
             } else {
                 Ship {
-                    pos: gets.dship_pos(&id).to_usize(),
-                    author: ShipAuthor::Discarded(*gets.dshipa(&id)),
+                    pos: server.dship_pos(&id).to_usize(),
+                    author: ShipAuthor::Discarded(*server.dshipa(&id)),
                     id,
                 }
             }
@@ -343,7 +346,7 @@ fn paper_out(
         .collect();
     let author_count = ships.len() as u32;
     let pinned = |aid: ET<Authors>| {
-        requested_authors.contains(&aid) || gets.author_prizes(&aid.to_usize()).0 != 0
+        requested_authors.contains(&aid) || server.author_prizes(&aid.to_usize()).0 != 0
     };
     let authorships = served_ships(ships, pinned)
         .into_iter()
@@ -352,7 +355,7 @@ fn paper_out(
                 ShipAuthor::Filtered(aid) => {
                     add_to_eatts(Authors::NAME, aid.to_usize());
                     authors_meta.entry(aid.to_usize()).or_insert_with(|| {
-                        let prize_rec = gets.author_prizes(&aid.to_usize());
+                        let prize_rec = server.author_prizes(&aid.to_usize());
                         PaperAuthorMeta {
                             prize: prize_rec.0,
                             year: YearInterface::reverse(prize_rec.1),
@@ -367,7 +370,7 @@ fn paper_out(
                             discarded_author_name_map.insert(full_aid.clone(), name);
                         }
                     }
-                    (full_aid, gets.dshipis(ship.id))
+                    (full_aid, server.dshipis(ship.id))
                 }
             };
             let insts = insts

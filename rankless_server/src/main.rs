@@ -18,7 +18,7 @@ use tokio::{net::TcpListener, sync::Notify};
 
 use rankless_rs::Stowage;
 
-use crate::consts::{DEFAULT_N_THREADS, PORT};
+use crate::consts::{DEFAULT_N_THREADS, PORT, TREES_ONLY_FLAG};
 use crate::handlers::{
     authored_get, column_registry, intersect_get, ladder_get, metric_values_get, name_get,
     orcid_get, paper_profile, peers_get, resolve_author_get, resolve_work_get, sem_id_get,
@@ -50,34 +50,46 @@ async fn async_main(n_threads: usize) {
         shutdown_clone.notify_one();
     });
 
-    let path: String = std::env::args().last().unwrap();
+    let args: Vec<String> = std::env::args().collect();
+    let path = args.last().unwrap().clone();
+    let trees_only = args.iter().any(|a| a == TREES_ONLY_FLAG);
     let now = std::time::Instant::now();
-    println!("threads: {n_threads} path: {path}");
+    println!("threads: {n_threads} path: {path} trees only: {trees_only}");
     let stowage = Stowage::new(&path);
-    let (ns_map, satts, tree_manager, counts_response, tops) = get_rest(stowage, n_threads);
+    let (ns_map, satts, tree_manager, counts_response, tops, server) =
+        get_rest(stowage, n_threads, trees_only);
     let ns_map_arc: Arc<NameStateMap> = ns_map.into();
     let states = State((ns_map_arc, satts, tree_manager.clone()));
     let columns_api = static_router(&column_registry(&states));
 
-    let response_api = Router::new()
+    let tree_api = Router::new()
         .route("/names/:etype", get(name_get))
         .route("/slice/:etype/:from/:to", get(slice_get))
         .route("/where", get(where_get))
         .route("/metrics/:etype", get(metric_values_get))
-        .route("/views/:etype/:semantic_id", get(view_get))
         .route("/stats/:etype/:semantic_id", get(stats_get))
         .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))
-        .route("/orcid/:orcid_id", get(orcid_get))
-        .route("/resolve/work", get(resolve_work_get))
-        .route("/resolve/author", get(resolve_author_get))
-        .route("/authored", get(authored_get))
-        .route("/paper-profile/:asem", get(paper_profile))
         .route("/peers/:etype/:semantic_id", get(peers_get))
         .route("/ladder/:etype", get(ladder_get))
         .route("/trees/:root_type/:semantic_id", get(tree_get))
-        .route("/works/:etype/:semantic_id/:from", get(works_get))
-        .route("/works-intersect/*spec", get(intersect_get))
-        .with_state(states.0);
+        .with_state(states.0.clone());
+    let response_api = match server {
+        None => tree_api,
+        Some(server) => {
+            let (ns_map, satts, trm) = states.0;
+            let server_api = Router::new()
+                .route("/views/:etype/:semantic_id", get(view_get))
+                .route("/orcid/:orcid_id", get(orcid_get))
+                .route("/resolve/work", get(resolve_work_get))
+                .route("/resolve/author", get(resolve_author_get))
+                .route("/authored", get(authored_get))
+                .route("/paper-profile/:asem", get(paper_profile))
+                .route("/works/:etype/:semantic_id/:from", get(works_get))
+                .route("/works-intersect/*spec", get(intersect_get))
+                .with_state((ns_map, satts, trm, server));
+            tree_api.merge(server_api)
+        }
+    };
 
     let count_api = static_router(&counts_response);
     let specs_api = static_router(&serde_json::json!({ "version": util::version_stamp(&path) }));
