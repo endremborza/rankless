@@ -29,14 +29,16 @@ The prize file (a stories checkout keeps it as `stories/<slug>/prize.json`): `oc
 `share_line`, `laureates` and optionally `joint` (`title`, `subtitle`, `papers` as hit-paper
 DOIs). A laureate is `{"id": <author slug>}` plus optional keys: `name` (the name as it
 should read), `standfirst`, `stats` (`[[value, label], …]`), `aliases` (co-author names as
-they should read; records that read the same count as one), `order` and `skip` (section
-names), `impact` (the hit DOIs the impact card shows), `with` (co-author ids the network and
-the timeline highlight besides the file's other people), `extra` (`{card, title, sub,
-caption, crop: "tree"}` panels), `papers` (`{skip: [OpenAlex work ids], mark: <title regex>,
-mark_label}`) for the `papers` section, which takes the place of `hits` for a record with
-no hit papers, and `timeline` (`{}`, or the `sort`, `n` and `min` of the site's timeline
-card; `min` by default the least that fits the rows) for the `timeline` section after the hit
-papers, the co-authors by the years of their shared papers.
+they should read; records that read the same count as one), `venues` (`{hit DOI: venue}`,
+for a hit whose best-ranked source is another version's, as a merged record's can be),
+`order` and `skip` (section names), `impact` (the hit DOIs the impact card shows), `with`
+(co-author ids the network and the timeline highlight besides the file's other people),
+`extra` (`{card, title, sub, caption, crop: "tree"}` panels), `papers` (`{skip: [OpenAlex
+work ids], mark: <title regex>, mark_label}`) for the `papers` section, which takes the
+place of `hits` for a record with no hit papers, and `timeline` (`{}`, or the `sort`, `n`
+and `min` of the site's timeline card; `min` by default the least that fits the rows) for
+the `timeline` section after the hit papers, the co-authors by the years of their shared
+papers.
 
 `--check` prints, per laureate, what a human must look at before anything is posted: other
 records under the same name, the span of years, the top co-authors, journals and fields. A
@@ -633,18 +635,19 @@ def author(spec: dict) -> dict:
         names |= resp["discAuthorNames"]
         sources |= {int(k): v["name"] for k, v in resp["entityAtts"]["sources"].items()}
     me = f"F{view['dmId']}"
-    alias = spec.get("aliases", {})
+    alias, venues = spec.get("aliases", {}), spec.get("venues", {})
 
     def shown(a: str) -> str:
         return alias.get(names.get(a, a), names.get(a, a))
 
-    by_id, collab = coauthors(papers, me, shown)
+    by_id, collab, teams = coauthors(papers, me, shown)
     name = spec.get("name") or plain(view["name"])
     by_cites = sorted(papers, key=lambda p: -p["citations"])
     hits = [
         {
             "title": plain(p["name"]),
-            "journal": journal(sources.get(p["source"], "")),
+            "journal": venues.get(p["hitSemId"])
+            or journal(sources.get(p["source"], "")),
             "year": p["year"],
             "citations": p["citations"],
             "multiple": p["citations"] / p["bar"],
