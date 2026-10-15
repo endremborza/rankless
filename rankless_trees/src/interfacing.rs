@@ -1,4 +1,4 @@
-use std::{f64, sync::Arc};
+use std::{f64, ops::Range, sync::Arc};
 
 use crate::{
     io::{AttributeLabel, WT},
@@ -35,12 +35,10 @@ use rankless_rs::{
     ladder::LADDER_LEN,
     metrics::{mean_of, paper_score, H_SINCE, SPEC_CORR_RATE, WORK_SCREEN},
     steps::{
-        a1_entity_mapping::YearInterface,
-        a2_init_atts::OrcidType,
-        derive_links1::{CountryInsts, WorkPeriods},
+        a1_entity_mapping::YearInterface, a2_init_atts::OrcidType, derive_links1::CountryInsts,
         derive_links2::EraRec,
     },
-    CiteCountMarker, NameExtensionMarker, NameMarker, PeerMarker, SemanticIdMarker,
+    CiteCountMarker, NameExtensionMarker, NameMarker, PeerMarker, ReadFixIter, SemanticIdMarker,
     WorkCountMarker, N_PEERS,
 };
 
@@ -609,6 +607,15 @@ impl Getters {
             .paper_scores = Some(scores);
     }
 
+    pub fn year(&self, wid: WT) -> ET<WorkYears> {
+        (self.year_starts.partition_point(|&start| start <= wid) - 1) as ET<WorkYears>
+    }
+
+    pub fn year_works(&self, year: ET<WorkYears>) -> Range<WT> {
+        let y = year as usize;
+        self.year_starts[y]..self.year_starts[y + 1]
+    }
+
     pub fn fake() -> Self {
         let id: u64 = rand::thread_rng().gen();
         let mut stowage = Stowage::new(&format!("/tmp/tmp-stow/{id}"));
@@ -705,13 +712,50 @@ where
     }
 }
 
-impl RefGraph for Getters {
+impl RefGraph for (&Getters, &ServerGetters) {
     fn get_refs(&self, wid: WT) -> &[WT] {
-        self.wrefs(wid)
+        self.1.wrefs(wid)
     }
     fn get_cites(&self, wid: WT) -> &[WT] {
-        self.citing(wid)
+        self.0.citing(wid)
     }
+}
+
+// The handle reading `E`'s values from disk through the locators `gets` holds.
+pub fn file_handle<E, G>(gets: &G, stowage: &Stowage) -> VattReadingArcMap<E>
+where
+    E: NamespacedEntity + LocatorsFromMemory<G>,
+    ET<E>: VarSizedAttributeElement,
+{
+    let parent = stowage.path_from_ns(<E as NamespacedEntity>::NS);
+    VattReadingArcMap::<E>::from_locator(E::locs_from_ram(gets), &parent)
+}
+
+// The works of `list`, an id-sorted work list, whose ids fall in `range`.
+pub fn within<'a>(list: &'a [WT], range: &Range<WT>) -> &'a [WT] {
+    let start = list.partition_point(|w| *w < range.start);
+    let end = list.partition_point(|w| *w < range.end);
+    &list[start..end]
+}
+
+// `years` gives each work's year in id order, which has to be ascending.
+fn year_starts(years: impl Iterator<Item = ET<WorkYears>>) -> Box<[WT]> {
+    let n_years = YearInterface::iter().len();
+    let mut starts: Vec<WT> = Vec::with_capacity(n_years + 1);
+    let mut n_works = 0;
+    for (wid, year) in years.enumerate() {
+        let y = year as usize;
+        assert!(
+            y + 1 >= starts.len(),
+            "work {wid} is out of publication-year order"
+        );
+        while starts.len() <= y {
+            starts.push(WT::from_usize(wid));
+        }
+        n_works = wid + 1;
+    }
+    starts.resize(n_years + 1, WT::from_usize(n_works));
+    starts.into()
 }
 
 pub fn make_stats_entry_arc<E>(
@@ -780,6 +824,7 @@ pub(crate) mod fixture {
         };
         let mut ship_ids = 0..;
         let mut gets = Getters::fake();
+        gets.year_starts = year_starts(papers.iter().map(|_| 0));
         let ifs = &mut gets.ifs;
         ifs.wanyships = var_rows(papers.iter().map(|p| {
             let ships = ship_ids.by_ref().take(p.authors.len());
@@ -794,7 +839,6 @@ pub(crate) mod fixture {
         ifs.winsts = var_rows(papers.iter().map(|p| vec![p.inst]));
         ifs.wsubfields = var_rows(papers.iter().map(|_| vec![0]));
         ifs.citing = var_rows(papers.iter().map(|p| p.cited_by.clone()));
-        ifs.wperiod = fixed(papers.iter().map(|_| 0));
         ifs.icountry = fixed(0..n_insts);
         ifs.aworks = var_rows((0..n_authors).map(|a| works_where(&|p| p.authors.contains(&a))));
         ifs.iworks = var_rows((0..n_insts).map(|i| works_where(&|p| p.inst == i)));
@@ -813,5 +857,26 @@ pub(crate) mod fixture {
 
     fn fixed<T: UnsignedNumber>(values: impl Iterator<Item = usize>) -> Box<[T]> {
         values.map(T::from_usize).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_work_is_of_the_year_whose_run_holds_it() {
+        let mut gets = Getters::fake();
+        gets.year_starts = year_starts([0, 0, 2, 2, 5].into_iter());
+        let years: Vec<_> = (0..5).map(|wid| gets.year(wid)).collect();
+        assert_eq!(years, [0, 0, 2, 2, 5]);
+        assert_eq!(gets.year_works(1), 2..2);
+        assert_eq!(gets.year_works(5), 4..5);
+    }
+
+    #[test]
+    #[should_panic(expected = "out of publication-year order")]
+    fn works_out_of_year_order_fail_the_load() {
+        year_starts([0, 3, 2].into_iter());
     }
 }

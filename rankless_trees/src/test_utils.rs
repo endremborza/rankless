@@ -1,7 +1,7 @@
-use std::vec::IntoIter;
+use std::{ops::Range, vec::IntoIter};
 
 use crate::{
-    components::{MinIntX, PartitionId, StackBasis, StackFr},
+    components::{MinIntX, StackBasis, StackFr},
     interfacing::Getters,
     io::{TreeQ, WT},
     part_iterator::PartitioningIterator,
@@ -9,7 +9,7 @@ use crate::{
 };
 use dmove::{UnsignedNumber, ET};
 use hashbrown::HashMap;
-use rankless_rs::{gen::a1_entity_mapping::Institutions, steps::a1_entity_mapping::N_PERS};
+use rankless_rs::gen::a1_entity_mapping::Institutions;
 
 // ---- Graph access mock ----
 
@@ -51,8 +51,34 @@ impl RefGraph for TestGraph {
 pub trait TestSB {
     type SB: StackBasis;
     fn get_vec(id: usize) -> Vec<StackFr<Self::SB>>;
-    fn get_pid(_v: &StackFr<Self::SB>) -> PartitionId {
-        0
+}
+
+// A flat record's cited work: the second to last of its fields.
+pub trait GetRefWork {
+    fn rwid(&self) -> WT;
+}
+
+impl<T1> GetRefWork for (T1, WT, WT) {
+    fn rwid(&self) -> WT {
+        self.1
+    }
+}
+
+impl<T1, T2> GetRefWork for (T1, T2, WT, WT) {
+    fn rwid(&self) -> WT {
+        self.2
+    }
+}
+
+impl<T1, T2, T3> GetRefWork for (T1, T2, T3, WT, WT) {
+    fn rwid(&self) -> WT {
+        self.3
+    }
+}
+
+impl<T1, T2, T3, T4> GetRefWork for (T1, T2, T3, T4, WT, WT) {
+    fn rwid(&self) -> WT {
+        self.4
     }
 }
 
@@ -67,14 +93,17 @@ impl<TSB> PartitioningIterator<'_> for Tither<TSB>
 where
     TSB: TestSB,
     TSB::SB: StackBasis,
+    StackFr<TSB::SB>: GetRefWork,
 {
     type Root = MinIntX<Institutions>;
     type StackBasis = TSB::SB;
-    const PARTITIONS: usize = N_PERS;
 
-    fn new(id: ET<Institutions>, _gets: &Getters) -> Self {
-        let viter = TSB::get_vec(id.to_usize()).into_iter();
-        Self { viter }
+    fn new(id: ET<Institutions>, _gets: &Getters, works: Range<WT>) -> Self {
+        let recs = TSB::get_vec(id.to_usize()).into_iter();
+        let viter: Vec<_> = recs.filter(|r| works.contains(&r.rwid())).collect();
+        Self {
+            viter: viter.into_iter(),
+        }
     }
 }
 
@@ -82,10 +111,10 @@ impl<TSB> Iterator for Tither<TSB>
 where
     TSB: TestSB,
 {
-    type Item = (PartitionId, StackFr<TSB::SB>);
+    type Item = StackFr<TSB::SB>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.viter.next().map(|v| (TSB::get_pid(&v), v))
+        self.viter.next()
     }
 }
 
@@ -93,8 +122,6 @@ pub fn test_q(i: u8) -> TreeQ {
     TreeQ {
         year: None,
         tid: Some(i),
-        big_prep: None,
-        big_read: None,
         shallow: None,
         cacheable: None,
         wide: None,

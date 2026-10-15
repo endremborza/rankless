@@ -115,7 +115,7 @@ The frontend's own types derive from the generated ones rather than restating th
 | ledger events (DB payloads, `ACTIVE_JSONL`) | `rankless_rs/src/user_ledger.rs` `EventPayload`, `WorkSubject`, `AuthorSubject` | the site's writers and readers, `pyscripts/ledger_ids.py` |
 | `APPLIED_MANIFEST` | `rankless_rs/src/user_ledger.rs` `AppliedManifest` | the site |
 | server limits, port, commit-hash length | `rankless_server/src/consts.rs` | frontend, `mcp_server`, `pyscripts` |
-| `user-ledger/` file names, the external data root, the tree-parts root | `rankless_rs/src/{user_ledger,derived_ledger}.rs`, `rankless_trees/src/part_iterator.rs` | `pyscripts`, the site |
+| `user-ledger/` file names, the external data root | `rankless_rs/src/{user_ledger,derived_ledger}.rs` | `pyscripts`, the site |
 
 dmove's binary entity files are a separate concern: ccl-science-data reads them, and [type-audit.md](type-audit.md) checks that reader. Shapes no Rust code touches (the review lane's enrichment records and verdicts in `lib/types/review.ts`) are still mirrored by hand.
 

@@ -144,7 +144,7 @@ pub(crate) async fn resolve_work_get(
         oa_id: gets.work_oa[wid],
         wid,
         doi,
-        year: YearInterface::reverse(*gets.year(&wid)),
+        year: YearInterface::reverse(gets.year(WT::from_usize(wid))),
         name,
     };
     (StatusCode::OK, Json(Some(resp)))

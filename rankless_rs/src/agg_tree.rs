@@ -44,6 +44,10 @@ where
         self.sorted = false;
     }
 
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
     pub fn from_iter<I>(iter: I) -> Self
     where
         I: Iterator<Item = T>,

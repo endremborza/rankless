@@ -19,10 +19,7 @@ use rankless_rs::{
     env_consts::START_YEAR,
     gen::{a1_entity_mapping::Works, a2_init_atts::WorksNames},
     metrics::Level,
-    steps::{
-        a1_entity_mapping::{POSSIBLE_YEAR_FILTERS, YBT},
-        derive_links1::WorkPeriods,
-    },
+    steps::a1_entity_mapping::{YearInterface, POSSIBLE_YEAR_FILTERS, YBT},
 };
 
 use dmove::{
@@ -81,7 +78,7 @@ pub struct CacheKey {
 }
 
 // A resolved query: the tree (`ck`), what its first level profiles, the since-period, and what to
-// do with it. `cacheable` is the caller's call — the handler knows the entity's citation count.
+// serve of it. `cacheable` is the caller's call — the handler knows the entity's citation count.
 #[derive(Clone)]
 pub struct FullTreeQuery {
     pub ck: CacheKey,
@@ -89,7 +86,7 @@ pub struct FullTreeQuery {
     pub period: u8,
     pub name: String,
     pub cacheable: bool,
-    pub command: Command,
+    pub serve: Serve,
 }
 
 // A tree's first level as a profile of the root: its links over one attribute entity. `complete`
@@ -121,13 +118,11 @@ pub struct AttributeLabelOut {
     pub oa_id: Option<BigId>,
 }
 
-// The HTTP query of `/trees`; `make_fq` folds its flags into a `Command`.
+// The HTTP query of `/trees`; `make_fq` folds its flags into a `Serve`.
 #[derive(Deserialize, Clone)]
 pub struct TreeQ {
     pub year: Option<u16>,
     pub tid: Option<u8>,
-    pub big_prep: Option<bool>,
-    pub big_read: Option<bool>,
     pub shallow: Option<u8>,
     pub wide: Option<bool>,
     pub cacheable: Option<bool>,
@@ -212,15 +207,6 @@ pub struct SCIter<'a> {
     key_iter: vec::IntoIter<&'a u32>,
 }
 
-// What a query asks of the tree: a served shape, or one of the two disk-staged compute commands
-// of the cache warmer, which never serve from cache.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Command {
-    Serve(Serve),
-    BigPrep,
-    BigRead,
-}
-
 // `Pruned` is the tree the FE explores, top children per level, cut to `shallow` levels when it
 // is big; `Wide` is the first level with labels (flat-out, tiles); `Profile` is the first level raw.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -283,17 +269,8 @@ impl Display for FullTreeQuery {
         write!(
             f,
             "{}({}:{}/p{} {:?})",
-            self.name, self.ck.eid, self.ck.tid, self.period, self.command
+            self.name, self.ck.eid, self.ck.tid, self.period, self.serve
         )
-    }
-}
-
-impl FullTreeQuery {
-    pub fn serve(&self) -> Option<Serve> {
-        match self.command {
-            Command::Serve(s) => Some(s),
-            _ => None,
-        }
     }
 }
 
@@ -323,19 +300,6 @@ impl FirstLevel {
             Some(leaf) => Some(leaf.link_count as f64 / total),
             None if self.complete => Some(0.0),
             None => None,
-        }
-    }
-}
-
-impl TreeResponse {
-    pub fn empty() -> Self {
-        Self {
-            tree: JsSerTree {
-                node: CollapsedNodeGen::default(),
-                children: JsSerChildren::Leaves(HashMap::new()).into(),
-            },
-            atts: HashMap::new(),
-            shallowed: false,
         }
     }
 }
@@ -565,10 +529,10 @@ where
                 let fq = FullTreeQuery {
                     ck: self.specs.to_ck(tid, &root_type.to_string(), eid)?,
                     level,
-                    period: WorkPeriods::from_year(year.unwrap_or(START_YEAR)),
+                    period: YearInterface::period(year.unwrap_or(START_YEAR)),
                     name: root_type.to_string(),
                     cacheable,
-                    command: Command::Serve(Serve::Profile),
+                    serve: Serve::Profile,
                 };
                 Some((eid, self.enqueue(fq)?))
             })
@@ -734,23 +698,18 @@ impl TreeBasisState {
 
 fn make_fq(q: TreeQ, eid: usize, root_type: &String, specs: &TreeSpecs) -> Option<FullTreeQuery> {
     let tid = q.tid.unwrap_or(0);
-    let flag = |o: Option<bool>| o.unwrap_or(false);
-    let command = if flag(q.big_read) {
-        Command::BigRead
-    } else if flag(q.big_prep) {
-        Command::BigPrep
-    } else if flag(q.wide) {
-        Command::Serve(Serve::Wide)
+    let serve = if q.wide.unwrap_or(false) {
+        Serve::Wide
     } else {
-        Command::Serve(Serve::Pruned { shallow: q.shallow })
+        Serve::Pruned { shallow: q.shallow }
     };
     Some(FullTreeQuery {
         ck: specs.to_ck(tid, root_type, eid)?,
         level: specs.first_level(root_type, tid)?.level,
-        period: WorkPeriods::from_year(q.year.unwrap_or(START_YEAR)),
+        period: YearInterface::period(q.year.unwrap_or(START_YEAR)),
         name: root_type.to_string(),
         cacheable: q.cacheable.unwrap_or(true),
-        command,
+        serve,
     })
 }
 

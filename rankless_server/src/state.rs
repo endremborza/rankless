@@ -116,7 +116,7 @@ pub(crate) fn yearly_papers(cols: &RootColumns, dm_id: usize) -> EraRec {
 // publication year.
 pub(crate) fn start_year(etype: &str, dm_id: usize, cols: &RootColumns, gets: &Getters) -> RawYear {
     if etype == HitPapers::NAME {
-        return YearInterface::reverse(*gets.year(&gets.hit_papers[dm_id].to_usize()));
+        return YearInterface::reverse(gets.year(gets.hit_papers[dm_id]));
     }
     let first = yearly_papers(cols, dm_id)
         .iter()

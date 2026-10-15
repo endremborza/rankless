@@ -1,61 +1,50 @@
 use std::{
     fmt::Display,
-    fs::{create_dir_all, remove_dir_all, rename, File},
-    io::{BufReader, BufWriter, Read, Write},
+    fs::{create_dir_all, rename},
     marker::PhantomData,
+    ops::Range,
     os::linux::fs::MetadataExt,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{LazyLock, Mutex},
+    time::{Duration, Instant},
 };
 
 use crate::{
-    components::{PartitionId, StackBasis, StackFr},
+    components::{StackBasis, StackFr},
     ids::get_atts,
     instances::{CollT, Collapsing, FoldStackBase},
     interfacing::Getters,
     io::{
-        AnyResponse, BoolCvp, BufSerTree, CacheKey, Command, FirstLevel, FullTreeQuery,
-        InProgressMap, JsSerTree, ManFileHandle, ResCvp, Serve, TreeBasisState, TreeResponse,
-        TreeSpec, WT,
+        AnyResponse, BoolCvp, BufSerTree, CacheKey, FirstLevel, FullTreeQuery, InProgressMap,
+        JsSerTree, ManFileHandle, ResCvp, Serve, TreeBasisState, TreeResponse, TreeSpec, WT,
     },
     prune::{cut_tree, prune, prune_wide},
 };
 use dmove::{
     para::{set_and_notify, wait_for_data_with_taker},
-    ByteFixArrayInterface, Entity, UnsignedNumber,
+    Entity, UnsignedNumber,
 };
 use hashbrown::hash_map::Entry;
 use rankless_rs::{
     agg_tree::{HeapIterator, MinHeap, SortedRecord, Updater},
     common::{read_buf_path, write_buf_path, NET},
     gen::a1_entity_mapping::{Sources, Subfields},
-    steps::{
-        a1_entity_mapping::{YearInterface, POSSIBLE_YEAR_FILTERS},
-        derive_links1::WorkPeriods,
-    },
+    steps::a1_entity_mapping::{YearInterface, N_PERS, POSSIBLE_YEAR_FILTERS},
 };
 use serde::Serialize;
-use wiretypes::wire;
 
-const MAX_PARTITIONS: usize = 16;
-const MAX_BUFSIZE: usize = 512;
+// A run of years is folded once it holds this many records; a period's last run is folded at
+// any size.
+const RUN_RECORDS: usize = 1 << 25;
 const SHALLOW_LIMIT: u64 = 50_000; // size (bytes) of file
 
 // The FE's SSR fetch is always ?shallow=1 (entity +page.server.ts)
 const PRECALC_SHALLOW_DEPTH: u8 = 1;
-/// The env var naming where tree parts spill.
-#[wire]
-const PARTS_ROOT_VAR: &str = "RANKLESS_PARTS_ROOT";
-/// Where tree parts spill when the var is unset or empty.
-#[wire]
-const DEFAULT_PARTS_ROOT: &str = "/tmp/dmove-parts";
 // Root types whose trees allow specialization but open without it.
 const SPEC_OFF_BY_DEFAULT: [&str; 2] = [Sources::NAME, Subfields::NAME];
 
 static DEBUG_LOG: LazyLock<bool> =
     LazyLock::new(|| std::env::var("RANKLESS_DEBUG_LOG").is_ok_and(|v| v != "0"));
-static PARTS_ROOT: LazyLock<PathBuf> =
-    LazyLock::new(|| parts_root(std::env::var(PARTS_ROOT_VAR).ok()));
 
 pub type NetRoot<'a, Pit> = NET<IteratorRootEtype<'a, Pit>>;
 
@@ -86,6 +75,16 @@ struct InProgressGuard<'a> {
     ck: CacheKey,
 }
 
+// The records a build folded: in how many runs, and the largest run.
+#[derive(Default)]
+struct Runs {
+    n: usize,
+    records: usize,
+    largest: usize,
+    walk: Duration,
+    fold: Duration,
+}
+
 pub struct TreeMakingParams<'a> {
     state: &'a TreeBasisState,
     fh: &'a mut ManFileHandle,
@@ -98,16 +97,14 @@ pub trait CompleteTreeMaker<'a>: Sized + PartitioningIterator<'a> {
     type SR: SortedRecord;
 }
 
-pub trait PartitioningIterator<'a>:
-    Iterator<Item = (PartitionId, StackFr<Self::StackBasis>)> + Sized
-{
+// A tree's records, from the root's works whose ids fall in `works`.
+pub trait PartitioningIterator<'a>: Iterator<Item = StackFr<Self::StackBasis>> + Sized {
     type Root: FoldStackBase<<Self::StackBasis as StackBasis>::TopTree>;
     type StackBasis: StackBasis;
-    const PARTITIONS: usize;
     const IS_SPEC: bool = true;
     const DEFAULT_PARTITION: u8 = 0;
 
-    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self;
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters, works: Range<WT>) -> Self;
 
     fn get_spec() -> TreeSpec {
         let breakdowns = Self::StackBasis::get_bds();
@@ -131,10 +128,6 @@ pub trait PartitioningIterator<'a>:
             None => *ser_tree_o = Some(part_ser),
         };
     }
-}
-
-pub trait GetRefWork {
-    fn rwid(&self) -> WT;
 }
 
 impl Progress {
@@ -175,7 +168,7 @@ impl<'a> TreeMakingParams<'a> {
     pub fn run<TMK>(self)
     where
         TMK: CompleteTreeMaker<'a>,
-        StackFr<TMK::StackBasis>: Ord + Clone + GetRefWork + ByteFixArrayInterface,
+        StackFr<TMK::StackBasis>: Ord + Clone,
         TMK::Root: FoldStackBase<TMK::CT>,
         PartIteratorStackElement<'a, TMK>: Updater<TMK::CT>,
         CollT<PartIteratorStackElement<'a, TMK>>: Into<BufSerTree>,
@@ -192,7 +185,7 @@ impl<'a> TreeMakingParams<'a> {
 impl<'a, TMK> TreeMakingRun<'a, TMK>
 where
     TMK: CompleteTreeMaker<'a>,
-    StackFr<TMK::StackBasis>: Ord + Clone + GetRefWork + ByteFixArrayInterface,
+    StackFr<TMK::StackBasis>: Ord + Clone,
     TMK::Root: FoldStackBase<TMK::CT>,
     PartIteratorStackElement<'a, TMK>: Updater<TMK::CT>,
     CollT<PartIteratorStackElement<'a, TMK>>: Into<BufSerTree>,
@@ -200,19 +193,16 @@ where
 {
     pub fn run(mut self) {
         println!("requested entity: {}", self.params.fq);
-        let serve = self.params.fq.serve();
         loop {
-            if let Some(serve) = serve {
-                let now = std::time::Instant::now();
-                if let Some(resp) = self.load_cached(serve) {
-                    self.tlog("loaded and sent cache", now);
-                    set_and_notify(self.params.res_cvp.clone(), Some(resp));
-                    return;
-                }
-                if !self.is_cacheable() {
-                    // no file will ever appear, so waiting on an in-progress compute is pointless
-                    return self.fill_calculate();
-                }
+            let now = Instant::now();
+            if let Some(resp) = self.load_cached(self.params.fq.serve) {
+                self.tlog("loaded and sent cache", now.elapsed());
+                set_and_notify(self.params.res_cvp.clone(), Some(resp));
+                return;
+            }
+            if !self.is_cacheable() {
+                // no file will ever appear, so waiting on an in-progress compute is pointless
+                return self.fill_by_years();
             }
             match Progress::from_e(&self.params.state.in_progress, &self.params.fq) {
                 Progress::Calculate => {
@@ -220,7 +210,7 @@ where
                         map: &self.params.state.in_progress,
                         ck: self.params.fq.ck.clone(),
                     };
-                    return self.fill_calculate();
+                    return self.fill_by_years();
                 }
                 Progress::Wait(cvp) => wait_for_data_with_taker(cvp, |_| ()),
             }
@@ -267,134 +257,86 @@ where
         Some(self.to_tree_resp(tree, shallowed))
     }
 
-    fn fill_calculate(&mut self) {
-        let et_id = NET::<IteratorRootEtype<TMK>>::from_usize(self.params.fq.ck.eid);
-        if self.params.fq.command == Command::BigRead {
-            self.read_big_calculate();
-            let resp = AnyResponse::Tree(TreeResponse::empty());
-            set_and_notify(self.params.res_cvp.clone(), Some(resp));
-        } else if self.params.fq.command == Command::BigPrep {
-            self.write_tmp_parts();
-        } else {
-            let heaps = self.fill_heaps(&et_id);
-            let now = std::time::Instant::now();
-            let mut roots = Vec::new();
-            // This could be abstracted to StackBasis StackBasis::fold_into
-            // as this is just an additional collapsed level based on years
-            heaps.into_iter().take(TMK::PARTITIONS).for_each(|heap| {
-                let hither_o: Option<HeapIterator<TMK::SR>> = heap.into();
-                let mut part_root: PartIteratorStackElement<'a, TMK> = et_id.into();
-                match hither_o {
-                    Some(hither) => TMK::StackBasis::fold_into(&mut part_root, hither),
-                    None => self.dlog(format!(
-                        "parition-heap is none at roots len {}",
-                        roots.len()
-                    )),
-                }
-                roots.push(part_root.collapse());
-            });
-            self.dtlog("got roots", now);
-
-            let now = std::time::Instant::now();
-            let mut ser_tree_o = None;
-            for (pid, part_root) in roots.into_iter().enumerate().rev() {
-                TMK::fold_tree(&mut ser_tree_o, part_root);
-                let stref = ser_tree_o.as_ref().unwrap();
-                self.write_resp(stref, Some(self.params.res_cvp.clone()), pid as u8);
-                if !self.is_cacheable() & (pid as u8 == self.params.fq.period) {
-                    break;
-                }
-            }
-            self.tlog("converted, ingested and wrote trees", now);
-        }
-    }
-
-    fn fill_heaps(&self, et_id: &NetRoot<'a, TMK>) -> [SrHeap<'a, TMK>; MAX_PARTITIONS] {
-        let mut heaps = [(); MAX_PARTITIONS].map(|_| SrHeap::<'a, TMK>::new());
-        let now = std::time::Instant::now();
-        let maker = TMK::new(*et_id, &self.params.state.gets);
-        for (pid, rec) in maker {
-            heaps[pid as usize].push(rec);
-        }
-        self.dtlog("got heaps", now);
-        heaps
-    }
-
-    fn write_tmp_parts(&self) {
-        let et_id = NET::<IteratorRootEtype<TMK>>::from_usize(self.params.fq.ck.eid);
-        let cache_root = part_cache_root(&self.params.fq.ck);
-        let piter = TMK::new(et_id, &self.params.state.gets);
-        let mut writers: Vec<BufWriter<File>> = YearInterface::iter()
-            .map(|yp| {
-                BufWriter::new(
-                    File::create(cache_root.join(yp.to_string())).expect("create year cache file"),
-                )
-            })
-            .collect();
-        for e in piter {
-            let frec = e.1;
-            let rwid = frec.rwid();
-            let y = self.params.state.gets.year(&rwid);
-            writers[*y as usize]
-                .write(&frec.to_fbytes())
-                .expect("writing to cache");
-        }
-        for w in writers.iter_mut() {
-            w.flush().expect("writing in full")
-        }
-
-        self.log("wrote tmp");
-        let resp = AnyResponse::Tree(TreeResponse::empty());
-        set_and_notify(self.params.res_cvp.clone(), Some(resp));
-    }
-
-    fn read_big_calculate(&mut self) {
+    fn fill_by_years(&mut self) {
         let et_id = NetRoot::<'a, TMK>::from_usize(self.params.fq.ck.eid);
-        let cache_root = part_cache_root(&self.params.fq.ck);
-        let mut buf: [u8; MAX_BUFSIZE] = [0; MAX_BUFSIZE];
-        let mut ser_tree_o = None;
-        let mut year_bp_iter = POSSIBLE_YEAR_FILTERS.iter().rev();
-        let mut next_bp_o = year_bp_iter.next();
-        let bufr = &mut buf[..StackFr::<TMK::StackBasis>::S];
-        for y in YearInterface::iter().rev() {
-            let cache_fp = cache_root.join(y.to_string());
-            let mut reader = BufReader::new(File::open(&cache_fp).expect("reading year cache"));
-            let mut year_heap = MinHeap::new();
-            while let Ok(_) = reader.read_exact(bufr) {
-                let fr = StackFr::<TMK::StackBasis>::from_fbytes(bufr);
-                year_heap.push(fr);
-            }
-            let hither_o: Option<HeapIterator<TMK::SR>> = year_heap.into();
-            let mut part_root: PartIteratorStackElement<'a, TMK> = et_id.into();
-            match hither_o {
-                Some(hither) => TMK::StackBasis::fold_into(&mut part_root, hither),
-                None => self.log(format!("nothing read at y{y} from {cache_fp:?}")),
-            }
-            TMK::fold_tree(&mut ser_tree_o, part_root.collapse());
-            let y16 = YearInterface::reverse(y);
-            if let Some(next_bp) = next_bp_o {
-                if y16 == *next_bp {
-                    let pid = WorkPeriods::from_year(y16);
-                    self.write_resp(ser_tree_o.as_ref().unwrap(), None, pid);
-                    next_bp_o = year_bp_iter.next();
-                }
-            } else {
-                println!("finished with bps");
-            }
-        }
-        remove_dir_all(cache_root).expect("removing cache");
+        let state: &'a TreeBasisState = self.params.state;
+        let mut write = Duration::ZERO;
+        let runs = Self::walk_years(et_id, &state.gets, RUN_RECORDS, |pid, tree| {
+            let now = Instant::now();
+            self.write_resp(tree, pid);
+            write += now.elapsed();
+            self.is_cacheable() | (pid != self.params.fq.period)
+        });
+        self.dtlog("got heaps", runs.walk);
+        self.dtlog("got roots", runs.fold);
+        self.tlog("converted, ingested and wrote trees", write);
+        self.log(format!(
+            "{} records in {} runs, the largest {}",
+            runs.records, runs.n, runs.largest
+        ));
     }
 
-    fn write_resp(&mut self, full_tree: &BufSerTree, res_cvp_o: Option<ResCvp>, pid: u8) {
+    // Walks the root's works a publication year at a time, newest period first, so only one run
+    // of years' records is held: a run is folded once it holds `run_records`, and at its
+    // period's end. A cited work's records all fall in its year, and the trees of disjoint cited
+    // works add up (`ingest_disjunct`), so however a period splits into runs, merging them oldest
+    // first builds the tree one fold of the period would. Each period's cumulative tree goes to
+    // `period_done`, which says whether to go on.
+    fn walk_years(
+        et_id: NetRoot<'a, TMK>,
+        gets: &'a Getters,
+        run_records: usize,
+        mut period_done: impl FnMut(u8, &BufSerTree) -> bool,
+    ) -> Runs {
+        let mut runs = Runs::default();
+        let mut tree = None;
+        for pid in (0..N_PERS).rev() {
+            let mut heap = SrHeap::<'a, TMK>::new();
+            for year in period_years(pid) {
+                let now = Instant::now();
+                for rec in TMK::new(et_id, gets, gets.year_works(year)) {
+                    heap.push(rec);
+                }
+                runs.walk += now.elapsed();
+                if heap.len() >= run_records {
+                    let full = std::mem::replace(&mut heap, SrHeap::<'a, TMK>::new());
+                    Self::fold_run(et_id, &mut tree, full, &mut runs);
+                }
+            }
+            Self::fold_run(et_id, &mut tree, heap, &mut runs);
+            if !period_done(pid as u8, tree.as_ref().unwrap()) {
+                break;
+            }
+        }
+        runs
+    }
+
+    fn fold_run(
+        et_id: NetRoot<'a, TMK>,
+        tree: &mut Option<BufSerTree>,
+        heap: SrHeap<'a, TMK>,
+        runs: &mut Runs,
+    ) {
+        let now = Instant::now();
+        runs.n += 1;
+        runs.records += heap.len();
+        runs.largest = runs.largest.max(heap.len());
+        let mut part_root: PartIteratorStackElement<'a, TMK> = et_id.into();
+        if let Some(hither) = Option::<HeapIterator<TMK::SR>>::from(heap) {
+            TMK::StackBasis::fold_into(&mut part_root, hither);
+        }
+        TMK::fold_tree(tree, part_root.collapse());
+        runs.fold += now.elapsed();
+    }
+
+    fn write_resp(&mut self, full_tree: &BufSerTree, pid: u8) {
         if !self.is_cacheable() & (pid != self.params.fq.period) {
             return;
         }
         let mut pruned_o = None;
         let mut wide_o = None;
-        if let Some(res_cvp) = res_cvp_o {
-            if pid == self.params.fq.period {
-                self.set_tree_to_res_cvp(res_cvp, full_tree, &mut pruned_o, &mut wide_o);
-            }
+        if pid == self.params.fq.period {
+            self.set_tree_to_res_cvp(full_tree, &mut pruned_o, &mut wide_o);
         }
         if self.is_cacheable() {
             let state = self.params.state;
@@ -425,16 +367,11 @@ where
     // non-cacheable tree is small, so it is served whole whatever depth was asked.
     fn set_tree_to_res_cvp(
         &mut self,
-        res_cvp: ResCvp,
         full_tree: &BufSerTree,
         pruned_o: &mut Option<BufSerTree>,
         wide_o: &mut Option<BufSerTree>,
     ) {
-        let serve = self
-            .params
-            .fq
-            .serve()
-            .expect("a compute command has no tree to serve");
+        let serve = self.params.fq.serve;
         let cacheable = self.is_cacheable();
         let resp = match serve {
             Serve::Wide | Serve::Profile => {
@@ -461,7 +398,7 @@ where
                 AnyResponse::Tree(self.to_tree_resp(tree, shallowed))
             }
         };
-        set_and_notify(res_cvp, Some(resp));
+        set_and_notify(self.params.res_cvp.clone(), Some(resp));
     }
 
     fn first_level_resp(&mut self, serve: Serve, wide: BufSerTree) -> AnyResponse {
@@ -475,18 +412,18 @@ where
     }
 
     fn prune_tree(&self, full_tree: &BufSerTree) -> BufSerTree {
-        let now = std::time::Instant::now();
+        let now = Instant::now();
         let bds = TMK::get_spec().breakdowns;
         let pruned_tree = prune(full_tree, &self.params.state.att_union, &bds);
-        self.dtlog("pruned", now);
+        self.dtlog("pruned", now.elapsed());
         pruned_tree
     }
 
     fn to_wide_tree(&self, full_tree: &BufSerTree) -> BufSerTree {
-        let now = std::time::Instant::now();
+        let now = Instant::now();
         let bds = TMK::get_spec().breakdowns;
         let wide_tree = prune_wide(full_tree, &self.params.state.att_union, &bds);
-        self.dtlog("wide cut", now);
+        self.dtlog("wide cut", now.elapsed());
         wide_tree
     }
 
@@ -508,8 +445,8 @@ where
         println!("{}: {}", self.params.fq, s)
     }
 
-    fn tlog<D: Display>(&self, s: D, now: std::time::Instant) {
-        self.log(format!("{} in {}ms", s, now.elapsed().as_millis()));
+    fn tlog<D: Display>(&self, s: D, took: Duration) {
+        self.log(format!("{} in {}ms", s, took.as_millis()));
     }
 
     fn dlog<D: Display>(&self, s: D) {
@@ -518,14 +455,14 @@ where
         }
     }
 
-    fn dtlog<D: Display>(&self, s: D, now: std::time::Instant) {
+    fn dtlog<D: Display>(&self, s: D, took: Duration) {
         if *DEBUG_LOG {
-            self.tlog(s, now)
+            self.tlog(s, took)
         }
     }
 
     fn to_tree_resp(&mut self, pruned_tree: BufSerTree, shallowed: bool) -> TreeResponse {
-        let now = std::time::Instant::now();
+        let now = Instant::now();
         let bds = TMK::get_spec().breakdowns;
         let atts = get_atts(
             &pruned_tree,
@@ -534,11 +471,11 @@ where
             self.params.fh,
             &self.params.fq,
         );
-        self.dtlog("got atts", now);
+        self.dtlog("got atts", now.elapsed());
 
-        let now = std::time::Instant::now();
+        let now = Instant::now();
         let tree = JsSerTree::from_buf(pruned_tree, &self.params.state.gets);
-        self.dtlog("converted", now);
+        self.dtlog("converted", now.elapsed());
         TreeResponse {
             tree,
             atts,
@@ -561,74 +498,57 @@ where
     type SR = <T::StackBasis as StackBasis>::SortedRec;
 }
 
-impl<T1> GetRefWork for (T1, WT, WT) {
-    fn rwid(&self) -> WT {
-        self.1
-    }
-}
-
-impl<T1, T2> GetRefWork for (T1, T2, WT, WT) {
-    fn rwid(&self) -> WT {
-        self.2
-    }
-}
-
-impl<T1, T2, T3> GetRefWork for (T1, T2, T3, WT, WT) {
-    fn rwid(&self) -> WT {
-        self.3
-    }
-}
-
-impl<T1, T2, T3, T4> GetRefWork for (T1, T2, T3, T4, WT, WT) {
-    fn rwid(&self) -> WT {
-        self.4
-    }
-}
-
-fn part_cache_root(ck: &CacheKey) -> PathBuf {
-    let dir = part_dir(&PARTS_ROOT, ck);
-    create_dir_all(&dir).expect("making parts dir");
-    dir
-}
-
-fn part_dir(root: &Path, ck: &CacheKey) -> PathBuf {
-    root.join(format!("{}/{}/{}", ck.etype, ck.tid, ck.eid))
-}
-
-fn parts_root(var: Option<String>) -> PathBuf {
-    match var.as_deref() {
-        Some(root) if !root.is_empty() => PathBuf::from(root),
-        _ => PathBuf::from(DEFAULT_PARTS_ROOT),
-    }
+// The year ids of period `pid`: from its start year to the next period's.
+fn period_years(pid: usize) -> Range<u8> {
+    let start = YearInterface::parse(POSSIBLE_YEAR_FILTERS[pid]);
+    let end = POSSIBLE_YEAR_FILTERS
+        .get(pid + 1)
+        .map_or(YearInterface::iter().end, |&y| YearInterface::parse(y));
+    start..end
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use rankless_rs::gen::a1_entity_mapping::Works;
 
-    #[test]
-    fn parts_root_is_the_env_var_or_the_default() {
-        assert_eq!(parts_root(None), Path::new(DEFAULT_PARTS_ROOT));
-        assert_eq!(
-            parts_root(Some(String::new())),
-            Path::new(DEFAULT_PARTS_ROOT)
-        );
-        assert_eq!(
-            parts_root(Some("/mnt/ssd/parts".into())),
-            Path::new("/mnt/ssd/parts")
-        );
+    use super::*;
+    use crate::{
+        components::IntX,
+        test_utils::{TestSB, Tither},
+    };
+
+    // Cited works spread over every year, several citing works and subfield ids each, so runs of
+    // one year differ from runs of a period.
+    struct Spread;
+
+    impl TestSB for Spread {
+        type SB = (IntX<Subfields, 0, true>, IntX<Works, 0, true>);
+        fn get_vec(_id: usize) -> Vec<StackFr<Self::SB>> {
+            let mut rng = StdRng::seed_from_u64(7);
+            let n_years = YearInterface::iter().len() as WT;
+            (0..4096)
+                .map(|_| {
+                    let rwid = rng.gen::<WT>() % n_years;
+                    (rng.gen::<u8>() % 5, rwid, rwid, rng.gen::<WT>() % 9)
+                })
+                .collect()
+        }
     }
 
     #[test]
-    fn part_dir_nests_the_key_under_the_root() {
-        let ck = CacheKey {
-            etype: 3,
-            eid: 42,
-            tid: 7,
+    fn year_runs_merge_into_the_period_trees() {
+        let state = TreeBasisState::fake();
+        let periods = |run_records| {
+            let mut trees = Vec::new();
+            TreeMakingRun::<Tither<Spread>>::walk_years(0, &state.gets, run_records, |pid, t| {
+                trees.push((pid, serde_json::to_value(t).unwrap()));
+                true
+            });
+            trees
         };
-        assert_eq!(
-            part_dir(Path::new("/mnt/ssd/parts"), &ck),
-            Path::new("/mnt/ssd/parts/3/7/42")
-        );
+        let by_period = periods(usize::MAX);
+        assert_eq!(by_period.len(), N_PERS);
+        assert_eq!(periods(1), by_period);
     }
 }

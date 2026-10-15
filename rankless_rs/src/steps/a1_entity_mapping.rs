@@ -40,12 +40,18 @@ pub struct SourceArea {
     pub area: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct DatedWork {
+    id: Option<String>,
+    publication_year: Option<RawYear>,
+}
+
 pub struct ShipIterator {
     raw_iter: ObjIter<Authorship>,
     work_filter: HashSet<BigId>,
 }
 
-add_parsed_id_traits!(SourceArea);
+add_parsed_id_traits!(SourceArea, DatedWork);
 
 impl ShipIterator {
     fn new(stowage: &Stowage) -> Self {
@@ -75,6 +81,12 @@ impl YearInterface {
 
     pub fn iter() -> std::ops::Range<u8> {
         0..((FINAL_YEAR - START_YEAR + 1) as u8)
+    }
+
+    pub fn period(raw: RawYear) -> u8 {
+        POSSIBLE_YEAR_FILTERS
+            .partition_point(|&start| start <= raw)
+            .saturating_sub(1) as u8
     }
 }
 
@@ -152,11 +164,15 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
             ids_from_atts::<IdStruct, _>(&sc, sw, sw, |e| Some(field_id_parse(&e.id.unwrap())));
         }));
     }
-    for en in vec![works::C, institutions::C, sources::C, topics::C] {
+    for en in vec![institutions::C, sources::C, topics::C] {
         let sc = starc.clone();
         threads.push(thread::spawn(move || {
             ids_from_atts::<IdStruct, _>(&sc, en, en, |e| e.get_parsed_id());
         }));
+    }
+    {
+        let sc = starc.clone();
+        threads.push(thread::spawn(move || works_by_year(&sc)));
     }
 
     let author_filter = starc.get_last_filter(authors::C).unwrap();
@@ -237,6 +253,26 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
 
 pub fn iter_authorships(stowage: &Stowage) -> ShipIterator {
     ShipIterator::new(stowage)
+}
+
+// Works are numbered by publication year, file order within a year, so every id-sorted list of
+// works is sorted by year and a year's works are one run of ids. A work without a year counts
+// as `START_YEAR`'s, the year `work-years` gives it.
+fn works_by_year(stowage: &Stowage) {
+    let filter = stowage.get_last_filter(works::C);
+    let mut by_year: Vec<Vec<BigId>> = YearInterface::iter().map(|_| Vec::new()).collect();
+    for work in stowage.read_csv_objs::<DatedWork>(works::C, MAIN_NAME) {
+        let Some(id) = work.get_parsed_id() else {
+            continue;
+        };
+        if filter.as_ref().is_some_and(|f| !f.contains(&id)) {
+            continue;
+        }
+        let year = work.publication_year.unwrap_or(START_YEAR);
+        by_year[YearInterface::parse(year) as usize].push(id);
+    }
+    let ids = by_year.into_iter().flatten();
+    stowage.add_iter_owned::<Data64MappedEntityBuilder, _, _>(ids, works::C);
 }
 
 fn ids_from_atts<T, F>(stowage: &Stowage, out_name: &str, parent_entity: &str, closure: F)

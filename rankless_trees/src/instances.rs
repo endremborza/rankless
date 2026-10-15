@@ -24,10 +24,7 @@ use dmove_macro::derive_tree_getter;
 use hashbrown::HashMap;
 
 #[cfg(test)]
-use crate::{
-    components::StackFr,
-    io::{TreeQ, TreeResponse},
-};
+use crate::{components::StackFr, io::TreeResponse};
 #[cfg(test)]
 use dmove::Entity;
 
@@ -852,13 +849,7 @@ mod tests {
     use crate::test_utils::{test_q, TestSB, Tither};
     use dmove::{BigId, MappableEntity, NamespacedEntity};
     use rand::{rngs::StdRng, Rng, SeedableRng};
-    use rankless_rs::{
-        metrics::Level,
-        steps::{
-            a1_entity_mapping::{RawYear, YearInterface, Years, POSSIBLE_YEAR_FILTERS},
-            derive_links1::WorkPeriods,
-        },
-    };
+    use rankless_rs::{metrics::Level, steps::a1_entity_mapping::Years};
     use std::{ops::Deref, sync::Arc};
 
     use serde_json::to_string_pretty;
@@ -962,11 +953,6 @@ mod tests {
                 vec.push(rec);
             }
             vec
-        }
-        fn get_pid(v: &StackFr<Self::SB>) -> crate::components::PartitionId {
-            let y8 = (v.3 as usize % Years::N) as u8;
-            let y16 = YearInterface::reverse(y8);
-            WorkPeriods::from_year(y16)
         }
     }
 
@@ -1135,42 +1121,6 @@ mod tests {
         assert_eq!(r.tree.node.link_count, 1048576); //20 - full
         assert_eq!(r.tree.node.source_count, 1048434); //20 - full
         assert_eq!(r.tree.node.top_source, Some(16735219)); //20 - full
-    }
-
-    #[test]
-    pub fn big_parted_tree() {
-        let tstate = TreeRunManager::<(TestEntity, TestEntity)>::fake();
-        let name = TestEntity::NAME.to_string();
-        let gq = |big_prep: Option<bool>, big_read: Option<bool>| TreeQ {
-            year: None,
-            tid: Some(3),
-            big_prep,
-            big_read,
-            shallow: None,
-            cacheable: None,
-            wide: None,
-        };
-        let resp = tstate
-            .get_single_resp(gq(Some(true), None), &name, 0)
-            .unwrap();
-        assert_eq!(resp.tree.node.top_cite_count, 0);
-
-        let resp = tstate
-            .get_single_resp(gq(None, Some(true)), &name, 0)
-            .unwrap();
-        assert_eq!(resp.tree.node.top_cite_count, 0);
-
-        let mut years: Vec<Option<RawYear>> =
-            POSSIBLE_YEAR_FILTERS.iter().map(|e| Some(*e)).collect();
-        years.insert(0, None);
-        for year in years.into_iter() {
-            let mut qy = gq(None, None);
-            qy.year = year;
-            let resp2 = tstate.get_single_resp(qy.clone(), &name, 0).unwrap();
-            assert_eq!(resp.tree.node.top_cite_count, 0);
-            let resp3 = tstate.get_single_resp(qy, &name, 1).unwrap();
-            assert_eq!(resp2.tree.node, resp3.tree.node);
-        }
     }
 
     // assert_eq!(r.tree.node.link_count, 1048448); //20 - nano

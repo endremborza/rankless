@@ -392,7 +392,7 @@ fn paper_out(
     PaperOut {
         wid,
         oa_id: gets.work_oa.get(wid).copied().unwrap_or(0),
-        year: YearInterface::reverse(*gets.year(&wid)),
+        year: YearInterface::reverse(gets.year(WT::from_usize(wid))),
         name,
         hit_sem_id,
         doi,

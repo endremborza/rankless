@@ -1,4 +1,4 @@
-use std::{iter::Peekable, marker::PhantomData, slice::Iter};
+use std::{iter::Peekable, marker::PhantomData, ops::Range, slice::Iter};
 
 use dmove::{reverse_prefixed_n, Entity, UnsignedNumber, VarSizedAttributeElement, ET};
 use dmove_macro::impl_stack_basees;
@@ -6,26 +6,25 @@ use rankless_rs::{
     agg_tree::{FoldingStackConsumer, ReinstateFrom, SortedRecord, Updater},
     common::{NumberedEntity, NET},
     gen::a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
-    gen::a2_init_atts::WorkAnyAuthorships,
+    gen::a2_init_atts::{SourceYearQs, WorkAnyAuthorships},
     metrics::Level,
-    steps::a1_entity_mapping::{Qs, N_PERS},
+    steps::a1_entity_mapping::Qs,
 };
 
 use crate::{
     instances::{Collapsing, DisJTree, FoldStackBase, IntXTree, NotLeafNode, WorkTree},
-    interfacing::{Getters, WorksFromMemory},
+    interfacing::{within, Getters, WorksFromMemory},
     io::{BreakdownSpec, WT},
     part_iterator::{NetRoot, PartitioningIterator},
 };
 
 type AnyShipElem = <ET<WorkAnyAuthorships> as VarSizedAttributeElement>::SubType;
 pub type StackFr<S> = <<S as StackBasis>::SortedRec as SortedRecord>::FlatRecord;
-pub type PartitionId = u8;
 
 pub type MinIntX<E> = IntX<E, 0, true>;
 pub type MinDisJ<E> = DisJ<E, 0, true>;
 
-type ExtendedFr<'a, I> = (PartitionId, StackFr<<I as RefWorkBasedIter<'a>>::SB>);
+type ExtendedFr<'a, I> = StackFr<<I as RefWorkBasedIter<'a>>::SB>;
 type ExtItem<'a, I> = <ExtendedFr<'a, I> as ExtendWithInst>::To;
 type RwbiItem<'a, I> = <StackFr<<I as RefWorkBasedIter<'a>>::SB> as ExtendedWithRefWid>::From;
 type FoldingStackLeaf = WorkTree;
@@ -46,6 +45,7 @@ pub struct CountryInstsPost<'a, I, SB> {
     pr_it: Option<PostRefIterWrap<'a, MinIntX<Institutions>, I>>,
     gets: &'a Getters,
     insts: Peekable<Iter<'a, ET<Institutions>>>,
+    works: Range<WT>,
     p: PhantomData<SB>,
 }
 
@@ -232,7 +232,8 @@ pub struct CiteSubSourceTop<'a> {
 }
 
 pub struct QedInf<'a> {
-    ref_wid: &'a WT,
+    ref_source: ET<Sources>,
+    ref_q: ET<SourceYearQs>,
     cit_wids: Peekable<Iter<'a, ET<Works>>>,
     cite_sfs: Option<Peekable<Iter<'a, ET<Subfields>>>>,
     cite_countries: Option<Iter<'a, ET<Countries>>>,
@@ -335,7 +336,7 @@ pub trait ExtendedWithRefWid {
 
 pub trait ExtendWithInst {
     type To;
-    fn extend(self, value: ET<Institutions>) -> (PartitionId, Self::To);
+    fn extend(self, value: ET<Institutions>) -> Self::To;
 }
 
 // for the final level
@@ -424,13 +425,10 @@ impl<T1, T2, T3, T4> ExtendedWithRefWid for (T1, T2, T3, T4, WT, WT) {
     }
 }
 
-impl<T1, T2, T3> ExtendWithInst for (PartitionId, (T1, T2, T3, WT, WT)) {
+impl<T1, T2, T3> ExtendWithInst for (T1, T2, T3, WT, WT) {
     type To = (ET<Institutions>, T1, T2, T3, WT, WT);
-    fn extend(self, value: ET<Institutions>) -> (PartitionId, Self::To) {
-        (
-            self.0,
-            (value, self.1 .0, self.1 .1, self.1 .2, self.1 .3, self.1 .4),
-        )
+    fn extend(self, value: ET<Institutions>) -> Self::To {
+        (value, self.0, self.1, self.2, self.3, self.4)
     }
 }
 
@@ -723,8 +721,10 @@ impl<'a> RefWorkBasedIter<'a> for QedInf<'a> {
         IntX<Countries, 3, false>,
     );
     fn new(ref_wid: &'a WT, gets: &'a Getters) -> Self {
+        let ref_source = *gets.top_source(ref_wid);
         Self {
-            ref_wid,
+            ref_source,
+            ref_q: *gets.sqy(&(ref_source, gets.year(*ref_wid))),
             gets,
             cit_wids: gets.citing(*ref_wid).iter().peekable(),
             cite_sfs: None,
@@ -1015,16 +1015,13 @@ impl<'a> Iterator for QedInf<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let cit_wid = reg_peek!(self.cit_wids);
-            let ref_source = self.gets.top_source(self.ref_wid);
-            let ref_year = self.gets.year(self.ref_wid);
-            let ref_q = *self.gets.sqy(&(*ref_source, *ref_year));
             let cit_sf = opt_peek!(self.cite_sfs, self.cit_wids, self.gets.wsubfields(*cit_wid));
             let cit_country = opt_next!(
                 self.cite_countries,
                 self.cite_sfs.as_mut().unwrap(),
                 self.gets.wcountries(*cit_wid)
             );
-            return Some((ref_q, *ref_source, *cit_sf, *cit_country, *cit_wid));
+            return Some((self.ref_q, self.ref_source, *cit_sf, *cit_country, *cit_wid));
         }
     }
 }
@@ -1036,16 +1033,16 @@ where
     I: RefWorkBasedIter<'a>,
     StackFr<I::SB>: ExtendedWithRefWid,
 {
-    type Item = (PartitionId, StackFr<I::SB>);
+    type Item = StackFr<I::SB>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let ref_wid = reg_peek!(self.refs_it);
-            let ref_per = self.gets.wperiod(ref_wid);
             match &mut self.it {
                 Some(it) => match it.next() {
                     Some(cts) => {
-                        let ext_fr = <StackFr<I::SB> as ExtendedWithRefWid>::extend(cts, *ref_wid);
-                        return Some((*ref_per, ext_fr));
+                        return Some(<StackFr<I::SB> as ExtendedWithRefWid>::extend(
+                            cts, *ref_wid,
+                        ));
                     }
                     None => {
                         self.it = None;
@@ -1067,7 +1064,7 @@ where
     ExtendedFr<'a, I>: ExtendWithInst,
     StackFr<I::SB>: ExtendedWithRefWid,
 {
-    type Item = (PartitionId, ExtItem<'a, I>);
+    type Item = ExtItem<'a, I>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let ref_inst = reg_peek!(self.insts);
@@ -1083,7 +1080,11 @@ where
                     }
                 },
                 None => {
-                    self.pr_it = Some(PostRefIterWrap::new(*ref_inst, self.gets));
+                    self.pr_it = Some(PostRefIterWrap::new(
+                        *ref_inst,
+                        self.gets,
+                        self.works.clone(),
+                    ));
                 }
             }
         }
@@ -1091,14 +1092,10 @@ where
 }
 
 impl<'a> Iterator for CountryBesties<'a> {
-    type Item = (
-        PartitionId,
-        StackFr<<Self as PartitioningIterator<'a>>::StackBasis>,
-    );
+    type Item = StackFr<<Self as PartitioningIterator<'a>>::StackBasis>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let ref_wid = reg_peek!(self.ref_wids);
-            let ref_per = self.gets.wperiod(ref_wid);
             let ref_sf = opt_peek!(self.ref_sfs, self.ref_wids, self.gets.wsubfields(*ref_wid));
             let (ref_country, ref_inst) = match &mut self.ref_insts {
                 Some(it) => match it.peek() {
@@ -1126,23 +1123,16 @@ impl<'a> Iterator for CountryBesties<'a> {
                 self.ref_insts.as_mut().unwrap(),
                 self.gets.citing(*ref_wid)
             );
-            return Some((
-                *ref_per,
-                (ref_country, *ref_inst, *ref_sf, *ref_wid, *cit_wid),
-            ));
+            return Some((ref_country, *ref_inst, *ref_sf, *ref_wid, *cit_wid));
         }
     }
 }
 
 impl<'a> Iterator for CountryCiters<'a> {
-    type Item = (
-        PartitionId,
-        StackFr<<Self as PartitioningIterator<'a>>::StackBasis>,
-    );
+    type Item = StackFr<<Self as PartitioningIterator<'a>>::StackBasis>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let ref_wid = reg_peek!(self.ref_wids);
-            let ref_per = self.gets.wperiod(ref_wid);
             let cit_wid = opt_peek!(self.cit_wids, self.ref_wids, self.gets.citing(*ref_wid));
             let cit_inst = opt_peek!(
                 self.cit_insts,
@@ -1155,23 +1145,16 @@ impl<'a> Iterator for CountryCiters<'a> {
                 self.cit_insts.as_mut().unwrap(),
                 self.gets.wsubfields(*cit_wid)
             );
-            return Some((
-                *ref_per,
-                (*cit_country, *cit_sf, *cit_inst, *ref_wid, *cit_wid),
-            ));
+            return Some((*cit_country, *cit_sf, *cit_inst, *ref_wid, *cit_wid));
         }
     }
 }
 
 impl<'a> Iterator for AuthorBestiePapers<'a> {
-    type Item = (
-        PartitionId,
-        StackFr<<Self as PartitioningIterator<'a>>::StackBasis>,
-    );
+    type Item = StackFr<<Self as PartitioningIterator<'a>>::StackBasis>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let ref_wid = reg_peek!(self.ref_wids);
-            let ref_per = self.gets.wperiod(ref_wid);
 
             let ref_any_ship = opt_peek!(
                 self.ref_ships,
@@ -1202,23 +1185,16 @@ impl<'a> Iterator for AuthorBestiePapers<'a> {
                 self.gets.wsubfields(*cit_wid)
             );
 
-            return Some((
-                *ref_per,
-                (*ref_author, *ref_wid, *cit_sf, *ref_wid, *cit_wid),
-            ));
+            return Some((*ref_author, *ref_wid, *cit_sf, *ref_wid, *cit_wid));
         }
     }
 }
 
 impl<'a> Iterator for AuthorBesties<'a> {
-    type Item = (
-        PartitionId,
-        StackFr<<Self as PartitioningIterator<'a>>::StackBasis>,
-    );
+    type Item = StackFr<<Self as PartitioningIterator<'a>>::StackBasis>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let ref_wid = reg_peek!(self.ref_wids);
-            let ref_per = self.gets.wperiod(ref_wid);
 
             let ref_any_ship = opt_peek!(
                 self.ref_ships,
@@ -1250,28 +1226,21 @@ impl<'a> Iterator for AuthorBesties<'a> {
             );
 
             return Some((
-                *ref_per,
-                (
-                    *ref_author,
-                    *self.gets.icountry(cit_inst),
-                    *cit_inst,
-                    *ref_wid,
-                    *cit_wid,
-                ),
+                *ref_author,
+                *self.gets.icountry(cit_inst),
+                *cit_inst,
+                *ref_wid,
+                *cit_wid,
             ));
         }
     }
 }
 
 impl<'a> Iterator for InstBesties<'a> {
-    type Item = (
-        PartitionId,
-        StackFr<<Self as PartitioningIterator<'a>>::StackBasis>,
-    );
+    type Item = StackFr<<Self as PartitioningIterator<'a>>::StackBasis>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let ref_wid = reg_peek!(self.ref_wids);
-            let ref_per = self.gets.wperiod(ref_wid);
 
             let ref_inst = opt_peek!(self.ref_insts, self.ref_wids, self.gets.winsts(*ref_wid));
             if *ref_inst == self.id {
@@ -1292,28 +1261,21 @@ impl<'a> Iterator for InstBesties<'a> {
             );
 
             return Some((
-                *ref_per,
-                (
-                    *self.gets.icountry(ref_inst),
-                    *ref_sf,
-                    *ref_inst,
-                    *ref_wid,
-                    *cit_wid,
-                ),
+                *self.gets.icountry(ref_inst),
+                *ref_sf,
+                *ref_inst,
+                *ref_wid,
+                *cit_wid,
             ));
         }
     }
 }
 
 impl<'a> Iterator for WorkingAuthors<'a> {
-    type Item = (
-        PartitionId,
-        StackFr<<Self as PartitioningIterator<'a>>::StackBasis>,
-    );
+    type Item = StackFr<<Self as PartitioningIterator<'a>>::StackBasis>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let ref_wid = reg_peek!(self.ref_wids);
-            let ref_per = self.gets.wperiod(ref_wid);
             let ref_any_ship = opt_peek!(
                 self.ref_ships,
                 self.ref_wids,
@@ -1349,28 +1311,21 @@ impl<'a> Iterator for WorkingAuthors<'a> {
                 self.gets.winsts(*cit_wid)
             );
             return Some((
-                *ref_per,
-                (
-                    *au_id,
-                    *self.gets.icountry(cit_inst),
-                    *cit_inst,
-                    *ref_wid,
-                    *cit_wid,
-                ),
+                *au_id,
+                *self.gets.icountry(cit_inst),
+                *cit_inst,
+                *ref_wid,
+                *cit_wid,
             ));
         }
     }
 }
 
 impl<'a> Iterator for SubfieldRefTopicCountryInst<'a> {
-    type Item = (
-        PartitionId,
-        StackFr<<Self as PartitioningIterator<'a>>::StackBasis>,
-    );
+    type Item = StackFr<<Self as PartitioningIterator<'a>>::StackBasis>;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let ref_wid = reg_peek!(self.ref_wids);
-            let ref_per = self.gets.wperiod(ref_wid);
             let ref_topic = opt_peek!(self.ref_topics, self.ref_wids, self.gets.wtopics(*ref_wid));
             let sf_id = self.gets.tsuf(ref_topic);
             if *sf_id != self.id {
@@ -1388,14 +1343,11 @@ impl<'a> Iterator for SubfieldRefTopicCountryInst<'a> {
                 self.gets.citing(*ref_wid)
             );
             return Some((
-                *ref_per,
-                (
-                    *ref_topic,
-                    *self.gets.icountry(ref_inst),
-                    *ref_inst,
-                    *ref_wid,
-                    *cit_wid,
-                ),
+                *ref_topic,
+                *self.gets.icountry(ref_inst),
+                *ref_inst,
+                *ref_wid,
+                *cit_wid,
             ));
         }
     }
@@ -1411,11 +1363,12 @@ where
 {
     type Root = R;
     type StackBasis = I::SB;
-    const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = I::RWB_IS_SPEC;
     const DEFAULT_PARTITION: u8 = 3;
-    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
-        let refs_it = R::LevelEntity::works_from_ram(&gets, id).iter().peekable();
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters, works: Range<WT>) -> Self {
+        let refs_it = within(R::LevelEntity::works_from_ram(gets, id), &works)
+            .iter()
+            .peekable();
         Self {
             gets,
             refs_it,
@@ -1431,18 +1384,18 @@ where
     StackFr<I::SB>: ExtendedWithRefWid,
     SB: StackBasis,
     SB::SortedRec: SortedRecord<FlatRecord = ExtItem<'a, I>>,
-    (PartitionId, StackFr<I::SB>): ExtendWithInst,
+    StackFr<I::SB>: ExtendWithInst,
     ExtendedFr<'a, I>: ExtendWithInst,
 {
     type Root = MinIntX<Countries>;
     type StackBasis = SB;
-    const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = false;
-    fn new(id: NET<Countries>, gets: &'a Getters) -> Self {
+    fn new(id: NET<Countries>, gets: &'a Getters, works: Range<WT>) -> Self {
         let insts = gets.country_insts(id).iter().peekable();
         Self {
             gets,
             insts,
+            works,
             pr_it: None,
             p: PhantomData,
         }
@@ -1456,12 +1409,11 @@ impl<'a> PartitioningIterator<'a> for CountryBesties<'a> {
         IntX<Subfields, 1, true>,
     );
     type Root = MinIntX<Countries>;
-    const PARTITIONS: usize = N_PERS;
-    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters, works: Range<WT>) -> Self {
         Self {
             gets,
             id,
-            ref_wids: gets.cworks(id).iter().peekable(),
+            ref_wids: within(gets.cworks(id), &works).iter().peekable(),
             ref_insts: None,
             ref_sfs: None,
             cit_wids: None,
@@ -1476,11 +1428,10 @@ impl<'a> PartitioningIterator<'a> for CountryCiters<'a> {
         IntX<Institutions, 2, false>,
     );
     type Root = MinIntX<Countries>;
-    const PARTITIONS: usize = N_PERS;
-    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters, works: Range<WT>) -> Self {
         Self {
             gets,
-            ref_wids: gets.cworks(id).iter().peekable(),
+            ref_wids: within(gets.cworks(id), &works).iter().peekable(),
             cit_insts: None,
             cit_sfs: None,
             cit_wids: None,
@@ -1495,13 +1446,12 @@ impl<'a> PartitioningIterator<'a> for AuthorBestiePapers<'a> {
         IntX<Subfields, 2, false>,
     );
     type Root = MinIntX<Authors>;
-    const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = false;
-    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters, works: Range<WT>) -> Self {
         Self {
             gets,
             id,
-            ref_wids: gets.aworks(id).iter().peekable(),
+            ref_wids: within(gets.aworks(id), &works).iter().peekable(),
             ref_ships: None,
             cit_sfs: None,
             cit_wids: None,
@@ -1516,13 +1466,12 @@ impl<'a> PartitioningIterator<'a> for AuthorBesties<'a> {
         IntX<Institutions, 1, false>,
     );
     type Root = MinIntX<Authors>;
-    const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = false;
-    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters, works: Range<WT>) -> Self {
         Self {
             gets,
             id,
-            ref_wids: gets.aworks(id).iter().peekable(),
+            ref_wids: within(gets.aworks(id), &works).iter().peekable(),
             ref_ships: None,
             cit_insts: None,
             cit_wids: None,
@@ -1537,12 +1486,11 @@ impl<'a> PartitioningIterator<'a> for InstBesties<'a> {
         IntX<Institutions, 0, true>,
     );
     type Root = MinIntX<Institutions>;
-    const PARTITIONS: usize = N_PERS;
-    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters, works: Range<WT>) -> Self {
         Self {
             gets,
             id,
-            ref_wids: gets.iworks(id).iter().peekable(),
+            ref_wids: within(gets.iworks(id), &works).iter().peekable(),
             ref_insts: None,
             ref_sfs: None,
             cit_wids: None,
@@ -1557,13 +1505,12 @@ impl<'a> PartitioningIterator<'a> for WorkingAuthors<'a> {
         IntX<Institutions, 1, false>,
     );
     type Root = MinIntX<Institutions>;
-    const PARTITIONS: usize = N_PERS;
     const IS_SPEC: bool = false;
-    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters, works: Range<WT>) -> Self {
         Self {
             gets,
             id,
-            ref_wids: gets.iworks(id).iter().peekable(),
+            ref_wids: within(gets.iworks(id), &works).iter().peekable(),
             cit_insts: None,
             ref_ships: None,
             cit_wids: None,
@@ -1578,12 +1525,11 @@ impl<'a> PartitioningIterator<'a> for SubfieldRefTopicCountryInst<'a> {
         IntX<Institutions, 1, true>,
     );
     type Root = MinIntX<Subfields>;
-    const PARTITIONS: usize = N_PERS;
-    fn new(id: NetRoot<'a, Self>, gets: &'a Getters) -> Self {
+    fn new(id: NetRoot<'a, Self>, gets: &'a Getters, works: Range<WT>) -> Self {
         Self {
             gets,
             id,
-            ref_wids: gets.sfworks(id).iter().peekable(),
+            ref_wids: within(gets.sfworks(id), &works).iter().peekable(),
             ref_insts: None,
             ref_topics: None,
             cit_wids: None,
@@ -1690,15 +1636,15 @@ mod tests {
     fn author_co_author_trees_count_team_papers_only() {
         let gets = team_and_collaboration();
         let root = ET::<Authors>::from_usize(0);
-        let besties: Vec<_> = AuthorBesties::new(root, &gets)
-            .map(|(_, (co_author, _, cit_inst, ref_wid, _))| {
+        let besties: Vec<_> = AuthorBesties::new(root, &gets, 0..WT::MAX)
+            .map(|(co_author, _, cit_inst, ref_wid, _)| {
                 (co_author.to_usize(), cit_inst.to_usize(), ref_wid)
             })
             .collect();
         let expected: Vec<_> = (1..TEAM).map(|co| (co, CITING_INST, TEAM_WID)).collect();
         assert_eq!(besties, expected);
-        let paper_besties: Vec<_> = AuthorBestiePapers::new(root, &gets)
-            .map(|(_, (co_author, ref_wid, ..))| (co_author.to_usize(), ref_wid))
+        let paper_besties: Vec<_> = AuthorBestiePapers::new(root, &gets, 0..WT::MAX)
+            .map(|(co_author, ref_wid, ..)| (co_author.to_usize(), ref_wid))
             .collect();
         let expected: Vec<_> = (1..TEAM).map(|co| (co, TEAM_WID)).collect();
         assert_eq!(paper_besties, expected);
@@ -1708,8 +1654,8 @@ mod tests {
     fn institution_authors_count_team_papers_under_their_citing_institutions() {
         let gets = team_and_collaboration();
         let root = ET::<Institutions>::from_usize(ROOT_INST);
-        let records: Vec<_> = WorkingAuthors::new(root, &gets)
-            .map(|(_, (_, _, cit_inst, ref_wid, _))| (cit_inst.to_usize(), ref_wid))
+        let records: Vec<_> = WorkingAuthors::new(root, &gets, 0..WT::MAX)
+            .map(|(_, _, cit_inst, ref_wid, _)| (cit_inst.to_usize(), ref_wid))
             .collect();
         assert_eq!(records, vec![(CITING_INST, TEAM_WID); TEAM]);
     }

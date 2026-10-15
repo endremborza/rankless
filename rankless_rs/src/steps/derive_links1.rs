@@ -13,7 +13,7 @@ use crate::{
         a2_init_atts::{
             AuthorshipFilteredAuthor, DiscardedAuthorshipInstitutions,
             FilteredAuthorshipInstitutions, InstCountries, TopicSubfields, WorkAnyAuthorships,
-            WorkReferences, WorkSources, WorkTopics, WorkYears,
+            WorkReferences, WorkSources, WorkTopics,
         },
     },
     metrics::WORK_SCREEN,
@@ -27,9 +27,6 @@ use dmove::{
     ET,
 };
 
-use super::a1_entity_mapping::{YearInterface, N_PERS, POSSIBLE_YEAR_FILTERS};
-
-pub struct WorkPeriods {}
 pub struct CountryInsts {}
 
 pub struct InvertedMultiLink<L: Link>
@@ -38,29 +35,6 @@ where
 {
     pub data: Arc<[Box<[NET<L::Source>]>]>,
     _marker: PhantomData<L>,
-}
-
-impl WorkPeriods {
-    pub fn from_year(year: u16) -> ET<Self> {
-        for i in (0..N_PERS).rev() {
-            if year >= POSSIBLE_YEAR_FILTERS[i] {
-                return i as u8;
-            }
-        }
-        0
-    }
-}
-
-impl MarkedBackendLoader<QuickestBox> for WorkPeriods {
-    type BE = BeS<QuickestBox, Self>;
-    fn load(stowage: &Stowage) -> Self::BE {
-        let wys = stowage.get_entity_interface::<WorkYears, ReadFixIter>();
-        wys.map(|y_id| {
-            let y = YearInterface::reverse(y_id);
-            Self::from_year(y)
-        })
-        .collect()
-    }
 }
 
 impl MarkedBackendLoader<QuickestVBox> for CountryInsts {
@@ -87,20 +61,10 @@ impl MarkedBackendLoader<QuickAttPair> for CountryInsts {
     }
 }
 
-impl Entity for WorkPeriods {
-    type T = u8;
-    const N: usize = Works::N;
-    const NAME: &'static str = "work-periods";
-}
-
 impl Entity for CountryInsts {
     type T = Box<[ET<Institutions>]>;
     const N: usize = Countries::N;
     const NAME: &'static str = "country-insts";
-}
-
-impl MappableEntity for WorkPeriods {
-    type KeyType = usize;
 }
 
 impl MappableEntity for CountryInsts {
