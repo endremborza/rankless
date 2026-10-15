@@ -6,13 +6,16 @@
                               thumbnail, then, in the number of columns that comes closest to a
                               square, sections a scholar can read into: the hit papers with their
                               titles, the co-author timeline, the collaboration network with the
-                              most frequent co-authors, journals, citing countries, the hit papers
-                              that build on the work (the PNG at most `PNG_MAX_SIDE` on a side);
+                              most frequent co-authors (stretched to fill its column), journals,
+                              citing countries, the hit papers that build on the work (the PNG at
+                              most `PNG_MAX_SIDE` on a side);
   <key>-<section>.svg         each section on its own, for a designer to rearrange;
   <key>.txt                   every text and number on the image, to paste instead of retype;
 With a "joint" block it also writes joint-landscape/-portrait: the named hit papers as
-cumulative citation curves against the top bar. Pictures are the INNER box of the site's own
-card SVGs, fetched from `RANKLESS_RENDER_URL`; every number is read from `--backend`. A
+cumulative citation curves against the top bar. The network is drawn here, a force layout
+around the person with co-authors who read the same as one node; the other pictures are the
+INNER box of the site's own card SVGs, fetched from `RANKLESS_RENDER_URL`. Every number is
+read from `--backend`. A
 tree band the card left unlabelled, its name too long for it, gets the name or its ISO 4
 abbreviation (`ABBREV`, `SHORT`) when one fits.
 
@@ -99,6 +102,7 @@ PALETTE = [
 ]
 STAT_COLORS = ["#269ada", "#7d0082", "#e1b01e"]
 MARKED, UNMARKED = "#7d0082", "#9aa0a6"
+NETWORK_INK = SPECTRUM[2]
 # The rows of a card's INNER box a closed tree draws in, as (top, height).
 TREE_BAND = (24, 294)
 FINAL_YEAR = METHODOLOGY["workScreen"]["finalYear"]
@@ -176,6 +180,11 @@ SHORT = {
 TREE_LINE, TREE_PAD, TREE_LABEL_MAX, TREE_LABEL_MIN = 15, 1, 0.55, 18
 SECTIONS = ("hits", "network", "impact", "journals", "countries")
 NETWORK_NODES = KINDS["network"]["params"]["n"]["default"]
+# The network picture's height before it stretches to fill its column, its co-authors' smallest
+# and largest radius, the person's radius, the room its nodes keep from the picture's sides, the
+# sizes of the person's and the co-authors' names and the steps its layout takes.
+NETWORK_H, NODE_R, HUB_R, NETWORK_PAD = 1100, (14, 46), 40, 120
+HUB_LABEL, NODE_LABEL, NETWORK_STEPS = 46, 32, 400
 TIMELINE = KINDS["timeline"]["params"]
 # What each drawn section says, for the text file that goes with an infographic.
 COPY: list[str] = []
@@ -584,21 +593,23 @@ def tree_bands(
 
 def coauthors(
     papers: list[dict], me: str, shown: Callable[[str], str]
-) -> tuple[dict[str, list[int]], dict[str, list[int]]]:
+) -> tuple[dict[str, list[int]], dict[str, list[int]], list[set[str]]]:
     """The years of the shared papers per co-author id, in the order the papers first name
     them, and per shown name, over the papers the site draws co-author relations from
-    (`TEAM_LIMIT`)."""
+    (`TEAM_LIMIT`); with each of those papers' co-authors by shown name."""
     by_id: dict[str, list[int]] = {}
     collab: dict[str, list[int]] = {}
+    teams: list[set[str]] = []
     for p in papers:
         if p["authorCount"] > TEAM_LIMIT or p["year"] <= 0:
             continue
         ids = [a["author"] for a in p["authorships"] if a["author"] != me]
         for k in ids:
             by_id.setdefault(k, []).append(p["year"])
-        for n in {shown(k) for k in ids}:
+        teams.append({shown(k) for k in ids})
+        for n in teams[-1]:
             collab.setdefault(n, []).append(p["year"])
-    return by_id, collab
+    return by_id, collab, teams
 
 
 def author(spec: dict) -> dict:
@@ -671,6 +682,7 @@ def author(spec: dict) -> dict:
         ],
         "skip_papers": spec.get("papers", {}).get("skip", []),
         "collab": collab,
+        "teams": teams,
         "years": (min(p["year"] for p in papers), max(p["year"] for p in papers)),
         "hits": hits,
         "coauthors": sorted(
@@ -1027,7 +1039,9 @@ def marks_of(a: dict, cfg: dict, spec: dict) -> list[Mark]:
     return list(named.items())
 
 
-def network_section(marks: list[Mark]) -> Section:
+def network_section(marks: list[Mark], height: float = NETWORK_H) -> Section:
+    """The person and their most frequent co-authors, the picture `height` high."""
+
     def draw(a: dict, x: float, y: float, room: float) -> tuple[Svg, float]:
         top_name, top_n = a["coauthors"][0]
         caption = f"Most frequent co-author: {top_name}, {top_n} shared papers."
@@ -1036,19 +1050,200 @@ def network_section(marks: list[Mark]) -> Section:
         )
         sub = "co-authors sized by shared papers; ties are their joint papers"
         out, y = section_head(x, y, "Collaboration network", sub, caption, room)
-        nodes = {
-            r["semanticId"]
-            for r in a["view"]["relations"]["paper-authors"][:NETWORK_NODES]
-        }
-        on = [a["team"][k]["sem"] for k, _ in marks if a["team"][k]["sem"] in nodes]
-        ref = f"authors/{a['sem']}/network" + (f"?with={','.join(on)}" if on else "")
-        svg, h = panel(ref, x, y, room, "n-")
-        out.append(svg)
+        on = {name for _, name in marks}
+        out += network_picture(
+            a, a["coauthors"][:NETWORK_NODES], on, x, y, room, height
+        )
         items = [(n, f"{c} shared papers") for n, c in a["coauthors"][:8]]
-        parts, y = name_list(items, x, y + h + 56, room)
+        parts, y = name_list(items, x, y + height + 56, room)
         return out + parts, y
 
     return draw
+
+
+def network_picture(
+    a: dict,
+    nodes: list[tuple[str, int]],
+    on: set[str],
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+) -> Svg:
+    """The person at the centre of a `w`×`h` box, joined to each co-author of `nodes` (name,
+    shared papers), the co-authors sized by their shared papers and tied by the papers they
+    share with each other; `on` names the highlighted ones."""
+    names = [n for n, _ in nodes]
+    at = {n: i for i, n in enumerate(names)}
+    most = max(c for _, c in nodes)
+    ties: Counter[tuple[int, int]] = Counter()
+    for team in a["teams"]:
+        ids = sorted(at[n] for n in team if n in at)
+        ties.update(itertools.combinations(ids, 2))
+    strongest = max(ties.values(), default=1)
+    rate = {pair: math.sqrt(c / strongest) for pair, c in ties.items()}
+    share = [math.sqrt(c / most) for _, c in nodes]
+    lo, hi = NODE_R
+    radii = [lo + (hi - lo) * s for s in share]
+    pos = network_layout(len(nodes), rate, w, h, NETWORK_PAD)
+    cx, cy = w / 2, h / 2
+    hub = (cx, cy, HUB_R)
+    circles = [hub, *((px, py, r) for (px, py), r in zip(pos, radii))]
+    labels = place_labels(
+        circles,
+        [[a["name"]], *([n, n.split()[-1]] for n in names)],
+        [
+            0,
+            *sorted(
+                range(1, len(circles)),
+                key=lambda i: (names[i - 1] not in on, -radii[i - 1]),
+            ),
+        ],
+        w,
+        h,
+    )
+    out = [f'<svg x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}">']
+    out += [
+        f'<line x1="{cx:.1f}" y1="{cy:.1f}" x2="{px:.1f}" y2="{py:.1f}" stroke="{HAIR}" '
+        'stroke-width="2"/>'
+        for px, py in pos
+    ]
+    for (i, j), r in sorted(rate.items(), key=lambda t: t[1]):
+        lit = names[i] in on or names[j] in on
+        out.append(
+            f'<line x1="{pos[i][0]:.1f}" y1="{pos[i][1]:.1f}" x2="{pos[j][0]:.1f}" '
+            f'y2="{pos[j][1]:.1f}" stroke="{MARKED if lit else NETWORK_INK}" '
+            f'stroke-width="{2 + 10 * r:.1f}" stroke-opacity="{0.25 + 0.5 * r:.2f}"/>'
+        )
+    out.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{HUB_R}" fill="{INK}"/>')
+    for (px, py), r, n in zip(pos, radii, names):
+        lit = n in on
+        out += [
+            f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{r:.1f}" fill="{PAPER}"/>',
+            f'<circle cx="{px:.1f}" cy="{py:.1f}" r="{r:.1f}" fill="{NETWORK_INK}" '
+            f'fill-opacity="0.22" stroke="{MARKED if lit else NETWORK_INK}" '
+            f'stroke-width="{5 if lit else 3}"/>',
+        ]
+    for k, label in enumerate(labels):
+        if label is None:
+            continue
+        s, lx, ly, anchor, (bx, by, bw, bh) = label
+        face = "serif" if k == 0 else "sans"
+        size = HUB_LABEL if k == 0 else NODE_LABEL
+        lit = k > 0 and names[k - 1] in on
+        out += [
+            f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bw:.1f}" height="{bh:.1f}" rx="4" '
+            f'fill="{PAPER}" fill-opacity="0.85"/>',
+            text(lx, ly, s, size, face, MARKED if lit else INK, anchor),
+        ]
+    return [*out, "</svg>"]
+
+
+def network_layout(
+    n: int, rate: dict[tuple[int, int], float], w: float, h: float, pad: float
+) -> list[tuple[float, float]]:
+    """Positions in a `w`×`h` box, `pad` clear of its sides, for `n` nodes around a hub at its
+    centre: a Fruchterman–Reingold layout in which every node repels the others and the hub,
+    is tied to the hub, and each pair is pulled towards each other by its `rate` (0–1). The
+    nodes start on a spiral in their order, so a layout is reproducible. O(NETWORK_STEPS · n²)."""
+    cx, cy = w / 2, h / 2
+    k = math.sqrt((w - 2 * pad) * (h - 2 * pad) / (n + 1))
+    turn = math.pi * (3 - math.sqrt(5))
+    pos = [
+        [
+            cx + (w / 2 - pad) * math.sqrt((i + 1) / n) * math.cos(i * turn),
+            cy + (h / 2 - pad) * math.sqrt((i + 1) / n) * math.sin(i * turn),
+        ]
+        for i in range(n)
+    ]
+    for step in range(NETWORK_STEPS):
+        move = [[0.0, 0.0] for _ in range(n)]
+        for i in range(n):
+            for j in range(i + 1, n):
+                dx, dy = pos[i][0] - pos[j][0], pos[i][1] - pos[j][1]
+                f = k * k / max(dx * dx + dy * dy, 1.0)
+                move[i][0] += dx * f
+                move[i][1] += dy * f
+                move[j][0] -= dx * f
+                move[j][1] -= dy * f
+            dx, dy = pos[i][0] - cx, pos[i][1] - cy
+            d = max(math.hypot(dx, dy), 1.0)
+            f = k * k / (d * d) - d / k
+            move[i][0] += dx * f
+            move[i][1] += dy * f
+        for (i, j), r in rate.items():
+            dx, dy = pos[i][0] - pos[j][0], pos[i][1] - pos[j][1]
+            f = r * math.hypot(dx, dy) / k
+            move[i][0] -= dx * f
+            move[i][1] -= dy * f
+            move[j][0] += dx * f
+            move[j][1] += dy * f
+        heat = k * (1 - step / NETWORK_STEPS)
+        for (dx, dy), p in zip(move, pos):
+            d = max(math.hypot(dx, dy), 1e-9)
+            p[0] = min(max(p[0] + dx / d * min(d, heat), pad), w - pad)
+            p[1] = min(max(p[1] + dy / d * min(d, heat), pad), h - pad)
+    return [(px, py) for px, py in pos]
+
+
+Box = tuple[float, float, float, float]
+Label = tuple[str, float, float, str, Box]
+
+
+def place_labels(
+    circles: list[tuple[float, float, float]],
+    texts: list[list[str]],
+    order: list[int],
+    w: float,
+    h: float,
+) -> list[Label | None]:
+    """A label per circle (x, y, r), placed greedily in `order`: the first of its `texts`, at
+    the first spot (outward beside it, inward beside it, below, above) that stays in the `w`×`h`
+    box and clear of every other circle and every label placed before. The first circle is the
+    hub, its one text set in the serif. A label keeps a gap to every other; a circle with no
+    free spot gets no label."""
+    cx = w / 2
+    taken: list[Box] = [(x - r, y - r, 2 * r, 2 * r) for x, y, r in circles]
+    out: list[Label | None] = [None] * len(circles)
+    for i in order:
+        x, y, r = circles[i]
+        face, size = ("serif", HUB_LABEL) if i == 0 else ("sans", NODE_LABEL)
+        side = 1 if x >= cx else -1
+        others = [b for k, b in enumerate(taken) if k != i]
+        for s in texts[i]:
+            tw = width(s, size, face)
+            spots = [
+                (x + side * (r + 10), y + size * 0.35, "start" if side > 0 else "end"),
+                (x - side * (r + 10), y + size * 0.35, "end" if side > 0 else "start"),
+                (x, y + r + 10 + size * 0.8, "middle"),
+                (x, y - r - 10 - size * 0.25, "middle"),
+            ]
+            for lx, ly, anchor in spots:
+                left = {"start": lx, "end": lx - tw, "middle": lx - tw / 2}[anchor]
+                box = (left - 6, ly - size * 0.85, tw + 12, size * 1.15)
+                clear = (box[0] - 12, box[1] - 4, box[2] + 24, box[3] + 8)
+                inside = (
+                    box[0] >= 0
+                    and box[1] >= 0
+                    and box[0] + box[2] <= w
+                    and box[1] + box[3] <= h
+                )
+                if inside and not any(overlap(clear, b) for b in others):
+                    out[i] = (s, lx, ly, anchor, box)
+                    taken.append(box)
+                    break
+            if out[i] is not None:
+                break
+    return out
+
+
+def overlap(a: Box, b: Box) -> bool:
+    return (
+        a[0] < b[0] + b[2]
+        and b[0] < a[0] + a[2]
+        and a[1] < b[1] + b[3]
+        and b[1] < a[1] + a[3]
+    )
 
 
 def name_list(
@@ -1259,15 +1454,23 @@ def laureate_header(
     return body, max(y, (230 + (len(stats) - 1) * 205 + 52) * z) + 70 * z
 
 
-def deal(heights: list[float], k: int) -> list[list[int]]:
-    """The sections dealt into `k` columns, each column keeping their order: the dealing with
-    the shortest tallest column, the first section in the first column."""
-    best: tuple[float, list[list[int]]] | None = None
+def deal(
+    heights: list[float], k: int, flexible: frozenset[int] = frozenset()
+) -> list[list[int]]:
+    """The sections dealt into `k` columns, each column keeping their order: the dealing that
+    leaves the least blank below its columns, then the one with the shortest tallest column,
+    the first section in the first column. A column holding a `flexible` section leaves none,
+    since that section stretches to the tallest column."""
+    best: tuple[tuple[float, float], list[list[int]]] | None = None
     for cols in itertools.product(range(k), repeat=len(heights)):
         dealt = [[i for i, c in enumerate(cols) if c == j] for j in range(k)]
-        tallest = max(sum(heights[i] for i in col) for col in dealt)
-        if best is None or tallest < best[0]:
-            best = (tallest, dealt)
+        sums = [sum(heights[i] for i in col) for col in dealt]
+        tallest = max(sums)
+        blank = sum(
+            tallest - s for s, col in zip(sums, dealt) if not flexible & set(col)
+        )
+        if best is None or (blank, tallest) < best[0]:
+            best = ((blank, tallest), dealt)
     assert best is not None
     return best[1]
 
@@ -1286,18 +1489,21 @@ def laureate_infographic(a: dict, cfg: dict, spec: dict, out: Path) -> None:
         "",
     ]
     blocks: list[tuple[Section, float]] = []
+    flexible: set[int] = set()
     for name, draw in laureate_sections(a, spec, marks):
         COPY.clear()
         solo, end = draw(a, 60, 100, ROOM)
         write(out, f"{key}-{name}", ROOM + 120, end + 50, solo, png=False)
         texts += [*COPY, *section_lists(a, name, spec, marks), ""]
+        if name == "network":
+            flexible.add(len(blocks))
         blocks.append((draw, end + 70))
     heights = [h for _, h in blocks]
 
     def layout(k: int) -> tuple[float, float, list[list[int]]]:
         W = k * ROOM + (k - 1) * GUTTER + 2 * MARGIN
         _, top = laureate_header(a, cfg, spec, W, W / (ROOM + 2 * MARGIN))
-        cols = deal(heights, k)
+        cols = deal(heights, k, frozenset(flexible))
         H = (
             top
             + max(sum(heights[i] for i in c) for c in cols)
@@ -1311,10 +1517,14 @@ def laureate_infographic(a: dict, cfg: dict, spec: dict, out: Path) -> None:
     z = W / (ROOM + 2 * MARGIN)
     body, top = laureate_header(a, cfg, spec, W, z)
     bottom = top
+    tallest = max(sum(heights[i] for i in c) for c in cols)
     for j, col in enumerate(cols):
         x, y = MARGIN + j * (ROOM + GUTTER), top
+        slack = tallest - sum(heights[i] for i in col)
         for i in col:
             draw, h = blocks[i]
+            if i in flexible:
+                draw, h = network_section(marks, NETWORK_H + slack), h + slack
             body.append(hline(x, x + ROOM, y))
             body += draw(a, x, y + 110, ROOM)[0]
             y += h

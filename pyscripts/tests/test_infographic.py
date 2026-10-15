@@ -1,3 +1,5 @@
+import math
+
 from pyscripts.explore import infographic
 
 
@@ -15,9 +17,10 @@ def test_coauthors_skip_papers_the_site_draws_no_coauthor_relation_from():
         paper(2002, ["me", "small", "alphabetical"], infographic.TEAM_LIMIT + 1),
         paper(2003, ["me", "small"]),
     ]
-    by_id, collab = infographic.coauthors(papers, "me", str.upper)
+    by_id, collab, teams = infographic.coauthors(papers, "me", str.upper)
     assert by_id == {"small": [2001, 2003]}
     assert collab == {"SMALL": [2001, 2003]}
+    assert teams == [{"SMALL"}, {"SMALL"}]
 
 
 def test_timeline_rows_keep_a_marked_coauthor_in_its_sorted_place():
@@ -71,3 +74,15 @@ def test_sections_deal_into_the_columns_with_the_shortest_tallest_one():
     assert cols[0][0] == 0
     assert max(sum([5, 3, 3, 2, 1][i] for i in c) for c in cols) == 7
     assert all(c == sorted(c) for c in cols)
+
+
+def test_a_flexible_section_takes_the_column_that_would_stay_blank():
+    cols = infographic.deal([6, 2, 4, 4, 4], 3, frozenset({2}))
+    assert cols == [[0, 1], [2], [3, 4]]
+
+
+def test_a_network_layout_keeps_its_nodes_in_the_box_and_ties_together():
+    pos = infographic.network_layout(4, {(1, 2): 1.0}, 900, 600, 50)
+    assert all(50 <= x <= 850 and 50 <= y <= 550 for x, y in pos)
+    tied = math.dist(pos[1], pos[2])
+    assert tied < math.dist(pos[1], pos[3]) and tied < math.dist(pos[2], pos[3])
