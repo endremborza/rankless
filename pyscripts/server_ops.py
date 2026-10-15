@@ -99,6 +99,8 @@ class ServerConfig:
     data_root: Path
     binary: Path = field(default_factory=lambda: DEFAULT_BINARY)
     port: int = PORT
+    flags: tuple[str, ...] = ()
+    env: dict[str, str] = field(default_factory=dict)
 
     @property
     def base_url(self) -> str:
@@ -136,9 +138,10 @@ class ServerProcess:
         if log_path:
             self._log_handle = log_path.open("wb")
         self._proc = subprocess.Popen(
-            [str(self.config.binary), str(self.config.data_root)],
+            [str(self.config.binary), *self.config.flags, str(self.config.data_root)],
             stdout=self._log_handle,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT if self._log_handle else subprocess.DEVNULL,
+            env={**os.environ, **self.config.env},
         )
 
     def wait_ready(self, max_attempts: int = 500) -> None:

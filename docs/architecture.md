@@ -371,6 +371,7 @@ the only viz dependency).
 | `server_ops.py` | `ServerProcess`, `DockerServer`/`FlaskPgServer`, self-healing `build_image()`, `build_server()`, `current_branch()`, `checkout()` |
 | `stow_ops.py` | `StowManager` (rsync stash per branch), `RebuildLevel` |
 | `bm.py` | Benchmark suite: latency/throughput/memory across branches |
+| `tree_bench.py` | `tree-bench run`: every warm tree of one data root built cold, one at a time, by one server binary (per-tree wall time, peak resident memory via `clear_refs` + `VmHWM`, startup memory full and trees-only, a year-walking build's records and runs); `tree-bench compare`: two runs side by side, with the structural diff of their trees (entity keys as names, so two pipeline runs compare); the mega test's last step (see [benchmarking](benchmarking.md)) |
 | `branch_comparison.py` | Branch-to-branch structural diff + timing (see [benchmarking](benchmarking.md)) |
 | `sql_comparison.py` | Flask/PostgreSQL vs Rust diff + benchmark; two Docker containers |
 | `comparison_driver.py` | Shared comparison skeleton: `prepare_backend`, `sample_entities`, `run_query_loop`, `write_artifacts` |

@@ -19,6 +19,7 @@ missing/broken dependency in one (e.g. `bench` needs `psutil`) never breaks the 
 | `compare-branch` | `pyscripts/branch_comparison.py` | Perf comparison of two git refs (worktree-isolated) — `tlog` phase timing + cgroup peak memory, with a structural-diff correctness guard. See the "Branch comparison (perf)" section below |
 | `compare-sql` | `pyscripts/sql_comparison.py` | Flask/PostgreSQL vs Rust — structural diff, Pearson, relative error |
 | `bench` | `pyscripts/bm.py` | Local throughput + memory benchmark; auto-compares current branch vs `rankless-main` |
+| `tree-bench` | `pyscripts/tree_bench.py` | The warm's trees of one data root, built cold one at a time by one binary — per-tree wall time and peak memory, startup memory — and two such runs compared. See the "Tree bench" section below |
 | `cache <action>` | `pyscripts/cache_prompting.py` | Warm/validate the server response cache (`prep`/`read`/`rest`/`validate-*`) |
 
 `compare-sql` is thin: it defines only its backend pair and a `fetch_pair` callback over the
@@ -131,6 +132,22 @@ b = "1c01d0178~1"          # BinaryHeap<Reverse<T>> baseline
 Caveats / ideas: per-query `memory.peak` reset is unavailable (cgroupfs is read-only in the
 container) — the small→large query ordering is the workaround; an optional `--profile profiling`
 (fast non-LTO build) is worth adding when only relative phase ratios are needed.
+
+### Tree bench
+
+Measures what the cache warm costs on one (binary, data root) pair, so two builds that differ in their pipeline as well as their server — a renumbering of the works, say — compare on their own data roots.
+
+```bash
+uv run -m pyscripts tree-bench run --binary target/release/rankless-server --root "$OA_ROOT" --label cand --trees-only
+uv run -m pyscripts tree-bench run --binary <base worktree>/target/release/rankless-server --root <base root> --label base
+uv run -m pyscripts tree-bench compare base cand
+```
+
+`run` empties the root's tree cache, starts the binary on the backend port (stopping the backend service for the run when it holds the port, starting it again after), takes the warm's worklist (`BatchRequester` at `DEFAULT_MIN_CITATIONS`) and requests every tree once, smallest first, one in flight; every request computes and writes all periods, the warm's work. Per tree it records the wall time of the request and the peak resident memory over it: `VmHWM` minus the resident set before, the high-water mark reset through `/proc/<pid>/clear_refs` just before the request, with the server under `MIMALLOC_PURGE_DELAY=0` so freed pages leave the resident set at once and each peak is the tree's own. It also records the resident set at startup (and, with `--trees-only`, a full startup's before the trees-only one), a year-walking build's records, runs and largest run per tree (from its log line), and the served trees with entity keys replaced by names, since dm ids follow file order and differ between pipeline runs (two entities of one name under one parent collapse into one node). A run lands in `logs/tree-bench/<label>/`.
+
+`compare` joins two runs on (root type, semantic id, tid) and prints startup memory, the wall time and peak per tree-size bin (M cut_basis), seconds and GB per M cut_basis over the trees of at least 1M, and per-tree structural diffs (`tree_diff`: the share of shared nodes whose link and source counts are equal, link-count Pearson and relative error, missing nodes, top source agreement).
+
+The mega test (`pyscripts/mega_test.py`) ends with a trees-only `run` of the root it rebuilt and writes its summary into `docs/mega-test-last-run.md`; a baseline is a `run` of another build's binary on that build's root.
 
 ### SQL / reference comparison
 

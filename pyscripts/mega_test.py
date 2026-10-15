@@ -12,9 +12,12 @@ Flow
    stamp → restart), wait for backend.
 5. Playwright post-pipeline: verify applied events (incl. the claim) + the
    pinned owner's restored oeuvre on the author page.
+6. Tree bench (`pyscripts/tree_bench.py`): every warm tree of the rebuilt root,
+   built cold one at a time by a trees-only backend, into logs/tree-bench/; the
+   run is what `tree-bench compare` holds against another build's.
 
-Records the outcome (timestamp, result, duration) to docs/mega-test-last-run.md
-on every run, pass or fail.
+Records the outcome (timestamp, result, duration, bench summary) to
+docs/mega-test-last-run.md on every run, pass or fail.
 
 Usage
 ─────
@@ -35,10 +38,10 @@ from pathlib import Path
 
 from wire.rankless_rs.user_ledger import FORCED_WORKS
 
-from . import paths
+from . import paths, tree_bench
 from .deploy import be_service_name
 from .dev._common import FRONTEND_PORT, TEST_ORCID
-from .server_ops import DEFAULT_BE_ADDR
+from .server_ops import DEFAULT_BE_ADDR, DEFAULT_BINARY
 
 BASE_URL = f"http://localhost:{FRONTEND_PORT}"
 BE_URL = f"{DEFAULT_BE_ADDR}/v1"
@@ -216,12 +219,32 @@ def _assert_release_record() -> None:
     )
 
 
+def _bench_trees() -> str:
+    """Bench the rebuilt root's warm trees; returns the run record's summary."""
+    label = f"mega-{datetime.now():%Y%m%d-%H%M}"
+    out = tree_bench.run(
+        binary=str(REPO_ROOT / DEFAULT_BINARY),
+        root=os.environ["OA_ROOT"],
+        label=label,
+        trees_only=True,
+    )
+    rec = json.loads((out / tree_bench.RECORD).read_text())
+    gb = tree_bench.GB_KB
+    trees = rec["trees"]
+    return (
+        f"{len(trees)} trees in {sum(t['wall_s'] for t in trees):.0f} s, "
+        f"largest peak {max(t['peak_kb'] for t in trees) / gb:.2f} GB; resident at startup "
+        f"{rec['full_startup']['rss_kb'] / gb:.2f} GB full, {rec['startup']['rss_kb'] / gb:.2f} GB "
+        f"trees-only (`tree-bench compare <base> {label}`)"
+    )
+
+
 def _fmt_duration(elapsed: float) -> str:
     minutes, seconds = divmod(int(elapsed), 60)
     return f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
 
 
-def _write_run_record(outcome: str, detail: str, elapsed: float) -> None:
+def _write_run_record(outcome: str, detail: str, elapsed: float, bench: str) -> None:
     stamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
     RUN_RECORD.write_text(
         "# Mega-test — last run\n\n"
@@ -229,13 +252,14 @@ def _write_run_record(outcome: str, detail: str, elapsed: float) -> None:
         f"- **Result:** {outcome}\n"
         f"- **Duration:** {_fmt_duration(elapsed)}\n"
         f"- **Detail:** {detail}\n"
+        f"- **Tree bench:** {bench}\n"
     )
     print(f"Run record written to {RUN_RECORD}", flush=True)
 
 
 def main() -> None:
     start_time = time.monotonic()
-    outcome, detail = "FAILED", "did not complete"
+    outcome, detail, bench = "FAILED", "did not complete", "not run"
     dev_server: "subprocess.Popen | None" = None
     try:
         _run(["make", "nuke"])
@@ -258,8 +282,11 @@ def main() -> None:
             detail = f"post-pipeline playwright exited {rc}"
             raise SystemExit(f"\n[FAIL] {detail}")
 
+        bench = _bench_trees()
         outcome = "PASSED"
-        detail = "pre-pipeline, pipeline rebuild, and post-pipeline all green"
+        detail = (
+            "pre-pipeline, pipeline rebuild, post-pipeline and tree bench all green"
+        )
         print("\n[OK] mega-test passed.", flush=True)
     except BaseException as e:
         if detail == "did not complete":
@@ -273,7 +300,7 @@ def main() -> None:
                 dev_server.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 dev_server.kill()
-        _write_run_record(outcome, detail, elapsed)
+        _write_run_record(outcome, detail, elapsed, bench)
         print(f"\nTotal time: {_fmt_duration(elapsed)}", flush=True)
 
 

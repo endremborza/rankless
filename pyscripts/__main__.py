@@ -14,6 +14,7 @@ COMMANDS = {
     "compare-sql": "pyscripts.sql_comparison",
     "compare-branch": "pyscripts.branch_comparison",
     "bench": "pyscripts.bm",
+    "tree-bench": "pyscripts.tree_bench",
     "cache": "pyscripts.cache_prompting",
     "recalc": "pyscripts.recalc",
     "claims": "pyscripts.claims",
