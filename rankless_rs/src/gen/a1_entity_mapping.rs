@@ -28,20 +28,6 @@ pub struct AuthorshipsDiscardedAuthor {}
 
 pub struct Institutions {}
 
-impl Entity for Domains {
-    type T = u8;
-    const N: usize = 5;
-    const NAME: &str = "domains";
-}
-
-impl MappableEntity for Domains {
-    type KeyType = u64;
-}
-
-impl NamespacedEntity for Domains {
-    const NS: &str = "a1_entity_mapping";
-}
-
 impl Entity for Fields {
     type T = u8;
     const N: usize = 27;
@@ -53,6 +39,20 @@ impl MappableEntity for Fields {
 }
 
 impl NamespacedEntity for Fields {
+    const NS: &str = "a1_entity_mapping";
+}
+
+impl Entity for Domains {
+    type T = u8;
+    const N: usize = 5;
+    const NAME: &str = "domains";
+}
+
+impl MappableEntity for Domains {
+    type KeyType = u64;
+}
+
+impl NamespacedEntity for Domains {
     const NS: &str = "a1_entity_mapping";
 }
 

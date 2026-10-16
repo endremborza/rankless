@@ -30,9 +30,9 @@ pub struct SourcesPapersYearly {}
 
 pub struct CountriesCitSubfields {}
 
-pub struct TopicsCitationsYearly {}
-
 pub struct InstitutionsTopPaperTopics {}
+
+pub struct TopicsCitationsYearly {}
 
 pub struct TopicsRefSubfields {}
 
@@ -78,13 +78,13 @@ pub struct CountriesCitationsYearly {}
 
 pub struct SubfieldsPapersYearly {}
 
-pub struct TopicsTopAffCountries {}
-
 pub struct InstitutionsCiteCount {}
 
 pub struct InstitutionsTopPaperSubfields {}
 
 pub struct InstitutionsTopCitingSubfields {}
+
+pub struct TopicsTopAffCountries {}
 
 pub struct AuthorsCitSubfields {}
 
@@ -94,9 +94,9 @@ pub struct InstitutionWorks {}
 
 pub struct AuthorsRefSubfields {}
 
-pub struct TopicsTopPaperSubfields {}
-
 pub struct CountriesRelInsts {}
+
+pub struct TopicsTopPaperSubfields {}
 
 pub struct AuthorsCitationsYearly {}
 
@@ -114,17 +114,17 @@ pub struct CountriesTopCitingTopics {}
 
 pub struct SubfieldPairsByPath {}
 
-pub struct TopicsTopPaperTopics {}
-
 pub struct InstitutionsTopJournals {}
+
+pub struct TopicsTopPaperTopics {}
 
 pub struct SubfieldsTopJournals {}
 
 pub struct SourcesCiteCount {}
 
-pub struct TopicsTopCitingSubfields {}
-
 pub struct InstitutionsTopCitingTopics {}
+
+pub struct TopicsTopCitingSubfields {}
 
 pub struct CountriesTopJournals {}
 
@@ -991,252 +991,6 @@ impl MarkedAttribute<crate::common::InstRelMarker> for crate::gen::a1_entity_map
     type AttributeEntity = SubfieldsRelInsts;
 }
 
-impl Entity for TopicsCiteCount {
-    type T = u32;
-    const N: usize = 4518;
-    const NAME: &str = "topics-cite-count";
-}
-
-impl MappableEntity for TopicsCiteCount {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for TopicsCiteCount {
-    const NS: &str = "derive_links2";
-}
-
-impl MarkedAttribute<crate::common::CiteCountMarker> for crate::gen::a1_entity_mapping::Topics {
-    type AttributeEntity = TopicsCiteCount;
-}
-
-impl Entity for TopicsCitSubfields {
-    type T = [u32; 253];
-    const N: usize = 4518;
-    const NAME: &str = "topics-cit-subfields";
-}
-
-impl MappableEntity for TopicsCitSubfields {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for TopicsCitSubfields {
-    const NS: &str = "derive_links2";
-}
-
-impl MarkedAttribute<crate::common::CitSubfieldsArrayMarker>
-    for crate::gen::a1_entity_mapping::Topics
-{
-    type AttributeEntity = TopicsCitSubfields;
-}
-
-impl Entity for TopicsRefSubfields {
-    type T = [u32; 253];
-    const N: usize = 4518;
-    const NAME: &str = "topics-ref-subfields";
-}
-
-impl MappableEntity for TopicsRefSubfields {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for TopicsRefSubfields {
-    const NS: &str = "derive_links2";
-}
-
-impl MarkedAttribute<crate::common::RefSubfieldsArrayMarker>
-    for crate::gen::a1_entity_mapping::Topics
-{
-    type AttributeEntity = TopicsRefSubfields;
-}
-
-impl Entity for TopicsPapersYearly {
-    type T = [u32; 11];
-    const N: usize = 4518;
-    const NAME: &str = "topics-papers-yearly";
-}
-
-impl MappableEntity for TopicsPapersYearly {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for TopicsPapersYearly {
-    const NS: &str = "derive_links2";
-}
-
-impl MarkedAttribute<crate::common::YearlyPapersMarker> for crate::gen::a1_entity_mapping::Topics {
-    type AttributeEntity = TopicsPapersYearly;
-}
-
-impl Entity for TopicsCitationsYearly {
-    type T = [u32; 11];
-    const N: usize = 4518;
-    const NAME: &str = "topics-citations-yearly";
-}
-
-impl MappableEntity for TopicsCitationsYearly {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for TopicsCitationsYearly {
-    const NS: &str = "derive_links2";
-}
-
-impl MarkedAttribute<crate::common::YearlyCitationsMarker>
-    for crate::gen::a1_entity_mapping::Topics
-{
-    type AttributeEntity = TopicsCitationsYearly;
-}
-
-impl Entity for TopicsTopPaperSubfields {
-    type T = [(u32, u8); 5];
-    const N: usize = 4518;
-    const NAME: &str = "topics-top-paper-subfields";
-}
-
-impl MappableEntity for TopicsTopPaperSubfields {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for TopicsTopPaperSubfields {
-    const NS: &str = "derive_links2";
-}
-
-impl MarkedAttribute<crate::common::TopNPaperSfMarker> for crate::gen::a1_entity_mapping::Topics {
-    type AttributeEntity = TopicsTopPaperSubfields;
-}
-
-impl Entity for TopicsTopCitingSubfields {
-    type T = [(u32, u8); 5];
-    const N: usize = 4518;
-    const NAME: &str = "topics-top-citing-subfields";
-}
-
-impl MappableEntity for TopicsTopCitingSubfields {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for TopicsTopCitingSubfields {
-    const NS: &str = "derive_links2";
-}
-
-impl MarkedAttribute<crate::common::TopNCitingSfMarker> for crate::gen::a1_entity_mapping::Topics {
-    type AttributeEntity = TopicsTopCitingSubfields;
-}
-
-impl Entity for TopicsTopPaperTopics {
-    type T = [(u32, u16); 8];
-    const N: usize = 4518;
-    const NAME: &str = "topics-top-paper-topics";
-}
-
-impl MappableEntity for TopicsTopPaperTopics {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for TopicsTopPaperTopics {
-    const NS: &str = "derive_links2";
-}
-
-impl MarkedAttribute<crate::common::TopNPaperTopicMarker>
-    for crate::gen::a1_entity_mapping::Topics
-{
-    type AttributeEntity = TopicsTopPaperTopics;
-}
-
-impl Entity for TopicsTopCitingTopics {
-    type T = [(u32, u16); 8];
-    const N: usize = 4518;
-    const NAME: &str = "topics-top-citing-topics";
-}
-
-impl MappableEntity for TopicsTopCitingTopics {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for TopicsTopCitingTopics {
-    const NS: &str = "derive_links2";
-}
-
-impl MarkedAttribute<crate::common::TopNCitingTopicMarker>
-    for crate::gen::a1_entity_mapping::Topics
-{
-    type AttributeEntity = TopicsTopCitingTopics;
-}
-
-impl Entity for TopicsTopPaperAuthors {
-    type T = [(u32, u32); 25];
-    const N: usize = 4518;
-    const NAME: &str = "topics-top-paper-authors";
-}
-
-impl MappableEntity for TopicsTopPaperAuthors {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for TopicsTopPaperAuthors {
-    const NS: &str = "derive_links2";
-}
-
-impl MarkedAttribute<crate::common::Top15AuthorMarker> for crate::gen::a1_entity_mapping::Topics {
-    type AttributeEntity = TopicsTopPaperAuthors;
-}
-
-impl Entity for TopicsTopJournals {
-    type T = [(u32, u16); 5];
-    const N: usize = 4518;
-    const NAME: &str = "topics-top-journals";
-}
-
-impl MappableEntity for TopicsTopJournals {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for TopicsTopJournals {
-    const NS: &str = "derive_links2";
-}
-
-impl MarkedAttribute<crate::common::TopJournalMarker> for crate::gen::a1_entity_mapping::Topics {
-    type AttributeEntity = TopicsTopJournals;
-}
-
-impl Entity for TopicsTopAffCountries {
-    type T = [(u32, u8); 3];
-    const N: usize = 4518;
-    const NAME: &str = "topics-top-aff-countries";
-}
-
-impl MappableEntity for TopicsTopAffCountries {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for TopicsTopAffCountries {
-    const NS: &str = "derive_links2";
-}
-
-impl MarkedAttribute<crate::common::Top3AffCountryMarker>
-    for crate::gen::a1_entity_mapping::Topics
-{
-    type AttributeEntity = TopicsTopAffCountries;
-}
-
-impl Entity for TopicsRelInsts {
-    type T = [crate::steps::derive_links2::InstRelation; 8];
-    const N: usize = 4518;
-    const NAME: &str = "topics-rel-insts";
-}
-
-impl MappableEntity for TopicsRelInsts {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for TopicsRelInsts {
-    const NS: &str = "derive_links2";
-}
-
-impl MarkedAttribute<crate::common::InstRelMarker> for crate::gen::a1_entity_mapping::Topics {
-    type AttributeEntity = TopicsRelInsts;
-}
-
 impl Entity for InstitutionsCiteCount {
     type T = u32;
     const N: usize = 37527;
@@ -1493,6 +1247,252 @@ impl NamespacedEntity for InstitutionsRelInsts {
 
 impl MarkedAttribute<crate::common::InstRelMarker> for crate::gen::a1_entity_mapping::Institutions {
     type AttributeEntity = InstitutionsRelInsts;
+}
+
+impl Entity for TopicsCiteCount {
+    type T = u32;
+    const N: usize = 4518;
+    const NAME: &str = "topics-cite-count";
+}
+
+impl MappableEntity for TopicsCiteCount {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for TopicsCiteCount {
+    const NS: &str = "derive_links2";
+}
+
+impl MarkedAttribute<crate::common::CiteCountMarker> for crate::gen::a1_entity_mapping::Topics {
+    type AttributeEntity = TopicsCiteCount;
+}
+
+impl Entity for TopicsCitSubfields {
+    type T = [u32; 253];
+    const N: usize = 4518;
+    const NAME: &str = "topics-cit-subfields";
+}
+
+impl MappableEntity for TopicsCitSubfields {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for TopicsCitSubfields {
+    const NS: &str = "derive_links2";
+}
+
+impl MarkedAttribute<crate::common::CitSubfieldsArrayMarker>
+    for crate::gen::a1_entity_mapping::Topics
+{
+    type AttributeEntity = TopicsCitSubfields;
+}
+
+impl Entity for TopicsRefSubfields {
+    type T = [u32; 253];
+    const N: usize = 4518;
+    const NAME: &str = "topics-ref-subfields";
+}
+
+impl MappableEntity for TopicsRefSubfields {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for TopicsRefSubfields {
+    const NS: &str = "derive_links2";
+}
+
+impl MarkedAttribute<crate::common::RefSubfieldsArrayMarker>
+    for crate::gen::a1_entity_mapping::Topics
+{
+    type AttributeEntity = TopicsRefSubfields;
+}
+
+impl Entity for TopicsPapersYearly {
+    type T = [u32; 11];
+    const N: usize = 4518;
+    const NAME: &str = "topics-papers-yearly";
+}
+
+impl MappableEntity for TopicsPapersYearly {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for TopicsPapersYearly {
+    const NS: &str = "derive_links2";
+}
+
+impl MarkedAttribute<crate::common::YearlyPapersMarker> for crate::gen::a1_entity_mapping::Topics {
+    type AttributeEntity = TopicsPapersYearly;
+}
+
+impl Entity for TopicsCitationsYearly {
+    type T = [u32; 11];
+    const N: usize = 4518;
+    const NAME: &str = "topics-citations-yearly";
+}
+
+impl MappableEntity for TopicsCitationsYearly {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for TopicsCitationsYearly {
+    const NS: &str = "derive_links2";
+}
+
+impl MarkedAttribute<crate::common::YearlyCitationsMarker>
+    for crate::gen::a1_entity_mapping::Topics
+{
+    type AttributeEntity = TopicsCitationsYearly;
+}
+
+impl Entity for TopicsTopPaperSubfields {
+    type T = [(u32, u8); 5];
+    const N: usize = 4518;
+    const NAME: &str = "topics-top-paper-subfields";
+}
+
+impl MappableEntity for TopicsTopPaperSubfields {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for TopicsTopPaperSubfields {
+    const NS: &str = "derive_links2";
+}
+
+impl MarkedAttribute<crate::common::TopNPaperSfMarker> for crate::gen::a1_entity_mapping::Topics {
+    type AttributeEntity = TopicsTopPaperSubfields;
+}
+
+impl Entity for TopicsTopCitingSubfields {
+    type T = [(u32, u8); 5];
+    const N: usize = 4518;
+    const NAME: &str = "topics-top-citing-subfields";
+}
+
+impl MappableEntity for TopicsTopCitingSubfields {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for TopicsTopCitingSubfields {
+    const NS: &str = "derive_links2";
+}
+
+impl MarkedAttribute<crate::common::TopNCitingSfMarker> for crate::gen::a1_entity_mapping::Topics {
+    type AttributeEntity = TopicsTopCitingSubfields;
+}
+
+impl Entity for TopicsTopPaperTopics {
+    type T = [(u32, u16); 8];
+    const N: usize = 4518;
+    const NAME: &str = "topics-top-paper-topics";
+}
+
+impl MappableEntity for TopicsTopPaperTopics {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for TopicsTopPaperTopics {
+    const NS: &str = "derive_links2";
+}
+
+impl MarkedAttribute<crate::common::TopNPaperTopicMarker>
+    for crate::gen::a1_entity_mapping::Topics
+{
+    type AttributeEntity = TopicsTopPaperTopics;
+}
+
+impl Entity for TopicsTopCitingTopics {
+    type T = [(u32, u16); 8];
+    const N: usize = 4518;
+    const NAME: &str = "topics-top-citing-topics";
+}
+
+impl MappableEntity for TopicsTopCitingTopics {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for TopicsTopCitingTopics {
+    const NS: &str = "derive_links2";
+}
+
+impl MarkedAttribute<crate::common::TopNCitingTopicMarker>
+    for crate::gen::a1_entity_mapping::Topics
+{
+    type AttributeEntity = TopicsTopCitingTopics;
+}
+
+impl Entity for TopicsTopPaperAuthors {
+    type T = [(u32, u32); 25];
+    const N: usize = 4518;
+    const NAME: &str = "topics-top-paper-authors";
+}
+
+impl MappableEntity for TopicsTopPaperAuthors {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for TopicsTopPaperAuthors {
+    const NS: &str = "derive_links2";
+}
+
+impl MarkedAttribute<crate::common::Top15AuthorMarker> for crate::gen::a1_entity_mapping::Topics {
+    type AttributeEntity = TopicsTopPaperAuthors;
+}
+
+impl Entity for TopicsTopJournals {
+    type T = [(u32, u16); 5];
+    const N: usize = 4518;
+    const NAME: &str = "topics-top-journals";
+}
+
+impl MappableEntity for TopicsTopJournals {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for TopicsTopJournals {
+    const NS: &str = "derive_links2";
+}
+
+impl MarkedAttribute<crate::common::TopJournalMarker> for crate::gen::a1_entity_mapping::Topics {
+    type AttributeEntity = TopicsTopJournals;
+}
+
+impl Entity for TopicsTopAffCountries {
+    type T = [(u32, u8); 3];
+    const N: usize = 4518;
+    const NAME: &str = "topics-top-aff-countries";
+}
+
+impl MappableEntity for TopicsTopAffCountries {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for TopicsTopAffCountries {
+    const NS: &str = "derive_links2";
+}
+
+impl MarkedAttribute<crate::common::Top3AffCountryMarker>
+    for crate::gen::a1_entity_mapping::Topics
+{
+    type AttributeEntity = TopicsTopAffCountries;
+}
+
+impl Entity for TopicsRelInsts {
+    type T = [crate::steps::derive_links2::InstRelation; 8];
+    const N: usize = 4518;
+    const NAME: &str = "topics-rel-insts";
+}
+
+impl MappableEntity for TopicsRelInsts {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for TopicsRelInsts {
+    const NS: &str = "derive_links2";
+}
+
+impl MarkedAttribute<crate::common::InstRelMarker> for crate::gen::a1_entity_mapping::Topics {
+    type AttributeEntity = TopicsRelInsts;
 }
 
 impl Entity for AuthorsCiteCount {
