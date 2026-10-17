@@ -34,6 +34,9 @@ def _setup_tmp_root() -> Path:
     archive.ARCHIVE_DIR = config.ARCHIVE_DIR
     archive.ARCHIVE_COLD_DIR = config.ARCHIVE_COLD_DIR
     aggregate.AGGREGATES_DIR = config.AGGREGATES_DIR
+    render_base.SITE_LOCAL_DIR = config.SITE_LOCAL_DIR
+    render_base.SITE_PUBLIC_DIR = config.SITE_PUBLIC_DIR
+    render_base.RUN_LOGS_DIR = config.RUN_LOGS_DIR
     from pyscripts.reporting import state as state_mod
 
     state_mod.SALTS_PATH = config.SALTS_PATH
