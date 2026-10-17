@@ -280,14 +280,15 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
     parc.0
         .add_iter_owned::<VarAttBuilder, _, _>(once_out.into_iter(), "author-citing-hits-once");
 
-    let hp_oa_ids = reverse_id::<HitPapers>(&parc.0);
+    let hit_to_wid = reverse_id::<HitPapers>(&parc.0);
+    let wid_to_oa = reverse_id::<Works>(&parc.0);
     let hit_sem_ids = parc
         .0
         .get_entity_interface::<HitPapersDois, ReadIter>()
         .enumerate()
-        .map(|(i, doi)| {
+        .map(|(hit, doi)| {
             if doi.is_empty() {
-                format!("w{}", hp_oa_ids[i])
+                format!("w{}", wid_to_oa[hit_to_wid[hit].to_usize()])
             } else {
                 doi
             }
