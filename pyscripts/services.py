@@ -77,6 +77,12 @@ FE_RUNTIME_JITTER = "3h"
 # die and reload in minutes instead of dragging the box into reclaim thrash.
 # Percentage of physical RAM so the same template fits every box size.
 BE_MEMORY_MAX = "85%"
+# No swap behind the wall: on a box with swap, a capped backend would page itself
+# out, and the box with it, before the wall fires.
+BE_MEMORY_SWAP_MAX = "0"
+# The backend unit's ExecStart takes its flags from this variable, unset by
+# default; the cache warm sets it in the user manager for a trees-only backend.
+BACKEND_FLAGS_VAR = "RANKLESS_SERVER_FLAGS"
 
 _VAR_RE = re.compile(r"\{\{\s*(\w+)\s*\}\}")
 
@@ -99,6 +105,8 @@ def render_backend(repo_root: str, data_root: str) -> str:
         repo_root=repo_root,
         data_root=data_root,
         memory_max=BE_MEMORY_MAX,
+        memory_swap_max=BE_MEMORY_SWAP_MAX,
+        flags_var=BACKEND_FLAGS_VAR,
     )
 
 

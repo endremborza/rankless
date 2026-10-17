@@ -7,6 +7,7 @@ from pyscripts.fleet import manifest, preflight
 from pyscripts.fleet.config import Model, Worker
 from pyscripts.fleet.preflight import GB, Primary
 from pyscripts.fleet.remote import Host
+from wire.rankless_server.consts import TREES_ONLY_FLAG
 
 DIG = "f" * 64
 PRIMARY = Primary(
@@ -60,6 +61,9 @@ def _green(w: Worker) -> dict[str, str]:
         "/stamp": PRIMARY.stamp,
         "sha256sum": DIG,
         "curl": json.dumps({"version": PRIMARY.version, "specs": {}}),
+        "MemorySwapMax": f"MemoryMax={53 * GB}\nMemorySwapMax=0",
+        "MainPID": "4242",
+        "/cmdline": f"rankless-server\n{TREES_ONLY_FLAG}\n{w.data_root}",
     }
 
 
@@ -81,9 +85,11 @@ def test_all_green_passes_gate(capsys) -> None:
         "stamp",
         "data",
         "version",
+        "unit",
+        "trees",
     ]
     preflight.gate(checks)  # must not raise
-    assert "all 7 checks passed" in capsys.readouterr().out
+    assert f"all {len(checks)} checks passed" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
@@ -101,6 +107,9 @@ def test_all_green_passes_gate(capsys) -> None:
         ({"/stamp": "r0:" + "0" * manifest.DIGEST_LEN}, "stamp"),
         ({"sha256sum": "0" * 64}, "data"),
         ({"curl": json.dumps({"version": "bbbb|full|r1:ff", "specs": {}})}, "version"),
+        ({"MemorySwapMax": "MemoryMax=infinity\nMemorySwapMax=infinity"}, "unit"),
+        ({"MemorySwapMax": f"MemoryMax={53 * GB}\nMemorySwapMax=infinity"}, "unit"),
+        ({"/cmdline": "rankless-server\n/home/x/rankless-data"}, "trees"),
     ],
 )
 def test_single_failure_isolated(override: dict, failing: str) -> None:
@@ -148,7 +157,7 @@ def test_local_worker_check_set() -> None:
     pre = preflight.pre_checks(w, host, Model(), PRIMARY)
     post = preflight.post_checks(w, host, PRIMARY)
     assert [c.name for c in pre] == ["repo", "memory"]
-    assert [c.name for c in post] == ["version"]
+    assert [c.name for c in post] == ["version", "unit", "trees"]
 
 
 def test_dirty_local_driver_fails_repo() -> None:

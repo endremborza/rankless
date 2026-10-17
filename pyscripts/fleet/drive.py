@@ -3,7 +3,8 @@
 Phases, with a hard barrier before any compute:
 
 1. **prepare** (all workers, parallel): pre-checks → push data + seed cache →
-   pull + rebuild + restart → wait ready → post-checks (identity handshake).
+   pull + install the backend unit + rebuild + restart trees-only → wait ready
+   → post-checks (identity handshake, memory wall, trees-only).
    The local worker rebuilds + restarts too — `commit-artifacts` moves HEAD
    after `refresh-data` built the running binary, so without a restart the
    version handshake would fail on every real release.
@@ -15,6 +16,10 @@ Phases, with a hard barrier before any compute:
 4. **verify**: final sync-back + the disk-only coverage gate over the full
    warm worklist on the primary root.
 
+Every backend runs trees-only from prepare on; the driver's own backend
+restarts full when the run ends, however it ends, since that box serves the
+rest of the API. A worker's stays trees-only until its user manager restarts.
+
 The cache directory is the state — workers skip already-cached trees — so the
 whole flow is resumable by rerunning it. Run from tmux on the primary data box.
 `pyscripts fleet prepare` runs phases 1–2 standalone (converge + gate, no compute).
@@ -23,6 +28,8 @@ whole flow is resumable by rerunning it. Run from tmux on the primary data box.
 import shlex
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from functools import partial
 
 from pyscripts import gitutil, services
@@ -30,6 +37,7 @@ from pyscripts.fleet import manifest, preflight
 from pyscripts.fleet.config import Fleet, Worker, load_config
 from pyscripts.fleet.preflight import Check, Primary
 from pyscripts.fleet.remote import log, rsync
+from wire.rankless_server.consts import TREES_ONLY_FLAG
 
 SYNC_BACK_S = 600
 READY_POLL_S = 15
@@ -42,31 +50,39 @@ WORKER_SYNC = (
     "uv sync --frozen"
     " --no-install-package ccl-science-data --no-install-package psycopg2"
 )
+# The backend unit as the deploy/ template renders it, so its memory wall holds
+# on every box whatever unit the box was first set up with.
+INSTALL_BACKEND_UNIT = "-m pyscripts.services --profile worker --no-start"
+SET_TREES_ONLY = (
+    f"systemctl --user set-environment {services.BACKEND_FLAGS_VAR}={TREES_ONLY_FLAG}"
+)
 
 
 def prepare(config: str, only: str | None = None, push: bool = True) -> None:
     """Phases 1–2 without compute: converge every worker to ready and gate.
 
     Fixes what the read-only preflight can only report — pushes data + stamp,
-    pulls + rebuilds + restarts backends (the local one too) — then re-checks.
+    pulls, installs the backend unit, rebuilds + restarts backends (the local
+    one too) — then re-checks.
     Only worth running once the primary data is final; before `refresh-data`
     it would push soon-to-be-stale data.
     """
     fleet = load_config(config)
     workers = _select(fleet, only)
-    _prepare_gate(workers, fleet, push)
+    with _local_backend_restored(workers):
+        _prepare_gate(workers, fleet, push)
 
 
 def warm(config: str, only: str | None = None, push: bool = True) -> None:
     fleet = load_config(config)
     workers = _select(fleet, only)
-    primary = _prepare_gate(workers, fleet, push)
-
-    errors = _phase(workers, lambda w: _compute(w, fleet, primary.oa_root))
-    failed = [name for name, e in errors.items() if e]
-    if failed:
-        raise SystemExit(f"workers failed: {', '.join(failed)} — rerun to resume")
-    coverage_gate(primary.oa_root, fleet.min_citations)
+    with _local_backend_restored(workers):
+        primary = _prepare_gate(workers, fleet, push)
+        errors = _phase(workers, lambda w: _compute(w, fleet, primary.oa_root))
+        failed = [name for name, e in errors.items() if e]
+        if failed:
+            raise SystemExit(f"workers failed: {', '.join(failed)} — rerun to resume")
+        coverage_gate(primary.oa_root, fleet.min_citations)
 
 
 def coverage_gate(local_root: str, min_citations: int) -> None:
@@ -107,6 +123,17 @@ def _prepare_gate(workers: list[Worker], fleet: Fleet, push: bool) -> Primary:
     return primary
 
 
+@contextmanager
+def _local_backend_restored(workers: list[Worker]) -> Iterator[None]:
+    try:
+        yield
+    finally:
+        if any(w.host is None for w in workers):
+            log("local", "restart backend with every route")
+            services.systemctl("unset-environment", services.BACKEND_FLAGS_VAR)
+            services.systemctl("restart", services.BACKEND_UNIT)
+
+
 def _select(fleet: Fleet, only: str | None) -> list[Worker]:
     if not only:
         return fleet.workers
@@ -141,15 +168,18 @@ def _prepare(w: Worker, fleet: Fleet, primary: Primary, push: bool) -> list[Chec
     if any(not c.ok for c in checks):
         return checks  # don't push 50 GB at a box that already failed
     if w.host is None:
-        log(w.name, "rebuild + restart backend")
-        host.stream("make restart-service")
+        log(w.name, "install unit + rebuild + restart backend trees-only")
+        host.stream(
+            f"uv run {INSTALL_BACKEND_UNIT} && {SET_TREES_ONLY} && make restart-service"
+        )
     else:
         if push:
             _invalidate_stale_cache(w, host, primary)
             _push_data(w, primary.oa_root)
-        log(w.name, "pull + sync + build + restart backend")
+        log(w.name, "pull + sync + install unit + build + restart backend trees-only")
         host.stream(
             f"cd {w.repo_dir} && git pull --ff-only && {WORKER_SYNC} && "
+            f"uv run --no-sync {INSTALL_BACKEND_UNIT} && {SET_TREES_ONLY} && "
             "make restart-service"
         )
     _wait_ready(w, host)

@@ -9,6 +9,10 @@ The failure classes this catches (each burned us or nearly did):
 - band assignment the box cannot hold in RAM — compute-time OOM, not the
   serving-leak class (memory)
 - the data push filling the disk (disk)
+- a backend unit without a bounded memory wall: an overrun pages the whole
+  shared box into a livelock instead of an OOM kill of the backend (unit)
+- a backend loading the columns only the other routes read, which the warm
+  never requests (trees)
 
 Every check returns a named `Check` instead of raising, so one dead box
 reports as a row in the gate table, and the run aborts before any compute.
@@ -19,10 +23,11 @@ import math
 import os
 from dataclasses import dataclass
 
-from pyscripts import gitutil
+from pyscripts import gitutil, services
 from pyscripts.fleet import manifest
 from pyscripts.fleet.config import Model, Worker
 from pyscripts.fleet.remote import Host
+from wire.rankless_server.consts import TREES_ONLY_FLAG
 
 GB = 1024**3
 DISK_MARGIN_GB = 5.0
@@ -104,6 +109,8 @@ def post_checks(w: Worker, host: Host, primary: Primary) -> list[Check]:
             _check(w, "data", _data_detail, host, w, primary),
         ]
     checks.append(_check(w, "version", _version_detail, host, w, primary))
+    checks.append(_check(w, "unit", _unit_detail, host))
+    checks.append(_check(w, "trees", _trees_only_detail, host))
     return checks
 
 
@@ -235,6 +242,29 @@ def _version_detail(host: Host, w: Worker, primary: Primary) -> str:
         "stale process, stale build, or stale data at startup"
     )
     return version
+
+
+def _unit_detail(host: Host) -> str:
+    out = host.out(
+        f"systemctl --user show {services.BACKEND_UNIT} -p MemoryMax -p MemorySwapMax"
+    )
+    walls = {k: v for k, _, v in (line.partition("=") for line in out.split())}
+    unbounded = [k for k, v in walls.items() if v == "infinity"]
+    assert not unbounded, (
+        f"{', '.join(unbounded)} unbounded — `fleet prepare` installs the unit"
+    )
+    return " ".join(f"{k}={int(v) / GB:.1f}G" for k, v in walls.items())
+
+
+def _trees_only_detail(host: Host) -> str:
+    pid = host.out(
+        f"systemctl --user show {services.BACKEND_UNIT} -p MainPID --value"
+    ).strip()
+    args = host.out(f"tr '\\0' '\\n' < /proc/{pid}/cmdline").split()
+    assert TREES_ONLY_FLAG in args, (
+        f"backend runs without {TREES_ONLY_FLAG} — `fleet prepare` restarts it"
+    )
+    return f"pid {pid} runs {TREES_ONLY_FLAG}"
 
 
 def _df_avail_gb(host: Host, path: str) -> float:

@@ -4,9 +4,10 @@ Description=Rankless Backend
 [Service]
 LimitNOFILE=65534
 EnvironmentFile=-{{ repo_root }}/.env
-ExecStart={{ repo_root }}/target/release/rankless-server {{ data_root }}
+ExecStart={{ repo_root }}/target/release/rankless-server ${{ flags_var }} {{ data_root }}
 MemoryAccounting=yes
 MemoryMax={{ memory_max }}
+MemorySwapMax={{ memory_swap_max }}
 OOMPolicy=kill
 Restart=always
 RestartSec=15

@@ -174,15 +174,24 @@ stage then runs in phases:
    - seed the union cache, `git pull --ff-only`, a frozen dep sync
      (`--no-install-package` for the science-data editable + psycopg2 — workers
      outside the `/mnt/data` sync network can't resolve/build them and don't
-     need them; compute then runs `uv run --no-sync`), `make restart-service`
+     need them; compute then runs `uv run --no-sync`), the backend unit installed
+     from the template (`services --profile worker --no-start`, so every box
+     carries `BE_MEMORY_MAX` and `BE_MEMORY_SWAP_MAX` whatever unit it was set up
+     with), `BACKEND_FLAGS_VAR` set to `TREES_ONLY_FLAG` in the user manager
+     (`systemctl --user set-environment`, so the backend's OOM restarts stay
+     trees-only), `make restart-service`
      (binaries are per-box: `target-cpu=native`), wait for `/v1/specs` (fast-fails
      if the unit enters `failed`), then post-checks: stamp equality, full data
-     manifest digest equality (torn transfers fail here), and the **version
+     manifest digest equality (torn transfers fail here), the unit's
+     `MemoryMax` and `MemorySwapMax` both bounded (without them an overrun
+     pages the whole box into a livelock instead of an OOM kill of the
+     backend), the running backend's command line carrying `TREES_ONLY_FLAG`,
+     and the **version
      handshake** — the worker's `/v1/specs.version`
      (`<git commit>|<RANKLESS_ENV>|<stamp>`) must equal the primary's expectation,
      which proves the _running process_ is the right build on the right data (a
      rebuilt-but-still-old-process backend fails here, not silently). The local
-     worker skips pull/push but also rebuilds + restarts — `commit-artifacts`
+     worker skips pull/push but also installs the unit, rebuilds + restarts — `commit-artifacts`
      moves HEAD after `refresh-data` built the running binary, so without a
      restart its own version handshake would fail on every real release.
 2. **gate**: all checks print as one table; any failure aborts before any
@@ -193,6 +202,11 @@ stage then runs in phases:
 4. **verify**: the disk-only coverage gate — every sampled tree cached on the
    primary root (no requests, so a gap can never trigger an out-of-memory
    compute locally).
+
+However the run ends, the driver then unsets `BACKEND_FLAGS_VAR` and restarts
+its own backend with every route (the same happens after a standalone
+`prepare`); a remote worker's backend stays trees-only until its user manager
+restarts, which is all a worker serves.
 
 The open top bin holds the largest trees, each built by the year walk (see [tree-internals](tree-internals.md)): its peak is one run of years plus the tree so far, which the linear `[model]` does not cover, so the gate leaves it out and the top band belongs on the box with the most RAM.
 
@@ -223,7 +237,8 @@ deploy tooling and stay).
 - `preflight` — the full check table against the current fleet, changing
   nothing. Run it any time; `warm-caches` enforces the same gate itself.
 - `prepare` — converge the fleet to ready and gate, without computing: push
-  data + stamp, pull + rebuild + restart every backend (the local one too),
+  data + stamp, pull, install the backend unit, rebuild + restart every backend
+  (the local one too),
   then re-check. Fixes what `preflight` can only report (stale data/stamp,
   down or stale backends) — but never dirty checkouts, env disagreements, or
   disk/RAM shortfalls, which stay hard failures. Only worth running once the

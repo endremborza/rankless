@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from pyscripts import services
 from pyscripts.cache_prompting import tree_cached
 from pyscripts.fleet import drive, preflight
 from pyscripts.fleet.config import Fleet, Worker
@@ -87,6 +88,33 @@ def test_prepare_converges_and_gates_without_compute(monkeypatch) -> None:
     monkeypatch.setattr(drive, "coverage_gate", lambda *a: calls.append("coverage"))
     drive.prepare("cfg", push=False)
     assert calls == [("gate", False)]
+
+
+@pytest.mark.parametrize(
+    ("workers", "restored"),
+    [
+        (_workers(), True),
+        ([Worker(name="r", host="box", repo_dir="/r", data_root="/d")], False),
+    ],
+)
+def test_failed_warm_restores_the_local_backend_full(
+    monkeypatch, workers: list[Worker], restored: bool
+) -> None:
+    calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(drive, "load_config", lambda c: Fleet(workers))
+
+    def gate_fails(*a):
+        raise SystemExit("preflight gate: 1 check(s) failed")
+
+    monkeypatch.setattr(drive, "_prepare_gate", gate_fails)
+    monkeypatch.setattr(services, "systemctl", lambda *a: calls.append(a))
+    with pytest.raises(SystemExit):
+        drive.warm("cfg")
+    full = [
+        ("unset-environment", services.BACKEND_FLAGS_VAR),
+        ("restart", services.BACKEND_UNIT),
+    ]
+    assert calls == (full if restored else [])
 
 
 def test_select_unknown_worker() -> None:
