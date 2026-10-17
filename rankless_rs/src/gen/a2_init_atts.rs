@@ -295,29 +295,6 @@ impl MarkedAttribute<crate::common::DoiMarker> for crate::gen::a1_entity_mapping
     type AttributeEntity = WorkDois;
 }
 
-impl Entity for DomainsNames {
-    type T = String;
-    const N: usize = 6;
-    const NAME: &str = "domains-names";
-}
-
-impl MappableEntity for DomainsNames {
-    type KeyType = usize;
-}
-
-impl VariableSizeAttribute for DomainsNames {
-    type SizeType = u8;
-    type LocType = u8;
-}
-
-impl NamespacedEntity for DomainsNames {
-    const NS: &str = "a2_init_atts";
-}
-
-impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mapping::Domains {
-    type AttributeEntity = DomainsNames;
-}
-
 impl Entity for FieldsNames {
     type T = String;
     const N: usize = 28;
@@ -362,6 +339,29 @@ impl NamespacedEntity for SubfieldsNames {
 
 impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mapping::Subfields {
     type AttributeEntity = SubfieldsNames;
+}
+
+impl Entity for DomainsNames {
+    type T = String;
+    const N: usize = 6;
+    const NAME: &str = "domains-names";
+}
+
+impl MappableEntity for DomainsNames {
+    type KeyType = usize;
+}
+
+impl VariableSizeAttribute for DomainsNames {
+    type SizeType = u8;
+    type LocType = u8;
+}
+
+impl NamespacedEntity for DomainsNames {
+    const NS: &str = "a2_init_atts";
+}
+
+impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mapping::Domains {
+    type AttributeEntity = DomainsNames;
 }
 
 impl Entity for TopicsNames {
@@ -540,6 +540,20 @@ impl NamespacedEntity for InstCities {
     const NS: &str = "a2_init_atts";
 }
 
+impl Entity for AuthorNobels {
+    type T = (u8, u8);
+    const N: usize = 4382262;
+    const NAME: &str = "author-nobels";
+}
+
+impl MappableEntity for AuthorNobels {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for AuthorNobels {
+    const NS: &str = "a2_init_atts";
+}
+
 impl Entity for SourcesNames {
     type T = String;
     const N: usize = 43602;
@@ -561,20 +575,6 @@ impl NamespacedEntity for SourcesNames {
 
 impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mapping::Sources {
     type AttributeEntity = SourcesNames;
-}
-
-impl Entity for AuthorNobels {
-    type T = (u8, u8);
-    const N: usize = 4382262;
-    const NAME: &str = "author-nobels";
-}
-
-impl MappableEntity for AuthorNobels {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for AuthorNobels {
-    const NS: &str = "a2_init_atts";
 }
 
 impl Entity for DiscardedAuthorsNames {
@@ -774,31 +774,6 @@ impl NamespacedEntity for TopicsWikipedia {
     const NS: &str = "a2_init_atts";
 }
 
-impl Entity for SourcesNameExts {
-    type T = String;
-    const N: usize = 43602;
-    const NAME: &str = "sources-name-exts";
-}
-
-impl MappableEntity for SourcesNameExts {
-    type KeyType = usize;
-}
-
-impl VariableSizeAttribute for SourcesNameExts {
-    type SizeType = u16;
-    type LocType = u32;
-}
-
-impl NamespacedEntity for SourcesNameExts {
-    const NS: &str = "a2_init_atts";
-}
-
-impl MarkedAttribute<crate::common::NameExtensionMarker>
-    for crate::gen::a1_entity_mapping::Sources
-{
-    type AttributeEntity = SourcesNameExts;
-}
-
 impl Entity for InstitutionsNameExts {
     type T = String;
     const N: usize = 37527;
@@ -822,6 +797,31 @@ impl MarkedAttribute<crate::common::NameExtensionMarker>
     for crate::gen::a1_entity_mapping::Institutions
 {
     type AttributeEntity = InstitutionsNameExts;
+}
+
+impl Entity for SourcesNameExts {
+    type T = String;
+    const N: usize = 43602;
+    const NAME: &str = "sources-name-exts";
+}
+
+impl MappableEntity for SourcesNameExts {
+    type KeyType = usize;
+}
+
+impl VariableSizeAttribute for SourcesNameExts {
+    type SizeType = u16;
+    type LocType = u32;
+}
+
+impl NamespacedEntity for SourcesNameExts {
+    const NS: &str = "a2_init_atts";
+}
+
+impl MarkedAttribute<crate::common::NameExtensionMarker>
+    for crate::gen::a1_entity_mapping::Sources
+{
+    type AttributeEntity = SourcesNameExts;
 }
 
 impl Entity for AuthorsNameExts {
