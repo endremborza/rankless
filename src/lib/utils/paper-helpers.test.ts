@@ -9,6 +9,7 @@ import {
 	resolveAuthors,
 	mergeEntityAtts,
 	oaWorkToPaperResp,
+	oaAbstractUrl,
 	type Author
 } from './paper-helpers';
 
@@ -183,5 +184,18 @@ describe('hasNobelCoauthor', () => {
 
 	it('counts every laureate when the subject holds no prize', () => {
 		expect(hasNobelCoauthor(by('2'), meta, '9')).toBe(true);
+	});
+});
+
+describe('oaAbstractUrl', () => {
+	it('reads a w id as the OpenAlex work id', () => {
+		expect(oaAbstractUrl('w2100837269')).toBe(
+			'https://api.openalex.org/works/W2100837269?select=abstract_inverted_index'
+		);
+	});
+	it('reads any other id as a DOI', () => {
+		expect(oaAbstractUrl('10.1038/nature14539')).toBe(
+			'https://api.openalex.org/works/https://doi.org/10.1038/nature14539?select=abstract_inverted_index'
+		);
 	});
 });

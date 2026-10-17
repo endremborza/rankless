@@ -105,12 +105,18 @@ export function oaWorkToPaperResp(o: OaWorkJson): OaPaperResp {
 	};
 }
 
+export function oaAbstractUrl(semanticId: string): string {
+	const work = semanticId.startsWith('w')
+		? `W${semanticId.slice(1)}`
+		: `https://doi.org/${semanticId}`;
+	return `https://api.openalex.org/works/${work}?select=abstract_inverted_index`;
+}
+
 export async function fetchOaAbstract(semanticId: string): Promise<string | null> {
-	const url = semanticId.startsWith('W')
-		? `https://api.openalex.org/works/${semanticId}?select=abstract_inverted_index`
-		: `https://api.openalex.org/works/https://doi.org/${semanticId}?select=abstract_inverted_index`;
 	try {
-		const d = await fetchOaJson<Pick<OaWorkJson, 'abstract_inverted_index'>>(url);
+		const d = await fetchOaJson<Pick<OaWorkJson, 'abstract_inverted_index'>>(
+			oaAbstractUrl(semanticId)
+		);
 		return reconstructAbstractFromInvIndex(d?.abstract_inverted_index);
 	} catch {
 		return null;
