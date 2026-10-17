@@ -54,34 +54,35 @@ def _rule_stats(sessions: pl.DataFrame) -> dict:
         return {"hard": {}, "soft": {}, "score_dist_chart": "", "n_sessions": 0}
 
     n = len(sessions)
-    # Decode + explode the per-session signal arrays into one signal per row in
-    # polars; a per-session json.loads loop would materialize millions of
-    # Python objects.
-    sigs = (
+    # Millions of sessions share a few dozen distinct signal arrays: count each
+    # array once (streaming), then decode and explode only the distinct ones.
+    sig_counts = (
         sessions.lazy()
+        .group_by("signals_json")
+        .len()
+        .collect(streaming=True)
         .select(
             pl.col("signals_json")
             .fill_null("[]")
             .str.json_decode(pl.List(pl.String))
-            .alias("sig")
+            .alias("sig"),
+            "len",
         )
         .explode("sig")
-        .filter(pl.col("sig").is_not_null())
-        .collect(streaming=True)["sig"]
+        .drop_nulls("sig")
     )
-    is_score = sigs.str.starts_with("soft:score=")
+    sig = pl.col("sig")
+    is_score = sig.str.starts_with("soft:score=")
     hard_counts = _signal_counts(
-        sigs.filter(sigs.str.starts_with("hard:")).str.slice(5)
+        sig_counts, sig.str.starts_with("hard:"), sig.str.slice(5)
     )
     soft_counts = _signal_counts(
-        sigs.filter(sigs.str.starts_with("soft:") & ~is_score)
-        .str.slice(5)
-        .str.splitn(" ", 2)
-        .struct.field("field_1")
-        .drop_nulls()
+        sig_counts,
+        sig.str.starts_with("soft:") & ~is_score,
+        sig.str.slice(5).str.splitn(" ", 2).struct.field("field_1"),
     )
     score_counts = _signal_counts(
-        sigs.filter(is_score).str.slice(11).cast(pl.Int64, strict=False).drop_nulls()
+        sig_counts, is_score, sig.str.slice(11).cast(pl.Int64, strict=False)
     )
 
     return {
@@ -92,10 +93,14 @@ def _rule_stats(sessions: pl.DataFrame) -> dict:
     }
 
 
-def _signal_counts(series: pl.Series) -> dict:
-    vc = series.value_counts()
-    key = vc.columns[0]
-    return {row[key]: row["count"] for row in vc.iter_rows(named=True)}
+def _signal_counts(sig_counts: pl.DataFrame, where: pl.Expr, key: pl.Expr) -> dict:
+    return dict(
+        sig_counts.filter(where)
+        .group_by(key.alias("key"))
+        .agg(pl.col("len").sum())
+        .drop_nulls("key")
+        .iter_rows()
+    )
 
 
 def _score_dist_chart(counts: dict[int, int]) -> str:
