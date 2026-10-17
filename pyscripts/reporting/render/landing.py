@@ -15,12 +15,17 @@ WINDOWS = [
 LOGIN_ROUTE = "/callback"
 LOGIN_OK_STATUS = 302
 
+_IS_LOGIN = pl.col("route_template") == LOGIN_ROUTE
+_LOGIN_OK = pl.col("status") == LOGIN_OK_STATUS
+_LOGIN_FAILED = pl.col("status") >= 400
+
 
 def render(ctx: RenderContext) -> None:
     copy_assets(ctx)
 
     kpis = {
-        key: _kpi_block(label, ctx.events_hot, hours) for label, key, hours in WINDOWS
+        key: _kpi_block(label, ctx.events_hot, ctx.sessions_table, hours)
+        for label, key, hours in WINDOWS
     }
 
     write(
@@ -39,33 +44,57 @@ def render(ctx: RenderContext) -> None:
     )
 
 
-def _kpi_block(label: str, events: pl.DataFrame, hours: int) -> dict:
+def _kpi_block(
+    label: str, events: pl.DataFrame, sessions: pl.DataFrame, hours: int
+) -> dict:
     if events.is_empty():
         return {"label": label, "html": _empty_kpi_html()}
     cutoff = events["t"].max() - pl.duration(hours=hours)
-    s = events.filter(pl.col("t") >= cutoff)
-    if s.is_empty():
+    k = (
+        events.lazy()
+        .filter(pl.col("t") >= cutoff)
+        .select(
+            n=pl.len(),
+            n_5xx=(pl.col("status") >= 500).sum(),
+            cache_hit=(pl.col("cs") == "HIT").sum(),
+            p99=pl.col("urt").quantile(0.99),
+            logins=(_IS_LOGIN & _LOGIN_OK).sum(),
+            failed_logins=(_IS_LOGIN & _LOGIN_FAILED).sum(),
+        )
+        .collect(streaming=True)
+        .row(0, named=True)
+    )
+    n = k["n"]
+    if n == 0:
         return {"label": label, "html": _empty_kpi_html()}
 
-    n = len(s)
-    sess = s.unique(subset=["session_id"]) if "session_id" in s.columns else s.head(0)
-    n_sessions = len(sess)
-    n_5xx = int((s["status"] >= 500).sum())
-    cache_hit = int((s["cs"] == "HIT").sum()) if "cs" in s.columns else 0
-    urt_valid = s["urt"].drop_nulls()
-    p99 = float(urt_valid.quantile(0.99)) if len(urt_valid) > 0 else float("nan")
-
+    classes = _session_classes(sessions, cutoff)
+    n_sessions = sum(classes.values())
     cards = [
         _card("Requests", f"{n:,}"),
         _card("Sessions", f"{n_sessions:,}"),
-        _card("5xx rate", _pct(n_5xx / n)),
-        _card("p99 urt", _ms(p99)),
-        _card("Cache hit", _pct(cache_hit / n)),
-        _login_card(s),
+        _card("5xx rate", _pct(k["n_5xx"] / n)),
+        _card("p99 urt", _ms(k["p99"])),
+        _card("Cache hit", _pct(k["cache_hit"] / n)),
+        _login_card(k["logins"], k["failed_logins"]),
     ]
-    if n_sessions and "bot_class" in sess.columns:
-        cards.append(_breakdown_card(sess["bot_class"]))
+    if n_sessions:
+        cards.append(_breakdown_card(classes))
     return {"label": label, "html": "\n".join(cards)}
+
+
+def _session_classes(sessions: pl.DataFrame, cutoff: pl.Expr) -> dict[str, int]:
+    """Sessions with a request at or after ``cutoff``, per bot class."""
+    if sessions.is_empty():
+        return {}
+    return dict(
+        sessions.lazy()
+        .filter(pl.col("end") >= cutoff)
+        .group_by("bot_class")
+        .len()
+        .collect(streaming=True)
+        .iter_rows()
+    )
 
 
 def _card(label: str, value: str, sub: str = "") -> str:
@@ -80,26 +109,15 @@ def _card(label: str, value: str, sub: str = "") -> str:
 
 
 def _login_outcomes(events: pl.DataFrame) -> pl.DataFrame:
-    return events.filter(pl.col("route_template") == LOGIN_ROUTE).select(
-        "t",
-        ok=pl.col("status") == LOGIN_OK_STATUS,
-        failed=pl.col("status") >= 400,
-    )
+    return events.filter(_IS_LOGIN).select("t", ok=_LOGIN_OK, failed=_LOGIN_FAILED)
 
 
-def _login_card(events: pl.DataFrame) -> str:
-    o = _login_outcomes(events)
-    failed = int(o["failed"].sum())
-    return _card(
-        "ORCID logins",
-        f"{int(o['ok'].sum()):,}",
-        f"{failed:,} failed" if failed else "",
-    )
+def _login_card(ok: int, failed: int) -> str:
+    return _card("ORCID logins", f"{ok:,}", f"{failed:,} failed" if failed else "")
 
 
-def _breakdown_card(classes: pl.Series) -> str:
-    counts_map = dict(zip(*classes.value_counts().to_pandas().values.T))
-    counts = {cls: int(counts_map.get(cls, 0)) for cls in BOT_CLASS_ORDER}
+def _breakdown_card(class_counts: dict[str, int]) -> str:
+    counts = {cls: class_counts.get(cls, 0) for cls in BOT_CLASS_ORDER}
     total = sum(counts.values())
     if total == 0:
         return _card("Class breakdown", "—")

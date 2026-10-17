@@ -1,3 +1,4 @@
+import datetime as dt
 import json
 import shutil
 import tempfile
@@ -9,11 +10,13 @@ from pyscripts.reporting import aggregate, archive, config
 from pyscripts.reporting.archive import annotate_routes
 from pyscripts.reporting.classify import annotate_events, classify_sessions
 from pyscripts.reporting.parse import parse_lines
+from pyscripts.reporting.render import base as render_base
 from pyscripts.reporting.render import render_all
 from pyscripts.reporting.render.landing import (
     LOGIN_OK_STATUS,
     LOGIN_ROUTE,
-    _login_card,
+    _card,
+    _kpi_block,
 )
 from pyscripts.reporting.sessions import assign_sessions
 
@@ -124,9 +127,19 @@ def test_render_local_keeps_run_errors():
         shutil.rmtree(tmp)
 
 
-def test_login_card_counts_callback_outcomes():
-    import datetime as dt
+def _kpi_events(rows: list[tuple[str, int]], t: dt.datetime) -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "t": [t] * len(rows),
+            "route_template": [r for r, _ in rows],
+            "status": pl.Series([s for _, s in rows], dtype=pl.UInt16),
+            "cs": ["-"] * len(rows),
+            "urt": pl.Series([0.1] * len(rows), dtype=pl.Float32),
+        }
+    )
 
+
+def test_kpi_block_counts_callback_outcomes():
     rows = [
         (LOGIN_ROUTE, LOGIN_OK_STATUS),
         (LOGIN_ROUTE, LOGIN_OK_STATUS),
@@ -134,14 +147,19 @@ def test_login_card_counts_callback_outcomes():
         (LOGIN_ROUTE, 308),
         ("/login", LOGIN_OK_STATUS),
     ]
+    events = _kpi_events(rows, dt.datetime.now(dt.timezone.utc))
+    html = _kpi_block("1h", events, pl.DataFrame(), 1)["html"]
+    assert _card("ORCID logins", "2", "1 failed") in html
+
+
+def test_kpi_block_counts_sessions_active_in_window():
     now = dt.datetime.now(dt.timezone.utc)
-    events = pl.DataFrame(
+    events = _kpi_events([("/", 200)], now)
+    sessions = pl.DataFrame(
         {
-            "t": [now] * len(rows),
-            "route_template": [r for r, _ in rows],
-            "status": pl.Series([s for _, s in rows], dtype=pl.UInt16),
+            "end": [now, now - dt.timedelta(minutes=30), now - dt.timedelta(hours=2)],
+            "bot_class": ["human_likely", "bot_likely", "bot_likely"],
         }
     )
-    html = _login_card(events)
-    assert '<div class="kpi-value">2</div>' in html
-    assert "1 failed" in html
+    assert _card("Sessions", "2") in _kpi_block("1h", events, sessions, 1)["html"]
+    assert _card("Sessions", "3") in _kpi_block("24h", events, sessions, 24)["html"]
