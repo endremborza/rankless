@@ -27,6 +27,7 @@ MCP_LOG_REL = f"{DATA_DIR}/mcp-log"
 USER_LEDGER_DIR = _PATHS["userLedger"]
 CARD_CACHE_NAME = _PATHS["cardCache"]
 SURVEY_LOG_PATH = _PATHS["surveyLog"]
+BACKUPS_DIR = "backups"
 ZSTD_LEVEL = 19
 GEN_DIR = "rankless_rs/src/gen"
 LADDER_TOP = f"{GEN_DIR}/derive_links5.rs"

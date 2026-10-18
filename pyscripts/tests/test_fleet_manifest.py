@@ -42,7 +42,15 @@ def test_digest_sees_size_and_set_changes(tmp_path: Path) -> None:
 def test_digest_ignores_per_box_state(tmp_path: Path) -> None:
     r1, r2 = tmp_path / "r1", tmp_path / "r2"
     _fill(r1, BASE)
-    _fill(r2, {**BASE, "cache/authors/1/0/f": "resp", "search-cache/q": "x"})
+    _fill(
+        r2,
+        {
+            **BASE,
+            "cache/authors/1/0/f": "resp",
+            "search-cache/q": "x",
+            f"{paths.BACKUPS_DIR}/live/db/rankless-1.sqlite.zst": "db",
+        },
+    )
     (r2 / manifest.STAMP_NAME).write_text("run:abc\n")
     assert manifest.digest(LOCAL, str(r1)) == manifest.digest(LOCAL, str(r2))
 

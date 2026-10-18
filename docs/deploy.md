@@ -293,7 +293,7 @@ A frontend deploy (`Transper.update_fe`) pulls the branch, then runs every scrip
 
 `uv run -m pyscripts userdb backup --source live` snapshots the running live box's user DB (SQLite online backup — safe against the live WAL writer, transient temp file on the box, nothing durable stays there) into a dated `rankless-YYYYMMDD.sqlite.zst` and additively mirrors its object-store bundles (`MCP_OBJECTS_REL`) into `<dest>/live/` on the machine running the command. Bundles are immutable, so the single growing mirror serves every snapshot: restoring day N = that day's DB + the mirror. Retention: last `--keep-days` (default `DEFAULT_KEEP_DAYS`) daily snapshots, plus every 1st-of-month one permanently. `--source local` backs up the current checkout's `DATA_DIR` instead (no cloud deps needed).
 
-The daily timer installs via `pyscripts/services.py --backup-source live` (renders `deploy/rankless-backup.{service,timer}`, default dest `DEFAULT_BACKUP_DEST`) — run it on an always-on machine that is _not_ the box being backed up (costello). `uv run -m pyscripts objects fsck` is the matching integrity check for the object store.
+The daily timer installs via `pyscripts/services.py --backup-source live` (renders `deploy/rankless-backup.{service,timer}`, default dest `DEFAULT_BACKUP_DEST`) — run it on an always-on machine that is _not_ the box being backed up (costello). That dest is the data root's `BACKUPS_DIR`, which the data push and its digest exclude, so neither fleet workers nor deploy boxes receive the backups and a new snapshot does not invalidate the stamp. `uv run -m pyscripts objects fsck` is the matching integrity check for the object store.
 
 ## Related
 

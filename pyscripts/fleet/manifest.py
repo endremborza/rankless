@@ -34,6 +34,7 @@ PUSH_EXCLUDES = (
     "filter-steps",
     "source-pairs-by-path",
     "releases",
+    paths.BACKUPS_DIR,
 )
 DATA_EXCLUDES = (*PUSH_EXCLUDES, STAMP_NAME)
 DIGEST_LEN = 12

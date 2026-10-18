@@ -35,7 +35,7 @@ BACKEND_UNIT = "rankless-backend.service"
 MCP_SERVER_UNIT = "rankless-mcp-server.service"
 BACKUP_SERVICE_UNIT = "rankless-backup.service"
 BACKUP_TIMER_UNIT = "rankless-backup.timer"
-DEFAULT_BACKUP_DEST = Path.home() / "rankless-data" / "backups"
+DEFAULT_BACKUP_DEST = Path.home() / "rankless-data" / paths.BACKUPS_DIR
 STATUS_UNIT = "rankless-status.service"
 # The port nginx serves `/status` on; the unit's dump is what it serves.
 STATUS_PORT = 5566
