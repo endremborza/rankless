@@ -162,64 +162,6 @@ impl MarkedAttribute<crate::common::TopMeanPaperScoreMarker>
     type AttributeEntity = CountriesTopMeanPaperScore;
 }
 
-impl Entity for SubfieldsScoredPaperCount {
-    type T = u32;
-    const N: usize = 254;
-    const NAME: &str = "subfields-scored-paper-count";
-}
-
-impl MappableEntity for SubfieldsScoredPaperCount {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for SubfieldsScoredPaperCount {
-    const NS: &str = "derive_links4";
-}
-
-impl MarkedAttribute<crate::common::ScoredPaperCountMarker>
-    for crate::gen::a1_entity_mapping::Subfields
-{
-    type AttributeEntity = SubfieldsScoredPaperCount;
-}
-
-impl Entity for SubfieldsHIndex {
-    type T = u32;
-    const N: usize = 254;
-    const NAME: &str = "subfields-h-index";
-}
-
-impl MappableEntity for SubfieldsHIndex {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for SubfieldsHIndex {
-    const NS: &str = "derive_links4";
-}
-
-impl MarkedAttribute<crate::common::HIndexMarker> for crate::gen::a1_entity_mapping::Subfields {
-    type AttributeEntity = SubfieldsHIndex;
-}
-
-impl Entity for SubfieldsHIndexSince {
-    type T = [u32; 2];
-    const N: usize = 254;
-    const NAME: &str = "subfields-h-index-since";
-}
-
-impl MappableEntity for SubfieldsHIndexSince {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for SubfieldsHIndexSince {
-    const NS: &str = "derive_links4";
-}
-
-impl MarkedAttribute<crate::common::HIndexSinceMarker>
-    for crate::gen::a1_entity_mapping::Subfields
-{
-    type AttributeEntity = SubfieldsHIndexSince;
-}
-
 impl Entity for SourcesScoredPaperCount {
     type T = u32;
     const N: usize = 43602;
@@ -294,6 +236,64 @@ impl MarkedAttribute<crate::common::TopMeanPaperScoreMarker>
     for crate::gen::a1_entity_mapping::Sources
 {
     type AttributeEntity = SourcesTopMeanPaperScore;
+}
+
+impl Entity for SubfieldsScoredPaperCount {
+    type T = u32;
+    const N: usize = 254;
+    const NAME: &str = "subfields-scored-paper-count";
+}
+
+impl MappableEntity for SubfieldsScoredPaperCount {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for SubfieldsScoredPaperCount {
+    const NS: &str = "derive_links4";
+}
+
+impl MarkedAttribute<crate::common::ScoredPaperCountMarker>
+    for crate::gen::a1_entity_mapping::Subfields
+{
+    type AttributeEntity = SubfieldsScoredPaperCount;
+}
+
+impl Entity for SubfieldsHIndex {
+    type T = u32;
+    const N: usize = 254;
+    const NAME: &str = "subfields-h-index";
+}
+
+impl MappableEntity for SubfieldsHIndex {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for SubfieldsHIndex {
+    const NS: &str = "derive_links4";
+}
+
+impl MarkedAttribute<crate::common::HIndexMarker> for crate::gen::a1_entity_mapping::Subfields {
+    type AttributeEntity = SubfieldsHIndex;
+}
+
+impl Entity for SubfieldsHIndexSince {
+    type T = [u32; 2];
+    const N: usize = 254;
+    const NAME: &str = "subfields-h-index-since";
+}
+
+impl MappableEntity for SubfieldsHIndexSince {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for SubfieldsHIndexSince {
+    const NS: &str = "derive_links4";
+}
+
+impl MarkedAttribute<crate::common::HIndexSinceMarker>
+    for crate::gen::a1_entity_mapping::Subfields
+{
+    type AttributeEntity = SubfieldsHIndexSince;
 }
 
 impl Entity for InstitutionsScoredPaperCount {
