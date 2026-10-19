@@ -219,27 +219,24 @@
 <h2>Route categories</h2>
 <p class="hint">
   Search route: <code>/v1/names/{etype}</code> (must carry a non-empty
-  <code>?q=</code>).
+  <code>q=</code>).
 </p>
 <dl class="meta">
   <dt>Bot-only routes</dt>
   <dd>
-<code>/robots.txt</code>, <code>/sitemap*.xml</code>  </dd>
-  <dt>HTML page routes</dt>
-  <dd>
-<code>/</code>, <code>/about</code>, <code>/login</code>, <code>/survey</code>, <code>/{rootType}</code>, <code>/{rootType}/table</code>, <code>/{rootType}/{...semanticId}</code>  </dd>
-  <dt>Browser-asset routes</dt>
-  <dd>
-<code>/_app/{...}</code>, <code>/card/{...}</code>, <code>/pathlogo/{...}</code>, <code>/tiles/{...}</code>  </dd>
+<code>/robots.txt</code>, <code>/sitemap-entity-{slug}.xml</code>, <code>/sitemap-index-entities.xml</code>, <code>/sitemap-index-mini.xml</code>, <code>/sitemap-index.xml</code>, <code>/sitemap-mini-{n}.xml</code>, <code>/sitemap-{n}.xml</code>, <code>/sitemap.xml</code>  </dd>
   <dt>SvelteKit data prefetch routes</dt>
   <dd>
-<code>/__data.json</code>, <code>/{rootType}/__data.json</code>, <code>/{rootType}/table/__data.json</code>, <code>/{rootType}/{semanticId}/__data.json</code>  </dd>
+<code>/__data.json</code>, <code>/about/__data.json</code>, <code>/admin/__data.json</code>, <code>/admin/games/__data.json</code>, <code>/admin/games/cards/__data.json</code>, <code>/admin/ledger/__data.json</code>, <code>/email-preferences/__data.json</code>, <code>/game/__data.json</code>, <code>/mcp/__data.json</code>, <code>/oa-id/{oaId}/__data.json</code>, <code>/path-to-person/__data.json</code>, <code>/path-to-person/{aidSrc}/{aidTarget}/__data.json</code>, <code>/pathlogo/__data.json</code>, <code>/privacy/__data.json</code>, <code>/release/__data.json</code>, <code>/search/__data.json</code>, <code>/survey/__data.json</code>, <code>/tiles/{rootType}/{...semanticId}/__data.json</code>, <code>/{game}/__data.json</code>, <code>/{rootType}/table/__data.json</code>, <code>/{rootType}/{...semanticId}/__data.json</code>  </dd>
+  <dt>API routes</dt>
+  <dd>
+<code>/v1/authored</code>, <code>/v1/columns</code>, <code>/v1/counts</code>, <code>/v1/ladder/{etype}</code>, <code>/v1/metrics/{etype}</code>, <code>/v1/names/{etype}</code>, <code>/v1/orcid/{orcid_id}</code>, <code>/v1/paper-profile/{asem}</code>, <code>/v1/peers/{etype}/{semantic_id}</code>, <code>/v1/resolve/author</code>, <code>/v1/resolve/work</code>, <code>/v1/sem-id-via-oa/{etype}/{oa_id}</code>, <code>/v1/slice/{etype}/{from}/{to}</code>, <code>/v1/specs</code>, <code>/v1/stats/{etype}/{semantic_id}</code>, <code>/v1/tops</code>, <code>/v1/trees/{root_type}/{semantic_id}</code>, <code>/v1/views/{etype}/{semantic_id}</code>, <code>/v1/where</code>, <code>/v1/works-intersect/{...spec}</code>, <code>/v1/works/{etype}/{semantic_id}/{from}</code>  </dd>
 </dl>
 </section>
 
 <section>
 <h2>Hard rules &mdash; bot side</h2>
-<p class="hint">Any of these &rarr; <code class="cls-bot_known">bot_known</code>. Rates over 21,489,681 sessions.</p>
+<p class="hint">Any of these &rarr; <code class="cls-bot_known">bot_known</code>. Rates over 21,661,445 sessions.</p>
 <ul class="rules">
   <li>
     <code>empty_ua</code> &mdash; User-Agent header missing or empty.
@@ -247,10 +244,10 @@
   </li>
   <li>
     <code>bot_ua</code> &mdash; User-Agent matches a known bot/crawler/script family.
-      <span class="rate">4.09%</span>
+      <span class="rate">4.08%</span>
   </li>
   <li>
-    <code>robots_or_sitemap</code> &mdash; Hit one of the bot-only routes: ['/robots.txt', '/sitemap*.xml'].
+    <code>robots_or_sitemap</code> &mdash; Hit a bot-only route: /robots.txt, /sitemap*.xml.
       <span class="rate">0.06%</span>
   </li>
   <li>
@@ -287,7 +284,7 @@
         +2
       </td>
       <td><code>search_used</code></td>
-      <td>Used the search endpoint `/v1/names/{etype}` with a non-empty `q=` param.</td>
+      <td>Used the search route with a non-empty query parameter.</td>
       <td>0.47%</td>
     </tr>
     <tr>
@@ -312,15 +309,15 @@
       </td>
       <td><code>referrer_present</code></td>
       <td>At least one request carries a non-empty Referer.</td>
-      <td>27.89%</td>
+      <td>27.84%</td>
     </tr>
     <tr>
       <td class="neg">
         -2
       </td>
       <td><code>www_no_api</code></td>
-      <td>At least one request to the frontend domain with zero api.rankless.org (/v1/) calls.</td>
-      <td>86.18%</td>
+      <td>The session made no request to an API route.</td>
+      <td>86.16%</td>
     </tr>
   </tbody>
 </table>
@@ -332,14 +329,14 @@
   Sessions that reached soft scoring (no hard rule fired). Dotted lines mark the
   <code class="cls-human_likely">human_likely</code> / <code class="cls-bot_likely">bot_likely</code> thresholds.
 </p>
-<div id="score-dist" style="height:260px"></div><script>Plotly.newPlot("score-dist", {"data": [{"x": [-2, -1, 0, 1, 2, 3, 4, 5, 6], "y": [428687, 15074853, 3008143, 7443, 2865360, 310, 103589, 13, 1283], "type": "bar", "marker": {"color": "#89b4fa"}, "name": "sessions"}], "layout": {"xaxis": {"title": "soft score", "dtick": 1}, "yaxis": {"title": "sessions"}, "shapes": [{"type": "line", "x0": 2.5, "x1": 2.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#a6e3a1", "dash": "dot", "width": 1.5}}, {"type": "line", "x0": 0.5, "x1": 0.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#f38ba8", "dash": "dot", "width": 1.5}}], "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
+<div id="score-dist" style="height:260px"></div><script>Plotly.newPlot("score-dist", {"data": [{"x": [-2, -1, 0, 1, 2, 3, 4, 5, 6], "y": [432647, 15205505, 3018215, 7478, 2891364, 310, 104628, 13, 1285], "type": "bar", "marker": {"color": "#89b4fa"}, "name": "sessions"}], "layout": {"xaxis": {"title": "soft score", "dtick": 1}, "yaxis": {"title": "sessions"}, "shapes": [{"type": "line", "x0": 2.5, "x1": 2.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#a6e3a1", "dash": "dot", "width": 1.5}}, {"type": "line", "x0": 0.5, "x1": 0.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#f38ba8", "dash": "dot", "width": 1.5}}], "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
 </section>
 
 </main>
 <footer>
-  <span>Rendered 2026-10-18T22:15:10+00:00</span>
-  <span>Last pull: 2026-10-18T22:15:06+00:00</span>
-  <span>Last event: 2026-10-18 22:10:13+00:00</span>
+  <span>Rendered 2026-10-19T02:10:50+00:00</span>
+  <span>Last pull: 2026-10-19T02:10:45+00:00</span>
+  <span>Last event: 2026-10-19 02:10:15+00:00</span>
 </footer>
 </body>
 </html>
