@@ -17,7 +17,7 @@ Environment:
 - `MCP_LOG_DIR` — when set, every tool call (a failing one with its `error`), `verify_claims` result and `suggest_endpoint` lands as one JSON line per day (`<dir>/YYYY-MM-DD.jsonl`, keyed by MCP session id, a file per day greppable on the box); the unit points it at `paths.MCP_LOG_REL`
 - `MCP_HOST`, `MCP_PORT` — where the HTTP transports listen (default `mcp_server.MCP_HOST` and `MCP_PORT`; the unit renders the port nginx proxies `/mcp` to)
 
-The hosted endpoint is `https://<backend domain>/mcp` (streamable-http behind nginx): on the alpha the host of `BACKENDS["alpha"]`, once a box is promoted that of `BACKENDS["live"]`; the alpha URL is the published one (manifest, `/mcp` page).
+The hosted endpoint is `https://<backend domain>/mcp` (streamable-http behind nginx): on the alpha the host of `BACKENDS["alpha"]`, once a box is promoted that of `BACKENDS["live"]`; the live URL is the published one (manifest, `/mcp` page), since a promote leaves the alpha host without a box until the next `new_*_alpha`.
 Any MCP client points at it: `claude mcp add --transport http rankless <url>`, a
 Claude.ai / Claude Desktop custom connector (Settings → Connectors), or an
 `{"mcpServers": {"rankless": {"type": "http", "url": ...}}}` entry; the `/mcp` page carries

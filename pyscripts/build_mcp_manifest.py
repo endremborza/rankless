@@ -28,7 +28,7 @@ OUT_PATH = Path("src/lib/assets/data/mcp-manifest.json")
 
 # Public hosted MCP endpoint (streamable-http); override per deployment.
 MCP_PUBLIC_URL = os.environ.get(
-    "MCP_PUBLIC_URL", BACKENDS["alpha"].removesuffix("/v1") + "/mcp"
+    "MCP_PUBLIC_URL", BACKENDS["live"].removesuffix("/v1") + "/mcp"
 )
 PUBLIC_BE_URL = os.environ.get("MCP_PUBLIC_BE_URL", BACKENDS["live"])
 
