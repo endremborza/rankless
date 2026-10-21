@@ -44,12 +44,13 @@ pub(crate) type NameStateMap = HashMap<&'static str, NameState>;
 pub(crate) type TreeStates = (Arc<NameStateMap>, Arc<AttributeLabelUnion>, Arc<InstTrm>);
 pub(crate) type StatesT = State<TreeStates>;
 // The handlers that read server-only columns, which a trees-only backend does not load.
-pub(crate) type FullStatesT = State<(
+pub(crate) type FullStates = (
     Arc<NameStateMap>,
     Arc<AttributeLabelUnion>,
     Arc<InstTrm>,
     Arc<ServerGetters>,
-)>;
+);
+pub(crate) type FullStatesT = State<FullStates>;
 
 // The search side of a root type: the engine, the responses it answers with, the id maps between
 // semantic, OpenAlex, dm and response ids, and the cohort orderings. Every per-entity number is a

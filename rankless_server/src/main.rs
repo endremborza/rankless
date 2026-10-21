@@ -5,6 +5,7 @@ mod cohort;
 mod consts;
 mod handlers;
 mod responses;
+mod routes;
 mod search_cache;
 mod startup;
 mod state;
@@ -19,11 +20,8 @@ use tokio::{net::TcpListener, sync::Notify};
 use rankless_rs::Stowage;
 
 use crate::consts::{DEFAULT_N_THREADS, PORT, TREES_ONLY_FLAG};
-use crate::handlers::{
-    authored_get, column_registry, intersect_get, ladder_get, metric_values_get, name_get,
-    orcid_get, paper_profile, peers_get, resolve_author_get, resolve_work_get, sem_id_get,
-    slice_get, stats_get, tops_get, tree_get, view_get, where_get, works_get,
-};
+use crate::handlers::{column_registry, tops_get};
+use crate::routes::{nested_routes, server_routes, tree_routes, API_PREFIX};
 use crate::startup::get_rest;
 use crate::state::NameStateMap;
 use crate::util::static_router;
@@ -62,32 +60,12 @@ async fn async_main(n_threads: usize) {
     let states = State((ns_map_arc, satts, tree_manager.clone()));
     let columns_api = static_router(&column_registry(&states));
 
-    let tree_api = Router::new()
-        .route("/names/:etype", get(name_get))
-        .route("/slice/:etype/:from/:to", get(slice_get))
-        .route("/where", get(where_get))
-        .route("/metrics/:etype", get(metric_values_get))
-        .route("/stats/:etype/:semantic_id", get(stats_get))
-        .route("/sem-id-via-oa/:etype/:oa_id", get(sem_id_get))
-        .route("/peers/:etype/:semantic_id", get(peers_get))
-        .route("/ladder/:etype", get(ladder_get))
-        .route("/trees/:root_type/:semantic_id", get(tree_get))
-        .with_state(states.0.clone());
+    let tree_api = tree_routes().with_state(states.0.clone());
     let response_api = match server {
         None => tree_api,
         Some(server) => {
             let (ns_map, satts, trm) = states.0;
-            let server_api = Router::new()
-                .route("/views/:etype/:semantic_id", get(view_get))
-                .route("/orcid/:orcid_id", get(orcid_get))
-                .route("/resolve/work", get(resolve_work_get))
-                .route("/resolve/author", get(resolve_author_get))
-                .route("/authored", get(authored_get))
-                .route("/paper-profile/:asem", get(paper_profile))
-                .route("/works/:etype/:semantic_id/:from", get(works_get))
-                .route("/works-intersect/*spec", get(intersect_get))
-                .with_state((ns_map, satts, trm, server));
-            tree_api.merge(server_api)
+            tree_api.merge(server_routes().with_state((ns_map, satts, trm, server)))
         }
     };
 
@@ -98,14 +76,14 @@ async fn async_main(n_threads: usize) {
         .route("/", get(tops_get))
         .with_state(Arc::new(tops));
 
-    let api = Router::new()
-        .nest("/", response_api)
-        .nest("/counts", count_api)
-        .nest("/columns", columns_api)
-        .nest("/tops", tops_api)
-        .nest("/specs", specs_api);
+    let api = Router::new().nest("/", response_api).merge(nested_routes(
+        count_api,
+        columns_api,
+        tops_api,
+        specs_api,
+    ));
 
-    let app = Router::new().nest("/v1", api);
+    let app = Router::new().nest(API_PREFIX, api);
     let loc_addr = SocketAddr::from(([127, 0, 0, 1], PORT));
     let stime = now.elapsed().as_secs();
     println!(
