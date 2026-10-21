@@ -9,9 +9,9 @@ use crate::{
         SubfieldRefTopicCountryInst, SubfieldWCoiByRef, WorkingAuthors,
     },
     io::{BufSerChildren, BufSerTree, CollapsedNode, TreeSpec, WorkCiteT, WorkWInd, WT},
+    merging::{ordered_calls, sorted_iters_to_arr, ExtendableArr, OrderedMapper},
     part_iterator::{PartitioningIterator, TreeMakingParams},
 };
-use muwo_search::{ordered_calls, sorted_iters_to_arr, ExtendableArr, OrderedMapper};
 use rankless_rs::{
     agg_tree::{AggTreeBase, ReinstateFrom, Updater},
     common::{NumberedEntity, NET},

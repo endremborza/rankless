@@ -125,7 +125,7 @@ Raw data is ingested from OpenAlex and Scopus dumps and transformed by a suite o
 
 The server is written in Rust (`rankless_server`) and handles all API requests against the pre-processed data.
 
-Search is handled by `muwo_search`, a custom engine built around the proprietary data structures for fast partial-string queries.
+Search is handled by `muwo`, a custom engine in its own repository, built around the proprietary data structures for fast partial-string queries.
 
 Caching is proactive: `pyscripts/cache_prompting.py` identifies entities whose on-demand computation would be too memory-intensive using the standard path, and pre-warms the server's in-memory cache before the first user arrives. For a small number of high-traffic entities this also involves a special calculation method that avoids the otherwise-prohibitive memory footprint.
 

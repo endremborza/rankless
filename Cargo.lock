@@ -793,11 +793,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "muwo-search"
+name = "muwo"
 version = "0.1.0"
 dependencies = [
  "deunicode",
- "tqdm",
 ]
 
 [[package]]
@@ -1037,7 +1036,6 @@ dependencies = [
  "hashbrown 0.14.5",
  "kd-tree",
  "levenshtein",
- "muwo-search",
  "nalgebra",
  "ordered-float",
  "serde",
@@ -1057,7 +1055,7 @@ dependencies = [
  "dmove",
  "hashbrown 0.14.5",
  "mimalloc",
- "muwo-search",
+ "muwo",
  "rand",
  "rankless-expr",
  "rankless-rs",
@@ -1076,7 +1074,6 @@ dependencies = [
  "dmove",
  "dmove-macro",
  "hashbrown 0.14.5",
- "muwo-search",
  "rand",
  "rankless-rs",
  "serde",

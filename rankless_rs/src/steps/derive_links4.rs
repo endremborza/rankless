@@ -1,5 +1,4 @@
 use hashbrown::{HashMap, HashSet};
-use muwo_search::FixedHeap;
 use std::{cmp::Reverse, io, mem, sync::Arc};
 
 use dmove::{
@@ -13,6 +12,7 @@ use crate::{
         HIndexSinceMarker, HitWorkMarker, MainWorkMarker, ScoredPaperCountMarker,
         TopMeanPaperScoreMarker, WeightedPaperScoreMarker,
     },
+    fixed_heap::FixedHeap,
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics, Works},
         a2_init_atts::{AuthorNobels, WorkAnyAuthorships, WorkReferences, WorkYears},

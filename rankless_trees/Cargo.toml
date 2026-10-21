@@ -6,7 +6,6 @@ edition.workspace = true
 [dependencies]
 dmove-macro = {path = "../dmove_macro"}
 dmove = {path = "../dmove"}
-muwo-search = {path = "../muwo_search"}
 rankless-rs = {path = "../rankless_rs"}
 wiretypes = {path = "../wiretypes"}
 rand = "0.8"

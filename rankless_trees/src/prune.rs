@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 
 use dmove::UnsignedNumber;
 use hashbrown::HashMap;
-use muwo_search::FixedHeap;
+use rankless_rs::fixed_heap::FixedHeap;
 
 use crate::{
     ids::AttributeLabelUnion,

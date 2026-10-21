@@ -4,7 +4,6 @@ use std::{
 };
 
 use kd_tree::{KdPoint, KdTree};
-use muwo_search::FixedHeap;
 use nalgebra::{DMatrix, SymmetricEigen};
 use ordered_float::FloatCore;
 use typenum;
@@ -13,6 +12,7 @@ use dmove::UnsignedNumber;
 
 use crate::{
     common::{NumberedEntity, PeerMarker, NET},
+    fixed_heap::FixedHeap,
     Stowage,
 };
 

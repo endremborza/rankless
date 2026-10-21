@@ -11,6 +11,7 @@ mod data_consts;
 pub mod derived_ledger;
 pub mod env_consts;
 mod filter;
+pub mod fixed_heap;
 pub mod gen;
 pub mod ladder;
 pub mod metrics;

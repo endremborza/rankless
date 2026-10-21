@@ -4,6 +4,7 @@ pub mod ids;
 pub mod instances;
 pub mod interfacing;
 pub mod io;
+mod merging;
 pub mod metrics;
 mod part_iterator;
 pub mod path_finder;

@@ -1,13 +1,16 @@
 use std::collections::BinaryHeap;
 
+use deunicode::deunicode;
 use dmove::{Entity, NamespacedEntity, VarAttBuilder};
 use hashbrown::HashSet;
-use muwo_search::StackWordSet;
 
 use crate::{
     common::{init_empty_slice, MainEntity},
     SemanticIdMarker, Stowage,
 };
+
+const SLUG_MAX_LETTERS: usize = 255;
+const SLUG_MAX_WORDS: usize = 32;
 
 /// The slugs an entity may take, in order: `preferred`, its display `name`, then `fallbacks`.
 /// A display-name slug belongs to the entities bearing that name: no other entity takes it as a
@@ -111,8 +114,38 @@ fn assign_sem_ids(
     }
 }
 
-pub fn semantify(s: &str) -> String {
-    StackWordSet::new(s).to_words().join("-")
+/// The ASCII letters of the transliterated, lowercased name, its space-separated words joined by
+/// `-`. Slugs are permanent ids, so this is independent of any search tokenizer. Past
+/// `SLUG_MAX_WORDS` words the rest is dropped, and the letter that would pass `SLUG_MAX_LETTERS`
+/// drops its word with the rest.
+pub fn semantify(name: &str) -> String {
+    let mut slug = String::new();
+    let mut word_start = None;
+    let (mut letters, mut words) = (0, 0);
+    for c in deunicode(name).bytes().map(|b| b.to_ascii_lowercase()) {
+        if c == b' ' {
+            if word_start.take().is_some() {
+                words += 1;
+                if words == SLUG_MAX_WORDS {
+                    break;
+                }
+            }
+        } else if c.is_ascii_lowercase() {
+            if letters == SLUG_MAX_LETTERS {
+                slug.truncate(word_start.unwrap_or(slug.len()));
+                break;
+            }
+            if word_start.is_none() {
+                word_start = Some(slug.len());
+                if !slug.is_empty() {
+                    slug.push('-');
+                }
+            }
+            slug.push(c as char);
+            letters += 1;
+        }
+    }
+    slug
 }
 
 fn get_suffs() -> Vec<String> {

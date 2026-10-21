@@ -36,15 +36,6 @@ where
     }
 }
 
-fn _merge_sorted_vecs<T>(left_vec: Vec<T>, right_vec: Vec<T>) -> Vec<T>
-where
-    T: PartialOrd + Clone,
-{
-    let mut v = Vec::new();
-    sorted_iters_to_arr(&mut v, left_vec.iter(), right_vec.iter());
-    v
-}
-
 pub fn sorted_iters_to_arr<'a, 'b, T, IL, IR, V>(out: &mut V, left_it: IL, right_it: IR)
 where
     T: PartialOrd + Clone + 'a + 'b,
@@ -115,41 +106,19 @@ where
     right_it.for_each(|e| merger.right_map(e));
 }
 
-/// gets i so that arr\[..i\] all true, arr\[i..\] all false
-pub fn log_search<T, F: Fn(&T) -> bool>(arr: &[T], f: F) -> usize {
-    if arr.is_empty() {
-        return 0;
-    }
-    let (mut l, mut r) = (0, arr.len());
-    loop {
-        let m = (l + r) / 2;
-        if f(&arr[m]) {
-            l = m + 1;
-        } else {
-            r = m;
-        }
-        if l >= r {
-            break;
-        }
-    }
-    l
-}
-
-pub fn logfound<T>(v: &[T], val: T) -> bool
-where
-    T: PartialOrd,
-{
-    let li = log_search(v, |e| *e < val);
-    if li < v.len() {
-        return v[li] == val;
-    }
-    false
-}
-
 #[cfg(test)]
 mod tests {
 
     use super::*;
+
+    fn merge_sorted_vecs<T>(left_vec: Vec<T>, right_vec: Vec<T>) -> Vec<T>
+    where
+        T: PartialOrd + Clone,
+    {
+        let mut v = Vec::new();
+        sorted_iters_to_arr(&mut v, left_vec.iter(), right_vec.iter());
+        v
+    }
 
     #[derive(Debug, Clone, Copy)]
     struct PartCmp(u8, u8);
@@ -172,9 +141,9 @@ mod tests {
         let right = vec![PartCmp(2, 1), PartCmp(3, 2), PartCmp(4, 3)];
 
         println!("lr");
-        test_m1_out(_merge_sorted_vecs(left.clone(), right.clone()), 1);
+        test_m1_out(merge_sorted_vecs(left.clone(), right.clone()), 1);
         println!("rl");
-        test_m1_out(_merge_sorted_vecs(right, left), 2);
+        test_m1_out(merge_sorted_vecs(right, left), 2);
     }
 
     fn test_m1_out(out: Vec<PartCmp>, tc: u8) {

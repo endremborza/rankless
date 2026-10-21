@@ -1,6 +1,12 @@
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    io::{BufWriter, Write},
+    path::{Path, PathBuf},
+};
 
-use muwo_search::SearchEngine;
+use muwo::SearchEngine;
+
+use crate::consts::HAYSTACKS_DIR_VAR;
 
 pub(crate) fn fnv64(iter: impl Iterator<Item = impl AsRef<[u8]>>) -> u64 {
     const BASIS: u64 = 0xcbf29ce484222325;
@@ -44,7 +50,9 @@ pub(crate) fn save_engine<const S: usize>(
         return;
     }
     let result = (|| -> std::io::Result<()> {
-        engine.save(&mut fs::File::create(bin_path)?)?;
+        let mut w = BufWriter::new(fs::File::create(bin_path)?);
+        engine.save(&mut w)?;
+        w.flush()?;
         fs::write(stamp_path, key.to_ne_bytes())
     })();
     if let Err(e) = result {

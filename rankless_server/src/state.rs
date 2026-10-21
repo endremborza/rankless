@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::extract::State;
 use hashbrown::{HashMap, HashSet};
-use muwo_search::SearchEngine;
+use muwo::SearchEngine;
 
 use dmove::{Entity, UnsignedNumber, ET};
 use rankless_rs::{
