@@ -1,0 +1,12 @@
+# The alpha box under ramore, local only: `ramore <command> --config-file ramore-alpha.toml`.
+extends = "ramore.toml"
+name = "Rankless alpha"
+store = "reports-alpha"
+publish = false
+
+[source]
+ssh = "rankless-alpha"
+hosts = ["alpha.rankless.org", "alpha-api.rankless.org"]
+
+[monitor]
+url = "https://alpha.rankless.org/"
