@@ -22,6 +22,7 @@ use rankless_rs::Stowage;
 use crate::consts::{DEFAULT_N_THREADS, PORT, TREES_ONLY_FLAG};
 use crate::handlers::{column_registry, tops_get};
 use crate::routes::{nested_routes, server_routes, tree_routes, API_PREFIX};
+use crate::search_cache::haystacks_dir;
 use crate::startup::get_rest;
 use crate::state::NameStateMap;
 use crate::util::static_router;
@@ -56,6 +57,10 @@ async fn async_main(n_threads: usize) {
     let stowage = Stowage::new(&path);
     let (ns_map, satts, tree_manager, counts_response, tops, server) =
         get_rest(stowage, n_threads, trees_only);
+    if let Some(dir) = haystacks_dir() {
+        println!("search haystacks written to {}", dir.display());
+        return;
+    }
     let ns_map_arc: Arc<NameStateMap> = ns_map.into();
     let states = State((ns_map_arc, satts, tree_manager.clone()));
     let columns_api = static_router(&column_registry(&states));

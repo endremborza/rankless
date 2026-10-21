@@ -30,6 +30,10 @@ pub const CACHEABLE_FROM: u32 = 10_000;
 /// column need, and serves only those routes.
 #[wire]
 pub const TREES_ONLY_FLAG: &str = "--trees-only";
+/// The environment variable naming a directory: a backend started with it writes each entity
+/// type's search haystacks there, `<etype>.txt` with one haystack per line in id order, and
+/// exits once set up.
+pub const HAYSTACKS_DIR_VAR: &str = "RANKLESS_HAYSTACKS_DIR";
 pub const DEFAULT_N_THREADS: usize = 16;
 pub const N_SUBFIELDS: usize = Subfields::N;
 pub const WORKS_PAGE_SIZE_MAX: usize = 400;

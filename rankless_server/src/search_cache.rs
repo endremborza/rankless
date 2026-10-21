@@ -61,3 +61,21 @@ pub(crate) fn save_engine<const S: usize>(
         let _ = fs::remove_file(stamp_path);
     }
 }
+
+pub(crate) fn haystacks_dir() -> Option<PathBuf> {
+    std::env::var_os(HAYSTACKS_DIR_VAR).map(PathBuf::from)
+}
+
+pub(crate) fn export_haystacks(dir: &Path, etype: &str, haystacks: &[String]) {
+    let path = dir.join(format!("{etype}.txt"));
+    let result = (|| -> std::io::Result<()> {
+        fs::create_dir_all(dir)?;
+        let mut w = BufWriter::new(fs::File::create(&path)?);
+        for haystack in haystacks {
+            // the tokenizer skips a line break, so dropping it keeps the haystack's words
+            writeln!(w, "{}", haystack.replace('\n', ""))?;
+        }
+        w.flush()
+    })();
+    result.unwrap_or_else(|e| panic!("writing {}: {e}", path.display()));
+}

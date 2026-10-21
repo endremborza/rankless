@@ -29,7 +29,7 @@ use crate::consts::{MAX_HITS, SEARCH_SIZE};
 use crate::responses::{
     PostAttRelatedEntity, RelationGroups, SearchResult, SerializableExt, YearWindow,
 };
-use crate::search_cache::{fnv64, save_engine, try_load_engine};
+use crate::search_cache::{export_haystacks, fnv64, haystacks_dir, save_engine, try_load_engine};
 
 pub(crate) type TreeRoots = (
     Institutions,
@@ -380,6 +380,9 @@ impl NameState {
         E: RootInterfaceable + IsTop + DistinctionText,
     {
         let (responses, engine_strs) = Self::get_resps(entif, cols, gets, names_arc, sem_ids_arc);
+        if let Some(dir) = haystacks_dir() {
+            export_haystacks(&dir, E::NAME, &engine_strs);
+        }
         let cache_dir = gets.stowage.path_from_ns("search-cache");
         let stem = format!("{}-s{SEARCH_SIZE}", E::NAME);
         let bin_path = cache_dir.join(format!("{stem}.bin"));
