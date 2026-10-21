@@ -38,13 +38,15 @@ use crate::{
     work_identity::edition_merges,
 };
 
-/// The env var naming the root of the data from outside OpenAlex.
+/// The env var naming the root of the data from outside OpenAlex that a box can fetch or
+/// derive again.
 #[wire]
-pub const EXTERNAL_DATA_ROOT: &str = "EXTERNAL_DATA_ROOT";
-/// The root when the variable is unset: a dev box, relative to the repo root the pipeline runs from.
+pub const EXTERNAL_REGEN_ROOT: &str = "EXTERNAL_REGEN_ROOT";
+/// The regen root when the variable is unset: a dev box, relative to the repo root the
+/// pipeline runs from.
 #[wire]
-pub const DEFAULT_EXTERNAL_DATA_ROOT: &str = "data/external";
-/// The ORCID registry's names, under the root.
+pub const DEFAULT_EXTERNAL_REGEN_ROOT: &str = "data/external/regen";
+/// The ORCID registry's names, under the regen root.
 #[wire]
 pub const NAMES_TABLE: &str = "orcid/names.tsv.zst";
 pub const SOURCE: &str = "derived";
@@ -1146,24 +1148,24 @@ pub fn derive(stowage: &Stowage, names_table: Option<&Path>) -> io::Result<()> {
     Ok(())
 }
 
-/// The CLI entry: the registered-name table under the external data root, required when
-/// `EXTERNAL_DATA_ROOT` names the root and optional under the default.
+/// The CLI entry: the registered-name table under the regen root, required when
+/// `EXTERNAL_REGEN_ROOT` names the root and optional under the default.
 pub fn main(stowage: Stowage) -> io::Result<()> {
     let table = names_table_path()?;
     if table.is_none() {
         println!(
-            "derive-ledger: no {NAMES_TABLE} under {DEFAULT_EXTERNAL_DATA_ROOT} — ORCID owners by most works only"
+            "derive-ledger: no {NAMES_TABLE} under {DEFAULT_EXTERNAL_REGEN_ROOT} — ORCID owners by most works only"
         );
     }
     derive(&stowage, table.as_deref())
 }
 
 fn names_table_path() -> io::Result<Option<PathBuf>> {
-    let named = env::var_os(EXTERNAL_DATA_ROOT).filter(|v| !v.is_empty());
+    let named = env::var_os(EXTERNAL_REGEN_ROOT).filter(|v| !v.is_empty());
     let root = named
         .clone()
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(DEFAULT_EXTERNAL_DATA_ROOT));
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_EXTERNAL_REGEN_ROOT));
     let path = root.join(NAMES_TABLE);
     match (path.exists(), named.is_some()) {
         (true, _) => Ok(Some(path)),

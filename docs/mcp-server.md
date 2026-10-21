@@ -94,13 +94,13 @@ wrapped in the receipt envelope, and `mcp_server/verify.py` re-issues them bare.
 make deep-explore ARGS='--backend live --foci all \
     [--subject "César Hidalgo"] [--question "..."] [--investigate <run>[:<id>]] \
     [--story ["<occasion>"]] [--model opus] [--sample N] [--max-turns N] [--out my-run]'
-# = uv run -m pyscripts.explore.deep with the .env (EXTERNAL_DATA_ROOT) exported
+# = uv run -m pyscripts.explore.deep with the .env (EXTERNAL_KEPT_ROOT) exported
 ```
 
 `pyscripts/explore/deep.py` drives a headless Claude session with these tools
 (`--mcp-config` + `--strict-mcp-config`, `--allowedTools mcp__rankless`) pointed at a chosen
 backend, then **re-issues every cited number** through the same tool functions — the
-reproduced value, not the model's text, is what gets published. Each run writes to its dir under the run root, `$EXTERNAL_DATA_ROOT/runs/<run>/` (`pyscripts/explore/runs.py`; without the variable, as under a bare `uv run`, the root is `runs/` under `DEFAULT_EXTERNAL_DATA_ROOT`):
+reproduced value, not the model's text, is what gets published. Each run writes to its dir under the run root, `$EXTERNAL_KEPT_ROOT/runs/<run>/` (`pyscripts/explore/runs.py`; without the variable, as under a bare `uv run` on a box that sets it only in `.env`, the root is `runs/` under `DEFAULT_EXTERNAL_KEPT_ROOT`):
 
 | File | Contents |
 | --- | --- |

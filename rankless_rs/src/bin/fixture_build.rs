@@ -1,6 +1,6 @@
 //! `fixture-build <dir>`: the synthetic minimal OpenAlex snapshot under `<dir>/snapshot`
 //! (`to-csv` reads `<dir>/snapshot/data/jsonl`), the ORCID registered-name table under
-//! `<dir>/external` (`EXTERNAL_DATA_ROOT=<dir>/external` for `derive-ledger`) plus
+//! `<dir>/external` (`EXTERNAL_REGEN_ROOT=<dir>/external` for `derive-ledger`) plus
 //! `<dir>/scenario.json` naming every id the ledger flow can act on. The generator is the
 //! integration tests' own; see `tests/common/synthetic_oa.rs`.
 

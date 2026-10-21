@@ -56,7 +56,7 @@ dev:
 mcp-server:
 	uv run -m mcp_server
 
-# Agentic deep exploration via the MCP tools; writes to $(EXTERNAL_DATA_ROOT)/runs/.
+# Agentic deep exploration via the MCP tools; writes to $(EXTERNAL_KEPT_ROOT)/runs/.
 # e.g. make deep-explore ARGS="--backend live --foci all"
 deep-explore:
 	uv run -m pyscripts.explore.deep $(ARGS)
@@ -109,7 +109,7 @@ to-csv:
 	cargo run --release -p rankless-rs -- $@ $(OA_ROOT) $(OA_SNAPSHOT)/data/jsonl
 
 # derive-ledger writes the identity records the shared ORCIDs imply, the second ledger source
-# the filter resolves (registered names from $(EXTERNAL_DATA_ROOT) when it is set).
+# the filter resolves (registered names from $(EXTERNAL_REGEN_ROOT) when it is set).
 filter: export_user_ledger clean-filters clean-cache
 	cargo build --release -p rankless-rs
 	time ./target/release/rankless-rs derive-ledger $(OA_ROOT)

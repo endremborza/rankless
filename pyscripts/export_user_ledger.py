@@ -3,7 +3,7 @@
 Reads ledger_events and owner_pins from SQLite, writes:
   ACTIVE_JSONL       — active events ready for the pipeline
   CURATED_JSONL      — the team's curated ledger: the occasion files in
-                       $EXTERNAL_DATA_ROOT/ledger/`CURATED_DIR`/, joined in name order;
+                       $EXTERNAL_KEPT_ROOT/ledger/`CURATED_DIR`/, joined in name order;
                        absent when the default root has none
   SNAPSHOT_MANIFEST  — run_id (ISO ts) + exported event_ids + per-source counts + the
                        lines each curated occasion file gave
@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Any
 
 from pyscripts import paths
-from pyscripts.external_data import table
+from pyscripts.external_data import KEPT
 from pyscripts.ledger_ids import OK_MODERATION, OK_MODERATION_SQL, logical_key
 from wire.rankless_rs.user_ledger import (
     ACTIVE_JSONL,
@@ -163,7 +163,7 @@ def _export_curated(out_dir: Path) -> dict[str, int] | None:
     An event key on two lines stops the export, since the pipeline would apply the event
     in whichever file sorts last."""
     dest = out_dir / CURATED_JSONL
-    src = table("ledger", CURATED_DIR)
+    src = KEPT.table("ledger", CURATED_DIR)
     if src is None:
         dest.unlink(missing_ok=True)
         return None

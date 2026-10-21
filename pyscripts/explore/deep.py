@@ -11,7 +11,7 @@ tool functions, so the published numbers come from reproduction, not from the
 model.
 
 Output lands in the run's dir under the run root (`runs.root()`,
-`$EXTERNAL_DATA_ROOT/runs/<run>/`):
+`$EXTERNAL_KEPT_ROOT/runs/<run>/`):
 - report.md   -> the stories only (prose + entity links), linking out
 - reproduce.md -> per-finding numbers table + the exact calls (+ curl)
 - findings.json -> machine-readable findings incl. reproduced values + ids

@@ -90,20 +90,20 @@ accepted claim), then: `make filter extend_csvs` â†’ forced gen-ladder rebuild â
 
 ## External data
 
-Tables the pipeline reads that OpenAlex does not provide live under one root per box, `EXTERNAL_DATA_ROOT` in the box's `.env`, outside the repo, the snapshot and `OA_ROOT`: nothing under it is checked in or published, and a snapshot update or `make nuke` never touches it. Unset, the root is `DEFAULT_EXTERNAL_DATA_ROOT` (a dev box).
+Tables the pipeline reads that OpenAlex does not provide live outside the repo, the snapshot and `OA_ROOT`, in two roots per box, each a directory per source: the kept root (`EXTERNAL_KEPT_ROOT`) holds what exists nowhere else, the regen root (`EXTERNAL_REGEN_ROOT`) what the box can fetch or derive again. Nothing under them is checked in or published, and a snapshot update or `make nuke` never touches them. Unset, a root is its default (`DEFAULT_EXTERNAL_KEPT_ROOT`, `DEFAULT_EXTERNAL_REGEN_ROOT`: a dev box).
 
-| under the root | read by | made by | missing, root set | missing, root unset |
-| --- | --- | --- | --- | --- |
-| `NAMES_TABLE` | `derive-ledger` (in `make filter`) | `make orcid_summaries`, from `orcid/raw/ORCID_<year>_<month>_summaries.tar.gz` (downloaded if absent) | `make filter` fails | ORCID owners by works alone |
-| `enrichment/laureates.csv` | `make extend_csvs` | by hand | `extend_csvs` fails | no laureates |
-| `ledger/CURATED_DIR/*.jsonl` | `export_user_ledger` (in `make filter`), joined in name order into `CURATED_JSONL` beside the site's `ACTIVE_JSONL`, each file's line count in `SNAPSHOT_MANIFEST` `curated_files`; an event key on two lines stops it | by hand, one file per curation occasion (`<date>-<occasion>.jsonl`), lines in the `ACTIVE_JSONL` shape (`pyscripts/ledger_ids.py` `curated_line`): the site's kinds plus `reassign_paper` and `name_author` | `make filter` fails | no curated events |
-| `metascience/raw/{areas,q-by-year}.csv.gz`, `wiki/raw/oa-to-wiki-authors.csv.gz` | `make extend_csvs` | downloaded from the public bucket on first use | downloaded | downloaded |
+| root | under it | read by | made by | missing, root set | missing, root unset |
+| --- | --- | --- | --- | --- | --- |
+| regen | `NAMES_TABLE` | `derive-ledger` (in `make filter`) | `make orcid_summaries`, from `orcid/raw/ORCID_<year>_<month>_summaries.tar.gz` (downloaded if absent; `--dump-dir` keeps the tarball elsewhere) | `make filter` fails | ORCID owners by works alone |
+| kept | `enrichment/laureates.csv` | `make extend_csvs` | by hand | `extend_csvs` fails | no laureates |
+| kept | `ledger/CURATED_DIR/*.jsonl` | `export_user_ledger` (in `make filter`), joined in name order into `CURATED_JSONL` beside the site's `ACTIVE_JSONL`, each file's line count in `SNAPSHOT_MANIFEST` `curated_files`; an event key on two lines stops it | by hand, one file per curation occasion (`<date>-<occasion>.jsonl`), lines in the `ACTIVE_JSONL` shape (`pyscripts/ledger_ids.py` `curated_line`): the site's kinds plus `reassign_paper` and `name_author` | `make filter` fails | no curated events |
+| regen | `metascience/raw/{areas,q-by-year}.csv.gz`, `wiki/raw/oa-to-wiki-authors.csv.gz` | `make extend_csvs` | downloaded from the public bucket on first use | downloaded | downloaded |
 
-The pipeline reads nothing else there (`orcid/public_emails.tsv`, the audit files in `enrichment/` and a curated batch waiting in `ledger/pending/` are kept, not read; applying a batch is moving its file into `ledger/CURATED_DIR/`). `ledger/` is its own git repository, since the curated events are private and the rankless repo is public; the push carries it like any other directory. The agent runs live there too, one dir per run in `runs/` (`pyscripts/explore/runs.py`, [mcp-server.md](mcp-server.md)): private, never served, written by `make deep-explore` and the game-card round on whichever box runs them. So the primary data box sets `EXTERNAL_DATA_ROOT` and holds the first three tables: unset, its release has no laureates, no curated events and ORCID owners by works alone.
+The pipeline reads nothing else there (`orcid/public_emails.tsv` in the regen root, the audit files in `enrichment/` and a curated batch waiting in `ledger/pending/` are kept, not read; applying a batch is moving its file into `ledger/CURATED_DIR/`). `ledger/` is its own git repository, since the curated events are private and the rankless repo is public; the push carries it like any other directory. The agent runs live in the kept root too, one dir per run in `runs/` (`pyscripts/explore/runs.py`, [mcp-server.md](mcp-server.md)): private, never served, written by `make deep-explore` and the game-card round on whichever box runs them. So the primary data box sets both roots and holds the first three tables: unset, its release has no laureates, no curated events and ORCID owners by works alone.
 
-A script sees `.env` only through make (`-include .env` + `export`): run these as make targets. A bare `uv run -m pyscripts.<script>` falls back to `DEFAULT_EXTERNAL_DATA_ROOT`.
+A root comes from the environment. Set in the box's environment, every entry point sees it; set in `.env`, only make targets do (`-include .env` + `export`), and a bare `uv run -m pyscripts.<script>` falls back to the default.
 
-The root is built where its data is made and reaches the data box with `make external-push` (`make external-pull` the other way): rsync to `EXTERNAL_DATA_REMOTE` (`host:/path`), additive, never deleting on the far side, and never carrying a `raw/`. A box keeps its own downloads; a table built from one (the names table) rides the push like any other.
+Each root is built where its data is made and reaches the data box with `make external-push` (`make external-pull` the other way): rsync of each root to its remote, `EXTERNAL_KEPT_REMOTE` and `EXTERNAL_REGEN_REMOTE` (`host:/path`), additive, never deleting on the far side, and never carrying a `raw/`. A box keeps its own downloads; a table built from one (the names table) rides the push like any other.
 
 ## commit-artifacts
 

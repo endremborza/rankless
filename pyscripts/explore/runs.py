@@ -2,7 +2,7 @@
 
 Every agentic workflow (deep exploration, the game-card round) names its runs
 `<workflow>-<scope>-<UTC stamp>` and writes its outputs into a dir of that name
-under the run root, `$EXTERNAL_DATA_ROOT/runs/`: private, never served by the
+under the run root, `$EXTERNAL_KEPT_ROOT/runs/`: private, never served by the
 site, synced between boxes with `make external-push|pull`. What a run makes
 public leaves it by hand: a story through rankless-stories, game cards through
 the object store.
@@ -18,7 +18,7 @@ STAMP_FMT = "%Y%m%dT%H%M%S"
 
 
 def root() -> Path:
-    return external_data.source_dir(SOURCE)
+    return external_data.KEPT.source_dir(SOURCE)
 
 
 def run_stamp() -> str:

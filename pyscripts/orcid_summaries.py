@@ -1,8 +1,8 @@
 """The ORCID Public Data File summaries, reduced to the two tables Rankless reads.
 
 Downloads the summaries tarball into the `raw/` of the `SOURCE` directory of
-`$EXTERNAL_DATA_ROOT` (resumable, md5-checked), streams it once and writes into that
-source directory:
+`$EXTERNAL_REGEN_ROOT`, or into `--dump-dir` (resumable, md5-checked), streams it once
+and writes into that source directory:
 
     NAMES_NAME            orcid, given_names, family_name, credit_name, other_names
                           for every record — the registered-name table
@@ -11,8 +11,9 @@ source directory:
                           public email — the author email lane joins its ORCIDs to it
     STATS_NAME            record and row counts of the pass
 
-Usage (make passes `.env`'s EXTERNAL_DATA_ROOT; --root overrides it):
+Usage (--root overrides $EXTERNAL_REGEN_ROOT):
     make orcid_summaries
+    uv run -m pyscripts.orcid_summaries --dump-dir <dir holding the tarball>
 """
 
 import argparse
@@ -29,7 +30,7 @@ from pathlib import Path
 
 import zstandard
 
-from pyscripts.external_data import fetched, source_dir
+from pyscripts.external_data import REGEN, download, raw_dir
 from wire.rankless_rs.derived_ledger import NAMES_TABLE
 
 SOURCE, NAMES_NAME = NAMES_TABLE.split("/")
@@ -186,11 +187,13 @@ def scan(tarball: Path, out_dir: Path) -> ScanCounts:
     return counts
 
 
-def main(*, root: Path | None = None) -> None:
-    """Download the summaries into the orcid source's `raw/` (if absent) and extract the
-    names + public-emails tables (--root overrides $EXTERNAL_DATA_ROOT)."""
-    out_dir = source_dir(SOURCE, root)
-    tarball = fetched(SOURCE, SUMMARIES_NAME, SUMMARIES_URL, root)
+def main(*, root: Path | None = None, dump_dir: Path | None = None) -> None:
+    """Download the summaries into `dump_dir`, by default the orcid source's `raw/` (if
+    absent), and extract the names + public-emails tables."""
+    out_dir = REGEN.source_dir(SOURCE, root)
+    tarball = download(
+        SUMMARIES_URL, (dump_dir or raw_dir(SOURCE, root)) / SUMMARIES_NAME
+    )
     verify(tarball)
     counts = scan(tarball, out_dir)
     stats = {"source": SUMMARIES_NAME, **counts.__dict__}
@@ -203,4 +206,6 @@ if __name__ == "__main__":
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--root", type=Path, default=None)
-    main(root=parser.parse_args().root)
+    parser.add_argument("--dump-dir", type=Path, default=None)
+    args = parser.parse_args()
+    main(root=args.root, dump_dir=args.dump_dir)

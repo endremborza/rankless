@@ -13,7 +13,7 @@ from ccl_science_data.common import (
 from ccl_science_data.gen import ComC, EntC
 
 from mcp_server import NOBEL_CATEGORIES
-from pyscripts.external_data import fetched, table
+from pyscripts.external_data import KEPT, fetched
 
 # Integer codes for Nobel categories — avoids repeating strings in the CSV.
 NOBEL_CATEGORY_CODES = {name: i for i, name in enumerate(NOBEL_CATEGORIES, 1)}
@@ -24,7 +24,7 @@ link_frame = "https://tmp-borza-public-cyx.s3.amazonaws.com/{}.csv.gz"
 
 
 def external_table(source: str, name: str, key: str) -> Path:
-    """The bucket's `key` table, kept under $EXTERNAL_DATA_ROOT/<source>/ once fetched."""
+    """The bucket's `key` table, kept under $EXTERNAL_REGEN_ROOT/<source>/raw/ once fetched."""
     return fetched(source, f"{name}.csv.gz", link_frame.format(key))
 
 
@@ -40,11 +40,9 @@ def write_csv(df: pd.DataFrame, main: str, sub: str):
 
 def laureates() -> pd.DataFrame:
     """The matched laureates of the enrichment table; none on a dev box without it."""
-    path = table("enrichment", "laureates.csv")
+    path = KEPT.table("enrichment", "laureates.csv")
     if path is None:
-        print(
-            "no enrichment/laureates.csv under the default external root: no laureates"
-        )
+        print("no enrichment/laureates.csv under the default kept root: no laureates")
         return pd.DataFrame({"oa_id": [], "category": [], "year": []}, dtype=int)
     out = (
         pd.read_csv(path, dtype={"oa_id": "Int64"})

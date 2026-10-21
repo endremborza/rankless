@@ -409,7 +409,7 @@ impl Scenario {
     }
 
     /// The registered-name table `derive-ledger` reads, under `external_root` as
-    /// `$EXTERNAL_DATA_ROOT` lays it out: the split ORCID registered to "Sam Split".
+    /// `$EXTERNAL_REGEN_ROOT` lays it out: the split ORCID registered to "Sam Split".
     pub fn write_names_table(&self, external_root: &Path) -> io::Result<PathBuf> {
         let path = external_root.join(NAMES_TABLE);
         create_dir_all(path.parent().unwrap())?;

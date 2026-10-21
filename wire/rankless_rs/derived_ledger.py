@@ -5,9 +5,11 @@ from __future__ import annotations
 from typing import Final
 
 
-# The env var naming the root of the data from outside OpenAlex.
-EXTERNAL_DATA_ROOT: Final = "EXTERNAL_DATA_ROOT"
-# The root when the variable is unset: a dev box, relative to the repo root the pipeline runs from.
-DEFAULT_EXTERNAL_DATA_ROOT: Final = "data/external"
-# The ORCID registry's names, under the root.
+# The env var naming the root of the data from outside OpenAlex that a box can fetch or
+# derive again.
+EXTERNAL_REGEN_ROOT: Final = "EXTERNAL_REGEN_ROOT"
+# The regen root when the variable is unset: a dev box, relative to the repo root the
+# pipeline runs from.
+DEFAULT_EXTERNAL_REGEN_ROOT: Final = "data/external/regen"
+# The ORCID registry's names, under the regen root.
 NAMES_TABLE: Final = "orcid/names.tsv.zst"

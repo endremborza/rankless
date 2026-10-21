@@ -28,7 +28,7 @@ def _ledger(tmp_path, monkeypatch, files: dict[str, list[dict]]):
     occasions.mkdir(parents=True)
     for name, lines in files.items():
         (occasions / name).write_text("".join(json.dumps(x) + "\n\n" for x in lines))
-    monkeypatch.setenv(external_data.EXTERNAL_DATA_ROOT, str(root))
+    monkeypatch.setenv(external_data.EXTERNAL_KEPT_ROOT, str(root))
     return root
 
 
@@ -74,7 +74,7 @@ def test_an_event_key_on_two_lines_stops_the_export(tmp_path, monkeypatch):
 def test_without_a_curated_ledger_under_the_default_root_none_is_left(
     tmp_path, monkeypatch
 ):
-    monkeypatch.delenv(external_data.EXTERNAL_DATA_ROOT, raising=False)
+    monkeypatch.delenv(external_data.EXTERNAL_KEPT_ROOT, raising=False)
     monkeypatch.chdir(tmp_path)
     stale = tmp_path / "data" / paths.USER_LEDGER_DIR / CURATED_JSONL
     stale.parent.mkdir(parents=True)
