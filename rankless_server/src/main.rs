@@ -4,6 +4,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 mod cohort;
 mod consts;
 mod handlers;
+mod muwo;
 mod responses;
 mod routes;
 mod search_cache;

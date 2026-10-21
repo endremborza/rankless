@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use axum::extract::State;
 use hashbrown::{HashMap, HashSet};
-use muwo::SearchEngine;
 
 use dmove::{Entity, UnsignedNumber, ET};
 use rankless_rs::{
@@ -25,7 +24,8 @@ use rankless_trees::{
 };
 
 use crate::cohort::BoundCall;
-use crate::consts::{MAX_HITS, SEARCH_SIZE};
+use crate::consts::MAX_HITS;
+use crate::muwo::{self, SearchEngine};
 use crate::responses::{
     PostAttRelatedEntity, RelationGroups, SearchResult, SerializableExt, YearWindow,
 };
@@ -56,7 +56,7 @@ pub(crate) type FullStatesT = State<FullStates>;
 // semantic, OpenAlex, dm and response ids, and the cohort orderings. Every per-entity number is a
 // column of the root's `RootColumns`.
 pub(crate) struct NameState {
-    pub engine: SearchEngine<SEARCH_SIZE>,
+    pub engine: SearchEngine,
     // Ordered by citations descending: response id == citation rank - 1.
     pub responses: Box<[SearchResult]>,
     pub sem_to_dm: HashMap<Arc<str>, u32>,
@@ -384,7 +384,7 @@ impl NameState {
             export_haystacks(&dir, E::NAME, &engine_strs);
         }
         let cache_dir = gets.stowage.path_from_ns("search-cache");
-        let stem = format!("{}-s{SEARCH_SIZE}", E::NAME);
+        let stem = format!("{}-s{}", E::NAME, muwo::result_size());
         let bin_path = cache_dir.join(format!("{stem}.bin"));
         let stamp_path = cache_dir.join(format!("{stem}.stamp"));
         let key = fnv64(engine_strs.iter().map(|s| s.as_bytes()));
@@ -392,7 +392,7 @@ impl NameState {
         let (engine, from_cache) = match try_load_engine(&bin_path, &stamp_path, key) {
             Some(e) => (e, true),
             None => {
-                let e = SearchEngine::new(engine_strs.into_iter());
+                let e = SearchEngine::new(&engine_strs);
                 save_engine(&e, &bin_path, &stamp_path, &cache_dir, key);
                 (e, false)
             }

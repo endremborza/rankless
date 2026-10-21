@@ -1,7 +1,7 @@
 -include .env
 export
 
-.PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest setup-services external-push external-pull
+.PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest setup-services external-push external-pull muwo-install muwo-push
 .PHONY: check format check-rs check-py check-js check-types format-rs format-py format-js types
 .PHONY: refresh-data commit-artifacts warm-caches ship-alpha promote
 .PHONY: fleet-probe fleet-suggest fleet-preflight fleet-prepare fleet-stamp
@@ -123,6 +123,11 @@ extend_csvs orcid_summaries lib_data_generation homepage_showcase live_monitorin
 
 external-push external-pull:
 	uv run -m pyscripts.external_data $(subst external-,,$@)
+
+# muwo's search library from the checkout in libs/muwo into MUWO_LIB_DIR; push also sends it
+# to $(DATA_BOX_CHECKOUT).
+muwo-install muwo-push:
+	uv run -m pyscripts.muwo $(subst muwo-,,$@)
 
 # The access-log report (`ramore.toml`); `ramore` is installed from its repo with `make install`.
 reporting:

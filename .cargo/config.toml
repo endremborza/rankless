@@ -1,2 +1,6 @@
 [build]
 rustflags = ["-C", "target-cpu=native"]
+
+[env]
+# Where every checkout keeps the prebuilt search library (`make muwo-install`).
+MUWO_LIB_DIR = { value = "prebuilt", relative = true }

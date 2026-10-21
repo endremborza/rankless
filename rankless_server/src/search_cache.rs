@@ -4,9 +4,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use muwo::SearchEngine;
-
 use crate::consts::HAYSTACKS_DIR_VAR;
+use crate::muwo::SearchEngine;
 
 pub(crate) fn fnv64(iter: impl Iterator<Item = impl AsRef<[u8]>>) -> u64 {
     const BASIS: u64 = 0xcbf29ce484222325;
@@ -21,11 +20,11 @@ pub(crate) fn fnv64(iter: impl Iterator<Item = impl AsRef<[u8]>>) -> u64 {
     h
 }
 
-pub(crate) fn try_load_engine<const S: usize>(
+pub(crate) fn try_load_engine(
     bin_path: &PathBuf,
     stamp_path: &PathBuf,
     key: u64,
-) -> Option<SearchEngine<S>> {
+) -> Option<SearchEngine> {
     let raw = fs::read(stamp_path).ok()?;
     let stamp_key = u64::from_ne_bytes(raw.try_into().ok()?);
     if stamp_key != key {
@@ -33,13 +32,11 @@ pub(crate) fn try_load_engine<const S: usize>(
         let _ = fs::remove_file(stamp_path);
         return None;
     }
-    let file = fs::File::open(bin_path).ok()?;
-    let mut file_br = std::io::BufReader::new(file);
-    SearchEngine::try_load(&mut file_br)
+    SearchEngine::try_load(bin_path)
 }
 
-pub(crate) fn save_engine<const S: usize>(
-    engine: &SearchEngine<S>,
+pub(crate) fn save_engine(
+    engine: &SearchEngine,
     bin_path: &PathBuf,
     stamp_path: &PathBuf,
     cache_dir: &PathBuf,
@@ -49,12 +46,9 @@ pub(crate) fn save_engine<const S: usize>(
         println!("search cache: could not create dir: {e}");
         return;
     }
-    let result = (|| -> std::io::Result<()> {
-        let mut w = BufWriter::new(fs::File::create(bin_path)?);
-        engine.save(&mut w)?;
-        w.flush()?;
-        fs::write(stamp_path, key.to_ne_bytes())
-    })();
+    let result = engine
+        .save(bin_path)
+        .and_then(|()| fs::write(stamp_path, key.to_ne_bytes()));
     if let Err(e) = result {
         println!("search cache: write failed: {e}");
         let _ = fs::remove_file(bin_path);

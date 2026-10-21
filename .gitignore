@@ -35,6 +35,7 @@ logs/
 paper-gen/
 .claude
 /libs/
+/prebuilt/
 nano-snapshot.tar.zst*
 docs/mega-test-last-run.md
 docs/*.html

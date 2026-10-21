@@ -793,13 +793,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "muwo"
-version = "0.1.0"
-dependencies = [
- "deunicode",
-]
-
-[[package]]
 name = "nalgebra"
 version = "0.33.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1055,7 +1048,6 @@ dependencies = [
  "dmove",
  "hashbrown 0.14.5",
  "mimalloc",
- "muwo",
  "rand",
  "rankless-expr",
  "rankless-rs",

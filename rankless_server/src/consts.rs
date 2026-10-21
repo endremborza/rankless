@@ -6,7 +6,6 @@ pub const MAX_HITS: usize = 80;
 pub const STAMP_FNAME: &str = "stamp";
 #[wire]
 pub const PORT: u16 = 3038;
-pub const SEARCH_SIZE: usize = 20;
 /// Rows one `/slice` page holds at most.
 #[wire]
 pub const MAX_SLICE: usize = 40_000;
