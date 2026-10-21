@@ -259,8 +259,9 @@ def render_nginx_conf(
     fe_cache_dir: str,
     lt_token: str | None = None,
 ) -> str:
-    """The site conf: the frontend and API hosts behind Cloudflare plus the
-    `services.STATUS_PORT` status endpoint. Visitor addresses come from CF-Connecting-IP, so every
+    """The site conf: the frontend and API hosts behind Cloudflare. No block sets an
+    `access_log`, so each inherits ramore's http-level request log (`ramore box`).
+    Visitor addresses come from CF-Connecting-IP, so every
     per-client zone keys on the visitor rather than the edge. Pages and the API
     get separate per-client budgets, and page renders are capped in flight
     (globally and per client) so a burst is shed with instant 503s instead of
@@ -308,8 +309,6 @@ map $http_x_loadtest $lt_skip_cache {{
 
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
-
-    access_log /var/log/nginx/access.log upstream_time;
 {security_headers}"""
     loc_suffix = f"""
         proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
@@ -348,11 +347,6 @@ map $http_user_agent $junk_ua {{
     "~Windows 98" 1;
     "~Sogou" 1;
 }}
-
-log_format upstream_time '$remote_addr - $remote_user [$time_local] '
-                         '"$request" $status $body_bytes_sent '
-                         '"$http_referer" "$http_user_agent"'
-                         'rt=$request_time uct="$upstream_connect_time" uht="$upstream_header_time" urt="$upstream_response_time" cs=$upstream_cache_status host=$host';
 
 server {{
 
@@ -411,15 +405,6 @@ server {{
    listen 80;
    server_name {inst_domain};
    return 301 https://$server_name$request_uri;
-}}
-
-server {{
-    listen {services.STATUS_PORT};
-
-    location /status {{
-        default_type application/json;
-        alias /tmp/status_cache.json;
-    }}
 }}
 
 """
@@ -708,13 +693,6 @@ class Transper:
 
     def restart_mcp(self):
         ServiceMan(services.MCP_SERVER_UNIT, self.ssh).restart()
-
-    def setup_status_service(self):
-        self.sync_service(services.render_status(self.deploy_dir), services.STATUS_UNIT)
-        self.reload_systemctl()
-        man = ServiceMan(services.STATUS_UNIT, self.ssh)
-        man.enable()
-        man.restart()
 
     def setup_fe_services(self, inst_domain: str, procs: int = 2):
         confs = [
@@ -1290,11 +1268,6 @@ OPS_STEPS: list[BoxStep] = [
         "mcp_units",
         "MCP server unit, restarted",
         lambda tpr, spec: tpr.setup_mcp_services(),
-    ),
-    BoxStep(
-        "status_unit",
-        f"{services.STATUS_UNIT} (/status producer on :{services.STATUS_PORT}), restarted",
-        lambda tpr, spec: tpr.setup_status_service(),
     ),
     BoxStep(
         "certs",

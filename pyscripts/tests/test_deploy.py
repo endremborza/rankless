@@ -150,9 +150,9 @@ def test_nginx_conf_keys_on_the_visitor_and_caps_renders() -> None:
         f"proxy_next_upstream_tries {deploy.PAGE_UPSTREAM_TRIES};",
         f"limit_req zone=apilimit burst={services.API_BURST} nodelay;",
         '"~MSIE [5-9]\\." 1;',
-        f"listen {services.STATUS_PORT};",
     ]:
         assert line in conf, line
+    assert "access_log" not in conf
     assert "baselimit" not in conf
     assert "$lt_" not in conf
     # hashed assets are cached and never draw on the page budget

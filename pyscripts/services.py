@@ -10,8 +10,8 @@ the same templates for cloud instances over SSH.
 
 Profiles = which services a box runs:
 - dev:         backend + mcp-server
-- small-alpha: frontend (blue+green) + mcp-server + status
-- live:        frontend + backend + mcp-server + status
+- small-alpha: frontend (blue+green) + mcp-server
+- live:        frontend + backend + mcp-server
 
 The MCP server's backend is a parameter (`--mcp-backend local|alpha|live|<url>`),
 defaulting per profile; re-run with a different value to re-point it.
@@ -36,9 +36,6 @@ MCP_SERVER_UNIT = "rankless-mcp-server.service"
 BACKUP_SERVICE_UNIT = "rankless-backup.service"
 BACKUP_TIMER_UNIT = "rankless-backup.timer"
 DEFAULT_BACKUP_DEST = Path.home() / "rankless-data" / paths.BACKUPS_DIR
-STATUS_UNIT = "rankless-status.service"
-# The port nginx serves `/status` on; the unit's dump is what it serves.
-STATUS_PORT = 5566
 FE_UNIT_FRAME = "rankless-frontend-{}@.service"
 FE_BUILD_NAMES = ["blue", "green"]
 
@@ -49,8 +46,8 @@ API_LIMIT_REQ = f"limit_req zone=apilimit burst={API_BURST} nodelay;"
 
 PROFILES = {
     "dev": ("backend", "mcp-server"),
-    "small-alpha": ("frontend", "mcp-server", "status"),
-    "live": ("frontend", "backend", "mcp-server", "status"),
+    "small-alpha": ("frontend", "mcp-server"),
+    "live": ("frontend", "backend", "mcp-server"),
     "worker": ("backend",),  # cache-warm fleet box: backend unit only
 }
 # Where the MCP server points by default: a dev box mines real data from the
@@ -142,10 +139,6 @@ def render_mcp_server(
         mcp_public_hosts=public_hosts,
         mcp_log_dir=f"{repo_root}/{paths.MCP_LOG_REL}",
     )
-
-
-def render_status(repo_root: str) -> str:
-    return render(STATUS_UNIT, repo_root=repo_root)
 
 
 def render_nginx_mcp(port: int = MCP_PORT) -> str:
@@ -244,8 +237,6 @@ def _render_units(args: argparse.Namespace) -> dict[str, str]:
         units[MCP_SERVER_UNIT] = render_mcp_server(
             repo, python, be_url, args.mcp_port, args.mcp_public_hosts
         )
-    if "status" in wanted:
-        units[STATUS_UNIT] = render_status(repo)
     if args.backup_source:
         units[BACKUP_SERVICE_UNIT] = render(
             BACKUP_SERVICE_UNIT,

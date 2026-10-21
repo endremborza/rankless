@@ -12,20 +12,13 @@ from email.mime.text import MIMEText
 
 import requests
 
-from .deploy import LIVE_DOMAIN, rolling_restart_live_fe
-from .services import STATUS_PORT
+from .deploy import LIVE_DOMAIN
 
 EMAIL_ADDRESS = os.environ["GMAIL_ADDR"]
 EMAIL_PASSWORD = os.environ["GMAIL_APP_PW"]
-IP = os.environ["RL_LIVE_IP"]
 FILE_CHANNEL_ADDR = os.environ.get("FILE_CHANNEL_ADDR")
 FILE_CHANNEL_TOKEN = os.environ.get("FILE_CHANNEL_TOKEN")
 TO_EMAIL = EMAIL_ADDRESS
-ALLOW_FE_RESTART = os.environ.get("ALLOW_RANKLESS_FE_RESTART")
-
-WARN_AT_FILES = 800
-WARN_AT_FULL = 92
-WARN_AT_RAM = int(os.environ.get("WARN_AT_RAM", 10))
 
 FAIL_SECONDS = 120
 WAIT_SECONDS = 15
@@ -113,17 +106,6 @@ def post_success():
             pass
 
 
-def try_restarting_fe():
-    if ALLOW_FE_RESTART:
-        try:
-            p = multiprocessing.Process(target=rolling_restart_live_fe)
-            p.start()
-            p.join(timeout=180)
-            time.sleep(20)
-        except Exception as e:
-            print(f"failed restarting frontend {e}")
-
-
 def check_site():
     with multiprocessing.Pool(1) as pool:
         try:
@@ -137,29 +119,6 @@ def check_site():
                 log_result(e, "long time")
 
 
-def check_status():
-    try:
-        status_dic = requests.get(
-            f"http://{IP}:{STATUS_PORT}/status", timeout=10
-        ).json()
-    except Exception as e:
-        print("failed status json")
-        log_result(e, "status json")
-        return
-
-    if status_dic["fs_use_pct"] >= 97.5:
-        warn("Rankless filling", str(status_dic))
-        return
-    if status_dic["fs_use_pct"] > WARN_AT_FULL:
-        warn("Rankless running out of space", str(status_dic))
-    if status_dic["open_files"] > WARN_AT_FILES:
-        try_restarting_fe()
-        warn("Rankless too many open files", str(status_dic))
-    if status_dic["memory_free_gb"] < WARN_AT_RAM:
-        try_restarting_fe()
-        warn("Rankless running out of ram", str(status_dic))
-
-
 if __name__ == "__main__":
     try:
         warn("Rankless monitoring", f"just started with\n{get_success_dic()}")
@@ -167,6 +126,5 @@ if __name__ == "__main__":
         print(f"startup mail failed: {e}")
     while True:
         check_site()
-        check_status()
         read_records_and_warn()
         time.sleep(WAIT_SECONDS)

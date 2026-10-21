@@ -1,5 +1,6 @@
-# What `ramore report` and `ramore reset` read, run from this directory: the access-log report
-# on www.rankless.org, published to this repo's gh-pages branch.
+# What every `ramore` command reads, run from this directory: the report on www.rankless.org
+# (published to this repo's gh-pages branch), its box side and its monitor. `ramore-alpha.toml` is
+# the alpha box's local-only variant.
 name = "Rankless"
 store = "reports-v2"
 
@@ -14,6 +15,13 @@ api = "wire/rankless_server/routes.py:API_ROUTES"
 [search]
 route = "/v1/names/{etype}"
 param = "q"
+
+[metrics]
+units = ["rankless-backend.service", "rankless-frontend-*@*.service", "rankless-mcp-server.service", "nginx.service"]
+
+[monitor]
+url = "https://www.rankless.org/"
+report_url = "https://endremborza.github.io/rankless/"
 
 [login]
 # The ORCID OAuth return: 302 once the session is set, 4xx when the state or the token exchange fails.
