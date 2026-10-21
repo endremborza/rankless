@@ -1,0 +1,28 @@
+# What `ramore report` and `ramore reset` read, run from this directory: the access-log report
+# on www.rankless.org, published to this repo's gh-pages branch.
+name = "Rankless"
+store = "reports-v2"
+
+[source]
+ssh = "rankless-live"
+hosts = ["www.rankless.org", "rankless.org", "api.rankless.org"]
+
+[routes]
+sveltekit = "."
+api = "wire/rankless_server/routes.py:API_ROUTES"
+
+[search]
+route = "/v1/names/{etype}"
+param = "q"
+
+[login]
+# The ORCID OAuth return: 302 once the session is set, 4xx when the state or the token exchange fails.
+route = "/callback"
+ok_status = 302
+label = "ORCID logins"
+
+[site]
+include = { poster = "docs/poster" }
+
+[publish]
+worktree = "/tmp/rankless-ghpages"

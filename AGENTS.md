@@ -6,7 +6,7 @@ Large-scale scholarly citation explorer. OpenAlex CSVs → binary pipeline → A
 
 - `docs/architecture.md` — app purpose, data model, layers, codebase file index, schema, breakdown-selection, metaprogramming, parallelization, local dev
 - `docs/benchmarking.md` — comparison/benchmark tooling + SQL-vs-Rust results
-- `docs/reporting.md`, `docs/tree-internals.md`, `docs/topic-tags.md`, `docs/sharecard-render-test.md` — focused references (reporting site, tree-build internals, topic tags, share-card test)
+- `docs/reporting.md`, `docs/tree-internals.md`, `docs/topic-tags.md`, `docs/sharecard-render-test.md` — focused references (the ramore report setup, tree-build internals, topic tags, share-card test)
 - `docs/deploy.md` — recalc + deploy flow: `pyscripts recalc` data stages, `pyscripts deploy` application/box primitives (incl. ship_alpha/promote), warm-cache fleet, DB handoff
 - `docs/mcp-server.md` — MCP proxy (`mcp_server/`) over the backend + the deep-stories miner
 - `docs/ledger-review.md` — ledger moderation: `/admin/ledger` queue, enrichment cache, hard-evidence auto-accept, AI review lane

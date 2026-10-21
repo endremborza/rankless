@@ -1,7 +1,7 @@
 """Public hostnames of the site and its backends.
 
-Stdlib + `mcp_server` only, so the stress driver, the access-log reporting and the
-monitors read them without `deploy`'s cloud dependencies. The domain and the API hosts
+Stdlib + `mcp_server` only, so the stress driver and the monitors read them without
+`deploy`'s cloud dependencies. The domain and the API hosts
 come from `mcp_server` (`MAIN_DOMAIN`, `BACKENDS`).
 """
 

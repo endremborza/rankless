@@ -118,16 +118,20 @@ filter: export_user_ledger clean-filters clean-cache
 run-server:
 	cargo run --release -p rankless-server -- $(OA_ROOT) 
 
-extend_csvs orcid_summaries lib_data_generation homepage_showcase live_monitoring reporting sitemap_validation survey_result_export export_user_ledger:
+extend_csvs orcid_summaries lib_data_generation homepage_showcase live_monitoring sitemap_validation survey_result_export export_user_ledger:
 	uv run -m pyscripts.$@
 
 external-push external-pull:
 	uv run -m pyscripts.external_data $(subst external-,,$@)
 
+# The access-log report (`ramore.toml`); `ramore` is installed from its repo with `make install`.
+reporting:
+	ramore report $(ARGS)
+
 # Scrub all report history (local + gh-pages) before promoting a new live instance.
 # Pass ARGS="--local-only" to keep the published site, or ARGS="--yes" to skip the prompt.
 report-reset:
-	uv run -m pyscripts.reporting.reset $(ARGS)
+	ramore reset $(ARGS)
 
 hit-paper-analysis field-citation-ratio author-missed-works:
 	uv run notebooks/$@.py
