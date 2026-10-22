@@ -6,6 +6,7 @@
 5036138197 David S. Gokhin
 5034807195 Shadi Yarandi
 5074445473 Dominik Florian Stangler
+5031067921 David Vega-Morales
 
 # Not people: OpenAlex credits the country itself — or the UN — for its constitutions,
 # legal codes, development plans and UN documents. The name alone does not identify one,
