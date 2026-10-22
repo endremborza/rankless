@@ -236,7 +236,7 @@
 
 <section>
 <h2>Hard rules &mdash; bot side</h2>
-<p class="hint">Any of these &rarr; <code class="cls-bot_known">bot_known</code>. Rates over 23,277,824 sessions.</p>
+<p class="hint">Any of these &rarr; <code class="cls-bot_known">bot_known</code>. Rates over 23,353,307 sessions.</p>
 <ul class="rules">
   <li>
     <code>empty_ua</code> &mdash; User-Agent header missing or empty.
@@ -244,7 +244,7 @@
   </li>
   <li>
     <code>bot_ua</code> &mdash; User-Agent matches a known bot/crawler/script family.
-      <span class="rate">3.82%</span>
+      <span class="rate">3.70%</span>
   </li>
   <li>
     <code>robots_or_sitemap</code> &mdash; Hit a bot-only route: /robots.txt, /sitemap*.xml.
@@ -285,7 +285,7 @@
       </td>
       <td><code>search_used</code></td>
       <td>Used the search route with a non-empty query parameter.</td>
-      <td>0.48%</td>
+      <td>0.49%</td>
     </tr>
     <tr>
       <td class="pos">
@@ -293,7 +293,7 @@
       </td>
       <td><code>browser_ua</code></td>
       <td>User-Agent looks like a real browser (`Mozilla` + Chrome/Safari/Firefox/etc.).</td>
-      <td>97.95%</td>
+      <td>97.98%</td>
     </tr>
     <tr>
       <td class="pos">
@@ -309,7 +309,7 @@
       </td>
       <td><code>referrer_present</code></td>
       <td>At least one request carries a non-empty Referer.</td>
-      <td>27.00%</td>
+      <td>26.94%</td>
     </tr>
     <tr>
       <td class="neg">
@@ -329,14 +329,14 @@
   Sessions that reached soft scoring (no hard rule fired). Dotted lines mark the
   <code class="cls-human_likely">human_likely</code> / <code class="cls-bot_likely">bot_likely</code> thresholds.
 </p>
-<div id="score-dist" style="height:260px"></div><script>Plotly.newPlot("score-dist", {"data": [{"x": [-2, -1, 0, 1, 2, 3, 4, 5, 6], "y": [460576, 16540448, 3076785, 7499, 3074742, 309, 115983, 13, 1469], "type": "bar", "marker": {"color": "#89b4fa"}, "name": "sessions"}], "layout": {"xaxis": {"title": "soft score", "dtick": 1}, "yaxis": {"title": "sessions"}, "shapes": [{"type": "line", "x0": 2.5, "x1": 2.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#a6e3a1", "dash": "dot", "width": 1.5}}, {"type": "line", "x0": 0.5, "x1": 0.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#f38ba8", "dash": "dot", "width": 1.5}}], "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
+<div id="score-dist" style="height:260px"></div><script>Plotly.newPlot("score-dist", {"data": [{"x": [-2, -1, 0, 1, 2, 3, 4, 5, 6], "y": [454684, 16616568, 3072388, 7321, 3082720, 312, 117841, 13, 1460], "type": "bar", "marker": {"color": "#89b4fa"}, "name": "sessions"}], "layout": {"xaxis": {"title": "soft score", "dtick": 1}, "yaxis": {"title": "sessions"}, "shapes": [{"type": "line", "x0": 2.5, "x1": 2.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#a6e3a1", "dash": "dot", "width": 1.5}}, {"type": "line", "x0": 0.5, "x1": 0.5, "y0": 0, "y1": 1, "yref": "paper", "line": {"color": "#f38ba8", "dash": "dot", "width": 1.5}}], "margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}}, "config": {"displaylogo": false, "responsive": true}});</script>
 </section>
 
 </main>
 <footer>
-  <span>Rendered 2026-10-21T18:10:30+00:00</span>
-  <span>Last pull: 2026-10-21T18:10:27+00:00</span>
-  <span>Last event: 2026-10-21 18:10:12+00:00</span>
+  <span>Rendered 2026-10-22T02:16:37+00:00</span>
+  <span>Last pull: 2026-10-22T02:16:33+00:00</span>
+  <span>Last event: 2026-10-22 02:10:31+00:00</span>
 </footer>
 </body>
 </html>
