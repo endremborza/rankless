@@ -34,9 +34,9 @@ from pyscripts.external_data import REGEN, download, raw_dir
 from wire.rankless_rs.derived_ledger import NAMES_TABLE
 
 SOURCE, NAMES_NAME = NAMES_TABLE.split("/")
-SUMMARIES_NAME = "ORCID_2025_10_summaries.tar.gz"
-SUMMARIES_URL = "https://ndownloader.figshare.com/files/58834837"
-SUMMARIES_MD5 = "210edf71f4a2bb44dd33aaa3037b3f17"
+SUMMARIES_NAME = "ORCID_2026_10_summaries.tar.gz"
+SUMMARIES_URL = "https://ndownloader.figshare.com/files/70342863"
+SUMMARIES_MD5 = "a55a16fe0b292bda03cc6016546c8984"
 EMAILS_NAME = "public_emails.tsv"
 STATS_NAME = "summaries.stats.json"
 EMAIL_TAG = "{http://www.orcid.org/ns/email}email"
