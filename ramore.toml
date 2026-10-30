@@ -33,4 +33,3 @@ label = "ORCID logins"
 include = { poster = "docs/poster" }
 
 [publish]
-worktree = "/tmp/rankless-ghpages"
