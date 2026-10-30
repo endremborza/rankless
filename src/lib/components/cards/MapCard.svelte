@@ -13,17 +13,17 @@
 
 	const NO_DATA = '#eee';
 	const paths = Object.entries(countryPaths as Record<string, string[]>);
-	$: hlPaths = paths.filter(([name]) => hl.includes(name));
+	$: hlPaths = paths.filter(([code]) => hl.includes(code));
 </script>
 
 <svg viewBox="0 0 {INNER.w} {INNER.h}" xmlns="http://www.w3.org/2000/svg">
 	<g {transform} stroke={PAPER} stroke-width={strokes.border} stroke-linejoin="round">
-		{#each paths as [name, ds] (name)}
+		{#each paths as [code, ds] (code)}
 			{#each ds as d, i (i)}
-				<path {d} fill={shades[name]?.fill ?? NO_DATA} fill-opacity={shades[name]?.opacity ?? 1} />
+				<path {d} fill={shades[code]?.fill ?? NO_DATA} fill-opacity={shades[code]?.opacity ?? 1} />
 			{/each}
 		{/each}
-		{#each hlPaths as [name, ds] (name)}
+		{#each hlPaths as [code, ds] (code)}
 			{#each ds as d, i (i)}
 				<path {d} fill="none" stroke={INK} stroke-width={strokes.hl} />
 			{/each}

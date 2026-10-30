@@ -87,13 +87,19 @@ const nodes = nodesData as Record<string, number[]>;
 // Where each country's label goes: the centroid of its largest outline and that outline's width,
 // in card pixels.
 const COUNTRY_ANCHORS: Record<string, Point & { span: number }> = Object.fromEntries(
-	Object.entries(countryPaths).map(([name, ds]) => {
+	Object.entries(countryPaths).map(([code, ds]) => {
 		const { x, y, span } = largestOutline(ds.flatMap(rings));
-		return [name, { x: MAP_X + x * MAP_SCALE, y: y * MAP_SCALE, span: span * MAP_SCALE }];
+		return [code, { x: MAP_X + x * MAP_SCALE, y: y * MAP_SCALE, span: span * MAP_SCALE }];
 	})
 );
 
-export function mapCardLayout(styles: CountryStyles, hl: string[], title: string): MapCardProps {
+// `hl` and the keys of `styles` and `names` are country codes.
+export function mapCardLayout(
+	styles: CountryStyles,
+	hl: string[],
+	names: Record<string, string>,
+	title: string
+): MapCardProps {
 	const top0 = INNER.h - LEGEND_ROW * (styles.buckets.length + 1);
 	const rows = styles.buckets.map((b, i) => ({
 		y: top0 + LEGEND_ROW * (i + 1) + (LEGEND_ROW - LEGEND_SWATCH.h) / 2,
@@ -109,23 +115,23 @@ export function mapCardLayout(styles: CountryStyles, hl: string[], title: string
 		w: Math.max(textWidth(title, LEGEND_TEXT), ...rows.map((r) => rowW(r.text))),
 		h: INNER.h - top0
 	};
-	const drawn = (name: string) => name in COUNTRY_ANCHORS;
-	const top = Object.entries(styles.byName)
-		.filter(([name]) => drawn(name) && !hl.includes(name))
+	const drawn = (code: string) => code in COUNTRY_ANCHORS;
+	const top = Object.entries(styles.byCode)
+		.filter(([code]) => drawn(code) && !hl.includes(code))
 		.sort(([, a], [, b]) => b.w - a.w)
 		.slice(0, TOP_COUNTRIES)
-		.map(([name]) => name);
+		.map(([code]) => code);
 	const hlDrawn = hl.filter(drawn);
 	const wanted = [...hlDrawn, ...top];
-	const texts = wanted.map((name) => {
-		const w = styles.byName[name]?.w;
-		return { name, value: w == undefined ? '' : formatNumber(w) };
+	const texts = wanted.map((code) => {
+		const w = styles.byCode[code]?.w;
+		return { name: names[code], value: w == undefined ? '' : formatNumber(w) };
 	});
 	// A highlighted country is marked by its outline, so its label clears the outline instead of
 	// pointing at a dot.
 	const asks = texts.map(({ name, value }, i) => {
 		const w = labelWidth(name, value);
-		const anchor = COUNTRY_ANCHORS[name];
+		const anchor = COUNTRY_ANCHORS[wanted[i]];
 		const gap = i < hlDrawn.length ? Math.max(DOT_GAP, anchor.span / 2 + 5) : DOT_GAP;
 		return { anchor, w, h: LABEL_H, gap, centred: w <= anchor.span * CENTRED_OVERHANG };
 	});
@@ -135,7 +141,7 @@ export function mapCardLayout(styles: CountryStyles, hl: string[], title: string
 	return {
 		transform: `translate(${MAP_X} 0) scale(${MAP_SCALE})`,
 		shades: Object.fromEntries(
-			Object.entries(styles.byName).map(([name, s]) => [name, { fill: s.fill, opacity: s.opacity }])
+			Object.entries(styles.byCode).map(([code, s]) => [code, { fill: s.fill, opacity: s.opacity }])
 		),
 		hl,
 		strokes: { border: 0.6 / MAP_SCALE, hl: 2.2 / MAP_SCALE },

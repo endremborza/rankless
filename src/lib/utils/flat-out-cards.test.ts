@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import countryPaths from '$lib/assets/data/country-svg-paths.json';
 import { mapCardLayout, placeLabels, type LabelAsk } from './flat-out-cards';
 import { overlaps, type Box } from './label-placement';
-import { countryStyles, subfieldStyles } from './flat-out-styles';
+import { countryLevels, countryStyles, subfieldStyles } from './flat-out-styles';
 
 const BOUNDS = { x: 0, y: 0, w: 400, h: 200 };
 
@@ -18,6 +19,22 @@ describe('subfieldStyles', () => {
 		const lone = subfieldStyles({ 5: { w: 3, id: 5 } }, false)[5];
 		const heaviest = subfieldStyles({ 5: { w: 3, id: 5 }, 6: { w: 1, id: 6 } }, false)[5];
 		expect(lone.r).toBe(heaviest.r);
+	});
+});
+
+describe('countryLevels', () => {
+	// Node ids, names and OpenAlex ids as the backend serves them.
+	const countries = {
+		80: { name: 'Türkiye', oaId: 21076, specBaseline: 1 },
+		47: { name: 'Bosnia and Herzegovina', oaId: 16706, specBaseline: 1 },
+		162: { name: 'Democratic Republic of the Congo', oaId: 17475, specBaseline: 1 }
+	};
+	const flatOut = { 80: { w: 9, id: 80 }, 47: { w: 5, id: 47 }, 162: { w: 2, id: 162 } };
+
+	it('keys every country by a path the map draws, whatever its name', () => {
+		const levels = countryLevels(flatOut, { countries });
+		expect(Object.values(levels).map((l) => l.id)).toHaveLength(Object.keys(countries).length);
+		expect(Object.keys(countryPaths)).toEqual(expect.arrayContaining(Object.keys(levels)));
 	});
 });
 
@@ -58,30 +75,31 @@ describe('placeLabels', () => {
 });
 
 describe('mapCardLayout', () => {
+	const names: Record<string, string> = {
+		US: 'United States',
+		CN: 'China',
+		DE: 'Germany',
+		GB: 'United Kingdom',
+		FR: 'France',
+		NL: 'Netherlands',
+		BE: 'Belgium',
+		CH: 'Switzerland',
+		AT: 'Austria',
+		HU: 'Hungary'
+	};
 	const levels = Object.fromEntries(
-		[
-			'United States',
-			'China',
-			'Germany',
-			'United Kingdom',
-			'France',
-			'Netherlands',
-			'Belgium',
-			'Switzerland',
-			'Austria',
-			'Hungary'
-		].map((name, i) => [name, { w: 1000 - i * 90, id: i }])
+		Object.keys(names).map((code, i) => [code, { w: 1000 - i * 90, id: i }])
 	);
 	const styles = countryStyles(levels);
 
 	it('never prints two labels over each other in a crowded Europe', () => {
-		const { labels } = mapCardLayout(styles, ['Hungary', 'Belgium'], 'Citations');
+		const { labels } = mapCardLayout(styles, ['HU', 'BE'], names, 'Citations');
 		for (const [i, a] of labels.entries())
 			for (const b of labels.slice(i + 1)) expect(disjoint(a, b)).toBe(true);
 	});
 
 	it('always names the highlighted countries, first', () => {
-		const { labels } = mapCardLayout(styles, ['Hungary', 'Belgium'], 'Citations');
+		const { labels } = mapCardLayout(styles, ['HU', 'BE'], names, 'Citations');
 		expect(labels.slice(0, 2).map((l) => [l.name, l.hl])).toEqual([
 			['Hungary', true],
 			['Belgium', true]

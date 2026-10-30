@@ -69,7 +69,7 @@
 		if (Object.values(levels).length == 0) return '';
 		const styles = countryStyles(levels, ratio);
 		const sLines = [];
-		for (const [c, { fill, opacity, bucket }] of Object.entries(styles.byName)) {
+		for (const [c, { fill, opacity, bucket }] of Object.entries(styles.byCode)) {
 			sLines.push(`${varNamer(c, FILL_SF)}: ${fill};`);
 			sLines.push(`${varNamer(c, OPA_SF)}: ${opacity};`);
 			if (c == highlighted || bucket == highlightedQ) {

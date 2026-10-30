@@ -69,15 +69,15 @@ describe('map projection', () => {
 
 	it('lands coastal campuses on their own country', () => {
 		const coast: [string, number, number][] = [
-			['United States', 47.61, -122.33], // Seattle
-			['United States', 37.77, -122.42], // San Francisco
-			['United States', 25.76, -80.19], // Miami
-			['Canada', 49.28, -123.12], // Vancouver
-			['Japan', 35.68, 139.69], // Tokyo
-			['Australia', -31.95, 115.86], // Perth
-			['South Africa', -33.93, 18.42], // Cape Town
-			['Iceland', 64.15, -21.94], // Reykjavik
-			['New Zealand', -36.85, 174.76] // Auckland
+			['US', 47.61, -122.33], // Seattle
+			['US', 37.77, -122.42], // San Francisco
+			['US', 25.76, -80.19], // Miami
+			['CA', 49.28, -123.12], // Vancouver
+			['JP', 35.68, 139.69], // Tokyo
+			['AU', -31.95, 115.86], // Perth
+			['ZA', -33.93, 18.42], // Cape Town
+			['IS', 64.15, -21.94], // Reykjavik
+			['NZ', -36.85, 174.76] // Auckland
 		];
 		for (const [country, lat, lon] of coast) {
 			const { x, y } = latLonToMap({ lat, lon });

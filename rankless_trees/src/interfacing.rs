@@ -64,6 +64,7 @@ pub struct Getters {
     ifs: Interfaces,
     pub stowage: Arc<Stowage>,
     pub inst_oa: Box<[BigId]>,
+    pub country_oa: Box<[BigId]>,
     pub work_oa: Box<[BigId]>,
     pub hit_papers: Box<[WT]>,
     // Works are numbered by publication year (`a1_entity_mapping`): year `y` is the run of ids
@@ -594,6 +595,7 @@ impl Getters {
         let mut gets = Self {
             ifs: Interfaces::new(stowage.clone()),
             inst_oa: reverse_id::<Institutions>(&stowage),
+            country_oa: reverse_id::<Countries>(&stowage),
             work_oa: reverse_id::<Works>(&stowage),
             hit_papers: reverse_id::<HitPapers>(&stowage)
                 .iter()
@@ -656,6 +658,7 @@ impl Getters {
             stowage: Arc::new(stowage),
             ifs: Interfaces::fake(),
             inst_oa: Vec::new().into(),
+            country_oa: Vec::new().into(),
             work_oa: (0..20000000).collect::<Vec<BigId>>().into(),
             hit_papers: Vec::new().into(),
             // Work `w` is of year `w`, the last year holding every later work.

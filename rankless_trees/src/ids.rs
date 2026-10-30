@@ -1,15 +1,12 @@
-use dmove::{Entity, EntityMutableMapperBackend, UnsignedNumber};
+use dmove::{BigId, Entity, EntityMutableMapperBackend, UnsignedNumber};
 
 use hashbrown::HashMap;
 
-use crate::{
-    interfacing::Getters,
-    io::{
-        AttributeLabel, AttributeLabelOut, AttributeLabels, BreakdownSpec, BufSerChildren,
-        BufSerTree, FullTreeQuery, ManFileHandle, TreeBasisState,
-    },
+use crate::io::{
+    AttributeLabel, AttributeLabelOut, AttributeLabels, BreakdownSpec, BufSerChildren, BufSerTree,
+    FullTreeQuery, ManFileHandle, TreeBasisState,
 };
-use rankless_rs::gen::a1_entity_mapping::{Institutions, Works};
+use rankless_rs::gen::a1_entity_mapping::{Countries, Institutions, Works};
 
 pub type AttributeLabelUnion = HashMap<String, Box<[AttributeLabel]>>;
 
@@ -40,16 +37,17 @@ pub fn add_nonwork_label<'a, I, N>(
     N: UnsignedNumber + 'a,
 {
     if let Some(u_eatts) = state.att_union.get(etype) {
-        if etype == Institutions::NAME {
-            eids.for_each(|k| {
-                let ku = k.to_usize();
-                eatts.insert(ku, oaify_inst(&u_eatts[ku], &state.gets, ku));
-            })
+        let oa_ids = if etype == Institutions::NAME {
+            Some(&state.gets.inst_oa)
+        } else if etype == Countries::NAME {
+            Some(&state.gets.country_oa)
         } else {
-            eids.for_each(|k| {
-                eatts.insert(k.to_usize(), to_none_alabel(&u_eatts[k.to_usize()]));
-            })
+            None
         };
+        eids.for_each(|k| {
+            let ku = k.to_usize();
+            eatts.insert(ku, label_out(&u_eatts[ku], oa_ids.map(|ids| ids[ku])));
+        });
     } else {
         //Qs might not be here
         // println!("WARNING: {etype} not found in attribute union");
@@ -103,18 +101,10 @@ fn add_leaves<'a, I>(
     }
 }
 
-fn oaify_inst(v: &AttributeLabel, gets: &Getters, id: usize) -> AttributeLabelOut {
+fn label_out(v: &AttributeLabel, oa_id: Option<BigId>) -> AttributeLabelOut {
     AttributeLabelOut {
         spec_baseline: v.spec_baseline,
         name: v.name.to_string(),
-        oa_id: Some(gets.inst_oa[id]),
-    }
-}
-
-fn to_none_alabel(v: &AttributeLabel) -> AttributeLabelOut {
-    AttributeLabelOut {
-        spec_baseline: v.spec_baseline,
-        name: v.name.to_string(),
-        oa_id: None,
+        oa_id,
     }
 }

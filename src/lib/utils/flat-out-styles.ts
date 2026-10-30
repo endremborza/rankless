@@ -16,7 +16,7 @@ export type Shade = { fill: string; rgb: number[]; opacity: number };
 export type CountryStyle = Shade & { w: number; bucket: number };
 export type Bucket = { lo: number; hi: number; shade: Shade };
 export type CountryStyles = {
-	byName: Record<string, CountryStyle>;
+	byCode: Record<string, CountryStyle>;
 	buckets: Bucket[];
 };
 export type SubfieldStyle = { w: number; r: number; sat: number };
@@ -89,13 +89,30 @@ export function mapWeightText(isSpec: boolean, isRefSide: boolean | undefined): 
 	return isRefSide ? 'Total citations of papers' : 'Citations';
 }
 
-// The flat level keyed by country name, the key the map's paths carry.
+// A country's ISO 3166-1 alpha-2 code, which its OpenAlex id packs as little-endian ASCII.
+export function countryCode(oaId: number): string {
+	let code = '';
+	for (let n = oaId; n > 0; n = Math.floor(n / 256)) code += String.fromCharCode(n % 256);
+	return code;
+}
+
+// Each country label's code, the key the map's paths carry, by node id; the unknown country
+// (OpenAlex id 0) has none.
+export function countryCodes(atts: AttributeLabels): Record<string, string> {
+	return Object.fromEntries(
+		Object.entries(atts.countries ?? {}).flatMap(([id, { oaId }]) =>
+			oaId ? [[id, countryCode(oaId)]] : []
+		)
+	);
+}
+
+// The flat level keyed by country code.
 export function countryLevels(flatOut: tt.LevelT, atts: AttributeLabels): tt.LevelT {
-	const countryAtts = atts.countries || {};
+	const codes = countryCodes(atts);
 	return Object.fromEntries(
 		Object.entries(flatOut)
-			.filter(([k]) => countryAtts[k] != undefined)
-			.map(([k, { w }]) => [countryAtts[k].name, { w, id: Number(k) }])
+			.filter(([k]) => k in codes)
+			.map(([k, { w }]) => [codes[k], { w, id: Number(k) }])
 	);
 }
 
@@ -111,10 +128,10 @@ function mapShade(rate: number): Shade {
 // Each country falls in a bucket between breakpoints and is shaded by the bucket's rank.
 export function countryStyles(levels: tt.LevelT, ratio = false): CountryStyles {
 	const { newBreakPoints, locMaxw } = tf.getFlatRescaler(levels, MAP_BREAKPOINTS, MAP_PULLER);
-	const byName = Object.fromEntries(
-		Object.entries(levels).map(([name, { w }]) => {
+	const byCode = Object.fromEntries(
+		Object.entries(levels).map(([code, { w }]) => {
 			const bucket = newBreakPoints.slice(1).filter((bp) => w >= bp).length;
-			return [name, { ...mapShade(bucket / MAP_BREAKPOINTS), w, bucket }];
+			return [code, { ...mapShade(bucket / MAP_BREAKPOINTS), w, bucket }];
 		})
 	);
 	const buckets =
@@ -125,7 +142,7 @@ export function countryStyles(levels: tt.LevelT, ratio = false): CountryStyles {
 					shade: mapShade(i / MAP_BREAKPOINTS)
 				}))
 			: [];
-	return { byName, buckets };
+	return { byCode, buckets };
 }
 
 // The upper end printed for bucket i: one under the next breakpoint for counts, the next

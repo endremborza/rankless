@@ -2,6 +2,7 @@ import MapCard from '$lib/components/cards/MapCard.svelte';
 import { mapCardLayout } from '$lib/utils/flat-out-cards';
 import {
 	COUNTRY_SEMANTICS,
+	countryCodes,
 	countryLevels,
 	countryStyles,
 	mapWeightText
@@ -24,12 +25,16 @@ export const map: CardKind = {
 		const isSpec = treeSpec.defaultIsSpec;
 		const sourceSide = treeSpec.breakdowns[0].sourceSide;
 		const styles = countryStyles(countryLevels(levels, atts), isSpec);
-		const hlNames = hl.flatMap((id) => atts.countries?.[id]?.name ?? []);
+		const codes = countryCodes(atts);
+		const names = Object.fromEntries(
+			Object.entries(codes).map(([id, code]) => [code, atts.countries[id].name])
+		);
+		const hlCodes = hl.flatMap((id) => codes[id] ?? []);
 		const weight = mapWeightText(isSpec, sourceSide);
 		const title = isSpec ? `${weight}, 1 = as expected` : weight;
 		const phrase = COUNTRY_SEMANTICS[ctx.rootType][`countries-${sourceSide}`];
 		return {
-			props: mapCardLayout(styles, hlNames, title),
+			props: mapCardLayout(styles, hlCodes, names, title),
 			caption: `Countries ${phrase} ${subject}${since}, by ${weight.toLowerCase()}`
 		};
 	}
