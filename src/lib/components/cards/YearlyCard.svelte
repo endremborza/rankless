@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { getColor } from '$lib/style-util';
 	import { FAINT, INK, INNER, MONO, MUTED, SANS, gutterWidth } from '$lib/utils/cards';
-	import { compactCount, countGrid } from '$lib/utils/year-ticks';
+	import { formatNumber } from '$lib/text-format-util';
+	import { countGrid } from '$lib/utils/year-ticks';
 	import GridLines from './GridLines.svelte';
 
 	export let years: number[];
@@ -97,7 +98,7 @@
 			{#each side as b, i (i)}
 				{#if shown(i)}
 					<text x={cx(i)} y={b.labelY} font-size={TEXT} font-weight="700" fill={INK}
-						>{compactCount(b.v)}</text
+						>{formatNumber(b.v)}</text
 					>
 				{/if}
 			{/each}

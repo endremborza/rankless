@@ -36,23 +36,24 @@ export function singularize(word: string) {
 	return SING_MAP[word] || word.substring(0, word.length - 1);
 }
 
-export function formatNumber(n: number, maxFix: number = 2) {
+// Steps up a unit while the rounded value reaches `UNIT_STEP`, so a count just under a unit reads as
+// one of it; `Number` drops the trailing zero of a whole value.
+export function formatNumber(n: number, maxFix: number = 2): string {
 	if (n === 0) {
 		return '0';
-	} else if (n > 1e9) {
-		return `${(n / 1e9).toFixed(Math.min(1, maxFix))}B`;
-	} else if (n > 1e6) {
-		return `${(n / 1e6).toFixed(Math.min(1, maxFix))}M`;
-	} else if (n > 1e3) {
-		return `${(n / 1e3).toFixed(Math.min(1, maxFix))}k`;
 	} else if (n < 1) {
 		return n.toFixed(Math.min(2, maxFix));
 	} else if (n < 10) {
 		const round = n % 1 === 0 ? 0 : maxFix;
 		return n.toFixed(round);
-	} else {
-		return n.toFixed(0);
 	}
+	let unit = 0;
+	let shown = Math.round(n);
+	while (shown >= UNIT_STEP && unit < UNIT_SUFFIXES.length - 1) {
+		unit++;
+		shown = Number((n / UNIT_STEP ** unit).toFixed(Math.min(1, maxFix)));
+	}
+	return `${shown}${UNIT_SUFFIXES[unit]}`;
 }
 
 // A person's last name, the label a crowded co-author graph shows.
@@ -390,6 +391,8 @@ export const SEMANTIC_CONF = {
 };
 
 export const SPEC_BPS = [0.75, 1.2, 2.5];
+const UNIT_STEP = 1e3;
+const UNIT_SUFFIXES = ['', 'k', 'M', 'B'];
 const SING_MAP: Record<string, string> = { countries: 'country' };
 type SemNode = { semantic?: string; children?: Record<string, SemNode> };
 

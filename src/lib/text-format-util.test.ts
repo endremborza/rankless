@@ -63,10 +63,27 @@ describe('formatNumber', () => {
 	});
 	it('formats billions', () => {
 		expect(formatNumber(1_892_421_750)).toBe('1.9B');
-		expect(formatNumber(1_000_000_001)).toBe('1.0B');
+		expect(formatNumber(1_000_000_001)).toBe('1B');
 	});
 	it('formats thousands', () => {
 		expect(formatNumber(1500)).toBe('1.5k');
+		expect(formatNumber(999_949)).toBe('999.9k');
+	});
+	it('takes the larger unit from exactly one of it', () => {
+		expect(formatNumber(1e3)).toBe('1k');
+		expect(formatNumber(1e6)).toBe('1M');
+		expect(formatNumber(1e9)).toBe('1B');
+	});
+	it('takes the larger unit once rounding reaches it', () => {
+		expect(formatNumber(999.7)).toBe('1k');
+		expect(formatNumber(999_960)).toBe('1M');
+		expect(formatNumber(999_960_000)).toBe('1B');
+	});
+	it('drops a trailing .0', () => {
+		expect(formatNumber(30_000)).toBe('30k');
+		expect(formatNumber(2_000_000)).toBe('2M');
+		expect(formatNumber(4_000_000_000)).toBe('4B');
+		expect(formatNumber(1_049)).toBe('1k');
 	});
 	it('formats decimals < 1', () => {
 		expect(formatNumber(0.75)).toBe('0.75');
