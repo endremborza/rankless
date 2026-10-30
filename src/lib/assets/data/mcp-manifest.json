@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-29",
+  "generated": "2026-10-30",
   "connect": {
     "url": "https://api.rankless.org/mcp",
     "transport": "streamable-http",
@@ -81,7 +81,7 @@
       "name": "lookup_orcid",
       "endpoint": "/v1/orcid/{orcid}",
       "summary": "Resolve an ORCID iD (e.g. 0000-0001-7896-6217) to a rankless author.",
-      "description": "Resolve an ORCID iD (e.g. 0000-0001-7896-6217) to a rankless author."
+      "description": "Resolve an ORCID iD (e.g. 0000-0001-7896-6217) to a rankless author.\n\nAn ORCID that no indexed author carries is refused."
     },
     {
       "name": "rank_entities",

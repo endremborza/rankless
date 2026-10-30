@@ -354,8 +354,12 @@ async def get_peers(entity_type: str, semantic_id: str) -> dict:
 
 
 async def lookup_orcid(orcid: str) -> dict:
-    """Resolve an ORCID iD (e.g. 0000-0001-7896-6217) to a rankless author."""
+    """Resolve an ORCID iD (e.g. 0000-0001-7896-6217) to a rankless author.
+
+    An ORCID that no indexed author carries is refused."""
     res = await get_json(f"/orcid/{orcid}")
+    if res is None:
+        raise ValueError(f"no indexed author carries ORCID {orcid}")
     return add_url(res, "authors")
 
 
