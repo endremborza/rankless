@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-08",
+  "generated": "2026-10-29",
   "connect": {
     "url": "https://api.rankless.org/mcp",
     "transport": "streamable-http",
@@ -45,7 +45,7 @@
       "name": "get_entity_profile",
       "endpoint": "/v1/views/{entity_type}/{semantic_id}",
       "summary": "Full profile of one entity: totals, yearly series, top relations, similars.",
-      "description": "Full profile of one entity: totals, yearly series, top relations, similars.\n\nentity_type is a root type or hit-papers (a hit paper's semantic_id comes\nfrom get_papers or get_impact_dag). `yearlyPapers`/`yearlyCites` cover the\nrecent era (2016..2026), and `startYear` is the first year of that era with a\npaper, not a career start (a hit paper's is its publication year).\n`relations` holds ranked related entities per relation type (paper-fields,\nciting-fields, paper-journals, paper-authors, ...). `coauthorEdges` lists\nthe strongest ties among the entity's top authors (an author's co-authors):\nthe papers each pair wrote together anywhere, not only within this entity\n(counts stop at 251). `image_url` is the share card of the entity's default\nbreakdown and `cards` the default card of every other kind this profile\nshows the entity has (yearly citations, map, fields, and for an author with\nco-authors their network and timeline); get_peers, get_papers and\nget_impact_dag link the peers, hit-paper and impact cards, and make_card\nrenders a variant."
+      "description": "Full profile of one entity: totals, yearly series, top relations, similars.\n\nentity_type is a root type or hit-papers (a hit paper's semantic_id comes\nfrom get_papers or get_impact_dag). `yearlyPapers`/`yearlyCites` cover the\nrecent era (2016..2026), and `startYear` is the publication year of the\nentity's first indexed paper (an author's career start, a hit paper's own year).\n`relations` holds ranked related entities per relation type (paper-fields,\nciting-fields, paper-journals, paper-authors, ...). `coauthorEdges` lists\nthe strongest ties among the entity's top authors (an author's co-authors):\nthe papers each pair wrote together anywhere, not only within this entity\n(counts stop at 251). `image_url` is the share card of the entity's default\nbreakdown and `cards` the default card of every other kind this profile\nshows the entity has (yearly citations, map, fields, and for an author with\nco-authors their network and timeline); get_peers, get_papers and\nget_impact_dag link the peers, hit-paper and impact cards, and make_card\nrenders a variant."
     },
     {
       "name": "get_entity_stats",

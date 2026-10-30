@@ -139,7 +139,7 @@ fn build_peer_entry(
         subfield_citations: sf_cits,
         yearly_papers: yearly_papers(cols, dm_id),
         yearly_cites: cols.yearly_cites[dm_id],
-        start_year: start_year(etype, dm_id, cols, gets),
+        start_year: start_year(etype, dm_id, gets),
         h_index: cols.h_indices.as_ref().and_then(|h| h.get(dm_id).copied()),
         year_centroid: cols
             .year_centroids

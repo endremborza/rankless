@@ -161,8 +161,8 @@ async def get_entity_profile(entity_type: str, semantic_id: str) -> dict:
 
     entity_type is a root type or hit-papers (a hit paper's semantic_id comes
     from get_papers or get_impact_dag). `yearlyPapers`/`yearlyCites` cover the
-    recent era ({first}..{last}), and `startYear` is the first year of that era with a
-    paper, not a career start (a hit paper's is its publication year).
+    recent era ({first}..{last}), and `startYear` is the publication year of the
+    entity's first indexed paper (an author's career start, a hit paper's own year).
     `relations` holds ranked related entities per relation type (paper-fields,
     citing-fields, paper-journals, paper-authors, ...). `coauthorEdges` lists
     the strongest ties among the entity's top authors (an author's co-authors):

@@ -8,6 +8,7 @@ use rankless_rs::{
     common::EXT_SEP,
     gen::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields, Topics},
+        a2_init_atts::WorkYears,
         derive_links3::HitPapers,
     },
     steps::{
@@ -18,7 +19,7 @@ use rankless_rs::{
 use rankless_trees::{
     extensions::DistinctionText,
     interfacing::{Getters, RootColumns, RootInterfaceable, RootInterfaces, ServerGetters},
-    io::TreeRunManager,
+    io::{TreeRunManager, WT},
     metrics::{self, Arg, Kind, MetricDecl, Value, ERA, METRICS},
     AttributeLabelUnion,
 };
@@ -113,17 +114,24 @@ pub(crate) fn yearly_papers(cols: &RootColumns, dm_id: usize) -> EraRec {
     cols.yearly_papers.get(dm_id).copied().unwrap_or_default()
 }
 
-// The first era year with a paper, the era's first for anything older; a hit paper's is its own
-// publication year.
-pub(crate) fn start_year(etype: &str, dm_id: usize, cols: &RootColumns, gets: &Getters) -> RawYear {
-    if etype == HitPapers::NAME {
-        return YearInterface::reverse(gets.year(gets.hit_papers[dm_id]));
-    }
-    let first = yearly_papers(cols, dm_id)
-        .iter()
-        .position(|&c| c > 0)
-        .unwrap_or(0);
-    ERA.0 + first as RawYear
+// The publication year of the entity's first indexed paper, an author's career start; a hit paper
+// is its own one paper.
+pub(crate) fn start_year(etype: &str, dm_id: usize, gets: &Getters) -> RawYear {
+    let works = if etype == HitPapers::NAME {
+        std::slice::from_ref(&gets.hit_papers[dm_id])
+    } else {
+        gets.works_of_entity(dm_id, etype.into())
+            .expect("a root type")
+    };
+    first_paper_year(works, |w| gets.year(w))
+}
+
+// Works are numbered by publication year, so an id-sorted paper list starts with its first paper;
+// an entity without one (a country no kept paper names) starts with the era.
+fn first_paper_year(works: &[WT], year: impl Fn(WT) -> ET<WorkYears>) -> RawYear {
+    works
+        .first()
+        .map_or(ERA.0, |&w| YearInterface::reverse(year(w)))
 }
 
 // The window moved into the era, an absent bound being the era's, and its yearly records.
@@ -159,7 +167,7 @@ pub(crate) fn serializable_ext(
 ) -> SerializableExt {
     let (relations, author_network) = build_relations(etype, dm_id, satts, nstates, gets, server);
     SerializableExt {
-        start_year: start_year(etype, dm_id, cols, gets),
+        start_year: start_year(etype, dm_id, gets),
         yearly_papers: yearly_papers(cols, dm_id),
         yearly_cites: cols.yearly_cites[dm_id],
         relations,
@@ -530,4 +538,21 @@ fn dedup_search_text(name: &str, ext: &str) -> String {
         .filter(|w| seen.insert(w.to_lowercase()))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_start_year_is_the_first_papers_year() {
+        let year_of = |w: WT| w as ET<WorkYears>;
+        let before_era = YearInterface::parse(ERA.0) - 20;
+        let works = [before_era as WT, YearInterface::parse(ERA.1) as WT];
+        assert_eq!(
+            first_paper_year(&works, year_of),
+            YearInterface::reverse(before_era)
+        );
+        assert_eq!(first_paper_year(&[], year_of), ERA.0);
+    }
 }
