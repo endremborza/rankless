@@ -255,7 +255,7 @@ the only viz dependency).
 | `lib/utils/works-paging.ts` | How an author's works are paged from the backend (`INITIAL_PAGE_SIZE` for the server-seeded first page, `WORKS_PAGE_SIZE`, `WORKS_SORT`), read by `works-loader`, the entity page's load, the timeline card and the ledger spec; free of SvelteKit virtual modules so Playwright imports it |
 | `lib/utils/ledger-queue.ts` | `QUEUE_PER_CHOICES`/`QUEUE_PER_DEFAULT`: the rows per page the `/admin/ledger` queue offers, read by `LedgerQueueFilters` and the page's load, which clamps `per` to their range |
 | `lib/utils/stale-guard.ts` | `createStaleGuard`: `claim()` marks a new in-flight op and returns `isCurrent()`; every entity-page fetch drops a superseded response through it |
-| `lib/utils/tree-loader.ts` | `createTreeLoader`: `load(conf, shallow?)` resolves to the tree only while still the newest request; `$state` = conf/resp/loading; one per `FullQc`/`FlatOutFrame` |
+| `lib/utils/tree-loader.ts` | `createTreeLoader`: `load(conf, shallow?)` resolves to the tree only while still the newest request; `$state` = conf/resp/loading/error (a failed status or a `null` tree is an error); one per `FullQc`/`FlatOutFrame` |
 | `lib/utils/works-intersection.ts` | `fetchWorkIntersection`: encodes a CNF `WorkSetQuery` (`$lib/types/work-set.ts`) into the `/works-intersect/*spec` path and returns a `PaginatedPaperSetResp` |
 | `lib/hero-config.ts` | Per-root-type `HERO_CONFIG` + chip/leader/field-topic builders for `EntityHero` (stat, badge policy, leaders, topics nested under their parent field) |
 
@@ -570,7 +570,8 @@ How users explore an entity's impact/production hierarchically (`FullQc.svelte`)
 - **`updateLevelSpecs`** — traverses `breakdownOptions` by `selectedBreakdowns` to prepare
   `levelOptions` for the next level. `MidpathBar` renders the available options.
 - **Dynamic tree loading** — `updateTreeSpecId` detects when a selection requires a
-  different `treeId`; `loadNewQc` fetches that tree through the component's `tree-loader`, which drops a response a newer request has superseded.
+  different `treeId`; `loadNewQc` fetches that tree through the component's `tree-loader`, which drops a response a newer request has superseded. While the drawn tree lags the selected year or tree, it is dimmed under a loading note, and a failed fetch shows an error with a retry that runs `loadNewQc` again.
+- **Specialization toggle** — shown only on a tree whose spec has `allowSpec`; landing on one without it sets the basis to its `defaultIsSpec`.
 - **Semantic descriptions** — `semantify` (in `text-format-util.ts`) maps raw option
   identifiers to human-readable text via the hierarchical `SEM_MAP`, context-aware on the
   selection path (e.g. `"countries-false"` → `"are cited by authors working in"`).

@@ -1,32 +1,18 @@
-import { type Page } from '@playwright/test';
+import { TREE_SPECS } from '../src/lib/wire/rankless_server/responses';
 import { test, expect } from './coverage/fixtures';
-import { BE_URL, sitemapEntityUrls } from './helpers';
+import {
+	BE_URL,
+	BREAKDOWN_SELECT,
+	YEAR_SELECT,
+	firstLevelOrder,
+	openFirstInstitution,
+	settledOrder
+} from './helpers';
 
-type Spec = {
-	defaultIsSpec: boolean;
-	breakdowns: { attributeType: string; sourceSide: boolean }[];
-};
 type Tree = {
 	tree: { linkCount: number; children: Record<string, { linkCount: number }> };
 	atts: { authors: Record<string, { specBaseline?: number }> };
 };
-
-// A branch is filled with a gradient keyed by its path in the tree, so a first-level branch's key is
-// a bare dm id and deeper ones are hyphenated. Reading the keys left to right gives the order the
-// tree is drawn in, without depending on label text or on how the labels are broken across lines.
-async function firstLevelOrder(page: Page): Promise<number[]> {
-	return page.evaluate(() => {
-		const prefix = "url('#path-grad-";
-		return [...document.querySelectorAll(`#impact svg path[fill^="${prefix}"]`)]
-			.map((p) => ({
-				key: p.getAttribute('fill')!.slice(prefix.length, -2),
-				x: p.getBoundingClientRect().left
-			}))
-			.filter(({ key }) => !key.includes('-'))
-			.sort((a, b) => a.x - b.x)
-			.map(({ key }) => Number(key));
-	});
-}
 
 // Switching the first-level breakdown lands the new tree, its spec and the ranking basis in one
 // batch, and a `$:` statement runs at most once per flush: a basis that is synced into the control
@@ -37,28 +23,21 @@ async function firstLevelOrder(page: Page): Promise<number[]> {
 test('the tree ranks by the new basis on the first render after a breakdown switch', async ({
 	page
 }) => {
-	const specs: { specs: { institutions: Spec[] } } = await (await fetch(`${BE_URL}/specs`)).json();
-	const treeId = specs.specs.institutions.findIndex(
+	const specs = TREE_SPECS.specs.institutions;
+	const treeId = specs.findIndex(
 		(s) => !s.defaultIsSpec && s.breakdowns[0].attributeType === 'authors'
 	);
 	expect(treeId, 'no volume-ranked author breakdown to switch into').toBeGreaterThan(-1);
-	const { attributeType, sourceSide } = specs.specs.institutions[treeId].breakdowns[0];
+	const { attributeType, sourceSide } = specs[treeId].breakdowns[0];
 
-	const [url] = await sitemapEntityUrls('institutions', 1);
-	test.skip(!url, 'no institution sitemap entries');
-	await page.goto(url, { waitUntil: 'load' });
-	await page.waitForSelector('#impact .sentenceline select', { timeout: 20_000 });
+	const url = await openFirstInstitution(page);
 
-	await page
-		.locator('#impact .sentenceline select')
-		.first()
-		.selectOption(`${attributeType}-${sourceSide}`);
+	await page.locator(BREAKDOWN_SELECT).first().selectOption(`${attributeType}-${sourceSide}`);
 	await expect.poll(async () => (await firstLevelOrder(page)).length).toBeGreaterThan(2);
-	await page.waitForTimeout(1000); // branch geometry transitions for 0.8s
 
-	const shown = await firstLevelOrder(page);
+	const shown = await settledOrder(page);
 	const semanticId = url.split('/').slice(2).join('/');
-	const year = await page.locator('#impact select[aria-label="Since year"]').inputValue();
+	const year = await page.locator(YEAR_SELECT).inputValue();
 	const tree: Tree = await (
 		await fetch(`${BE_URL}/trees/institutions/${semanticId}?tid=${treeId}&year=${year}`)
 	).json();
@@ -85,6 +64,5 @@ test('the tree ranks by the new basis on the first render after a breakdown swit
 	const branches = await slider.inputValue();
 	await slider.fill(String(Number(branches) + 1));
 	await slider.fill(branches);
-	await page.waitForTimeout(1000);
-	expect(await firstLevelOrder(page)).toEqual(shown);
+	expect(await settledOrder(page)).toEqual(shown);
 });

@@ -1,5 +1,5 @@
 import type { TreeResponse } from '$lib/wire/rankless_trees/io';
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { get } from 'svelte/store';
 import type { FullTreeConfig } from '$lib/tree-types';
 import { createTreeLoader } from './tree-loader';
@@ -90,5 +90,24 @@ describe('createTreeLoader', () => {
 		calls[3].resolve(resp('fourth'));
 		await current;
 		expect(get(loader)).toMatchObject({ resp: resp('fourth'), loading: false });
+	});
+});
+
+describe('the backend fetch', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it.each([
+		['a failed status', () => Response.json({ error: 'queue full' }, { status: 503 })],
+		['a null tree', () => Response.json(null)]
+	])('records %s as a failure', async (_, answer) => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => answer())
+		);
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const loader = createTreeLoader();
+		expect(await loader.load(conf(1))).toBeUndefined();
+		expect(get(loader)).toMatchObject({ resp: undefined, loading: false });
+		expect(get(loader).error).toBeInstanceOf(Error);
 	});
 });

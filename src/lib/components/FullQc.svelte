@@ -76,6 +76,9 @@
 	let maxOnOneLevel = 15;
 
 	const treeLoader = createTreeLoader();
+	// The tree on screen, which lags `conf` while a switch is loading or after it failed.
+	let drawn = { treeId: conf.treeId, year: conf.year };
+	$: stale = conf.treeId !== drawn.treeId || conf.year !== drawn.year;
 
 	onMount(async () => {
 		mounted = true;
@@ -97,6 +100,7 @@
 		x: d2Offset + sideBarD2,
 		y: (-svgD1 * headerRate) / 100
 	};
+	$: statusStyle = dBasedStyle({ top: d1PadSize + headerShape.height }, { right: 0 }, {});
 	$: svgShape = {
 		height: svgD1,
 		width: svgD2,
@@ -194,9 +198,10 @@
 		}
 		let newTreeSpec = TREE_SPECS.specs[conf.rootType][conf.treeId];
 		let newGlobalSpec = isGlobalSpecialization;
-		if (newTreeSpec.defaultIsSpec != currentTreeSpec.defaultIsSpec) {
+		if (!newTreeSpec.allowSpec || newTreeSpec.defaultIsSpec != currentTreeSpec.defaultIsSpec) {
 			newGlobalSpec = newTreeSpec.defaultIsSpec;
 		}
+		const requested = { treeId: conf.treeId, year: conf.year };
 		const jsv = await treeLoader.load(conf);
 		if (!jsv) return;
 		[
@@ -207,7 +212,8 @@
 			highlightRoot,
 			selectedBreakdowns,
 			isGlobalSpecialization,
-			shallowed
+			shallowed,
+			drawn
 		] = [
 			jsv.tree,
 			jsv.atts,
@@ -216,7 +222,8 @@
 			selectedQcRootId,
 			selectedBreakdowns,
 			newGlobalSpec,
-			false
+			false,
+			requested
 		];
 	}
 
@@ -310,6 +317,7 @@
 	>
 		{#if !Object.values(svgShape).includes(NaN) && !Object.values(svgShape).some((e) => e === undefined)}
 			<svg
+				class:stale
 				viewBox="{svgShape.x} {svgShape.y} {svgShape.width} {svgShape.height}"
 				xmlns="http://www.w3.org/2000/svg"
 			>
@@ -368,7 +376,13 @@
 						{}
 					)}
 				>
-					<HeadControl bind:checked={isGlobalSpecialization} text="Specialization" tip={SPEC_TIP} />
+					{#if currentTreeSpec.allowSpec}
+						<HeadControl
+							bind:checked={isGlobalSpecialization}
+							text="Specialization"
+							tip={SPEC_TIP}
+						/>
+					{/if}
 					{#if tf.hasYearFilter(conf.rootType)}
 						<HeadControl interactText={false} checked={false} text="since" tip={sinceTip}>
 							<select bind:value={conf.year} aria-label="Since year"
@@ -392,6 +406,14 @@
 					{allowControls}
 				/>
 			{/each}
+			{#if $treeLoader.error}
+				<div class="floater tree-status" role="alert" style={statusStyle}>
+					This tree could not be loaded.
+					<button class="control" on:click={() => loadNewQc(conf)}>Retry</button>
+				</div>
+			{:else if stale && $treeLoader.loading}
+				<div class="floater tree-status loading" role="status" style={statusStyle}>Loading…</div>
+			{/if}
 		{/if}
 	</div>
 	{#if shoPathLevelInfo}
@@ -430,9 +452,12 @@
 		align-items: center;
 	}
 
-	/* Anchors the absolute floaters below to the measured figure box rather than the page. */
+	/* Anchors the absolute floaters below to the measured figure box rather than the page. The
+	   delay keeps a fast load from flashing the outgoing tree and the status box. */
 	.figure-container {
 		position: relative;
+		--stale-fade: 0.2s;
+		--stale-delay: 0.3s;
 	}
 
 	.floater {
@@ -450,5 +475,32 @@
 		width: 100%;
 		height: 100%;
 		display: block;
+		transition: opacity var(--stale-fade);
+	}
+
+	svg.stale {
+		opacity: 0.35;
+		transition-delay: var(--stale-delay);
+	}
+
+	.tree-status {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin-top: 8px;
+		padding: 8px 14px;
+		background: var(--text-bg);
+		border: 1px solid var(--border-light);
+		font-size: var(--text-base);
+	}
+
+	.tree-status.loading {
+		animation: tree-status-in var(--stale-fade) var(--stale-delay) both;
+	}
+
+	@keyframes tree-status-in {
+		from {
+			opacity: 0;
+		}
 	}
 </style>

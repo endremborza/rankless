@@ -143,13 +143,17 @@ export function treeBeUrl(
 	return url;
 }
 
+// The tree endpoint answers `null` for a tree it cannot serve, so that is a failure like a bad status.
 export async function fetchTree(
 	root: string,
 	conf: tt.FullTreeConfig,
 	shallow?: number
 ): Promise<TreeResponse> {
-	const res = await fetch(treeBeUrl(root, conf, shallow));
-	return res.json();
+	const url = treeBeUrl(root, conf, shallow);
+	const res = await fetch(url);
+	const resp: TreeResponse | null = res.ok ? await res.json() : null;
+	if (resp == null) throw new Error(`no tree from ${url} (status ${res.status})`);
+	return resp;
 }
 
 export function entToDirectedLink(
