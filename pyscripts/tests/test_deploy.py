@@ -149,6 +149,7 @@ def test_nginx_conf_keys_on_the_visitor_and_caps_renders() -> None:
         "proxy_next_upstream error invalid_header;",
         f"proxy_next_upstream_tries {deploy.PAGE_UPSTREAM_TRIES};",
         f"limit_req zone=apilimit burst={services.API_BURST} nodelay;",
+        "add_header Access-Control-Allow-Origin * always;",
         '"~MSIE [5-9]\\." 1;',
     ]:
         assert line in conf, line

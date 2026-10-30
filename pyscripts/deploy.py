@@ -394,7 +394,9 @@ server {{
         proxy_cache be-cache;
         {loc_suffix}
         {services.API_LIMIT_REQ}
-        add_header Access-Control-Allow-Origin *;
+        # `always`: without it nginx adds the header to 2xx/3xx only, and a browser reads the
+        # limit's 429 as a network error.
+        add_header Access-Control-Allow-Origin * always;
         {security_headers}
     }}
 
