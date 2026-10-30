@@ -69,6 +69,7 @@ from PIL import ImageFont
 
 from mcp_server import MAIN_DOMAIN, RENDER_URL, resolve_backend
 from mcp_server.cards import KINDS
+from mcp_server.response_shaping import plain
 from pyscripts.paths import asset
 from wire.rankless_rs.metrics import PAPER_SCORE
 from wire.rankless_server.responses import METHODOLOGY, TREE_SPECS
@@ -311,10 +312,6 @@ def commas(n: float) -> str:
 
 def plural(n: int, word: str) -> str:
     return f"{n} {word}{'' if n == 1 else 's'}"
-
-
-def plain(s: str) -> str:
-    return html.unescape(re.sub(r"<[^>]+>", "", s)).strip()
 
 
 def journal(name: str) -> str:

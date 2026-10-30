@@ -4,6 +4,8 @@ Trees are flattened with names resolved through the breakdown spec, long lists
 are truncated, and entity refs get a `rankless_url` backlink.
 """
 
+import html
+import re
 from itertools import combinations
 from typing import Any
 
@@ -16,6 +18,12 @@ from wire.rankless_trees.io import (
 )
 
 TRUNCATE_N = 12
+TAG_RE = re.compile(r"<[^>]+>")
+
+
+def plain(text: str) -> str:
+    """Backend markup (a name's or a title's tags and entities) as text."""
+    return html.unescape(TAG_RE.sub("", text)).strip()
 
 
 def add_url(ref: dict, entity_type: str) -> dict:
