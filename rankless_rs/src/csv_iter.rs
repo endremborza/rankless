@@ -1,6 +1,6 @@
 use std::{
     collections::VecDeque,
-    fs::{read_dir, File},
+    fs::File,
     io::BufReader,
     marker::PhantomData,
     path::{Path, PathBuf},
@@ -14,7 +14,7 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     common::{oa_id_parse_opt, Stowage, ID_PREFIX, MAIN_NAME},
-    csv_writers::{authors, works, CSV_EXTENSION, PART_PREFIX},
+    csv_writers::{authors, table_parts, works},
     user_ledger::ResolvedLedger,
 };
 
@@ -406,18 +406,8 @@ fn with_id(field: &str, id: BigId) -> String {
 }
 
 fn part_paths(root: &Path, table: &Table) -> Vec<PathBuf> {
-    let dir = root.join(&table.main);
-    let prefix = format!("{}.{PART_PREFIX}", table.sub);
-    let mut paths: Vec<PathBuf> = read_dir(&dir)
-        .unwrap_or_else(|_| panic!("{} dir missing", table.label()))
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| {
-            p.file_name()
-                .and_then(|n| n.to_str())
-                .map(|n| n.starts_with(&prefix) && n.ends_with(CSV_EXTENSION))
-                .unwrap_or(false)
-        })
-        .collect();
+    let mut paths = table_parts(&root.join(&table.main), &table.sub)
+        .unwrap_or_else(|_| panic!("{} dir missing", table.label()));
     assert!(
         !paths.is_empty(),
         "no partitions found for {}",

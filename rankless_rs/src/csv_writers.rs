@@ -1,7 +1,7 @@
 use csv::Writer;
 use flate2::read::GzDecoder;
 use serde::{de::DeserializeOwned, Deserialize};
-use std::fs::{create_dir_all, read_dir, File};
+use std::fs::{create_dir_all, read_dir, remove_file, File};
 use std::io::{self, BufRead, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -51,6 +51,8 @@ macro_rules! create_csv_struct {
         }
 
         impl $struct_name {
+            const TABLES: &'static [&'static str] = &[$(stringify!($rest)),*];
+
             pub fn new(out_dir: PathBuf, counter: Arc<AtomicU32>) -> Self {
                 let part = counter.fetch_add(1, Ordering::Relaxed);
                 $( let $rest = get_writer(&out_dir, stringify!($rest), part).unwrap(); )*
@@ -139,6 +141,7 @@ macro_rules! create_complex_writers {
                 let slug = stringify!($mod_name);
                 let out_dir = Path::new(out_root_str).join(slug);
                 create_dir_all(&out_dir)?;
+                remove_parts(&out_dir, ModWriter::TABLES)?;
                 write_entity_parallel(
                     Path::new(in_root_str),
                     slug,
@@ -174,11 +177,36 @@ create_complex_writers!(
     referenced_works
 );
 
+/// The part files of `table` in `dir`, in directory order.
+pub fn table_parts(dir: &Path, table: &str) -> io::Result<Vec<PathBuf>> {
+    let prefix = format!("{table}.{PART_PREFIX}");
+    let mut parts = Vec::new();
+    for entry in read_dir(dir)? {
+        let path = entry?.path();
+        let named = path.file_name().and_then(|n| n.to_str());
+        if named.is_some_and(|n| n.starts_with(&prefix) && n.ends_with(CSV_EXTENSION)) {
+            parts.push(path);
+        }
+    }
+    Ok(parts)
+}
+
 fn get_writer(root: &Path, fname: &str, part: u32) -> io::Result<ZstWriter> {
     let path = root.join(format!("{}.{PART_PREFIX}{part:04}{CSV_EXTENSION}", fname));
     let enc: Box<dyn io::Write + Send> =
         Box::new(zstd::Encoder::new(BufWriter::new(File::create(path)?), 3)?.auto_finish());
     Ok(Writer::from_writer(enc))
+}
+
+/// Readers take every part of a table in the directory, so parts a previous run wrote beyond this
+/// run's count would be read as records; tables other writers keep there (`extend_csvs`) stay.
+fn remove_parts(out_dir: &Path, tables: &[&str]) -> io::Result<()> {
+    for table in tables {
+        for part in table_parts(out_dir, table)? {
+            remove_file(part)?;
+        }
+    }
+    Ok(())
 }
 
 /// The gz parts inside the entity's `updated_date=…` partition dirs; files beside the partitions
@@ -282,4 +310,47 @@ pub fn write_csvs(in_root_str: &str, stowage: &Stowage) -> io::Result<()> {
         sources
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use flate2::{write::GzEncoder, Compression};
+    use std::io::Write;
+
+    #[test]
+    fn a_rerun_leaves_no_part_of_the_last_run() {
+        let root = std::env::temp_dir().join(format!("csv-writers-rerun-{}", std::process::id()));
+        let partition = root.join("in/fields/updated_date=2026-10-14");
+        create_dir_all(&partition).unwrap();
+        let mut gz = GzEncoder::new(
+            File::create(partition.join("part_0000.gz")).unwrap(),
+            Compression::fast(),
+        );
+        writeln!(
+            gz,
+            r#"{{"id": "https://openalex.org/fields/17", "display_name": "Computer Science", "domain": {{"id": "https://openalex.org/domains/3"}}}}"#
+        )
+        .unwrap();
+        gz.finish().unwrap();
+        let out = root.join("out/fields");
+        create_dir_all(&out).unwrap();
+        let stale = out.join(format!("main.{PART_PREFIX}0099{CSV_EXTENSION}"));
+        let kept = out.join(format!("nobel.{PART_PREFIX}0000{CSV_EXTENSION}"));
+        File::create(&stale).unwrap();
+        File::create(&kept).unwrap();
+
+        fields::write(
+            root.join("in").to_str().unwrap(),
+            root.join("out").to_str().unwrap(),
+        )
+        .unwrap();
+
+        assert!(!stale.exists());
+        assert!(kept.exists());
+        assert!(out
+            .join(format!("main.{PART_PREFIX}0000{CSV_EXTENSION}"))
+            .exists());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 }
