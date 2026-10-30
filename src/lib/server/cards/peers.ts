@@ -3,7 +3,6 @@ import { error } from '@sveltejs/kit';
 import type { ShowcasePeers } from '$lib/types/showcase';
 import { BE_URL } from '$lib/constants';
 import { encodeSemanticId } from '$lib/tree-functions';
-import { fixName } from '$lib/name-overrides';
 import { htmlToText } from '$lib/utils/paper-helpers';
 import { peerCountryTag } from '$lib/peers-utils';
 import PeersCard from '$lib/components/cards/PeersCard.svelte';
@@ -26,8 +25,8 @@ export const peers: CardKind = {
 		const peer = hl ? resp.peers.find((p) => p.semanticId === hl) : resp.peers[0];
 		if (!peer) error(404, 'no such peer');
 		const props: ShowcasePeers = {
-			heroName: displayName(resp.hero.name),
-			peerName: displayName(peer.name),
+			heroName: htmlToText(resp.hero.name),
+			peerName: htmlToText(peer.name),
 			peerCountry: peerCountryTag(rootType, peer),
 			subfields: resp.topSubfields.slice(0, n).map((sf, i) => ({
 				name: sf.name,
@@ -45,8 +44,4 @@ export const peers: CardKind = {
 function peersCaption(nFields: number): string {
 	const fields = nFields === 1 ? 'top field' : `top ${nFields} fields`;
 	return `Citations in the ${fields} and per year, against a peer of similar size and profile`;
-}
-
-function displayName(name: string): string {
-	return htmlToText(fixName(name));
 }

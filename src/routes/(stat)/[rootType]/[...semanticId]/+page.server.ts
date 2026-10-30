@@ -18,7 +18,6 @@ import * as tf from '$lib/tree-functions';
 import { BE_URL, REL_TYPES, ROOT_TYPES } from '$lib/constants';
 import { pluralize, SEMANTIC_CONF } from '$lib/text-format-util';
 import { getExternalUrl, semIdResolver } from '$lib/route-functions';
-import { fixViewNames, fixAttNames, fixPeerNames } from '$lib/name-overrides';
 import { LedgerDb } from '$lib/server/db';
 import { readManifest, EMPTY_MANIFEST } from '$lib/server/manifest';
 import { activeDisclaimer } from '$lib/server/disclaimers';
@@ -47,7 +46,6 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 		}
 		redirect(307, `/search?q=${encodeURIComponent(semanticId.replace(/-/g, ' '))}`);
 	}
-	fixViewNames(view);
 
 	const treeResp: TreeResponse = await fetch(tf.treeBeUrl(BE_URL, conf, 1))
 		.then((res) => res.json())
@@ -56,7 +54,6 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 		error(404, 'Not found');
 	}
 	const { tree, atts, shallowed } = treeResp;
-	fixAttNames(atts);
 
 	const cardQuery = url.searchParams.toString();
 	const cardSuffix = cardQuery.length > 0 ? `?${cardQuery}` : '';
@@ -206,7 +203,6 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 	}
 
 	const [peersData, ladder] = await Promise.all([peersPromise, ladderPromise]);
-	if (peersData) fixPeerNames(peersData);
 
 	if (view) {
 		return {

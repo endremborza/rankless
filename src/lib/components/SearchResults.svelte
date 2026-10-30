@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { SearchResult, UnionSearchResult } from '$lib/wire/rankless_server/responses';
 	import { pluralize, rootEmoji, formatNumber } from '$lib/text-format-util';
-	import { fixName } from '$lib/name-overrides';
 	import { BE_REMOTE_URL, isRootType } from '$lib/constants';
 	import type { RootedResult, RootType } from '$lib/tree-types';
 	import { entToLink } from '$lib/tree-functions';
@@ -57,7 +56,7 @@
 				results = l.map((e) => {
 					const rootType =
 						'rootType' in e && isRootType(e.rootType) ? e.rootType : (cat as RootType);
-					return { ...e, name: fixName(e.name), rootType };
+					return { ...e, rootType };
 				});
 				activeIndex = -1;
 			}

@@ -3,7 +3,6 @@ import { error } from '@sveltejs/kit';
 import type * as tt from '$lib/tree-types';
 import { BE_URL, FULL_HOST } from '$lib/constants';
 import { encodeSemanticId, getEntityPath } from '$lib/tree-functions';
-import { fixViewNames } from '$lib/name-overrides';
 import { htmlToText } from '$lib/utils/paper-helpers';
 import { renderSvgComponent } from '$lib/server/render';
 import { rasterizeSvg, readCardCache, writeCardCache } from '$lib/server/card-raster';
@@ -61,7 +60,6 @@ export async function loadCard(
 		? await beJson<ViewResult>(fetchFn, `${BE_URL}/views/${rt}/${encodeSemanticId(semanticId)}`)
 		: null;
 	if (view && !view.name) error(404, 'card unavailable');
-	if (view) fixViewNames(view);
 	const data = await card.load({ rootType: rt, semanticId, params, view, fetch: fetchFn });
 	const path = semanticId ? getEntityPath(rt, semanticId) : `/${rt}/table`;
 	return {

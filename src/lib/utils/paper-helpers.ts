@@ -5,7 +5,6 @@ import type {
 } from '$lib/wire/rankless_server/responses';
 import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 import type { OaPaperResp } from '$lib/tree-types';
-import { fixName } from '$lib/name-overrides';
 
 export const PRESTIGIOUS_SOURCE_SEM_IDS = new Set(['science', 'nature']);
 
@@ -153,7 +152,7 @@ export function resolveAuthorNameOrNull(
 		ship.author[0] === 'F'
 			? entityAtts.authors?.[ship.author.slice(1)]?.name
 			: discAuthorNames[ship.author];
-	return name ? fixName(name) : null;
+	return name || null;
 }
 
 // Combine entity-att maps without clobbering nested per-type records. A shallow spread would

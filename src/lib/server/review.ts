@@ -1,7 +1,6 @@
 // Pure review-domain logic: no DB or env access, so it stays unit-testable under
 // vitest (bun:sqlite cannot be imported there). DB glue lives in review-data.ts.
 import type { EventPayload, WorkSubject } from '$lib/wire/rankless_rs/user_ledger';
-import { fixName } from '$lib/name-overrides';
 import { canonicalDoi, normalizeOrcid } from '$lib/utils/identifiers';
 import type { LedgerEvent, UserRow } from './db';
 import type {
@@ -145,7 +144,7 @@ function actorName(
 	const entry = enrichment.get(pairKey('orcid', normalizeOrcid(orcid)));
 	const record = entry?.status === 'ok' ? (entry.data as OrcidRecord | null) : null;
 	const name = users.get(orcid)?.name ?? record?.name ?? null;
-	return name ? fixName(name) : null;
+	return name || null;
 }
 
 function workRecord(entry: EnrichmentEntry | undefined): WorkRecord | null {
