@@ -32,6 +32,7 @@ COMMANDS = {
     "rankless-game-card-mining": "pyscripts.explore.game_card_mining",
     "objects": "pyscripts.object_store",
     "userdb": "pyscripts.userdb",
+    "outreach": "pyscripts.outreach",
 }
 
 
