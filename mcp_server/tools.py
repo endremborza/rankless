@@ -337,6 +337,8 @@ async def get_peers(entity_type: str, semantic_id: str) -> dict:
 
     `image_url` is the peers card against the first peer, absent when there is
     none; a peer's own `image_url` is the card comparing the entity with that peer.
+    `country` is a country itself, an institution's own, and for an author or a
+    source the most frequent country of the institutions on its papers.
     """
     _check_etype(entity_type)
     res = await get_json(f"/peers/{entity_type}/{encode_semantic_id(semantic_id)}")

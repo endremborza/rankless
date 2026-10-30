@@ -92,7 +92,7 @@ pub struct SubfieldProfiles {
 type TopSfRec = ET<MAA<Subfields, TopNPaperSfMarker>>;
 type TopJournalRec = ET<MAA<Sources, TopJournalMarker>>;
 type TopAuthorRec = ET<MAA<Authors, Top15AuthorMarker>>;
-type TopCountryRec = ET<MAA<Countries, Top3AffCountryMarker>>;
+pub type TopCountryRec = ET<MAA<Countries, Top3AffCountryMarker>>;
 type TopTopicRec = ET<MAA<Topics, TopNPaperTopicMarker>>;
 
 // Everything one root type keeps loaded for the whole run, indexed by `dm_id` and reached by etype
@@ -120,9 +120,7 @@ pub struct RootColumns {
     pub mean_papers: f64,
     // Papers with a paper score, the hit rate's denominator; a hit paper is one.
     pub scored_papers: Box<[u32]>,
-    // Whether the entities have a place: institutions, whose country and city are `Getters` fixed
-    // attributes.
-    pub located: bool,
+    pub place: Place,
     pub paper_sfc: MmapSlice<TopSfRec>,
     pub citing_sfc: MmapSlice<TopSfRec>,
     pub journals: MmapSlice<TopJournalRec>,
@@ -138,6 +136,16 @@ pub struct RootColumns {
     pub population: Option<Box<[u32]>>,
     pub paper_scores: Option<Box<[f32]>>,
     pub year_centroids: Option<Box<[f32]>>,
+}
+
+// Where a root's entities take their country from: a country is its own; an institution stands in
+// one, its country and city being `Getters` fixed attributes; any other entity's are the countries
+// of the institutions on its papers.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Place {
+    Own,
+    Located,
+    Papers,
 }
 
 macro_rules! column_accessors {
@@ -413,7 +421,7 @@ fn load_root_columns(stow: &Stowage) -> RootColumnMap {
                     .collect(),
                 cit_rank_ladder: <$E as FixAtt<CitRankLadderMarker>>::load(stow),
                 mean_papers,
-                located: <$E as Entity>::NAME == Institutions::NAME,
+                place: Place::of(<$E as Entity>::NAME),
                 paper_sfc: stow.get_marked_interface::<$E, TopNPaperSfMarker, MmapBox>(),
                 citing_sfc: stow.get_marked_interface::<$E, TopNCitingSfMarker, MmapBox>(),
                 journals: stow.get_marked_interface::<$E, TopJournalMarker, MmapBox>(),
@@ -534,6 +542,18 @@ where
     pub fn into_stats_entry(self, full_cc: f64) -> (String, Box<[AttributeLabel]>) {
         let names: Box<[Arc<str>]> = (&self.names).into();
         make_stats_entry_arc::<E>(&names, &[], &self.ccounts, full_cc)
+    }
+}
+
+impl Place {
+    pub fn of(etype: &str) -> Self {
+        if etype == Countries::NAME {
+            Self::Own
+        } else if etype == Institutions::NAME {
+            Self::Located
+        } else {
+            Self::Papers
+        }
     }
 }
 

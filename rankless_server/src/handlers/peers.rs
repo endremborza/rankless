@@ -5,13 +5,14 @@ use axum::{
     Json,
 };
 
-use dmove::{Entity, UnsignedNumber, ET};
+use dmove::{Entity, ET};
 use rankless_rs::{
     gen::a1_entity_mapping::{Countries, Subfields},
     peers::SPEC_BETA,
 };
 use rankless_trees::{
     interfacing::{Getters, RootColumns, SubfieldProfiles},
+    metrics::Value,
     AttributeLabelUnion,
 };
 
@@ -119,18 +120,10 @@ fn build_peer_entry(
         .iter()
         .map(|&si| sfs.citing.elem(dm_id, si))
         .collect();
-    let country = cols.aff_countries.as_ref().and_then(|m| {
-        m.row(dm_id)
-            .into_iter()
-            .map(|(_, c)| c.to_usize())
-            .find(|&c| c != 0)
-            .and_then(|cdm| {
-                satts
-                    .get(Countries::NAME)
-                    .and_then(|labels| labels.get(cdm))
-                    .map(|l| l.name.clone())
-            })
-    });
+    let country = cols
+        .countries(gets, dm_id)
+        .and_then(Value::lead)
+        .map(|c| satts[Countries::NAME][c as usize].name.clone());
     PeerEntry {
         name: sr.name.clone(),
         semantic_id: sr.semantic_id.clone(),

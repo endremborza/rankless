@@ -14,6 +14,7 @@
 		tierLabels,
 		citStandingTier,
 		ratioBarHeight,
+		peerCountryTag,
 		SUBFIELD_COLOR_VARS
 	} from '$lib/peers-utils';
 	import { formatNumber, shortYear } from '$lib/text-format-util';
@@ -180,6 +181,7 @@
 	let selectedIdx = 0;
 	$: if (selectedIdx >= displayPeers.length) selectedIdx = 0;
 	$: selectedPeer = displayPeers[selectedIdx];
+	$: selectedCountry = peerCountryTag(rootType, selectedPeer);
 
 	// Scale = the selected peer's largest ratio, so the tallest bar always reaches the top and switching
 	// peers rescales both charts. Side by side they share one top (the larger of the two) so bars, ticks
@@ -372,6 +374,7 @@
 
 	<div class="peer-grid">
 		{#each displayPeers as peer, pi (pi)}
+			{@const country = peerCountryTag(rootType, peer)}
 			<div
 				class="peer-card"
 				class:selected={pi === selectedIdx}
@@ -392,8 +395,8 @@
 				{/if}
 				<div class="peer-head">
 					<span class="peer-name">{peer.name}</span>
-					{#if peer.country}
-						<span class="country-tag">{peer.country}</span>
+					{#if country}
+						<span class="country-tag">{country}</span>
 					{/if}
 				</div>
 				<BarChart bars={miniBars[pi]} plotHeight={64} gap={7} groupSize={2} groupGap={1} />
@@ -408,8 +411,8 @@
 				<span class="dt-rel">relative to</span>
 				<span class="dt-peer">{selectedPeer.name}</span>
 			</span>
-			{#if selectedPeer.country}
-				<span class="country-tag">{selectedPeer.country}</span>
+			{#if selectedCountry}
+				<span class="country-tag">{selectedCountry}</span>
 			{/if}
 			<a class="profile-link" href="/{rootType}/{selectedPeer.semanticId}"
 				>{selectedPeer.name}'s profile →</a

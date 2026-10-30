@@ -1,4 +1,5 @@
 import { getColorArr } from '$lib/style-util';
+import type { PeerEntry } from '$lib/wire/rankless_server/responses';
 
 const STOP = /^(and|of|the|in|for|a|an|at|by|to)$/i;
 
@@ -27,6 +28,11 @@ export function abbrSfName(name: string): string {
 
 export function sfColorVar(displayIdx: number): string {
 	return SUBFIELD_COLOR_VARS[displayIdx % SUBFIELD_COLOR_VARS.length];
+}
+
+// The country tag beside a peer's name; a country's own would repeat the name.
+export function peerCountryTag(rootType: string, peer: PeerEntry): string | null {
+	return rootType === 'countries' ? null : peer.country;
 }
 
 // Hero field-tile colors. The two blocks read as opposite color families by drawing from opposite

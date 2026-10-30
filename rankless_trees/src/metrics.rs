@@ -22,7 +22,7 @@ use rankless_rs::{
 use serde::Serialize;
 use wiretypes::wire;
 
-use crate::interfacing::{Getters, RootColumns};
+use crate::interfacing::{Getters, Place, RootColumns, TopCountryRec};
 
 use dmove::{Entity, ET};
 
@@ -305,7 +305,7 @@ pub const METRICS: &[MetricDecl] = &[
         id: COUNTRY,
         label: "Country",
         header: None,
-        meaning: "An institution's country; for any other entity, up to {aff_countries} countries of the institutions on its papers, the most frequent first.",
+        meaning: "A country itself and an institution's country; for any other entity, up to {aff_countries} countries of the institutions on its papers, the most frequent first.",
         rationale: None,
         value: ValueType::Entities(Countries::NAME),
         param: None,
@@ -517,20 +517,10 @@ impl MetricDecl {
             (WINDOW_CITATIONS, Arg::Window(from, to)) => {
                 num(cols.window_sums(dm, from, to).1 as f64)
             }
-            (COUNTRY, _) => {
-                if cols.located {
-                    return Some(Value::Id(gets.icountry(&dm).to_usize() as u32));
-                }
-                let row = cols.aff_countries.as_ref()?.row(dm);
-                let mut ids = [0u32; N_AFF_COUNTRIES];
-                for (slot, (n, c)) in ids.iter_mut().zip(row.iter()) {
-                    if *n > 0 {
-                        *slot = c.to_usize() as u32;
-                    }
-                }
-                Some(Value::Ids(ids))
+            (COUNTRY, _) => cols.countries(gets, dm),
+            (CITY, _) if cols.place == Place::Located => {
+                Some(Value::Id(gets.icity(&dm).to_usize() as u32))
             }
-            (CITY, _) if cols.located => Some(Value::Id(gets.icity(&dm).to_usize() as u32)),
             _ => match self.reads {
                 [Column::HIndexSince(i)] => num(cols.h_since.as_ref()?[dm][*i] as f64),
                 _ => None,
@@ -623,6 +613,17 @@ impl Param {
     }
 }
 
+impl Value {
+    // The entity a read names first, the most frequent of a set; None for a number or no entity.
+    pub fn lead(self) -> Option<u32> {
+        match self {
+            Self::Num(_) => None,
+            Self::Id(id) => Some(id).filter(|&id| id != 0),
+            Self::Ids(ids) => ids.into_iter().find(|&id| id != 0),
+        }
+    }
+}
+
 impl RootColumns {
     pub fn field_citations(&self, dm: usize, sf: usize) -> Option<u32> {
         Some(self.subfields.as_ref()?.citing.elem(dm, sf))
@@ -668,21 +669,29 @@ impl RootColumns {
                 s.citing.len() * std::mem::size_of::<[u32; Subfields::N]>()
             }
             Column::YearlyPapers | Column::YearlyCites => n * std::mem::size_of::<EraRec>(),
-            Column::Countries => {
-                if self.located {
-                    n * std::mem::size_of::<ET<Institutions>>()
-                } else {
-                    self.aff_countries.as_ref()?.len() * 4 * N_AFF_COUNTRIES * 2
-                }
-            }
+            Column::Countries => match self.place {
+                Place::Own => 0,
+                Place::Located => n * std::mem::size_of::<ET<Institutions>>(),
+                Place::Papers => self.aff_countries.as_ref()?.len() * 4 * N_AFF_COUNTRIES * 2,
+            },
             Column::City => {
-                if self.located {
+                if self.place == Place::Located {
                     n * 2
                 } else {
                     return None;
                 }
             }
         })
+    }
+
+    // The entity's countries (`COUNTRY`, `Place`): its own or its location, else the countries of
+    // the institutions on its papers; None where the root keeps no paper countries.
+    pub fn countries(&self, gets: &Getters, dm: usize) -> Option<Value> {
+        match self.place {
+            Place::Own => Some(Value::Id(dm as u32)),
+            Place::Located => Some(Value::Id(gets.icountry(&dm).to_usize() as u32)),
+            Place::Papers => Some(paper_countries(&self.aff_countries.as_ref()?.row(dm))),
+        }
     }
 }
 
@@ -725,6 +734,17 @@ fn vars() -> Vec<(&'static str, String)> {
 
 fn per_million(value: f64, population: u32) -> Option<f64> {
     (population > 0).then(|| value / (population as f64 / 1e6))
+}
+
+// The countries a row names with papers behind them, in the row's most-frequent-first order.
+fn paper_countries(row: &TopCountryRec) -> Value {
+    let mut ids = [0u32; N_AFF_COUNTRIES];
+    for (slot, (n, c)) in ids.iter_mut().zip(row.iter()) {
+        if *n > 0 {
+            *slot = c.to_usize() as u32;
+        }
+    }
+    Value::Ids(ids)
 }
 
 #[cfg(test)]
@@ -820,6 +840,22 @@ mod tests {
         assert_eq!(covers(CITED_FROM), Some(Coverage::Indexed));
         assert_eq!(covers(POPULATION), None);
         assert_eq!(covers(COUNTRY), None);
+    }
+
+    #[test]
+    fn an_entity_leads_with_its_own_or_most_frequent_country() {
+        assert_eq!(Place::of(Countries::NAME), Place::Own);
+        assert_eq!(Place::of(Institutions::NAME), Place::Located);
+        assert_eq!(Place::of(Authors::NAME), Place::Papers);
+        assert_eq!(Place::of(Sources::NAME), Place::Papers);
+        let mut row = TopCountryRec::default();
+        row[0] = (4, 3);
+        row[1] = (1, 7);
+        let read = paper_countries(&row);
+        assert!(matches!(read, Value::Ids(ids) if ids[..2] == [3, 7]));
+        assert_eq!(read.lead(), Some(3));
+        assert_eq!(paper_countries(&TopCountryRec::default()).lead(), None);
+        assert_eq!(Value::Id(0).lead(), None);
     }
 
     #[test]

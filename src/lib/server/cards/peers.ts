@@ -5,6 +5,7 @@ import { BE_URL } from '$lib/constants';
 import { encodeSemanticId } from '$lib/tree-functions';
 import { fixName } from '$lib/name-overrides';
 import { htmlToText } from '$lib/utils/paper-helpers';
+import { peerCountryTag } from '$lib/peers-utils';
 import PeersCard from '$lib/components/cards/PeersCard.svelte';
 import { beJson, CARD_SPEC, idsParam, intParam, type CardKind } from './kind';
 
@@ -27,7 +28,7 @@ export const peers: CardKind = {
 		const props: ShowcasePeers = {
 			heroName: displayName(resp.hero.name),
 			peerName: displayName(peer.name),
-			peerCountry: rootType === 'countries' ? null : peer.country,
+			peerCountry: peerCountryTag(rootType, peer),
 			subfields: resp.topSubfields.slice(0, n).map((sf, i) => ({
 				name: sf.name,
 				hero: resp.hero.subfieldCitations[i] ?? 0,
