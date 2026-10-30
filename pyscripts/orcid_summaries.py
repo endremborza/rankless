@@ -47,6 +47,7 @@ NAME_END = b"</person:name>"
 # The element an other name is written in; an empty `other-names` block has none.
 OTHER_MARKER = b"<other-name:content>"
 STREAM_BUF = 1 << 20
+PARTIAL_SUFFIX = ".partial"
 PROGRESS_EVERY = 1_000_000
 
 
@@ -148,6 +149,10 @@ def _header(cls: type) -> str:
 
 
 def scan(tarball: Path, out_dir: Path) -> ScanCounts:
+    """Write the tables beside their names and move them in only after a complete pass, so a
+    failed scan leaves the previous ones."""
+    tables = (out_dir / NAMES_NAME, out_dir / EMAILS_NAME)
+    names_part, emails_part = (t.with_name(t.name + PARTIAL_SUFFIX) for t in tables)
     counts = ScanCounts()
     start = time.monotonic()
     proc = subprocess.Popen(
@@ -156,14 +161,17 @@ def scan(tarball: Path, out_dir: Path) -> ScanCounts:
     assert proc.stdout is not None
     cctx = zstandard.ZstdCompressor(level=9)
     with (
-        (out_dir / NAMES_NAME).open("wb") as names_raw,
+        names_part.open("wb") as names_raw,
         cctx.stream_writer(names_raw) as names_zst,
-        (out_dir / EMAILS_NAME).open("w") as emails,
+        emails_part.open("w") as emails,
         tarfile.open(fileobj=proc.stdout, mode="r|", bufsize=STREAM_BUF) as tf,
     ):
         names_zst.write(_header(Names).encode())
         emails.write(_header(PublicEmail))
         for member in tf:
+            # A stream-mode TarFile still keeps every member it has read in `members`, which
+            # for tens of millions of records outgrows the box's memory.
+            tf.members.clear()
             if not member.isfile() or not member.name.endswith(".xml"):
                 continue
             counts.records += 1
@@ -184,6 +192,8 @@ def scan(tarball: Path, out_dir: Path) -> ScanCounts:
                     emails.write(_tsv_line(e))
     if proc.wait() != 0:
         raise RuntimeError(f"pigz exited with {proc.returncode}")
+    for part, table in zip((names_part, emails_part), tables):
+        part.replace(table)
     return counts
 
 

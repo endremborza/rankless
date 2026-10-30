@@ -1,9 +1,18 @@
+import tarfile
 from pathlib import Path
 
 import pytest
+import zstandard
 
 from pyscripts import external_data
-from pyscripts.orcid_summaries import Names, record_emails, record_names
+from pyscripts.orcid_summaries import (
+    EMAILS_NAME,
+    NAMES_NAME,
+    Names,
+    record_emails,
+    record_names,
+    scan,
+)
 
 RECORD = b"""<?xml version="1.0"?>
 <record:record xmlns:record="http://www.orcid.org/ns/record" xmlns:person="http://www.orcid.org/ns/person"
@@ -72,3 +81,31 @@ def test_regen_root_defaults_to_the_repo_data_dir(
     monkeypatch.setenv(external_data.EXTERNAL_REGEN_ROOT, "/elsewhere")
     assert external_data.REGEN.path() == Path("/elsewhere")
     assert external_data.REGEN.path(Path("/given")) == Path("/given")
+
+
+def _summaries(tmp_path: Path, torn: bool) -> Path:
+    xml = tmp_path / f"{ORCID}.xml"
+    xml.write_bytes(RECORD)
+    tarball = tmp_path / "summaries.tar.gz"
+    with tarfile.open(tarball, "w:gz") as tf:
+        tf.add(xml, arcname=f"summaries/789/{ORCID}.xml")
+    if torn:
+        tarball.write_bytes(tarball.read_bytes()[:-4])
+    return tarball
+
+
+def test_a_failed_scan_keeps_the_previous_tables(tmp_path: Path) -> None:
+    out = tmp_path / "orcid"
+    out.mkdir()
+    (out / NAMES_NAME).write_bytes(b"previous")
+    with pytest.raises(RuntimeError, match="pigz"):
+        scan(_summaries(tmp_path, torn=True), out)
+    assert (out / NAMES_NAME).read_bytes() == b"previous"
+
+    counts = scan(_summaries(tmp_path, torn=False), out)
+    assert (counts.records, counts.named, counts.emails) == (1, 1, 1)
+    names = zstandard.ZstdDecompressor().decompress(
+        (out / NAMES_NAME).read_bytes(), max_output_size=1 << 20
+    )
+    assert ORCID.encode() in names
+    assert sorted(p.name for p in out.iterdir()) == sorted([NAMES_NAME, EMAILS_NAME])
