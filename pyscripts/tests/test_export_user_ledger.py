@@ -5,7 +5,7 @@ import pytest
 
 from pyscripts import export_user_ledger, external_data, paths
 from pyscripts.export_user_ledger import CURATED_DIR
-from wire.rankless_rs.user_ledger import CURATED_JSONL, SNAPSHOT_MANIFEST
+from wire.rankless_rs.user_ledger import CURATED_JSONL, OWNER_PINS, SNAPSHOT_MANIFEST
 
 
 def _line(key: str) -> dict:
@@ -32,9 +32,15 @@ def _ledger(tmp_path, monkeypatch, files: dict[str, list[dict]]):
     return root
 
 
-def _export(tmp_path) -> tuple:
+def _export(tmp_path, site_pins: tuple[str, ...] = ()) -> tuple:
     db = tmp_path / "site.sqlite"
-    sqlite3.connect(db).close()
+    with sqlite3.connect(db) as conn:
+        if site_pins:
+            conn.execute("CREATE TABLE owner_pins (orcid TEXT PRIMARY KEY)")
+            conn.executemany(
+                "INSERT INTO owner_pins VALUES (?)", [(o,) for o in site_pins]
+            )
+    conn.close()
     data_root = tmp_path / "data"
     export_user_ledger.export(data_root, str(db))
     out = data_root / paths.USER_LEDGER_DIR
@@ -85,3 +91,17 @@ def test_without_a_curated_ledger_under_the_default_root_none_is_left(
     assert not (out / CURATED_JSONL).exists()
     assert manifest["sources"] == {"site": 0}
     assert manifest["curated_files"] == {}
+
+
+def test_the_curated_pins_join_the_sites_once_each(tmp_path, monkeypatch):
+    root = _ledger(tmp_path, monkeypatch, {})
+    site, both, curated = (
+        "0000-0001-0000-0001",
+        "0000-0002-0000-0002",
+        "0000-0003-0000-000X",
+    )
+    (root / "ledger" / CURATED_DIR / OWNER_PINS).write_text(f"{both}\n\n{curated}\n")
+
+    out, _ = _export(tmp_path, (site, both))
+
+    assert (out / OWNER_PINS).read_text().splitlines() == [site, both, curated]

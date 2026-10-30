@@ -7,7 +7,8 @@ Reads ledger_events and owner_pins from SQLite, writes:
                        absent when the default root has none
   SNAPSHOT_MANIFEST  — run_id (ISO ts) + exported event_ids + per-source counts + the
                        lines each curated occasion file gave
-  OWNER_PINS         — one ORCID per line
+  OWNER_PINS         — one ORCID per line: the site's logged-in owners, then the curated
+                       ledger's own `OWNER_PINS` (people the team pins without a login)
 
 Every event carries a `source` (this exporter always writes "site" — the site
 SQLite DB is the "site" source). Future feeds (institutions, OA-API deltas)
@@ -121,9 +122,11 @@ def export(data_root: Path, db_path: str) -> None:
     try:
         all_events = _fetch_active_events(conn)
         active = _collapse_revokes(all_events)
-        pins = _fetch_owner_pins(conn)
+        site_pins = _fetch_owner_pins(conn)
     finally:
         conn.close()
+    curated_pins = _curated_pins()
+    pins = list(dict.fromkeys(site_pins + curated_pins))
 
     run_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     exported_ids = [e["event_id"] for e in active]
@@ -153,7 +156,10 @@ def export(data_root: Path, db_path: str) -> None:
         if pins:
             f.write("\n")
 
-    print(f"exported {sources} event(s), {len(pins)} owner pin(s) → {out_dir}")
+    print(
+        f"exported {sources} event(s), {len(pins)} owner pin(s) "
+        f"({len(curated_pins)} curated) → {out_dir}"
+    )
     print(f"run_id: {run_id}")
 
 
@@ -181,6 +187,19 @@ def _export_curated(out_dir: Path) -> dict[str, int] | None:
         raise SystemExit(f"{src}: event keys on more than one line: {repeated}")
     dest.write_text("".join(line + "\n" for line in lines))
     return counts
+
+
+def _curated_pins() -> list[str]:
+    """The ORCIDs the team pins without a login: the curated ledger's `OWNER_PINS`, one per
+    line."""
+    src = KEPT.table("ledger", CURATED_DIR)
+    if src is None or not (src / OWNER_PINS).exists():
+        return []
+    return [
+        line.strip()
+        for line in (src / OWNER_PINS).read_text().splitlines()
+        if line.strip()
+    ]
 
 
 def main() -> None:
