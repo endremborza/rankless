@@ -22,11 +22,19 @@ def reset() -> None:
     _client = None
 
 
+def unreachable(url: object, exc: Exception) -> str:
+    return f"backend unreachable at {url}: {exc!r}"
+
+
 async def get_json(path: str, params: dict | None = None):
     """A 4xx raises `ValueError` carrying the backend's body, the refusal text the
-    model reads (the MCP SDK reports a tool's exception as its message)."""
+    model reads (the MCP SDK reports a tool's exception as its message); a backend
+    that does not answer raises `ConnectionError` saying so."""
     clean = {k: v for k, v in (params or {}).items() if v is not None}
-    resp = await get_client().get(path, params=clean)
+    try:
+        resp = await get_client().get(path, params=clean)
+    except httpx.TransportError as exc:
+        raise ConnectionError(unreachable(exc.request.url, exc)) from exc
     if resp.is_client_error:
         raise ValueError(f"{resp.status_code} {path}: {resp.text}")
     resp.raise_for_status()

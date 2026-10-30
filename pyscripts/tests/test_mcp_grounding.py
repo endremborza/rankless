@@ -91,6 +91,19 @@ def test_verify_claims_by_receipt_and_by_call() -> None:
     assert CALLS == [{"entity_type": "a", "semantic_id": "x"}]
 
 
+def test_an_unreachable_backend_fails_the_claim_not_the_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def down(entity_type: str, semantic_id: str) -> dict:
+        raise ConnectionError("backend unreachable at http://backend/v1/stats/a/x")
+
+    monkeypatch.setitem(verify.TOOL_FNS, "down", down)
+    args = {"entity_type": "a", "semantic_id": "x"}
+    claim = Claim(label="p", claimed=1, path="papers", tool="down", args=args)
+    (res,) = asyncio.run(verify_claims([claim], None))["claims"]
+    assert not res["ok"] and "backend unreachable" in res["error"]
+
+
 def test_data_path_strips_envelope_prefix() -> None:
     assert verify.data_path("data.windowPapers") == "windowPapers"
     assert verify.data_path("data[0].papers") == "[0].papers"

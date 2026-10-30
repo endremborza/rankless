@@ -18,6 +18,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 import mcp_server
 from mcp_server.cards import make_card
+from mcp_server.client import unreachable
 from mcp_server.grounding import GROUNDING_TOOLS
 from mcp_server.prompts import PROMPTS
 from mcp_server.receipts import with_receipt
@@ -56,7 +57,7 @@ def fetch(path: str) -> Any:
             return resp.json()
         except httpx.HTTPError as exc:
             if attempt == FETCH_ATTEMPTS:
-                raise SystemExit(f"backend unreachable at {url}: {exc}")
+                raise SystemExit(unreachable(url, exc))
             print(f"backend not up yet ({exc}); retrying", file=sys.stderr)
             time.sleep(FETCH_RETRY_S)
     raise AssertionError("unreachable")

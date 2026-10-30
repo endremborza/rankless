@@ -51,7 +51,14 @@ async def reissue(metric: dict, calls: dict[str, object]) -> tuple[object, str |
         if key not in calls:
             calls[key] = await fn(**args)
         return walk(calls[key], data_path(metric.get("path") or "")), None
-    except (httpx.HTTPError, ValueError, TypeError, KeyError, IndexError) as exc:
+    except (
+        httpx.HTTPError,
+        ConnectionError,
+        ValueError,
+        TypeError,
+        KeyError,
+        IndexError,
+    ) as exc:
         return None, f"{type(exc).__name__}: {exc}"
 
 
