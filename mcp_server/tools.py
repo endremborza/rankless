@@ -314,8 +314,9 @@ async def get_impact_dag(semantic_id: str) -> dict:
     author's papers it cites (`cites`, indices into `authorPapers`).
     `authorPapers` are those cited papers, each with how many of the listed hits
     cite it (`citedByHits`). A story worth telling is one hit and the paper it
-    builds on: a laureate citing the author, a jump into another field, a long
-    reach in years. Pass a hit's `semanticId` to get_citation_tree or
+    builds on: a laureate citing the author, a hit in a journal far from the
+    author's own (its `journal`; theirs are get_entity_profile's paper-journals),
+    a long reach in years. Pass a hit's `semanticId` to get_citation_tree or
     get_entity_profile with entity_type="hit-papers" to follow it further.
     `image_url` is the impact card of the top hits, absent when no hit cites
     the author; a hit's own `image_url` is the card with that hit and the

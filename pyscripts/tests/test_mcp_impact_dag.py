@@ -1,5 +1,7 @@
+import re
+
 from mcp_server import SITE_URL, card_url, composite_url, entity_url
-from mcp_server.tools import _impact_dag
+from mcp_server.tools import _impact_dag, get_impact_dag
 
 
 def _paper(
@@ -97,3 +99,12 @@ def test_a_composite_names_each_card_by_its_path_and_variant():
         f"{SITE_URL}/card/composite.png"
         "?p=authors%2Fa-b%2Fmap%3Fhl%3D1&p=authors%2Fa-b%2Ftree"
     )
+
+
+def test_impact_dag_description_names_only_keys_its_rows_carry():
+    out = _impact_dag(PROFILE, "subject")
+    rows = (*out["citingHits"], *out["authorPapers"])
+    keys = set(out) | {k for row in rows for k in row}
+    named = set(re.findall(r"`(\w+)`", get_impact_dag.__doc__ or ""))
+    assert named <= keys, named - keys
+    assert "journal" in named
