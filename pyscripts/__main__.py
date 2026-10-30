@@ -17,6 +17,7 @@ COMMANDS = {
     "tree-bench": "pyscripts.tree_bench",
     "cache": "pyscripts.cache_prompting",
     "recalc": "pyscripts.recalc",
+    "snapshot": "pyscripts.snapshot",
     "claims": "pyscripts.claims",
     "release-report": "pyscripts.release_report",
     "cohort-baseline": "pyscripts.cohort_baseline",

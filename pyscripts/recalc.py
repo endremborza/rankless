@@ -10,7 +10,6 @@ data root and backend, two data pipelines on one box corrupt each other.
 
 import json
 import os
-import re
 import subprocess
 from collections import Counter
 from contextlib import contextmanager
@@ -19,7 +18,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from protocli import Dispatcher
 
-from pyscripts import fleet, gitutil, paths, services
+from pyscripts import fleet, gitutil, paths, services, snapshot
 from pyscripts.fleet import manifest
 from wire.rankless_rs.user_ledger import (
     APPLIED_MANIFEST,
@@ -62,6 +61,12 @@ def pipeline_lock():
 def refresh_data(*, from_snapshot: bool = False, no_db_pull: bool = False) -> None:
     """Pull user DB from live, rebuild the data + backend + showcase
     (--from-snapshot runs to-csv first; --no-db-pull skips AWS)."""
+    # Fail before the hours of work: the snapshot to flatten, or the record of the one
+    # the existing entity CSVs came from, which the release manifest names.
+    if from_snapshot:
+        snapshot.current()
+    else:
+        snapshot.recorded(Path(os.environ["OA_ROOT"]))
     with pipeline_lock():
         if not no_db_pull:
             _pull_db()
@@ -189,16 +194,13 @@ def build_release_manifest(root: Path) -> dict:
                 "— torn state, rerun refresh-data"
             )
 
-    snapshot_name = Path(os.environ["OA_SNAPSHOT"]).name
-    date_m = re.search(r"\d{4}-\d{2}(-\d{2})?", snapshot_name)
-
     rdir = root / "releases"
     return {
         "run_id": run_id,
         "stamp": stamp,
         "git_commit": _build_commit(rdir, run_id),
         "rankless_env": manifest.rankless_env(),
-        "snapshot": {"name": snapshot_name, "date": date_m[0] if date_m else None},
+        "snapshot": snapshot.recorded(root),
         "ledger": snap.get("sources", {}),
         "filter_counts": _filter_counts(root / "filter-steps"),
         "applied": dict(Counter(k.split("|")[1] for k in applied["applied_keys"])),

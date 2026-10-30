@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from pyscripts import paths, recalc, services
+from ccl_science_data.gen import StowC
+
+from pyscripts import paths, recalc, services, snapshot
 from pyscripts.fleet.manifest import STAMP_NAME
 from wire.rankless_rs.user_ledger import (
     APPLIED_MANIFEST,
@@ -140,6 +142,8 @@ def test_deploy_primitives_derived() -> None:
 
 
 def _seed_sidecars(root: Path, run_id: str = "2026-08-12T10:00:00Z") -> None:
+    (root / StowC.entity_csvs).mkdir(parents=True)
+    snapshot.record(root, Path("/somewhere/openalex-snapshot-2026-06"))
     ul = root / paths.USER_LEDGER_DIR
     ul.mkdir(parents=True)
     (ul / SNAPSHOT_MANIFEST).write_text(
@@ -216,7 +220,6 @@ def test_release_manifest_assembly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _seed_sidecars(tmp_path)
-    monkeypatch.setenv("OA_SNAPSHOT", "/somewhere/openalex-snapshot-2026-06")
     monkeypatch.setenv("RANKLESS_ENV", "mini")
 
     out = recalc.write_release_manifest(tmp_path)
@@ -254,12 +257,9 @@ def test_release_manifest_assembly(
     assert m["filter_counts"]["20"]["authors"] == {"in": None, "kept": 7}
 
 
-def test_release_manifest_folds_claims_sidecar(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_release_manifest_folds_claims_sidecar(tmp_path: Path) -> None:
     run_id = "2026-08-12T10:00:00Z"
     _seed_sidecars(tmp_path, run_id)
-    monkeypatch.setenv("OA_SNAPSHOT", "/somewhere/snap-2026-06")
     rdir = tmp_path / "releases"
     rdir.mkdir()
     (rdir / f"{run_id}.claims.json").write_text(
@@ -298,11 +298,8 @@ def test_release_manifest_folds_claims_sidecar(
     )
 
 
-def test_release_manifest_torn_state(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_release_manifest_torn_state(tmp_path: Path) -> None:
     _seed_sidecars(tmp_path)
-    monkeypatch.setenv("OA_SNAPSHOT", "/somewhere/snap-2026-06")
     (tmp_path / STAMP_NAME).write_text("2000-01-01T00:00:00Z:000000000000\n")
     with pytest.raises(SystemExit, match="torn state"):
         recalc.build_release_manifest(tmp_path)
