@@ -19,7 +19,9 @@ const ROOT_TYPES = [
 ] as const;
 const PER_TYPE = 2;
 const FORCED: Partial<Record<(typeof ROOT_TYPES)[number], string[]>> = {
-	subfields: ['/subfields/geophysics'] // two distinct authors share a name here → duplicate key
+	subfields: ['/subfields/geophysics'], // two distinct authors share a name here → duplicate key
+	// open-access papers whose abstracts OpenAlex serves; the sitemap's first ones have none
+	'hit-papers': ['/hit-papers/10.3847/1538-3881/aabc4f', '/hit-papers/10.1051/0004-6361/201833051']
 };
 
 // Svelte runtime errors always link to svelte.dev/e/<code>; that plus a raw pageerror covers crashes.
