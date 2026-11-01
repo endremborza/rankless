@@ -4,7 +4,9 @@
 library into this checkout's `MUWO_LIB_DIR` (`.cargo/config.toml`); `push` also sends it
 into the primary data box's checkout (`$DATA_BOX_CHECKOUT`, host:path), where the
 backend loads it at its next start. A library speaking another ABI than this checkout's
-binding (`rankless_server/src/muwo.rs`) is refused before it is installed.
+binding (`rankless_server/src/muwo.rs`) is refused before it is installed. `push_lib` is
+the one definition of sending it into another checkout, which the warm fleet and the box
+deploy run before each backend build there.
 """
 
 import argparse
@@ -13,6 +15,7 @@ import os
 import shutil
 import subprocess
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
 
 from wire.rankless_server.muwo import ABI
@@ -30,6 +33,17 @@ class _Bytes(ctypes.Structure):
 def lib_dir() -> Path:
     env = tomllib.loads((REPO / ".cargo/config.toml").read_text())["env"]
     return REPO / env["MUWO_LIB_DIR"]["value"]
+
+
+def push_lib(rsync: Callable[[str, str], None], checkout: str) -> str:
+    """Send this checkout's library directory into the same directory of `checkout`
+    (a path or `host:path` on the transport's far side) and return that directory.
+    rsync replaces each file by rename, so a running backend there keeps the library
+    it mapped."""
+    lib = lib_dir()
+    far = f"{checkout.rstrip('/')}/{lib.relative_to(REPO)}/"
+    rsync(f"{lib}/", far)
+    return far
 
 
 def checked_version(lib_path: Path) -> str:
@@ -57,15 +71,16 @@ def install() -> Path:
     return dst
 
 
-def push(lib_path: Path) -> None:
+def push() -> None:
     if not (remote := os.environ.get(DATA_BOX_CHECKOUT)):
         raise SystemExit(
             f"set ${DATA_BOX_CHECKOUT} (host:path of its rankless checkout)"
         )
-    far = f"{remote.rstrip('/')}/{lib_path.parent.relative_to(REPO)}/"
-    subprocess.run(
-        ["rsync", "-a", "--mkpath", "--itemize-changes", str(lib_path), far],
-        check=True,
+    far = push_lib(
+        lambda src, dst: subprocess.run(
+            ["rsync", "-a", "--mkpath", "--itemize-changes", src, dst], check=True
+        ),
+        remote,
     )
     print(f"pushed to {far}; the backend there loads it at its next start")
 
@@ -74,9 +89,9 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Build, install and push muwo's library.")
     p.add_argument("action", choices=("install", "push"))
     action = p.parse_args().action
-    lib_path = install()
+    install()
     if action == "push":
-        push(lib_path)
+        push()
 
 
 if __name__ == "__main__":

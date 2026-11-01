@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 from protocli import Dispatcher
 
 from mcp_server import BACKENDS
-from pyscripts import gitutil, migration_scripts, paths, services, userdb
+from pyscripts import gitutil, migration_scripts, muwo, paths, services, userdb
 from pyscripts.fleet import manifest
 from pyscripts.hosts import (
     ALPHA_BACKEND,
@@ -978,6 +978,7 @@ upstream {BE_UPSTREAM} {{
         self._depcomm(f"{self.bun_exc} install;{self.bun_exc} run build")
 
     def build_rs(self):
+        muwo.push_lib(self._rsync_dir, self.deploy_dir)
         self._depcomm("cargo build --release")
 
     def sync_py(self):

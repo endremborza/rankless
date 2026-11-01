@@ -3,7 +3,8 @@
 Phases, with a hard barrier before any compute:
 
 1. **prepare** (all workers, parallel): pre-checks → push data + seed cache →
-   pull + install the backend unit + rebuild + restart trees-only → wait ready
+   push the search library → pull + install the backend unit + rebuild +
+   restart trees-only → wait ready
    → post-checks (identity handshake, memory wall, trees-only).
    The local worker rebuilds + restarts too — `commit-artifacts` moves HEAD
    after `refresh-data` built the running binary, so without a restart the
@@ -32,7 +33,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import partial
 
-from pyscripts import gitutil, services
+from pyscripts import gitutil, muwo, services
 from pyscripts.fleet import manifest, preflight
 from pyscripts.fleet.config import Fleet, Worker, load_config
 from pyscripts.fleet.preflight import Check, Primary
@@ -176,6 +177,7 @@ def _prepare(w: Worker, fleet: Fleet, primary: Primary, push: bool) -> list[Chec
         if push:
             _invalidate_stale_cache(w, host, primary)
             _push_data(w, primary.oa_root)
+        _push_search_lib(w)
         log(w.name, "pull + sync + install unit + build + restart backend trees-only")
         host.stream(
             f"cd {w.repo_dir} && git pull --ff-only && {WORKER_SYNC} && "
@@ -223,6 +225,11 @@ def _push_data(w: Worker, local_root: str) -> None:
     manifest.push_data(
         partial(rsync, prefix=w.name), local_root, f"{w.host}:{w.data_root}"
     )
+
+
+def _push_search_lib(w: Worker) -> None:
+    log(w.name, "pushing the search library")
+    muwo.push_lib(partial(rsync, prefix=w.name), f"{w.host}:{w.repo_dir}")
 
 
 def _sync_back(w: Worker, local_root: str) -> None:

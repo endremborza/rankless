@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from pyscripts import deploy, migration_scripts, paths, services, userdb
+from pyscripts import deploy, migration_scripts, muwo, paths, services, userdb
 from pyscripts.fleet import manifest
 from pyscripts.fleet.remote import Host
 from wire.rankless_server.consts import PORT
@@ -59,6 +59,23 @@ def test_push_data_is_the_fleet_definition() -> None:
     assert paths.USER_LEDGER_DIR not in manifest.PUSH_EXCLUDES
     assert manifest.STAMP_NAME not in manifest.PUSH_EXCLUDES
     assert "cache" in manifest.PUSH_EXCLUDES
+
+
+def test_a_box_gets_the_search_library_before_it_builds_the_backend() -> None:
+    calls = []
+    box = SimpleNamespace(
+        deploy_dir="/home/u/rankless-deploy/",
+        _rsync_dir=lambda src, dst: calls.append(("push", src, dst)),
+        _depcomm=lambda comm: calls.append(("run", comm)),
+    )
+    deploy.Transper.build_rs(box)
+    lib = muwo.lib_dir()
+    assert calls[0] == (
+        "push",
+        f"{lib}/",
+        f"/home/u/rankless-deploy/{lib.relative_to(muwo.REPO)}/",
+    )
+    assert [c[0] for c in calls] == ["push", "run"]
 
 
 def test_push_peak_is_the_largest_pushed_file(tmp_path: Path) -> None:
