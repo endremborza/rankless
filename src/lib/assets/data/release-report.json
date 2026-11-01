@@ -1,175 +1,182 @@
 {
- "run_id": "2026-10-12T17:05:48Z",
- "stamp": "2026-10-12T17:05:48Z:266ed771646b",
- "git_commit": "49767ed37da8",
+ "run_id": "2026-11-01T15:51:28Z",
+ "stamp": "2026-11-01T15:51:28Z:641903aa4f02",
+ "git_commit": "e606b1679b45",
  "snapshot": {
-  "name": "openalex-snapshot-2026-09-23",
-  "date": "2026-09-23"
+  "name": "openalex-snapshot-2026-10-14",
+  "date": "2026-10-14"
  },
  "entities": {
   "works": {
    "steps": [
     {
      "label": "research publications \u2014 articles, conference papers, books, chapters and reviews (or restored by their authors); not retracted; in covered years",
-     "kept": 273887869
+     "kept": 269455766
     },
     {
      "label": "cited at least once by an indexed work, or restored",
-     "kept": 101968520
+     "kept": 101582948
     },
     {
      "label": "authorship resolved, user corrections applied",
-     "kept": 98814859
+     "kept": 98327546
     }
    ],
-   "final": 98814859
+   "final": 98327546
   },
   "authors": {
    "steps": [
     {
      "label": "credited on an indexed work",
-     "kept": 47977921
+     "kept": 41759873
     },
     {
      "label": "above the activity threshold and under the aggregate-record bound, or a registered owner",
-     "kept": 4382260
+     "kept": 4196269
     }
    ],
-   "final": 4382260
+   "final": 4196269
   },
   "sources": {
    "steps": [
     {
      "label": "venues with enough indexed works",
-     "kept": 43600
+     "kept": 46570
     }
    ],
-   "final": 43600
+   "final": 46570
   },
   "institutions": {
    "steps": [
     {
      "label": "institutions with enough indexed works",
-     "kept": 37622
+     "kept": 31612
     },
     {
      "label": "affiliated with indexed works after all screens",
-     "kept": 37525
+     "kept": 31612
     }
    ],
-   "final": 37525
+   "final": 31612
   }
  },
  "ledger": {
   "sources": 2,
-  "events": 1685,
+  "events": 1830,
   "applied": {
-   "disown_paper": 623,
-   "claim_paper": 193,
-   "merge_authors": 573,
+   "disown_paper": 270,
+   "claim_paper": 198,
+   "merge_authors": 427,
    "strip_orcid": 1,
-   "merge_papers": 153,
-   "reassign_paper": 133
+   "merge_papers": 197,
+   "name_author": 7,
+   "reassign_paper": 121
   },
-  "applied_total": 1676,
+  "applied_total": 1221,
   "skipped": {
-   "claimant_not_attributed": 4,
-   "author_not_on_work": 1,
-   "oa_id_not_in_dataset": 2,
+   "author_not_on_work": 420,
+   "oa_id_not_in_dataset": 181,
+   "doi_not_in_snapshot": 3,
+   "claimant_not_attributed": 3,
    "superseded": 2
   },
-  "skipped_total": 9
+  "skipped_total": 609
  },
  "identity": {
-  "merged": 1854257,
+  "merged": 552023,
   "merged_by": {
-   "registered_name": 1754931,
-   "most_works": 77843,
-   "compatible_name": 21483
+   "registered_name": 521273,
+   "most_works": 15501,
+   "compatible_name": 15249
   },
-  "stripped": 98103,
+  "stripped": 72802,
   "stripped_by": {
-   "name_mismatch": 94684,
-   "conflicting_name": 3165,
+   "name_mismatch": 71289,
+   "conflicting_name": 1259,
    "over_work_bound": 254
   }
  },
  "restored": {
-  "cohort": 255,
-  "forced_total": 26250,
-  "outside_standard": 10727,
-  "outside_type": 5658,
-  "outside_citations": 8773,
+  "cohort": 349,
+  "forced_total": 37985,
+  "outside_standard": 15573,
+  "outside_type": 6705,
+  "outside_citations": 13574,
   "claimed": 50,
-  "author_rescues": 90
+  "author_rescues": 122
  },
  "claims": null,
  "previous": {
-  "run_id": "2026-10-07T14:17:48Z",
+  "run_id": "2026-11-01T11:29:53Z",
   "snapshot": {
-   "name": "openalex-snapshot-2026-09-23",
-   "date": "2026-09-23"
+   "name": "openalex-snapshot-2026-10-14",
+   "date": "2026-10-14"
   }
  },
  "deltas": {
   "entities": {
    "works": {
-    "previous": 98812928,
-    "current": 98814859,
-    "change": 1931
+    "previous": 98327430,
+    "current": 98327546,
+    "change": 116
    },
    "authors": {
-    "previous": 4381922,
-    "current": 4382260,
-    "change": 338
+    "previous": 4196520,
+    "current": 4196269,
+    "change": -251
    },
    "sources": {
-    "previous": 43598,
-    "current": 43600,
-    "change": 2
+    "previous": 46570,
+    "current": 46570,
+    "change": 0
    },
    "institutions": {
-    "previous": 37524,
-    "current": 37525,
-    "change": 1
+    "previous": 31612,
+    "current": 31612,
+    "change": 0
    }
   },
   "applied": {
    "claim_paper": {
-    "previous": 193,
-    "current": 193,
-    "new": 0
-   },
-   "merge_authors": {
-    "previous": 573,
-    "current": 573,
-    "new": 0
+    "previous": 100,
+    "current": 198,
+    "new": 98
    },
    "disown_paper": {
-    "previous": 496,
-    "current": 623,
-    "new": 127
+    "previous": 155,
+    "current": 270,
+    "new": 115
+   },
+   "merge_authors": {
+    "previous": 4,
+    "current": 427,
+    "new": 423
    },
    "merge_papers": {
-    "previous": 13,
-    "current": 153,
-    "new": 140
-   },
-   "reassign_paper": {
-    "previous": 115,
-    "current": 133,
-    "new": 18
+    "previous": 2,
+    "current": 197,
+    "new": 195
    },
    "strip_orcid": {
     "previous": 0,
     "current": 1,
     "new": 1
+   },
+   "name_author": {
+    "previous": 0,
+    "current": 7,
+    "new": 7
+   },
+   "reassign_paper": {
+    "previous": 0,
+    "current": 121,
+    "new": 121
    }
   },
   "applied_total": {
-   "previous": 1390,
-   "current": 1676,
-   "new": 286
+   "previous": 261,
+   "current": 1221,
+   "new": 960
   }
  }
 }
