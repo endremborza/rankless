@@ -13,3 +13,8 @@ EXTERNAL_REGEN_ROOT: Final = "EXTERNAL_REGEN_ROOT"
 DEFAULT_EXTERNAL_REGEN_ROOT: Final = "data/external/regen"
 # The ORCID registry's names, under the regen root.
 NAMES_TABLE: Final = "orcid/names.tsv.zst"
+# The longest capital block, a raw token of capitals only (`capital_block`).
+CAPITAL_BLOCK_MAX: Final = 3
+# Words that address or credential a person and name no one, folded; one written as a bare
+# capital block is initials ("DR Kumar", "MS Islam"), and "Md" is a given name.
+TITLES: Final = ("assoc", "asst", "dr", "dra", "drs", "miss", "mr", "mrs", "ms", "msc", "mx", "phd", "prof", "profa", "professor")

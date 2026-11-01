@@ -18,7 +18,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from protocli import Dispatcher
 
-from pyscripts import fleet, gitutil, paths, services, snapshot
+from pyscripts import author_names, fleet, gitutil, paths, services, snapshot
 from pyscripts.fleet import manifest
 from wire.rankless_rs.user_ledger import (
     APPLIED_MANIFEST,
@@ -88,6 +88,7 @@ def refresh_data(*, from_snapshot: bool = False, no_db_pull: bool = False) -> No
         # digest-excluded, so writing it keeps the stamp valid).
         write_release_manifest(Path(root))
         _make("types", "lib_data_generation", "restart-service", "homepage_showcase")
+        author_names.main(root=root)
     print("refresh-data done — next: `make commit-artifacts`")
 
 

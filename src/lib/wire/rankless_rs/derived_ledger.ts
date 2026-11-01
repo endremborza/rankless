@@ -8,3 +8,8 @@ export const EXTERNAL_REGEN_ROOT = 'EXTERNAL_REGEN_ROOT';
 export const DEFAULT_EXTERNAL_REGEN_ROOT = 'data/external/regen';
 // The ORCID registry's names, under the regen root.
 export const NAMES_TABLE = 'orcid/names.tsv.zst';
+// The longest capital block, a raw token of capitals only (`capital_block`).
+export const CAPITAL_BLOCK_MAX = 3;
+// Words that address or credential a person and name no one, folded; one written as a bare
+// capital block is initials ("DR Kumar", "MS Islam"), and "Md" is a given name.
+export const TITLES = ['assoc', 'asst', 'dr', 'dra', 'drs', 'miss', 'mr', 'mrs', 'ms', 'msc', 'mx', 'phd', 'prof', 'profa', 'professor'] as const;

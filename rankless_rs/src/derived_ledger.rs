@@ -85,6 +85,9 @@ const SPELLING_EDITS: usize = 2;
 const MIN_VOUCHING_TOKENS: usize = 2;
 /// Capital blocks per name read both ways; a name with more reads them as initials only.
 const MAX_CAPS: usize = 3;
+/// The longest capital block, a raw token of capitals only (`capital_block`).
+#[wire]
+const CAPITAL_BLOCK_MAX: usize = 3;
 /// Diminutives and spellings of a given name, each with the name it stands for, as folded
 /// tokens sorted by the first; one may stand for several names, and the spellings of one
 /// name all stand for the same one ("mohamed", "mohammed" → "muhammad").
@@ -399,6 +402,7 @@ static NICKNAMES: &[(&str, &str)] = &[
 ];
 /// Words that address or credential a person and name no one, folded; one written as a bare
 /// capital block is initials ("DR Kumar", "MS Islam"), and "Md" is a given name.
+#[wire]
 static TITLES: &[&str] = &[
     "assoc",
     "asst",
@@ -433,9 +437,9 @@ pub struct DerivedManifest {
 }
 
 /// A name as compared: full tokens transliterated to lowercase ASCII, in the order written,
-/// with their sorted hashes for the identity test; initials apart, sorted. A raw token of two
-/// or three capitals ("HG", "LI") is that many initials, and also kept in `caps` for the
-/// readings that take it as a name token.
+/// with their sorted hashes for the identity test; initials apart, sorted. A capital block
+/// ("HG", "LI") is that many initials, and also kept in `caps` for the readings that take it
+/// as a name token.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Name {
     tokens: Vec<String>,
@@ -1342,9 +1346,9 @@ fn is_title(word: &str) -> bool {
         })
 }
 
-/// Two or three capitals, read both as initials and as a name token.
+/// Up to `CAPITAL_BLOCK_MAX` capitals, read both as initials and as a name token.
 fn capital_block(raw_tok: &str) -> bool {
-    raw_tok.len() <= 3 && raw_tok.bytes().all(|c| c.is_ascii_uppercase())
+    raw_tok.len() <= CAPITAL_BLOCK_MAX && raw_tok.bytes().all(|c| c.is_ascii_uppercase())
 }
 
 /// Written in Latin script, in two tokens or more, and neither all lowercase nor all capitals.

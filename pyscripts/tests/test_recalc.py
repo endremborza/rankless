@@ -117,6 +117,7 @@ def test_refresh_data_stops_backend_before_compute(
     )
     monkeypatch.setattr(recalc.manifest, "write_stamp", lambda root, rid: "r:abc")
     monkeypatch.setattr(recalc, "write_release_manifest", lambda root: root)
+    monkeypatch.setattr(recalc.author_names, "main", lambda root: None)
     monkeypatch.setenv("OA_ROOT", str(tmp_path))
 
     recalc.refresh_data(from_snapshot=True)
