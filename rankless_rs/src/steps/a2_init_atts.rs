@@ -323,7 +323,7 @@ impl Stowage {
         let init_wu = vec!["Unknown".to_string()].into_iter();
 
         self.declare_iter::<VarAttBuilder, _, _, DiscardedAuthors, NameMarker>(
-            init_wu.chain(discarded_name_iter),
+            init_wu.chain(discarded_name_iter.map(tidy_name)),
             &get_name_name::<DiscardedAuthors>(),
         );
         add_name_box::<Authors>(self, names);
@@ -709,6 +709,7 @@ impl Worker<Work> for WorkAttWriter {
             self.wdois.lock().unwrap()[w_ind] = doi;
         }
         if let Some(name) = input.display_name {
+            let name = tidy_name(name);
             self.wnames.lock().unwrap()[w_ind] = name;
         }
         if let Some(year) = input.publication_year {
@@ -868,7 +869,7 @@ where
     T: Named,
 {
     fn get_att(&self) -> Option<String> {
-        Some(self.get_name())
+        Some(tidy_name(self.get_name()))
     }
 }
 
@@ -1291,9 +1292,23 @@ fn country_populations(ccs: &[[u8; 2]]) -> Vec<u32> {
 
 fn add_name_box<E: Entity>(stowage: &Stowage, names: Box<[String]>) {
     stowage.declare_iter::<VarAttBuilder, _, _, E, NameMarker>(
-        names.into_vec().into_iter(),
+        names.into_vec().into_iter().map(tidy_name),
         &get_name_name::<E>(),
     );
+}
+
+/// Every run of whitespace as one space, none at the ends; a tidy name passes unchanged.
+fn tidy_name(name: String) -> String {
+    let mut after_space = true;
+    let untidy = name.chars().any(|c| {
+        let stray = c.is_whitespace() && (c != ' ' || after_space);
+        after_space = c.is_whitespace();
+        stray
+    }) || name.ends_with(' ');
+    match untidy {
+        true => name.split_whitespace().collect::<Vec<_>>().join(" "),
+        false => name,
+    }
 }
 
 fn assign_farr<const S: usize>(
@@ -1335,6 +1350,17 @@ mod tests {
             institutions: Some(insts.join(";")),
             position,
         }
+    }
+
+    #[test]
+    fn a_name_keeps_one_space_between_words() {
+        assert_eq!(tidy_name("Ricardo  O. Barra".into()), "Ricardo O. Barra");
+        assert_eq!(
+            tidy_name(" Abraham\u{a0}P. Fong ".into()),
+            "Abraham P. Fong"
+        );
+        assert_eq!(tidy_name("\u{a0}".into()), "");
+        assert_eq!(tidy_name("Mohd Zairul".into()), "Mohd Zairul");
     }
 
     #[test]
