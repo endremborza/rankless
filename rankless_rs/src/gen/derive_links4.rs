@@ -396,7 +396,7 @@ impl MarkedAttribute<crate::common::TopMeanPaperScoreMarker>
 
 impl Entity for AuthorsScoredPaperCount {
     type T = u32;
-    const N: usize = 4196522;
+    const N: usize = 4196271;
     const NAME: &str = "authors-scored-paper-count";
 }
 
@@ -416,7 +416,7 @@ impl MarkedAttribute<crate::common::ScoredPaperCountMarker>
 
 impl Entity for AuthorsHIndex {
     type T = u32;
-    const N: usize = 4196522;
+    const N: usize = 4196271;
     const NAME: &str = "authors-h-index";
 }
 
@@ -434,7 +434,7 @@ impl MarkedAttribute<crate::common::HIndexMarker> for crate::gen::a1_entity_mapp
 
 impl Entity for AuthorsWeightedPaperScore {
     type T = f32;
-    const N: usize = 4196522;
+    const N: usize = 4196271;
     const NAME: &str = "authors-weighted-paper-score";
 }
 
@@ -454,7 +454,7 @@ impl MarkedAttribute<crate::common::WeightedPaperScoreMarker>
 
 impl Entity for AuthorsTopMeanPaperScore {
     type T = f32;
-    const N: usize = 4196522;
+    const N: usize = 4196271;
     const NAME: &str = "authors-top-mean-paper-score";
 }
 
@@ -470,29 +470,6 @@ impl MarkedAttribute<crate::common::TopMeanPaperScoreMarker>
     for crate::gen::a1_entity_mapping::Authors
 {
     type AttributeEntity = AuthorsTopMeanPaperScore;
-}
-
-impl Entity for TopicsHits {
-    type T = Box<[u32]>;
-    const N: usize = 4518;
-    const NAME: &str = "topics-hits";
-}
-
-impl MappableEntity for TopicsHits {
-    type KeyType = usize;
-}
-
-impl VariableSizeAttribute for TopicsHits {
-    type SizeType = u16;
-    type LocType = u32;
-}
-
-impl NamespacedEntity for TopicsHits {
-    const NS: &str = "derive_links4";
-}
-
-impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_mapping::Topics {
-    type AttributeEntity = TopicsHits;
 }
 
 impl Entity for SubfieldsHits {
@@ -516,6 +493,29 @@ impl NamespacedEntity for SubfieldsHits {
 
 impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_mapping::Subfields {
     type AttributeEntity = SubfieldsHits;
+}
+
+impl Entity for TopicsHits {
+    type T = Box<[u32]>;
+    const N: usize = 4518;
+    const NAME: &str = "topics-hits";
+}
+
+impl MappableEntity for TopicsHits {
+    type KeyType = usize;
+}
+
+impl VariableSizeAttribute for TopicsHits {
+    type SizeType = u16;
+    type LocType = u32;
+}
+
+impl NamespacedEntity for TopicsHits {
+    const NS: &str = "derive_links4";
+}
+
+impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_mapping::Topics {
+    type AttributeEntity = TopicsHits;
 }
 
 impl Entity for CountriesHits {
@@ -589,7 +589,7 @@ impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_map
 
 impl Entity for AuthorsHits {
     type T = Box<[u32]>;
-    const N: usize = 4196522;
+    const N: usize = 4196271;
     const NAME: &str = "authors-hits";
 }
 
@@ -612,7 +612,7 @@ impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_map
 
 impl Entity for AuthorCitingHitsDirect {
     type T = Box<[u32]>;
-    const N: usize = 4196522;
+    const N: usize = 4196271;
     const NAME: &str = "author-citing-hits-direct";
 }
 
@@ -631,7 +631,7 @@ impl NamespacedEntity for AuthorCitingHitsDirect {
 
 impl Entity for AuthorCitingHitsOnce {
     type T = Box<[u32]>;
-    const N: usize = 4196522;
+    const N: usize = 4196271;
     const NAME: &str = "author-citing-hits-once";
 }
 

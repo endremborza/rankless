@@ -3,7 +3,7 @@
     "name": "Richard H. Thaler",
     "semanticId": "richard-h-thaler",
     "papers": 171,
-    "citations": 60382
+    "citations": 60386
   },
   "hitPapers": [
     {
@@ -419,7 +419,7 @@
     "subfields": [
       {
         "name": "General Decision Sciences",
-        "hero": 11103,
+        "hero": 11107,
         "peer": 13017
       },
       {
@@ -454,10 +454,10 @@
       2820,
       3396,
       3450,
-      3338,
+      3340,
       3530,
-      2792,
-      2444,
+      2793,
+      2445,
       2108,
       1589,
       351
@@ -471,7 +471,7 @@
       4544,
       4055,
       3612,
-      3115,
+      3117,
       2579,
       634
     ]

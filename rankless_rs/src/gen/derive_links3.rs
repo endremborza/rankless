@@ -149,7 +149,7 @@ impl NamespacedEntity for HitPapersWids {
 
 impl Entity for Coauthors {
     type T = Box<[(u32, u8)]>;
-    const N: usize = 4196522;
+    const N: usize = 4196271;
     const NAME: &str = "coauthors";
 }
 
@@ -182,7 +182,7 @@ impl NamespacedEntity for HitPapersCiteCounts {
 
 impl Entity for WorkBars {
     type T = u16;
-    const N: usize = 98327432;
+    const N: usize = 98327548;
     const NAME: &str = "work-bars";
 }
 
@@ -337,7 +337,7 @@ impl MarkedAttribute<crate::common::SemanticIdMarker> for crate::gen::a1_entity_
 
 impl Entity for AuthorsWorkCount {
     type T = u16;
-    const N: usize = 4196522;
+    const N: usize = 4196271;
     const NAME: &str = "authors-work-count";
 }
 
@@ -355,7 +355,7 @@ impl MarkedAttribute<crate::common::WorkCountMarker> for crate::gen::a1_entity_m
 
 impl Entity for AuthorsSemanticIds {
     type T = String;
-    const N: usize = 4196522;
+    const N: usize = 4196271;
     const NAME: &str = "authors-semantic-ids";
 }
 
@@ -591,7 +591,7 @@ impl MarkedAttribute<crate::common::CitRankLadderMarker>
 
 impl Entity for AuthorsPeers {
     type T = [u32; 10];
-    const N: usize = 4196522;
+    const N: usize = 4196271;
     const NAME: &str = "authors-peers";
 }
 
