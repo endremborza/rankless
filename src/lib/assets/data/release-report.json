@@ -1,7 +1,7 @@
 {
- "run_id": "2026-11-01T15:51:28Z",
- "stamp": "2026-11-01T15:51:28Z:641903aa4f02",
- "git_commit": "e606b1679b45",
+ "run_id": "2026-11-02T11:22:54Z",
+ "stamp": "2026-11-02T11:22:54Z:6341b9cbfdde",
+ "git_commit": "387e8b5352ac",
  "snapshot": {
   "name": "openalex-snapshot-2026-10-14",
   "date": "2026-10-14"
@@ -107,7 +107,7 @@
  },
  "claims": null,
  "previous": {
-  "run_id": "2026-11-01T11:29:53Z",
+  "run_id": "2026-11-01T15:51:28Z",
   "snapshot": {
    "name": "openalex-snapshot-2026-10-14",
    "date": "2026-10-14"
@@ -116,14 +116,14 @@
  "deltas": {
   "entities": {
    "works": {
-    "previous": 98327430,
+    "previous": 98327546,
     "current": 98327546,
-    "change": 116
+    "change": 0
    },
    "authors": {
-    "previous": 4196520,
+    "previous": 4196269,
     "current": 4196269,
-    "change": -251
+    "change": 0
    },
    "sources": {
     "previous": 46570,
@@ -137,46 +137,46 @@
    }
   },
   "applied": {
-   "claim_paper": {
-    "previous": 100,
-    "current": 198,
-    "new": 98
-   },
    "disown_paper": {
-    "previous": 155,
+    "previous": 270,
     "current": 270,
-    "new": 115
+    "new": 0
+   },
+   "claim_paper": {
+    "previous": 198,
+    "current": 198,
+    "new": 0
    },
    "merge_authors": {
-    "previous": 4,
+    "previous": 427,
     "current": 427,
-    "new": 423
-   },
-   "merge_papers": {
-    "previous": 2,
-    "current": 197,
-    "new": 195
+    "new": 0
    },
    "strip_orcid": {
-    "previous": 0,
+    "previous": 1,
     "current": 1,
-    "new": 1
+    "new": 0
+   },
+   "merge_papers": {
+    "previous": 197,
+    "current": 197,
+    "new": 0
    },
    "name_author": {
-    "previous": 0,
+    "previous": 7,
     "current": 7,
-    "new": 7
+    "new": 0
    },
    "reassign_paper": {
-    "previous": 0,
+    "previous": 121,
     "current": 121,
-    "new": 121
+    "new": 0
    }
   },
   "applied_total": {
-   "previous": 261,
+   "previous": 1221,
    "current": 1221,
-   "new": 960
+   "new": 0
   }
  }
 }

@@ -32,6 +32,11 @@
       "name": "Experimental Tests of the Endowment Effect and the Coase Theorem"
     },
     {
+      "year": 2000,
+      "citations": 1771,
+      "name": "Fairness as a Constraint on Profit Seeking: Entitlements in the Market"
+    },
+    {
       "year": 2008,
       "citations": 1742,
       "name": "Mental Accounting and Consumer Choice"
@@ -45,11 +50,6 @@
       "year": 1990,
       "citations": 1548,
       "name": "Gambling with the House Money and Trying to Break Even: The Effects of Prior Outcomes on Risky Choice"
-    },
-    {
-      "year": 1981,
-      "citations": 1456,
-      "name": "Some empirical evidence on dynamic inconsistency"
     }
   ],
   "coauthorTimeline": {
@@ -64,7 +64,7 @@
           {
             "year": 1998,
             "n": 2,
-            "hit": false
+            "hit": true
           },
           {
             "year": 2000,
@@ -161,7 +161,7 @@
           {
             "year": 2001,
             "n": 1,
-            "hit": false
+            "hit": true
           },
           {
             "year": 2002,
@@ -228,7 +228,7 @@
           {
             "year": 1997,
             "n": 1,
-            "hit": true
+            "hit": false
           },
           {
             "year": 2000,
@@ -322,7 +322,7 @@
           {
             "year": 1991,
             "n": 3,
-            "hit": false
+            "hit": true
           },
           {
             "year": 1993,
@@ -344,7 +344,7 @@
           {
             "year": 1991,
             "n": 3,
-            "hit": false
+            "hit": true
           },
           {
             "year": 1993,
@@ -419,33 +419,33 @@
     "subfields": [
       {
         "name": "General Decision Sciences",
-        "hero": 11107,
-        "peer": 13017
+        "hero": 17807,
+        "peer": 21516
       },
       {
         "name": "Finance",
-        "hero": 9826,
-        "peer": 1097
-      },
-      {
-        "name": "Accounting",
-        "hero": 5282,
-        "peer": 1497
+        "hero": 13303,
+        "peer": 1985
       },
       {
         "name": "Economics and Econometrics",
-        "hero": 4395,
-        "peer": 3037
+        "hero": 9374,
+        "peer": 6831
+      },
+      {
+        "name": "Accounting",
+        "hero": 8445,
+        "peer": 2892
       },
       {
         "name": "Marketing",
-        "hero": 2484,
-        "peer": 1664
+        "hero": 4746,
+        "peer": 4176
       },
       {
-        "name": "Safety Research",
-        "hero": 1919,
-        "peer": 2506
+        "name": "Sociology and Political Science",
+        "hero": 4326,
+        "peer": 10700
       }
     ],
     "yearFrom": 2016,

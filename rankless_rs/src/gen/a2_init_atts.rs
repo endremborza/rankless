@@ -540,20 +540,6 @@ impl NamespacedEntity for InstCities {
     const NS: &str = "a2_init_atts";
 }
 
-impl Entity for AuthorNobels {
-    type T = (u8, u8);
-    const N: usize = 4196271;
-    const NAME: &str = "author-nobels";
-}
-
-impl MappableEntity for AuthorNobels {
-    type KeyType = usize;
-}
-
-impl NamespacedEntity for AuthorNobels {
-    const NS: &str = "a2_init_atts";
-}
-
 impl Entity for SourcesNames {
     type T = String;
     const N: usize = 46572;
@@ -575,6 +561,20 @@ impl NamespacedEntity for SourcesNames {
 
 impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mapping::Sources {
     type AttributeEntity = SourcesNames;
+}
+
+impl Entity for AuthorNobels {
+    type T = (u8, u8);
+    const N: usize = 4196271;
+    const NAME: &str = "author-nobels";
+}
+
+impl MappableEntity for AuthorNobels {
+    type KeyType = usize;
+}
+
+impl NamespacedEntity for AuthorNobels {
+    const NS: &str = "a2_init_atts";
 }
 
 impl Entity for DiscardedAuthorsNames {
@@ -686,31 +686,6 @@ impl NamespacedEntity for AuthorRawWorkCounts {
     const NS: &str = "a2_init_atts";
 }
 
-impl Entity for CountriesNameExts {
-    type T = String;
-    const N: usize = 234;
-    const NAME: &str = "countries-name-exts";
-}
-
-impl MappableEntity for CountriesNameExts {
-    type KeyType = usize;
-}
-
-impl VariableSizeAttribute for CountriesNameExts {
-    type SizeType = u8;
-    type LocType = u8;
-}
-
-impl NamespacedEntity for CountriesNameExts {
-    const NS: &str = "a2_init_atts";
-}
-
-impl MarkedAttribute<crate::common::NameExtensionMarker>
-    for crate::gen::a1_entity_mapping::Countries
-{
-    type AttributeEntity = CountriesNameExts;
-}
-
 impl Entity for SubfieldsNameExts {
     type T = String;
     const N: usize = 254;
@@ -734,6 +709,31 @@ impl MarkedAttribute<crate::common::NameExtensionMarker>
     for crate::gen::a1_entity_mapping::Subfields
 {
     type AttributeEntity = SubfieldsNameExts;
+}
+
+impl Entity for CountriesNameExts {
+    type T = String;
+    const N: usize = 234;
+    const NAME: &str = "countries-name-exts";
+}
+
+impl MappableEntity for CountriesNameExts {
+    type KeyType = usize;
+}
+
+impl VariableSizeAttribute for CountriesNameExts {
+    type SizeType = u8;
+    type LocType = u8;
+}
+
+impl NamespacedEntity for CountriesNameExts {
+    const NS: &str = "a2_init_atts";
+}
+
+impl MarkedAttribute<crate::common::NameExtensionMarker>
+    for crate::gen::a1_entity_mapping::Countries
+{
+    type AttributeEntity = CountriesNameExts;
 }
 
 impl Entity for SubfieldsWikipedia {
@@ -774,31 +774,6 @@ impl NamespacedEntity for TopicsWikipedia {
     const NS: &str = "a2_init_atts";
 }
 
-impl Entity for InstitutionsNameExts {
-    type T = String;
-    const N: usize = 31614;
-    const NAME: &str = "institutions-name-exts";
-}
-
-impl MappableEntity for InstitutionsNameExts {
-    type KeyType = usize;
-}
-
-impl VariableSizeAttribute for InstitutionsNameExts {
-    type SizeType = u16;
-    type LocType = u32;
-}
-
-impl NamespacedEntity for InstitutionsNameExts {
-    const NS: &str = "a2_init_atts";
-}
-
-impl MarkedAttribute<crate::common::NameExtensionMarker>
-    for crate::gen::a1_entity_mapping::Institutions
-{
-    type AttributeEntity = InstitutionsNameExts;
-}
-
 impl Entity for SourcesNameExts {
     type T = String;
     const N: usize = 46572;
@@ -822,6 +797,31 @@ impl MarkedAttribute<crate::common::NameExtensionMarker>
     for crate::gen::a1_entity_mapping::Sources
 {
     type AttributeEntity = SourcesNameExts;
+}
+
+impl Entity for InstitutionsNameExts {
+    type T = String;
+    const N: usize = 31614;
+    const NAME: &str = "institutions-name-exts";
+}
+
+impl MappableEntity for InstitutionsNameExts {
+    type KeyType = usize;
+}
+
+impl VariableSizeAttribute for InstitutionsNameExts {
+    type SizeType = u16;
+    type LocType = u32;
+}
+
+impl NamespacedEntity for InstitutionsNameExts {
+    const NS: &str = "a2_init_atts";
+}
+
+impl MarkedAttribute<crate::common::NameExtensionMarker>
+    for crate::gen::a1_entity_mapping::Institutions
+{
+    type AttributeEntity = InstitutionsNameExts;
 }
 
 impl Entity for AuthorsNameExts {

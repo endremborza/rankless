@@ -78,7 +78,7 @@ impl MarkedAttribute<crate::common::WorkCountMarker> for crate::gen::a1_entity_m
 
 impl Entity for HitPapers {
     type T = u32;
-    const N: usize = 411815;
+    const N: usize = 465198;
     const NAME: &str = "hit-papers";
 }
 
@@ -92,7 +92,7 @@ impl NamespacedEntity for HitPapers {
 
 impl Entity for HitPapersNames {
     type T = String;
-    const N: usize = 411815;
+    const N: usize = 465198;
     const NAME: &str = "hit-papers-names";
 }
 
@@ -111,7 +111,7 @@ impl NamespacedEntity for HitPapersNames {
 
 impl Entity for HitPapersDois {
     type T = String;
-    const N: usize = 411815;
+    const N: usize = 465198;
     const NAME: &str = "hit-papers-dois";
 }
 
@@ -130,7 +130,7 @@ impl NamespacedEntity for HitPapersDois {
 
 impl Entity for HitPapersWids {
     type T = Box<[u32]>;
-    const N: usize = 411815;
+    const N: usize = 465198;
     const NAME: &str = "hit-papers-wids";
 }
 
@@ -168,7 +168,7 @@ impl NamespacedEntity for Coauthors {
 
 impl Entity for HitPapersCiteCounts {
     type T = u32;
-    const N: usize = 411815;
+    const N: usize = 465198;
     const NAME: &str = "hit-papers-cite-counts";
 }
 
@@ -196,7 +196,7 @@ impl NamespacedEntity for WorkBars {
 
 impl Entity for HitPapersCreatedTopic {
     type T = u16;
-    const N: usize = 411815;
+    const N: usize = 465198;
     const NAME: &str = "hit-papers-created-topic";
 }
 
