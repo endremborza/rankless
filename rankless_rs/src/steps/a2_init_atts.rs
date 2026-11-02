@@ -12,7 +12,7 @@ use crate::{
         AreaFields, Authors, Cities, Countries, DiscardedAuthors, Domains, Fields, Institutions,
         Sources, Subfields, Topics, Works,
     },
-    metrics::MIN_TOPIC_SCORE,
+    metrics::TOPIC_SCORE_SHARE,
     oa_structs::{
         post::{
             read_post_str_arr, Author, Authorship, Field, IdSet, Institution, Location, Source,
@@ -107,6 +107,12 @@ struct WorkAttWriter {
     wnames: Mutex<Box<[String]>>,
     wdois: Mutex<Box<[String]>>,
     winf: Arc<LoadedIdMap<ET<Works>>>,
+}
+
+struct WorkTopicCollector<'a, WIF, TIF> {
+    works_interface: &'a WIF,
+    topics_interface: &'a TIF,
+    scored: Mutex<Box<[Vec<(f32, ET<Topics>)>]>>,
 }
 
 struct BoxRoller<T, E> {
@@ -731,6 +737,27 @@ impl Worker<Biblio> for WorkBiblioWriter {
     }
 }
 
+impl<WIF, TIF> Worker<WorkTopic> for WorkTopicCollector<'_, WIF, TIF>
+where
+    WIF: EntityImmutableMapperBackend<Works> + Sync,
+    TIF: EntityImmutableMapperBackend<Topics> + Sync,
+{
+    fn proc(&self, input: WorkTopic) {
+        let wind = input
+            .get_parsed_id()
+            .and_then(|id| self.works_interface.get_via_immut(&id));
+        let topic = input
+            .topic_id
+            .as_deref()
+            .and_then(oa_id_parse_opt)
+            .and_then(|id| self.topics_interface.get_via_immut(&id));
+        if let (Some(wind), Some(topic)) = (wind, topic) {
+            let score = input.score.unwrap_or(0.0) as f32;
+            self.scored.lock().unwrap()[wind.to_usize()].push((score, topic));
+        }
+    }
+}
+
 impl<'a, S, T, SIF> DataAttWorker<'a, S, T, SIF>
 where
     S: MainEntity,
@@ -904,15 +931,6 @@ impl ObjAttGetter<Domains> for Field {
 impl ObjAttGetter<Subfields> for Topic {
     fn get_obj_att(&self) -> Option<<Subfields as MappableEntity>::KeyType> {
         Some(field_id_parse(&self.subfield))
-    }
-}
-
-impl ObjAttGetter<Topics> for WorkTopic {
-    fn get_obj_att(&self) -> Option<<Topics as MappableEntity>::KeyType> {
-        if self.score.unwrap_or(0.0) > MIN_TOPIC_SCORE {
-            return oa_id_parse_opt(self.topic_id.as_ref().unwrap());
-        }
-        None
     }
 }
 
@@ -1187,12 +1205,7 @@ pub fn main(stowage: Stowage) -> io::Result<()> {
             "work-sources",
             works::atts::locations
         ),
-        || sarc.multi_object_property::<WorkTopic, Works, _, _, _>(
-            &works_interface,
-            &topics_interface,
-            "work-topics",
-            works::atts::topics
-        ),
+        || add_work_topics(&sarc, &works_interface, &topics_interface, "work-topics"),
         || {
             let refs = GenWorker::new(
                 GenObjAttWorker::<'_, Works, Works, Vec<NET<Works>>, _, _>::new(
@@ -1322,6 +1335,48 @@ fn assign_farr<const S: usize>(
     }
 }
 
+fn add_work_topics<WIF, TIF>(
+    stowage: &Stowage,
+    works_interface: &WIF,
+    topics_interface: &TIF,
+    name: &str,
+) where
+    WIF: EntityImmutableMapperBackend<Works> + Sync,
+    TIF: EntityImmutableMapperBackend<Topics> + Sync,
+{
+    let collector = WorkTopicCollector {
+        works_interface,
+        topics_interface,
+        scored: init_empty_slice::<Works, Vec<_>>().into(),
+    }
+    .para(stowage.read_csv_objs::<WorkTopic>(Works::NAME, works::atts::topics));
+    let scored = collector.scored.into_inner().unwrap();
+    stowage.add_iter_owned::<VarAttBuilder, _, _>(
+        scored.into_vec().into_iter().map(carried_topics),
+        name,
+    );
+    stowage.declare_link::<Works, Topics>(name);
+}
+
+/// Highest score first, while the scores of those carried sum below `TOPIC_SCORE_SHARE`. A merged
+/// work reads each record's rows, so a topic listed twice counts once, at its higher score.
+fn carried_topics<T: PartialEq>(mut scored: Vec<(f32, T)>) -> Box<[T]> {
+    const SHARE: f32 = TOPIC_SCORE_SHARE as f32;
+    scored.sort_by(|a, b| b.0.total_cmp(&a.0));
+    let mut carried = Vec::with_capacity(scored.len());
+    let mut sum = 0.0;
+    for (score, topic) in scored {
+        if sum >= SHARE {
+            break;
+        }
+        if !carried.contains(&topic) {
+            carried.push(topic);
+            sum += score;
+        }
+    }
+    carried.into_boxed_slice()
+}
+
 fn get_wind<T: ParsedId, U: UnsignedNumber>(obj: &T, inf: &LoadedIdMap<U>) -> Option<usize> {
     obj.get_parsed_id()
         .and_then(|id| inf.0.get(&id))
@@ -1443,6 +1498,29 @@ mod tests {
         assert_eq!(w.dship2is[1], vec![inst(1), inst(2)]);
         assert_eq!(w.dship2is[2], vec![inst(2)]);
         assert_eq!(w.w2combined_ships[2], vec![(false, 4), (false, 5)]);
+    }
+
+    #[test]
+    fn a_work_carries_its_topics_until_their_scores_reach_the_share() {
+        let share = TOPIC_SCORE_SHARE as f32;
+        let half = share / 2.0;
+        assert_eq!(
+            carried_topics(vec![(1.0 - share, 8), (share, 7)]),
+            vec![7].into_boxed_slice()
+        );
+        assert_eq!(
+            carried_topics(vec![(0.05, 3), (half, 1), (half - 0.01, 2)]),
+            vec![1, 2, 3].into_boxed_slice()
+        );
+        assert_eq!(
+            carried_topics(vec![(half, 1), (half, 1), (half, 2)]),
+            vec![1, 2].into_boxed_slice(),
+            "a topic two merged records list counts once"
+        );
+        assert_eq!(
+            carried_topics::<u16>(Vec::new()),
+            Vec::new().into_boxed_slice()
+        );
     }
 
     #[test]

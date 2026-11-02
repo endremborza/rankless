@@ -180,9 +180,8 @@
 			answer: `
 			We use OpenAlex's hierarchy of <a href="https://docs.openalex.org/api-entities/topics"
 				target="_blank">topics</a>
-			for each piece of work, based on the contents, references, source, etc. We assign topics to a
-			paper
-			with a match score of over ${METHODOLOGY.minTopicScore}.
+			for each piece of work, based on the contents, references, source, etc. We assign a paper its
+			topics best match first, until their match scores add up to ${METHODOLOGY.topicScoreShare}.
 		`
 		},
 		{
