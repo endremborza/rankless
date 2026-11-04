@@ -575,14 +575,17 @@ def login() -> None:
     interval, deadline = grant["interval"], time.monotonic() + grant["expires_in"]
     while time.monotonic() < deadline:
         time.sleep(interval)
-        resp = _oauth_post(
-            "token",
-            {
-                "grant_type": DEVICE_GRANT,
-                "client_id": _client_id(),
-                "device_code": grant["device_code"],
-            },
-        )
+        try:
+            resp = _oauth_post(
+                "token",
+                {
+                    "grant_type": DEVICE_GRANT,
+                    "client_id": _client_id(),
+                    "device_code": grant["device_code"],
+                },
+            )
+        except httpx.ConnectError:
+            continue
         body = resp.json()
         if resp.is_success:
             who = _id_token_user(body["id_token"])
