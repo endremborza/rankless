@@ -124,7 +124,6 @@ def test_read_batch_normalizes_and_rejects(tmp_path):
         )
 
 
-def test_links_move_to_the_canonical_host_with_the_batch():
+def test_links_move_to_the_canonical_host_untagged():
     url = f"{mcp_server.SITE_URL}/card/authors/a-b/map.png?hl=1"
-    assert outreach.emailed(url, "b1") == f"{SITE}/card/authors/a-b/map.png?hl=1&ref=b1"
     assert outreach.emailed(url) == f"{SITE}/card/authors/a-b/map.png?hl=1"

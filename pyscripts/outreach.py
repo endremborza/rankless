@@ -7,11 +7,10 @@ the outreach mailbox (`SENDER`) through Microsoft Graph.
 
 A batch is a TSV with the header `semantic_id, email, source`, `source` naming where
 the address came from (a key of `SOURCE_SENTENCES`, the footer's account of it). The
-file's stem names the batch: every link in its messages carries it as `?ref=<batch>`,
-so the site's request log counts each batch's visits; the cards carry none, so a card is
-one cache entry and an image fetch counts no open. The content comes from the backend
-through `mcp_server`; the links point at the site's canonical host (`LIVE_DOMAIN`), so a
-mail client follows no redirect.
+file's stem names the batch in the send log. The links carry no tag: the profile and
+login links lead to the recipient's own profile, whose path identifies the visit. The
+content comes from the backend through `mcp_server`; the links point at the site's
+canonical host (`LIVE_DOMAIN`), so a mail client follows no redirect.
 
 `send` refuses a batch with a source whose footer sentence is still a `PLACEHOLDER`, and
 takes the (author, address) pairs the send log (`SEND_LOG` in the kept root's
@@ -74,7 +73,6 @@ PREVIEWS_DIR = "previews"
 BATCH_FIELDS = ["semantic_id", "email", "source"]
 AUTHORS = "authors"
 SITE = f"https://{LIVE_DOMAIN}"
-REF_PARAM = "ref"
 # Countries, peers and co-authors each message names.
 LISTED = 3
 FETCHES_IN_FLIGHT = 4
@@ -286,17 +284,14 @@ def unworded_sources(rows: list[Recipient]) -> list[str]:
     return sorted({r.source for r in rows if PLACEHOLDER in SOURCE_SENTENCES[r.source]})
 
 
-def emailed(url: str, batch: str | None = None) -> str:
-    """`url` on the site's canonical host, carrying the batch as `ref` when given."""
+def emailed(url: str) -> str:
+    """`url` on the site's canonical host."""
     if not url.startswith(mcp_server.SITE_URL):
         raise ValueError(f"{url} is not on {mcp_server.SITE_URL}")
-    url = SITE + url[len(mcp_server.SITE_URL) :]
-    if batch is None:
-        return url
-    return f"{url}{'&' if '?' in url else '?'}{urlencode({REF_PARAM: batch})}"
+    return SITE + url[len(mcp_server.SITE_URL) :]
 
 
-async def content(semantic_id: str, batch: str) -> Content:
+async def content(semantic_id: str) -> Content:
     profile, peer_res, tree = await asyncio.gather(
         get_entity_profile(AUTHORS, semantic_id),
         get_peers(AUTHORS, semantic_id),
@@ -324,8 +319,8 @@ async def content(semantic_id: str, batch: str) -> Content:
     with_ids = ",".join(a["semanticId"] for a in coauthors)
     return Content(
         name=plain(profile["name"]),
-        profile=emailed(page, batch),
-        login=emailed(login, batch),
+        profile=emailed(page),
+        login=emailed(login),
         tree_card=emailed(profile["image_url"]),
         countries=[row["name"] for row in countries],
         map_card=card("map", {"hl": hl}) if countries else None,
@@ -513,13 +508,13 @@ def cards(c: Content) -> list[str]:
     return [u for u in (c.tree_card, c.map_card, c.peers_card, c.network_card) if u]
 
 
-async def _contents(rows: list[Recipient], batch: str) -> list[Content]:
+async def _contents(rows: list[Recipient]) -> list[Content]:
     gate = asyncio.Semaphore(FETCHES_IN_FLIGHT)
 
     async def one(r: Recipient) -> Content:
         async with gate:
             try:
-                return await content(r.semantic_id, batch)
+                return await content(r.semantic_id)
             except ValueError as exc:
                 raise SystemExit(f"{r.semantic_id}: {exc}") from exc
 
@@ -546,16 +541,16 @@ async def _broken_cards(urls: list[str]) -> list[str]:
     return [u for u, b in zip(urls, verdicts) if b]
 
 
-def fetch_contents(rows: list[Recipient], batch: str, backend: str) -> list[Content]:
+def fetch_contents(rows: list[Recipient], backend: str) -> list[Content]:
     mcp_server.set_backend(resolve_backend(backend)[0])
-    return asyncio.run(_contents(rows, batch))
+    return asyncio.run(_contents(rows))
 
 
 def render(batch: str, *, out: str = "", backend: str = "live") -> None:
     """Write each message of the batch as `<semantic id>.eml` and `.html` into --out
     (default: `previews/<batch>` in the kept root's outreach dir)."""
     rows, name = read_batch(Path(batch)), Path(batch).stem
-    contents = fetch_contents(rows, name, backend)
+    contents = fetch_contents(rows, backend)
     out_dir = Path(out) if out else _outreach_dir() / PREVIEWS_DIR / name
     out_dir.mkdir(parents=True, exist_ok=True)
     for r, c in zip(rows, contents):
@@ -628,7 +623,7 @@ def send(
     if not todo:
         print("nothing to send")
         return
-    contents = fetch_contents(todo, name, backend)
+    contents = fetch_contents(todo, backend)
     if broken := asyncio.run(_broken_cards([u for c in contents for u in cards(c)])):
         raise SystemExit(
             "cards that do not render, nothing sent:\n" + "\n".join(broken)

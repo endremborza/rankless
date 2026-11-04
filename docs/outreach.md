@@ -10,7 +10,7 @@ uv run -m pyscripts outreach send <batch.tsv> [--dry-run] [--backend live] [--lo
 
 ## Batches
 
-A batch is a TSV with the header `semantic_id`, `email`, `source`. `source` is where the address came from, a key of `SOURCE_SENTENCES`: the footer's "Why you received this email" names it. A source whose sentence still holds `PLACEHOLDER` renders but does not send. The file's stem names the batch, and every link in its messages carries it as `?ref=<batch>`, so the site's request log counts each batch's visits. The cards carry none, so a card is one cache entry and an image fetch counts no open.
+A batch is a TSV with the header `semantic_id`, `email`, `source`. `source` is where the address came from, a key of `SOURCE_SENTENCES`: the footer's "Why you received this email" names it. A source whose sentence still holds `PLACEHOLDER` renders but does not send. The file's stem names the batch in the send log. The links carry no tag: the profile and login links lead to the recipient's own profile, so that page's visits in the site's request log are what a message brings.
 
 ## Content
 
