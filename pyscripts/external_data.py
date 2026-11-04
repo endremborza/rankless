@@ -14,7 +14,9 @@ required once the variable names its root and optional under the default, the ru
 `rankless_rs/src/derived_ledger.rs` applies to the regen root. Each root syncs with its
 remote (`host:/path`, `$EXTERNAL_KEPT_REMOTE`, `$EXTERNAL_REGEN_REMOTE`):
 `make external-push|external-pull`, additive, never deleting on the far side, and never
-carrying a `raw/`: each box fetches its own downloads. Stdlib-only.
+carrying a `raw/` (each box fetches its own downloads) or a git directory (a repository under a
+root, the curated ledger, keeps its history where it is committed; the far side gets its files).
+Stdlib-only.
 """
 
 import argparse
@@ -31,6 +33,7 @@ from wire.rankless_rs.derived_ledger import (
 EXTERNAL_KEPT_ROOT = "EXTERNAL_KEPT_ROOT"
 DEFAULT_EXTERNAL_KEPT_ROOT = "data/external/kept"
 RAW = "raw"
+GIT_DIR = ".git"
 
 
 @dataclass(frozen=True)
@@ -96,7 +99,15 @@ def sync(direction: str, root: Root, remote: str) -> None:
     local, far = f"{root.path()}/", f"{remote.rstrip('/')}/"
     src, dst = (local, far) if direction == "push" else (far, local)
     subprocess.run(
-        ["rsync", "-a", "--itemize-changes", f"--exclude=/*/{RAW}/", src, dst],
+        [
+            "rsync",
+            "-a",
+            "--itemize-changes",
+            f"--exclude=/*/{RAW}/",
+            f"--exclude={GIT_DIR}/",
+            src,
+            dst,
+        ],
         check=True,
     )
 

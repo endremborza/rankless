@@ -104,7 +104,7 @@ The pipeline reads nothing else there (`orcid/public_emails.tsv` in the regen ro
 
 A root comes from the environment. Set in the box's environment, every entry point sees it; set in `.env`, only make targets do (`-include .env` + `export`), and a bare `uv run -m pyscripts.<script>` falls back to the default.
 
-Each root is built where its data is made and reaches the data box with `make external-push` (`make external-pull` the other way): rsync of each root to its remote, `EXTERNAL_KEPT_REMOTE` and `EXTERNAL_REGEN_REMOTE` (`host:/path`), additive, never deleting on the far side, and never carrying a `raw/`. A box keeps its own downloads; a table built from one (the names table) rides the push like any other.
+Each root is built where its data is made and reaches the data box with `make external-push` (`make external-pull` the other way): rsync of each root to its remote, `EXTERNAL_KEPT_REMOTE` and `EXTERNAL_REGEN_REMOTE` (`host:/path`), additive, never deleting on the far side, and never carrying a `raw/` or a git directory (a repository under a root, the curated ledger, keeps its history where it is committed; the far side gets its files). A box keeps its own downloads; a table built from one (the names table) rides the push like any other.
 
 ## commit-artifacts
 

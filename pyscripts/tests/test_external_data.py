@@ -18,6 +18,23 @@ def test_a_download_lands_in_raw_and_stays_behind_in_a_sync(tmp_path, monkeypatc
     assert not (far / "src" / external_data.RAW).exists()
 
 
+def test_a_repository_under_a_root_syncs_its_files_without_its_history(tmp_path):
+    local, far = tmp_path / "local", tmp_path / "far"
+    (local / "ledger" / "curated").mkdir(parents=True)
+    (local / "ledger" / "curated" / "a.jsonl").write_text("{}\n")
+    (local / "ledger" / external_data.GIT_DIR).mkdir()
+    (local / "ledger" / external_data.GIT_DIR / "HEAD").write_text(
+        "ref: refs/heads/main\n"
+    )
+
+    external_data.sync(
+        "push", external_data.Root("ROOT", str(local), "REMOTE"), str(far)
+    )
+
+    assert (far / "ledger" / "curated" / "a.jsonl").read_text() == "{}\n"
+    assert not (far / "ledger" / external_data.GIT_DIR).exists()
+
+
 def test_a_named_root_requires_its_tables(tmp_path, monkeypatch):
     kept = external_data.KEPT
     monkeypatch.setenv(kept.var, str(tmp_path))
