@@ -1,7 +1,7 @@
 {
- "run_id": "2026-11-02T11:22:54Z",
- "stamp": "2026-11-02T11:22:54Z:6341b9cbfdde",
- "git_commit": "387e8b5352ac",
+ "run_id": "2026-11-06T18:47:43Z",
+ "stamp": "2026-11-06T18:47:43Z:f8da595d8c14",
+ "git_commit": "72f84377788c",
  "snapshot": {
   "name": "openalex-snapshot-2026-10-14",
   "date": "2026-10-14"
@@ -11,31 +11,31 @@
    "steps": [
     {
      "label": "research publications \u2014 articles, conference papers, books, chapters and reviews (or restored by their authors); not retracted; in covered years",
-     "kept": 269455766
+     "kept": 269455924
     },
     {
      "label": "cited at least once by an indexed work, or restored",
-     "kept": 101582948
+     "kept": 101583430
     },
     {
      "label": "authorship resolved, user corrections applied",
-     "kept": 98327546
+     "kept": 98328026
     }
    ],
-   "final": 98327546
+   "final": 98328026
   },
   "authors": {
    "steps": [
     {
      "label": "credited on an indexed work",
-     "kept": 41759873
+     "kept": 41760021
     },
     {
      "label": "above the activity threshold and under the aggregate-record bound, or a registered owner",
-     "kept": 4196269
+     "kept": 4196276
     }
    ],
-   "final": 4196269
+   "final": 4196276
   },
   "sources": {
    "steps": [
@@ -62,17 +62,17 @@
  },
  "ledger": {
   "sources": 2,
-  "events": 1830,
+  "events": 1891,
   "applied": {
-   "disown_paper": 270,
+   "disown_paper": 274,
+   "merge_authors": 431,
    "claim_paper": 198,
-   "merge_authors": 427,
    "strip_orcid": 1,
-   "merge_papers": 197,
+   "merge_papers": 240,
    "name_author": 7,
-   "reassign_paper": 121
+   "reassign_paper": 131
   },
-  "applied_total": 1221,
+  "applied_total": 1282,
   "skipped": {
    "author_not_on_work": 420,
    "oa_id_not_in_dataset": 181,
@@ -97,17 +97,17 @@
   }
  },
  "restored": {
-  "cohort": 349,
-  "forced_total": 37985,
-  "outside_standard": 15573,
-  "outside_type": 6705,
-  "outside_citations": 13574,
+  "cohort": 363,
+  "forced_total": 38870,
+  "outside_standard": 16041,
+  "outside_type": 6893,
+  "outside_citations": 13994,
   "claimed": 50,
-  "author_rescues": 122
+  "author_rescues": 130
  },
  "claims": null,
  "previous": {
-  "run_id": "2026-11-01T15:51:28Z",
+  "run_id": "2026-11-06T15:14:37Z",
   "snapshot": {
    "name": "openalex-snapshot-2026-10-14",
    "date": "2026-10-14"
@@ -116,14 +116,14 @@
  "deltas": {
   "entities": {
    "works": {
-    "previous": 98327546,
-    "current": 98327546,
-    "change": 0
+    "previous": 98328002,
+    "current": 98328026,
+    "change": 24
    },
    "authors": {
-    "previous": 4196269,
-    "current": 4196269,
-    "change": 0
+    "previous": 4196274,
+    "current": 4196276,
+    "change": 2
    },
    "sources": {
     "previous": 46570,
@@ -138,18 +138,18 @@
   },
   "applied": {
    "disown_paper": {
-    "previous": 270,
-    "current": 270,
+    "previous": 273,
+    "current": 274,
+    "new": 1
+   },
+   "merge_authors": {
+    "previous": 431,
+    "current": 431,
     "new": 0
    },
    "claim_paper": {
     "previous": 198,
     "current": 198,
-    "new": 0
-   },
-   "merge_authors": {
-    "previous": 427,
-    "current": 427,
     "new": 0
    },
    "strip_orcid": {
@@ -158,9 +158,9 @@
     "new": 0
    },
    "merge_papers": {
-    "previous": 197,
-    "current": 197,
-    "new": 0
+    "previous": 227,
+    "current": 240,
+    "new": 13
    },
    "name_author": {
     "previous": 7,
@@ -168,15 +168,15 @@
     "new": 0
    },
    "reassign_paper": {
-    "previous": 121,
-    "current": 121,
+    "previous": 131,
+    "current": 131,
     "new": 0
    }
   },
   "applied_total": {
-   "previous": 1221,
-   "current": 1221,
-   "new": 0
+   "previous": 1268,
+   "current": 1282,
+   "new": 14
   }
  }
 }
