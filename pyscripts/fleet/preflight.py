@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pyscripts import gitutil, services
 from pyscripts.fleet import manifest
 from pyscripts.fleet.config import Model, Worker
-from pyscripts.fleet.remote import Host
+from pyscripts.fleet.remote import Host, df_avail_cmd
 from wire.rankless_server.consts import TREES_ONLY_FLAG
 
 GB = 1024**3
@@ -268,7 +268,7 @@ def _trees_only_detail(host: Host) -> str:
 
 
 def _df_avail_gb(host: Host, path: str) -> float:
-    return int(host.out(f"df --output=avail -B1 {path} | tail -1")) / GB
+    return int(host.out(df_avail_cmd(path))) / GB
 
 
 def _du_cmd_out(host: Host, root: str, check: bool = True) -> str:

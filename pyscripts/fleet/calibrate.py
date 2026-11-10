@@ -18,7 +18,7 @@ from dataclasses import dataclass, replace
 
 from pyscripts import gitutil, services
 from pyscripts.fleet.config import Fleet, Model, Worker
-from pyscripts.fleet.remote import Host
+from pyscripts.fleet.remote import Host, df_avail_cmd
 from wire.rankless_server.consts import PORT
 
 GB = 1024**3
@@ -62,7 +62,7 @@ def probe(
     if data_root:
         _try(
             "data_avail_gb",
-            f"df --output=avail -B1 {data_root} | tail -1",
+            df_avail_cmd(data_root),
             lambda s: int(s) / GB,
         )
     if repo_dir:

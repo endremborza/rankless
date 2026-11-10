@@ -136,6 +136,11 @@ def test_push_needs_the_delta_plus_one_file_in_flight() -> None:
     assert _run_full(_worker(), {"df --output=avail": str(21 * GB)})["disk"]
 
 
+def test_free_space_of_a_root_not_pushed_yet_is_its_filesystems(tmp_path) -> None:
+    missing = tmp_path / "new-box" / "rankless-data"
+    assert preflight._df_avail_gb(Host("local", None), str(missing)) > 0
+
+
 def test_gate_aborts_naming_failures(capsys) -> None:
     w = _worker()
     host = FakeHost({**_green(w), "curl": json.dumps({"version": "stale"})})

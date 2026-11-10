@@ -5,6 +5,7 @@ Everything the driver, preflight and calibrator do on a box goes through a
 and tests can substitute a fake by overriding `out`/`stream`.
 """
 
+import shlex
 import subprocess
 
 SSH_OPTS = (
@@ -63,6 +64,15 @@ def stream(cmd: list[str], prefix: str) -> None:
         raise RuntimeError(
             f"[{prefix}] `{' '.join(cmd[:3])}…` exited {proc.returncode}"
         )
+
+
+def df_avail_cmd(path: str) -> str:
+    """Free bytes on the filesystem `path` lands on: a root not pushed yet is
+    measured at its nearest existing ancestor."""
+    return (
+        f'p={shlex.quote(path)}; until [ -e "$p" ]; do p=$(dirname "$p"); done; '
+        'df --output=avail -B1 "$p" | tail -1'
+    )
 
 
 def log(name: str, msg: str) -> None:
