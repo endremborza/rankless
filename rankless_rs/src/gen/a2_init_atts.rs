@@ -100,7 +100,7 @@ pub struct AuthorNobels {}
 
 impl Entity for AuthorshipFilteredAuthor {
     type T = u32;
-    const N: usize = 238964584;
+    const N: usize = 238966074;
     const NAME: &str = "authorship-filtered-author";
 }
 
@@ -114,7 +114,7 @@ impl NamespacedEntity for AuthorshipFilteredAuthor {
 
 impl Entity for AuthorshipDiscardedAuthor {
     type T = u32;
-    const N: usize = 145407356;
+    const N: usize = 145408336;
     const NAME: &str = "authorship-discarded-author";
 }
 
@@ -128,7 +128,7 @@ impl NamespacedEntity for AuthorshipDiscardedAuthor {
 
 impl Entity for FilteredAuthorshipInstitutions {
     type T = Box<[u16]>;
-    const N: usize = 238964584;
+    const N: usize = 238966074;
     const NAME: &str = "filtered-authorship-institutions";
 }
 
@@ -147,7 +147,7 @@ impl NamespacedEntity for FilteredAuthorshipInstitutions {
 
 impl Entity for DiscardedAuthorshipInstitutions {
     type T = Box<[u16]>;
-    const N: usize = 145407356;
+    const N: usize = 145408336;
     const NAME: &str = "discarded-authorship-institutions";
 }
 
@@ -166,7 +166,7 @@ impl NamespacedEntity for DiscardedAuthorshipInstitutions {
 
 impl Entity for FilteredAuthorshipPosition {
     type T = u16;
-    const N: usize = 238964584;
+    const N: usize = 238966074;
     const NAME: &str = "filtered-authorship-position";
 }
 
@@ -180,7 +180,7 @@ impl NamespacedEntity for FilteredAuthorshipPosition {
 
 impl Entity for DiscardedAuthorshipPosition {
     type T = u16;
-    const N: usize = 145407356;
+    const N: usize = 145408336;
     const NAME: &str = "discarded-authorship-position";
 }
 
@@ -194,7 +194,7 @@ impl NamespacedEntity for DiscardedAuthorshipPosition {
 
 impl Entity for WorkAnyAuthorships {
     type T = Box<[u32]>;
-    const N: usize = 98327548;
+    const N: usize = 98328028;
     const NAME: &str = "work-any-authorships";
 }
 
@@ -213,7 +213,7 @@ impl NamespacedEntity for WorkAnyAuthorships {
 
 impl Entity for WorkBiblios {
     type T = crate::biblo_var_att::BiblioInfo;
-    const N: usize = 98327548;
+    const N: usize = 98328028;
     const NAME: &str = "work-biblios";
 }
 
@@ -232,7 +232,7 @@ impl NamespacedEntity for WorkBiblios {
 
 impl Entity for WorkYears {
     type T = u8;
-    const N: usize = 98327548;
+    const N: usize = 98328028;
     const NAME: &str = "work-years";
 }
 
@@ -251,7 +251,7 @@ impl Link for WorkYears {
 
 impl Entity for WorksNames {
     type T = String;
-    const N: usize = 98327548;
+    const N: usize = 98328028;
     const NAME: &str = "works-names";
 }
 
@@ -274,7 +274,7 @@ impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mappin
 
 impl Entity for WorkDois {
     type T = String;
-    const N: usize = 98327548;
+    const N: usize = 98328028;
     const NAME: &str = "work-dois";
 }
 
@@ -542,7 +542,7 @@ impl NamespacedEntity for InstCities {
 
 impl Entity for AuthorNobels {
     type T = (u8, u8);
-    const N: usize = 4196271;
+    const N: usize = 4196278;
     const NAME: &str = "author-nobels";
 }
 
@@ -579,7 +579,7 @@ impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mappin
 
 impl Entity for DiscardedAuthorsNames {
     type T = String;
-    const N: usize = 96317876;
+    const N: usize = 96317865;
     const NAME: &str = "discarded-authors-names";
 }
 
@@ -604,7 +604,7 @@ impl MarkedAttribute<crate::common::NameMarker>
 
 impl Entity for AuthorsNames {
     type T = String;
-    const N: usize = 4196271;
+    const N: usize = 4196278;
     const NAME: &str = "authors-names";
 }
 
@@ -627,7 +627,7 @@ impl MarkedAttribute<crate::common::NameMarker> for crate::gen::a1_entity_mappin
 
 impl Entity for AuthorWikiSlugs {
     type T = String;
-    const N: usize = 4196271;
+    const N: usize = 4196278;
     const NAME: &str = "author-wiki-slugs";
 }
 
@@ -646,7 +646,7 @@ impl NamespacedEntity for AuthorWikiSlugs {
 
 impl Entity for AuthorOrcids {
     type T = [u8; 19];
-    const N: usize = 4196271;
+    const N: usize = 4196278;
     const NAME: &str = "author-orcids";
 }
 
@@ -660,7 +660,7 @@ impl NamespacedEntity for AuthorOrcids {
 
 impl Entity for AuthorRawCites {
     type T = u32;
-    const N: usize = 4196271;
+    const N: usize = 4196278;
     const NAME: &str = "author-raw-cites";
 }
 
@@ -674,7 +674,7 @@ impl NamespacedEntity for AuthorRawCites {
 
 impl Entity for AuthorRawWorkCounts {
     type T = u16;
-    const N: usize = 4196271;
+    const N: usize = 4196278;
     const NAME: &str = "author-raw-work-counts";
 }
 
@@ -826,7 +826,7 @@ impl MarkedAttribute<crate::common::NameExtensionMarker>
 
 impl Entity for AuthorsNameExts {
     type T = String;
-    const N: usize = 4196271;
+    const N: usize = 4196278;
     const NAME: &str = "authors-name-exts";
 }
 
@@ -965,7 +965,7 @@ impl Link for InstCountries {
 
 impl Entity for WorkSources {
     type T = Box<[u16]>;
-    const N: usize = 98327548;
+    const N: usize = 98328028;
     const NAME: &str = "work-sources";
 }
 
@@ -989,7 +989,7 @@ impl Link for WorkSources {
 
 impl Entity for WorkTopics {
     type T = Box<[u16]>;
-    const N: usize = 98327548;
+    const N: usize = 98328028;
     const NAME: &str = "work-topics";
 }
 
@@ -1013,7 +1013,7 @@ impl Link for WorkTopics {
 
 impl Entity for WorkReferences {
     type T = Box<[u32]>;
-    const N: usize = 98327548;
+    const N: usize = 98328028;
     const NAME: &str = "work-references";
 }
 
