@@ -409,12 +409,12 @@ def letter(c: Content, source: str) -> list[Block]:
             )
         ),
         Para(("Best regards,",)),
-        Para(("The Rankless Team!",)),
+        Para(("The Rankless Team",)),
         Para((Bold("Why you received this email:"),), small=True),
         Para(
             (
                 "The Center for Collective Learning at Corvinus University of Budapest is contacting you about your scholarly profile "
-                f"{SOURCE_SENTENCES[source]} To opt out of further outreach, or to have your profile removed from Rankless without logging in with you ORCID, please send an email to {first_name} at ",
+                f"{SOURCE_SENTENCES[source]} There will be no follow-up to this email unless you opt in on the Rankless site or specifically request it. To have your profile removed from Rankless without logging in with your ORCID, please send an email to {first_name} at ",
                 Link(SENDER, f"mailto:{SENDER}"),
                 ".",
             ),
