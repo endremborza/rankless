@@ -6,13 +6,16 @@ import pytest
 import mcp_server
 from pyscripts import outreach
 from pyscripts.outreach import (
-    PLACEHOLDER,
     SITE,
     SOURCE_SENTENCES,
+    Bold,
     Content,
+    Evidence,
+    Fact,
     Recipient,
     SendLog,
 )
+from wire.rankless_server.responses import METHODOLOGY
 
 ROW = Recipient("a-b", "a@b.org", "corresponding")
 
@@ -22,15 +25,23 @@ def content(**over) -> Content:
         name="A B",
         profile=f"{SITE}/authors/a-b",
         login=f"{SITE}/login",
-        tree_card=f"{SITE}/card/authors/a-b/tree.png",
-        countries=["Chile"],
-        map_card=f"{SITE}/card/authors/a-b/map.png",
-        peers=["C D"],
-        peers_card=f"{SITE}/card/authors/a-b/peers.png",
-        coauthors=["E F"],
-        network_card=None,
+        facts=[Fact(("A fact.",), f"{SITE}/card/authors/a-b/map.png", "A map")],
     )
     return Content(**{**base, **over})
+
+
+def evidence(**over) -> Evidence:
+    base = dict(
+        semantic_id="a-b",
+        name="A B",
+        partners=[],
+        papers=[],
+        peers={"hero": {}, "peers": [], "topSubfields": [], "refSubfields": []},
+        ladder={"ladder": [], "pctBands": []},
+        countries={"tree": {}, "atts": {}},
+        impact={"citingHits": []},
+    )
+    return Evidence(**{**base, **over})
 
 
 def batch(tmp_path, *lines: str):
@@ -94,22 +105,46 @@ def test_the_footer_names_each_source():
         text = msg.get_body(("plain",)).get_content()
         assert sentence in text
         assert sentence in msg.get_body(("html",)).get_content()
-    assert PLACEHOLDER not in SOURCE_SENTENCES["corresponding"]
 
 
-def test_a_missing_card_drops_its_section():
-    text = outreach.to_text(outreach.letter(content(map_card=None), "corresponding"))
-    assert "Chile" not in text and "C D" in text and "E F" not in text
+def test_excess_countries_leave_out_partner_nations_and_thin_ones():
+    links = {"1": 300, "2": 100, "3": outreach.EXCESS_MIN_LINKS - 1}
+    countries = {
+        "tree": {
+            "linkCount": 1000,
+            "children": {nid: {"linkCount": n} for nid, n in links.items()},
+        },
+        "atts": {
+            "countries": {
+                nid: {"name": name, "specBaseline": 0.001}
+                for nid, name in [("1", "Home"), ("2", "Far"), ("3", "Thin")]
+            }
+        },
+    }
+    fact = outreach._excess_fact(evidence(partners=["Home"], countries=countries))
+    assert fact and Bold("Far") in fact.parts
+    assert "Thin" not in outreach.to_text([outreach.Para(fact.parts)])
 
 
-def test_send_refuses_an_unworded_source_before_any_fetch(tmp_path, monkeypatch):
-    unworded = [s for s, t in SOURCE_SENTENCES.items() if PLACEHOLDER in t]
-    if not unworded:
-        pytest.skip("every source is worded")
-    monkeypatch.setattr(outreach, "fetch_contents", lambda *_: pytest.fail("fetched"))
-    path = batch(tmp_path, f"a-b\ta@b.org\t{unworded[0]}")
-    with pytest.raises(SystemExit, match="still"):
-        outreach.send(str(path), log=str(tmp_path / "sent.sqlite"))
+def test_momentum_needs_its_lead_over_the_peers():
+    first, last = METHODOLOGY["yearlyCounts"]
+    years = last - first + 1
+    before = outreach.MOMENTUM_MIN_CITES * outreach.MOMENTUM_YEARS
+    span = 2 * outreach.MOMENTUM_YEARS
+
+    def yearly(after: float) -> list[float]:
+        per = outreach.MOMENTUM_YEARS
+        return ([before / per] * per + [after / per] * per + [0] * years)[:years]
+
+    peer = {"yearlyCites": yearly(2 * before)}
+    assert years > span
+
+    def fact(after: float) -> Fact | None:
+        peers = {"hero": {"yearlyCites": yearly(after)}, "peers": [peer]}
+        return outreach._momentum_fact(evidence(peers=peers))
+
+    lead = 2 * before * outreach.MOMENTUM_MIN_LEAD
+    assert fact(lead) and not fact(lead * 0.99)
 
 
 def test_read_batch_normalizes_and_rejects(tmp_path):

@@ -12,15 +12,14 @@ login links lead to the recipient's own profile, whose path identifies the visit
 content comes from the backend through `mcp_server`; the links point at the site's
 canonical host (`LIVE_DOMAIN`), so a mail client follows no redirect.
 
-`send` refuses a batch with a source whose footer sentence is still a `PLACEHOLDER`, and
-takes the (author, address) pairs the send log (`SEND_LOG` in the kept root's
+`send` takes the (author, address) pairs the send log (`SEND_LOG` in the kept root's
 `outreach/`) does not hold, at most `DAILY_CAP` in any `DAY_HOURS`. It renders those
 messages first and fetches every card they show (prewarming the site's card cache), and
 stops before sending anything when one fails. It then claims each pair in the send log
 before handing its message to Graph and releases it only when the message certainly did
 not go out (Graph refused it or could not be reached), so a row is never sent twice, not
 even after a crash or a timeout; it paces at `SENDS_PER_MINUTE`. `--dry-run` does all of
-it but the refusal, the claim and the send.
+it but the claim and the send.
 
 Graph needs an app registration with the delegated `Mail.Send` permission:
 `OUTREACH_CLIENT_ID` names it, `OUTREACH_TENANT` the tenant (default: the sender's
@@ -32,10 +31,12 @@ import asyncio
 import base64
 import csv
 import html
+import itertools
 import json
 import os
 import re
 import sqlite3
+import statistics
 import time
 from dataclasses import dataclass
 from email.message import EmailMessage
@@ -47,24 +48,36 @@ import httpx
 from protocli import Dispatcher
 
 import mcp_server
-from mcp_server import card_url, resolve_backend
+from mcp_server import card_url, encode_semantic_id, resolve_backend
 from mcp_server.cards import RENDER_TIMEOUT_S
-from mcp_server.client import aclose
+from mcp_server.client import aclose, get_json
 from mcp_server.response_shaping import plain
-from mcp_server.tools import get_citation_tree, get_entity_profile, get_peers
+from mcp_server.tools import (
+    MAX_PAPERS_LIMIT,
+    get_entity_profile,
+    get_impact_dag,
+    get_papers,
+)
 from pyscripts import paths
 from pyscripts.external_data import KEPT
 from pyscripts.hosts import LIVE_DOMAIN
-from wire.rankless_server.responses import TREE_SPECS
+from wire.rankless_rs.metrics import PAPER_SCORE, TOP_HIT_PAPERS
+from wire.rankless_server.responses import (
+    METHODOLOGY,
+    TREE_SPECS,
+    EntityPeersResp,
+    LadderResp,
+    PeerSubfieldInfo,
+)
+from wire.rankless_trees.io import TreeResponse
 
 SENDER = "ccl@uni-corvinus.hu"
 SENDER_DOMAIN = SENDER.split("@")[1]
 CONTACT = "Veronika Hamar"
 HEADLINE = "Where does your research have an impact?"
-PLACEHOLDER = "[WORDING NEEDED]"
 SOURCE_SENTENCES = {
     "corresponding": "using a corresponding-author email published in one of your recent publications.",
-    "orcid": f"{PLACEHOLDER} using the email address public on your ORCID record.",
+    "orcid": "using the email address you made public on your ORCID record.",
 }
 
 OUTREACH_DIR = "outreach"
@@ -73,8 +86,37 @@ PREVIEWS_DIR = "previews"
 BATCH_FIELDS = ["semantic_id", "email", "source"]
 AUTHORS = "authors"
 SITE = f"https://{LIVE_DOMAIN}"
-# Countries, peers and co-authors each message names.
+# Countries and fields a fact names at most.
 LISTED = 3
+# Facts a message shows at most: the first that hold, in `pick_facts` order.
+FACTS = 3
+# A field standing is a fact from this top share of the field's authors.
+STANDING_MAX_SHARE = 0.1
+# A country cites in excess from this specialization (its share of the author's citation
+# links over its baseline, as the site's specialization view reads it) and
+# `EXCESS_MIN_LINKS` links.
+EXCESS_MIN = 3.0
+EXCESS_MIN_LINKS = 30
+# Momentum sets the last `MOMENTUM_YEARS` finished years against the as many before
+# them, which need `MOMENTUM_MIN_CITES` citations.
+MOMENTUM_YEARS = 5
+MOMENTUM_MIN_CITES = 20
+# The author's growth has to be this multiple of the peers' median growth.
+MOMENTUM_MIN_LEAD = 1.25
+ARTICLED_COUNTRIES = {
+    "United States",
+    "United Kingdom",
+    "United Arab Emirates",
+    "Netherlands",
+    "Philippines",
+    "Czech Republic",
+    "Dominican Republic",
+    "Central African Republic",
+    "Democratic Republic of the Congo",
+    "Bahamas",
+    "Gambia",
+    "Maldives",
+}
 FETCHES_IN_FLIGHT = 4
 SENDS_PER_MINUTE = 20
 DAILY_CAP = 1000
@@ -106,6 +148,15 @@ MAP_TREE = next(
     for i, spec in enumerate(TREE_SPECS["specs"][AUTHORS])
     if spec["breakdowns"][0]["attributeType"] == "countries"
 )
+# The breakdown by citing field, the field a standing counts citations from.
+CITING_FIELDS_TREE = next(
+    i
+    for i, spec in enumerate(TREE_SPECS["specs"][AUTHORS])
+    if (b := spec["breakdowns"][0])["attributeType"] == "subfields"
+    and not b["sourceSide"]
+)
+SINCE = TREE_SPECS["yearBreaks"][0]
+LAST_FULL_YEAR = METHODOLOGY["workScreen"]["finalYear"] - 1
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
@@ -114,22 +165,6 @@ class Recipient:
     semantic_id: str
     email: str
     source: str
-
-
-@dataclass(frozen=True)
-class Content:
-    """What one author's message shows; a card is None when the author lacks it."""
-
-    name: str
-    profile: str
-    login: str
-    tree_card: str
-    countries: list[str]
-    map_card: str | None
-    peers: list[str]
-    peers_card: str | None
-    coauthors: list[str]
-    network_card: str | None
 
 
 @dataclass(frozen=True)
@@ -144,6 +179,23 @@ class Link:
 
 
 Inline = str | Bold | Link
+
+
+@dataclass(frozen=True)
+class Fact:
+    """One finding about the author: its sentence and the card that shows it."""
+
+    parts: tuple[Inline, ...]
+    card: str
+    alt: str
+
+
+@dataclass(frozen=True)
+class Content:
+    name: str
+    profile: str
+    login: str
+    facts: list[Fact]
 
 
 @dataclass(frozen=True)
@@ -169,12 +221,7 @@ class Image:
     alt: str
 
 
-@dataclass(frozen=True)
-class Items:
-    items: list[str]
-
-
-Block = Para | Heading | Button | Image | Items
+Block = Para | Heading | Button | Image
 
 
 class NotSent(Exception):
@@ -280,10 +327,6 @@ def read_batch(path: Path) -> list[Recipient]:
     return rows
 
 
-def unworded_sources(rows: list[Recipient]) -> list[str]:
-    return sorted({r.source for r in rows if PLACEHOLDER in SOURCE_SENTENCES[r.source]})
-
-
 def emailed(url: str) -> str:
     """`url` on the site's canonical host."""
     if not url.startswith(mcp_server.SITE_URL):
@@ -291,46 +334,219 @@ def emailed(url: str) -> str:
     return SITE + url[len(mcp_server.SITE_URL) :]
 
 
-async def content(semantic_id: str) -> Content:
-    profile, peer_res, tree = await asyncio.gather(
+async def content(semantic_id: str, ladder: LadderResp) -> Content:
+    sid = encode_semantic_id(semantic_id)
+    profile, peers, countries, papers, impact = await asyncio.gather(
         get_entity_profile(AUTHORS, semantic_id),
-        get_peers(AUTHORS, semantic_id),
-        get_citation_tree(
-            AUTHORS,
-            semantic_id,
-            tree_index=MAP_TREE,
-            since_year=TREE_SPECS["yearBreaks"][0],
-            top_n=LISTED + 1,
-            depth=1,
-        ),
+        get_json(f"/peers/{AUTHORS}/{sid}"),
+        get_json(f"/trees/{AUTHORS}/{sid}", {"year": SINCE, "tid": MAP_TREE}),
+        get_papers(AUTHORS, semantic_id, limit=MAX_PAPERS_LIMIT, sort="citations"),
+        get_impact_dag(semantic_id),
     )
-    countries = [row for row in tree["breakdown"] if row["nodeId"]][:LISTED]
-    peers = [p for p in peer_res.get("peers", []) if "semanticId" in p][:LISTED]
-    coauthors = [
-        a for a in profile["relations"].get("paper-authors", []) if "semanticId" in a
-    ][:LISTED]
+    name = plain(profile["name"])
+    partners = [c["name"] for c in profile["relations"].get("collab-nation", [])]
+    facts = pick_facts(
+        Evidence(
+            semantic_id,
+            name,
+            partners,
+            papers["papers"],
+            peers,
+            ladder,
+            countries,
+            impact,
+        )
+    )
+    if not facts:
+        raise ValueError("no fact holds")
     page = profile["rankless_url"]
     login = f"{mcp_server.SITE_URL}/login?{urlencode({'returnTo': page[len(mcp_server.SITE_URL) :]})}"
+    return Content(name, emailed(page), emailed(login), facts)
 
-    def card(kind: str, query: dict) -> str:
-        return emailed(card_url(kind, AUTHORS, semantic_id, query))
 
-    hl = ",".join(str(row["nodeId"]) for row in countries)
-    with_ids = ",".join(a["semanticId"] for a in coauthors)
-    return Content(
-        name=plain(profile["name"]),
-        profile=emailed(page),
-        login=emailed(login),
-        tree_card=emailed(profile["image_url"]),
-        countries=[row["name"] for row in countries],
-        map_card=card("map", {"hl": hl}) if countries else None,
-        peers=[plain(p["name"]) for p in peers],
-        peers_card=emailed(peer_res["image_url"]) if peers else None,
-        coauthors=[plain(a["name"]) for a in coauthors],
-        network_card=card("network", {"with": with_ids})
-        if "network" in profile["cards"]
-        else None,
+@dataclass(frozen=True)
+class Evidence:
+    """The backend's answers one author's facts are read from."""
+
+    semantic_id: str
+    name: str
+    # The profile's partner nations: the countries the author publishes with.
+    partners: list[str]
+    papers: list[dict]
+    peers: EntityPeersResp
+    ladder: LadderResp
+    countries: TreeResponse
+    impact: dict
+
+    def card(self, kind: str, query: dict) -> str:
+        return emailed(card_url(kind, AUTHORS, self.semantic_id, query))
+
+
+def pick_facts(e: Evidence) -> list[Fact]:
+    found = (
+        f(e)
+        for f in (
+            _hit_fact,
+            _standing_fact,
+            _excess_fact,
+            _momentum_fact,
+            _citing_hits_fact,
+        )
     )
+    return [f for f in found if f][:FACTS]
+
+
+def _hit_fact(e: Evidence) -> Fact | None:
+    hits = [p for p in e.papers if p.get("isHit")]
+    if not hits:
+        return None
+    top = max(hits, key=lambda p: p["score"])
+    return Fact(
+        (
+            "Your paper ",
+            Bold(f"“{plain(top['name'])}”"),
+            f" ({top['year']}) has {_times(top['score'] ** 2)} the citations it takes to reach the top {_share(PAPER_SCORE['topShare'])} of its field and year.",
+        ),
+        emailed(top["image_url"]),
+        f"Hit papers by {e.name}",
+    )
+
+
+def _standing_fact(e: Evidence) -> Fact | None:
+    """The tightest ladder band the author reaches in any citing field."""
+    bands = e.ladder["pctBands"]
+    reached: dict[float, list[PeerSubfieldInfo]] = {}
+    hero = e.peers["hero"]
+    for field, cites in zip(e.peers["topSubfields"], hero["subfieldCitations"]):
+        row = e.ladder["ladder"][field["dmId"]]
+        passed = [b for b, at in zip(bands, row) if at is not None and cites >= at]
+        if passed:
+            reached.setdefault(min(passed), []).append(field)
+    if not reached or (share := min(reached)) > STANDING_MAX_SHARE:
+        return None
+    fields = reached[share][:LISTED]
+    return Fact(
+        (
+            "You are in the ",
+            Bold(f"top {_share(share)} most cited"),
+            f" of all authors {_and([f'in {f["name"]}' for f in fields])}.",
+        ),
+        e.card(
+            "fields",
+            {
+                "tree": CITING_FIELDS_TREE + 1,
+                "since": SINCE,
+                "isSpec": 0,
+                "hl": ",".join(str(f["dmId"]) for f in fields),
+            },
+        ),
+        f"Fields citing {e.name}",
+    )
+
+
+def _excess_fact(e: Evidence) -> Fact | None:
+    """The countries citing the author most against their baseline, partner nations left out."""
+    root = e.countries["tree"]
+    labels = e.countries["atts"]["countries"]
+    ranked = sorted(
+        (
+            (child["linkCount"] / root["linkCount"] / labels[nid]["specBaseline"], nid)
+            for nid, child in root["children"].items()
+            if int(nid)
+            and child["linkCount"] >= EXCESS_MIN_LINKS
+            and labels[nid]["name"] not in e.partners
+        ),
+        reverse=True,
+    )
+    top = [nid for spec, nid in ranked if spec >= EXCESS_MIN][:LISTED]
+    if not top:
+        return None
+    lead = (
+        f"Outside the countries you publish with ({_and([_country(c) for c in e.partners])}), the"
+        if e.partners
+        else "The"
+    )
+    return Fact(
+        (
+            f"{lead} countries that cite you most for their size are ",
+            Bold(_and([_country(labels[nid]["name"]) for nid in top])),
+            ".",
+        ),
+        e.card("map", {"since": SINCE, "isSpec": 1, "hl": ",".join(top)}),
+        f"Countries citing {e.name}, by specialization",
+    )
+
+
+def _momentum_fact(e: Evidence) -> Fact | None:
+    """The author's citation growth across the two windows, when it beats the peers' median
+    by `MOMENTUM_MIN_LEAD`."""
+    first_counted = METHODOLOGY["yearlyCounts"][0]
+    end = LAST_FULL_YEAR - first_counted + 1
+    windows = (end - 2 * MOMENTUM_YEARS, end - MOMENTUM_YEARS, end)
+
+    def rate(yearly: list[int]) -> float | None:
+        before, after = (sum(yearly[a:b]) for a, b in itertools.pairwise(windows))
+        return after / before if before >= MOMENTUM_MIN_CITES else None
+
+    own = rate(e.peers["hero"]["yearlyCites"])
+    peers = [r for p in e.peers["peers"] if (r := rate(p["yearlyCites"])) is not None]
+    if not (own and peers) or own < MOMENTUM_MIN_LEAD * (
+        median := statistics.median(peers)
+    ):
+        return None
+    first, mid, last = (first_counted + w for w in windows)
+    return Fact(
+        (
+            f"From {first}–{mid - 1} to {mid}–{last - 1} your citations ",
+            Bold(_change(own)),
+            f", while those of your {len(peers)} closest peers on Rankless {_change(median)}.",
+        ),
+        e.card("yearly", {"from": first, "to": last - 1}),
+        f"Citations of {e.name} by year",
+    )
+
+
+def _citing_hits_fact(e: Evidence) -> Fact | None:
+    hits = e.impact["citingHits"]
+    if not hits:
+        return None
+    n = len(hits)
+    count = f"At least {n}" if n == TOP_HIT_PAPERS else str(n)
+    top = hits[0]
+    journal = f" in {top['journal']}" if top.get("journal") else ""
+    return Fact(
+        (
+            Bold(f"{count} hit {'paper builds' if n == 1 else 'papers build'}"),
+            f" on your work: papers with at least {PAPER_SCORE['hitMultiple']:g} times the citations it takes to reach the top {_share(PAPER_SCORE['topShare'])} of their field and year. The strongest is “{plain(top['name'])}”{journal} ({top['year']}).",
+        ),
+        emailed(e.impact["image_url"]),
+        f"Hit papers citing {e.name}",
+    )
+
+
+def _share(share: float) -> str:
+    """A ladder or paper-score share as the site's standing badges word it."""
+    return f"{share * 100:g}%"
+
+
+def _times(ratio: float) -> str:
+    return f"{ratio:.0f} times" if ratio >= 10 else f"{ratio:.1f} times"
+
+
+def _change(ratio: float) -> str:
+    if ratio >= 2:
+        return f"grew {ratio:.1f}-fold"
+    if ratio >= 1:
+        return f"grew {round((ratio - 1) * 100)}%"
+    return f"fell {round((1 - ratio) * 100)}%"
+
+
+def _country(name: str) -> str:
+    return f"the {name}" if name in ARTICLED_COUNTRIES else name
+
+
+def _and(names: list[str]) -> str:
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
 
 
 def letter(c: Content, source: str) -> list[Block]:
@@ -341,54 +557,19 @@ def letter(c: Content, source: str) -> list[Block]:
         Heading(HEADLINE),
         Para(
             (
-                "Rankless profile explores the countries, institutions, and journals that cite your work.",
-            )
-        ),
-        Button("Visit your profile", c.profile),
-        Image(c.tree_card, f"Papers by {c.name}, by journal"),
-        Para(
-            (
-                "Rankless is an open data visualization project developed by scholars like you.",
-            )
-        ),
-        Para(
-            (
-                "It promotes a broader view of impact, by putting publication and citations in a rich geographic and topical context.",
-            )
-        ),
-        Para(
-            (
-                "Rankless visualizations are built on OpenAlex, a public and open scholarly data set managed by a non-profit organization and built as a successor to Microsoft Academic Graph.",
+                "Rankless maps who cites your work: from which countries, fields and journals, across every paper in OpenAlex. This is what stands out in yours.",
             )
         ),
     ]
-    if c.map_card:
-        blocks += [
-            Para(
-                (
-                    "According to these records, your work is cited primarily by scholars in",
-                )
-            ),
-            Items(c.countries),
-            Image(c.map_card, f"Countries citing papers by {c.name}"),
-        ]
-    if c.peers_card:
-        blocks += [
-            Para(
-                ("Your academic peers (based on similarity of impact) are",),
-            ),
-            Items(c.peers),
-            Image(c.peers_card, f"{c.name} compared with academic peers"),
-        ]
-    if c.network_card:
-        blocks += [
-            Para(
-                ("And your co-authorship history includes several collaborations with",)
-            ),
-            Items(c.coauthors),
-            Image(c.network_card, f"Co-authors of {c.name}"),
-        ]
+    for f in c.facts:
+        blocks += [Para(f.parts), Image(f.card, f.alt)]
     return blocks + [
+        Button("Visit your profile", c.profile),
+        Para(
+            (
+                "Rankless is an open data visualization project developed by scholars like you, built on OpenAlex, a public and open scholarly data set managed by a non-profit organization.",
+            )
+        ),
         Para(
             (
                 "If you want to manage your Rankless profile, ",
@@ -460,16 +641,11 @@ def to_html(blocks: list[Block]) -> str:
                 f'<p style="margin:18px 0"><a href="{html.escape(b.href)}" style="background:{CARD_STYLE["accent"]};color:#fff;'
                 f'padding:12px 22px;border-radius:4px;text-decoration:none;font-weight:bold;display:inline-block">{html.escape(b.text)}</a></p>'
             )
-        elif isinstance(b, Image):
+        else:
             out.append(
                 f'<p style="margin:0 0 18px"><img src="{html.escape(b.src)}" alt="{html.escape(b.alt)}" width="{IMAGE_W}" height="{IMAGE_H}"'
                 ' style="display:block;max-width:100%;height:auto;border:1px solid #e4e4e4"></p>'
             )
-        else:
-            rows = "".join(
-                f'<li style="margin:0 0 4px">{html.escape(i)}</li>' for i in b.items
-            )
-            out.append(f'<ul style="margin:0 0 14px;font-size:15px">{rows}</ul>')
     body = "\n".join(out)
     return (
         f'<!doctype html>\n<html><head><meta charset="utf-8"><title>{html.escape(HEADLINE)}</title></head>\n'
@@ -488,8 +664,6 @@ def to_text(blocks: list[Block]) -> str:
             out.append(b.text)
         elif isinstance(b, Button):
             out.append(f"{b.text}: {b.href}")
-        elif isinstance(b, Items):
-            out.append("\n".join(f"- {i}" for i in b.items))
     return "\n\n".join(out) + "\n"
 
 
@@ -505,21 +679,22 @@ def message(c: Content, r: Recipient) -> EmailMessage:
 
 
 def cards(c: Content) -> list[str]:
-    return [u for u in (c.tree_card, c.map_card, c.peers_card, c.network_card) if u]
+    return [f.card for f in c.facts]
 
 
 async def _contents(rows: list[Recipient]) -> list[Content]:
     gate = asyncio.Semaphore(FETCHES_IN_FLIGHT)
 
-    async def one(r: Recipient) -> Content:
+    async def one(r: Recipient, ladder: LadderResp) -> Content:
         async with gate:
             try:
-                return await content(r.semantic_id)
+                return await content(r.semantic_id, ladder)
             except ValueError as exc:
                 raise SystemExit(f"{r.semantic_id}: {exc}") from exc
 
     try:
-        return await asyncio.gather(*(one(r) for r in rows))
+        ladder = await get_json(f"/ladder/{AUTHORS}")
+        return await asyncio.gather(*(one(r, ladder) for r in rows))
     finally:
         await aclose()
 
@@ -610,10 +785,6 @@ def send(
 ) -> None:
     """Send the batch's messages not sent before, at most DAILY_CAP a day, paced."""
     rows, name = read_batch(Path(batch)), Path(batch).stem
-    if (unworded := unworded_sources(rows)) and not dry_run:
-        raise SystemExit(
-            f"the footer sentence of source(s) {', '.join(unworded)} is still {PLACEHOLDER}"
-        )
     sendlog = SendLog(Path(log) if log else _outreach_dir() / SEND_LOG, dry_run)
     todo = [r for r in rows if not sendlog.has(r)]
     room = max(0, DAILY_CAP - sendlog.sent_within(DAY_HOURS))
