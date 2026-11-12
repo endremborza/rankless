@@ -58,7 +58,15 @@ _numeric: dict[str, set[str]] = {}
 MAX_RANK_LIMIT = 100
 MAX_PAPERS_LIMIT = 50
 ROW_INTERNALS = ("oaId", "dmId", "values")
-PAPER_FIELDS: Final = ("name", "year", "citations", "score", "isHit", "doi")
+PAPER_FIELDS: Final = (
+    "name",
+    "year",
+    "citations",
+    "score",
+    "isHit",
+    "doi",
+    "authorCount",
+)
 
 # The two table tools' descriptions are built from the backend's metric registry (`/v1/columns`)
 # by `describe()` before the server registers them, so the metric ids, meanings, value types,
@@ -273,7 +281,7 @@ async def get_papers(
     sort="citations" ranks by citation count first.
 
     Each paper has its title, year, citations, `score` (its paper score, see
-    get_methodology) and `isHit`. A hit paper links to its rankless page
+    get_methodology), `isHit` and `authorCount`. A hit paper links to its rankless page
     (`rankless_url`, `semanticId` for the hit-papers tools); any other paper
     links to OpenAlex (`openalex_url`). For an author with hit papers among
     the rows `image_url` is the card of their hit papers, and a hit row's own
