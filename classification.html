@@ -237,7 +237,7 @@
 
 <section>
 <h2>Hard rules</h2>
-<p class="hint">Any of these &rarr; <code class="cls-bot_known">bot_known</code>. Rates over 24,147,957 sessions.</p>
+<p class="hint">Any of these &rarr; <code class="cls-bot_known">bot_known</code>. Rates over 24,297,000 sessions.</p>
 <ul class="rules">
   <li>
     <code>empty_ua</code> &mdash; User-Agent header missing or empty.
@@ -245,7 +245,7 @@
   </li>
   <li>
     <code>bot_ua</code> &mdash; User-Agent matches a known bot/crawler/script family.
-      <span class="rate">2.59%</span>
+      <span class="rate">2.60%</span>
   </li>
   <li>
     <code>robots_or_sitemap</code> &mdash; Hit a bot-only route: /robots.txt, /sitemap*.xml.
@@ -300,7 +300,7 @@
       </td>
       <td><code>referrer_present</code></td>
       <td>At least one request carries a non-empty Referer.</td>
-      <td>26.88%</td>
+      <td>26.86%</td>
     </tr>
     <tr>
       <td class="neg">
@@ -320,14 +320,14 @@
   Sessions that reached soft scoring (no hard rule fired). Dotted lines mark the
   <code class="cls-human_likely">human_likely</code> / <code class="cls-bot_likely">bot_likely</code> thresholds.
 </p>
-<div id="score-dist" style="height:260px"></div><script>Plotly.newPlot("score-dist", {"data": [{"x": [-2, -1, 0, 1, 2, 3, 4, 5, 6], "y": [81333, 17053879, 3733974, 1203, 2449152, 136, 178709, 12, 2258], "type": "bar", "marker": {"color": "#89b4fa"}, "name": "sessions"}], "layout": {"margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}, "xaxis": {"title": "soft score", "dtick": 1}, "yaxis": {"title": "sessions"}, "shapes": [{"type": "line", "y0": 0, "y1": 1, "yref": "paper", "x0": 2.5, "x1": 2.5, "line": {"color": "#a6e3a1", "dash": "dot", "width": 1.5}}, {"type": "line", "y0": 0, "y1": 1, "yref": "paper", "x0": 0.5, "x1": 0.5, "line": {"color": "#f38ba8", "dash": "dot", "width": 1.5}}]}, "config": {"displaylogo": false, "responsive": true}});</script>
+<div id="score-dist" style="height:260px"></div><script>Plotly.newPlot("score-dist", {"data": [{"x": [-2, -1, 0, 1, 2, 3, 4, 5, 6], "y": [81796, 17162193, 3753404, 1211, 2461436, 136, 180799, 12, 2278], "type": "bar", "marker": {"color": "#89b4fa"}, "name": "sessions"}], "layout": {"margin": {"l": 40, "r": 20, "t": 30, "b": 40}, "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"color": "#cdd6f4", "size": 12}, "xaxis": {"title": "soft score", "dtick": 1}, "yaxis": {"title": "sessions"}, "shapes": [{"type": "line", "y0": 0, "y1": 1, "yref": "paper", "x0": 2.5, "x1": 2.5, "line": {"color": "#a6e3a1", "dash": "dot", "width": 1.5}}, {"type": "line", "y0": 0, "y1": 1, "yref": "paper", "x0": 0.5, "x1": 0.5, "line": {"color": "#f38ba8", "dash": "dot", "width": 1.5}}]}, "config": {"displaylogo": false, "responsive": true}});</script>
 </section>
 
 </main>
 <footer>
-  <span>Rendered 2026-11-12T15:11:28+00:00</span>
-  <span>Last pull: 2026-11-12T15:11:28+00:00</span>
-  <span>Last event: 2026-11-12 15:10:52.571000+00:00</span>
+  <span>Rendered 2026-11-12T19:11:34+00:00</span>
+  <span>Last pull: 2026-11-12T19:11:34+00:00</span>
+  <span>Last event: 2026-11-12 19:10:52.755000+00:00</span>
 </footer>
 </body>
 </html>
