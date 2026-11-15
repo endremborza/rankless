@@ -65,6 +65,6 @@ export async function loadFlatOut(
 		treeSpec,
 		hl,
 		subject: `this ${LEVEL_WORD[rootType]}`,
-		since: tf.hasYearFilter(rootType) ? ` since ${year}` : ''
+		since: tf.captionsYear(rootType, year) ? ` since ${year}` : ''
 	};
 }

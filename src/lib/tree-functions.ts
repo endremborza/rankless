@@ -229,6 +229,11 @@ export function hasYearFilter(rt: tt.RootType): boolean {
 	return rt !== 'hit-papers';
 }
 
+// A caption names its year only when it leaves out part of the record.
+export function captionsYear(rt: tt.RootType, year: number): boolean {
+	return hasYearFilter(rt) && year > TREE_SPECS.yearBreaks[0];
+}
+
 function nodeToConfStr(node: tt.BareNode): string {
 	const l1cs = [];
 	const l2cs = [];

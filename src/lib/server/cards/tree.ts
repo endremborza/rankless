@@ -58,7 +58,7 @@ function treeCaption(rootType: tt.RootType, treeSpec: TreeSpec, year: number): s
 	const levels = treeSpec.breakdowns
 		.map((b) => (isEntityType(b.attributeType) ? LEVEL_WORD[b.attributeType] : b.attributeType))
 		.join(' › ');
-	const since = tf.hasYearFilter(rootType) ? ` of papers since ${year}` : '';
+	const since = tf.captionsYear(rootType, year) ? ` of papers since ${year}` : '';
 	const sizing = treeSpec.defaultIsSpec ? 'specialization' : 'citation count';
 	return `Citations${since} by ${levels} · bands sized by ${sizing}`;
 }

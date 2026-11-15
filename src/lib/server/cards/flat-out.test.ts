@@ -1,4 +1,4 @@
-import { METHODOLOGY } from '$lib/wire/rankless_server/responses';
+import { METHODOLOGY, TREE_SPECS } from '$lib/wire/rankless_server/responses';
 import type { AttributeLabels } from '$lib/wire/rankless_trees/io';
 import { describe, expect, it } from 'vitest';
 import type { ResponseNode } from '$lib/tree-types';
@@ -44,6 +44,10 @@ describe('map and fields cards', () => {
 	it('take a `since` up to the final year of the data', async () => {
 		expect((await load(`since=${finalYear}`)).since).toBe(` since ${finalYear}`);
 		await expect(load(`since=${finalYear + 1}`)).rejects.toMatchObject({ status: 404 });
+	});
+
+	it('leave the year out of the caption when the card covers the whole record', async () => {
+		expect((await load(`since=${TREE_SPECS.yearBreaks[0]}`)).since).toBe('');
 	});
 });
 
