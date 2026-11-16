@@ -1,3 +1,15 @@
+<script lang="ts">
+	import { SESSION_TTL_DAYS } from '$lib/constants';
+	import { EMAIL_PURPOSES, PRIVACY_NOTICE_DATE } from '$lib/types/email-consent';
+
+	const noticeDate = new Date(PRIVACY_NOTICE_DATE).toLocaleDateString('en-GB', {
+		day: 'numeric',
+		month: 'long',
+		year: 'numeric',
+		timeZone: 'UTC'
+	});
+</script>
+
 <svelte:head>
 	<title>Privacy — Rankless</title>
 	<meta
@@ -10,7 +22,7 @@
 	<div class="prose">
 		<h1>Data Processing Notice</h1>
 		<p class="subtitle">in connection with the use of the Rankless data visualization project</p>
-		<p class="updated">Last updated 1 July 2026</p>
+		<p class="updated">Last updated {noticeDate}</p>
 
 		<h2>Name of the data controller</h2>
 		<ul class="contact">
@@ -45,7 +57,8 @@
 		<h2>Subject of data processing, data subjects</h2>
 		<p>
 			Through its own data visualization project, Rankless, CCL aims to allow users to edit their
-			own profiles, using their ORCID identifiers for this purpose.
+			own profiles, using their ORCID identifiers for this purpose. Signed-in users can also ask to
+			be emailed updates.
 		</p>
 		<p>
 			By clicking the “Register/Log In” button on the Rankless page, the user is redirected to the
@@ -66,7 +79,8 @@
 		<p>
 			This notice sets out the relevant circumstances of the processing of data in accordance with
 			Articles 13 and 14 of the GDPR — Article 13 for data you provide directly (such as through
-			ORCID sign-in or the survey) and Article 14 for publication data obtained from OpenAlex.
+			ORCID sign-in, the survey or your email preferences) and Article 14 for publication data
+			obtained from OpenAlex and for email addresses obtained from ORCID's public data file.
 		</p>
 
 		<h2>Access to and data transfer</h2>
@@ -84,18 +98,21 @@
 		<p>
 			CORVINUS uses Amazon Web Services (AWS) as a data processor to host the Rankless platform and
 			store its data. This processing is governed by the AWS Data Processing Addendum, which
-			incorporates the EU Standard Contractual Clauses. No other data processor is used.
+			incorporates the EU Standard Contractual Clauses. Emails are sent through the University's
+			Microsoft 365 email service, for which Microsoft acts as data processor under the University's
+			agreement with it. No other data processor is used.
 		</p>
 
 		<h2>Data security measures</h2>
 		<p>
 			The University stores personal data on servers it operates on Amazon Web Services (AWS), its
-			hosting provider, located in the Frankfurt (eu-central-1) region. The University does not use
-			any other company to store the data. The University will take appropriate measures to ensure
-			that personal data is protected against, inter alia, unauthorised access, and to ensure the
-			continued confidentiality, integrity, availability and resilience of the systems and services
-			used to process personal data, and the ability to restore access to and availability of
-			personal data in the event of a physical or technical incident and in a timely manner.
+			hosting provider, located in the Frankfurt (eu-central-1) region. Apart from the email service
+			named above, the University does not use any other company to store the data. The University
+			will take appropriate measures to ensure that personal data is protected against, inter alia,
+			unauthorised access, and to ensure the continued confidentiality, integrity, availability and
+			resilience of the systems and services used to process personal data, and the ability to
+			restore access to and availability of personal data in the event of a physical or technical
+			incident and in a timely manner.
 		</p>
 
 		<h2>Rights relating to data processing</h2>
@@ -170,19 +187,32 @@
 			You do not need to sign in with ORCID to object or to request removal.
 		</p>
 
+		<h3>The one-time email about your profile</h3>
+		<p>
+			If your ORCID record makes an email address public, we may write to that address once, to tell
+			you about your Rankless profile and how to correct it. We take the address from ORCID's annual
+			public data file, which holds only what researchers have chosen to make public on their ORCID
+			records, and match it to your profile through your ORCID iD. The legal basis is our legitimate
+			interest in letting researchers know about, and correct, the profile we show of them (GDPR
+			Art. 6(1)(f)). This email is not a subscription: we do not write again unless you sign up for
+			email updates below. We keep a record of the address we wrote to, the profile it was about and
+			when, so that we never write to you twice. You may object to this processing at any time,
+			without signing in, using the contact details above.
+		</p>
+
 		<h3>Signing in with ORCID</h3>
 		<p>
-			Logging in is optional, and only needed if you want to take ownership of a profile. We use
-			ORCID's <code>/authenticate</code> scope — the minimum that confirms who you are. From ORCID
-			we receive and store only your <strong>ORCID iD</strong> and <strong>name</strong>. We do not
-			request or store your email, your ORCID password, or any other part of your ORCID record, and
-			we keep no ORCID access or refresh tokens.
+			Logging in is optional, and only needed if you want to take ownership of a profile or get
+			email updates. We use ORCID's <code>/authenticate</code> scope — the minimum that confirms who
+			you are. At sign-in we receive and store only your <strong>ORCID iD</strong> and
+			<strong>name</strong>. We never receive your ORCID password, and we keep no ORCID access or
+			refresh tokens.
 		</p>
 		<p>When you sign in, this information is used to:</p>
 		<ul>
 			<li>
-				keep you logged in, via a session cookie that holds your ORCID iD and name and expires after
-				one day;
+				keep you logged in, via a session cookie that points to a record of your ORCID iD and name
+				on our server and expires after {SESSION_TTL_DAYS} days;
 			</li>
 			<li>record that your ORCID iD has signed in, so we can link you to the profile you own;</li>
 			<li>attribute the corrections you make to your name on the public ledger described below.</li>
@@ -190,6 +220,27 @@
 		<p>
 			The legal basis for this processing is performance of the service you ask for when you choose
 			to sign in (GDPR Art. 6(1)(b)).
+		</p>
+
+		<h3>Email updates</h3>
+		<p>
+			Rankless emails you only if you ask it to. Signed in, you can tick, on your own profile or on
+			the <a href="/email-preferences">email preferences</a> page, which emails you want:
+		</p>
+		<ul>
+			{#each EMAIL_PURPOSES as p, i (i)}<li>“{p.label}”</li>{/each}
+		</ul>
+		<p>
+			To fill in the address field, we look up the email address your ORCID record makes public, if
+			there is one; you can change it. We store an address only once you tick a box. With it we
+			store the kinds of email you ticked, when, and the date of this notice, linked to your ORCID
+			iD, and we use the address only to send what you ticked. The legal basis is your consent (GDPR
+			Art. 6(1)(a)).
+		</p>
+		<p>
+			You can withdraw at any time by unticking the boxes; each email we send links back to your
+			email preferences. Every change is kept as a new record, so that we can show what you agreed
+			to and when.
 		</p>
 
 		<h3>The public ledger</h3>
@@ -225,8 +276,8 @@
 		<h3>Cookies</h3>
 		<ul>
 			<li>
-				<strong>session</strong> — strictly necessary; keeps you logged in for one day. Set only after
-				you sign in.
+				<strong>session</strong> — strictly necessary; keeps you logged in for {SESSION_TTL_DAYS} days.
+				Set only after you sign in.
 			</li>
 			<li>
 				<strong>survey preference cookies</strong> — remember that you answered or dismissed the survey,
@@ -240,7 +291,7 @@
 
 		<h3>Retention</h3>
 		<ul>
-			<li>The session cookie expires after one day.</li>
+			<li>The session cookie expires after {SESSION_TTL_DAYS} days.</li>
 			<li>Ledger edits are kept until you revoke them.</li>
 			<li>
 				Raw server access logs, which contain full IP addresses, are retained for 30 days and then
@@ -248,7 +299,13 @@
 				measurement.
 			</li>
 			<li>
-				The record that your ORCID iD signed in, and any survey responses, are kept until you ask us
+				Your email address and choices are kept while you are subscribed. After you withdraw, we
+				stop emailing you and keep the record of what you agreed to, and when, as proof of your
+				consent.
+			</li>
+			<li>
+				The record that your ORCID iD signed in, any survey responses, the record of your email
+				consent, and the record of the one-time email about your profile are kept until you ask us
 				to delete them, which you can request using the contact details above.
 			</li>
 		</ul>

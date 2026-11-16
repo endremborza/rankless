@@ -36,6 +36,7 @@
 	import AllWorks from '$lib/components/AllWorks.svelte';
 	import AuthorOwnerTools from '$lib/components/AuthorOwnerTools.svelte';
 	import AuthorLedgerPanel from '$lib/components/AuthorLedgerPanel.svelte';
+	import EmailPreferences from '$lib/components/EmailPreferences.svelte';
 	import { createWorksLoader } from '$lib/utils/works-loader';
 	import { createStaleGuard } from '$lib/utils/stale-guard';
 	import type { LedgerEvent } from '$lib/types/ledger';
@@ -221,6 +222,7 @@
 		{abstractLoading}
 	/>
 	<ProfileDisclaimer text={data.disclaimer} />
+	{#if data.isOwner}<EmailPreferences />{/if}
 </section>
 
 <Toc sections={tocSections} />

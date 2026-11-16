@@ -1,26 +1,12 @@
-// Opt-in email consent shared between the consent form, the consent API, the DB
-// layer, and the admin view. CONSENT_VERSION is stored with each grant so we have a
-// record of which version of the privacy notice the user agreed to; bump it whenever
-// the email section of /privacy materially changes.
+// Opt-in email consent shared between the email block, the consent API, the DB layer, the
+// admin view and /privacy. Each grant stores PRIVACY_NOTICE_DATE as its consent version, so
+// it records which notice the user agreed to; bump it whenever /privacy materially changes.
 
-export const CONSENT_VERSION = '2026-07-01';
+export const PRIVACY_NOTICE_DATE = '2026-11-15';
 
 export const EMAIL_PURPOSES = [
-	{
-		key: 'profile_changes',
-		label: 'Profile change updates',
-		blurb: 'Tell me when the profile corrections I requested are applied.'
-	},
-	{
-		key: 'product_updates',
-		label: 'Product updates',
-		blurb: 'Occasional news about new Rankless features.'
-	},
-	{
-		key: 'research',
-		label: 'Research invitations',
-		blurb: 'Invitations to take part in research or short surveys.'
-	}
+	{ key: 'product_updates', label: 'when a new feature lands' },
+	{ key: 'profile_changes', label: 'when a data update affects my profile' }
 ] as const;
 
 export type EmailPurposeKey = (typeof EMAIL_PURPOSES)[number]['key'];
@@ -32,6 +18,12 @@ export type EmailConsent = {
 	purposes: EmailPurposeKey[];
 	consent_version: string;
 	granted_at: string;
+};
+
+// What the email block shows: the consented address, or else the public ORCID one.
+export type EmailSettings = {
+	email: string;
+	purposes: EmailPurposeKey[];
 };
 
 // Intentionally permissive single-line shape check — real validity is proven by the

@@ -6,9 +6,7 @@ import { MAX_SLICE, PORT } from '$lib/wire/rankless_server/consts';
 export const APP_NAME = 'Rankless';
 
 // Feature switches: `dev` keeps a feature dev-only, `true` releases it. A switched-off
-// feature stays reachable at its URLs but is linked from nowhere; email also closes its
-// consent API and preferences page.
-export const EMAIL_FEATURE_ON = true;
+// feature stays reachable at its URLs but is linked from nowhere.
 export const GAME_FEATURE_ON = dev;
 export const MCP_FEATURE_ON = dev;
 

@@ -22,12 +22,13 @@ describe('isValidEmail', () => {
 
 describe('sanitizePurposes', () => {
 	it('keeps only known keys, in canonical order, deduped', () => {
-		const out = sanitizePurposes(['research', 'bogus', 'profile_changes', 'research']);
-		expect(out).toEqual(['profile_changes', 'research']);
+		const [first, second] = EMAIL_PURPOSE_KEYS;
+		const out = sanitizePurposes([second, 'bogus', first, second]);
+		expect(out).toEqual([first, second]);
 	});
 
 	it('returns [] for non-array input', () => {
-		expect(sanitizePurposes('research')).toEqual([]);
+		expect(sanitizePurposes(EMAIL_PURPOSE_KEYS[0])).toEqual([]);
 		expect(sanitizePurposes(null)).toEqual([]);
 		expect(sanitizePurposes(undefined)).toEqual([]);
 	});

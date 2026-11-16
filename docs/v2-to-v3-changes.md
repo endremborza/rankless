@@ -24,6 +24,8 @@ subject so submissions can be verified); pending actions can be edited or cancel
 applied ones revoked on the next data refresh. Disowns and paper-merges apply automatically;
 claims and author-merges are queued for moderation.
 
+Signed in, researchers can also opt in to email updates, on their own profile or the email preferences page: a box per kind of email (`EMAIL_PURPOSES`), the address prefilled from their public ORCID email, and unticking every box withdraws.
+
 ## 2. Peers comparison — NEW
 
 Every institution, country, journal, and author is now placed against algorithmically
