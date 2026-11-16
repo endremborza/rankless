@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pluckCrossref, pluckOpenAlex, pluckOrcid } from './enrich';
+import { pluckCrossref, pluckOpenAlex, pluckOrcid, pluckOrcidEmail } from './enrich';
 
 const crossrefJson = {
 	message: {
@@ -110,5 +110,16 @@ describe('pluckOrcid', () => {
 
 	it('yields null name when the record has none', () => {
 		expect(pluckOrcid({}, {}).name).toBeNull();
+	});
+});
+
+describe('pluckOrcidEmail', () => {
+	it('prefers the primary address, else the first, else none', () => {
+		const other = { email: 'b@example.org', primary: false };
+		const primary = { email: 'a@example.org', primary: true };
+		expect(pluckOrcidEmail({ email: [other, primary] })).toBe(primary.email);
+		expect(pluckOrcidEmail({ email: [other] })).toBe(other.email);
+		expect(pluckOrcidEmail({ email: [] })).toBe('');
+		expect(pluckOrcidEmail({})).toBe('');
 	});
 });

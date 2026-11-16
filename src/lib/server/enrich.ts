@@ -15,6 +15,8 @@ import type {
 
 const ORCID_WORKS_CAP = 500;
 const ORCID_TITLES_CAP = 50;
+const ORCID_PUBLIC_API = 'https://pub.orcid.org/v3.0';
+const ORCID_ACCEPT = { Accept: 'application/json' };
 
 export type Pair = { source: EnrichmentSource; key: string };
 export type FetchResult = {
@@ -100,7 +102,18 @@ export function pluckOrcid(recordJson: unknown, worksJson: unknown): OrcidRecord
 	return { name, work_dois: [...dois], work_titles: titles, n_works: groups.length };
 }
 
+// The address an ORCID record's email section makes public, the primary first; '' when none.
+export function pluckOrcidEmail(json: unknown): string {
+	const emails = (json as { email?: { email: string; primary: boolean }[] }).email ?? [];
+	return (emails.find((e) => e.primary) ?? emails[0])?.email ?? '';
+}
+
 // --- fetchers --- //
+
+export async function fetchPublicOrcidEmail(orcid: string): Promise<string> {
+	const json = await getJson(`${ORCID_PUBLIC_API}/${orcid}/email`, ORCID_ACCEPT);
+	return json === 'not_found' ? '' : pluckOrcidEmail(json);
+}
 
 export async function fetchPair(pair: Pair, mailto: string | undefined): Promise<FetchResult> {
 	const headers: Record<string, string> = mailto
@@ -127,10 +140,10 @@ export async function fetchPair(pair: Pair, mailto: string | undefined): Promise
 				: { status: 'ok', data: pluckOpenAlex(json) };
 		}
 		case 'orcid': {
-			const accept = { ...headers, Accept: 'application/json' };
-			const record = await getJson(`https://pub.orcid.org/v3.0/${pair.key}/record`, accept);
+			const accept = { ...headers, ...ORCID_ACCEPT };
+			const record = await getJson(`${ORCID_PUBLIC_API}/${pair.key}/record`, accept);
 			if (record === 'not_found') return { status: 'not_found', data: null };
-			const works = await getJson(`https://pub.orcid.org/v3.0/${pair.key}/works`, accept);
+			const works = await getJson(`${ORCID_PUBLIC_API}/${pair.key}/works`, accept);
 			return { status: 'ok', data: pluckOrcid(record, works === 'not_found' ? {} : works) };
 		}
 	}

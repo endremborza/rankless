@@ -344,7 +344,7 @@ the only viz dependency).
 | `lib/server/survey-cookie.ts` | `setSurveyCookie`: marks the survey answered or dismissed so the visitor is not prompted again, shared by `api/survey/` and its `reject/` |
 | `lib/server/id_resolver.ts` | Resolves UI entity refs to stable-ID payload blocks |
 | `lib/server/ledger-hash.ts` | `subject_hash` computation for ledger dedup |
-| `lib/server/enrich.ts` | Pure fetch+pluck of Crossref/OpenAlex work + ORCID person records (the app's only external-metadata fetcher) |
+| `lib/server/enrich.ts` | Pure fetch+pluck of Crossref/OpenAlex work + ORCID person records and the public email an ORCID record shows (the app's only external-metadata fetcher) |
 | `lib/server/review.ts` | Pure review-domain logic: DOI/ORCID canonicalization, hard-evidence rule, verdict picking, `AdminReviewRow` composition |
 | `lib/server/review-data.ts` | DB glue: `runEnrichment` (chunked cache fill + auto-accept), `loadReviewQueuePage` |
 | `lib/utils/reference-format.ts` | Academic reference formatting (APA/MLA/Chicago, BibTeX) |
