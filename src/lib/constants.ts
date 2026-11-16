@@ -63,3 +63,5 @@ export const MAX_LEVEL_COUNT = 4;
 export const ORCID_REDIRECT_URI = `${PUBLIC_ORIGIN}/callback`;
 export const ORCID_AUTH_URL = 'https://orcid.org/oauth/authorize';
 export const ORCID_TOKEN_URL = 'https://orcid.org/oauth/token';
+
+export const SESSION_TTL_DAYS = 365;

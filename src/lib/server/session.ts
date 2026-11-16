@@ -1,9 +1,10 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { randomBytes } from 'crypto';
 import { SessionDb } from '$lib/server/db';
+import { SESSION_TTL_DAYS } from '$lib/constants';
 
 const COOKIE_NAME = 'session';
-const SESSION_TTL_S = 60 * 60 * 24 * 365; // 1 year
+const SESSION_TTL_S = 60 * 60 * 24 * SESSION_TTL_DAYS;
 
 const COOKIE_OPTS = {
 	path: '/',
