@@ -99,7 +99,7 @@
 </script>
 
 <fieldset class="email-prefs" disabled={!loaded}>
-	<legend>Email me</legend>
+	<legend>Email me about</legend>
 	{#each EMAIL_PURPOSES as p, i (i)}
 		<label class="purpose">
 			<input type="checkbox" checked={purposes.has(p.key)} on:change={(e) => toggle(e, p.key)} />

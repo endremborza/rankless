@@ -5,8 +5,8 @@
 export const PRIVACY_NOTICE_DATE = '2026-11-15';
 
 export const EMAIL_PURPOSES = [
-	{ key: 'product_updates', label: 'when a new feature lands' },
-	{ key: 'profile_changes', label: 'when a data update affects my profile' }
+	{ key: 'product_updates', label: 'New features' },
+	{ key: 'profile_changes', label: 'Changes to my profile' }
 ] as const;
 
 export type EmailPurposeKey = (typeof EMAIL_PURPOSES)[number]['key'];
