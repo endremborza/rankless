@@ -614,6 +614,13 @@ pub fn oa_id_parse(id: &str) -> BigId {
     oa_id_parse_opt(id).expect(id)
 }
 
+/// `<letter><digits>`, the id as the static CSVs write it → the digits; panics on anything else.
+pub fn short_oa_id_parse(id: &str) -> BigId {
+    id.get(1..)
+        .and_then(|digits| digits.parse().ok())
+        .unwrap_or_else(|| panic!("malformed OpenAlex id: {id}"))
+}
+
 pub fn field_id_parse(id: &str) -> u64 {
     id.split("/").last().unwrap().parse::<u64>().expect(id)
 }

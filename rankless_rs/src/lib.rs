@@ -16,6 +16,7 @@ pub mod gen;
 pub mod ladder;
 pub mod metrics;
 mod oa_structs;
+pub mod peer_sets;
 pub mod peers;
 mod semantic_ids;
 pub mod steps;

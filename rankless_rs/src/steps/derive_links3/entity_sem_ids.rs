@@ -4,7 +4,9 @@ use dmove::{
 };
 
 use crate::{
-    common::{MainEntity, MainWorkMarker, NameExtensionMarker, NameMarker, EXT_SEP},
+    common::{
+        short_oa_id_parse, MainEntity, MainWorkMarker, NameExtensionMarker, NameMarker, EXT_SEP,
+    },
     gen::{
         a1_entity_mapping::{Countries, Works},
         a2_init_atts::{CountryCodes, CountryCodesThree},
@@ -91,10 +93,7 @@ where
             else {
                 panic!("malformed semantic id pin: {line}");
             };
-            let oa_id = oa_id[1..]
-                .parse()
-                .unwrap_or_else(|_| panic!("malformed OpenAlex id: {oa_id}"));
-            (etype == E::NAME).then_some((oa_id, sem_id))
+            (etype == E::NAME).then_some((short_oa_id_parse(oa_id), sem_id))
         })
         .collect();
     if pins.is_empty() {

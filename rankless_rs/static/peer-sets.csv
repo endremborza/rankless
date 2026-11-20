@@ -1,0 +1,335 @@
+set,openalex_id,name
+business-schools,I163245316,Corvinus University of Budapest
+business-schools,I71209653,Bocconi University
+business-schools,I180519160,Copenhagen Business School
+business-schools,I102248843,Vienna University of Economics and Business
+business-schools,I83860666,HEC Paris
+business-schools,I102272798,INSEAD
+business-schools,I61544103,London Business School
+business-schools,I180242103,Stockholm School of Economics
+business-schools,I124261006,École Supérieure des Sciences Économiques et Commerciales
+business-schools,I202963720,University of St.Gallen
+business-schools,I931913249,Norwegian School of Economics
+business-schools,I181046868,BI Norwegian Business School
+business-schools,I108192572,HEC Montréal
+business-schools,I4405253577,IESE Business School
+business-schools,I125068653,IE University
+business-schools,I84340266,WHU – Otto Beisheim School of Management
+business-schools,I56441308,Libera Università Internazionale degli Studi Sociali Guido Carli
+business-schools,I96062909,Babson College
+business-schools,I139924743,Bentley University
+business-schools,I79891267,Singapore Management University
+business-schools,I90326151,Ecole des Hautes Etudes Commerciales du Nord
+business-schools,I71675930,Frankfurt School of Finance & Management
+business-schools,I5085271,Hanken School of Economics
+business-schools,I18193975,SGH Warsaw School of Economics
+business-schools,I88491126,Bucharest University of Economic Studies
+business-schools,I64935225,Bratislava University of Economics and Business
+business-schools,I12379730,Poznań University of Economics and Business
+business-schools,I23574469,Krakow University of Economics
+business-schools,I111398093,Kozminski University
+business-schools,I4387155155,Esade
+business-schools,I35913352,Prague University of Economics and Business
+social-science-schools,I909854389,London School of Economics and Political Science
+social-science-schools,I205092303,Institut d'Etudes Politiques de Paris
+social-science-schools,I198945027,Central European University
+social-science-schools,I874792244,European University Institute
+social-science-schools,I24830596,Hertie School
+social-science-schools,I951315,Graduate Institute of International and Development Studies
+social-science-schools,I102179633,The New School
+social-science-schools,I31575130,SOAS University of London
+social-science-schools,I4210092408,Toulouse School of Economics
+social-science-schools,I57995698,Paris School of Economics
+social-science-schools,I90669466,École des hautes études en sciences sociales
+social-science-schools,I2801702882,WZB Berlin Social Science Center
+social-science-schools,I1330701686,Collegio Carlo Alberto
+social-science-schools,I42134832,Barcelona School of Economics
+social-science-schools,I193700539,Tilburg University
+social-science-schools,I177802217,University of Mannheim
+technical-universities,I35440088,ETH Zurich
+technical-universities,I5124864,École Polytechnique Fédérale de Lausanne
+technical-universities,I98358874,Delft University of Technology
+technical-universities,I62916508,Technical University of Munich
+technical-universities,I86987016,KTH Royal Institute of Technology
+technical-universities,I96673099,Technical University of Denmark
+technical-universities,I93860229,Politecnico di Milano
+technical-universities,I177477856,Politecnico di Torino
+technical-universities,I887968799,RWTH Aachen University
+technical-universities,I102335020,Karlsruhe Institute of Technology
+technical-universities,I145847075,TU Wien
+technical-universities,I66862912,Chalmers University of Technology
+technical-universities,I204778367,Norwegian University of Science and Technology
+technical-universities,I9927081,Aalto University
+technical-universities,I83019370,Eindhoven University of Technology
+technical-universities,I130701444,Georgia Institute of Technology
+technical-universities,I4577782,Technische Universität Berlin
+technical-universities,I78650965,Technische Universität Dresden
+technical-universities,I114531698,Tokyo Institute of Technology
+technical-universities,I157485424,Korea Advanced Institute of Science and Technology
+technical-universities,I174306211,Technion – Israel Institute of Technology
+technical-universities,I94624287,University of Twente
+technical-universities,I4092182,Graz University of Technology
+technical-universities,I9617848,Universitat Politècnica de Catalunya
+technical-universities,I88060688,Universidad Politécnica de Madrid
+technical-universities,I174458059,National Technical University of Athens
+technical-universities,I29770179,Budapest University of Technology and Economics
+technical-universities,I44504214,Czech Technical University in Prague
+technical-universities,I108403487,Warsaw University of Technology
+technical-universities,I686019,AGH University of Krakow
+technical-universities,I60587646,Brno University of Technology
+technical-universities,I110757952,Slovak University of Technology in Bratislava
+technical-universities,I61641377,Universitatea Națională de Știință și Tehnologie Politehnica București
+technical-universities,I11923345,Wrocław University of Science and Technology
+technical-universities,I169333911,Gdańsk University of Technology
+technical-universities,I183764125,Technical University of Košice
+technical-universities,I119004910,Silesian University of Technology
+technical-universities,I188884621,Lodz University of Technology
+technical-universities,I46597724,Poznań University of Technology
+technical-universities,I201787326,Riga Technical University
+technical-universities,I111112146,Tallinn University of Technology
+technical-universities,I172574986,Kaunas University of Technology
+technical-universities,I142208455,VSB - Technical University of Ostrava
+technical-universities,I9073902,University of Chemistry and Technology, Prague
+technical-universities,I158333966,Technical University of Cluj-Napoca
+technical-universities,I31151848,Technical University of Sofia
+medical-universities,I28166907,Karolinska Institutet
+medical-universities,I101202996,Semmelweis University
+medical-universities,I76134821,Medical University of Vienna
+medical-universities,I7877124,Charité – Universitätsmedizin Berlin
+medical-universities,I180670191,University of California, San Francisco
+medical-universities,I181547552,Baylor College of Medicine
+medical-universities,I202276237,Medical University of Graz
+medical-universities,I143397708,Innsbruck Medical University
+medical-universities,I268303160,Medical University of Warsaw
+medical-universities,I34809795,Medizinische Hochschule Hannover
+medical-universities,I98704320,Icahn School of Medicine at Mount Sinai
+medical-universities,I165690674,Oregon Health & Science University
+medical-universities,I867280407,The University of Texas Southwestern Medical Center
+medical-universities,I153297377,Medical University of South Carolina
+medical-universities,I125602781,Tokyo Medical and Dental University
+medical-universities,I75124487,Gdańsk Medical University
+medical-universities,I4210122071,Medical University of Lodz
+medical-universities,I120230055,Poznan University of Medical Sciences
+medical-universities,I183519381,Capital Medical University
+medical-universities,I49886154,Rush University
+medical-universities,I4387153466,Weill Cornell Medicine
+medical-universities,I2801952686,Erasmus MC
+medical-universities,I204308271,Medical College of Wisconsin
+medical-universities,I385303915,Wroclaw Medical University
+medical-universities,I166182418,Medical University of Silesia
+medical-universities,I121032520,Medical University of Lublin
+medical-universities,I152743029,Kaohsiung Medical University
+medical-universities,I70640408,Tehran University of Medical Sciences
+agricultural-universities,I913481162,Wageningen University & Research
+agricultural-universities,I298625061,Swedish University of Agricultural Sciences
+agricultural-universities,I92869138,BOKU University
+agricultural-universities,I205984670,Czech University of Life Sciences Prague
+agricultural-universities,I170230895,Warsaw University of Life Sciences
+agricultural-universities,I52158045,China Agricultural University
+agricultural-universities,I54108979,Norwegian University of Life Sciences
+agricultural-universities,I110079840,University of Hohenheim
+agricultural-universities,I19409027,Estonian University of Life Sciences
+agricultural-universities,I119454577,Nanjing Agricultural University
+agricultural-universities,I89652312,Northwest A&F University
+agricultural-universities,I204823248,Huazhong Agricultural University
+agricultural-universities,I55783418,Poznań University of Life Sciences
+agricultural-universities,I56081889,Mendel University in Brno
+agricultural-universities,I109954829,Agricultural University of Athens
+agricultural-universities,I1290523313,Magyar Agrár- és Élettudományi Egyetem
+agricultural-universities,I3019092743,University of Agriculture in Krakow
+agricultural-universities,I27912750,Wrocław University of Environmental and Life Sciences
+agricultural-universities,I128193699,Slovak University of Agriculture in Nitra
+liberal-arts-colleges,I22675022,Williams College
+liberal-arts-colleges,I177605424,Amherst College
+liberal-arts-colleges,I118020396,Swarthmore College
+liberal-arts-colleges,I189731429,Wellesley College
+liberal-arts-colleges,I177881444,Pomona College
+liberal-arts-colleges,I135474949,Bowdoin College
+liberal-arts-colleges,I188497080,Carleton College
+liberal-arts-colleges,I195575238,Middlebury College
+liberal-arts-colleges,I70571728,Oberlin College
+liberal-arts-colleges,I202524275,Smith College
+liberal-arts-colleges,I126820664,Vassar College
+liberal-arts-colleges,I155707491,Haverford College
+liberal-arts-colleges,I173288447,Grinnell College
+liberal-arts-colleges,I39660569,Colgate University
+liberal-arts-colleges,I141720752,Davidson College
+liberal-arts-colleges,I37415318,Bates College
+liberal-arts-colleges,I27504731,Colby College
+liberal-arts-colleges,I5444425,Macalester College
+liberal-arts-colleges,I188592606,Hamilton College
+liberal-arts-colleges,I102373834,Bryn Mawr College
+liberal-arts-colleges,I150693791,Mount Holyoke College
+liberal-arts-colleges,I55486353,Reed College
+liberal-arts-colleges,I133543626,Harvey Mudd College
+liberal-arts-colleges,I166972335,Kenyon College
+liberal-arts-colleges,I98540497,Barnard College
+liberal-arts-colleges,I100538780,Wesleyan University
+liberal-arts-colleges,I106107269,Claremont McKenna College
+liberal-arts-colleges,I72903472,Occidental College
+liberal-arts-colleges,I177328695,Union College
+liberal-arts-colleges,I184759092,Lafayette College
+us-research-universities,I136199984,Harvard University
+us-research-universities,I97018004,Stanford University
+us-research-universities,I32971472,Yale University
+us-research-universities,I20089843,Princeton University
+us-research-universities,I78577930,Columbia University
+us-research-universities,I40347166,University of Chicago
+us-research-universities,I79576946,University of Pennsylvania
+us-research-universities,I205783295,Cornell University
+us-research-universities,I170897317,Duke University
+us-research-universities,I111979921,Northwestern University
+us-research-universities,I145311948,Johns Hopkins University
+us-research-universities,I95457486,University of California, Berkeley
+us-research-universities,I161318765,University of California, Los Angeles
+us-research-universities,I27837315,University of Michigan
+us-research-universities,I63966007,Massachusetts Institute of Technology
+us-research-universities,I201448701,University of Washington
+us-research-universities,I135310074,University of Wisconsin–Madison
+us-research-universities,I36258959,University of California San Diego
+us-research-universities,I57206974,New York University
+us-research-universities,I157725225,University of Illinois Urbana-Champaign
+us-research-universities,I86519309,The University of Texas at Austin
+us-research-universities,I130238516,University of Minnesota
+us-research-universities,I114027177,University of North Carolina at Chapel Hill
+us-research-universities,I27804330,Brown University
+us-research-universities,I74973139,Carnegie Mellon University
+us-research-universities,I204465549,Washington University in St. Louis
+us-research-universities,I1174212,University of Southern California
+us-research-universities,I52357470,The Ohio State University
+us-research-universities,I130769515,Pennsylvania State University
+us-research-universities,I200719446,Vanderbilt University
+us-research-universities,I74775410,Rice University
+us-research-universities,I150468666,Emory University
+cee-comprehensive-universities,I106118109,Eötvös Loránd University
+cee-comprehensive-universities,I21250087,Charles University
+cee-comprehensive-universities,I4654613,University of Warsaw
+cee-comprehensive-universities,I126596746,Jagiellonian University
+cee-comprehensive-universities,I153976015,University of Ljubljana
+cee-comprehensive-universities,I181343428,University of Zagreb
+cee-comprehensive-universities,I4068193,University of Belgrade
+cee-comprehensive-universities,I227486990,University of Szeged
+cee-comprehensive-universities,I132735039,University of Debrecen
+cee-comprehensive-universities,I79741316,University of Pecs
+cee-comprehensive-universities,I21449261,Masaryk University
+cee-comprehensive-universities,I74788687,Comenius University Bratislava
+cee-comprehensive-universities,I3125347698,Babeș-Bolyai University
+cee-comprehensive-universities,I141595442,University of Bucharest
+cee-comprehensive-universities,I58918642,Sofia University "St. Kliment Ohridski"
+cee-comprehensive-universities,I56085075,University of Tartu
+cee-comprehensive-universities,I173212132,Vilnius University
+cee-comprehensive-universities,I91123046,University of Latvia
+cee-comprehensive-universities,I219388962,University of Wrocław
+cee-comprehensive-universities,I59411706,Adam Mickiewicz University in Poznań
+cee-comprehensive-universities,I70703428,Palacký University Olomouc
+cee-comprehensive-universities,I170726198,University of Novi Sad
+cee-comprehensive-universities,I3019271933,Nicolaus Copernicus University
+cee-comprehensive-universities,I34250744,University of Łódź
+cee-comprehensive-universities,I40413290,University of Gdańsk
+physics-labs,I67311998,European Organization for Nuclear Research
+physics-labs,I1314696892,Fermi National Accelerator Laboratory
+physics-labs,I2801935854,SLAC National Accelerator Laboratory
+physics-labs,I2801876189,Deutsches Elektronen-Synchrotron DESY
+physics-labs,I200870766,Brookhaven National Laboratory
+physics-labs,I138728355,High Energy Accelerator Research Organization
+physics-labs,I32699454,Joint Institute for Nuclear Research
+physics-labs,I169556180,GSI Helmholtz Centre for Heavy Ion Research
+physics-labs,I2802229908,Paul Scherrer Institute
+physics-labs,I1304378839,TRIUMF
+physics-labs,I29801172,Thomas Jefferson National Accelerator Facility
+physics-labs,I4210137180,Institute of High Energy Physics
+physics-labs,I1286704778,Rutherford Appleton Laboratory
+physics-labs,I160013858,Istituto Nazionale di Fisica Nucleare
+physics-labs,I4843557,Budker Institute of Nuclear Physics
+physics-labs,I4210142660,Istituto Nazionale di Fisica Nucleare, Laboratori Nazionali di Frascati
+physics-labs,I4210093566,National Institute for Subatomic Physics
+physics-labs,I4210126225,HUN-REN Wigner Research Centre for Physics
+physics-labs,I4210106918,Institute of Nuclear Physics, Polish Academy of Sciences
+pharma-companies,I180857899,Pfizer (United States)
+pharma-companies,I1283582996,Novartis (Switzerland)
+pharma-companies,I118019719,F. Hoffmann-La Roche AG
+pharma-companies,I1285764155,Merck & Co., Inc., Rahway, NJ, USA (United States)
+pharma-companies,I188950975,GlaxoSmithKline (United Kingdom)
+pharma-companies,I105036370,AstraZeneca (United Kingdom)
+pharma-companies,I3018075036,Sanofi (France)
+pharma-companies,I67348948,Bayer (Germany)
+pharma-companies,I1330063522,Johnson & Johnson (United States)
+pharma-companies,I168537998,Eli Lilly (United States)
+pharma-companies,I2948539688,AbbVie (United States)
+pharma-companies,I1320553840,Amgen (United States)
+pharma-companies,I183934855,Genentech
+pharma-companies,I189090001,Novo Nordisk (Denmark)
+pharma-companies,I4210091812,Bristol-Myers Squibb (United States)
+pharma-companies,I1330995197,Boehringer Ingelheim (Germany)
+pharma-companies,I4210140176,Takeda (United States)
+pharma-companies,I4210140816,Gilead Sciences (United States)
+pharma-companies,I186523950,Regeneron (United States)
+pharma-companies,I1297540436,Biogen (United States)
+pharma-companies,I4210151386,Janssen (United States)
+pharma-companies,I137982388,Janssen (Belgium)
+pharma-companies,I2808169635,Gedeon Richter (Hungary)
+pharma-companies,I61970326,Vertex Pharmaceuticals (United States)
+tech-companies,I1291425158,Google (United States)
+tech-companies,I1290206253,Microsoft (United States)
+tech-companies,I4210164937,Microsoft Research (United Kingdom)
+tech-companies,I4210113369,Microsoft Research Asia (China)
+tech-companies,I1341412227,IBM (United States)
+tech-companies,I4210114115,IBM Research - Thomas J. Watson Research Center
+tech-companies,I4210085935,IBM Research - Almaden
+tech-companies,I4210114444,Meta (United States)
+tech-companies,I1311688040,Amazon (United States)
+tech-companies,I4210153776,Apple (United States)
+tech-companies,I1343180700,Intel (United States)
+tech-companies,I2250650973,Samsung (South Korea)
+tech-companies,I2250955327,Huawei Technologies (China)
+tech-companies,I2250653659,Tencent (China)
+tech-companies,I45928872,Alibaba Group (China)
+tech-companies,I4210127875,Nvidia (United States)
+tech-companies,I98301712,Baidu (China)
+tech-companies,I1306409833,Adobe Systems (United States)
+tech-companies,I4210134091,Yahoo (United States)
+tech-companies,I72090969,Nokia (United States)
+tech-companies,I4210087596,Qualcomm (United States)
+tech-companies,I118347220,NEC (Japan)
+tech-companies,I2251713219,NTT (Japan)
+tech-companies,I4210090411,Google DeepMind (United Kingdom)
+tech-companies,I1324840837,Hewlett-Packard (United States)
+central-banks,I2802905149,Federal Reserve Board of Governors
+central-banks,I153515283,European Central Bank
+central-banks,I1310145890,International Monetary Fund
+central-banks,I1334329717,World Bank
+central-banks,I43638361,Federal Reserve Bank of New York
+central-banks,I103737770,Bank of Italy
+central-banks,I19990318,Federal Reserve Bank of San Francisco
+central-banks,I1341575764,Federal Reserve Bank of Minneapolis
+central-banks,I201298700,Banque de France
+central-banks,I96120398,De Nederlandsche Bank
+central-banks,I1317239608,Federal Reserve
+central-banks,I184564680,Inter-American Development Bank
+central-banks,I52989892,Bank for International Settlements
+central-banks,I46860202,Bank of England
+central-banks,I74623043,Deutsche Bundesbank
+central-banks,I77697173,Federal Reserve Bank of Chicago
+central-banks,I77793887,Federal Reserve Bank of St. Louis
+central-banks,I46510805,Federal Reserve Bank of Boston
+central-banks,I898769471,Bank of Canada
+central-banks,I185763367,Bank of Spain
+central-banks,I1288051870,Organisation de Coopération et de Développement Economiques
+tropical-health-institutes,I4210089966,London School of Hygiene & Tropical Medicine
+tropical-health-institutes,I194839184,Liverpool School of Tropical Medicine
+tropical-health-institutes,I158937107,Swiss Tropical and Public Health Institute
+tropical-health-institutes,I78281549,Instituut voor Tropische Geneeskunde
+tropical-health-institutes,I94402716,Bernhard Nocht Institute for Tropical Medicine
+tropical-health-institutes,I4210126604,Mahidol Oxford Tropical Medicine Research Unit
+tropical-health-institutes,I4405267625,KEMRI-Wellcome Trust Research Programme
+tropical-health-institutes,I114292369,Ifakara Health Institute
+tropical-health-institutes,I205889620,International Centre for Diarrhoeal Disease Research
+tropical-health-institutes,I4210116687,MRC Unit the Gambia
+tropical-health-institutes,I4210148332,Barcelona Institute for Global Health
+tropical-health-institutes,I2841861,Kenya Medical Research Institute
+tropical-health-institutes,I4210091910,Noguchi Memorial Institute for Medical Research
+tropical-health-institutes,I2799451200,Malawi-Liverpool-Wellcome Trust Clinical Research Programme
+tropical-health-institutes,I4210127310,Africa Health Research Institute
+tropical-health-institutes,I4210118037,Manhiça Health Research Centre
+tropical-health-institutes,I4210150114,Oxford University Clinical Research Unit
+tropical-health-institutes,I91369620,Uganda Virus Research Institute
