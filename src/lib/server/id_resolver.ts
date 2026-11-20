@@ -1,6 +1,7 @@
 import type { AuthorSubject, WorkSubject } from '$lib/wire/rankless_rs/user_ledger';
 import { BE_URL } from '$lib/constants';
 import { canonicalDoi } from '$lib/utils/identifiers';
+import { readManifest } from './manifest';
 import type { ResolveAuthorResp, ResolveWorkResp } from '$lib/wire/rankless_server/responses';
 
 export class ResolveError extends Error {
@@ -12,10 +13,10 @@ export class ResolveError extends Error {
 	}
 }
 
-// run_id is filled in once Phase 3 lands `ledger_runs` and the server can
-// surface the latest applied run. Until then, leave null so the manifest
-// step can stamp it later if needed.
-const RUN_ID: string | null = null;
+// The run whose data a subject's display snapshot and dm id were read from.
+function servedRunId(): string | null {
+	return readManifest().run_id || null;
+}
 
 async function fetchResolve<T>(
 	path: string,
@@ -59,7 +60,7 @@ export async function resolveWorkSubject(input: {
 		doi,
 		dm_id_at_creation: live?.wid ?? input.wid ?? null,
 		semantic_id_at_creation: null,
-		run_id_at_creation: RUN_ID,
+		run_id_at_creation: servedRunId(),
 		display_snapshot: {
 			title: live?.name ?? input.display_title ?? '',
 			year: live?.year ?? input.display_year ?? null
@@ -92,7 +93,7 @@ export async function resolveAuthorSubject(input: {
 		orcid,
 		dm_id_at_creation: live?.dmId ?? input.dm_id ?? null,
 		semantic_id_at_creation: live?.semanticId ?? input.semantic_id ?? null,
-		run_id_at_creation: RUN_ID,
+		run_id_at_creation: servedRunId(),
 		display_snapshot: {
 			display_name: live?.name ?? input.display_name ?? ''
 		}
