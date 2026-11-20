@@ -140,7 +140,6 @@ impl HitPaperPeerCtx {
 impl PeerCalculator for HitPaperPeerCtx {
     type E = HitPapers;
     type EmbBasis = [f32; 1];
-    const EMBED_DIMS: usize = 1;
     const N_CANDIDATES: usize = 10_000;
 
     fn get_embedding_basis(&self) -> Box<[Self::EmbBasis]> {
@@ -150,7 +149,7 @@ impl PeerCalculator for HitPaperPeerCtx {
             .collect()
     }
 
-    fn final_distance_calc(&self, a: usize, b: usize) -> f64 {
+    fn pair_distance(&self, a: usize, b: usize) -> f64 {
         (self.ln_cites(a) - self.ln_cites(b)).powi(2) as f64
     }
 }

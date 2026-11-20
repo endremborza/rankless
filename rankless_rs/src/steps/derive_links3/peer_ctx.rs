@@ -6,7 +6,7 @@ use crate::{
         a1_entity_mapping::{Authors, Countries, Institutions, Sources, Subfields},
         a2_init_atts::{InstCountries, InstLocs},
     },
-    peers::{self, PeerCalculator},
+    peers::{self, PeerCalculator, RowScale},
     QuickestBox, ReadFixIter, Stowage,
 };
 
@@ -31,7 +31,7 @@ pub(super) struct InstPeerCtx {
     pub cit_sfs: Box<[InstCitSfsArr]>,
     pub top_sfs: Vec<[usize; N_PEER_SF_DIMS]>,
     pub sf_totals: Vec<f64>,
-    pub locs: Box<[(f64, f64)]>,
+    pub locs: Box<[Option<(f64, f64)>]>,
     pub countries: Box<[ET<InstCountries>]>,
     pub sf_weights: [f64; N_PEER_SF_DIMS],
 }
@@ -76,7 +76,12 @@ impl InstPeerCtx {
             stowage.get_marked_interface::<Institutions, CitSubfieldsArrayMarker, QuickestBox>();
         let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, peers::SPEC_BETA);
         let sf_totals = peers::compute_sf_totals(&*cit_sfs);
-        let locs = stowage.get_entity_interface::<InstLocs, QuickestBox>();
+        // `a2_init_atts` leaves an institution without coordinates at (0, 0).
+        let locs = stowage
+            .get_entity_interface::<InstLocs, QuickestBox>()
+            .iter()
+            .map(|&loc| (loc != (0.0, 0.0)).then_some(loc))
+            .collect();
         let countries = stowage.get_entity_interface::<InstCountries, QuickestBox>();
         Self {
             filter,
@@ -151,15 +156,15 @@ impl AuthorPeerCtx {
         let cit_sfs =
             stowage.get_marked_interface::<Authors, CitSubfieldsArrayMarker, QuickestBox>();
         let top_sfs = peers::compute_top_sfs(&*cit_sfs, field_sizes, peers::SPEC_BETA);
-        let career_centroids_o: Vec<[Option<f32>; 1]> = stowage
-            .get_marked_interface::<Authors, YearCentroidMarker, ReadFixIter>()
-            .enumerate()
-            .map(|(i, e)| if filter[i] { [Some(e)] } else { [None] })
-            .collect();
-        let career_centroids = peers::normalize_opt_arr(career_centroids_o)
-            .into_iter()
-            .map(|e| e[0])
-            .collect();
+        let career_centroids = peers::standardize(
+            stowage
+                .get_marked_interface::<Authors, YearCentroidMarker, ReadFixIter>()
+                .enumerate()
+                .map(|(i, c)| filter[i].then_some(c as f64)),
+        )
+        .into_iter()
+        .map(|z| z as f32)
+        .collect();
         Self {
             filter,
             cit_sfs,
@@ -173,31 +178,46 @@ impl AuthorPeerCtx {
 impl PeerCalculator for InstPeerCtx {
     type E = Institutions;
     type EmbBasis = [f32; N_PEER_SF_DIMS];
-    const EMBED_DIMS: usize = N_PEER_SF_DIMS;
     const N_CANDIDATES: usize = K_TREE;
     const N_PARTITIONS: usize = 10;
 
     fn get_embedding_basis(&self) -> Box<[Self::EmbBasis]> {
-        peers::compute_log_pca_box(&self.cit_sfs, &self.filter)
+        peers::compute_pca(&self.cit_sfs, &self.filter, RowScale::SqrtShare)
     }
 
-    fn final_distance_calc(&self, a: usize, b: usize) -> f64 {
-        W_PEER_SF
-            * peers::sf_log_dist(
+    // The geographic term is already bounded, and stays as it is: standardized, a few near
+    // candidates among far ones would sit many deviations out and decide the ranking alone.
+    fn pair_distance(&self, a: usize, b: usize) -> f64 {
+        W_PEER_GEO * peers::geo_dist(self.locs[a], self.locs[b])
+    }
+
+    // The two profile terms have no scale of their own, so each is standardized over the
+    // candidates.
+    fn final_distances<'a>(
+        &'a self,
+        a: usize,
+        candidates: &'a [usize],
+    ) -> impl Iterator<Item = f64> + 'a {
+        let sf = peers::standardize(candidates.iter().map(|&b| {
+            Some(peers::sf_log_dist(
                 &self.cit_sfs[a],
                 &self.cit_sfs[b],
                 &self.top_sfs[a],
                 &self.sf_weights,
-            )
-            + W_PEER_RATE
-                * peers::sf_rate_dist(
-                    &self.cit_sfs[a],
-                    &self.cit_sfs[b],
-                    &self.top_sfs[a],
-                    self.sf_totals[a],
-                    self.sf_totals[b],
-                )
-            + W_PEER_GEO * peers::geo_sq_dist(self.locs[a], self.locs[b])
+            ))
+        }));
+        let rate = peers::standardize(candidates.iter().map(|&b| {
+            Some(peers::sf_rate_dist(
+                &self.cit_sfs[a],
+                &self.cit_sfs[b],
+                &self.top_sfs[a],
+                self.sf_totals[a],
+                self.sf_totals[b],
+            ))
+        }));
+        candidates.iter().enumerate().map(move |(i, &b)| {
+            W_PEER_SF * sf[i] + W_PEER_RATE * rate[i] + self.pair_distance(a, b)
+        })
     }
 
     fn group_key(&self, ind: usize) -> Option<usize> {
@@ -213,14 +233,13 @@ impl PeerCalculator for InstPeerCtx {
 impl PeerCalculator for SfPeerCtx {
     type E = Subfields;
     type EmbBasis = [f32; N_PEER_SF_DIMS];
-    const EMBED_DIMS: usize = N_PEER_SF_DIMS;
     const N_CANDIDATES: usize = K_TREE;
 
     fn get_embedding_basis(&self) -> Box<[Self::EmbBasis]> {
-        peers::compute_log_pca_box(&self.cit_sfs, &self.filter)
+        peers::compute_pca(&self.cit_sfs, &self.filter, RowScale::LogCount)
     }
 
-    fn final_distance_calc(&self, a: usize, b: usize) -> f64 {
+    fn pair_distance(&self, a: usize, b: usize) -> f64 {
         W_PEER_SF
             * peers::sf_log_dist(
                 &self.cit_sfs[a],
@@ -234,14 +253,13 @@ impl PeerCalculator for SfPeerCtx {
 impl PeerCalculator for CountryPeerCtx {
     type E = Countries;
     type EmbBasis = [f32; N_PEER_SF_DIMS];
-    const EMBED_DIMS: usize = N_PEER_SF_DIMS;
     const N_CANDIDATES: usize = K_TREE;
 
     fn get_embedding_basis(&self) -> Box<[Self::EmbBasis]> {
-        peers::compute_log_pca_box(&self.cit_sfs, &self.filter)
+        peers::compute_pca(&self.cit_sfs, &self.filter, RowScale::LogCount)
     }
 
-    fn final_distance_calc(&self, a: usize, b: usize) -> f64 {
+    fn pair_distance(&self, a: usize, b: usize) -> f64 {
         W_PEER_SF
             * peers::sf_log_dist(
                 &self.cit_sfs[a],
@@ -255,15 +273,14 @@ impl PeerCalculator for CountryPeerCtx {
 impl PeerCalculator for SourcePeerCtx {
     type E = Sources;
     type EmbBasis = [f32; N_PEER_SF_DIMS];
-    const EMBED_DIMS: usize = N_PEER_SF_DIMS;
     const N_CANDIDATES: usize = K_TREE;
     const N_PARTITIONS: usize = 10;
 
     fn get_embedding_basis(&self) -> Box<[Self::EmbBasis]> {
-        peers::compute_log_pca_box(&self.cit_sfs, &self.filter)
+        peers::compute_pca(&self.cit_sfs, &self.filter, RowScale::LogCount)
     }
 
-    fn final_distance_calc(&self, a: usize, b: usize) -> f64 {
+    fn pair_distance(&self, a: usize, b: usize) -> f64 {
         W_PEER_SF
             * peers::sf_log_dist(
                 &self.cit_sfs[a],
@@ -285,14 +302,13 @@ impl PeerCalculator for SourcePeerCtx {
 impl PeerCalculator for AuthorPeerCtx {
     type E = Authors;
     type EmbBasis = [f32; N_PEER_SF_DIMS];
-    const EMBED_DIMS: usize = N_PEER_SF_DIMS;
     const N_CANDIDATES: usize = K_TREE;
 
     fn get_embedding_basis(&self) -> Box<[Self::EmbBasis]> {
-        peers::compute_log_pca_box(&self.cit_sfs, &self.filter)
+        peers::compute_pca(&self.cit_sfs, &self.filter, RowScale::LogCount)
     }
 
-    fn final_distance_calc(&self, a: usize, b: usize) -> f64 {
+    fn pair_distance(&self, a: usize, b: usize) -> f64 {
         W_PEER_SF
             * peers::sf_log_dist(
                 &self.cit_sfs[a],
