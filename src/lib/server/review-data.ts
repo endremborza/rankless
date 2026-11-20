@@ -13,6 +13,7 @@ import {
 } from './review';
 import { readManifest } from './manifest';
 import type { AdminReviewRow } from '$lib/types/review';
+import { skipReasons } from '$lib/utils/ledger-status';
 
 const CONCURRENCY = 3;
 const PENDING_SCAN_CAP = 10_000;
@@ -80,7 +81,7 @@ export function loadReviewQueuePage(
 	const manifest = readManifest();
 	const applied = new Set(LedgerDb.getAllAppliedKeys());
 	for (const k of manifest.applied_keys) applied.add(k);
-	const skipped = new Map(manifest.skipped.map((s) => [s.key, s.reason]));
+	const skipped = skipReasons(manifest);
 
 	const pending = listPending();
 	const missingEnrichment = neededPairs(pending).filter((p) => {

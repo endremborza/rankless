@@ -94,9 +94,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 	let initialWorksSliceEnd = 0;
 	let isOwner = false;
 	let disownedWids: number[] = [];
-	let claimedDois: string[] = [];
 	let mergedPairs: [number, number][] = [];
-	let authorMergeRequests: tt.AuthorMergeRequest[] = [];
 	let ledgerEvents: LedgerEvent[] = [];
 	let ledgerManifest: AppliedManifest = EMPTY_MANIFEST;
 
@@ -163,38 +161,12 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 		if (authorOrcid) {
 			try {
 				const events = LedgerDb.getEventsForOrcid(authorOrcid) as unknown as LedgerEvent[];
-				const manifest = readManifest();
-				const effective = computeEffective(events, manifest);
+				const effective = computeEffective(events);
 				disownedWids = [...effective.disownedWids];
 				mergedPairs = effective.mergedPairs;
 				if (isOwner) {
-					ledgerManifest = manifest;
+					ledgerManifest = readManifest();
 					ledgerEvents = events;
-					claimedDois = events
-						.filter(
-							(e) =>
-								e.kind === 'claim_paper' &&
-								e.revoked_at === null &&
-								e.payload.kind === 'claim_paper'
-						)
-						.map((e) => (e.payload.kind === 'claim_paper' ? (e.payload.work.doi ?? '') : ''))
-						.filter(Boolean);
-					authorMergeRequests = events
-						.filter(
-							(e) =>
-								e.kind === 'merge_authors' &&
-								e.revoked_at === null &&
-								e.payload.kind === 'merge_authors'
-						)
-						.map((e) => {
-							if (e.payload.kind !== 'merge_authors') return null;
-							return {
-								other_semantic_id: e.payload.drop.display_snapshot.display_name,
-								note: e.payload.note ?? null,
-								created_at: e.created_at
-							};
-						})
-						.filter(Boolean) as tt.AuthorMergeRequest[];
 				}
 			} catch {
 				// ledger unavailable — proceed without changes
@@ -229,9 +201,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 			initialWorksSliceEnd,
 			isOwner,
 			disownedWids,
-			claimedDois,
 			mergedPairs,
-			authorMergeRequests,
 			ledgerEvents,
 			ledgerManifest
 		};

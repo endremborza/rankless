@@ -35,11 +35,6 @@ export type FullTreeConfig = {
 	semanticId: string;
 	wide: boolean;
 };
-export type AuthorMergeRequest = {
-	other_semantic_id: string;
-	note: string | null;
-	created_at: string;
-};
 
 export type RootType =
 	| 'authors'

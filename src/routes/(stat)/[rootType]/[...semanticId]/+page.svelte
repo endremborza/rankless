@@ -21,7 +21,7 @@
 		htmlToText,
 		mergeEntityAtts
 	} from '$lib/utils/paper-helpers';
-	import { afterNavigate } from '$app/navigation';
+	import { afterNavigate, invalidateAll } from '$app/navigation';
 
 	import FullQc from '$lib/components/FullQc.svelte';
 	import EntityHero from '$lib/components/EntityHero.svelte';
@@ -34,11 +34,17 @@
 	import PaperRainbow from '$lib/components/PaperRainbow.svelte';
 	import Peers from '$lib/components/Peers.svelte';
 	import AllWorks from '$lib/components/AllWorks.svelte';
-	import AuthorOwnerTools from '$lib/components/AuthorOwnerTools.svelte';
 	import AuthorLedgerPanel from '$lib/components/AuthorLedgerPanel.svelte';
 	import EmailPreferences from '$lib/components/EmailPreferences.svelte';
 	import { createWorksLoader } from '$lib/utils/works-loader';
 	import { createStaleGuard } from '$lib/utils/stale-guard';
+	import { createLedgerClient, type WriteOutcome } from '$lib/utils/ledger-client';
+	import {
+		pendingDisown,
+		pendingMerge,
+		withEdits,
+		type WorksEdit
+	} from '$lib/utils/ledger-effective';
 	import type { LedgerEvent } from '$lib/types/ledger';
 
 	export let data: {
@@ -65,9 +71,7 @@
 		initialWorksSliceEnd: number;
 		isOwner: boolean;
 		disownedWids: number[];
-		claimedDois: string[];
 		mergedPairs: [number, number][];
-		authorMergeRequests: tt.AuthorMergeRequest[];
 		ledgerEvents: LedgerEvent[];
 		ledgerManifest: AppliedManifest;
 	};
@@ -94,13 +98,16 @@
 			isAuthored(p, data.conf.semanticId, entityAtts) && p.yearlyCites && p.yearlyCites.length > 0
 	);
 
-	let disownedSet = new Set(data.disownedWids);
-	let mergedPairsState = [...data.mergedPairs];
+	let inFlight: WorksEdit[] = [];
+	$: worksHidden = withEdits(data.disownedWids, data.mergedPairs, inFlight);
+	const ledger = createLedgerClient(invalidateAll);
+	function track(edit: WorksEdit, write: Promise<WriteOutcome>) {
+		inFlight = [...inFlight, edit];
+		write.then(() => (inFlight = inFlight.filter((e) => e !== edit)));
+	}
 	const claimNavigation = createStaleGuard();
 	afterNavigate(() => {
 		const isCurrent = claimNavigation();
-		disownedSet = new Set(data.disownedWids);
-		mergedPairsState = [...data.mergedPairs];
 		hitPaperAbstract = null;
 		abstractLoading = isHitPaper;
 		if (isHitPaper) {
@@ -139,50 +146,33 @@
 		...(isAuthor ? [{ id: 'works', label: 'Works' }] : [])
 	];
 
-	async function handleDisown(e: CustomEvent<number>) {
+	function handleDisown(e: CustomEvent<number>) {
 		const wid = e.detail;
-		disownedSet = new Set([...disownedSet, wid]);
-		const resp = await fetch('/api/papers/disown', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ wid })
-		});
-		if (!resp.ok) {
-			disownedSet = new Set([...disownedSet].filter((w) => w !== wid));
-		}
+		track({ wid, hidden: true }, ledger.post({ kind: 'disown_paper', wid }));
 	}
 
-	async function handleUndisown(e: CustomEvent<number>) {
+	function handleUndisown(e: CustomEvent<number>) {
 		const wid = e.detail;
-		disownedSet = new Set([...disownedSet].filter((w) => w !== wid));
-		const resp = await fetch('/api/papers/disown', {
-			method: 'DELETE',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ wid })
-		});
-		if (!resp.ok) {
-			disownedSet = new Set([...disownedSet, wid]);
-		}
+		track(
+			{ wid, hidden: false },
+			ledger.withdrawFound(() => pendingDisown(data.ledgerEvents, wid))
+		);
 	}
 
-	async function handleMerge(e: CustomEvent<{ keep: number; drop: number }>) {
+	function handleMerge(e: CustomEvent<{ keep: number; drop: number }>) {
 		const { keep, drop } = e.detail;
-		mergedPairsState = [...mergedPairsState, [keep, drop]];
-		await fetch('/api/papers/merge', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ wid_keep: keep, wid_drop: drop })
-		});
+		track(
+			{ keep, drop, hidden: true },
+			ledger.post({ kind: 'merge_papers', keep: { wid: keep }, drop: { wid: drop } })
+		);
 	}
 
-	async function handleUnmerge(e: CustomEvent<{ keep: number; drop: number }>) {
+	function handleUnmerge(e: CustomEvent<{ keep: number; drop: number }>) {
 		const { keep, drop } = e.detail;
-		mergedPairsState = mergedPairsState.filter(([k, d]) => !(k === keep && d === drop));
-		await fetch('/api/papers/merge', {
-			method: 'DELETE',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ wid_keep: keep, wid_drop: drop })
-		});
+		track(
+			{ keep, drop, hidden: false },
+			ledger.withdrawFound(() => pendingMerge(data.ledgerEvents, keep, drop))
+		);
 	}
 </script>
 
@@ -303,27 +293,25 @@
 		<h2>All Works</h2>
 
 		{#if data.isOwner}
-			<AuthorOwnerTools
+			<AuthorLedgerPanel
+				events={data.ledgerEvents}
+				manifest={data.ledgerManifest}
+				papers={$works.papers}
 				semanticId={data.conf.semanticId}
-				claimedDois={data.claimedDois}
-				authorMergeRequests={data.authorMergeRequests}
+				{ledger}
 			/>
 		{/if}
 
 		<AllWorks
 			{works}
-			disownedWids={disownedSet}
-			mergedPairs={mergedPairsState}
+			disownedWids={worksHidden.disownedWids}
+			mergedPairs={worksHidden.mergedPairs}
 			isOwner={data.isOwner}
 			on:disown={handleDisown}
 			on:undisown={handleUndisown}
 			on:merge={handleMerge}
 			on:unmerge={handleUnmerge}
 		/>
-
-		{#if data.isOwner}
-			<AuthorLedgerPanel events={data.ledgerEvents} manifest={data.ledgerManifest} />
-		{/if}
 	</section>
 {/if}
 

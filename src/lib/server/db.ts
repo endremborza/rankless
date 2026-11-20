@@ -226,7 +226,16 @@ export const LedgerDb = {
 				'SELECT event_id FROM ledger_events WHERE orcid = ? AND kind = ? AND subject_hash = ? AND revoked_at IS NULL'
 			)
 			.get(orcid, payload.kind, hash) as { event_id: number } | null;
-		if (existing) return { event_id: existing.event_id, existing: true };
+		if (existing) {
+			// Asking again for an event its owner undid makes it live again: the undo is withdrawn,
+			// whether or not a run has taken it in, since the export drops an undone event for good.
+			getDb()
+				.prepare(
+					"UPDATE ledger_events SET revoked_at = datetime('now') WHERE orcid = ? AND kind = 'revoke' AND revoked_at IS NULL AND json_extract(payload, '$.target_key') = ?"
+				)
+				.run(orcid, logicalKey(orcid, payload.kind, hash));
+			return { event_id: existing.event_id, existing: true };
+		}
 		const info = getDb()
 			.prepare(
 				'INSERT INTO ledger_events (orcid, kind, payload, subject_hash, moderation) VALUES (?, ?, ?, ?, ?)'
@@ -276,13 +285,11 @@ export const LedgerDb = {
 		return row ? rowToEvent(row) : null;
 	},
 
-	revokePending(orcid: string, event_id: number): boolean {
-		const info = getDb()
-			.prepare(
-				"UPDATE ledger_events SET revoked_at = datetime('now') WHERE event_id = ? AND orcid = ? AND revoked_at IS NULL"
-			)
-			.run(event_id, orcid);
-		return info.changes > 0;
+	// The caller has checked that the event is the actor's, active and not applied.
+	revokePending(event_id: number): void {
+		getDb()
+			.prepare("UPDATE ledger_events SET revoked_at = datetime('now') WHERE event_id = ?")
+			.run(event_id);
 	},
 
 	setModeration(
@@ -331,29 +338,6 @@ export const LedgerDb = {
 			orcid: string;
 			first_seen_at: string;
 		}[];
-	},
-
-	findPendingByPayload(
-		orcid: string,
-		kind: LedgerKind,
-		jsonPath: string,
-		value: string | number | null
-	): number | null {
-		const row = getDb()
-			.prepare(
-				'SELECT event_id FROM ledger_events WHERE orcid = ? AND kind = ? AND revoked_at IS NULL AND json_extract(payload, ?) = ?'
-			)
-			.get(orcid, kind, jsonPath, value) as { event_id: number } | null;
-		return row?.event_id ?? null;
-	},
-
-	findMergePapersPending(orcid: string, widKeep: number, widDrop: number): number | null {
-		const row = getDb()
-			.prepare(
-				"SELECT event_id FROM ledger_events WHERE orcid = ? AND kind = 'merge_papers' AND revoked_at IS NULL AND json_extract(payload, '$.keep.dm_id_at_creation') = ? AND json_extract(payload, '$.drop.dm_id_at_creation') = ?"
-			)
-			.get(orcid, widKeep, widDrop) as { event_id: number } | null;
-		return row?.event_id ?? null;
 	},
 
 	upsertRun(runId: string, snapshotAt: string, manifestJson: string): void {

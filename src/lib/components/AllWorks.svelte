@@ -6,6 +6,7 @@
 	import { resolveSourceName, htmlToText } from '$lib/utils/paper-helpers';
 	import { formatNumber } from '$lib/text-format-util';
 	import { formatReference, type CitationStyle } from '$lib/utils/reference-format';
+	import { WORKS_ACTIONS } from '$lib/utils/ledger-display';
 	import AuthorList from './AuthorList.svelte';
 	import ExportControls from './ExportControls.svelte';
 
@@ -43,6 +44,8 @@
 	// Merge UI state — multi-select papers, pick the representative to keep, merge the rest into it.
 	let selectedWids: Set<number> = new Set();
 	let repWid: number | null = null;
+	// The kept paper follows the most-cited default until the owner picks one in the merge bar.
+	let repChosen = false;
 
 	async function loadMore() {
 		await works.loadMore();
@@ -115,17 +118,21 @@
 		if (next.has(wid)) next.delete(wid);
 		else next.add(wid);
 		selectedWids = next;
-		if (repWid === null || !next.has(repWid)) repWid = pickDefaultRep(next);
+		if (!repChosen || repWid === null || !next.has(repWid)) {
+			repWid = pickDefaultRep(next);
+			repChosen = false;
+		}
 	}
 
 	function clearSelection() {
 		selectedWids = new Set();
 		repWid = null;
+		repChosen = false;
 	}
 
 	function confirmMultiMerge() {
-		// One merge event per non-representative paper; the parent appends each pair synchronously
-		// before its await, so a batch of dispatches accumulates correctly.
+		// One merge event per non-representative paper; the parent lays each over the list as it is
+		// dispatched, so the batch stays merged while its writes run one after another.
 		if (repWid === null || selectedWids.size < 2) return;
 		for (const wid of selectedWids) {
 			if (wid !== repWid) dispatch('merge', { keep: repWid, drop: wid });
@@ -246,14 +253,14 @@
 											type="checkbox"
 											checked={isSelected}
 											on:change={() => toggleSelect(paper.wid)}
-											aria-label="Select for merge"
+											aria-label={WORKS_ACTIONS.selectForMerge}
 										/>
 										{#if isRep}<span class="rep-tag">keep</span>{/if}
 									</td>
 									<td class="col-actions">
 										<button
 											class="btn-sm destructive"
-											on:click={() => dispatch('disown', paper.wid)}>Remove</button
+											on:click={() => dispatch('disown', paper.wid)}>{WORKS_ACTIONS.remove}</button
 										>
 									</td>
 								{/if}
@@ -283,7 +290,7 @@
 					{#if selectedWids.size >= 2}
 						<label class="merge-rep">
 							Keep
-							<select bind:value={repWid}>
+							<select bind:value={repWid} on:change={() => (repChosen = true)}>
 								{#each selectedPapers as p (p.wid)}
 									<option value={p.wid}>{htmlToText(p.name)} ({p.citations} cites)</option>
 								{/each}
@@ -294,7 +301,7 @@
 				<div class="merge-bar-actions">
 					{#if selectedWids.size >= 2}
 						<button class="btn-sm confirm" on:click={confirmMultiMerge}
-							>Merge {selectedWids.size - 1} into the kept paper</button
+							>{WORKS_ACTIONS.mergeInto(selectedWids.size - 1)}</button
 						>
 					{:else}
 						<span class="merge-hint">Select another paper to merge it in</span>

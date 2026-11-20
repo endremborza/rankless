@@ -1,7 +1,8 @@
 // Pure review-domain logic: no DB or env access, so it stays unit-testable under
 // vitest (bun:sqlite cannot be imported there). DB glue lives in review-data.ts.
-import type { EventPayload, WorkSubject } from '$lib/wire/rankless_rs/user_ledger';
+import type { EventPayload, SkipReason, WorkSubject } from '$lib/wire/rankless_rs/user_ledger';
 import { canonicalDoi, normalizeOrcid } from '$lib/utils/identifiers';
+import { waitingStatus } from '$lib/utils/ledger-status';
 import type { LedgerEvent, UserRow } from './db';
 import type {
 	AdminReviewRow,
@@ -83,7 +84,7 @@ export function composeReviewRows(
 	verdicts: Map<string, ReviewVerdict>,
 	users: Map<string, UserRow>,
 	applied: Set<string>,
-	skipped: Map<string, string>,
+	skipped: Map<string, SkipReason>,
 	enrichment: EnrichmentMap
 ): AdminReviewRow[] {
 	return events.map((e) => {
@@ -182,7 +183,7 @@ function workEvidence(
 function pipelineCell(
 	e: LedgerEvent,
 	applied: Set<string>,
-	skipped: Map<string, string>
+	skipped: Map<string, SkipReason>
 ): PipelineCell {
 	// Keyed by the merge-stable logical key, not event_id (renumbers on DB merge). Revokes
 	// are control actions collapsed out of the manifest, so classify them before the
@@ -190,8 +191,7 @@ function pipelineCell(
 	if (e.revoked_at || e.moderation === 'rejected') return { label: '—', cls: 'muted' };
 	if (e.kind === 'revoke') return { label: 'revocation', cls: 'muted' };
 	if (applied.has(e.key)) return { label: 'implemented', cls: 'applied' };
-	const reason = skipped.get(e.key);
-	if (reason) return { label: `skipped · ${reason}`, cls: 'skipped' };
-	if (e.moderation === 'pending_review') return { label: 'awaiting review', cls: 'muted' };
-	return { label: 'awaiting rebuild', cls: 'awaiting' };
+	const status = waitingStatus(e, skipped);
+	if (status === null) return { label: 'awaiting rebuild', cls: 'awaiting' };
+	return { label: status, cls: skipped.has(e.key) ? 'skipped' : 'muted' };
 }

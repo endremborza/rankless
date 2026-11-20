@@ -1,163 +1,158 @@
 <script lang="ts">
 	import type { AppliedManifest } from '$lib/wire/rankless_rs/user_ledger';
-	import { invalidateAll } from '$app/navigation';
+	import type { PaperOut } from '$lib/wire/rankless_server/responses';
 	import type { LedgerEvent } from '$lib/types/ledger';
+	import {
+		draftOf,
+		emptyDraft,
+		type ComposeKind,
+		type EventBody,
+		type LedgerClient,
+		type WriteOutcome
+	} from '$lib/utils/ledger-client';
+	import {
+		ACTION_LABELS,
+		COMPOSE_COPY,
+		PANEL_SECTIONS,
+		REPLACE_COPY,
+		panelRows,
+		paperMapOf,
+		type PanelRow,
+		type RowAction
+	} from '$lib/utils/ledger-display';
+	import LedgerComposeForm from './LedgerComposeForm.svelte';
 
 	export let events: LedgerEvent[];
 	export let manifest: AppliedManifest;
+	export let papers: PaperOut[];
+	export let semanticId: string;
+	export let ledger: LedgerClient;
 
-	$: appliedKeys = new Set(manifest.applied_keys);
-	$: skippedReasons = new Map(manifest.skipped.map((s) => [s.key, s.reason]));
+	const COMPOSE_KINDS = Object.keys(COMPOSE_COPY) as ComposeKind[];
 
-	$: appliedEvents = events.filter(
-		(e) =>
-			appliedKeys.has(e.key) &&
-			e.revoked_at === null &&
-			e.kind !== 'revoke' &&
-			e.kind !== 'moderation_decision'
-	);
-	$: pendingEvents = events.filter(
-		(e) => !appliedKeys.has(e.key) && e.revoked_at === null && e.kind !== 'moderation_decision'
-	);
+	$: rows = panelRows(events, manifest, paperMapOf(papers));
+	$: sections = [
+		{ title: PANEL_SECTIONS.applied, applied: true, rows: rows.applied },
+		{ title: PANEL_SECTIONS.pending, applied: false, rows: rows.pending }
+	].filter((s) => s.rows.length > 0);
 
-	function describeEvent(e: LedgerEvent): string {
-		const p = e.payload;
-		switch (p.kind) {
-			case 'disown_paper':
-				return `Removed: "${p.work.display_snapshot.title || p.work.doi || 'Untitled'}"`;
-			case 'claim_paper':
-				return `Claimed: ${p.work.doi || p.work.display_snapshot.title || '(no DOI)'}`;
-			case 'merge_papers':
-				return `Merged "${p.keep.display_snapshot.title || 'Untitled'}" ← "${
-					p.drop.display_snapshot.title || 'Untitled'
-				}"`;
-			case 'merge_authors':
-				return `Author merge: drop ${p.drop.display_snapshot.display_name}`;
-			case 'revoke': {
-				const target = events.find((t) => t.key === p.target_key);
-				return target ? `Undo: ${describeEvent(target)}` : 'Undo of a previous change';
-			}
-			default:
-				return e.kind;
+	let busy = new Set<number>();
+	let editing: number | null = null;
+
+	async function whileBusy(event_id: number, write: () => Promise<WriteOutcome>) {
+		busy = new Set([...busy, event_id]);
+		const outcome = await write();
+		busy = new Set([...busy].filter((id) => id !== event_id));
+		return outcome;
+	}
+
+	function act(action: RowAction, row: PanelRow) {
+		const { event_id } = row.event;
+		switch (action) {
+			case 'undo':
+				return whileBusy(event_id, () => ledger.undo(event_id));
+			case 'cancel_undo':
+				return whileBusy(event_id, () => ledger.withdraw(row.undoEventId!));
+			case 'withdraw':
+				return whileBusy(event_id, () => ledger.withdraw(event_id));
+			case 'change':
+			case 'edit':
+				editing = editing === event_id ? null : event_id;
 		}
 	}
 
-	let busy = new Set<number>();
-
-	async function cancelPending(event_id: number) {
-		busy = new Set([...busy, event_id]);
-		await fetch(`/api/ledger/${event_id}`, { method: 'DELETE' });
-		busy = new Set([...busy].filter((id) => id !== event_id));
-		await invalidateAll();
-	}
-
-	async function undoApplied(event_id: number) {
-		busy = new Set([...busy, event_id]);
-		await fetch('/api/ledger', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ kind: 'revoke', target_event_id: event_id })
-		});
-		busy = new Set([...busy].filter((id) => id !== event_id));
-		await invalidateAll();
-	}
-
-	async function cancelRevoke(revokeEventId: number) {
-		busy = new Set([...busy, revokeEventId]);
-		await fetch(`/api/ledger/${revokeEventId}`, { method: 'DELETE' });
-		busy = new Set([...busy].filter((id) => id !== revokeEventId));
-		await invalidateAll();
-	}
-
-	function revokeIdFor(targetKey: string): number | undefined {
-		return events.find(
-			(e) =>
-				e.kind === 'revoke' &&
-				e.revoked_at === null &&
-				e.payload.kind === 'revoke' &&
-				e.payload.target_key === targetKey
-		)?.event_id;
+	async function replace(row: PanelRow, applied: boolean, body: EventBody) {
+		const { event } = row;
+		const outcome = await whileBusy(event.event_id, () => ledger.replace(event, applied, body));
+		if (outcome === 'done') editing = null;
+		return outcome;
 	}
 </script>
 
-{#if events.length > 0}
-	<div class="ledger-panel">
-		<h3>Your Profile Changes</h3>
+<div class="ledger-panel">
+	{#each COMPOSE_KINDS as kind (kind)}
+		{@const copy = COMPOSE_COPY[kind]}
+		<div class="tool-section">
+			<h3>{copy.title}</h3>
+			{#if copy.hint}<p class="hint-text">{copy.hint}</p>{/if}
+			<LedgerComposeForm
+				draft={emptyDraft(kind)}
+				ownSemanticId={semanticId}
+				submitLabel={copy.submitLabel}
+				doneText={copy.doneText}
+				submit={ledger.post}
+			/>
+		</div>
+	{/each}
 
-		{#if appliedEvents.length > 0}
-			<div class="item-list">
-				<h4>Applied ({appliedEvents.length})</h4>
-				{#each appliedEvents as e (e.event_id)}
-					{@const revokeId = revokeIdFor(e.key)}
-					<div class="item-row">
-						<span>{describeEvent(e)}</span>
-						<div class="row-actions">
-							{#if revokeId !== undefined}
-								<span class="status">undo pending</span>
-								<button
-									class="btn-sm"
-									disabled={busy.has(revokeId)}
-									on:click={() => cancelRevoke(revokeId)}>Cancel undo</button
-								>
-							{:else}
-								<button
-									class="btn-sm"
-									disabled={busy.has(e.event_id)}
-									on:click={() => undoApplied(e.event_id)}>Undo</button
-								>
-							{/if}
+	{#if sections.length > 0}
+		<div class="tool-section">
+			<h3>Your Profile Changes</h3>
+			{#each sections as section (section.title)}
+				<div class="item-list">
+					<h4>{section.title} ({section.rows.length})</h4>
+					{#each section.rows as row (row.event.event_id)}
+						{@const draft = editing === row.event.event_id ? draftOf(row.event.payload) : null}
+						<div class="item-row">
+							<div>
+								<span>{row.text}</span>
+								{#each [row.note, row.status] as detail, i (i)}
+									{#if detail}<span class="hint-text"> · {detail}</span>{/if}
+								{/each}
+							</div>
+							<div class="row-actions">
+								{#each row.actions as action (action)}
+									<button
+										class="btn-sm"
+										class:destructive={action === 'withdraw'}
+										aria-label={action === 'withdraw' ? 'Withdraw' : undefined}
+										disabled={busy.has(row.event.event_id)}
+										on:click={() => act(action, row)}>{ACTION_LABELS[action]}</button
+									>
+								{/each}
+							</div>
 						</div>
-					</div>
-				{/each}
-			</div>
-		{/if}
-
-		{#if pendingEvents.length > 0}
-			<div class="item-list">
-				<h4>Pending — next data refresh ({pendingEvents.length})</h4>
-				{#each pendingEvents as e (e.event_id)}
-					{@const skipped = skippedReasons.get(e.key)}
-					<div class="item-row">
-						<div>
-							<span>{describeEvent(e)}</span>
-							{#if skipped}
-								<span class="hint-text"> · skipped: {skipped}</span>
-							{:else if e.moderation === 'pending_review'}
-								<span class="hint-text"> · awaiting review</span>
-							{/if}
-						</div>
-						<div class="row-actions">
-							{#if e.kind !== 'revoke'}
-								<button
-									class="btn-sm destructive"
-									disabled={busy.has(e.event_id)}
-									on:click={() => cancelPending(e.event_id)}>×</button
-								>
-							{/if}
-						</div>
-					</div>
-				{/each}
-			</div>
-		{/if}
-	</div>
-{/if}
+						{#if draft}
+							<div class="row-form">
+								<LedgerComposeForm
+									{draft}
+									ownSemanticId={semanticId}
+									submitLabel={REPLACE_COPY.submitLabel}
+									doneText={REPLACE_COPY.doneText}
+									submit={(body) => replace(row, section.applied, body)}
+									cancel={() => (editing = null)}
+								/>
+							</div>
+						{/if}
+					{/each}
+				</div>
+			{/each}
+		</div>
+	{/if}
+</div>
 
 <style>
 	.ledger-panel {
-		margin-top: 24px;
+		margin-bottom: 20px;
 		padding: 14px 16px;
 		border-radius: 4px;
 		border: 1px solid rgba(var(--color-range-15), 0.18);
-		background: rgba(var(--color-range-15), 0.03);
+		background: rgba(var(--color-range-15), 0.04);
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
+		gap: 20px;
 	}
 
-	.ledger-panel h3 {
+	.tool-section {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.tool-section h3 {
 		font-size: var(--text-base);
 		margin: 0;
-		opacity: 0.7;
+		text-align: left;
 	}
 
 	.item-list h4 {
@@ -181,5 +176,9 @@
 		align-items: center;
 		gap: 6px;
 		flex-shrink: 0;
+	}
+
+	.row-form {
+		padding: 6px 0 8px;
 	}
 </style>

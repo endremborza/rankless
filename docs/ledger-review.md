@@ -5,6 +5,19 @@ moderation queue at `/admin/ledger`, a deterministic hard-evidence tier that
 auto-accepts proven claims, and an advisory AI lane for everything fuzzy.
 Humans make every remaining decision; the AI never moderates.
 
+## Where site events come from
+
+`POST /api/ledger` is the site's one route that creates a ledger event, and the owner's own profile page is its one caller. The works list writes a `disown_paper` (Remove on a row) and a `merge_papers` per duplicate merged into a kept paper (the most cited of the selection until the owner picks another); the owner's panel above it (`AuthorLedgerPanel`) writes a `claim_paper` from a DOI and a `merge_authors` from another profile's address. The route resolves what the page names (a served work id, a DOI, a profile slug) to the stable ids the event stores, and the keep side of a `merge_authors` is always the signed-in ORCID's own record.
+
+The panel lists the owner's events in two groups: Applied, the events in the served run's `applied_keys`, and Pending, the ones waiting for the next run, each with the last run's skip reason or `awaiting review`. An event reads as the served title of its paper, else as the title it recorded (dated when another run recorded it), else as its DOI or OpenAlex id (`src/lib/utils/ledger-display.ts`).
+
+- A pending event is withdrawn: `DELETE /api/ledger/<event_id>` sets its `revoked_at`.
+- An applied event is immutable: Undo writes a `revoke` event naming its logical key, the export leaves both out of the next run, and the `DELETE` refuses it (409). Until that run, Cancel undo withdraws the revoke. Once a run has taken the undo in, the panel lists neither event and the works list no longer hides the paper.
+- Asking again for an undone subject (Remove, a claim, a duplicate report or a replacement that names it) withdraws its undo, before or after a run has taken it in: the dedup returns the original event, which is live again.
+- Change (on an applied claim or duplicate report) and Edit (on a pending one the run skipped for an identifier it could not find, `ORPHAN_REASONS`) reopen the event's form pre-filled. Save waits for an identifier naming another record: the pre-filled one is never looked up again, since a profile address can belong to another record by the next run. Saving posts the replacement first, then revokes or withdraws the old event, so a refused replacement leaves it as it was; a replacement whose identifier still resolves to the same subject has the same logical key and changes nothing. A disown and a paper merge offer Undo only: their replacement is made in the works list.
+
+The curated ledger and the release claims lane below write their events from Python, not through the site.
+
 ## Review tiers
 
 1. **Hard evidence (automatic).** A `claim_paper` is proven when the claimant's
@@ -125,8 +138,7 @@ pull.
 ## Verifying end-to-end (dev box)
 
 1. `make dev` (backend + frontend dev server); `ADMIN_ORCIDS=<your orcid>`.
-2. `/dev-login`, create claims via `POST /api/ledger` (one DOI whose record
-   carries your ORCID, a few foreign ones).
+2. `/dev-login`, claim a few DOIs in the panel on your profile (one whose record carries your ORCID, a few foreign ones).
 3. `/admin/ledger` → Fetch metadata → titles/links appear, the proven claim
    flips to accepted with the `auto` badge.
 4. `uv run -m pyscripts review-ledger --dry-run`, then with `--limit`;

@@ -6,10 +6,10 @@ Large-scale scholarly citation explorer. OpenAlex CSVs → binary pipeline → A
 
 - `docs/architecture.md` — app purpose, data model, layers, codebase file index, schema, breakdown-selection, metaprogramming, parallelization, local dev
 - `docs/benchmarking.md` — comparison/benchmark tooling + SQL-vs-Rust results
-- `docs/reporting.md`, `docs/tree-internals.md`, `docs/topic-tags.md`, `docs/sharecard-render-test.md` — focused references (the ramore report setup, tree-build internals, topic tags, share-card test)
+- `docs/reporting.md`, `docs/tree-internals.md`, `docs/topic-tags.md`, `docs/peers.md`, `docs/sharecard-render-test.md` — focused references (the ramore report setup, tree-build internals, topic tags, peer finding and its `make peer-report` check, share-card test)
 - `docs/deploy.md` — recalc + deploy flow: `pyscripts recalc` data stages, `pyscripts deploy` application/box primitives (incl. ship_alpha/promote), warm-cache fleet, DB handoff
 - `docs/mcp-server.md` — MCP proxy (`mcp_server/`) over the backend + the deep-stories miner
-- `docs/ledger-review.md` — ledger moderation: `/admin/ledger` queue, enrichment cache, hard-evidence auto-accept, AI review lane
+- `docs/ledger-review.md` — the site's one write path for profile changes (the owner's panel and works list, undo, change/edit) and ledger moderation: `/admin/ledger` queue, enrichment cache, hard-evidence auto-accept, AI review lane
 - `docs/type-generation.md` — cross-language types: `#[wire]` on a Rust type generates its TS (`src/lib/wire/`) and Python (`wire/`) form (`make types`); never hand-write a mirror
 - `docs/type-audit.md` — the ccl-science-data reader against the generated dmove entities (`make type-audit`)
 - `docs/v2-to-v3-changes.md` — v2→v3 changelog; `docs/unfinished-features.md` — built-but-hidden features
