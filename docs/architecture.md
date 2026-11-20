@@ -623,7 +623,7 @@ Both Makefiles suppress `dead_code`/`unused` via RUSTFLAGS (early steps leave la
 symbols unreferenced). Each target:
 
 ```makefile
-rankless_rs/src/gen/derive_links3.rs: rankless_rs/src/steps/derive_links3.rs rankless_rs/src/gen/derive_links2.rs
+rankless_rs/src/gen/derive_links3.rs: rankless_rs/src/steps/derive_links3/mod.rs rankless_rs/src/gen/derive_links2.rs
 	./target/release/dmove-macro -p rankless_rs pre-build -s derive_links3
 	RUSTFLAGS="-C target-cpu=native -A dead_code -A unused" cargo build -p rankless-rs --profile gen-release
 	RUSTFLAGS="-C target-cpu=native -A dead_code -A unused" cargo run -p rankless-rs --profile gen-release -- derive_links3
@@ -672,12 +672,13 @@ threading for precise control.
 
 - **`Worker<T>`** — batch work queue. `para` / `para_n` create a `crossbeam_channel::bounded`
   queue, spawn N scoped threads (receive loops), stream items, send `None` sentinels, join.
-  Used in `a2_init_atts.rs` (CSV ingestion) and `derive_links3.rs` (`PeerWorker`).
+  Used in `a2_init_atts.rs` (CSV ingestion).
 - **`par_join!`** — fork-join for heterogeneous closures; spawns each expression as a scoped
-  thread, joins all. Used in `derive_links2.rs` (five `CiteDeriver` methods).
+  thread, joins all. Used in `derive_links2.rs` (five `CiteDeriver` methods) and `a2_init_atts.rs`
+  (its second and third attribute-writing waves).
 - **`para_multi_gen_run!`** — one thread per type parameter:
-  `para_multi_gen_run!(fn, TypeA, TypeB; arc_arg)`. Used in `derive_links3::main` (work_count
-  for 6 entity types) and server startup.
+  `para_multi_gen_run!(fn, TypeA, TypeB; arc_arg)`. Used in `derive_links4::main` (the
+  hit-paper lists of 6 entity types) and server startup.
 - **`AcTuple<T>` + condvar helpers** — `Arc<(Mutex<T>, Condvar)>` one-shot result
   notification (`set_and_notify` / `wait_for_data*`). Used in `rankless_trees/src/io.rs`.
 
@@ -689,13 +690,15 @@ struct whose fields load in parallel threads at construction. Two forms: 4-categ
 
 | Module | Mechanism | Parallelized work |
 | --- | --- | --- |
-| `rankless_rs/steps/a2_init_atts.rs` | `Worker<T>::para()` | CSV rows: works, biblios, authorship |
+| `rankless_rs/steps/a2_init_atts.rs` | `Worker<T>::para()` + `std::thread::scope` + `par_join!` | CSV rows: works, biblios, authorship; the attribute-writing waves (the first, the heavy CSV reads, under `std::thread::scope`, the other two under `par_join!`) |
 | `rankless_rs/steps/a1_entity_mapping.rs` | `std::thread::spawn` + `Vec<JoinHandle>` | Independent entity ID mapping |
 | `rankless_rs/steps/derive_links2.rs` | `par_join!` | 5 `CiteDeriver` methods |
-| `rankless_rs/steps/derive_links3.rs` | `para_multi_gen_run!` + `Worker<T>::para()` | Work counts per entity; peer selection |
+| `rankless_rs/steps/derive_links3/mod.rs` | `std::thread::scope` | The work interfaces it loads; the year and subfield bars |
+| `rankless_rs/steps/derive_links4.rs` | `para_multi_gen_run!` + `std::thread::scope` | The hit-paper lists of 6 entity types; authors' citing-hit sets, one chunk of authors per thread; each root's score columns |
+| `rankless_rs/src/peers.rs` | `std::thread::scope`, one chunk of entities per thread | The PCA covariance and projection; each entity's candidates and re-rank |
 | `rankless_rs/src/common.rs` | `make_interface_struct!` | Parallel data loading at server startup |
 | `rankless_trees/src/io.rs` | Persistent pool (`VecDeque` + `Condvar`) | Tree query serving; the server's thread count |
-| `rankless_server/src/main.rs` | `para_multi_gen_run!` + Tokio (as many workers as the tree pool's threads: `RANKLESS_THREAD_COUNT`, else `DEFAULT_N_THREADS`) | Entity state init; HTTP handling |
+| `rankless_server/src/startup.rs`, `main.rs` | `para_multi_gen_run!` (`startup.rs`) + Tokio (`main.rs`, as many workers as the tree pool's threads: `RANKLESS_THREAD_COUNT`, else `DEFAULT_N_THREADS`) | Entity state init; HTTP handling |
 
 `TreeRunManager` is intentionally a persistent pool (long-lived workers share mmapped data),
 not `Worker<T>` (one-shot batch).
