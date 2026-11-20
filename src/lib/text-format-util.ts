@@ -62,6 +62,11 @@ export function lastWord(name: string): string {
 	return parts[parts.length - 1];
 }
 
+// The day a data run started, from its id (an ISO timestamp): how the site names a release.
+export function runDate(runId: string): string {
+	return runId.slice(0, 10);
+}
+
 // Two-digit year with a leading apostrophe, e.g. 2024 → '24. Keeps dense year axes legible.
 export function shortYear(y: number): string {
 	return "'" + String(((y % 100) + 100) % 100).padStart(2, '0');

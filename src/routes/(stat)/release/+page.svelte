@@ -2,6 +2,7 @@
 	import reportRaw from '$lib/assets/data/release-report.json';
 	import type { ReleaseReport, ReleaseSnapshot } from '$lib/types/release-report';
 	import { APP_NAME } from '$lib/constants';
+	import { runDate } from '$lib/text-format-util';
 
 	// Baked by pyscripts/release_report.py from the release record (docs/deploy.md).
 	const report = reportRaw as unknown as ReleaseReport;
@@ -37,7 +38,6 @@
 	const fmtChange = (n: number) => (n > 0 ? '+' : '') + fmt(n);
 	const prettify = (k: string) => k.replace(/_/g, ' ');
 	const plural = (n: number) => (n === 1 ? '' : 's');
-	const dateOf = (run_id: string) => run_id.slice(0, 10);
 	const snapshotOf = (snap: ReleaseSnapshot) => snap.date ?? snap.name;
 
 	const entityName = (key: string) => ENTITY_NAMES[key] ?? key;
@@ -65,7 +65,7 @@
 			now.
 		</p>
 		<p class="updated">
-			Release of {dateOf(report.run_id)}, built from OpenAlex snapshot {snapshotOf(
+			Release of {runDate(report.run_id)}, built from OpenAlex snapshot {snapshotOf(
 				report.snapshot
 			)}.
 		</p>
@@ -176,7 +176,7 @@
 		<h2>Changes since the previous release</h2>
 		{#if report.deltas && report.previous}
 			<p>
-				Compared to the release of {dateOf(report.previous.run_id)} (snapshot
+				Compared to the release of {runDate(report.previous.run_id)} (snapshot
 				{snapshotOf(report.previous.snapshot)}):
 			</p>
 			<ul>
