@@ -345,8 +345,8 @@ the only viz dependency).
 | `lib/server/cards/{tree,yearly,map,fields,timeline,network,papers,impact,peers,table}.ts` | One loader per kind: the variant parameters parsed by the contract's defaults and limits, the backend calls, the props and the caption (`network.ts` also places the author at the centre and lays the co-authors out around them with `hubLayout`); `flat-out.ts` (`loadFlatOut`) loads the level-1 weights the map and fields kinds share; `home.ts` renders the homepage card from live `/counts` |
 | `lib/server/cards/works.ts` | `loadAllWorks`: every page of an author's works for the timeline card, over `works-loader`'s URL and merge |
 | `lib/server/card-raster.ts` | `rsvg-convert` rasterizer + best-effort disk cache for the share cards (`CARD_CACHE_DIR`, else `CARD_CACHE_NAME` from `lib/paths.ts` under the OS temp dir) |
-| `lib/server/survey-cookie.ts` | `setSurveyCookie`: marks the survey answered or dismissed so the visitor is not prompted again, shared by `api/survey/` and its `reject/` |
-| `lib/server/id_resolver.ts` | Resolves UI entity refs to stable-ID payload blocks |
+| `lib/server/survey-cookie.ts` | `SURVEY_COOKIES` and `SURVEY_COOKIE_SET`; `setSurveyCookie` marks the survey answered or dismissed so the visitor is not prompted again (`api/survey/` and its `reject/`), `surveyAnswered` reads that back (`hooks.server.ts`) |
+| `lib/server/id_resolver.ts` | Resolves UI entity refs to stable-ID payload blocks, each stamped with the served run's id |
 | `lib/server/ledger-hash.ts` | `subject_hash` computation for ledger dedup |
 | `lib/server/enrich.ts` | Pure fetch+pluck of Crossref/OpenAlex work + ORCID person records and the public email an ORCID record shows (the app's only external-metadata fetcher) |
 | `lib/server/review.ts` | Pure review-domain logic: DOI/ORCID canonicalization, hard-evidence rule, verdict picking, `AdminReviewRow` composition |

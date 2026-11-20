@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import { appendFile } from 'fs/promises';
 import { type SurveyRecord } from '$lib/types';
 import { SURVEY_LOG_PATH } from '$lib/paths';
-import { setSurveyCookie } from '$lib/server/survey-cookie';
+import { SURVEY_COOKIES, setSurveyCookie } from '$lib/server/survey-cookie';
 
 export const POST: RequestHandler = async ({ locals, cookies }) => {
 	try {
@@ -14,7 +14,7 @@ export const POST: RequestHandler = async ({ locals, cookies }) => {
 		};
 		await appendFile(SURVEY_LOG_PATH, JSON.stringify(record) + '\n', { encoding: 'utf8' });
 
-		setSurveyCookie(cookies, 'survey_rejected');
+		setSurveyCookie(cookies, SURVEY_COOKIES.rejected);
 
 		return new Response(null, { status: 204 });
 	} catch (err) {
