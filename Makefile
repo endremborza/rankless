@@ -3,7 +3,7 @@ export
 
 .PHONY: bootstrap dev build-nano-artifact py-build mcp-server deep-explore type-audit mcp-manifest setup-services external-push external-pull muwo-install muwo-push
 .PHONY: check format check-rs check-py check-js check-types format-rs format-py format-js types
-.PHONY: refresh-data commit-artifacts warm-caches ship-alpha promote
+.PHONY: refresh-data commit-artifacts warm-caches ship-alpha promote peer-report
 .PHONY: fleet-probe fleet-suggest fleet-preflight fleet-prepare fleet-stamp
 
 PY_LINT_PATHS := pyscripts sql-yardstick mcp_server
@@ -114,6 +114,11 @@ filter: export_user_ledger clean-filters clean-cache
 
 run-server:
 	cargo run --release -p rankless-server -- $(OA_ROOT) 
+
+# Precision of the stored institution peers against the hand-labelled sets in
+# rankless_rs/static/peer-sets.csv; ARGS=<set> lists that set's members with their peers.
+peer-report:
+	cargo run --release -p rankless-trees --bin peer-report -- $(OA_ROOT) $(ARGS)
 
 extend_csvs orcid_summaries lib_data_generation homepage_showcase live_monitoring sitemap_validation survey_result_export export_user_ledger:
 	uv run -m pyscripts.$@

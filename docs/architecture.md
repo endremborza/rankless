@@ -154,6 +154,7 @@ the server. Steps run in order via `mods_as_comms!` in `lib.rs`:
 | `src/prune.rs` | Tree result pruning: `prune` keeps the top `MAX_SIBLINGS` by links and by specialization per level, `prune_wide` keeps the whole first level up to `MAX_WIDE` leaves |
 | `src/arr_ext.rs` | Array manipulation extensions |
 | `src/test_utils.rs` | Test utilities (`#[cfg(test)]`) |
+| `src/bin/peer_report.rs` | `peer-report <root> [set]` (`make peer-report`): scores a built root's stored institution peers against `rankless_rs::peer_sets`, or lists one set's members with their peers; here and not in `rankless_rs` because it names generated entity types, which no `rankless_rs` module outside `steps/` may |
 
 Key patterns: `BeS<M, E>` (Backend Selector) for flexible data loading; condvar-based
 thread pool in `TreeRunManager`.
