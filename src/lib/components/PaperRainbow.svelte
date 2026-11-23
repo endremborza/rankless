@@ -17,6 +17,7 @@
 	import AuthorList from './AuthorList.svelte';
 	import HitPaperBreakdown from './HitPaperBreakdown.svelte';
 	import HitPaperExplainer from './HitPaperExplainer.svelte';
+	import ViewToggle from './ViewToggle.svelte';
 	import { onMount, tick } from 'svelte';
 
 	export let papers: PaperOut[];
@@ -58,14 +59,6 @@
 
 	function fixHighlight(i: number) {
 		highlighted = i;
-	}
-
-	function switchToBreakdown() {
-		viewMode = 'breakdown';
-	}
-
-	function switchToLines() {
-		viewMode = 'lines';
 	}
 
 	function getLiStyle(i: number, visInds: number[], hl: number, rate: number) {
@@ -138,16 +131,13 @@
 	{#if chartPapers.length > 0}
 		<div class="chart-area">
 			<div class="chart-controls">
-				<div class="view-toggle">
-					<button class="toggle-btn" class:active={viewMode === 'lines'} on:click={switchToLines}
-						>citation timeline</button
-					>
-					<button
-						class="toggle-btn"
-						class:active={viewMode === 'breakdown'}
-						on:click={switchToBreakdown}>citation breakdown</button
-					>
-				</div>
+				<ViewToggle
+					options={[
+						['lines', 'citation timeline'],
+						['breakdown', 'citation breakdown']
+					]}
+					bind:value={viewMode}
+				/>
 				{#if viewMode === 'lines'}
 					{#if paperCap > 4}
 						<label>
@@ -495,34 +485,6 @@
 		align-items: center;
 		gap: 6px;
 		cursor: pointer;
-	}
-
-	.view-toggle {
-		display: flex;
-		gap: 2px;
-		border: 1px solid rgba(var(--color-range-15), 0.2);
-		border-radius: var(--control-bar-pill-radius);
-		overflow: hidden;
-		flex-shrink: 0;
-	}
-
-	.toggle-btn {
-		background: none;
-		border: none;
-		font-family: inherit;
-		font-size: var(--control-bar-font);
-		padding: var(--control-bar-pill-pad);
-		cursor: pointer;
-		color: inherit;
-		opacity: 0.5;
-		transition:
-			opacity 0.15s,
-			background 0.15s;
-	}
-
-	.toggle-btn.active {
-		opacity: 1;
-		background: rgba(var(--color-range-15), 0.1);
 	}
 
 	.breakdown-select {

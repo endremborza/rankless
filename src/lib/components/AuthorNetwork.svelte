@@ -14,6 +14,7 @@
 	import { onMount } from 'svelte';
 	import { fade, slide } from 'svelte/transition';
 	import AuthorTimeline from './AuthorTimeline.svelte';
+	import ViewToggle from './ViewToggle.svelte';
 
 	export let authors: PostAttRelatedEntity[] = [];
 	export let edgeWeights: number[] = [];
@@ -301,20 +302,13 @@
 		<header class="net-head">
 			<div class="net-head-top">
 				<h3>Co-authors</h3>
-				<div class="view-toggle">
-					<button
-						class="toggle-btn"
-						class:active={view === 'network'}
-						aria-pressed={view === 'network'}
-						on:click={() => (view = 'network')}>network</button
-					>
-					<button
-						class="toggle-btn"
-						class:active={view === 'timeline'}
-						aria-pressed={view === 'timeline'}
-						on:click={() => (view = 'timeline')}>timeline</button
-					>
-				</div>
+				<ViewToggle
+					options={[
+						['network', 'network'],
+						['timeline', 'timeline']
+					]}
+					bind:value={view}
+				/>
 			</div>
 			{#if view === 'network'}
 				<p class="net-sub">
@@ -574,34 +568,6 @@
 
 	.net-head h3 {
 		margin: 0;
-	}
-
-	.view-toggle {
-		display: flex;
-		gap: 2px;
-		flex-shrink: 0;
-		border: 1px solid rgba(var(--color-range-15), 0.2);
-		border-radius: var(--control-bar-pill-radius);
-		overflow: hidden;
-	}
-
-	.toggle-btn {
-		background: none;
-		border: none;
-		font-family: inherit;
-		font-size: var(--control-bar-font);
-		padding: var(--control-bar-pill-pad);
-		cursor: pointer;
-		color: inherit;
-		opacity: 0.5;
-		transition:
-			opacity 0.15s,
-			background 0.15s;
-	}
-
-	.toggle-btn.active {
-		opacity: 1;
-		background: rgba(var(--color-range-15), 0.1);
 	}
 
 	.net-sub {
