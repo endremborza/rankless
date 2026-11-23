@@ -1,6 +1,6 @@
 # MCP server
 
-`mcp_server/` wraps the Rust backend (`rankless_server`, by default the local one in `mcp_server.BACKENDS`, on its `PORT`) in the [Model Context Protocol](https://modelcontextprotocol.io) so any MCP client — Claude Code, Claude Desktop, or the in-repo story miner — can consume citation data without bespoke integration. It is a separate Python process (official `mcp` SDK + `httpx`) that proxies and shapes responses; rate/agent logic stays out of the Rust hot path.
+`mcp_server/` wraps the Rust backend (`rankless_server`, by default the local one in `mcp_server.BACKENDS`, on its `PORT`) in the [Model Context Protocol](https://modelcontextprotocol.io) so any MCP client — Claude Code, Claude Desktop, or the in-repo story miner — can consume citation data without bespoke integration. It is a separate Python process (official `mcp` SDK + `httpx`) that proxies and shapes responses; rate/agent logic stays out of the Rust hot path. Its backend calls (`mcp_server/client.py`, `get_json`) wait and try again when a site's rate limit answers 429 (`RATE_LIMIT_RETRIES`), so a caller reading through the public API (the story miner, the outreach letters) slows down instead of failing.
 
 ## Running
 
