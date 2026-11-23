@@ -4,6 +4,7 @@ import type { WorkScreen } from './wire/rankless_rs/metrics';
 import {
 	isAsciiOnly,
 	pluralize,
+	countsText,
 	formatNumber,
 	prettifyRoot,
 	getSpecDesc,
@@ -168,5 +169,16 @@ describe('work screen phrases', () => {
 	it('reads the team limit into the rule for larger papers', () => {
 		expect(teamLimitPhrase(screen)).toContain('more than 20 authors');
 		expect(teamLimitPhrase(screen)).toContain('at least 1 in 20 of its authors');
+	});
+});
+
+describe('countsText', () => {
+	const r = { papers: 3, citations: 40 };
+	it('never reads an author below the indexed count', () => {
+		expect(countsText({ ...r, rawCites: 10 }, 'authors')).toBe('3 papers · 40 citations');
+		expect(countsText({ ...r, rawCites: 50 }, 'authors')).toBe('3 papers · 50 citations');
+	});
+	it('leaves out the paper count of a hit paper', () => {
+		expect(countsText(r, 'hit-papers')).toBe('40 citations');
 	});
 });

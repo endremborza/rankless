@@ -35,8 +35,6 @@ export type LeaderSpec = {
 
 export type HeroSpec = {
 	statVariant: StatVariant;
-	// Authors: headline the total (raw) citations, with indexed/hit-paper/h-index in the sub-line.
-	useRawCites?: boolean;
 	showHitPapers?: boolean;
 	showHIndex?: boolean;
 	// Trailing sub-line note: subfields are dated to the indexed era, journals to first activity.
@@ -91,7 +89,6 @@ const PEOPLE_LEADER_N = 8;
 export const HERO_CONFIG: Record<tt.RootType, HeroSpec> = {
 	authors: {
 		statVariant: 'cites',
-		useRawCites: true,
 		showHitPapers: true,
 		showHIndex: true,
 		showStandingBadge: true,

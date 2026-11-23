@@ -1,4 +1,5 @@
 import type { WorkScreen } from './wire/rankless_rs/metrics';
+import type { SearchResult } from './wire/rankless_server/responses';
 import type { RootType } from './tree-types';
 
 export function isAsciiOnly(str: string) {
@@ -56,8 +57,24 @@ export function formatNumber(n: number, maxFix: number = 2): string {
 	return `${shown}${UNIT_SUFFIXES[unit]}`;
 }
 
-export function authorCitationsText(raw: number, indexed: number): string {
-	return pluralize('citation', Math.max(raw, indexed));
+export function shownCitations(r: Pick<SearchResult, 'citations' | 'rawCites'>): number {
+	return Math.max(r.rawCites ?? 0, r.citations);
+}
+
+export function countsText(
+	r: Pick<SearchResult, 'papers' | 'citations' | 'rawCites'>,
+	rootType: RootType
+): string {
+	const cites = pluralize('citation', shownCitations(r));
+	return rootType === 'hit-papers' ? cites : `${pluralize('paper', r.papers)} · ${cites}`;
+}
+
+export function paperMetaText(p: { year: number; citations: number }): string {
+	return `${p.year} · ${pluralize('citation', p.citations)}`;
+}
+
+export function countedName(name: string, word: string, n: number): string {
+	return `${name} (${pluralize(word, n)})`;
 }
 
 // A person's last name, the label a crowded co-author graph shows.

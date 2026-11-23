@@ -27,9 +27,10 @@
 	import { afterNavigate } from '$app/navigation';
 	import BarChart, { type Bar, type Tick } from '$lib/components/BarChart.svelte';
 	import PeerSearch from '$lib/components/PeerSearch.svelte';
+	import type { RootType } from '$lib/tree-types';
 
 	export let data: EntityPeersResp;
-	export let rootType = 'authors';
+	export let rootType: RootType = 'authors';
 
 	const DEFAULT_FIELD_N = cardKinds.peers.params.n.default;
 	const MIN_FIELD_N = 2;

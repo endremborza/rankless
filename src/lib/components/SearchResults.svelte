@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { SearchResult, UnionSearchResult } from '$lib/wire/rankless_server/responses';
-	import { pluralize, rootEmoji, authorCitationsText } from '$lib/text-format-util';
+	import { rootEmoji, countsText } from '$lib/text-format-util';
 	import { BE_REMOTE_URL, isRootType } from '$lib/constants';
 	import type { RootedResult, RootType } from '$lib/tree-types';
 	import { entToLink } from '$lib/tree-functions';
@@ -103,11 +103,7 @@
 							{/if}{@html r.name}
 						</span>
 						<span class="result-meta">
-							{#if r.rootType !== 'hit-papers'}{pluralize('paper', r.papers)} ·
-							{/if}{#if r.rootType === 'authors' && r.rawCites}{authorCitationsText(
-									r.rawCites,
-									r.citations
-								)}{:else}{pluralize('citation', r.citations)}{/if}{#if r.distinctText}
+							{countsText(r, r.rootType)}{#if r.distinctText}
 								· {r.distinctText}{/if}
 						</span>
 					</a>

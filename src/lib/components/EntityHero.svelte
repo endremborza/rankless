@@ -6,7 +6,7 @@
 		type ViewResult
 	} from '$lib/wire/rankless_server/responses';
 	import type * as tt from '$lib/tree-types';
-	import { pluralize, formatNumber, authorCitationsText } from '$lib/text-format-util';
+	import { pluralize, formatNumber, shownCitations } from '$lib/text-format-util';
 	import {
 		HERO_CONFIG,
 		buildLeaderRows,
@@ -37,7 +37,7 @@
 
 	$: cfg = HERO_CONFIG[rootType];
 	$: isHitPaper = rootType === 'hit-papers';
-	$: rawCites = parseInt(view.meta?.rawCites ?? '0') || 0;
+	$: citations = shownCitations(view);
 	$: hIndex = peersData?.hero.hIndex ?? null;
 	$: doi = isHitPaper && !semanticId.startsWith('W') ? semanticId : null;
 
@@ -79,10 +79,11 @@
 			{#if cfg.statVariant === 'paper'}
 				<div class="stat-big">{citeText}</div>
 				<div class="stat-sub">published {view.startYear}</div>
-			{:else if cfg.useRawCites && rawCites > 0}
-				<div class="stat-big">{authorCitationsText(rawCites, view.citations)}</div>
+			{:else}
+				<div class="stat-big">{pluralize('citation', citations)}</div>
 				<div class="stat-sub">
-					{pluralize('paper', view.papers)} · {formatNumber(view.citations)}
+					{pluralize('paper', view.papers)} ·
+					{#if citations !== view.citations}{formatNumber(view.citations)}{/if}
 					<IndexedCitationLink />
 					{#if cfg.showHitPapers && hitPaperCount > 0}
 						· <a href="#papers">{pluralize('hit paper', hitPaperCount)}</a>
@@ -90,12 +91,6 @@
 					{#if cfg.showHIndex && hIndex != null}
 						· h-index {hIndex}
 					{/if}
-				</div>
-			{:else}
-				<div class="stat-big">{formatNumber(view.citations)} citations</div>
-				<div class="stat-sub">
-					{pluralize('paper', view.papers)} ·
-					<IndexedCitationLink />
 					{#if cfg.sinceNote === 'complete'}
 						· since {METHODOLOGY.workScreen.firstYear}
 					{:else if cfg.sinceNote === 'startYear'}

@@ -1,10 +1,11 @@
 <script lang="ts">
 	import type { SearchResult } from '$lib/wire/rankless_server/responses';
 	import { BE_REMOTE_URL } from '$lib/constants';
-	import { formatNumber } from '$lib/text-format-util';
+	import type { RootType } from '$lib/tree-types';
+	import { countsText } from '$lib/text-format-util';
 	import { createEventDispatcher } from 'svelte';
 
-	export let rootType: string;
+	export let rootType: RootType;
 	export let placeholder = 'Search…';
 	export let excludeSemanticId: string | undefined = undefined;
 
@@ -65,9 +66,7 @@
 				<li>
 					<button type="button" on:mousedown|preventDefault={() => choose(r)}>
 						<span class="ps-name">{@html r.name}</span>
-						<span class="ps-meta"
-							>{formatNumber(r.papers)} papers · {formatNumber(r.citations)} cites</span
-						>
+						<span class="ps-meta">{countsText(r, rootType)}</span>
 					</button>
 				</li>
 			{/each}
