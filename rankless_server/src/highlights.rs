@@ -69,6 +69,9 @@ type InstId = ET<Institutions>;
 type Prize = ET<AuthorNobels>;
 // The best `PER_KIND` papers by (strength, citations).
 type PaperHeap = FixedHeap<Reverse<((f64, u32), WT)>, PER_KIND>;
+// Per subfield, the authors whose citations from it reach its star band, with those citations, by
+// author.
+type Stars = Box<[Box<[(AuthorId, u32)]>]>;
 
 #[wire]
 #[derive(Serialize)]
@@ -110,7 +113,8 @@ pub(crate) struct ImpactHighlightsResp {
     pub apex_sources: Vec<usize>,
 }
 
-// The global pools, by dm id, and the rarity reference, built once in the background.
+// The global pools, by dm id, and the star table and rarity reference, built once in the
+// background.
 pub(crate) struct Highlighter {
     apex: Box<[usize]>,
     apex_rank: Box<[Option<u16>]>,
@@ -118,6 +122,7 @@ pub(crate) struct Highlighter {
     elite: Box<[usize]>,
     // Journals whose name says they publish reviews, which make no paper highlight.
     review_source: Box<[bool]>,
+    stars: OnceLock<Stars>,
     reference: OnceLock<Reference>,
 }
 
@@ -137,6 +142,7 @@ struct Ctx<'a> {
     gets: &'a Getters,
     server: &'a ServerGetters,
     authors: &'a RootColumns,
+    stars: &'a Stars,
 }
 
 struct Subject {
@@ -267,6 +273,7 @@ impl Highlighter {
             elite_rank: ranks(&elite, Institutions::N),
             elite,
             review_source,
+            stars: OnceLock::new(),
             reference: OnceLock::new(),
         }
     }
@@ -277,8 +284,8 @@ impl Highlighter {
 
     // None until `warm` has built the rarity reference, so no request waits on the build.
     pub fn find(&self, gets: &Getters, server: &ServerGetters, aid: usize) -> Option<Found> {
-        let reference = self.reference.get()?;
-        let ctx = self.ctx(gets, server);
+        let (reference, stars) = (self.reference.get()?, self.stars.get()?);
+        let ctx = self.ctx(gets, server, stars);
         let scan = ctx.scan(aid);
         let candidates = ctx.candidates(&scan, reference);
         Some(Found {
@@ -287,14 +294,24 @@ impl Highlighter {
         })
     }
 
-    // Builds the rarity reference `find` reads.
+    // Builds the star table and the rarity reference `find` reads.
     pub fn warm(&self, ns: &NameStateMap, gets: &Getters, server: &ServerGetters) {
+        let stars = self.stars.get_or_init(|| {
+            let now = Instant::now();
+            let stars = star_table(gets.columns_for(Authors::NAME).expect("author columns"));
+            println!(
+                "highlight star table of {} authors in {:.2?}",
+                stars.iter().map(|s| s.len()).sum::<usize>(),
+                now.elapsed()
+            );
+            stars
+        });
         self.reference.get_or_init(|| {
             let now = Instant::now();
             let responses = &ns[Authors::NAME].responses;
             let step = responses.len().div_ceil(REFERENCE_SAMPLE).max(1);
             let sample: Vec<usize> = responses.iter().step_by(step).map(|r| r.dm_id).collect();
-            let ctx = self.ctx(gets, server);
+            let ctx = self.ctx(gets, server, stars);
             let threads = std::thread::available_parallelism().map_or(1, |p| p.get());
             let chunk = sample.len().div_ceil(threads).max(1);
             let bests: Vec<[Option<f64>; KINDS.len()]> = std::thread::scope(|s| {
@@ -323,12 +340,18 @@ impl Highlighter {
         });
     }
 
-    fn ctx<'a>(&'a self, gets: &'a Getters, server: &'a ServerGetters) -> Ctx<'a> {
+    fn ctx<'a>(
+        &'a self,
+        gets: &'a Getters,
+        server: &'a ServerGetters,
+        stars: &'a Stars,
+    ) -> Ctx<'a> {
         Ctx {
             hl: self,
             gets,
             server,
             authors: gets.columns_for(Authors::NAME).expect("author columns"),
+            stars,
         }
     }
 }
@@ -422,10 +445,7 @@ impl Ctx<'_> {
         let star_fields = fields
             .into_iter()
             .take(HIGHLIGHT_RULES.star_fields)
-            .filter_map(|(_, sf)| {
-                let band = self.authors.cit_rank_ladder[sf][LADDER_LEN - 1];
-                (band != u32::MAX && band > 0).then_some((sf, band))
-            })
+            .filter_map(|(_, sf)| star_band(self.authors, sf).map(|band| (sf, band)))
             .collect();
         Subject {
             aid: a,
@@ -505,12 +525,11 @@ impl Ctx<'_> {
                     }
                 }
                 for &(field, band) in &s.star_fields {
-                    let Some(fc) = self.authors.field_citations(bu, field) else {
+                    let row = &self.stars[field];
+                    let Ok(i) = row.binary_search_by_key(&b, |&(a, _)| a) else {
                         continue;
                     };
-                    if fc < band {
-                        continue;
-                    }
+                    let fc = row[i].1;
                     let ratio = fc as f64 / band as f64;
                     let star = Star {
                         ratio,
@@ -826,6 +845,35 @@ fn is_review_journal(name: &str) -> bool {
     REVIEW_JOURNAL_PHRASES
         .iter()
         .any(|phrase| words.windows(phrase.len()).any(|w| w == *phrase))
+}
+
+// A subfield's tightest ladder band, None where its cohort is empty.
+fn star_band(authors: &RootColumns, sf: usize) -> Option<u32> {
+    let band = authors.cit_rank_ladder[sf][LADDER_LEN - 1];
+    (band != u32::MAX && band > 0).then_some(band)
+}
+
+// One pass over every author's citations per subfield, whose mapped pages it then releases, so the
+// file is resident only while the table is built.
+fn star_table(authors: &RootColumns) -> Stars {
+    let citing = &authors
+        .subfields
+        .as_ref()
+        .expect("author subfield profiles")
+        .citing;
+    let bands: Vec<Option<u32>> = (0..authors.cit_rank_ladder.len())
+        .map(|sf| star_band(authors, sf))
+        .collect();
+    let mut stars = vec![Vec::new(); bands.len()];
+    for a in 0..citing.len() {
+        for (sf, &fc) in citing.row(a).iter().enumerate() {
+            if bands[sf].is_some_and(|band| fc >= band) {
+                stars[sf].push((AuthorId::from_usize(a), fc));
+            }
+        }
+    }
+    citing.release();
+    stars.into_iter().map(Vec::into_boxed_slice).collect()
 }
 
 #[cfg(test)]
