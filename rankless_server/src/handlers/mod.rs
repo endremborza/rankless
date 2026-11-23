@@ -10,4 +10,4 @@ pub(crate) use search::{
     authored_get, name_get, orcid_get, resolve_author_get, resolve_work_get, sem_id_get,
 };
 pub(crate) use table::{column_registry, metric_values_get, slice_get, where_get};
-pub(crate) use works::{intersect_get, paper_profile, works_get};
+pub(crate) use works::{author_hits_get, impact_highlights_get, intersect_get, works_get};

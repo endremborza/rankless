@@ -26,6 +26,7 @@ use rankless_trees::{
 
 use crate::cohort::BoundCall;
 use crate::consts::MAX_HITS;
+use crate::highlights::Highlighter;
 use crate::muwo::{self, SearchEngine};
 use crate::responses::{
     PostAttRelatedEntity, RelationGroups, SearchResult, SerializableExt, YearWindow,
@@ -50,6 +51,7 @@ pub(crate) type FullStates = (
     Arc<AttributeLabelUnion>,
     Arc<InstTrm>,
     Arc<ServerGetters>,
+    Arc<Highlighter>,
 );
 pub(crate) type FullStatesT = State<FullStates>;
 
@@ -366,6 +368,10 @@ impl Orderings {
             && m.param.is_none()
             && !m.is_entity_valued()
             && m.kind(cols, |_| false) == Some(Kind::Global)
+    }
+
+    pub fn by(&self, id: &str) -> Option<&[u32]> {
+        self.0.get(id).map(Box::as_ref)
     }
 
     pub fn get(&self, call: &BoundCall) -> Option<&[u32]> {

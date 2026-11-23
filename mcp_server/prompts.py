@@ -13,7 +13,7 @@ rankless tools.
    co-authors and the strongest co-author ties), get_entity_stats (recent-era
    window), get_citation_tree (which fields the work impacts), get_peers
    (standing among peers), get_papers(sort="citations") (hit papers),
-   get_impact_dag (the hit papers that build on their work).
+   get_impact_highlights (the most notable independent citations of their work).
 3. Submit every number you will state to verify_claims, citing receipt ids,
    and keep only the reproduced values.
 4. Write a concise report: who they are, scale and trend of impact, the

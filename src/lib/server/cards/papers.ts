@@ -1,8 +1,8 @@
-import type { PaperProfileResp } from '$lib/wire/rankless_server/responses';
+import type { PaperSetResp } from '$lib/wire/rankless_server/responses';
 import { error } from '@sveltejs/kit';
 import { BE_URL } from '$lib/constants';
 import { encodeSemanticId } from '$lib/tree-functions';
-import { htmlToText, isAuthored, resolveSourceName } from '$lib/utils/paper-helpers';
+import { htmlToText, resolveSourceName } from '$lib/utils/paper-helpers';
 import { pluralize } from '$lib/text-format-util';
 import {
 	computeYearRates,
@@ -33,15 +33,12 @@ export const papers: CardKind = {
 		const sorts = P.sort.options as RainbowSort[];
 		const sort = oneOf(params, 'sort', sorts, P.sort.default as RainbowSort);
 		const [hlId] = idsParam(params, 'hl', P.hl.max);
-		const profile = await beJson<PaperProfileResp>(
+		const set = await beJson<PaperSetResp>(
 			fetch,
-			`${BE_URL}/paper-profile/${encodeSemanticId(semanticId)}`
+			`${BE_URL}/author-hits/${encodeSemanticId(semanticId)}`
 		);
-		const { entityAtts } = profile.papers;
-		const hits = rainbowPapers(
-			profile.papers.papers.filter((p) => isAuthored(p, semanticId, entityAtts)),
-			sort
-		);
+		const { entityAtts } = set;
+		const hits = rainbowPapers(set.papers, sort);
 		if (hits.length === 0) error(404, 'card unavailable');
 		const hl = hlId ? hits.findIndex((p) => p.hitSemId === hlId) : 0;
 		if (hl < 0) error(404, 'bad hl');

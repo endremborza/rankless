@@ -5,7 +5,7 @@
 		type EntityPeersResp,
 		type LadderResp,
 		type PaperOut,
-		type PaperProfileResp,
+		type PaperSetResp,
 		type ViewResult
 	} from '$lib/wire/rankless_server/responses';
 	import type { AttributeLabels, EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
@@ -15,12 +15,8 @@
 
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
-	import {
-		isAuthored,
-		fetchOaAbstract,
-		htmlToText,
-		mergeEntityAtts
-	} from '$lib/utils/paper-helpers';
+	import { fetchOaAbstract, htmlToText, mergeEntityAtts } from '$lib/utils/paper-helpers';
+	import { fetchImpactHighlights } from '$lib/utils/impact-highlights';
 	import { afterNavigate, invalidateAll } from '$app/navigation';
 
 	import FullQc from '$lib/components/FullQc.svelte';
@@ -32,6 +28,9 @@
 	import AuthorNetwork from '$lib/components/AuthorNetwork.svelte';
 	import Toc from '$lib/components/Toc.svelte';
 	import PaperRainbow from '$lib/components/PaperRainbow.svelte';
+	import ImpactHighlights from '$lib/components/ImpactHighlights.svelte';
+	import ViewToggle from '$lib/components/ViewToggle.svelte';
+	import type { ImpactHighlightsResp } from '$lib/wire/rankless_server/highlights';
 	import Peers from '$lib/components/Peers.svelte';
 	import AllWorks from '$lib/components/AllWorks.svelte';
 	import AuthorLedgerPanel from '$lib/components/AuthorLedgerPanel.svelte';
@@ -61,7 +60,7 @@
 		citeText: string;
 		prefixText: string;
 		disclaimer: string | null;
-		profile: PaperProfileResp | null;
+		hits: PaperSetResp | null;
 		peersData: EntityPeersResp | null;
 		ladder: LadderResp | null;
 		initialPapers: PaperOut[];
@@ -84,19 +83,21 @@
 	let hitPaperAbstract: string | null = null;
 	let abstractLoading = false;
 
-	// Combined entity attribute maps (profile data + initial works batch); deep-merged so the
-	// initial batch's smaller per-type maps don't clobber the profile's fuller ones.
-	$: entityAtts = mergeEntityAtts(data.profile?.papers.entityAtts, data.initialEntityAtts);
+	// Combined entity attribute maps (hit papers + initial works batch); deep-merged so the
+	// initial batch's smaller per-type maps don't clobber the hit papers' fuller ones.
+	$: entityAtts = mergeEntityAtts(data.hits?.entityAtts, data.initialEntityAtts);
 	$: discAuthorNames = {
-		...(data.profile?.papers.discAuthorNames ?? {}),
+		...(data.hits?.discAuthorNames ?? {}),
 		...data.initialDiscAuthorNames
 	} as Record<string, string>;
 
-	$: papers = data.profile?.papers.papers ?? [];
-	$: authoredHitPapers = papers.filter(
-		(p) =>
-			isAuthored(p, data.conf.semanticId, entityAtts) && p.yearlyCites && p.yearlyCites.length > 0
+	$: authoredHitPapers = (data.hits?.papers ?? []).filter(
+		(p) => p.yearlyCites && p.yearlyCites.length > 0
 	);
+	let highlights: ImpactHighlightsResp | null = null;
+	$: hasHighlights = isAuthor && !!highlights && highlights.highlights.length > 0;
+	let impactView: 'breakdown' | 'highlights' = 'breakdown';
+	$: showHighlights = impactView === 'highlights' && hasHighlights;
 
 	let inFlight: WorksEdit[] = [];
 	$: worksHidden = withEdits(data.disownedWids, data.mergedPairs, inFlight);
@@ -109,12 +110,19 @@
 	afterNavigate(() => {
 		const isCurrent = claimNavigation();
 		hitPaperAbstract = null;
+		highlights = null;
+		impactView = 'breakdown';
 		abstractLoading = isHitPaper;
 		if (isHitPaper) {
 			fetchOaAbstract(data.conf.semanticId).then((result) => {
 				if (!isCurrent()) return;
 				hitPaperAbstract = result;
 				abstractLoading = false;
+			});
+		}
+		if (isAuthor) {
+			fetchImpactHighlights(data.conf.semanticId).then((result) => {
+				if (isCurrent()) highlights = result;
 			});
 		}
 	});
@@ -218,24 +226,43 @@
 <Toc sections={tocSections} />
 
 <section id="impact" class="shadowy padded marged main-block">
-	<!-- Keyed on entity identity (as are the geography and research-space sections below) so
-	     navigating between entities tears the tree-driven components down and rebuilds them from
-	     fresh props: FullQc and FlatOutFrame seed local state (tree spec, breakdowns, year) once from
-	     prop defaults. The year filter mutates conf in place (same identity), so it stays within one
-	     instance and hot-reloads through the tree loader. -->
-	{#key entityKey}
-		<FullQc
-			rootName={data.view.name}
-			prefixText={data.prefixText}
-			selectedQcRootId={data.view.dmId}
-			conf={data.conf}
-			selectionState={data.selectionState}
-			attributeLabels={data.atts}
-			completeTree={data.tree}
-			shallowed={data.shallowed}
-			shoPathLevelInfo={!isHitPaper}
-		/>
-	{/key}
+	{#if hasHighlights}
+		<header class="impact-head">
+			<h3>Impact</h3>
+			<ViewToggle
+				options={[
+					['breakdown', 'breakdown'],
+					['highlights', 'highlights']
+				]}
+				bind:value={impactView}
+			/>
+		</header>
+	{/if}
+	{#if showHighlights && highlights}
+		<ImpactHighlights resp={highlights} authorName={data.view.name} />
+	{/if}
+	<!-- Hidden rather than unmounted under the highlights, since a remount would reseed it from the
+	     page's first tree. -->
+	<div hidden={showHighlights}>
+		<!-- Keyed on entity identity (as are the geography and research-space sections below) so
+		     navigating between entities tears the tree-driven components down and rebuilds them from
+		     fresh props: FullQc and FlatOutFrame seed local state (tree spec, breakdowns, year) once from
+		     prop defaults. The year filter mutates conf in place (same identity), so it stays within one
+		     instance and hot-reloads through the tree loader. -->
+		{#key entityKey}
+			<FullQc
+				rootName={data.view.name}
+				prefixText={data.prefixText}
+				selectedQcRootId={data.view.dmId}
+				conf={data.conf}
+				selectionState={data.selectionState}
+				attributeLabels={data.atts}
+				completeTree={data.tree}
+				shallowed={data.shallowed}
+				shoPathLevelInfo={!isHitPaper}
+			/>
+		{/key}
+	</div>
 </section>
 
 {#if isAuthor && authoredHitPapers.length > 0}
@@ -368,6 +395,18 @@
 
 	.main-block {
 		margin-bottom: 0px;
+	}
+
+	.impact-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		margin-bottom: 4px;
+	}
+
+	.impact-head h3 {
+		margin: 0;
 	}
 
 	#similars {

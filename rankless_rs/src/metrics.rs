@@ -49,11 +49,6 @@ pub const H_SINCE: [u16; 2] = [2010, 2020];
 #[wire]
 pub const TOPIC_SCORE_SHARE: f64 = 0.9;
 
-// The hit papers an author's impact keeps: the best this many of those citing the author's work
-// directly or once removed.
-#[wire]
-pub const TOP_HIT_PAPERS: usize = 50;
-
 // The most shared papers a co-author count records; a pair with more stays at this.
 #[wire]
 pub const MAX_SHARED_PAPERS: u8 = 251;
@@ -108,7 +103,6 @@ pub const METHODOLOGY: Methodology = Methodology {
     h_since: H_SINCE,
     ladder_pct_bands: LADDER_PCT_BANDS,
     topic_score_share: TOPIC_SCORE_SHARE,
-    top_hit_papers: TOP_HIT_PAPERS,
     spec_corr_rate: SPEC_CORR_RATE,
 };
 
@@ -168,7 +162,6 @@ pub struct Methodology {
     // The top shares of a field's cohort an entity's citation standing is placed in, loosest first.
     pub ladder_pct_bands: [f64; LADDER_LEN],
     pub topic_score_share: f64,
-    pub top_hit_papers: usize,
     pub spec_corr_rate: f64,
 }
 

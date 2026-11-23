@@ -3,7 +3,6 @@
 export const PAPER_SCORE: PaperScore = { barScale: 4, hitMultiple: 1.5, sfYearMinPapers: 400, topShare: 0.01, wSf: 0.005, wSfYear: 0.895, wYear: 0.1 };
 export const TOP_N = [['sources', 1000], ['institutions', 2000], ['countries', 2000], ['authors', 20]] as const;
 export const TOPIC_SCORE_SHARE = 0.9;
-export const TOP_HIT_PAPERS = 50;
 export const MAX_SHARED_PAPERS = 251;
 export const SPEC_CORR_RATE = 0.45;
 
@@ -32,7 +31,6 @@ export type Methodology = {
 	ladderPctBands: number[];
 	paperScore: PaperScore;
 	specCorrRate: number;
-	topHitPapers: number;
 	topN: [string, number][];
 	topicScoreShare: number;
 	workScreen: WorkScreen;

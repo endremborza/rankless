@@ -5,7 +5,7 @@ import {
 	type LadderResp,
 	type PaginatedPaperSetResp,
 	type PaperOut,
-	type PaperProfileResp,
+	type PaperSetResp,
 	type PostAttRelatedEntity,
 	type SearchResult,
 	type ViewResult
@@ -84,7 +84,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 	}
 
 	// Author-specific data (null/empty defaults for all other entity types)
-	let profile: PaperProfileResp | null = null;
+	let hits: PaperSetResp | null = null;
 	let peersPromise: Promise<EntityPeersResp | null> = Promise.resolve(null);
 	let ladderPromise: Promise<LadderResp | null> = Promise.resolve(null);
 	let initialPapers: PaperOut[] = [];
@@ -111,9 +111,9 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 
 	if (rootType === 'authors') {
 		const encodedSemId = tf.encodeSemanticId(semanticId);
-		const [profileResp, worksResp]: [PaperProfileResp | null, PaginatedPaperSetResp | null] =
+		const [hitsResp, worksResp]: [PaperSetResp | null, PaginatedPaperSetResp | null] =
 			await Promise.all([
-				fetch(`${BE_URL}/paper-profile/${encodedSemId}`)
+				fetch(`${BE_URL}/author-hits/${encodedSemId}`)
 					.then((r) => r.json())
 					.catch(() => null),
 				fetch(worksPageUrl(BE_URL, semanticId, 0, INITIAL_PAGE_SIZE))
@@ -121,7 +121,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 					.catch(() => null)
 			]);
 
-		profile = profileResp;
+		hits = hitsResp;
 
 		if (worksResp) {
 			initialPapers = worksResp.resp.papers;
@@ -191,7 +191,7 @@ export const load: PageServerLoad = async ({ params, url, locals, fetch }) => {
 			citeText,
 			prefixText,
 			disclaimer,
-			profile,
+			hits,
 			peersData,
 			ladder,
 			initialPapers,

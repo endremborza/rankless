@@ -8,7 +8,7 @@ ENTITY_TYPES = """\
 
 Root types (valid `entity_type` values): authors, institutions, sources,
 countries, subfields. get_entity_profile and get_citation_tree also take
-hit-papers: one hit paper, by the semanticId get_papers or get_impact_dag gives.
+hit-papers: one hit paper, by the semanticId get_papers or get_impact_highlights gives.
 
 - sources = journals/venues.
 - subfields = the discipline level used everywhere (the UI calls them
@@ -30,10 +30,10 @@ Every answer follows one loop: resolve, call, cite, verify, answer.
    ambiguous. Never guess a semantic_id.
 2. Call the aggregation tools over resolved ids: get_entity_profile,
    get_entity_stats, get_citation_tree, get_peers, get_papers, and for an
-   author get_impact_dag (the hit papers that build on their work). A "which
-   entities are strongest / biggest in ..." question is one rank_entities
-   call (a ranking metric plus narrowing clauses; `total` and `screened`
-   state the cohort the rank is within); annotate_entities reads the
+   author get_impact_highlights (the most notable independent citations of
+   their work). A "which entities are strongest / biggest in ..." question is
+   one rank_entities call (a ranking metric plus narrowing clauses; `total`
+   and `screened` state the cohort the rank is within); annotate_entities reads the
    page-local metrics for a list of named entities in one call.
    get_methodology states what the numbers count (an indexed citation, a
    hit paper) with the values the data was built with.

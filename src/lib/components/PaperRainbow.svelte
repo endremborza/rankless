@@ -381,7 +381,7 @@
 									{/if}
 									{#if paper.hitSemId}
 										<a
-											href="/hit-papers/{paper.hitSemId}"
+											href={tf.getEntityPath('hit-papers', paper.hitSemId)}
 											class="paper-profile-link"
 											on:click|stopPropagation={() => {}}>profile →</a
 										>

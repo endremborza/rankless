@@ -14,7 +14,6 @@ use rankless_trees::{
     interfacing::RootColumns,
     io::{EntityAttsForLinks, RunManagerSub, TreeSpecs},
     metrics::{methodology_texts, Cost, ItemTexts, Kind, MetricTexts, Param, ValueType, ERA},
-    path_finder::RefDAG,
 };
 
 use crate::state::TreeRoots;
@@ -456,13 +455,6 @@ pub(crate) struct PaginatedPaperSetResp {
     pub total_papers: usize,
     #[serde(rename = "sliceStart")]
     pub slice_start: usize,
-}
-
-#[wire]
-#[derive(Serialize)]
-pub(crate) struct PaperProfileResp {
-    pub dag: RefDAG,
-    pub papers: PaperSetResp,
 }
 
 #[derive(Deserialize)]

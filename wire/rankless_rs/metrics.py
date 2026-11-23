@@ -8,7 +8,6 @@ from typing import Final, TypedDict
 PAPER_SCORE: Final[PaperScore] = {"barScale": 4, "hitMultiple": 1.5, "sfYearMinPapers": 400, "topShare": 0.01, "wSf": 0.005, "wSfYear": 0.895, "wYear": 0.1}
 TOP_N: Final = (("sources", 1000), ("institutions", 2000), ("countries", 2000), ("authors", 20))
 TOPIC_SCORE_SHARE: Final = 0.9
-TOP_HIT_PAPERS: Final = 50
 MAX_SHARED_PAPERS: Final = 251
 SPEC_CORR_RATE: Final = 0.45
 
@@ -38,7 +37,6 @@ class Methodology(TypedDict):
     ladderPctBands: list[float]
     paperScore: PaperScore
     specCorrRate: float
-    topHitPapers: int
     topN: list[tuple[str, int]]
     topicScoreShare: float
     workScreen: WorkScreen

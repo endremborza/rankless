@@ -4,6 +4,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 mod cohort;
 mod consts;
 mod handlers;
+mod highlights;
 mod muwo;
 mod responses;
 mod routes;
@@ -22,6 +23,7 @@ use rankless_rs::Stowage;
 
 use crate::consts::{DEFAULT_N_THREADS, PORT, TREES_ONLY_FLAG};
 use crate::handlers::{column_registry, tops_get};
+use crate::highlights::Highlighter;
 use crate::routes::{nested_routes, server_routes, tree_routes, API_PREFIX};
 use crate::search_cache::haystacks_dir;
 use crate::startup::get_rest;
@@ -71,7 +73,15 @@ async fn async_main(n_threads: usize) {
         None => tree_api,
         Some(server) => {
             let (ns_map, satts, trm) = states.0;
-            tree_api.merge(server_routes().with_state((ns_map, satts, trm, server)))
+            let highlighter = Arc::new(Highlighter::new(&ns_map, &satts));
+            let warm = (
+                ns_map.clone(),
+                trm.clone(),
+                server.clone(),
+                highlighter.clone(),
+            );
+            std::thread::spawn(move || warm.3.warm(&warm.0, &warm.1.state.gets, &warm.2));
+            tree_api.merge(server_routes().with_state((ns_map, satts, trm, server, highlighter)))
         }
     };
 

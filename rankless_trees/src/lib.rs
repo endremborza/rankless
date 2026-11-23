@@ -7,7 +7,6 @@ pub mod io;
 mod merging;
 pub mod metrics;
 mod part_iterator;
-pub mod path_finder;
 mod prune;
 #[cfg(test)]
 mod test_utils;

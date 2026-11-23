@@ -109,7 +109,7 @@ The frontend's own types derive from the generated ones rather than restating th
 
 | Boundary | Rust source | Consumers |
 | --- | --- | --- |
-| `/v1` responses | `rankless_server/src/responses.rs`, `rankless_trees/src/{io,metrics,path_finder}.rs`, `rankless_rs/src/{metrics,biblo_var_att}.rs`, `rankless_expr` | frontend, `mcp_server` |
+| `/v1` responses | `rankless_server/src/responses.rs`, `rankless_trees/src/{io,metrics}.rs`, `rankless_rs/src/{metrics,biblo_var_att}.rs`, `rankless_expr` | frontend, `mcp_server` |
 | the methodology and the tree specs (`METHODOLOGY`, `TREE_SPECS`) | `rankless_server/src/responses.rs` | frontend, `mcp_server`, `pyscripts` |
 | the env's pipeline thresholds | `rankless_rs/src/env_consts.rs` (from `rankless_rs/build.rs`) | frontend, `mcp_server` |
 | ledger events (DB payloads, `ACTIVE_JSONL`) | `rankless_rs/src/user_ledger.rs` `EventPayload`, `WorkSubject`, `AuthorSubject` | the site's writers and readers, `pyscripts/ledger_ids.py` |

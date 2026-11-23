@@ -1,12 +1,6 @@
-import type {
-	PaperAuthorMeta,
-	PaperAuthorship,
-	PaperOut
-} from '$lib/wire/rankless_server/responses';
+import type { PaperAuthorship, PaperOut } from '$lib/wire/rankless_server/responses';
 import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 import type { OaPaperResp } from '$lib/tree-types';
-
-export const PRESTIGIOUS_SOURCE_SEM_IDS = new Set(['science', 'nature']);
 
 // Minimal entity table for the SSR fallback only; the browser path decodes all entities natively.
 const NAMED_ENTITIES: Record<string, string> = {
@@ -120,23 +114,6 @@ export async function fetchOaAbstract(semanticId: string): Promise<string | null
 	} catch {
 		return null;
 	}
-}
-
-export type PaperHighlight = {
-	key: string; // 'authored' | 'hit' | 'prestigious' | 'nobel'
-	label?: string; // for prestigious: actual source name
-};
-
-const HIGHLIGHT_LABELS: Record<string, string> = {
-	hit: 'Hit',
-	prestigious: 'Prestigious',
-	nobel: 'Nobel'
-};
-
-// A highlight's badge text; a prestigious journal is named.
-export function highlightLabel(hl: PaperHighlight): string {
-	if (hl.key === 'prestigious' && hl.label) return hl.label;
-	return HIGHLIGHT_LABELS[hl.key] ?? hl.key;
 }
 
 // A served authorship's display name; null for a filtered author missing from `entityAtts` or a
@@ -260,38 +237,4 @@ export function isAuthored(
 		if (s.author[0] !== 'F') return false;
 		return entityAtts.authors?.[s.author.slice(1)]?.semantic_id === authorSemId;
 	});
-}
-
-// A paper with a Nobel laureate among its authors, besides `subjectDmId` and the laureates who
-// share the subject's own prize: neither the subject nor a co-laureate counts as a laureate
-// building on the subject's work.
-export function hasNobelCoauthor(
-	paper: PaperOut,
-	authorsMeta: Record<string, PaperAuthorMeta>,
-	subjectDmId?: string
-): boolean {
-	const own = subjectDmId === undefined ? undefined : authorsMeta[subjectDmId];
-	const shared = (m: PaperAuthorMeta) => !!own && own.prize === m.prize && own.year === m.year;
-	return paper.authorships.some((s) => {
-		const dmId = s.author.slice(1);
-		const meta = authorsMeta[dmId];
-		return s.author[0] === 'F' && dmId !== subjectDmId && !!meta && meta.prize > 0 && !shared(meta);
-	});
-}
-
-export function getPaperHighlights(
-	paper: PaperOut,
-	sourceAuthorSemId?: string,
-	entityAtts?: EntityAttsForLinks
-): PaperHighlight[] {
-	const hl: PaperHighlight[] = [];
-	if (sourceAuthorSemId && entityAtts && isAuthored(paper, sourceAuthorSemId, entityAtts))
-		hl.push({ key: 'authored' });
-	if (paper.isHit) hl.push({ key: 'hit' });
-	if (entityAtts) {
-		const sourceAtt = entityAtts.sources?.[String(paper.source)];
-		if (sourceAtt?.semantic_id && PRESTIGIOUS_SOURCE_SEM_IDS.has(sourceAtt.semantic_id))
-			hl.push({ key: 'prestigious', label: sourceAtt.name });
-	}
-	return hl;
 }

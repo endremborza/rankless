@@ -66,7 +66,7 @@ _CURL_MAP = {
         ["year_from", "year_to", "subfield"],
     ),
     "get_papers": ("/works/{entity_type}/{semantic_id}/{offset}", ["limit", "sort"]),
-    "get_impact_dag": ("/paper-profile/{semantic_id}", []),
+    "get_impact_highlights": ("/impact-highlights/{semantic_id}", []),
     "get_peers": ("/peers/{entity_type}/{semantic_id}", []),
     "lookup_orcid": ("/orcid/{orcid}", []),
 }
@@ -364,7 +364,8 @@ def _user_prompt(config: DeepConfig) -> str:
             "`etype:semantic_id` ref). Build every finding around it and its immediate "
             "neighborhood - its production and standout works, its peers, its co-authors "
             "or related entities, and the fields it feeds into or draws from; for a "
-            "person, also the hit papers that build on their work (get_impact_dag) and "
+            "person, also the most notable independent citations of their work "
+            "(get_impact_highlights) and "
             "who cites their key papers (get_citation_tree on hit-papers). Prefer the "
             "specific and less-obvious over generic famous entities."
         )

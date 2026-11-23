@@ -4,9 +4,9 @@ use axum::{routing::get, Router};
 use wiretypes::wire;
 
 use crate::handlers::{
-    authored_get, intersect_get, ladder_get, metric_values_get, name_get, orcid_get, paper_profile,
-    peers_get, resolve_author_get, resolve_work_get, sem_id_get, slice_get, stats_get, tree_get,
-    view_get, where_get, works_get,
+    author_hits_get, authored_get, impact_highlights_get, intersect_get, ladder_get,
+    metric_values_get, name_get, orcid_get, peers_get, resolve_author_get, resolve_work_get,
+    sem_id_get, slice_get, stats_get, tree_get, view_get, where_get, works_get,
 };
 use crate::state::{FullStates, TreeStates};
 
@@ -60,7 +60,8 @@ route_table!(SERVER_PATHS, server_routes<FullStates> {
     "/resolve/work" => resolve_work_get,
     "/resolve/author" => resolve_author_get,
     "/authored" => authored_get,
-    "/paper-profile/:asem" => paper_profile,
+    "/author-hits/:asem" => author_hits_get,
+    "/impact-highlights/:asem" => impact_highlights_get,
     "/works/:etype/:semantic_id/:from" => works_get,
     "/works-intersect/*spec" => intersect_get,
 });

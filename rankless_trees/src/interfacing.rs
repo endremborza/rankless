@@ -1,9 +1,6 @@
 use std::{f64, ops::Range, sync::Arc};
 
-use crate::{
-    io::{AttributeLabel, WT},
-    path_finder::RefGraph,
-};
+use crate::io::{AttributeLabel, WT};
 use rankless_rs::{
     common::{
         reverse_id, BeS, CitRankLadderMarker, CitSubfieldsArrayMarker, HIndexMarker,
@@ -29,7 +26,6 @@ use rankless_rs::{
         derive_links1::{WorkInstitutions, WorkSubfields},
         derive_links2::{SourceStats, WorkCountries, WorkTopSource},
         derive_links3::{Coauthors, HitPapers, HitPapersCreatedTopic, WorkBars},
-        derive_links4::{AuthorCitingHitsDirect, AuthorCitingHitsOnce},
         derive_links5::HitPaperYearlyCitations,
     },
     ladder::LADDER_LEN,
@@ -342,8 +338,6 @@ make_server_interfaces!(
     dshipis -> DiscardedAuthorshipInstitutions,
     aslugs -> AuthorWikiSlugs,
     coathors -> Coauthors,
-    author_citing_direct -> AuthorCitingHitsDirect,
-    author_citing_once -> AuthorCitingHitsOnce,
     hit_yearlies -> HitPaperYearlyCitations;
     dan_locators loc DiscardedAuthorsNames,
     doi_locators loc WorkDois
@@ -732,15 +726,6 @@ where
     type VT = ET<MAA<Self, Mark>>;
     fn load(stowage: &Stowage) -> VarBox<Self::VT> {
         stowage.get_marked_interface::<Self, Mark, QuickestVBox>()
-    }
-}
-
-impl RefGraph for (&Getters, &ServerGetters) {
-    fn get_refs(&self, wid: WT) -> &[WT] {
-        self.1.wrefs(wid)
-    }
-    fn get_cites(&self, wid: WT) -> &[WT] {
-        self.0.citing(wid)
     }
 }
 

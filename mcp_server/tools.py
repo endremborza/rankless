@@ -32,8 +32,14 @@ from wire.rankless_rs.env_consts import (
     MIN_PAPERS_FOR_INST,
     MIN_PAPERS_FOR_SOURCE,
 )
-from wire.rankless_rs.metrics import MAX_SHARED_PAPERS, TOP_HIT_PAPERS
+from wire.rankless_rs.metrics import MAX_SHARED_PAPERS
 from wire.rankless_server.consts import MAX_PINS, SCREEN_K
+from wire.rankless_server.highlights import (
+    HIGHLIGHT_RULES,
+    Badge,
+    Highlight,
+    ImpactHighlightsResp,
+)
 from wire.rankless_server.responses import (
     METHODOLOGY,
     TREE_SPECS,
@@ -42,12 +48,10 @@ from wire.rankless_server.responses import (
     MetricValuesResp,
     PaperAuthorMeta,
     PaperOut,
-    PaperProfileResp,
     SliceResp,
     TableRow,
 )
 from wire.rankless_trees.io import AttributeLabel, TreeResponse
-from wire.rankless_trees.path_finder import RefDAG
 
 # Each root type's default ordering, from the registry `describe()` reads; the backend
 # applies it to a sortless `/slice`, so this only names it.
@@ -168,7 +172,7 @@ async def get_entity_profile(entity_type: str, semantic_id: str) -> dict:
     """Full profile of one entity: totals, yearly series, top relations, similars.
 
     entity_type is a root type or hit-papers (a hit paper's semantic_id comes
-    from get_papers or get_impact_dag). `yearlyPapers`/`yearlyCites` cover the
+    from get_papers or get_impact_highlights). `yearlyPapers`/`yearlyCites` cover the
     recent era ({first}..{last}), and `startYear` is the publication year of the
     entity's first indexed paper (an author's career start, a hit paper's own year).
     `relations` holds ranked related entities per relation type (paper-fields,
@@ -179,7 +183,7 @@ async def get_entity_profile(entity_type: str, semantic_id: str) -> dict:
     breakdown and `cards` the default card of every other kind this profile
     shows the entity has (yearly citations, map, fields, and for an author with
     co-authors their network and timeline); get_peers, get_papers and
-    get_impact_dag link the peers, hit-paper and impact cards, and make_card
+    get_impact_highlights link the peers, hit-paper and impact cards, and make_card
     renders a variant.
     """
     _check_etype(entity_type, VIEW_TYPES)
@@ -309,35 +313,57 @@ get_papers.__doc__ = (get_papers.__doc__ or "").format(
 )
 
 
-async def get_impact_dag(semantic_id: str) -> dict:
-    """The hit papers that build on an author's work: which of the most-cited
-    papers of their fields and years cite the author's papers.
+async def get_impact_highlights(semantic_id: str) -> dict:
+    """The most notable independent citations of an author's work, picked for
+    variety across kinds rather than ranked within one.
 
-    `citingHits` are at most {TOP_HIT_PAPERS} hit papers citing the author, ordered by paper
-    score. They are a selection, not all of them: the data keeps the {TOP_HIT_PAPERS} with
-    the most citations and the strongest journals, favouring papers laureates
-    wrote up to their prize year, and never a paper the author co-wrote; do not
-    read a share of laureates or fields among them as a share of everything
-    citing the author. Each names the laureates among its authors and the
-    author's papers it cites (`cites`, indices into `authorPapers`).
-    `authorPapers` are those cited papers, each with how many of the listed hits
-    cite it (`citedByHits`). A story worth telling is one hit and the paper it
-    builds on: a laureate citing the author, a hit in a journal far from the
-    author's own (its `journal`; theirs are get_entity_profile's paper-journals),
-    a long reach in years. Pass a hit's `semanticId` to get_citation_tree or
-    get_entity_profile with entity_type="hit-papers" to follow it further.
-    `image_url` is the impact card of the top hits, absent when no hit cites
-    the author; a hit's own `image_url` is the card with that hit and the
-    author's papers it builds on.
+    Only team papers count on either side, those with at most {team_limit}
+    authorship rows (a larger collaboration defines no co-authors), so an
+    author whose work is mostly in large collaborations has few highlights.
+    A citation counts only when it is independent: no author of the citing
+    paper is the author or one of their co-authors, and none of its
+    institutions is one the author's own papers name. A citing paper with more
+    than {max_citing_refs} references reads as a review, and neither it nor one in a
+    review journal earns a `hit` or `apex` badge. `highlights` holds at most {shown}, in pick
+    order: each pick lowers the worth of the kinds and values (journal, person,
+    country, the author's paper it cites) it covers, so the list is a diverse
+    selection, not a census. `totals` counts over every independent citing
+    paper: the `hits` and `apex` papers, the distinct `laureates` and `stars`,
+    and the `institutions` that qualify; `independent` is how many of the
+    `citingPapers` count.
+
+    A highlight is one citing paper (its `journal`, and its `rankless_url` when
+    it is a hit paper) with the author's papers it `cites`, most cited first,
+    and its `badges`: `hit` (its citations are `multiple`
+    times the bar of its field and year, at least {hit_multiple}), `apex` (its
+    journal is one of the {apex_journals} highest by Top-N mean, review journals left
+    out; `rank` from 1), `laureate` (a Nobel laureate among its authors, never
+    one sharing the author's own prize), `star` (an author among the top
+    {star_share} most cited in one of the author's {star_fields} most citing fields;
+    `ratio` is their citations from that `field` over what that top share
+    takes), `institution` (one of its institutions is among the {elite_institutions}
+    highest by Top-N mean and on at least {min_institution_papers} independent citing
+    papers: `papers`, `rank` from 1, its `country`). Every badge carries its `rarity`: the share of a reference sample of authors whose best of that
+    kind is at least as strong, lower being rarer. `image_url` is the impact
+    card, absent with no highlight; a hit paper's own `image_url` is the card
+    with that paper.
     """
-    res: PaperProfileResp = await get_json(
-        f"/paper-profile/{encode_semantic_id(semantic_id)}"
+    res: ImpactHighlightsResp = await get_json(
+        f"/impact-highlights/{encode_semantic_id(semantic_id)}"
     )
-    return _impact_dag(res, semantic_id)
+    return _impact_highlights(res, semantic_id)
 
 
-get_impact_dag.__doc__ = (get_impact_dag.__doc__ or "").format(
-    TOP_HIT_PAPERS=TOP_HIT_PAPERS
+get_impact_highlights.__doc__ = (get_impact_highlights.__doc__ or "").format(
+    team_limit=METHODOLOGY["workScreen"]["teamLimit"],
+    shown=HIGHLIGHT_RULES["shown"],
+    max_citing_refs=HIGHLIGHT_RULES["maxCitingRefs"],
+    apex_journals=HIGHLIGHT_RULES["apexJournals"],
+    elite_institutions=HIGHLIGHT_RULES["eliteInstitutions"],
+    min_institution_papers=HIGHLIGHT_RULES["minInstitutionPapers"],
+    star_fields=HIGHLIGHT_RULES["starFields"],
+    star_share=f"{METHODOLOGY['ladderPctBands'][-1] * 100:g}%",
+    hit_multiple=f"{METHODOLOGY['paperScore']['hitMultiple']:g}",
 )
 
 
@@ -381,63 +407,80 @@ def _paper(p: PaperOut) -> dict:
     return out
 
 
-def _dag_paths(node: RefDAG, prefix: tuple[int, ...] = ()) -> list[tuple[int, ...]]:
-    if not isinstance(node, dict):
-        return [prefix]
-    return [
-        path
-        for wid, child in node["Node"].items()
-        for path in _dag_paths(child, (*prefix, int(wid)))
-    ]
-
-
-def _impact_dag(res: PaperProfileResp, semantic_id: str) -> dict:
-    """`/paper-profile`'s DAG (a citing hit paper -> the author's papers it cites)
-    as one row per citing hit and one per cited paper of the author."""
+def _impact_highlights(res: ImpactHighlightsResp, semantic_id: str) -> dict:
+    """`/impact-highlights` with every id named from its paper set."""
     resp = res["papers"]
     papers = {p["wid"]: p for p in resp["papers"]}
-    authors = resp["entityAtts"].get("authors", {})
-    sources = resp["entityAtts"].get("sources", {})
+    atts = resp["entityAtts"]
     meta = resp["authorsMeta"]
-    cites: dict[int, set[int]] = {}
-    for path in _dag_paths(res["dag"]):
-        cites.setdefault(path[0], set()).add(path[-1])
-    cited = sorted(
-        {w for ws in cites.values() for w in ws}, key=lambda w: _rank(papers[w])
-    )
-    at = {w: i for i, w in enumerate(cited)}
-    hits = []
-    for wid in sorted(cites, key=lambda w: _rank(papers[w])):
-        p = papers[wid]
-        ids = [a["author"][1:] for a in p["authorships"] if a["author"][0] == "F"]
-        hits.append(
-            {
-                **_paper(p),
-                "image_url": card_url(
-                    "impact", "authors", semantic_id, {"hits": p.get("hitSemId")}
-                ),
-                "journal": sources.get(str(p.get("source")), {}).get("name"),
-                "laureates": [
-                    _laureate(authors[i], meta[i])
-                    for i in ids
-                    if meta.get(i, {}).get("prize")
-                ],
-                "cites": sorted(at[w] for w in cites[wid]),
-            }
-        )
-    by_hits = {w: sum(w in ws for ws in cites.values()) for w in cited}
+
+    def label(etype: str, dm: int) -> AttributeLabel:
+        return atts[etype][str(dm)]
+
+    def badge(b: Badge) -> dict:
+        match b:
+            case {"kind": "hit"}:
+                return dict(b)
+            case {"kind": "apex"}:
+                return {
+                    "kind": "apex",
+                    "journal": label("sources", b["source"])["name"],
+                    "rank": b["rank"],
+                    "rarity": b["rarity"],
+                }
+            case {"kind": "laureate"}:
+                person = _laureate(
+                    label("authors", b["author"]), meta[str(b["author"])]
+                )
+                return {"kind": "laureate", **person, "rarity": b["rarity"]}
+            case {"kind": "star"}:
+                person = label("authors", b["author"])
+                return {
+                    "kind": "star",
+                    "name": person["name"],
+                    "rankless_url": entity_url("authors", person["semantic_id"]),
+                    "field": label("subfields", b["field"])["name"],
+                    "ratio": b["ratio"],
+                    "rarity": b["rarity"],
+                }
+            case {"kind": "institution"}:
+                inst = label("institutions", b["institution"])
+                return {
+                    "kind": "institution",
+                    "name": inst["name"],
+                    "rankless_url": entity_url("institutions", inst["semantic_id"]),
+                    "country": label("countries", b["country"])["name"],
+                    "papers": b["papers"],
+                    "rank": b["rank"],
+                    "rarity": b["rarity"],
+                }
+
+    def highlight(h: Highlight) -> dict:
+        p = papers[h["wid"]]
+        sem = p.get("hitSemId")
+        return {
+            **_paper(p),
+            "journal": atts.get("sources", {}).get(str(p["source"]), {}).get("name"),
+            **(
+                {"image_url": card_url("impact", "authors", semantic_id, {"hits": sem})}
+                if sem
+                else {}
+            ),
+            "cites": [_paper(papers[w]) for w in h["cites"]],
+            "badges": [badge(b) for b in h["badges"]],
+        }
+
+    highlights = [highlight(h) for h in res["highlights"]]
     return {
         "rankless_url": entity_url("authors", semantic_id),
-        **({"image_url": card_url("impact", "authors", semantic_id)} if hits else {}),
-        "citingHits": hits,
-        "authorPapers": [
-            {**_paper(papers[w]), "citedByHits": by_hits[w]} for w in cited
-        ],
+        **(
+            {"image_url": card_url("impact", "authors", semantic_id)}
+            if highlights
+            else {}
+        ),
+        "totals": res["totals"],
+        "highlights": highlights,
     }
-
-
-def _rank(p: PaperOut) -> tuple:
-    return (-(p.get("score") or 0), -p["citations"], p["wid"])
 
 
 def _laureate(att: AttributeLabel, meta: PaperAuthorMeta) -> dict:
@@ -605,7 +648,7 @@ TOOLS = (
     get_entity_stats,
     get_citation_tree,
     get_papers,
-    get_impact_dag,
+    get_impact_highlights,
     get_peers,
     lookup_orcid,
     rank_entities,

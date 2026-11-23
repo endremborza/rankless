@@ -27,7 +27,7 @@ use rankless_trees::{
 
 use crate::consts::{CACHEABLE_FROM, N_SUBFIELDS};
 use crate::responses::{LadderResp, StatsQ, StatsResp, StatsSubfield, TopResult, ViewResult};
-use crate::state::{hit_papers, serializable_ext, year_window, FullStatesT, StatesT};
+use crate::state::{serializable_ext, year_window, FullStatesT, StatesT};
 use crate::util::{cache_header, get_empty, resolve_dm, resolve_entity, root_cols};
 
 pub(crate) async fn tree_get(
@@ -104,7 +104,7 @@ pub(crate) async fn view_get(
             server,
         ),
         sr: state.responses[rid].clone(),
-        meta: compute_meta(etype.as_str(), dm_id, gets, server, hit_papers(cols, dm_id)),
+        meta: compute_meta(etype.as_str(), dm_id, gets, server),
     }))
 }
 
@@ -212,10 +212,9 @@ fn compute_meta(
     dm_id: usize,
     gets: &Getters,
     server: &ServerGetters,
-    hits: &[ET<HitPapers>],
 ) -> Option<HashMap<&'static str, String>> {
     if etype == Authors::NAME {
-        author_meta(dm_id, gets, server, hits)
+        author_meta(dm_id, gets, server)
     } else if etype == Institutions::NAME {
         inst_meta(dm_id, server)
     } else {
@@ -227,17 +226,8 @@ fn author_meta(
     dm_id: usize,
     gets: &Getters,
     server: &ServerGetters,
-    hits: &[ET<HitPapers>],
 ) -> Option<HashMap<&'static str, String>> {
     let slug = String::from_utf8(server.aslugs(dm_id).to_vec()).unwrap_or_default();
-    let any_hits = if (server.author_citing_once(dm_id).len() > 0)
-        || (server.author_citing_direct(dm_id).len() > 0)
-        || !hits.is_empty()
-    {
-        "1"
-    } else {
-        "0"
-    };
     let na_orcid: ET<AuthorOrcids> = <ET<AuthorOrcids> as Default>::default();
     let orcid_o = server.author_orcids(&dm_id);
     let orcid = if orcid_o == &na_orcid {
@@ -249,7 +239,6 @@ fn author_meta(
         ("wikiSlug", slug),
         ("rawCites", gets.raw_cites(&dm_id).to_string()),
         ("rawPapers", server.raw_works(&dm_id).to_string()),
-        ("anyHits", any_hits.to_string()),
         ("orcid", orcid.to_string()),
     ];
     Some(HashMap::from_iter(kvs.into_iter()))

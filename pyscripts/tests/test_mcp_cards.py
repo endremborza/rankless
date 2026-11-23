@@ -8,7 +8,7 @@ import pytest
 
 import mcp_server
 from mcp_server import card_url, cards, tools
-from pyscripts.tests.test_mcp_impact_dag import PROFILE
+from pyscripts.tests.test_mcp_impact_highlights import PROFILE
 from pyscripts.tests.test_mcp_table_tools import REGISTRY, fake_get_json
 from wire.rankless_server.responses import METHODOLOGY
 
@@ -62,12 +62,12 @@ def test_a_profile_links_only_the_cards_its_own_data_proves() -> None:
     ]
 
 
-def test_impact_links_its_card_only_with_a_citing_hit() -> None:
-    assert tools._impact_dag(PROFILE, "subject")["image_url"] == card_url(
+def test_impact_links_its_card_only_with_a_highlight() -> None:
+    assert tools._impact_highlights(PROFILE, "subject")["image_url"] == card_url(
         "impact", "authors", "subject"
     )
-    uncited = {**PROFILE, "dag": {"Node": {}}}
-    assert "image_url" not in tools._impact_dag(uncited, "subject")
+    uncited = {**PROFILE, "highlights": []}
+    assert "image_url" not in tools._impact_highlights(uncited, "subject")
 
 
 def _works(papers: list[dict]):

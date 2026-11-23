@@ -1,5 +1,5 @@
 import { wrapLines } from '$lib/utils/cards';
-import { CHAR_W, INNER, clip, textWidth } from '$lib/utils/cards';
+import { CHAR_W, INNER, clip, clipToWidth, textWidth } from '$lib/utils/cards';
 
 // The impact card's two rows of paper chips, each sized from its title's estimated width and
 // ordered for the fewest crossing curves, and the curves from a citing chip's bottom centre to the
@@ -119,17 +119,18 @@ function chipWidth(p: ChipPaper, maxW: number): number {
 
 function placeChip(p: ChipPaper, x: number, y: number, w: number): Chip {
 	const inner = w - 2 * CHIP.pad;
+	const year = `${p.year}`;
+	const yearW = textWidth(year, CHIP.metaSize, CHAR_W.mono) + 10;
+	const fitted = fitBadges(p.badges, inner - yearW);
 	let bx = x + w - CHIP.pad;
-	const badges = p.badges.map((b) => {
+	const badges = fitted.map((b) => {
 		const bw = badgeWidth(b);
 		bx -= bw;
 		const placed = { ...b, x: bx, w: bw };
 		bx -= 6;
 		return placed;
 	});
-	const year = `${p.year}`;
-	const journalRoom =
-		inner - textWidth(year, CHIP.metaSize, CHAR_W.mono) - 10 - badgesWidth(p.badges) - 8;
+	const journalRoom = inner - yearW - badgesWidth(fitted) - 8;
 	const journalChars = Math.floor(journalRoom / (CHIP.metaSize * CHAR_W.sans));
 	return {
 		x,
@@ -142,6 +143,20 @@ function placeChip(p: ChipPaper, x: number, y: number, w: number): Chip {
 	};
 }
 
+// The leading badges that fit `room` beside the year; the first is clipped when it alone does not.
+export function fitBadges(badges: ChipBadge[], room: number): ChipBadge[] {
+	const kept: ChipBadge[] = [];
+	let used = 0;
+	for (const b of badges) {
+		used += badgeWidth(b) + 6;
+		if (used > room) break;
+		kept.push(b);
+	}
+	if (kept.length > 0 || badges.length === 0) return kept;
+	const label = clipToWidth(badges[0].label, room - 6 - 2 * CHIP.badgePad, CHIP.badgeSize);
+	return [{ ...badges[0], label }];
+}
+
 function badgeWidth(b: ChipBadge): number {
 	return textWidth(b.label, CHIP.badgeSize) + 2 * CHIP.badgePad;
 }
@@ -150,11 +165,13 @@ function badgesWidth(badges: ChipBadge[]): number {
 	return badges.reduce((sum, b) => sum + badgeWidth(b) + 6, 0);
 }
 
-function edgePath(from: Chip, to: Chip): string {
-	const sx = from.x + from.w / 2;
-	const sy = from.y + CHIP.h;
-	const ex = to.x + to.w / 2;
-	const ey = to.y;
+// The curve from a citing paper's bottom centre (sx, sy) down to a cited paper's top centre (ex, ey),
+// on the card and on the page alike.
+export function citeCurve(sx: number, sy: number, ex: number, ey: number): string {
 	const bend = (ey - sy) * 0.45;
 	return `M ${sx} ${sy} C ${sx} ${sy + bend}, ${ex} ${ey - bend}, ${ex} ${ey}`;
+}
+
+function edgePath(from: Chip, to: Chip): string {
+	return citeCurve(from.x + from.w / 2, from.y + CHIP.h, to.x + to.w / 2, to.y);
 }

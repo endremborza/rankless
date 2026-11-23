@@ -2,11 +2,11 @@ use std::cmp::{min, Reverse};
 
 use axum::{
     extract::{Path, Query},
-    http::HeaderMap,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 
 use dmove::{
     reverse_prefixed_n, ByteArrayInterface, Entity, EntityMutableMapperBackend, UnsignedNumber,
@@ -24,7 +24,6 @@ use rankless_rs::{
 use rankless_trees::{
     interfacing::{file_handle, Getters, ServerGetters},
     io::{EntityAttsForLinks, ManFileHandle, WT},
-    path_finder::{extend_with_once_removed, get_direct_links},
     work_set::cnf_intersect,
     AttributeLabelUnion,
 };
@@ -33,9 +32,9 @@ use crate::consts::{
     INTERSECT_DEFAULT_N, INTERSECT_MAX_BASE, INTERSECT_MAX_CLAUSES, INTERSECT_MAX_OPERANDS,
     WORKS_PAGE_SIZE_MAX,
 };
+use crate::highlights::ImpactHighlightsResp;
 use crate::responses::{
-    PaginatedPaperSetResp, PaperAuthorMeta, PaperAuthorship, PaperOut, PaperProfileResp,
-    PaperSetResp,
+    PaginatedPaperSetResp, PaperAuthorMeta, PaperAuthorship, PaperOut, PaperSetResp,
 };
 use crate::state::{hit_papers, FullStatesT, InstTrm};
 use crate::util::{bad_text, cache_header, get_empty, resolve_dm, root_cols};
@@ -174,47 +173,66 @@ pub(crate) async fn intersect_get(
     }
 }
 
-pub(crate) async fn paper_profile(
+pub(crate) async fn author_hits_get(
     Path(author_sem_id): Path<String>,
     states: FullStatesT,
 ) -> (HeaderMap, Response) {
     let Some((_, aid)) = resolve_dm(&states.0 .0, Authors::NAME, &author_sem_id) else {
         return get_empty();
     };
-    let (gets, server) = (&states.0 .2.state.gets, &*states.0 .3);
-    let hw_set: HashSet<WT> = hit_papers(root_cols(&states.2, Authors::NAME), aid)
+    let gets = &states.0 .2.state.gets;
+    let wids: Vec<WT> = hit_papers(root_cols(&states.2, Authors::NAME), aid)
         .iter()
         .map(|hwid| gets.hit_papers[hwid.to_usize()])
         .collect();
+    let papers = get_paper_set_resp(
+        wids.iter(),
+        &[ET::<Authors>::from_usize(aid)],
+        &states.2,
+        &states.3,
+    );
+    (cache_header(60), Json(papers).into_response())
+}
 
-    let direct_hit_wids: Vec<WT> = server
-        .author_citing_direct(aid)
-        .iter()
-        .map(|&hid| gets.hit_papers[hid as usize] as WT)
-        .collect();
-    let once_hit_wids: Vec<WT> = server
-        .author_citing_once(aid)
-        .iter()
-        .map(|&hid| gets.hit_papers[hid as usize] as WT)
-        .collect();
-
-    let refed_wids: &[WT] = gets.aworks(ET::<Authors>::from_usize(aid));
-    let refed_set: HashSet<WT> = refed_wids.iter().copied().collect();
-
-    let graph = (gets, server);
-    let mut conn = get_direct_links(&graph, refed_set.clone(), &direct_hit_wids);
-    extend_with_once_removed(&graph, refed_set, &once_hit_wids, &mut conn);
-
-    let wids = hw_set
-        .iter()
-        .chain(conn.wids.iter().filter(|wid| !hw_set.contains(*wid)));
-
-    let papers = get_paper_set_resp(wids, &[ET::<Authors>::from_usize(aid)], &states.2, server);
-    let out = PaperProfileResp {
-        dag: conn.dag,
-        papers,
+pub(crate) async fn impact_highlights_get(
+    Path(author_sem_id): Path<String>,
+    states: FullStatesT,
+) -> (HeaderMap, Response) {
+    let Some((_, aid)) = resolve_dm(&states.0 .0, Authors::NAME, &author_sem_id) else {
+        return get_empty();
     };
-    (cache_header(60), Json(out).into_response())
+    let (_, satts, trm, server, highlighter) = states.0.clone();
+    let resp = tokio::task::spawn_blocking(move || {
+        let found = highlighter.find(&trm.state.gets, &server, aid)?;
+        let mut papers = get_paper_set_resp(
+            found.wids().iter(),
+            &[ET::<Authors>::from_usize(aid)],
+            &trm,
+            &server,
+        );
+        for (etype, id) in found.labels() {
+            add_label(&mut papers.entity_atts, &satts, etype, id);
+        }
+        Some(ImpactHighlightsResp {
+            highlights: found.highlights,
+            totals: found.totals,
+            papers,
+            apex_sources: highlighter.apex_sources().to_vec(),
+        })
+    })
+    .await
+    .expect("impact highlights");
+    match resp {
+        Some(resp) => (cache_header(60), Json(resp).into_response()),
+        None => (
+            HeaderMap::new(),
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "impact highlights are still being prepared after a restart",
+            )
+                .into_response(),
+        ),
+    }
 }
 
 // `requested_authors` are the authors the request is about: their rows are served on any work.
@@ -306,19 +324,6 @@ fn paper_out(
         let doi = doi_handler.get_via_mut(&wid).unwrap_or("".to_string());
         (name, doi)
     };
-    let mut add_to_eatts = |etype: &str, k: usize| {
-        if let Some(u_eatts) = att_union.get(etype) {
-            let eatts = entity_atts
-                .entry(etype.to_string())
-                .or_insert_with(HashMap::new);
-            if eatts.contains_key(&k) {
-                return;
-            };
-            if let Some(v) = u_eatts.get(k) {
-                eatts.insert(k, v.clone());
-            }
-        }
-    };
     //this is similarly to String with hit paper names not automatically remakes
     //the var sized element from &[SubType]
     let biblio = Some(<ET<WorkBiblios> as ByteArrayInterface>::from_bytes(
@@ -353,7 +358,7 @@ fn paper_out(
         .map(|ship| {
             let (author, insts) = match ship.author {
                 ShipAuthor::Filtered(aid) => {
-                    add_to_eatts(Authors::NAME, aid.to_usize());
+                    add_label(entity_atts, att_union, Authors::NAME, aid.to_usize());
                     authors_meta.entry(aid.to_usize()).or_insert_with(|| {
                         let prize_rec = server.author_prizes(&aid.to_usize());
                         PaperAuthorMeta {
@@ -376,7 +381,7 @@ fn paper_out(
             let insts = insts
                 .iter()
                 .map(|iid| {
-                    add_to_eatts(Institutions::NAME, iid.to_usize());
+                    add_label(entity_atts, att_union, Institutions::NAME, iid.to_usize());
                     iid.to_usize()
                 })
                 .collect();
@@ -384,7 +389,7 @@ fn paper_out(
         })
         .collect();
     let source = gets.top_source(&wid).to_usize();
-    add_to_eatts(Sources::NAME, source);
+    add_label(entity_atts, att_union, Sources::NAME, source);
     let citations = gets.wccount(wid) as u32;
     let bar = *gets.wbar(&wid);
     let score = paper_score(citations, bar);
@@ -407,6 +412,17 @@ fn paper_out(
         score,
         created_topic,
     }
+}
+
+// Names `id` of `etype` in `atts` from `union`, once; an id `union` has no label for stays unnamed.
+fn add_label(atts: &mut EntityAttsForLinks, union: &AttributeLabelUnion, etype: &str, id: usize) {
+    let Some(label) = union.get(etype).and_then(|labels| labels.get(id)) else {
+        return;
+    };
+    atts.entry_ref(etype)
+        .or_default()
+        .entry(id)
+        .or_insert_with(|| label.clone());
 }
 
 // A work's served authorship rows in position order. A row on discarded author 0, which holds
