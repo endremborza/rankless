@@ -19,7 +19,7 @@ use rankless_rs::{
     ladder::LADDER_PCT_BANDS,
 };
 use rankless_trees::{
-    interfacing::{Getters, ServerGetters},
+    interfacing::ServerGetters,
     io::{TreeQ, TreeResponse},
     metrics::ERA,
     AttributeLabelUnion,
@@ -104,7 +104,7 @@ pub(crate) async fn view_get(
             server,
         ),
         sr: state.responses[rid].clone(),
-        meta: compute_meta(etype.as_str(), dm_id, gets, server),
+        meta: compute_meta(etype.as_str(), dm_id, server),
     }))
 }
 
@@ -210,11 +210,10 @@ pub(crate) async fn ladder_get(
 fn compute_meta(
     etype: &str,
     dm_id: usize,
-    gets: &Getters,
     server: &ServerGetters,
 ) -> Option<HashMap<&'static str, String>> {
     if etype == Authors::NAME {
-        author_meta(dm_id, gets, server)
+        author_meta(dm_id, server)
     } else if etype == Institutions::NAME {
         inst_meta(dm_id, server)
     } else {
@@ -222,11 +221,7 @@ fn compute_meta(
     }
 }
 
-fn author_meta(
-    dm_id: usize,
-    gets: &Getters,
-    server: &ServerGetters,
-) -> Option<HashMap<&'static str, String>> {
+fn author_meta(dm_id: usize, server: &ServerGetters) -> Option<HashMap<&'static str, String>> {
     let slug = String::from_utf8(server.aslugs(dm_id).to_vec()).unwrap_or_default();
     let na_orcid: ET<AuthorOrcids> = <ET<AuthorOrcids> as Default>::default();
     let orcid_o = server.author_orcids(&dm_id);
@@ -237,7 +232,6 @@ fn author_meta(
     };
     let kvs = vec![
         ("wikiSlug", slug),
-        ("rawCites", gets.raw_cites(&dm_id).to_string()),
         ("rawPapers", server.raw_works(&dm_id).to_string()),
         ("orcid", orcid.to_string()),
     ];
