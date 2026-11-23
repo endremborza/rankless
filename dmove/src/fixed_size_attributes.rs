@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
 };
 
-use memmap2::Mmap;
+use memmap2::{Mmap, UncheckedAdvice};
 
 use crate::{
     common::{
@@ -118,6 +118,13 @@ impl<V: ByteFixArrayInterface> MmapSlice<V> {
 
     pub fn len(&self) -> usize {
         self.mmap.len() / V::S
+    }
+
+    // Drops every resident page of the mapping from this process; the next read faults it back in
+    // from the page cache. The mapping is read-only and shared (`Mmap::map`), so the bytes come back
+    // unchanged, and `row`/`elem` copy out, so no borrow of the mapping outlives a read.
+    pub fn release(&self) {
+        unsafe { self.mmap.unchecked_advise(UncheckedAdvice::DontNeed) }.expect("madvise");
     }
 }
 
