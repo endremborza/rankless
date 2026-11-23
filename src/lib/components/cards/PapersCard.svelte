@@ -10,7 +10,7 @@
 
 <script lang="ts">
 	import { getColor } from '$lib/style-util';
-	import { formatNumber } from '$lib/text-format-util';
+	import { formatNumber, paperMetaText } from '$lib/text-format-util';
 	import { htmlToText } from '$lib/utils/paper-helpers';
 	import { wrapLines } from '$lib/utils/cards';
 	import { CHAR_W, HAIRLINE, INK, INNER, MONO, MUTED, PAPER, SANS, clip } from '$lib/utils/cards';
@@ -86,7 +86,7 @@
 			stroke-linecap="round"
 		/>
 		<text x={PLOT_X + SWATCH + 10} y={metaY} font-family={MONO} font-size="15" fill={MUTED}
-			>{hp.year} · {formatNumber(hp.citations)} citations</text
+			>{paperMetaText(hp)}</text
 		>
 	</g>
 

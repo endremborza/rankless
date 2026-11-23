@@ -2,7 +2,7 @@
 	import { TREE_SPECS, type PaperOut } from '$lib/wire/rankless_server/responses';
 	import type { EntityAttsForLinks } from '$lib/wire/rankless_trees/io';
 	import { getColor, getColorArr } from '$lib/style-util';
-	import { formatNumber } from '$lib/text-format-util';
+	import { formatNumber, paperMetaText, pluralize } from '$lib/text-format-util';
 	import * as tf from '$lib/tree-functions';
 	import { resolveSourceName } from '$lib/utils/paper-helpers';
 	import {
@@ -197,9 +197,7 @@
 							{:else}
 								<span>{@html hp.name}</span>
 							{/if}
-							<span class="chart-title-meta"
-								>{hp.year} · {formatNumber(hp.citations)} citations</span
-							>
+							<span class="chart-title-meta">{paperMetaText(hp)}</span>
 						</div>
 					{/if}
 					<svg
@@ -365,7 +363,7 @@
 									{/if}
 								</div>
 								<div class="paper-meta">
-									<span class="paper-cites">{formatNumber(paper.citations)} citations</span>
+									<span class="paper-cites">{pluralize('citation', paper.citations)}</span>
 									{#if paper.authorCount}<span class="paper-authors"
 											><AuthorList
 												{paper}
@@ -407,8 +405,7 @@
 									{#if paper.score !== undefined && paper.bar !== undefined}
 										<div class="detail-row selection-basis">
 											<span class="detail-label">Paper score:</span>
-											<span
-												>{paper.score.toFixed(2)} (bar: {formatNumber(paper.bar)} citations)</span
+											<span>{paper.score.toFixed(2)} (bar: {pluralize('citation', paper.bar)})</span
 											>
 										</div>
 									{/if}

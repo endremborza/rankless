@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { METHODOLOGY } from '$lib/wire/rankless_server/responses';
 	import type { ShowcaseHitPaper } from '$lib/types/showcase';
-	import { formatNumber } from '$lib/text-format-util';
+	import { paperMetaText } from '$lib/text-format-util';
 	import { getColor } from '$lib/style-util';
 	import { htmlToText } from '$lib/utils/paper-helpers';
 	import { computeYearRates } from '$lib/utils/paper-rainbow';
@@ -48,7 +48,7 @@
 		{#each ordered as p, k (k)}
 			{@const c = getColor(rates[p.i])}
 			<g>
-				<title>{htmlToText(p.name)} ({p.year}) · {formatNumber(p.citations)} citations</title>
+				<title>{htmlToText(p.name)} · {paperMetaText(p)}</title>
 				<path class="fill" d={area(p)} fill={c} />
 				<path class="line" d={arc(p)} stroke={c} />
 				<circle cx={W - padR} cy={topOf(p.citations)} r="2.6" fill={c} />

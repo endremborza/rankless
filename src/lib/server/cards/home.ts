@@ -1,6 +1,6 @@
 import type { CountsResponse } from '$lib/wire/rankless_server/responses';
 import { BE_URL, BRAND_STATS } from '$lib/constants';
-import { formatNumber } from '$lib/text-format-util';
+import { pluralize } from '$lib/text-format-util';
 import { renderSvgComponent } from '$lib/server/render';
 import { rasterizeSvg } from '$lib/server/card-raster';
 import HomeCard from '$lib/components/HomeCard.svelte';
@@ -22,8 +22,8 @@ async function fetchHomeStats(fetchFn: typeof fetch): Promise<string[]> {
 		const counts: CountsResponse = await res.json();
 		if (!counts?.total_works || !counts?.total_citations) return BRAND_STATS;
 		return [
-			`${formatNumber(counts.total_works)} papers`,
-			`${formatNumber(counts.total_citations)} citations`,
+			pluralize('paper', counts.total_works),
+			pluralize('citation', counts.total_citations),
 			...BRAND_STATS
 		];
 	} catch {
