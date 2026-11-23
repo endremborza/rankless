@@ -9,16 +9,6 @@ showcase until they ship.
 
 Two features ship in every build but are released by a constant: `GAME_FEATURE_ON` (the footer "Games" link and the MCP page's link into CampusQuest) and `MCP_FEATURE_ON` (the footer "Developers" link to `/mcp`). Each is `dev` — on in a dev server, off in production builds — and `true` releases it. A switched-off game or MCP page stays reachable at its URLs (`/game`, `/campus-quest`, `/mcp`, the hosted MCP endpoint) but is linked from nowhere.
 
-## Path to Person — built, not reachable
-
-Traces the chain of citations connecting two scholars ("how an author's papers are cited by
-another author's work"). The page, server loader, and backend path-finder all exist, but the
-tool isn't linked or surfaced on the live site.
-
-- `src/routes/path-to-person/` (`+page.svelte`, `[aidSrc]/[aidTarget]/{+page.svelte,+page.server.ts}`)
-- `rankless_trees/src/path_finder.rs`
-- (`src/routes/pathlogo/` + `PathLogo.svelte` is just a logo SVG, not part of this feature.)
-
 ## Topic domination / leadership — partial
 
 The **"★ originated <topic>"** flag _is_ live (shown in `PaperRainbow.svelte` for

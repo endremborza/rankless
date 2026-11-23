@@ -4,7 +4,6 @@ import type {
 	SearchResult
 } from './wire/rankless_server/responses';
 import type { CollapsedNodeJson } from './wire/rankless_trees/io';
-import type { RefDAG } from './wire/rankless_trees/path_finder';
 
 export type OMap<T> = Record<string, T>;
 export type PathInTree = number[];
@@ -114,22 +113,6 @@ export type LevelOutSpec = {
 	topOffset: number;
 	isVisible: boolean;
 	levelOptions: string[];
-};
-
-export type PathToPaperResp = {
-	tree: RefDAG;
-	doi: string;
-	title: string;
-	year: number;
-};
-
-export type PathResp = {
-	paths: PathToPaperResp[];
-	srcName: string;
-	targetName: string;
-	relWorks: number[];
-	nameMap: Record<number, string>;
-	doiMap: Record<number, string>;
 };
 
 export type OaPaperResp = {
