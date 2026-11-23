@@ -207,10 +207,8 @@ where
     E: VariableSizeAttribute,
     E::T: VarSizedAttributeElement,
 {
-    fn from_file<R>(counts: &mut R) -> Self
-    where
-        R: Read,
-    {
+    fn from_file(counts: &mut File) -> Self {
+        let mut counts = BufReader::new(counts);
         let mut size_buf = [0; MAX_NUMBUF];
         let size_slice = &mut size_buf[..E::SizeType::S];
         let mut seek = 0;
@@ -386,10 +384,9 @@ where
 {
     fn load_backend(path: &PathBuf) -> Self {
         let parent_dir = path.join(E::NAME);
-        let file_pair = VattFilePair::open(&parent_dir);
-        let mut count_br = BufReader::new(file_pair.counts);
+        let mut file_pair = VattFilePair::open(&parent_dir);
+        let locators = Locators::<E>::from_file(&mut file_pair.counts);
         let mut target_br = BufReader::new(file_pair.targets);
-        let locators = Locators::<E>::from_file(&mut count_br);
         let elem_size: usize = size_of::<<E::T as VarSizedAttributeElement>::SubType>();
         let cap_b = std::fs::metadata(parent_dir.join("targets"))
             .unwrap()
