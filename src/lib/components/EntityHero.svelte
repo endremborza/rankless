@@ -6,7 +6,7 @@
 		type ViewResult
 	} from '$lib/wire/rankless_server/responses';
 	import type * as tt from '$lib/tree-types';
-	import { pluralize, formatNumber } from '$lib/text-format-util';
+	import { pluralize, formatNumber, authorCitationsText } from '$lib/text-format-util';
 	import {
 		HERO_CONFIG,
 		buildLeaderRows,
@@ -80,7 +80,7 @@
 				<div class="stat-big">{citeText}</div>
 				<div class="stat-sub">published {view.startYear}</div>
 			{:else if cfg.useRawCites && rawCites > 0}
-				<div class="stat-big">{formatNumber(rawCites)} citations</div>
+				<div class="stat-big">{authorCitationsText(rawCites, view.citations)}</div>
 				<div class="stat-sub">
 					{pluralize('paper', view.papers)} · {formatNumber(view.citations)}
 					<IndexedCitationLink />

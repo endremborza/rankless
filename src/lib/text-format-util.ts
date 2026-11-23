@@ -56,6 +56,10 @@ export function formatNumber(n: number, maxFix: number = 2): string {
 	return `${shown}${UNIT_SUFFIXES[unit]}`;
 }
 
+export function authorCitationsText(raw: number, indexed: number): string {
+	return pluralize('citation', Math.max(raw, indexed));
+}
+
 // A person's last name, the label a crowded co-author graph shows.
 export function lastWord(name: string): string {
 	const parts = name.split(' ');
