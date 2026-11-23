@@ -4,8 +4,6 @@ pub struct CountriesWeightedPaperScore {}
 
 pub struct SourcesScoredPaperCount {}
 
-pub struct AuthorCitingHitsDirect {}
-
 pub struct CountriesHits {}
 
 pub struct InstitutionsTopMeanPaperScore {}
@@ -61,8 +59,6 @@ pub struct SubfieldsHits {}
 pub struct SourcesHIndexSince {}
 
 pub struct SourcesHits {}
-
-pub struct AuthorCitingHitsOnce {}
 
 impl Entity for CountriesScoredPaperCount {
     type T = u32;
@@ -608,44 +604,6 @@ impl NamespacedEntity for AuthorsHits {
 
 impl MarkedAttribute<crate::common::HitWorkMarker> for crate::gen::a1_entity_mapping::Authors {
     type AttributeEntity = AuthorsHits;
-}
-
-impl Entity for AuthorCitingHitsDirect {
-    type T = Box<[u32]>;
-    const N: usize = 4196299;
-    const NAME: &str = "author-citing-hits-direct";
-}
-
-impl MappableEntity for AuthorCitingHitsDirect {
-    type KeyType = usize;
-}
-
-impl VariableSizeAttribute for AuthorCitingHitsDirect {
-    type SizeType = u8;
-    type LocType = u32;
-}
-
-impl NamespacedEntity for AuthorCitingHitsDirect {
-    const NS: &str = "derive_links4";
-}
-
-impl Entity for AuthorCitingHitsOnce {
-    type T = Box<[u32]>;
-    const N: usize = 4196299;
-    const NAME: &str = "author-citing-hits-once";
-}
-
-impl MappableEntity for AuthorCitingHitsOnce {
-    type KeyType = usize;
-}
-
-impl VariableSizeAttribute for AuthorCitingHitsOnce {
-    type SizeType = u8;
-    type LocType = u8;
-}
-
-impl NamespacedEntity for AuthorCitingHitsOnce {
-    const NS: &str = "derive_links4";
 }
 
 impl Entity for HitPapersSemanticIds {
