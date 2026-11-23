@@ -5,7 +5,6 @@ declare global {
 		// interface Error {}
 		interface Locals {
 			user: import('./lib/server/session').SessionUserData | null;
-			surveyShouldPrompt: boolean;
 		}
 		// interface Locals {}
 		// interface PageData {}

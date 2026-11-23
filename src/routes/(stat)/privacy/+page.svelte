@@ -79,8 +79,8 @@
 		<p>
 			This notice sets out the relevant circumstances of the processing of data in accordance with
 			Articles 13 and 14 of the GDPR — Article 13 for data you provide directly (such as through
-			ORCID sign-in, the survey or your email preferences) and Article 14 for publication data
-			obtained from OpenAlex and for email addresses obtained from ORCID's public data file.
+			ORCID sign-in or your email preferences) and Article 14 for publication data obtained from
+			OpenAlex and for email addresses obtained from ORCID's public data file.
 		</p>
 
 		<h2>Access to and data transfer</h2>
@@ -251,15 +251,6 @@
 			time from your profile, which removes it from the active record.
 		</p>
 
-		<h3>The optional survey</h3>
-		<p>
-			We sometimes show a short, optional survey. If you choose to answer it, we store your
-			responses; if you are signed in, your ORCID iD is stored with them so we can understand who
-			our users are. We do not log your IP address with your survey responses. Answering or
-			dismissing the survey sets a cookie so we don't ask again. The legal basis is our legitimate
-			interest in improving Rankless (GDPR Art. 6(1)(f)).
-		</p>
-
 		<h3>Server logs and audience measurement</h3>
 		<p>
 			Our web server keeps standard access logs, which we analyse ourselves with our own self-hosted
@@ -278,10 +269,6 @@
 			<li>
 				<strong>session</strong> — strictly necessary; keeps you logged in for {SESSION_TTL_DAYS} days.
 				Set only after you sign in.
-			</li>
-			<li>
-				<strong>survey preference cookies</strong> — remember that you answered or dismissed the survey,
-				so it isn't shown repeatedly.
 			</li>
 		</ul>
 		<p>
@@ -304,9 +291,9 @@
 				consent.
 			</li>
 			<li>
-				The record that your ORCID iD signed in, any survey responses, the record of your email
-				consent, and the record of the one-time email about your profile are kept until you ask us
-				to delete them, which you can request using the contact details above.
+				The record that your ORCID iD signed in, the record of your email consent, and the record of
+				the one-time email about your profile are kept until you ask us to delete them, which you
+				can request using the contact details above.
 			</li>
 		</ul>
 	</div>

@@ -3,6 +3,5 @@
 	"db": "rankless.sqlite",
 	"mcpObjects": "mcp-objects",
 	"userLedger": "user-ledger",
-	"cardCache": "rankless-cards",
-	"surveyLog": "/tmp/survey-logs.jsonl"
+	"cardCache": "rankless-cards"
 }

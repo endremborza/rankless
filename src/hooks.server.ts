@@ -1,6 +1,5 @@
 import type { Handle, HandleFetch } from '@sveltejs/kit';
 import { getSession } from '$lib/server/session';
-import { surveyAnswered } from '$lib/server/survey-cookie';
 
 // Tie every server-side fetch to the client's abort signal so a request that
 // disconnects mid-render (bots bailing after <head>, nginx->bun upstream
@@ -11,7 +10,5 @@ export const handleFetch: HandleFetch = ({ event, request, fetch }) =>
 
 export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.user = getSession(event);
-
-	event.locals.surveyShouldPrompt = !surveyAnswered(event.cookies);
 	return resolve(event);
 };

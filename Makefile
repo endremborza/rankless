@@ -120,7 +120,7 @@ run-server:
 peer-report:
 	cargo run --release -p rankless-trees --bin peer-report -- $(OA_ROOT) $(ARGS)
 
-extend_csvs orcid_summaries lib_data_generation homepage_showcase live_monitoring sitemap_validation survey_result_export export_user_ledger:
+extend_csvs orcid_summaries lib_data_generation homepage_showcase live_monitoring sitemap_validation export_user_ledger:
 	uv run -m pyscripts.$@
 
 external-push external-pull:

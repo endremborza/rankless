@@ -13,7 +13,6 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import * as fs from 'fs';
 import dev from '../src/lib/assets/data/dev.json' with { type: 'json' };
-import { SURVEY_COOKIES, SURVEY_COOKIE_SET } from '../src/lib/server/survey-cookie';
 import type { LedgerEvent } from '../src/lib/types/ledger';
 import {
 	ACTION_LABELS,
@@ -61,11 +60,7 @@ type State = {
 
 const readState = (): State => JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8'));
 
-async function login(page: Page, baseURL: string) {
-	// The survey prompt would lie over the merge bar.
-	await page
-		.context()
-		.addCookies([{ name: SURVEY_COOKIES.rejected, value: SURVEY_COOKIE_SET, url: baseURL }]);
+async function login(page: Page) {
 	await page.goto(DEV_LOGIN_URL);
 	await page.waitForURL(`**/authors/${TEST_SEMANTIC_ID}`);
 }
@@ -153,8 +148,8 @@ async function replaceIdentifier(
 }
 
 test.describe('pre-pipeline', () => {
-	test('perform ledger actions and persist state', async ({ page, baseURL }) => {
-		await login(page, baseURL!);
+	test('perform ledger actions and persist state', async ({ page }) => {
+		await login(page);
 
 		// The author's works with a DOI, from the backend: a DOI names a paper's row and its claim.
 		const worksUrl = `${BE_URL}/works/authors/${TEST_SEMANTIC_ID}/0?n=30`;
@@ -242,9 +237,9 @@ test.describe('pre-pipeline', () => {
 });
 
 test.describe('post-pipeline', () => {
-	test('applied manifest contains our event ids', async ({ page, baseURL }) => {
+	test('applied manifest contains our event ids', async ({ page }) => {
 		const state = readState();
-		await login(page, baseURL!);
+		await login(page);
 
 		const status = await apiGet(page, '/api/ledger-status');
 		expect(status.run_id, 'run_id must be set after pipeline').toBeTruthy();
@@ -255,9 +250,9 @@ test.describe('post-pipeline', () => {
 		expect(applied, `claim ${state.claimKey} must be in applied`).toContain(state.claimKey);
 	});
 
-	test('disowned paper is absent from author works', async ({ page, baseURL }) => {
+	test('disowned paper is absent from author works', async ({ page }) => {
 		const state = readState();
-		await login(page, baseURL!);
+		await login(page);
 
 		const worksUrl = `${BE_URL}/works/authors/${TEST_SEMANTIC_ID}/0?n=${WORKS_PAGE_SIZE}`;
 		const worksResp = await fetch(worksUrl);
@@ -271,9 +266,9 @@ test.describe('post-pipeline', () => {
 		).not.toContain(state.disownedTitle);
 	});
 
-	test('author page loads and the pinned œuvre is restored', async ({ page, baseURL }) => {
+	test('author page loads and the pinned œuvre is restored', async ({ page }) => {
 		const state = readState();
-		await login(page, baseURL!);
+		await login(page);
 
 		const worksUrl = `${BE_URL}/works/authors/${TEST_SEMANTIC_ID}/0?n=1`;
 		const worksResp = await fetch(worksUrl);
@@ -290,11 +285,10 @@ test.describe('post-pipeline', () => {
 	});
 
 	test('changing an applied claim revokes it, and claiming it again withdraws the undo', async ({
-		page,
-		baseURL
+		page
 	}) => {
 		const state = readState();
-		await login(page, baseURL!);
+		await login(page);
 
 		await ownerReady(page);
 		const claimRow = panelList(page, 'applied').locator('.item-row', {
@@ -326,11 +320,10 @@ test.describe('post-pipeline', () => {
 	});
 
 	test('editing a claim the run could not find withdraws it for the corrected one', async ({
-		page,
-		baseURL
+		page
 	}) => {
 		const state = readState();
-		await login(page, baseURL!);
+		await login(page);
 
 		await ownerReady(page);
 		const orphanRow = panelList(page, 'pending').locator('.item-row', { hasText: ABSENT_DOI });

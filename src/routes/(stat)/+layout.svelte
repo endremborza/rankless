@@ -3,7 +3,6 @@
 	import SearchResults from '$lib/components/SearchResults.svelte';
 	import TextedLogo from '$lib/components/TextedLogo.svelte';
 	import PathLogo from '$lib/components/PathLogo.svelte';
-	import SurveyPrompt from '$lib/components/SurveyPrompt.svelte';
 	import { afterNavigate, goto } from '$app/navigation';
 	import { onMount, tick } from 'svelte';
 	import { slide } from 'svelte/transition';
@@ -15,7 +14,6 @@
 	import { resultsHidden } from '$lib/stores';
 
 	export let data: {
-		surveyShouldPrompt: boolean;
 		user: { orcid: string; name: string; semanticId?: string } | null;
 		isAdmin: boolean;
 	};
@@ -281,10 +279,6 @@
 		</div>
 	</div>
 </div>
-
-{#if data.surveyShouldPrompt}
-	<SurveyPrompt />
-{/if}
 
 <style>
 	#site-header {
