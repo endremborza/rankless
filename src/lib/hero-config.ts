@@ -6,7 +6,7 @@ import type {
 import type * as tt from '$lib/tree-types';
 import { isRootType } from '$lib/constants';
 import { entToLink } from '$lib/tree-functions';
-import { pluralize } from '$lib/text-format-util';
+import { countedName, pluralize } from '$lib/text-format-util';
 import {
 	impactColor,
 	productionColor,
@@ -159,9 +159,8 @@ export function buildLeaderRows(
 		const items: LeaderItem[] = [];
 		for (const r of grouped[spec.relType] ?? []) {
 			let text = r.name;
-			if (spec.withCount) text = `${r.name} (${pluralize('paper', r.score)})`;
-			else if (spec.withSharedCount)
-				text = `${r.name} (${pluralize('shared paper', r.count ?? 0)})`;
+			if (spec.withCount) text = countedName(r.name, 'paper', r.score);
+			else if (spec.withSharedCount) text = countedName(r.name, 'shared paper', r.count ?? 0);
 			if (seen.has(text)) continue;
 			seen.add(text);
 			items.push({ text, href: rootHref(r.etype, r.semanticId) });

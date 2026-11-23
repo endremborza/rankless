@@ -16,7 +16,7 @@ import type { PageServerLoad } from './$types';
 import type * as tt from '$lib/tree-types';
 import * as tf from '$lib/tree-functions';
 import { BE_URL, REL_TYPES, ROOT_TYPES } from '$lib/constants';
-import { pluralize, SEMANTIC_CONF } from '$lib/text-format-util';
+import { countedName, pluralize, SEMANTIC_CONF } from '$lib/text-format-util';
 import { getExternalUrl, semIdResolver } from '$lib/route-functions';
 import { LedgerDb } from '$lib/server/db';
 import { readManifest, EMPTY_MANIFEST } from '$lib/server/manifest';
@@ -227,6 +227,10 @@ function semFunMaker(prefix: string, fun: (r: DecoratedRelated) => string) {
 	};
 }
 
+function counted(label: 'name' | 'bold' | 'link', word: string) {
+	return (r: DecoratedRelated) => countedName(r[label], word, r.score);
+}
+
 function toDecorated(r: PostAttRelatedEntity): DecoratedRelated {
 	const bold = `<b>${r.name}</b>`;
 	let link = bold;
@@ -247,17 +251,11 @@ function getSemantifyers(rootName: string, rootType: tt.RootType): [tt.RelTypes,
 		return [
 			[
 				'paper-topics',
-				semFunMaker(
-					`Recurring topics across this work include `,
-					(r) => `${r.bold} (${pluralize('paper', r.score)})`
-				)
+				semFunMaker(`Recurring topics across this work include `, counted('bold', 'paper'))
 			],
 			[
 				'citing-fields',
-				semFunMaker(
-					`The work is most often cited by research in `,
-					(r) => `${r.name} (${pluralize('citation', r.score)})`
-				)
+				semFunMaker(`The work is most often cited by research in `, counted('name', 'citation'))
 			],
 			[
 				'collab-nation',
@@ -275,16 +273,10 @@ function getSemantifyers(rootName: string, rootType: tt.RootType): [tt.RelTypes,
 					(r) => `${pluralize('paper', r.score)} in ${r.name}`
 				)
 			],
-			[
-				'paper-topics',
-				semFunMaker('on the topics of ', (r) => `${r.name} (${pluralize('paper', r.score)})`)
-			],
+			['paper-topics', semFunMaker('on the topics of ', counted('name', 'paper'))],
 			[
 				'citing-fields',
-				semFunMaker(
-					`Their work is cited by papers focused on `,
-					(r) => `${r.name} (${pluralize('citation', r.score)})`
-				)
+				semFunMaker(`Their work is cited by papers focused on `, counted('name', 'citation'))
 			],
 			[
 				'collab-nation',
@@ -303,17 +295,11 @@ function getSemantifyers(rootName: string, rootType: tt.RootType): [tt.RelTypes,
 		return [
 			[
 				'paper-fields',
-				semFunMaker(
-					`Scholars in ${rootName} publish mostly in `,
-					(r) => `${r.name} (${pluralize('paper', r.score)})`
-				)
+				semFunMaker(`Scholars in ${rootName} publish mostly in `, counted('name', 'paper'))
 			],
 			[
 				'citing-fields',
-				semFunMaker(
-					'and are cited by scholars working on ',
-					(r) => `${r.name} (${pluralize('citation', r.score)})`
-				)
+				semFunMaker('and are cited by scholars working on ', counted('name', 'citation'))
 			],
 			[
 				'collab-nation',
@@ -331,18 +317,9 @@ function getSemantifyers(rootName: string, rootType: tt.RootType): [tt.RelTypes,
 		return [
 			[
 				'paper-fields',
-				semFunMaker(
-					`Papers published in ${rootName} usually cover `,
-					(r) => `${r.link} (${pluralize('paper', r.score)})`
-				)
+				semFunMaker(`Papers published in ${rootName} usually cover `, counted('link', 'paper'))
 			],
-			[
-				'paper-topics',
-				semFunMaker(
-					'specifically the topics of ',
-					(r) => `${r.name} (${pluralize('paper', r.score)})`
-				)
-			],
+			['paper-topics', semFunMaker('specifically the topics of ', counted('name', 'paper'))],
 			[
 				'paper-authors',
 				semFunMaker(`The most active scholars publishing in ${rootName} are `, (r) => r.link)
@@ -373,10 +350,7 @@ function getSemantifyers(rootName: string, rootType: tt.RootType): [tt.RelTypes,
 			['paper-fields', semFunMaker('covering the research area of ', (r) => r.link)],
 			[
 				'citing-fields',
-				semFunMaker(
-					'It is primarily cited by scholars working on ',
-					(r) => `${r.link} (${pluralize('citation', r.score)})`
-				)
+				semFunMaker('It is primarily cited by scholars working on ', counted('link', 'citation'))
 			],
 			['paper-journals', semFunMaker('Published in ', (r) => r.link)]
 		];
