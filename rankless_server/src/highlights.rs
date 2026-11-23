@@ -480,7 +480,7 @@ impl Ctx<'_> {
                 }
             }
             let source = self.gets.top_source(&c).to_usize();
-            if self.server.wrefs(c).len() <= HIGHLIGHT_RULES.max_citing_refs
+            if self.server.wrefcount(c.to_usize()) <= HIGHLIGHT_RULES.max_citing_refs
                 && !self.hl.review_source[source]
             {
                 if let Some(score) =

@@ -333,14 +333,14 @@ make_server_interfaces!(
     author_orcids => AuthorOrcids,
     raw_works => AuthorRawWorkCounts,
     hit_created_topic => HitPapersCreatedTopic;
-    wrefs -> WorkReferences,
     wbiblios -> WorkBiblios,
     dshipis -> DiscardedAuthorshipInstitutions,
     aslugs -> AuthorWikiSlugs,
     coathors -> Coauthors,
     hit_yearlies -> HitPaperYearlyCitations;
     dan_locators loc DiscardedAuthorsNames,
-    doi_locators loc WorkDois
+    doi_locators loc WorkDois,
+    wref_locators loc WorkReferences
 );
 
 // The search side of a root type: names, semantic ids and OpenAlex ids, loaded at startup and
@@ -692,6 +692,10 @@ impl ServerGetters {
             hit_wid_map,
             orcid_map,
         }
+    }
+
+    pub fn wrefcount(&self, wid: usize) -> usize {
+        self.ifs.wref_locators.divided_sizes[wid].to_usize()
     }
 }
 
