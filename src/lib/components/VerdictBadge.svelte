@@ -23,7 +23,7 @@
 
 <style>
 	.verdict {
-		font-size: 0.8rem;
+		font-size: var(--text-xs);
 	}
 	summary {
 		cursor: pointer;
@@ -31,18 +31,17 @@
 		border-radius: 0.6rem;
 		padding: 0.05rem 0.5rem;
 		display: inline-block;
+		color: var(--tone);
+		background: color-mix(in srgb, var(--tone) 15%, transparent);
 	}
 	summary.approve {
-		background: #e2f4e6;
-		color: #0a7d28;
+		--tone: var(--color-ok);
 	}
 	summary.reject {
-		background: #fbe4e6;
-		color: #b00020;
+		--tone: var(--color-err);
 	}
 	summary.unsure {
-		background: #f4eede;
-		color: #8a6d00;
+		--tone: var(--color-warn);
 	}
 	.body {
 		max-width: 26rem;
@@ -51,13 +50,11 @@
 	.body p {
 		margin: 0.2rem 0;
 	}
-	.check {
-		color: #666;
-		font-size: 0.75rem;
+	.check,
+	.meta {
+		color: var(--color-text-light);
 	}
 	.meta {
-		color: #999;
-		font-size: 0.7rem;
-		font-family: monospace;
+		font-family: var(--font-mono);
 	}
 </style>

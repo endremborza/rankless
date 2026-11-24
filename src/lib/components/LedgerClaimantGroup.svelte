@@ -83,8 +83,7 @@
 <style>
 	.group {
 		margin-bottom: 0.8rem;
-		border: 1px solid #eee;
-		border-radius: 6px;
+		border: 1px solid rgba(var(--color-range-30), 0.15);
 	}
 	summary {
 		cursor: pointer;
@@ -100,21 +99,21 @@
 		gap: 0.5rem;
 		align-items: baseline;
 	}
-	.counts {
-		color: #666;
-		font-size: 0.85rem;
-	}
+	.counts,
 	.muted {
-		color: #999;
+		color: var(--color-text-light);
+		font-size: var(--text-sm);
 	}
 	table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: 0.85rem;
+		font-size: var(--text-base);
 	}
 	th {
 		text-align: left;
 		padding: 0.4rem 0.5rem;
-		border-bottom: 1px solid #eee;
+		border-bottom: 1px solid rgba(var(--color-range-30), 0.15);
+		color: var(--color-text-light);
+		font-weight: 600;
 	}
 </style>

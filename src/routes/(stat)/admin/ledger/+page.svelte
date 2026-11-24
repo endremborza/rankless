@@ -130,8 +130,11 @@
 <svelte:head><title>Ledger review · Rankless</title></svelte:head>
 
 <div class="queue">
+	<nav class="topnav">
+		<a href="{base}/admin">← Admin</a> · <a href="{base}/mcp">MCP sessions</a>
+	</nav>
+
 	<h1>Ledger review</h1>
-	<p class="nav"><a href="{base}/admin">← Admin</a> · <a href="{base}/mcp">MCP sessions</a></p>
 	<p class="sub">
 		Approving a change marks it accepted; it is applied on the next data rebuild, not immediately.
 		“implemented” means the change is live in the current data{data.currentRunId
@@ -141,7 +144,11 @@
 	</p>
 
 	<div class="tools">
-		<button disabled={enriching || data.missingEnrichment === 0} on:click={fetchMetadata}>
+		<button
+			class="control"
+			disabled={enriching || data.missingEnrichment === 0}
+			on:click={fetchMetadata}
+		>
 			{enriching ? 'Fetching…' : `Fetch metadata (${data.missingEnrichment} missing)`}
 		</button>
 		{#if enrichNote}<span class="note">{enrichNote}</span>{/if}
@@ -162,10 +169,10 @@
 	{#if selected.size > 0}
 		<div class="bulk">
 			<span>{selected.size} selected</span>
-			<button class="ok" on:click={() => moderate([...selected], 'accepted')}
+			<button class="control ok" on:click={() => moderate([...selected], 'accepted')}
 				>Approve selected</button
 			>
-			<button class="no" on:click={() => moderate([...selected], 'rejected')}
+			<button class="control no" on:click={() => moderate([...selected], 'rejected')}
 				>Reject selected</button
 			>
 		</div>
@@ -191,35 +198,30 @@
 		margin: 1rem auto;
 		padding: 0 1rem;
 	}
-	.sub {
-		color: #666;
-		font-size: 0.9rem;
+	.topnav {
+		margin-bottom: 1rem;
+		font-size: var(--text-sm);
 	}
-	.nav {
-		font-size: 0.9rem;
+	.sub,
+	.note,
+	.muted {
+		color: var(--color-text-light);
+		font-size: var(--text-sm);
 	}
 	.tools {
 		display: flex;
 		gap: 0.8rem;
 		align-items: center;
 	}
-	.note {
-		color: #666;
-		font-size: 0.85rem;
-	}
 	.err {
-		color: #b00020;
-		font-size: 0.9rem;
-	}
-	.muted {
-		color: #999;
+		color: var(--color-err);
+		font-size: var(--text-sm);
 	}
 	.bulk {
 		position: sticky;
-		top: 0;
-		background: #f6f8fa;
-		border: 1px solid #e0e4e8;
-		border-radius: 6px;
+		top: var(--header-height);
+		background: var(--text-bg);
+		border: 1px solid rgba(var(--color-range-30), 0.15);
 		padding: 0.5rem 0.8rem;
 		margin-bottom: 0.8rem;
 		display: flex;
@@ -227,17 +229,14 @@
 		align-items: center;
 		z-index: 2;
 	}
-	button {
-		cursor: pointer;
-	}
 	button:disabled {
 		cursor: default;
 		opacity: 0.5;
 	}
 	button.ok {
-		color: #0a7d28;
+		color: var(--color-ok);
 	}
 	button.no {
-		color: #b00020;
+		color: var(--color-err);
 	}
 </style>

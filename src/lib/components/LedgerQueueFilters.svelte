@@ -45,19 +45,31 @@
 <div class="filters">
 	<label>
 		state
-		<select value={state} on:change={(e) => navigate({ state: e.currentTarget.value })}>
+		<select
+			class="control"
+			value={state}
+			on:change={(e) => navigate({ state: e.currentTarget.value })}
+		>
 			{#each STATES as s, i (i)}<option value={s}>{s}</option>{/each}
 		</select>
 	</label>
 	<label>
 		kind
-		<select value={kind} on:change={(e) => navigate({ kind: e.currentTarget.value })}>
+		<select
+			class="control"
+			value={kind}
+			on:change={(e) => navigate({ kind: e.currentTarget.value })}
+		>
 			{#each KINDS as k, i (i)}<option value={k}>{k}</option>{/each}
 		</select>
 	</label>
 	<label>
 		claimant
-		<select value={actor} on:change={(e) => navigate({ actor: e.currentTarget.value })}>
+		<select
+			class="control"
+			value={actor}
+			on:change={(e) => navigate({ actor: e.currentTarget.value })}
+		>
 			<option value="">all</option>
 			{#each actors as a, i (i)}
 				<option value={a.orcid}>{a.orcid} ({a.pending} pending)</option>
@@ -66,14 +78,22 @@
 	</label>
 	<label>
 		per page
-		<select value={String(per)} on:change={(e) => navigate({ per: e.currentTarget.value })}>
+		<select
+			class="control"
+			value={String(per)}
+			on:change={(e) => navigate({ per: e.currentTarget.value })}
+		>
 			{#each QUEUE_PER_CHOICES as p, i (i)}<option value={String(p)}>{p}</option>{/each}
 		</select>
 	</label>
 	<span class="pager">
-		<button disabled={page <= 1} on:click={() => navigate({ page: page - 1 })}>‹</button>
+		<button class="control" disabled={page <= 1} on:click={() => navigate({ page: page - 1 })}
+			>‹</button
+		>
 		{from}–{to} of {total}
-		<button disabled={page >= pages} on:click={() => navigate({ page: page + 1 })}>›</button>
+		<button class="control" disabled={page >= pages} on:click={() => navigate({ page: page + 1 })}
+			>›</button
+		>
 	</span>
 </div>
 
@@ -84,13 +104,13 @@
 		align-items: center;
 		flex-wrap: wrap;
 		margin: 0.8rem 0;
-		font-size: 0.85rem;
+		font-size: var(--text-sm);
 	}
 	label {
 		display: inline-flex;
 		gap: 0.35rem;
 		align-items: center;
-		color: #444;
+		color: var(--color-text-light);
 	}
 	.pager {
 		margin-left: auto;
@@ -98,9 +118,6 @@
 		gap: 0.5rem;
 		align-items: center;
 		white-space: nowrap;
-	}
-	button {
-		cursor: pointer;
 	}
 	button:disabled {
 		cursor: default;

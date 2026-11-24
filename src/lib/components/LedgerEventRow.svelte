@@ -71,13 +71,13 @@
 	<td class="actions">
 		{#if actionable}
 			<button
-				class="ok"
+				class="control ok"
 				disabled={busy}
 				on:click={() => dispatch('moderate', { event_ids: [row.event_id], decision: 'accepted' })}
 				>Approve</button
 			>
 			<button
-				class="no"
+				class="control no"
 				disabled={busy}
 				on:click={() => dispatch('moderate', { event_ids: [row.event_id], decision: 'rejected' })}
 				>Reject</button
@@ -90,7 +90,7 @@
 	td {
 		text-align: left;
 		padding: 0.4rem 0.5rem;
-		border-bottom: 1px solid #eee;
+		border-bottom: 1px solid rgba(var(--color-range-30), 0.15);
 		vertical-align: top;
 	}
 	.subject {
@@ -101,43 +101,41 @@
 	}
 	.links a {
 		margin-left: 0.35rem;
-		font-size: 0.75rem;
+		font-size: var(--text-xs);
 	}
 	.mono {
-		font-family: monospace;
-		font-size: 0.8rem;
+		font-family: var(--font-mono);
+		font-size: var(--text-sm);
 		white-space: nowrap;
 	}
-	.muted {
-		color: #999;
+	.muted,
+	.awaiting {
+		color: var(--color-text-light);
+	}
+	.auto,
+	.proven {
+		border-radius: 0.6rem;
+		padding: 0.05rem 0.5rem;
+		font-size: var(--text-xs);
+		white-space: nowrap;
 	}
 	.auto {
-		background: #e7ecfb;
-		color: #2a4bb5;
-		border-radius: 0.6rem;
-		padding: 0.05rem 0.5rem;
-		font-size: 0.75rem;
+		color: var(--highlight-text);
+		background: rgba(var(--color-range-30), 0.15);
 	}
 	.proven {
-		background: #e2f4e6;
-		color: #0a7d28;
-		border-radius: 0.6rem;
-		padding: 0.05rem 0.5rem;
-		font-size: 0.8rem;
-		white-space: nowrap;
+		color: var(--color-ok);
+		background: color-mix(in srgb, var(--color-ok) 15%, transparent);
 	}
 	.applied {
-		color: #0a7d28;
+		color: var(--color-ok);
 		font-weight: bold;
 	}
 	.skipped {
-		color: #b06a00;
-	}
-	.awaiting {
-		color: #555;
+		color: var(--color-warn);
 	}
 	tr.pending {
-		background: #fff7e6;
+		background: rgba(var(--color-range-90), 0.12);
 	}
 	tr.revoked {
 		opacity: 0.55;
@@ -148,16 +146,15 @@
 	}
 	button {
 		margin-right: 0.3rem;
-		cursor: pointer;
 	}
 	button:disabled {
 		cursor: default;
 		opacity: 0.5;
 	}
 	button.ok {
-		color: #0a7d28;
+		color: var(--color-ok);
 	}
 	button.no {
-		color: #b00020;
+		color: var(--color-err);
 	}
 </style>
