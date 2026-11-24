@@ -248,6 +248,10 @@ async def replay(args: argparse.Namespace) -> None:
     stats = WindowStats()
     stop = asyncio.Event()
     sem = asyncio.Semaphore(args.concurrency)
+    # From one address, alpha's per-client limits would shed the replay: with the
+    # token it takes the capacity lane (no limits, no proxy cache).
+    token = os.environ.get("LOADTEST_TOKEN")
+    headers = {"X-Loadtest": token, "User-Agent": REPLAY_UA} if token else None
 
     async def fire(client: httpx.AsyncClient, url: str) -> None:
         try:
@@ -270,7 +274,7 @@ async def replay(args: argparse.Namespace) -> None:
             await asyncio.sleep(1)
         stop.set()
 
-    async with make_client(args.concurrency, args.timeout) as client:
+    async with make_client(args.concurrency, args.timeout, headers) as client:
         await asyncio.gather(
             report_loop(stats, out_path, args.report_every, stop), producer(client)
         )
@@ -531,6 +535,7 @@ async def feleak(args: argparse.Namespace) -> None:
 
 
 CAPACITY_UA = "rankless-capacity"
+REPLAY_UA = "rankless-replay"
 CAP_HEADER = (
     f"{'conc/w':>6} {'total':>6} {'req/s':>7} {'p50ms':>6} {'p99ms':>6} "
     f"{'MB/s':>6} {'wire':>6} {'err%':>5}"
