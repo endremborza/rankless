@@ -249,7 +249,7 @@ the only viz dependency).
 | `lib/network-force.ts` | Cytoscape/fcose force layout — lazily imported so the vendor chunk stays off initial load |
 | `lib/route-functions.ts` | URL builders |
 | `lib/loading-functions.ts` | Data fetching orchestration: `loadTops`, `TopTreeLoader` (the homepage's random top tree) |
-| `lib/text-format-util.ts` | Number/text formatting; `runDate` (the day in a run id, how the site names a release); `semantify` + `SEM_MAP` (see [breakdown selection](#breakdown-selection)) |
+| `lib/text-format-util.ts` | Number/text formatting; `cutToFit` (a label shortened with an ellipsis to the longest start that fits); `runDate` (the day in a run id, how the site names a release); `semantify` + `SEM_MAP` (see [breakdown selection](#breakdown-selection)) |
 | `lib/style-util.ts` | CSS/SVG styling |
 | `lib/stores.ts` | Svelte reactive stores; the localStorage-backed top-paper cache (`prefetchPaper`, which settles every waiter even when the OpenAlex load fails) |
 | `lib/sitemap-functions.ts` | SEO sitemap helpers |

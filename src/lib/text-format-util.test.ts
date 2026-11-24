@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { RootType } from './tree-types';
 import type { WorkScreen } from './wire/rankless_rs/metrics';
 import {
+	cutToFit,
 	isAsciiOnly,
 	pluralize,
 	countsText,
@@ -180,5 +181,34 @@ describe('countsText', () => {
 	});
 	it('leaves out the paper count of a hit paper', () => {
 		expect(countsText(r, 'hit-papers')).toBe('40 citations');
+	});
+});
+
+describe('cutToFit', () => {
+	const within = (n: number) => (ws: string[]) => (ws.join(' ').length <= n ? ws.length : null);
+
+	it('keeps words that fit whole', () => {
+		expect(cutToFit(['Nature', 'Physics'], within(20))).toEqual({
+			words: ['Nature', 'Physics'],
+			layout: 2
+		});
+	});
+
+	it('cuts to the longest start that fits with its ellipsis', () => {
+		expect(cutToFit(['Journal', 'of', 'Biomechanics'], within(15))).toEqual({
+			words: ['Journal', 'of', 'Bio…'],
+			layout: 3
+		});
+	});
+
+	it('drops the trailing space before the ellipsis', () => {
+		expect(cutToFit(['Journal', 'of', 'Biomechanics'], within(11))?.words).toEqual([
+			'Journal',
+			'of…'
+		]);
+	});
+
+	it('leaves out words whose first word cannot stay whole', () => {
+		expect(cutToFit(['Biomechanics', 'Today'], within(8))).toBeNull();
 	});
 });

@@ -1,6 +1,7 @@
 import type { WorkScreen } from './wire/rankless_rs/metrics';
 import type { SearchResult } from './wire/rankless_server/responses';
 import type { RootType } from './tree-types';
+import { clip } from './utils/cards';
 
 export function isAsciiOnly(str: string) {
 	return str.length > 0 && !/[\u0080-\uffff]/.test(str);
@@ -102,14 +103,16 @@ export function getStylesForWords(
 	baseFontSize: number,
 	horizontalAlign: 'left' | 'center' | 'right',
 	bottomAligned: boolean,
-	allowRotation: boolean
+	allowRotation: boolean,
+	maxFontSize: number
 ) {
 	const horizontal = formatTextToLinesOneWay(
 		words,
 		width,
 		height,
 		heightMultiplier,
-		widthMultiplier
+		widthMultiplier,
+		maxFontSize
 	);
 	let rotate = false;
 	let { lines, fontSize } = horizontal;
@@ -119,7 +122,8 @@ export function getStylesForWords(
 			height,
 			width,
 			heightMultiplier,
-			widthMultiplier
+			widthMultiplier,
+			maxFontSize
 		);
 		if (horizontal.fontSize < vertical.fontSize) {
 			rotate = true;
@@ -157,6 +161,24 @@ export function getStylesForWords(
 	}
 
 	return { translates, scale, rotate };
+}
+
+// The words with what `layout` makes of them (null when they do not fit): whole when they fit,
+// else the longest start of their text that keeps the first word whole and fits with an ellipsis
+// after it, else null.
+export function cutToFit<T>(
+	words: string[],
+	layout: (words: string[]) => T | null
+): { words: string[]; layout: T } | null {
+	const whole = layout(words);
+	if (whole !== null) return { words, layout: whole };
+	const text = words.join(' ');
+	for (let max = text.length - 1; max > words[0].length; max--) {
+		const cut = clip(text, max).split(' ');
+		const fitted = layout(cut);
+		if (fitted !== null) return { words: cut, layout: fitted };
+	}
+	return null;
 }
 
 export function semantify(s: string, rootType: RootType, bds: string[], depth: number) {
@@ -213,12 +235,15 @@ export function getSpecDesc(rate: number) {
 	return desc;
 }
 
+// The words broken into the lines that fit them at the largest font size, at most
+// `maxFontSize`: the fewest lines that reach it.
 function formatTextToLinesOneWay(
 	words: string[],
 	width: number,
 	height: number,
 	heightMultiplier: number,
-	widthMultiplier: number
+	widthMultiplier: number,
+	maxFontSize: number
 ) {
 	let numOfLines = 1;
 	const totalLength = lineLen(words);
@@ -232,6 +257,7 @@ function formatTextToLinesOneWay(
 		widthBasedFontSize = width / (maxLineLen * widthMultiplier);
 		heightBasedFontSize = getDimBasedSize(height, heightMultiplier, numOfLines);
 		fontSize = Math.min(widthBasedFontSize, heightBasedFontSize);
+		if (fontSize >= maxFontSize) return { lines, fontSize: maxFontSize };
 		if (
 			lines.length === words.length ||
 			fontSize >= getDimBasedSize(height, heightMultiplier, numOfLines + 1)
