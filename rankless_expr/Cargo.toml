@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-wiretypes = {path = "../wiretypes"}
+wiretypes.workspace = true
 serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]

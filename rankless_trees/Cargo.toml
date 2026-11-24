@@ -7,7 +7,7 @@ edition.workspace = true
 dmove-macro = {path = "../dmove_macro"}
 dmove = {path = "../dmove"}
 rankless-rs = {path = "../rankless_rs"}
-wiretypes = {path = "../wiretypes"}
+wiretypes.workspace = true
 rand = "0.8"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"

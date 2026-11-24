@@ -1727,6 +1727,8 @@ checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 [[package]]
 name = "wiretypes"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74968ad9965fc05a9d002d9d8e48a2d3078e54f49d029a95f957ff9093859e19"
 dependencies = [
  "inventory",
  "schemars",
@@ -1739,6 +1741,8 @@ dependencies = [
 [[package]]
 name = "wiretypes-macro"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcf4422480f1748830f9232f77076145f80d7f0b4ec0020045da418664cb0e6a"
 dependencies = [
  "proc-macro2",
  "quote",
