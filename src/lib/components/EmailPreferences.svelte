@@ -98,7 +98,7 @@
 	}
 </script>
 
-<fieldset class="email-prefs" disabled={!loaded}>
+<fieldset id="email-preferences" class="email-prefs" disabled={!loaded}>
 	<legend>Email me about</legend>
 	{#each EMAIL_PURPOSES as p, i (i)}
 		<label class="purpose">
