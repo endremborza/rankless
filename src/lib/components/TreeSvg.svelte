@@ -5,7 +5,7 @@
 	import type * as tt from '$lib/tree-types';
 	import * as tf from '$lib/tree-functions';
 	import BrokenFittedText from './BrokenFittedText.svelte';
-	import QuercusBranches from './QuercusBranches.svelte';
+	import QuercusBranches, { PAGE_LABELS, type LabelStyle } from './QuercusBranches.svelte';
 
 	type RectShape = { x: number; y: number; height: number; width: number };
 	let rootD2 = 25;
@@ -40,7 +40,9 @@
 	// Text is fitted by character count in the monospace face the standalone SVG names.
 	export let heightMultiplier: number = 1.5;
 	export let widthMultiplier: number = CHAR_W.mono;
-	export let minLabelScale = 0;
+	export let labels: LabelStyle = PAGE_LABELS;
+	// The share of the height the levels take; the rest is left under the last one.
+	export let levelsShare = 0.75;
 
 	let levelOutSpecs: tt.LevelOutSpec[] = tf.getDefaultLevelSpecs();
 	let visibleTreeInfo = tf.deriveVisibleTree(
@@ -68,7 +70,7 @@
 		}
 	}
 
-	$: updateLevelSpecs(visibleTreeInfo, height * 0.75);
+	$: updateLevelSpecs(visibleTreeInfo, height * levelsShare);
 
 	let branchReachBack = (height * headerRate) / 10;
 	export let treeD2Offset = 10;
@@ -91,7 +93,7 @@
 		{heightMultiplier}
 		{widthMultiplier}
 		{showText}
-		{minLabelScale}
+		{labels}
 		childBaseSize={minimumChildWidth}
 	/>
 	{#if showText}

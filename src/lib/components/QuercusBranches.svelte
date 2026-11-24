@@ -1,8 +1,27 @@
+<script lang="ts" context="module">
+	import type { ComponentProps } from 'svelte';
+	import BrokenFittedText from './BrokenFittedText.svelte';
+
+	// Where a band's name is set, its box's left edge and width as shares of the band's width, and
+	// how `BrokenFittedText` fits it there, its own defaults for whatever `fit` leaves out.
+	export type LabelStyle = {
+		inset: number;
+		widthRate: number;
+		fit: Partial<
+			Pick<
+				ComponentProps<typeof BrokenFittedText>,
+				'minScale' | 'maxScale' | 'truncate' | 'allowRotation'
+			>
+		>;
+	};
+
+	export const PAGE_LABELS: LabelStyle = { inset: 0.18, widthRate: 0.64, fit: {} };
+</script>
+
 <script lang="ts">
 	import { fade } from 'svelte/transition';
 	import type { EmbeddedNode, TreeInfo, OffsetInfo, LevelOutSpec } from '$lib/tree-types';
 	import { getNodeByPath } from '$lib/tree-functions';
-	import BrokenFittedText from './BrokenFittedText.svelte';
 	import { getColor } from '$lib/style-util';
 	import { treeInteract, type EventMap } from '$lib/tree-events';
 	import { getSankeyPath } from '$lib/visual-util';
@@ -30,7 +49,7 @@
 	export let showText = true;
 	export let heightMultiplier: number = 1.2;
 	export let widthMultiplier: number = 0.6;
-	export let minLabelScale = 0;
+	export let labels: LabelStyle = PAGE_LABELS;
 
 	export let hoverDelay: number = 800;
 
@@ -129,10 +148,10 @@
 
 		let linkPath = getSankeyPath(cTop, cBot, lSize, d1Size, downWardStart);
 		let textShape = {
-			x: cachedProps.d2Offset + lSize.child * 0.18,
+			x: cachedProps.d2Offset + lSize.child * labels.inset,
 			y: childrenD1Offset - childD1 * 0.05,
 			height: childD1 * 0.9,
-			width: lSize.child * 0.64
+			width: lSize.child * labels.widthRate
 		};
 		const hoverShape = {
 			x: cachedProps.d2Offset,
@@ -207,7 +226,7 @@
 			{...textShape}
 			{heightMultiplier}
 			{widthMultiplier}
-			minScale={minLabelScale}
+			{...labels.fit}
 		/>
 	{/if}
 
@@ -235,7 +254,7 @@
 			{heightMultiplier}
 			{widthMultiplier}
 			{showText}
-			{minLabelScale}
+			{labels}
 			{hoverDelay}
 			parentSideMargin={0}
 			on:ti
