@@ -1,3 +1,4 @@
+import { error, redirect } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 
 // Admins are configured out-of-band via the ADMIN_ORCIDS env var (comma-separated bare
@@ -22,4 +23,11 @@ function adminOrcids(): Set<string> {
 
 export function isAdmin(orcid: string | null | undefined): boolean {
 	return !!orcid && adminOrcids().has(normalize(orcid));
+}
+
+export function requireAdmin(locals: App.Locals, url: URL): void {
+	if (!locals.user)
+		redirect(302, `/login?returnTo=${encodeURIComponent(url.pathname + url.search)}`);
+	if (!isAdmin(locals.user.orcid))
+		error(403, `Signed in as ${locals.user.orcid}, which is not on the admin list`);
 }

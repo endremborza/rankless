@@ -1,6 +1,5 @@
-import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { isAdmin } from '$lib/server/admin';
+import { requireAdmin } from '$lib/server/admin';
 import { loadReviewQueuePage } from '$lib/server/review-data';
 import type { EventFilter } from '$lib/server/db';
 import type { LedgerKind, ModerationState } from '$lib/types/ledger';
@@ -32,8 +31,7 @@ function clampInt(raw: string | null, lo: number, hi: number, dflt: number): num
 }
 
 export const load: PageServerLoad = ({ locals, url }) => {
-	// 404 (not 403) so the page's existence stays hidden from non-admins.
-	if (!isAdmin(locals.user?.orcid)) error(404, 'Not found');
+	requireAdmin(locals, url);
 
 	const stateRaw = url.searchParams.get('state') ?? 'pending';
 	const state = stateRaw in STATE_MAP ? stateRaw : 'pending';

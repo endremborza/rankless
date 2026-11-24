@@ -1,14 +1,12 @@
-import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { isAdmin } from '$lib/server/admin';
+import { requireAdmin } from '$lib/server/admin';
 import { ConsentDb, LedgerDb, OrcidNameDb, SessionDb, UserDb } from '$lib/server/db';
 import { resolveOrcidProfiles } from '$lib/server/id_resolver';
 import { readManifest } from '$lib/server/manifest';
 import type { EmailConsent } from '$lib/types/email-consent';
 
-export const load: PageServerLoad = async ({ locals }) => {
-	// 404 (not 403) so the page's existence stays hidden from non-admins.
-	if (!isAdmin(locals.user?.orcid)) error(404, 'Not found');
+export const load: PageServerLoad = async ({ locals, url }) => {
+	requireAdmin(locals, url);
 
 	const online = SessionDb.activeOrcids();
 	const consents = ConsentDb.listActiveConsents();

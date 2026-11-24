@@ -1,14 +1,12 @@
-import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { isAdmin } from '$lib/server/admin';
+import { requireAdmin } from '$lib/server/admin';
 import { getDb } from '$lib/server/db';
 import { servedPack } from '$lib/server/game-geo';
 import { currentObjects } from '$lib/server/objects';
 import { KINDS, isMedicalName } from '$lib/utils/game-geo';
 
-export const load: PageServerLoad = async ({ locals }) => {
-	// 404 (not 403) so the page's existence stays hidden from non-admins.
-	if (!isAdmin(locals.user?.orcid)) error(404, 'Not found');
+export const load: PageServerLoad = async ({ locals, url }) => {
+	requireAdmin(locals, url);
 	const served = await servedPack();
 	return {
 		// served = current AND (for country cards) badge-gated; medical names

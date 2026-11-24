@@ -1,6 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { isAdmin } from '$lib/server/admin';
+import { isAdmin, requireAdmin } from '$lib/server/admin';
 import { badgesFor, servedPack, toPlayCard } from '$lib/server/game-geo';
 import { listObjects, setObjectStatus } from '$lib/server/objects';
 import type { GameFact, StoredCard } from '$lib/types/game-geo';
@@ -9,9 +9,8 @@ import { KINDS } from '$lib/utils/game-geo';
 
 const STATUSES: ObjectStatus[] = ['new', 'approved', 'rejected'];
 
-export const load: PageServerLoad = async ({ locals }) => {
-	// 404 (not 403) so the page's existence stays hidden from non-admins.
-	if (!isAdmin(locals.user?.orcid)) error(404, 'Not found');
+export const load: PageServerLoad = async ({ locals, url }) => {
+	requireAdmin(locals, url);
 	// One row per card key: the latest version, which is what a verdict applies
 	// to (listObjects orders by obj_key, gen_at DESC).
 	const seen = new Set<string>();
